@@ -9,5 +9,6 @@ vendor/
 Ship_Packages/
 Checkpoints/*
 !Checkpoints/gi-rescope-shipped-34ba3ffe/
+!Checkpoints/gi-warmwins-seal-ee122880/
 ct-image/stage/
 extensions/graph-intelligence/extension.js

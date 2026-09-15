@@ -1,0 +1,122 @@
+// GI-OMP master registry — one machine-wide sqlite, WAL, row UPSERTs.
+// NO JSON fallback. NO dual-write. AP-4 / T-2.
+
+import * as os from "node:os";
+import * as path from "node:path";
+import { Database } from "bun:sqlite";
+import {
+  closeStoreDb,
+  getStoreDb,
+  makeDbPath,
+  upsertRow,
+} from "../scoping/index.ts";
+export const GI_REGISTRY_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS gi_sessions (
+    session_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL DEFAULT '{}',
+    scope_root TEXT NOT NULL,
+    store_path TEXT NOT NULL,
+    opened_at TEXT NOT NULL
+  )`,
+];
+
+const resolveRegistryPath = makeDbPath({
+  envVars: ["GI_OMP_DB_DIR"],
+  defaultDir: "~/.omp/graph-intelligence",
+  fileName: "registry.sqlite",
+  testFile: path.join(os.tmpdir(), "gi-omp-registry-test.sqlite"),
+});
+
+export function giRegistryPath(): string {
+  if (!process.env.GI_OMP_DB_DIR) {
+    const argv1 = process.argv[1] ?? "";
+    const bunTestUnset = process.env.BUN_TEST === "1"
+      || argv1.includes("st-gi-omp")
+      || argv1.includes(".test.")
+      || argv1.includes("_test_");
+    if (bunTestUnset) {
+      return path.join(os.tmpdir(), "gi-omp-registry-test.sqlite");
+    }
+  }
+  return resolveRegistryPath();
+}
+
+export function openGiRegistry(): Database {
+  return getStoreDb({
+    dbPath: giRegistryPath(),
+    schema: GI_REGISTRY_SCHEMA,
+    id: "gi-omp",
+  });
+}
+
+export function upsertGiSession(row: {
+  sessionId: string;
+  scopeRoot: string;
+  storePath: string;
+}): void {
+  openGiRegistry();
+  upsertRow("gi_sessions", "session_id", row.sessionId, "{}", {
+    scope_root: row.scopeRoot,
+    store_path: row.storePath,
+    opened_at: new Date().toISOString(),
+  });
+}
+
+export function findGiSession(sessionId: string): {
+  session_id: string;
+  scope_root: string;
+  store_path: string;
+} | null {
+  const db = openGiRegistry();
+  const hit = db.query(
+    "SELECT session_id, scope_root, store_path FROM gi_sessions WHERE session_id = ?",
+  ).get(sessionId) as
+    | { session_id: string; scope_root: string; store_path: string }
+    | null
+    | undefined;
+  return hit ?? null;
+}
+
+export function findGiSessionByStorePath(storePath: string): {
+  session_id: string;
+  scope_root: string;
+  store_path: string;
+} | null {
+  const db = openGiRegistry();
+  const hit = db.query(
+    "SELECT session_id, scope_root, store_path FROM gi_sessions WHERE store_path = ?",
+  ).get(storePath) as
+    | { session_id: string; scope_root: string; store_path: string }
+    | null
+    | undefined;
+  return hit ?? null;
+}
+
+export function giSessionCount(): number {
+  const db = openGiRegistry();
+  const row = db.query("SELECT COUNT(*) AS n FROM gi_sessions").get() as { n: number };
+  return Number(row.n);
+}
+
+export class GiClearError extends Error {
+  readonly code = "GI_CLEAR_REFUSED";
+  constructor(message: string) {
+    super(message);
+    this.name = "GiClearError";
+  }
+}
+
+/** AP-8: tests that wiped prod DB. Production wipe is env-gated. */
+export function clearGiRegistry(): void {
+  if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
+    throw new GiClearError(
+      "GI_CLEAR_REFUSED: set GI_OMP_ALLOW_CLEAR=1 to wipe the registry (never default)",
+    );
+  }
+  const db = openGiRegistry();
+  db.run("DELETE FROM gi_sessions");
+}
+
+export function closeGiRegistry(): void {
+  closeStoreDb();
+}
