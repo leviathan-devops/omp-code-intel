@@ -106,17 +106,21 @@ export function resolveGraphifyBinary(
   uvCandidates: string[] = [path.join(os.homedir(), GRAPHIFY_UV_CANDIDATE)],
 ): GraphifyBinary {
   const fromEnv = env[GRAPHIFY_BIN_ENV];
-  if (typeof fromEnv === "string" && fromEnv.length > 0 && fs.existsSync(fromEnv)) {
-    return { present: true, bin: fromEnv, source: "env" };
+  if (typeof fromEnv === "string" && fromEnv.length > 0) {
+    try {
+      if (fs.statSync(fromEnv).isFile()) return { present: true, bin: fromEnv, source: "env" };
+    } catch { /* missing — fall through to candidates */ }
   }
   for (const candidate of uvCandidates) {
     if (candidate.length > 0 && fs.existsSync(candidate)) return { present: true, bin: candidate, source: "uv" };
   }
   const pathEnv = env.PATH ?? process.env.PATH ?? "";
-  for (const dir of pathEnv.split(":")) {
+  for (const dir of pathEnv.split(path.delimiter)) {
     if (!dir) continue;
     const cand = path.join(dir, "graphify");
-    if (fs.existsSync(cand)) return { present: true, bin: cand, source: "path" };
+    try {
+      if (fs.statSync(cand).isFile()) return { present: true, bin: cand, source: "path" };
+    } catch { /* not a file — keep walking */ }
   }
   return { present: false, bin: "", source: "absent" };
 }
@@ -172,18 +176,28 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
 
 /** Fork graph-mapper.ts:40-87 normalizeGraph (links|edges tolerant). */
 export function normalizeGraphifyGraph(raw: Record<string, unknown>): GraphifyGraph {
-  const rawNodes = (raw["nodes"] as unknown[]) ?? [];
-  const rawLinks = ((raw["links"] as unknown[]) ?? (raw["edges"] as unknown[]) ?? []) as Record<string, unknown>[];
-  const nodes: GraphifyNode[] = rawNodes.map((n) => {
+  const rawNodes = (Array.isArray(raw["nodes"]) ? raw["nodes"] as unknown[] : []);
+  const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] as unknown[] : (Array.isArray(raw["edges"]) ? raw["edges"] as unknown[] : []);
+  const rawLinks = rawLinkSrc as Record<string, unknown>[];
+  const seenIds = new Set<string>();
+  let dropped = 0;
+  const nodes: GraphifyNode[] = [];
+  for (const n of rawNodes) {
     const r = n as Record<string, unknown>;
-    return {
-      id: String(r["id"] ?? r["label"] ?? ""),
-      label: String(r["label"] ?? r["id"] ?? ""),
+    let id = String(r["id"] ?? r["label"] ?? "");
+    const label = String(r["label"] ?? r["id"] ?? "");
+    if (id.length === 0) { dropped++; continue; }
+    if (seenIds.has(id)) id = `${id}#${seenIds.size}`;
+    seenIds.add(id);
+    nodes.push({
+      id,
+      label,
       type: String(r["file_type"] ?? r["type"] ?? "unknown"),
       file: String(r["source_file"] ?? r["file"] ?? ""),
       data: r,
-    };
-  });
+    });
+  }
+  if (dropped > 0) tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   const edges: GraphifyEdge[] = rawLinks.map((e) => {
     const src = String(e["source"] ?? e["src"] ?? "");
     const dst = String(e["target"] ?? e["dst"] ?? "");
@@ -324,8 +338,10 @@ export function graphifyPredicateToTyped(relation: string): string {
     case "should-be": return "shouldBe";
     case "awaits":
     case "await": return "awaits";
-    case "extends": return "implements";
-    default: return "declares";
+    case "extends": return "extends";
+    default:
+      tridentLog("WARN", "graphify-adapter", `unknown typed predicate '${relation}' -> 'declares' (typo becomes declares — fix the source)`);
+      return "declares";
   }
 }
 
@@ -336,7 +352,7 @@ export function graphifyPredicateToTyped(relation: string): string {
 function parseLineValue(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v) && v >= 1) return Math.floor(v);
   if (typeof v === "string") {
-    const m = /L?\s*(\d+)/.exec(v);
+    const m = /^L?\s*(\d+)\s*$/.exec(v.trim());
     if (m) {
       const n = Number(m[1]);
       if (Number.isFinite(n) && n >= 1) return Math.floor(n);
@@ -419,7 +435,8 @@ export function mapGraphifyToTyped(
   const nodesById = new Map(nodes.map((n) => [n.id, n] as const));
   const edgeRows: ForkEdge[] = edges.map((e) => {
     const src = nodesById.get(e.sourceId);
-    const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {} }) ?? 1;
+    const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {} });
+    if (line === undefined) throw new Error(`LINELESS_NODE: no line for edge ${e.sourceId}->${e.targetId} (edge + source both lineless)`);
     return {
       srcCanonical: e.sourceId,
       dstCanonical: e.targetId,
@@ -453,15 +470,18 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
   const nodeByRawId = new Map(graph.nodes.map((n) => [n.id, n] as const));
   const byId = new Map(nodes.map((n) => [n.id, n] as const));
   const edges: GraphEdge[] = [];
+  let dangling = 0;
+  let danglingNoLine = 0;
   for (const e of graph.edges) {
     const src = `graphify:${e.src}`;
     const dst = `graphify:${e.dst}`;
-    if (!byId.has(src) || !byId.has(dst)) continue; // the dangling edge dropped (corbell posture)
+    if (!byId.has(src) || !byId.has(dst)) { dangling++; continue; }
     const rawEdge = e as unknown as Record<string, unknown>;
     const edgeLoc = rawEdge["source_location"];
     const srcNode = byId.get(src);
     const srcFile = srcNode?.file;
     const line = parseLineValue(edgeLoc) ?? srcNode?.line ?? tryResolveGraphifyLine({ data: (nodeByRawId.get(e.src)?.data ?? {}) as Record<string, unknown> });
+    if (line === undefined) danglingNoLine++;
     edges.push({
       sourceId: src,
       targetId: dst,
@@ -471,6 +491,7 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
       line,
     });
   }
+  if (dangling + danglingNoLine > 0) tridentLog("WARN", "graphify-adapter", `project: dropped ${dangling} dangling edges; kept ${danglingNoLine} lineless-edge rows with line undefined (counted, never silent, never invented)`);
   return { nodes, edges };
 }
 
@@ -485,11 +506,6 @@ function countLineage(nodes: GraphNode[], edges: GraphEdge[]): { spec: number; c
     code: count("CODE_DERIVED", nodes) + count("CODE_DERIVED", edges),
     hybrid: count("HYBRID", nodes) + count("HYBRID", edges),
   };
-}
-
-function truncate(s: string, n = 200): string {
-  const one = s.replace(/\s+/g, " ").trim();
-  return one.length > n ? `${one.slice(0, n)}…` : one;
 }
 
 export class GraphifyAdapter implements GraphAdapter {
@@ -542,12 +558,13 @@ export class GraphifyAdapter implements GraphAdapter {
     // hunter map-branch owns LINELESS_NODE).
     const { nodes, edges } = projectGraphifyGraph(graph, root);
     if (nodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero nodes (graph.json at ${graphPath} reported: "${truncate(JSON.stringify(raw).slice(0, 200))}")`);
+      throw graphEmpty(`graphify graph build produced zero nodes (graph.json at ${graphPath} carries no nodes; keys=${Object.keys(raw).slice(0, 8).join(",")})`);
     }
     this.cachedNodes = nodes;
     this.cachedEdges = edges;
     this.cachedRaw = graph;
     this.built = true;
+    this.reindex();
     return {
       nodes,
       edges,
@@ -568,16 +585,27 @@ export class GraphifyAdapter implements GraphAdapter {
     return this.lastGraphPath;
   }
 
+  private byIdIdx = new Map<string, GraphNode>();
+  private byNameIdx = new Map<string, GraphNode>();
+
+  private reindex(): void {
+    this.byIdIdx = new Map(this.cachedNodes.map((n) => [n.id, n] as const));
+    this.byNameIdx = new Map<string, GraphNode>();
+    for (const n of this.cachedNodes) if (!this.byNameIdx.has(n.name)) this.byNameIdx.set(n.name, n);
+  }
+
   private resolveNodeId(symbol: string): string {
     if (symbol.startsWith("graphify:")) return symbol;
-    const byName = this.cachedNodes.find((n) => n.name === symbol);
+    const byName = this.byNameIdx.get(symbol);
     if (byName) return byName.id;
-    const bySuffix = this.cachedNodes.find((n) => n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`));
-    return bySuffix?.id ?? `graphify:${symbol}`;
+    for (const n of this.cachedNodes) {
+      if (n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`)) return n.id;
+    }
+    return `graphify:${symbol}`;
   }
 
   private nodeById(id: string): GraphNode | undefined {
-    return this.cachedNodes.find((n) => n.id === id);
+    return this.byIdIdx.get(id);
   }
 
   private ensureBuilt(): void {
@@ -593,9 +621,11 @@ export class GraphifyAdapter implements GraphAdapter {
       .filter((e) => e.kind === "calls" && e.targetId === target)
       .map((e) => {
         const caller = this.nodeById(e.sourceId);
+        const line = e.line ?? caller?.line;
+        if (line === undefined) throw new Error(`LINELESS_NODE: no line for whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
         return {
           file: caller?.file ?? this.profile.project.root,
-          line: e.line ?? caller?.line ?? 0,
+          line,
           caller: caller?.name ?? e.sourceId,
         };
       });
@@ -614,26 +644,36 @@ export class GraphifyAdapter implements GraphAdapter {
     this.cachedEdges = edges;
     this.cachedRaw = graph;
     this.built = true;
+    this.reindex();
     return { nodes, edges, graph };
   }
 
   chain(id: string): ChainStep[] {
     this.ensureBuilt();
     const start = this.resolveNodeId(id);
+    const bySource = new Map<string, typeof this.cachedEdges>();
+    for (const e of this.cachedEdges) {
+      if (e.kind !== "calls") continue;
+      const arr = bySource.get(e.sourceId) ?? [];
+      arr.push(e);
+      bySource.set(e.sourceId, arr);
+    }
     const steps: ChainStep[] = [];
     const seen = new Set<string>([start]);
     const queue = [start];
     while (queue.length > 0) {
       const from = queue.shift()!;
-      for (const e of this.cachedEdges.filter((x) => x.kind === "calls" && x.sourceId === from)) {
+      for (const e of bySource.get(from) ?? []) {
         const caller = this.nodeById(e.sourceId);
         const callee = this.nodeById(e.targetId);
+        const line = e.line ?? callee?.line;
+        if (line === undefined) throw new Error(`LINELESS_NODE: no line for chain edge ${e.sourceId}->${e.targetId} (edge + callee both lineless)`);
         steps.push({
           from: caller?.name ?? e.sourceId,
           to: callee?.name ?? e.targetId,
           kind: e.kind,
           file: callee?.file ?? this.profile.project.root,
-          line: e.line ?? callee?.line ?? 0,
+          line,
         });
         if (!seen.has(e.targetId)) {
           seen.add(e.targetId);
@@ -652,7 +692,9 @@ export class GraphifyAdapter implements GraphAdapter {
       .map((e) => {
         const src = this.nodeById(e.sourceId);
         const dst = this.nodeById(e.targetId);
-        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+        const line = e.line ?? src?.line;
+        if (line === undefined) throw new Error(`LINELESS_NODE: no line for imports edge ${e.sourceId} (edge + source both lineless)`);
+        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line };
       });
   }
 
@@ -664,7 +706,9 @@ export class GraphifyAdapter implements GraphAdapter {
       .map((e) => {
         const src = this.nodeById(e.sourceId);
         const dst = this.nodeById(e.targetId);
-        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+        const aline = e.line ?? src?.line;
+        if (aline === undefined) throw new Error(`LINELESS_NODE: no line for awaits edge ${e.sourceId} (edge + source both lineless)`);
+        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline };
       });
   }
 
@@ -672,12 +716,12 @@ export class GraphifyAdapter implements GraphAdapter {
     this.ensureBuilt();
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
     return this.cachedNodes
-      .filter((n) => (n.kind === "function" || n.kind === "method" || n.kind === "class") && !callTargets.has(n.id))
-      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line ?? 0 }));
+      .filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id))
+      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line }));
   }
 
   nodes(kind?: GraphNodeKind): GraphNode[] {
-    if (!this.built) return [];
+    this.ensureBuilt();
     return kind === undefined ? [...this.cachedNodes] : this.cachedNodes.filter((n) => n.kind === kind);
   }
 }

@@ -24,7 +24,7 @@ import {
   insertForkEdgesBatch,
   insertForkNodesBatch,
   openTypedStore,
-  setMeta,
+  TYPED_STORE_DDL,
 } from "./typed-write.ts";
 import type { BuildResult } from "../hunter/graph/interface.ts";
 import type { ProjectProfile } from "../hunter/profile/schema.ts";
@@ -47,7 +47,7 @@ export function graphifyCheckoutPath(root: string): string {
 
 export function graphifyOutPath(root: string, profile?: ProjectProfile): string {
   if (profile) return resolveGraphifyOut(profile);
-  return path.join(path.resolve(root), "graphify-out", "graph.json");
+  return resolveGraphifyOut({ project: { root: path.resolve(root) } } as ProjectProfile);
 }
 
 /** Freshness probe (populate-corbell.ts:32-65 shape, budgeted): stale when any
@@ -56,15 +56,21 @@ export function graphifyOutPath(root: string, profile?: ProjectProfile): string 
 export function isGraphifyCheckoutFreshFor(
   root: string,
   graphPath: string,
+  scope: string[] = ["src"],
 ): { fresh: boolean; reason: string } {
   if (!fs.existsSync(graphPath)) return { fresh: false, reason: "absent" };
-  const st = fs.statSync(graphPath);
-  if (st.size === 0) return { fresh: false, reason: "empty" };
+  let st: fs.Stats;
+  try {
+    st = fs.statSync(graphPath);
+  } catch {
+    return { fresh: false, reason: "absent" };
+  }
   const warmMtime = st.mtimeMs;
   let newest = 0;
+  let exhausted = false;
   const budget = { n: GRAPHIFY_FRESHNESS_BUDGET };
   const walk = (dir: string): void => {
-    if (budget.n <= 0) return;
+    if (budget.n <= 0) { exhausted = true; return; }
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -72,12 +78,12 @@ export function isGraphifyCheckoutFreshFor(
       return;
     }
     for (const entry of entries) {
-      if (budget.n <= 0) return;
+      if (budget.n <= 0) { exhausted = true; return; }
       if (entry.isDirectory()) {
-        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out"].includes(entry.name)) continue;
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name)) continue;
         budget.n--;
         walk(path.join(dir, entry.name));
-      } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+      } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
         try {
           const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
@@ -86,11 +92,16 @@ export function isGraphifyCheckoutFreshFor(
       }
     }
   };
-  walk(root);
-  if (newest > warmMtime) return { fresh: false, reason: "stale" };
-  return { fresh: true, reason: "fresh" };
+  for (const rel of scope) {
+    const dir = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    if (fs.existsSync(dir)) walk(dir);
+  }
+  if (exhausted) return { fresh: false, reason: "stale-budget" };
+  // WARM-WINS: the graph is fresh when NO source file is newer than it.
+  // (newest <= warmMtime; the +1000ms tolerance covers same-second writes.)
+  if (newest <= warmMtime + 1000) return { fresh: true, reason: "fresh" };
+  return { fresh: false, reason: "stale" };
 }
-
 function minimalGraphifyProfile(root: string): ProjectProfile {
   const resolved = path.resolve(root);
   const slug = path.basename(resolved).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "target";
@@ -134,6 +145,9 @@ export async function populateFromGraphifyCheckout(
     project: { ...base.project, root: resolvedRoot },
   };
   const graphPath = resolveGraphifyOut(pinned);
+  // checkoutPath is the INSPECTION pointer only (scripts/graphify-build.ts
+  // writes it); the session rows go to storePath above — callers must not
+  // confuse the two (qwen 8a24ae08).
   const checkoutPath = graphifyCheckoutPath(resolvedRoot);
   const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath);
   if (!freshness.fresh) {
@@ -144,49 +158,68 @@ export async function populateFromGraphifyCheckout(
     build = await new GraphifyAdapter(pinned).build(pinned);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, reason: msg.slice(0, 200), nodes: 0, edges: 0, checkoutPath, graphPath };
+    const named = /GRAPHIFY_NOT_WARM:|GRAPH_EMPTY:|LINELESS_NODE|GRAPHIFY_GRAPH_TOO_LARGE|GRAPHIFY_EXTRACT_FAILED/.test(msg)
+      ? msg.slice(0, 200)
+      : `GRAPHIFY_CORRUPT:build-failed (not a warm-miss — investigate, do not rebuild-blindly) ${msg.slice(0, 140)}`;
+    return { ok: false, reason: named, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
   if (build.nodes.length === 0) {
     return { ok: false, reason: "GRAPH_EMPTY:graphify graph produced zero nodes", nodes: 0, edges: 0, checkoutPath, graphPath };
   }
   const { nodeRows, edgeRows } = mapGraphifyToTyped(build.nodes, build.edges, runTag);
-  const db = openTypedStore(storePath);
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.exec("BEGIN IMMEDIATE;");
-    const nodeInserts: ForkNode[] = nodeRows.map((r) => ({
-      canonicalId: r.canonicalId,
-      kind: r.kind,
-      label: r.label,
-      file: r.file,
-      line: r.line,
-      run: runTag,
-    }));
-    const edgeInserts: ForkEdge[] = edgeRows.map((r) => ({
-      srcCanonical: r.srcCanonical,
-      dstCanonical: r.dstCanonical,
-      predicate: r.predicate,
-      evidence: r.evidence,
-      run: runTag,
-    }));
-    insertForkNodesBatch(db, nodeInserts);
-    insertForkEdgesBatch(db, edgeInserts);
-    db.exec("COMMIT;");
-  } finally {
-    db.close();
+    supersedeThenInsert(openTypedStore(storePath), runTag, nodeRows, edgeRows, [
+      ["substrate", "graphify"],
+      ["graphify_graph", graphPath],
+      ["graphify_nodes", String(nodeRows.length)],
+      ["graphify_edges", String(edgeRows.length)],
+      ["populated_at", new Date().toISOString()],
+    ]);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: `GRAPHIFY_WRITE_FAILED:${msg.slice(0, 160)}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
-  setMeta(storePath, "substrate", "graphify");
-  setMeta(storePath, "graphify_graph", graphPath);
-  setMeta(storePath, "graphify_nodes", String(nodeRows.length));
-  setMeta(storePath, "graphify_edges", String(edgeRows.length));
-  setMeta(storePath, "populated_at", new Date().toISOString());
   console.error(
     `[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`,
   );
   return { ok: true, nodes: nodeRows.length, edges: edgeRows.length, checkoutPath, graphPath };
 }
 
+/** V-16 FIX (qwen session 1aca90d4): the single-txn helper — supersede +
+ *  insert + meta in ONE transaction with ROLLBACK. Before: supersede UPDATEs
+ *  ran in autocommit BEFORE BEGIN, so an insert throw lost live rows with no
+ *  replacement and no rollback; 5x setMeta reopened the DB after close. Now:
+ *  everything rides one connection, one BEGIN IMMEDIATE, one COMMIT; any
+ *  throw → ROLLBACK → close → named GRAPHIFY_WRITE_FAILED (loud, never
+ *  silent, never half-written). The checkout path below uses the same helper
+ *  (DDL single-sourced from typed-write.ts, no drift). */
+export function supersedeThenInsert(
+  // Caller-owned connection: the caller opens (openTypedStore / new Database)
+  // and MUST NOT be inside a transaction (bare BEGIN fails otherwise — the
+  // helper owns BEGIN/COMMIT/ROLLBACK/close for exactly one unit of work).
+  db: Database,
+  runTag: string,
+  nodeRows: ForkNode[],
+  edgeRows: ForkEdge[],
+  meta: Array<[string, string]>,
+): void {
+  db.exec("BEGIN IMMEDIATE;");
+  try {
+    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    insertForkNodesBatch(db, nodeRows);
+    insertForkEdgesBatch(db, edgeRows);
+    for (const [k, v] of meta) {
+      db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
+    }
+    db.exec("COMMIT;");
+  } catch (e) {
+    try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back — close still runs */ }
+    throw e;
+  } finally {
+    db.close();
+  }
+}
 /** Inspection-checkout writer (the scripts/graphify-build.ts path): the SAME
  *  typed DDL + the SAME batch writers + the SAME supersede discipline as
  *  writeCorbellCheckout in store-map.ts, against a bare sqlite file that is
@@ -198,38 +231,25 @@ export function writeGraphifyCheckout(
   opts?: { runTag?: string },
 ): { nodes: number; edges: number; runTag: string; storeNodes: number; storeEdges: number } {
   const runTag = opts?.runTag ?? `graphify-checkout-${Date.now().toString(36)}`;
+  if (nodeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
   const taggedNodes = nodeRows.map((r) => ({ ...r, run: runTag }));
   const taggedEdges = edgeRows.map((r) => ({ ...r, run: runTag }));
-  fs.mkdirSync(checkoutPath.slice(0, checkoutPath.lastIndexOf("/")), { recursive: true });
+  fs.mkdirSync(path.dirname(checkoutPath), { recursive: true });
   const db = new Database(checkoutPath, { create: true });
   try {
     db.exec("PRAGMA journal_mode = WAL;");
-    db.run(`CREATE TABLE IF NOT EXISTS typed_nodes (
-    id INTEGER PRIMARY KEY,
-    canonical_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    label TEXT NOT NULL,
-    file TEXT,
-    line INTEGER,
-    created_run TEXT NOT NULL,
-    superseded_run TEXT
-  )`);
-    db.run(`CREATE TABLE IF NOT EXISTS typed_edges (
-    id INTEGER PRIMARY KEY,
-    src_canonical TEXT NOT NULL,
-    dst_canonical TEXT NOT NULL,
-    predicate TEXT NOT NULL,
-    evidence_quote TEXT NOT NULL,
-    confidence REAL NOT NULL DEFAULT 1.0,
-    created_run TEXT NOT NULL,
-    superseded_run TEXT
-  )`);
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    for (const stmt of TYPED_STORE_DDL) db.run(stmt);
     db.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(db, taggedNodes);
-    insertForkEdgesBatch(db, taggedEdges);
-    db.exec("COMMIT;");
+    try {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkNodesBatch(db, taggedNodes);
+      insertForkEdgesBatch(db, taggedEdges);
+      db.exec("COMMIT;");
+    } catch (e) {
+      try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back — close still runs */ }
+      throw e;
+    }
     const nRow = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get() as { n: number };
     const eRow = db.query("SELECT COUNT(*) AS n FROM typed_edges WHERE superseded_run IS NULL").get() as { n: number };
     return { nodes: taggedNodes.length, edges: taggedEdges.length, runTag, storeNodes: Number(nRow.n), storeEdges: Number(eRow.n) };

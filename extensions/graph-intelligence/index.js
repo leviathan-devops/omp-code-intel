@@ -57,7 +57,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// node_modules/xstate/dist/xstate-dev.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-dev.development.cjs.js
 var require_xstate_dev_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   function getGlobal() {
@@ -107,7 +107,7 @@ var require_xstate_dev_development_cjs = __commonJS(function(exports) {
   exports.registerService = registerService;
 });
 
-// node_modules/xstate/dist/raise-6dbf7d60.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/raise-6dbf7d60.development.cjs.js
 var require_raise_6dbf7d60_development_cjs = __commonJS(function(exports) {
   var dist_xstateDev = require_xstate_dev_development_cjs();
 
@@ -2440,7 +2440,7 @@ ${err.message}`);
   exports.transitionNode = transitionNode;
 });
 
-// node_modules/xstate/dist/xstate-actors.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-actors.development.cjs.js
 var require_xstate_actors_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
@@ -2822,7 +2822,7 @@ var require_xstate_actors_development_cjs = __commonJS(function(exports) {
   exports.fromTransition = fromTransition;
 });
 
-// node_modules/xstate/dist/assign-22c2f2aa.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/assign-22c2f2aa.development.cjs.js
 var require_assign_22c2f2aa_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   function createSpawner(actorScope, {
@@ -2922,7 +2922,7 @@ var require_assign_22c2f2aa_development_cjs = __commonJS(function(exports) {
   exports.assign = assign;
 });
 
-// node_modules/xstate/dist/StateMachine-d4a4d688.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/StateMachine-d4a4d688.development.cjs.js
 var require_StateMachine_d4a4d688_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   var assign = require_assign_22c2f2aa_development_cjs();
@@ -3405,7 +3405,7 @@ ${err.message}`);
   exports.StateNode = StateNode;
 });
 
-// node_modules/xstate/dist/log-dc444aec.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/log-dc444aec.development.cjs.js
 var require_log_dc444aec_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   var assign = require_assign_22c2f2aa_development_cjs();
@@ -3644,7 +3644,7 @@ var require_log_dc444aec_development_cjs = __commonJS(function(exports) {
   exports.sendTo = sendTo;
 });
 
-// node_modules/xstate/dist/xstate.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate.development.cjs.js
 var require_xstate_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dist_xstateActors = require_xstate_actors_development_cjs();
@@ -4042,7 +4042,7 @@ var init_ontology = __esm(() => {
   PREDICATE_SET = new Set(ALL_PREDICATES);
 });
 
-// node_modules/typescript/package.json
+// ../../OMP/Graph_Intelligence/node_modules/typescript/package.json
 var require_package = __commonJS(function(exports, module) {
   module.exports = {
     name: "typescript",
@@ -4133,7 +4133,7 @@ var require_package = __commonJS(function(exports, module) {
   };
 });
 
-// node_modules/zod/v4/core/core.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/core.js
 function $constructor(name, initializer, params) {
   function init(inst, def) {
     var _a;
@@ -4202,7 +4202,7 @@ var init_core = __esm(() => {
   globalConfig = {};
 });
 
-// node_modules/zod/v4/core/util.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/util.js
 function getEnumValues(entries) {
   const numericValues = Object.values(entries).filter((v) => typeof v === "number");
   const values = Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
@@ -4588,7 +4588,7 @@ var init_util = __esm(() => {
   };
 });
 
-// node_modules/zod/v4/core/errors.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/errors.js
 function flattenError(error, mapper = (issue) => issue.message) {
   const fieldErrors = {};
   const formErrors = [];
@@ -4661,7 +4661,7 @@ var init_errors = __esm(() => {
   $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
 });
 
-// node_modules/zod/v4/core/parse.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -4733,7 +4733,7 @@ var init_parse = __esm(() => {
   safeParseAsync = /* @__PURE__ */ _safeParseAsync($ZodRealError);
 });
 
-// node_modules/zod/v4/core/regexes.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/regexes.js
 function emoji() {
   return new RegExp(_emoji, "u");
 }
@@ -4789,7 +4789,7 @@ var init_regexes = __esm(() => {
   uppercase = /^[^a-z]*$/;
 });
 
-// node_modules/zod/v4/core/checks.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/checks.js
 var $ZodCheck, numericOriginMap, $ZodCheckLessThan, $ZodCheckGreaterThan, $ZodCheckMultipleOf, $ZodCheckNumberFormat, $ZodCheckMaxLength, $ZodCheckMinLength, $ZodCheckLengthEquals, $ZodCheckStringFormat, $ZodCheckRegex, $ZodCheckLowerCase, $ZodCheckUpperCase, $ZodCheckIncludes, $ZodCheckStartsWith, $ZodCheckEndsWith, $ZodCheckOverwrite;
 var init_checks = __esm(() => {
   init_core();
@@ -5180,7 +5180,7 @@ var init_checks = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/core/doc.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/doc.js
 class Doc {
   constructor(args = []) {
     this.content = [];
@@ -5218,7 +5218,7 @@ class Doc {
   }
 }
 
-// node_modules/zod/v4/core/versions.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/versions.js
 var version2;
 var init_versions = __esm(() => {
   version2 = {
@@ -5228,7 +5228,7 @@ var init_versions = __esm(() => {
   };
 });
 
-// node_modules/zod/v4/core/schemas.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/schemas.js
 function isValidBase64(data) {
   if (data === "")
     return true;
@@ -6540,7 +6540,7 @@ var init_schemas = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/locales/en.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/locales/en.js
 function en_default() {
   return {
     localeError: error()
@@ -6660,10 +6660,10 @@ var init_en = __esm(() => {
   init_util();
 });
 
-// node_modules/zod/v4/locales/index.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/locales/index.js
 var init_locales = () => {};
 
-// node_modules/zod/v4/core/registries.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/registries.js
 class $ZodRegistry {
   constructor() {
     this._map = new WeakMap;
@@ -6717,7 +6717,7 @@ var init_registries = __esm(() => {
   globalRegistry = /* @__PURE__ */ registry();
 });
 
-// node_modules/zod/v4/core/api.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/api.js
 function _string(Class, params) {
   return new Class({
     type: "string",
@@ -7173,13 +7173,13 @@ var init_api = __esm(() => {
   init_util();
 });
 
-// node_modules/zod/v4/core/to-json-schema.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/to-json-schema.js
 var init_to_json_schema = () => {};
 
-// node_modules/zod/v4/core/json-schema.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/json-schema.js
 var init_json_schema = () => {};
 
-// node_modules/zod/v4/core/index.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/index.js
 var init_core2 = __esm(() => {
   init_util();
   init_regexes();
@@ -7196,12 +7196,12 @@ var init_core2 = __esm(() => {
   init_to_json_schema();
 });
 
-// node_modules/zod/v4/classic/checks.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/checks.js
 var init_checks2 = __esm(() => {
   init_core2();
 });
 
-// node_modules/zod/v4/classic/iso.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/iso.js
 function datetime2(params) {
   return _isoDateTime(ZodISODateTime, params);
 }
@@ -7236,7 +7236,7 @@ var init_iso = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/classic/errors.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -7276,7 +7276,7 @@ var init_errors2 = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/classic/parse.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/parse.js
 var parse3, parseAsync2, safeParse2, safeParseAsync2, encode, decode, encodeAsync, decodeAsync, safeEncode, safeDecode, safeEncodeAsync, safeDecodeAsync;
 var init_parse2 = __esm(() => {
   init_core2();
@@ -7295,7 +7295,7 @@ var init_parse2 = __esm(() => {
   safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 });
 
-// node_modules/zod/v4/classic/schemas.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/schemas.js
 function string2(params) {
   return _string(ZodString, params);
 }
@@ -7890,16 +7890,16 @@ var init_schemas2 = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/classic/compat.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/compat.js
 var ZodFirstPartyTypeKind;
 var init_compat = __esm(() => {
   (function(ZodFirstPartyTypeKind) {})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 });
 
-// node_modules/zod/v4/classic/coerce.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/coerce.js
 var init_coerce = () => {};
 
-// node_modules/zod/v4/classic/external.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/external.js
 var init_external = __esm(() => {
   init_core2();
   init_core2();
@@ -7915,7 +7915,7 @@ var init_external = __esm(() => {
   config(en_default());
 });
 
-// node_modules/zod/index.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/index.js
 var init_zod = __esm(() => {
   init_external();
   init_external();
@@ -8491,7 +8491,9 @@ function makeCappedReadTool(targetRoot) {
       const filePath = String(params.path ?? "");
       const offset = typeof params.offset === "number" ? params.offset : 0;
       const limit = typeof params.limit === "number" ? params.limit : READ_CAP;
-      if (typeof limit === "number" && limit > READ_CAP)
+      if (!Number.isInteger(limit) || limit <= 0)
+        return `READ_INVALID: limit must be a positive integer (got ${String(params.limit)})`;
+      if (limit > READ_CAP)
         return `READ_CAP_EXCEEDED: ${limit} > ${READ_CAP}`;
       if (!filePath)
         return "READ_INVALID: path required";
@@ -8502,11 +8504,17 @@ function makeCappedReadTool(targetRoot) {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
+        const size = fs22.statSync(realFile).size;
+        if (size > 8 * 1024 * 1024)
+          return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
         const lines = fs22.readFileSync(realFile, "utf-8").split(`
 `);
         const start = Math.max(0, offset);
-        return lines.slice(start, Math.min(lines.length, start + limit)).join(`
-`);
+        const slice = lines.slice(start, Math.min(lines.length, start + limit));
+        const truncated = start + limit < lines.length;
+        return slice.join(`
+`) + (truncated ? `
+[TRUNCATED]` : "");
       } catch (e) {
         return `READ_FAILED: ${String(e.message).slice(0, 300)}`;
       }
@@ -8524,18 +8532,22 @@ function makeCappedGrepTool(targetRoot) {
       const maxResults = Math.min(typeof params.maxResults === "number" ? params.maxResults : GREP_CAP, GREP_CAP);
       const run = (cmd, args) => new Promise((resolve) => {
         execFile(cmd, args, { timeout: 1e4, maxBuffer: 2000000 }, (err, stdout) => {
-          resolve(err && !stdout ? `SEARCH_FAILED: ${String(err.message).slice(0, 160)}` : String(stdout));
+          if (err)
+            return resolve(`SEARCH_FAILED: ${String(err.message).slice(0, 160)}${stdout ? " | partial: " + String(stdout).slice(0, 400) : ""}`);
+          resolve(String(stdout));
         });
       });
       let out = await run("rg", ["-n", "--max-count", String(maxResults), pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-E", pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), pattern, targetRoot]);
       }
       if (out.startsWith("SEARCH_FAILED"))
         return out;
+      if (out.trim().length === 0)
+        return "(no matches)";
       return out.split(`
 `).filter(Boolean).slice(0, maxResults).join(`
-`).slice(0, 8000) || "(no matches)";
+`).slice(0, 8000);
     }
   };
 }
@@ -8584,9 +8596,9 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
       const line = typeof params.findingLine === "number" ? params.findingLine : 0;
       const subject = String(params.findingSubject ?? "finding");
       const evidence = String(params.evidence ?? "");
-      const evidence_quote = evidence.startsWith("[INFERRED]") ? evidence : `explicit: ${evidence || "no evidence"}`;
-      if (evidence_quote.length === 0)
-        throw new Error("GRAPH_TAG_EVIDENCE_EMPTY");
+      if (evidence.trim().length === 0)
+        throw new Error("GRAPH_TAG_EVIDENCE_EMPTY: evidence required (no silent no-evidence tags)");
+      const evidence_quote = evidence.startsWith("[INFERRED]") ? evidence : `explicit: ${evidence}`;
       const codeNodeId = `${file}:${line}:code`;
       const canonical_id = `${layerId}:${file}:${line}`;
       const row = {
@@ -8653,11 +8665,13 @@ function parseFindingsMarkdown(raw) {
       }
     }
     const fileField = stripOuterQuotes(fields.get("file"));
-    const colonAt = fileField.lastIndexOf(":");
-    if (colonAt < 1 || colonAt === fileField.length - 1) {
+    const drive = /^[A-Za-z]:[\\/]/.test(fileField) ? fileField.slice(0, 2) : "";
+    const rest = drive !== "" ? fileField.slice(2) : fileField;
+    const mLine = /^(.*):(\d+)\s*$/.exec(rest);
+    if (!mLine) {
       throw new Error(`GRAMMAR_VIOLATION: block "${h.subject}" malformed field 'file' \u2014 expected "<path>:<line>" got "${fileField}"`);
     }
-    const line = Number.parseInt(fileField.slice(colonAt + 1).trim(), 10);
+    const line = Number.parseInt(mLine[2], 10);
     if (!Number.isFinite(line) || line <= 0 || !Number.isInteger(line)) {
       throw new Error(`GRAMMAR_VIOLATION: block "${h.subject}" malformed field 'file' line part \u2014 expected positive integer`);
     }
@@ -8668,7 +8682,7 @@ function parseFindingsMarkdown(raw) {
     const candidate = {
       subject: h.subject,
       predicate: stripOuterQuotes(fields.get("predicate")),
-      file: fileField.slice(0, colonAt).trim(),
+      file: (drive + mLine[1]).trim(),
       line,
       evidence,
       implicatedSpecClause: stripOuterQuotes(fields.get("spec")),
@@ -8817,24 +8831,42 @@ async function sweep(template, graph, targetRoot, belt, calls) {
       adj.set(e.src, [...adj.get(e.src) ?? [], e.dst]);
     const cycles = [];
     const visited = new Set;
-    const stack = [];
-    const onStack = new Set;
-    const dfs = (id) => {
-      visited.add(id);
-      stack.push(id);
-      onStack.add(id);
-      for (const nb of adj.get(id) ?? []) {
-        if (!visited.has(nb))
-          dfs(nb);
-        else if (onStack.has(nb))
-          cycles.push([...stack.slice(stack.indexOf(nb)), nb]);
+    {
+      const stack = [];
+      const onStack = new Set;
+      const path = [];
+      for (const seed of graph.nodes) {
+        if (cycles.length >= 3)
+          break;
+        if (visited.has(seed.id))
+          continue;
+        stack.push({ id: seed.id, it: 0 });
+        while (stack.length > 0 && cycles.length < 3) {
+          const top = stack[stack.length - 1];
+          if (top.it === 0) {
+            if (visited.has(top.id)) {
+              stack.pop();
+              continue;
+            }
+            visited.add(top.id);
+            path.push(top.id);
+            onStack.add(top.id);
+          }
+          const nbs = adj.get(top.id) ?? [];
+          if (top.it < nbs.length) {
+            const nb = nbs[top.it++];
+            if (!visited.has(nb))
+              stack.push({ id: nb, it: 0 });
+            else if (onStack.has(nb))
+              cycles.push([...path.slice(path.indexOf(nb)), nb]);
+          } else {
+            stack.pop();
+            onStack.delete(top.id);
+            path.pop();
+          }
+        }
       }
-      stack.pop();
-      onStack.delete(id);
-    };
-    for (const n of graph.nodes)
-      if (!visited.has(n.id))
-        dfs(n.id);
+    }
     if (cycles.length === 0) {
       return [confirmedEmpty(anchor, template.layerId, `DFS over ${graph.nodes.length} nodes/${graph.edges.length} edges found no directed cycle`, firstNodeFile)];
     }
@@ -8860,10 +8892,9 @@ async function sweep(template, graph, targetRoot, belt, calls) {
       indeg.set(e.dst, (indeg.get(e.dst) ?? 0) + 1);
       outdeg.set(e.src, (outdeg.get(e.src) ?? 0) + 1);
     }
+    const isolates = graph.nodes.filter((n) => (indeg.get(n.id) ?? 0) === 0 && (outdeg.get(n.id) ?? 0) === 0).slice(0, 25);
     const out = [];
-    for (const n of graph.nodes) {
-      if ((indeg.get(n.id) ?? 0) !== 0 || (outdeg.get(n.id) ?? 0) !== 0)
-        continue;
+    for (const n of isolates) {
       const rel = nodeFile(targetRoot, n);
       if (rel === "" || /(^|\/)package\.json$/.test(rel))
         continue;
@@ -9069,7 +9100,13 @@ ${summary}
   const writeOut = await belt.writeFindings.invoke({ content: report });
   calls.count += 1;
   calls.names.push("write_findings");
-  if (!writeOut.includes('"bytes"')) {
+  let wroteBytes = 0;
+  try {
+    const parsed = JSON.parse(writeOut);
+    if (typeof parsed.bytes !== "number" || parsed.bytes <= 0 || typeof parsed.path !== "string" || parsed.path.length === 0 || parsed.error !== undefined)
+      throw new Error("bad-shape");
+    wroteBytes = parsed.bytes;
+  } catch {
     return { layerId, status: "rejected", error: "HUNTER_REPORT_WRITE_FAILED: " + writeOut.slice(0, 300), ledgerDir, durationMs: Date.now() - t0 };
   }
   for (const c of swept) {
@@ -9090,7 +9127,7 @@ ${summary}
   const reportPath = path24.join(ledgerDir, "findings", "report.md");
   try {
     const st = fs22.statSync(reportPath);
-    if (st.mtimeMs < t0 - 50) {
+    if (!(st.mtimeMs + 2000 >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
     }
     if (st.size === 0) {
@@ -9284,7 +9321,7 @@ function parseGraphJsonGuarded(contents, size = 0) {
   }
   return JSON.parse(contents);
 }
-var DDL = [
+var TYPED_STORE_DDL = [
   `CREATE TABLE IF NOT EXISTS typed_nodes (
     id INTEGER PRIMARY KEY,
     canonical_id TEXT NOT NULL,
@@ -9352,7 +9389,7 @@ function openTypedStore(storePath) {
   }
   const db = new Database2(storePath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
-  for (const stmt of DDL)
+  for (const stmt of TYPED_STORE_DDL)
     db.run(stmt);
   return db;
 }
@@ -9936,7 +9973,7 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
       if (budget.n <= 0)
         return;
       if (entry.isDirectory()) {
-        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data"].includes(entry.name))
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name))
           continue;
         budget.n--;
         walk(path6.join(dir, entry.name));
@@ -10099,7 +10136,7 @@ function resolveNodeFile(stored, root, fsMod = fs7) {
       return joined;
     }
   }
-  const anchors = ["/home/leviathan/OPENCODE_WORKSPACE/", "OPENCODE_WORKSPACE/", "/workspace/", "/app/"];
+  const anchors = ["/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/", "JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/", "OPENCODE_WORKSPACE/", "/workspace/", "/app/"];
   for (const anchor of anchors) {
     const idx = stored.lastIndexOf(anchor);
     if (idx === -1)
@@ -10709,18 +10746,33 @@ function loadGraphifyFileSync(graphPath) {
   return normalizeGraphifyGraph(raw);
 }
 function normalizeGraphifyGraph(raw) {
-  const rawNodes = raw["nodes"] ?? [];
-  const rawLinks = raw["links"] ?? raw["edges"] ?? [];
-  const nodes = rawNodes.map((n) => {
+  const rawNodes = Array.isArray(raw["nodes"]) ? raw["nodes"] : [];
+  const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] : Array.isArray(raw["edges"]) ? raw["edges"] : [];
+  const rawLinks = rawLinkSrc;
+  const seenIds = new Set;
+  let dropped = 0;
+  const nodes = [];
+  for (const n of rawNodes) {
     const r = n;
-    return {
-      id: String(r["id"] ?? r["label"] ?? ""),
-      label: String(r["label"] ?? r["id"] ?? ""),
+    let id = String(r["id"] ?? r["label"] ?? "");
+    const label = String(r["label"] ?? r["id"] ?? "");
+    if (id.length === 0) {
+      dropped++;
+      continue;
+    }
+    if (seenIds.has(id))
+      id = `${id}#${seenIds.size}`;
+    seenIds.add(id);
+    nodes.push({
+      id,
+      label,
       type: String(r["file_type"] ?? r["type"] ?? "unknown"),
       file: String(r["source_file"] ?? r["file"] ?? ""),
       data: r
-    };
-  });
+    });
+  }
+  if (dropped > 0)
+    tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   const edges = rawLinks.map((e) => {
     const src = String(e["source"] ?? e["src"] ?? "");
     const dst = String(e["target"] ?? e["dst"] ?? "");
@@ -10874,8 +10926,9 @@ function graphifyPredicateToTyped(relation) {
     case "await":
       return "awaits";
     case "extends":
-      return "implements";
+      return "extends";
     default:
+      tridentLog("WARN", "graphify-adapter", `unknown typed predicate '${relation}' -> 'declares' (typo becomes declares \u2014 fix the source)`);
       return "declares";
   }
 }
@@ -10883,7 +10936,7 @@ function parseLineValue(v) {
   if (typeof v === "number" && Number.isFinite(v) && v >= 1)
     return Math.floor(v);
   if (typeof v === "string") {
-    const m = /L?\s*(\d+)/.exec(v);
+    const m = /^L?\s*(\d+)\s*$/.exec(v.trim());
     if (m) {
       const n = Number(m[1]);
       if (Number.isFinite(n) && n >= 1)
@@ -10934,7 +10987,9 @@ function mapGraphifyToTyped(nodes, edges, runTag) {
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const edgeRows = edges.map((e) => {
     const src = nodesById.get(e.sourceId);
-    const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {} }) ?? 1;
+    const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {} });
+    if (line === undefined)
+      throw new Error(`LINELESS_NODE: no line for edge ${e.sourceId}->${e.targetId} (edge + source both lineless)`);
     return {
       srcCanonical: e.sourceId,
       dstCanonical: e.targetId,
@@ -10966,16 +11021,22 @@ function projectGraphifyGraph(graph, root) {
   const nodeByRawId = new Map(graph.nodes.map((n) => [n.id, n]));
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const edges = [];
+  let dangling = 0;
+  let danglingNoLine = 0;
   for (const e of graph.edges) {
     const src = `graphify:${e.src}`;
     const dst = `graphify:${e.dst}`;
-    if (!byId.has(src) || !byId.has(dst))
+    if (!byId.has(src) || !byId.has(dst)) {
+      dangling++;
       continue;
+    }
     const rawEdge = e;
     const edgeLoc = rawEdge["source_location"];
     const srcNode = byId.get(src);
     const srcFile = srcNode?.file;
     const line = parseLineValue(edgeLoc) ?? srcNode?.line ?? tryResolveGraphifyLine({ data: nodeByRawId.get(e.src)?.data ?? {} });
+    if (line === undefined)
+      danglingNoLine++;
     edges.push({
       sourceId: src,
       targetId: dst,
@@ -10985,6 +11046,8 @@ function projectGraphifyGraph(graph, root) {
       line
     });
   }
+  if (dangling + danglingNoLine > 0)
+    tridentLog("WARN", "graphify-adapter", `project: dropped ${dangling} dangling edges; kept ${danglingNoLine} lineless-edge rows with line undefined (counted, never silent, never invented)`);
   return { nodes, edges };
 }
 function countLineage2(nodes, edges) {
@@ -10994,10 +11057,6 @@ function countLineage2(nodes, edges) {
     code: count("CODE_DERIVED", nodes) + count("CODE_DERIVED", edges),
     hybrid: count("HYBRID", nodes) + count("HYBRID", edges)
   };
-}
-function truncate2(s, n = 200) {
-  const one = s.replace(/\s+/g, " ").trim();
-  return one.length > n ? `${one.slice(0, n)}\u2026` : one;
 }
 
 class GraphifyAdapter {
@@ -11046,12 +11105,13 @@ class GraphifyAdapter {
     }
     const { nodes, edges } = projectGraphifyGraph(graph, root);
     if (nodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero nodes (graph.json at ${graphPath} reported: "${truncate2(JSON.stringify(raw).slice(0, 200))}")`);
+      throw graphEmpty(`graphify graph build produced zero nodes (graph.json at ${graphPath} carries no nodes; keys=${Object.keys(raw).slice(0, 8).join(",")})`);
     }
     this.cachedNodes = nodes;
     this.cachedEdges = edges;
     this.cachedRaw = graph;
     this.built = true;
+    this.reindex();
     return {
       nodes,
       edges,
@@ -11067,17 +11127,29 @@ class GraphifyAdapter {
   graphPath() {
     return this.lastGraphPath;
   }
+  byIdIdx = new Map;
+  byNameIdx = new Map;
+  reindex() {
+    this.byIdIdx = new Map(this.cachedNodes.map((n) => [n.id, n]));
+    this.byNameIdx = new Map;
+    for (const n of this.cachedNodes)
+      if (!this.byNameIdx.has(n.name))
+        this.byNameIdx.set(n.name, n);
+  }
   resolveNodeId(symbol) {
     if (symbol.startsWith("graphify:"))
       return symbol;
-    const byName = this.cachedNodes.find((n) => n.name === symbol);
+    const byName = this.byNameIdx.get(symbol);
     if (byName)
       return byName.id;
-    const bySuffix = this.cachedNodes.find((n) => n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`));
-    return bySuffix?.id ?? `graphify:${symbol}`;
+    for (const n of this.cachedNodes) {
+      if (n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`))
+        return n.id;
+    }
+    return `graphify:${symbol}`;
   }
   nodeById(id) {
-    return this.cachedNodes.find((n) => n.id === id);
+    return this.byIdIdx.get(id);
   }
   ensureBuilt() {
     if (!this.built) {
@@ -11089,9 +11161,12 @@ class GraphifyAdapter {
     const target = this.resolveNodeId(symbol);
     return this.cachedEdges.filter((e) => e.kind === "calls" && e.targetId === target).map((e) => {
       const caller = this.nodeById(e.sourceId);
+      const line = e.line ?? caller?.line;
+      if (line === undefined)
+        throw new Error(`LINELESS_NODE: no line for whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
       return {
         file: caller?.file ?? this.profile.project.root,
-        line: e.line ?? caller?.line ?? 0,
+        line,
         caller: caller?.name ?? e.sourceId
       };
     });
@@ -11108,25 +11183,37 @@ class GraphifyAdapter {
     this.cachedEdges = edges;
     this.cachedRaw = graph;
     this.built = true;
+    this.reindex();
     return { nodes, edges, graph };
   }
   chain(id) {
     this.ensureBuilt();
     const start = this.resolveNodeId(id);
+    const bySource = new Map;
+    for (const e of this.cachedEdges) {
+      if (e.kind !== "calls")
+        continue;
+      const arr = bySource.get(e.sourceId) ?? [];
+      arr.push(e);
+      bySource.set(e.sourceId, arr);
+    }
     const steps = [];
     const seen = new Set([start]);
     const queue = [start];
     while (queue.length > 0) {
       const from = queue.shift();
-      for (const e of this.cachedEdges.filter((x) => x.kind === "calls" && x.sourceId === from)) {
+      for (const e of bySource.get(from) ?? []) {
         const caller = this.nodeById(e.sourceId);
         const callee = this.nodeById(e.targetId);
+        const line = e.line ?? callee?.line;
+        if (line === undefined)
+          throw new Error(`LINELESS_NODE: no line for chain edge ${e.sourceId}->${e.targetId} (edge + callee both lineless)`);
         steps.push({
           from: caller?.name ?? e.sourceId,
           to: callee?.name ?? e.targetId,
           kind: e.kind,
           file: callee?.file ?? this.profile.project.root,
-          line: e.line ?? callee?.line ?? 0
+          line
         });
         if (!seen.has(e.targetId)) {
           seen.add(e.targetId);
@@ -11142,7 +11229,10 @@ class GraphifyAdapter {
     return this.cachedEdges.filter((e) => e.kind === "imports" && e.sourceId === start).map((e) => {
       const src = this.nodeById(e.sourceId);
       const dst = this.nodeById(e.targetId);
-      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+      const line = e.line ?? src?.line;
+      if (line === undefined)
+        throw new Error(`LINELESS_NODE: no line for imports edge ${e.sourceId} (edge + source both lineless)`);
+      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line };
     });
   }
   awaits(symbol) {
@@ -11151,17 +11241,19 @@ class GraphifyAdapter {
     return this.cachedEdges.filter((e) => e.kind === "awaits" && e.sourceId === start).map((e) => {
       const src = this.nodeById(e.sourceId);
       const dst = this.nodeById(e.targetId);
-      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+      const aline = e.line ?? src?.line;
+      if (aline === undefined)
+        throw new Error(`LINELESS_NODE: no line for awaits edge ${e.sourceId} (edge + source both lineless)`);
+      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline };
     });
   }
   unwired() {
     this.ensureBuilt();
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
-    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "method" || n.kind === "class") && !callTargets.has(n.id)).map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line ?? 0 }));
+    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id)).map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line }));
   }
   nodes(kind) {
-    if (!this.built)
-      return [];
+    this.ensureBuilt();
     return kind === undefined ? [...this.cachedNodes] : this.cachedNodes.filter((n) => n.kind === kind);
   }
 }
@@ -11173,20 +11265,26 @@ var GRAPHIFY_FRESHNESS_BUDGET = 500;
 function graphifyOutPath(root, profile) {
   if (profile)
     return resolveGraphifyOut(profile);
-  return path9.join(path9.resolve(root), "graphify-out", "graph.json");
+  return resolveGraphifyOut({ project: { root: path9.resolve(root) } });
 }
-function isGraphifyCheckoutFreshFor(root, graphPath) {
+function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
   if (!fs9.existsSync(graphPath))
     return { fresh: false, reason: "absent" };
-  const st = fs9.statSync(graphPath);
-  if (st.size === 0)
-    return { fresh: false, reason: "empty" };
+  let st;
+  try {
+    st = fs9.statSync(graphPath);
+  } catch {
+    return { fresh: false, reason: "absent" };
+  }
   const warmMtime = st.mtimeMs;
   let newest = 0;
+  let exhausted = false;
   const budget = { n: GRAPHIFY_FRESHNESS_BUDGET };
   const walk = (dir) => {
-    if (budget.n <= 0)
+    if (budget.n <= 0) {
+      exhausted = true;
       return;
+    }
     let entries;
     try {
       entries = fs9.readdirSync(dir, { withFileTypes: true });
@@ -11194,14 +11292,16 @@ function isGraphifyCheckoutFreshFor(root, graphPath) {
       return;
     }
     for (const entry of entries) {
-      if (budget.n <= 0)
+      if (budget.n <= 0) {
+        exhausted = true;
         return;
+      }
       if (entry.isDirectory()) {
-        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out"].includes(entry.name))
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name))
           continue;
         budget.n--;
         walk(path9.join(dir, entry.name));
-      } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+      } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
         try {
           const m = fs9.statSync(path9.join(dir, entry.name)).mtimeMs;
@@ -11211,10 +11311,16 @@ function isGraphifyCheckoutFreshFor(root, graphPath) {
       }
     }
   };
-  walk(root);
-  if (newest > warmMtime)
-    return { fresh: false, reason: "stale" };
-  return { fresh: true, reason: "fresh" };
+  for (const rel of scope) {
+    const dir = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    if (fs9.existsSync(dir))
+      walk(dir);
+  }
+  if (exhausted)
+    return { fresh: false, reason: "stale-budget" };
+  if (newest <= warmMtime + 1000)
+    return { fresh: true, reason: "fresh" };
+  return { fresh: false, reason: "stale" };
 }
 
 // src/omp/populate.ts
@@ -11862,7 +11968,7 @@ function releaseHuntLock(targetPath) {
   }
 }
 
-// node_modules/xstate/dist/xstate.development.cjs.mjs
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate.development.cjs.mjs
 var import_xstate_development_cjs = __toESM(require_xstate_development_cjs(), 1);
 
 // src/hunter/harness/micro-loop-machine.ts
@@ -12260,7 +12366,7 @@ function mirrorToMasterContext(db, profile) {
 import fs15 from "fs";
 import path15 from "path";
 
-// node_modules/typescript/lib/version.cjs
+// ../../OMP/Graph_Intelligence/node_modules/typescript/lib/version.cjs
 var { version } = require_package();
 
 // src/hunter/profile/loader.ts
@@ -15752,35 +15858,50 @@ var GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" };
 function textResult2(text, details) {
   return { content: [{ type: "text", text }], details };
 }
-async function runGraphQueryVerbs(verb, p, storePath, scopeRoot, sessionId, popNote) {
+function safeRipwire(fn) {
+  try {
+    return fn();
+  } catch (e) {
+    return { present: false, ok: false, summary: "absent (leg threw: " + String(e instanceof Error ? e.message : e).slice(0, 80) + ")", data: {} };
+  }
+}
+function sanitizeLayerId(raw) {
+  const t = raw.trim() === "" ? "R28-sro-graph" : raw.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t))
+    return "R28-sro-graph";
+  return t;
+}
+async function runGraphQueryVerbs(verb, p, storePath, scopeRoot, sessionId, popNote, substrate) {
   if (verb === "who-calls") {
     const sym = String(p.target ?? p.symbol ?? "");
+    if (sym.trim() === "")
+      return textResult2("QUERY_INVALID: target required (who-calls needs a symbol)", { ok: false, error: "QUERY_INVALID", verb });
     const q = whoCalls(storePath, sym);
     const head = q.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join(`
 `);
-    const rw = ripwireCallers(scopeRoot, sym);
+    const rw = safeRipwire(() => ripwireCallers(scopeRoot, sym));
     return textResult2(`${popNote}rows=${q.rows}
 ${head}
-ripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: popNote ? popNote.trim().split(" ")[0].split("=")[1] : undefined, ripwire: rw });
+ripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate ?? "indexer-fallback", ripwire: rw });
   }
   if (verb === "blast-radius") {
     const b = blastRadius(storePath, String(p.target ?? p.symbol ?? ""));
-    const rw = ripwireImpact(scopeRoot, String(p.target ?? p.symbol ?? ""));
+    const rw = safeRipwire(() => ripwireImpact(scopeRoot, String(p.target ?? p.symbol ?? "")));
     return textResult2(`rows=${b.nodes.length} root=${b.root} depth=${b.depth}
 ripwire: ${rw.summary}`, { ok: true, rows: b.nodes.length, root: b.root, depth: b.depth, nodes: b.nodes, ripwire: rw });
   }
   if (verb === "would-break") {
     const sym = String(p.target ?? p.symbol ?? "");
     const w = wouldBreak(storePath, sym, String(p.proposed ?? ""));
-    const rw = ripwireEditCheck(scopeRoot, sym);
+    const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
     return textResult2(`callers=${w.callers} argsUnknown=${w.argsUnknown}
-ripwire: ${rw.summary}`, { ok: true, ...w, ripwire: rw });
+ripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: true });
   }
   if (verb === "unwired") {
     const u = unwiredNodes(storePath);
     const head = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`).join(`
 `);
-    const rw = ripwireDeadCode(scopeRoot);
+    const rw = safeRipwire(() => ripwireDeadCode(scopeRoot));
     return textResult2(`rows=${u.length}
 ${head}
 ripwire: ${rw.summary}`, { ok: true, rows: u.length, names: u.map((r) => r.name), unwired: u, ripwire: rw });
@@ -15791,7 +15912,7 @@ ripwire: ${rw.summary}`, { ok: true, rows: u.length, names: u.map((r) => r.name)
     const steps = chainCalls(storePath, from, to);
     const head = steps.map((s) => `${s.from} -> ${s.to} [${s.kind}]`).join(`
 `);
-    const rw = to.length > 0 ? ripwirePath(scopeRoot, from, to) : { present: true, ok: false, summary: "skipped (no `to` argument)", data: {} };
+    const rw = safeRipwire(() => to.length > 0 ? ripwirePath(scopeRoot, from, to) : { present: true, ok: false, summary: "skipped (no `to` argument)", data: {} });
     return textResult2(`rows=${steps.length}
 ${head}
 ripwire: ${rw.summary}`, { ok: true, rows: steps.length, steps, ripwire: rw });
@@ -15801,7 +15922,7 @@ ripwire: ${rw.summary}`, { ok: true, rows: steps.length, steps, ripwire: rw });
     const im = impact(storePath, sym, 8);
     const head = im.ledger.slice(0, 20).map((r) => `${r.symbol}@depth${r.depth} (${r.file}:${r.line}) via ${r.via}`).join(`
 `);
-    const rw = ripwireImpact(scopeRoot, sym);
+    const rw = safeRipwire(() => ripwireImpact(scopeRoot, sym));
     return textResult2(`${popNote}impact_reaches=${im.reaches}
 ${head}
 hint=${im.hint}
@@ -15812,25 +15933,25 @@ ripwire: ${rw.summary}`, { ok: true, rows: im.reaches, impact_reaches: im.reache
     const sd = safeDelete(storePath, sym);
     const head = sd.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join(`
 `);
-    const rw = ripwireSafeDelete(scopeRoot, sym);
+    const rw = safeRipwire(() => ripwireSafeDelete(scopeRoot, sym));
     return textResult2(`${popNote}safe_delete: ${sym} callers=${sd.callers.length} reaches=${sd.reaches} uses=${sd.uses.length} testReach=${sd.testReach.length}
 ${head}
-ripwire: ${rw.summary}`, { ok: true, ...sd, ripwire: rw });
+ripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: true });
   }
   if (verb === "gate") {
     const dialRaw = String(p.dial ?? "STEER").toUpperCase();
     const sym = String(p.target ?? p.symbol ?? "");
-    const rw = ripwireEditCheck(scopeRoot, sym);
+    const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
     const ga = gateAdvisory(storePath, [sym], dialRaw === "FULL" ? "FULL" : "STEER", { ok: rw.ok, summary: rw.summary });
-    return textResult2(`${popNote}${ga.advisory}`, { ok: true, ...ga, ripwire: rw });
+    return textResult2(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: true });
   }
   if (verb === "verify") {
     const claim = String(p.target ?? p.symbol ?? "");
     if (claim.length === 0) {
       return textResult2('VERIFY_INVALID: claim required (closed shapes: calls(A,B), uses(SYM), unused(SYM), contains(FILE,"LIT"), defines(FILE,SYM), reaches(SYM,FILTER))', { ok: false, error: "VERIFY_INVALID" });
     }
-    const rw = ripwireVerify(scopeRoot, claim);
-    return textResult2(`${popNote}verify: ${rw.summary}`, { ok: rw.ok, ...rw.data, ripwire: rw, error: rw.ok ? undefined : rw.present ? "VERIFY_FAILED" : "RIPWIRE_ABSENT" });
+    const rw = safeRipwire(() => ripwireVerify(scopeRoot, claim));
+    return textResult2(`${popNote}verify: ${rw.summary}`, { ...rw.data, ripwire: rw, ok: rw.ok, error: rw.ok ? undefined : rw.present ? "VERIFY_FAILED" : "RIPWIRE_ABSENT" });
   }
   if (verb === "must-implement" || verb === "rule" || verb === "violations" || verb === "consistency") {
     const sym = String(p.target ?? p.symbol ?? "");
@@ -15844,7 +15965,15 @@ ripwire: ${rw.summary}`, { ok: true, ...sd, ripwire: rw });
       ruleId: sym || undefined,
       proposed: typeof p.proposed === "string" ? p.proposed : undefined
     });
-    const items = JSON.parse(delegated);
+    let items;
+    try {
+      const parsed = JSON.parse(delegated);
+      if (!Array.isArray(parsed))
+        return textResult2(`QUERY_DELEGATION_INVALID: verb ${verb} delegation returned non-array`, { ok: false, error: "QUERY_DELEGATION_INVALID", verb });
+      items = parsed;
+    } catch {
+      return textResult2(`QUERY_DELEGATION_INVALID: verb ${verb} delegation unparseable`, { ok: false, error: "QUERY_DELEGATION_INVALID", verb });
+    }
     return textResult2(`${popNote}rows=${items.length}
 ${delegated}`, { ok: true, verb, rows: items.length, items });
   }
@@ -15885,6 +16014,7 @@ function registerGiOmpTools(pi, cwdOf) {
       to: zstr().optional(),
       proposed: zstr().optional(),
       sessionId: zstr().optional(),
+      dial: zstr().optional(),
       substrate: zstr().optional(),
       targetPath: zstr().optional()
     }),
@@ -15899,9 +16029,7 @@ function registerGiOmpTools(pi, cwdOf) {
       if (ctx && typeof ctx === "object" && "sessionID" in ctx && typeof ctx.sessionID === "string" && String(ctx.sessionID).length > 0) {
         callerId = String(ctx.sessionID);
       }
-      let sessionId = callerId;
-      if (typeof p.sessionId === "string" && p.sessionId.length > 0)
-        sessionId = p.sessionId;
+      const sessionId = callerId;
       const substrate = typeof p.substrate === "string" ? p.substrate : "";
       const targetPathRaw = typeof p.targetPath === "string" ? p.targetPath : "";
       let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
@@ -15927,7 +16055,7 @@ function registerGiOmpTools(pi, cwdOf) {
           }
           const popNote = `substrate=graphify graph=${graphPath} nodes=${pop.nodes} edges=${pop.edges}
 `;
-          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote);
+          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, "graphify");
         }
         let popNote = "";
         const stored = getMeta(opened.storePath, "substrate");
@@ -15938,15 +16066,15 @@ function registerGiOmpTools(pi, cwdOf) {
           const pop = populateSessionStore(opened.storePath, scopeRoot);
           popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}
 `;
+          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
         } else {
           popNote = `substrate=${stored ?? "indexer-fallback"}
 `;
+          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, stored ?? "indexer-fallback");
         }
-        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote);
       } catch (e) {
-        const err = e;
-        const code = "code" in err ? String(err.code) : "GI_QUERY_FAIL";
-        return textResult2(`${code}: ${String(e)}`, { ok: false, error: code });
+        const code = typeof e === "object" && e !== null && "code" in e ? String(e.code) : "GI_QUERY_FAIL";
+        return textResult2(`${code}: ${String(e instanceof Error ? e.message : e)}`, { ok: false, error: code });
       }
     }
   });
@@ -15954,8 +16082,12 @@ function registerGiOmpTools(pi, cwdOf) {
   const aetherAuditExecute = async (_id, params, _sig, _upd, ctx) => {
     const p = params && typeof params === "object" ? params : {};
     const scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
-    const targetRoot = String(p.targetPath ?? "").trim() !== "" ? String(p.targetPath) : scopeRoot;
-    const layerId = String(p.template ?? "").trim() !== "" ? String(p.template) : "R28-sro-graph";
+    const targetRaw = String(p.targetPath ?? "").trim();
+    if (targetRaw !== "" && !path25.isAbsolute(targetRaw)) {
+      return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
+    }
+    const targetRoot = targetRaw !== "" ? path25.normalize(targetRaw) : scopeRoot;
+    const layerId = sanitizeLayerId(String(p.template ?? ""));
     try {
       const [{ templateByLayerId }, { runTemplateAudit }] = await Promise.all([
         Promise.resolve().then(() => (init_templates(), exports_templates)),

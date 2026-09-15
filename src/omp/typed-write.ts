@@ -43,7 +43,7 @@ export async function parseGraphJsonGuardedAsync(contents: string, size = 0): Pr
 // query-tool.ts:177-194 who-calls JOIN needs canonical_id/label/file/line +
 // superseded_run on nodes and src_canonical/dst_canonical/predicate on edges.
 // OMP baseline had typed_nodes(canonical,name,file) only — no edges table.
-const DDL = [
+export const TYPED_STORE_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS typed_nodes (
     id INTEGER PRIMARY KEY,
     canonical_id TEXT NOT NULL,
@@ -121,7 +121,7 @@ export function openTypedStore(storePath: string): Database {
   }
   const db = new Database(storePath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
-  for (const stmt of DDL) db.run(stmt);
+  for (const stmt of TYPED_STORE_DDL) db.run(stmt);
   return db;
 }
 

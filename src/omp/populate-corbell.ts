@@ -47,7 +47,7 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
     for (const entry of entries) {
       if (budget.n <= 0) return;
       if (entry.isDirectory()) {
-        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data"].includes(entry.name)) continue;
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name)) continue;
         budget.n--;
         walk(path.join(dir, entry.name));
       } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {

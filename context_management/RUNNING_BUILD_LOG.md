@@ -168,3 +168,16 @@
 - HOW: map-first (proxy ACTIVE single-listener; §6 classifier in-tree; zero Go LLM sites in hydra) → file-provision 6th key → §FALLBACK chain half → battery → rebuild → docs → dual-rig re-proof.
 - EVIDENCE: battery 119/0/1004 (19 files); GO_KEYS len 6; live go-4 + all-dead→openrouter; TUI PROBE x2, substrate=graphify rows=2, AUDIT_DONE findings=3, HUNT_DONE 296 + v6 artifact, B honest-zero.
 - NEXT: package + checkpoint refresh on 34ba3ffe (stale cf464e58 set) — or ship as source-sealed state per operator call.
+
+## [2026-09-15T17:09+04:00] — QWEN FIX WAVE green (all 45 addressed)
+- WHAT: V-16 txn helper + freshness/token/dirname fixes; adapter id/lines/dangling/index fixes; extension trust/dial/legs/parse fixes; pool window/bounds/snapshot/empty fixes; auditor read/grep/evidence/drive/stale/write/cycles/isolate fixes.
+- WHY: operator order — fix EVERYTHING qwen flagged, report all issues.
+- HOW: anchored scripted replacements; stash-bisect for breaks vs flakes; 19-file battery gate.
+- EVIDENCE: 119/0/1004 post-fix; solos green; diff +223/-117 across 5 files.
+- NEXT: rebuild both dists → TUI re-proof → ship docs seal → package/checkpoint refresh → qwen RE-RUN for the PASS verdict.
+
+## [2026-09-15T18:23+04:00] — FRESHNESS WARM-WINS + BOTH-DISTS-II (G1 restored, all legs green)
+- WHAT: warm-wins tail + `.omp` freshness excludes (both substrates) + trident 280fd303 (NODE_PATH xstate fix) + both-dists/both-rigs deploy + G1/G4/G3/G5 + port2 re-proof.
+- WHY: G1 MISS-on-warm (inverted comparison) + EN-018 second instance (GI-only deploy vs frozen trident).
+- EVIDENCE: battery 119/0/1004; GI ee122880 + trident 280fd303 exec-verified all four copies; G1 nodes=5/edges=5/rows=2 MISS-absent; G4 findings=3; G3 296/v12; G5 impact=2 + safe-delete 2/2/0/0; port2 probe + honest-empty.
+- NEXT: checkpoint refresh on ee122880/280fd303; qwen RE-RUN for the verdict flip (V-16/V-17 CLOSED in source, re-run owed).

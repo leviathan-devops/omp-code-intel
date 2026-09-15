@@ -56,7 +56,8 @@ export function giKeysFile(): string {
   return path.join(os.homedir(), '.gi-keys.json');
 }
 
-(function loadGoKeys(): void {
+export function reloadGoKeys(): void {
+  GO_KEYS.length = 0;
   const push = (k: unknown) => {
     if (typeof k === 'string' && k.length > 0 && !GO_KEYS.includes(k)) GO_KEYS.push(k);
   };
@@ -75,7 +76,8 @@ export function giKeysFile(): string {
   // 3. the single env key (the auth.json derivation / the container's staged key)
   const single = process.env.OPENCODE_GO_API_KEY ?? process.env.OPENCODE_API_KEY;
   if (single) push(single);
-})();
+}
+reloadGoKeys();
 
 // THE STORE — GO_POOL_DB env points at an existing project DB to share the
 // machine-wide pool; default = a dedicated file in tmp (still shared across
@@ -87,7 +89,7 @@ export function giKeysFile(): string {
 // session-pinned file > the shared default. sanitizeSessionScope mirrors the
 // wave-spec.ts:31-37 pattern: strip -> collapse -> trim -> slice(0,64).
 export function sanitizeSessionScope(sessionId: string): string {
-  return sessionId.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').trim().slice(0, 64) || 'default';
+  return sessionId.trim().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64) || 'default';
 }
 
 export function goPoolDbFile(sessionId?: string): string {
@@ -104,23 +106,22 @@ export function goPoolDbFile(sessionId?: string): string {
 // suite) that repoints GO_POOL_DB gets the new pool, not the stale handle.
 // The first extraction opened a NEW Database per call (an fd leak); this is
 // the source's lifetime, path-aware.
-let poolDb: Database | null = null;
-let poolDbPath: string | null = null;
+const poolDbByPath = new Map<string, Database>();
+const POOL_DB_LRU_MAX = 8;
 
 function db(sessionId?: string): Database {
   const want = goPoolDbFile(sessionId);
-  if (poolDb && poolDbPath === want) {
+  const hit = poolDbByPath.get(want);
+  if (hit) {
     try {
-      poolDb.query('SELECT 1').get();
-      return poolDb;
+      hit.query('SELECT 1').get();
+      poolDbByPath.delete(want);
+      poolDbByPath.set(want, hit);
+      return hit;
     } catch (_sick) {
-      try { poolDb.close(); } catch (_c) { /* already closed */ }
-      poolDb = null;
+      try { hit.close(); } catch (_c) { /* already closed */ }
+      poolDbByPath.delete(want);
     }
-  }
-  if (poolDb) {
-    try { poolDb.close(); } catch (_c) { /* already closed */ }
-    poolDb = null;
   }
   const fresh = new Database(want, { create: true });
   try {
@@ -133,9 +134,14 @@ function db(sessionId?: string): Database {
     reason TEXT,
     marked_at INTEGER
   )`);
-  poolDb = fresh;
-  poolDbPath = want;
-  return poolDb;
+  poolDbByPath.set(want, fresh);
+  while (poolDbByPath.size > POOL_DB_LRU_MAX) {
+    const oldest = poolDbByPath.keys().next();
+    if (oldest.done) break;
+    try { poolDbByPath.get(oldest.value)?.close(); } catch (_c) { /* already closed */ }
+    poolDbByPath.delete(oldest.value);
+  }
+  return fresh;
 }
 
 export function goKeyLabel(idx: number): string {
@@ -169,24 +175,32 @@ export function parseGoWindowMs(err: string): number {
   // THE PRECISE SIGNAL FIRST (live-proven 2026-08-30: GoUsageLimitError says
   // "Weekly usage limit reached. Resets in 14hr 37min" — the reset time IS
   // the actual timeout; the keyword class is the fallback, never the leader):
-  const resetIn = err.match(/resets? in\s*(\d+)\s*hr(?:\s*(\d+)\s*min)?/i);
-  if (resetIn) return (Number(resetIn[1]) * 60 + Number(resetIn[2] ?? '0')) * 60_000;
-  if (/5\s*-?\s*hour|hourly/i.test(err)) return 5 * 3_600_000;
-  if (/day|daily/i.test(err)) return 24 * 3_600_000;
-  if (/week/i.test(err)) return 7 * 24 * 3_600_000;
-  if (/month/i.test(err)) return 30 * 24 * 3_600_000;
+  const resetHrMin = err.match(/resets? in\s*(\d+)\s*hr(?:\s*(\d+)\s*min)?/i);
+  if (resetHrMin) return (Number(resetHrMin[1]) * 60 + Number(resetHrMin[2] ?? '0')) * 60_000;
+  const resetMin = err.match(/resets? in\s*(\d+)\s*min(?!\s*hour)/i);
+  if (resetMin) return Number(resetMin[1]) * 60_000;
+  const resetSec = err.match(/resets? in\s*(\d+)\s*(?:sec|secs|second|s)\b/i);
+  if (resetSec) return Number(resetSec[1]) * 1000;
+  const resetDays = err.match(/resets? in\s*(\d+)\s*days?/i);
+  if (resetDays) return Number(resetDays[1]) * 24 * 3_600_000;
+  if (/\b5\s*-?\s*hours?\b|\bhourly\b/i.test(err)) return 5 * 3_600_000;
+  if (/\bdaily\b|\bper[-\s]?day\b/i.test(err)) return 24 * 3_600_000;
+  if (/\bweekly\b|\bper[-\s]?week\b/i.test(err)) return 7 * 24 * 3_600_000;
+  if (/\bmonthly\b|\bper[-\s]?month\b/i.test(err)) return 30 * 24 * 3_600_000;
   return 3_600_000; // unknown 429 → re-probe in 1h (re-arms longer on the next window name)
 }
 
 // THE DEAD-MARK — persists the window + the REASON (the 300-char error slice)
 // + marked_at: the audit trail (who died, why, when) rides in the row.
 export function markGoKeyDead(idx: number, err: string, now: number = Date.now(), sessionId?: string): number {
-  const until = now + parseGoWindowMs(err);
+  if (!Number.isInteger(idx) || idx < 0 || idx >= GO_KEYS.length) return now;
+  const msg = String(err ?? '');
+  const until = now + parseGoWindowMs(msg);
   try {
     db(sessionId).run(
       `INSERT INTO go_key_pool (idx, dead_until, reason, marked_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(idx) DO UPDATE SET dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
-      [idx, until, err.slice(0, 300), now],
+      [idx, until, msg.slice(0, 300), now],
     );
   } catch (e) {
     console.error('[go-key-pool] markGoKeyDead write failed (degraded, in-memory only):', e instanceof Error ? e.message : String(e));
@@ -197,6 +211,7 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
 // A stray success clears a stale timeout (trust the observation over the
 // estimate). Returns true only if a row actually transitioned dead→alive.
 export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?: string): boolean {
+  if (!Number.isInteger(idx) || idx < 0 || idx >= GO_KEYS.length) return false;
   try {
     const r = db(sessionId).run('UPDATE go_key_pool SET dead_until = 0 WHERE idx = ? AND dead_until > ?', [idx, now]);
     return r.changes > 0;
@@ -226,7 +241,7 @@ export type GoErrorClass = 'quota' | 'rejected' | 'contract' | 'other';
 export function classifyGoError(err: string): GoErrorClass {
   const e = String(err ?? '');
   if (/MissingSessionID/i.test(e)) return 'contract';
-  if (/GoUsageLimitError|usage limit|quota|rate limit|\b429\b/i.test(e)) return 'quota';
+  if (/GoUsageLimitError|usage limit|quota|rate limit|overloaded|\b429\b|\b402\b|\b529\b|\b5\d\d\b/i.test(e)) return 'quota';
   if (/\b401\b|\b403\b|invalid_api_key|invalid x-api-key|unauthorized/i.test(e)) return 'rejected';
   return 'other';
 }
@@ -237,24 +252,26 @@ export function goEarliestDeadIdx(sessionId?: string): { idx: number; expiryKnow
   try {
     const rows = db(sessionId).query('SELECT idx, dead_until FROM go_key_pool').all() as Array<{ idx: number; dead_until: number }>;
     let dropped = 0;
-    let best = 0;
+    let best = -1;
     let bestUntil = Number.MAX_SAFE_INTEGER;
     let seen = 0;
     for (const r of rows) {
       if (typeof r.idx !== 'number' || typeof r.dead_until !== 'number' || !Number.isFinite(r.dead_until)) { dropped++; continue; }
+      if (!Number.isInteger(r.idx) || r.idx < 0 || r.idx >= GO_KEYS.length) { dropped++; continue; }
       if (r.dead_until <= 0) continue; // alive rows don't compete — earliest EXPIRY among the dead
       seen++;
       if (r.dead_until < bestUntil) { bestUntil = r.dead_until; best = r.idx; }
     }
     return { idx: best, expiryKnown: seen > 0, dropped };
   } catch {
-    return { idx: 0, expiryKnown: false, dropped: 0 };
+    return { idx: -1, expiryKnown: false, dropped: 0 };
   }
 }
 
 export function resolveGoKeyIndex(now: number = Date.now(), sessionId?: string): { idx: number; alive: boolean; expiryKnown: boolean } {
+  const untils = readDeadUntil(sessionId);
   for (let i = 0; i < GO_KEYS.length; i++) {
-    if (!goKeyDead(i, now, sessionId)) return { idx: i, alive: true, expiryKnown: true };
+    if ((untils[i] ?? 0) <= now) return { idx: i, alive: true, expiryKnown: true };
   }
   const r = goEarliestDeadIdx(sessionId);
   return { idx: r.idx, alive: false, expiryKnown: r.expiryKnown };
@@ -295,9 +312,11 @@ export interface GoFallbackDecision {
   reason: string;
 }
 export function decideGoFallback(now: number = Date.now(), sessionId?: string): GoFallbackDecision {
+  if (GO_KEYS.length === 0) throw new Error("GO_POOL_EMPTY: no Go keys configured (provision ~/.gi-keys.json or set GO_KEYS_JSON) — refusing silent OpenRouter fallthrough");
   const r = resolveGoKeyIndex(now, sessionId);
   if (r.alive) return { rung: 'go', goIndex: r.idx, goAlive: true, reason: 'go-' + (r.idx + 1) + '-alive' };
-  return { rung: 'openrouter', goIndex: r.idx, goAlive: false, reason: 'all-go-dead→openrouter (earliest-expiry go-' + (r.idx + 1) + ')' };
+  const lbl = r.idx >= 0 ? 'go-' + (r.idx + 1) : 'go-unknown';
+  return { rung: 'openrouter', goIndex: r.idx, goAlive: false, reason: 'all-go-dead→openrouter (earliest-expiry ' + lbl + ')' };
 }
 //
 // THE FALLBACK ERROR ROUTER (proxy §6 accounting contract, per-attempt):
@@ -318,6 +337,10 @@ export function routeGoError(idx: number, err: string, now: number = Date.now(),
 //
 // THE FALLBACK SNAPSHOT (AP-4: labels + fingerprint prefix, NEVER key material).
 export function goFallbackSnapshot(now: number = Date.now(), sessionId?: string): string {
-  const d = decideGoFallback(now, sessionId);
-  return goPoolSnapshot(now, sessionId) + ' · fallback=' + d.rung + '(' + d.reason + ')';
+  try {
+    const d = decideGoFallback(now, sessionId);
+    return goPoolSnapshot(now, sessionId) + ' · fallback=' + d.rung + '(' + d.reason + ')';
+  } catch {
+    return goPoolSnapshot(now, sessionId) + ' · fallback=unknown(pool-empty)';
+  }
 }

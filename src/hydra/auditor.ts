@@ -8,7 +8,9 @@
 // empty without a block is REJECTED), so every settled run yields a grammar-valid report.
 // DIVERGENCE (named, cf. fork __divergences): graph_tag predicate = first template.filterTags entry
 // passing the in-tree ontology isPredicate, else 'flagged_by' — the fork hunters pass ontology
-// predicates at the call site; our sweep derives the tag mechanically and says so.
+// predicates at the call site; our sweep emits MEASURED predicates (graph-structure.god-node,
+// cycles.import, dead-code.module) which the tool maps to the ontology via the caller-supplied
+// defaultPredicate (belt construction), never via per-call override.
 // LAW: stub-shaped errors legal ONLY after a real attempt — every rejection names the failed step.
 
 import fs from "node:fs";
@@ -101,7 +103,8 @@ function makeCappedReadTool(targetRoot: string): MissionTool {
       const filePath = String(params.path ?? "");
       const offset = typeof params.offset === "number" ? params.offset : 0;
       const limit = typeof params.limit === "number" ? params.limit : READ_CAP;
-      if (typeof limit === "number" && limit > READ_CAP) return `READ_CAP_EXCEEDED: ${limit} > ${READ_CAP}`;
+      if (!Number.isInteger(limit) || limit <= 0) return `READ_INVALID: limit must be a positive integer (got ${String(params.limit)})`;
+      if (limit > READ_CAP) return `READ_CAP_EXCEEDED: ${limit} > ${READ_CAP}`;
       if (!filePath) return "READ_INVALID: path required";
       const rootReal = realResolve(path.resolve(targetRoot));
       const resolved = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(targetRoot, filePath);
@@ -110,9 +113,13 @@ function makeCappedReadTool(targetRoot: string): MissionTool {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
+        const size = fs.statSync(realFile).size;
+        if (size > 8 * 1024 * 1024) return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
         const lines = fs.readFileSync(realFile, "utf-8").split("\n");
         const start = Math.max(0, offset);
-        return lines.slice(start, Math.min(lines.length, start + limit)).join("\n");
+        const slice = lines.slice(start, Math.min(lines.length, start + limit));
+        const truncated = start + limit < lines.length;
+        return slice.join("\n") + (truncated ? "\n[TRUNCATED]" : "");
       } catch (e) {
         return `READ_FAILED: ${String((e as Error).message).slice(0, 300)}`;
       }
@@ -131,15 +138,17 @@ function makeCappedGrepTool(targetRoot: string): MissionTool {
       const run = (cmd: string, args: string[]): Promise<string> =>
         new Promise((resolve) => {
           execFile(cmd, args, { timeout: 10_000, maxBuffer: 2_000_000 }, (err, stdout) => {
-            resolve(err && !stdout ? `SEARCH_FAILED: ${String((err as Error).message).slice(0, 160)}` : String(stdout));
+            if (err) return resolve(`SEARCH_FAILED: ${String((err as Error).message).slice(0, 160)}${stdout ? " | partial: " + String(stdout).slice(0, 400) : ""}`);
+            resolve(String(stdout));
           });
         });
       let out = await run("rg", ["-n", "--max-count", String(maxResults), pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-E", pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), pattern, targetRoot]);
       }
       if (out.startsWith("SEARCH_FAILED")) return out;
-      return out.split("\n").filter(Boolean).slice(0, maxResults).join("\n").slice(0, 8000) || "(no matches)";
+      if (out.trim().length === 0) return "(no matches)";
+      return out.split("\n").filter(Boolean).slice(0, maxResults).join("\n").slice(0, 8000);
     },
   };
 }
@@ -203,9 +212,9 @@ function makeGraphTagTool(ledgerDir: string, layerId: string, defaultPredicate: 
       const line = typeof params.findingLine === "number" ? params.findingLine : 0;
       const subject = String(params.findingSubject ?? "finding");
       const evidence = String(params.evidence ?? "");
+      if (evidence.trim().length === 0) throw new Error("GRAPH_TAG_EVIDENCE_EMPTY: evidence required (no silent no-evidence tags)");
       // Evidence-quote CHECK (fork corbell-bridge DDL law): non-empty, explicit:/[INFERRED] prefix.
-      const evidence_quote = evidence.startsWith("[INFERRED]") ? evidence : `explicit: ${evidence || "no evidence"}`;
-      if (evidence_quote.length === 0) throw new Error("GRAPH_TAG_EVIDENCE_EMPTY");
+      const evidence_quote = evidence.startsWith("[INFERRED]") ? evidence : `explicit: ${evidence}`;
       const codeNodeId = `${file}:${line}:code`;
       const canonical_id = `${layerId}:${file}:${line}`;
       const row: TypedEdgeRow = {
@@ -274,11 +283,13 @@ export function parseFindingsMarkdown(raw: string): { candidates: Record<string,
       }
     }
     const fileField = stripOuterQuotes(fields.get("file")!);
-    const colonAt = fileField.lastIndexOf(":");
-    if (colonAt < 1 || colonAt === fileField.length - 1) {
+    const drive = /^[A-Za-z]:[\\/]/.test(fileField) ? fileField.slice(0, 2) : "";
+    const rest = drive !== "" ? fileField.slice(2) : fileField;
+    const mLine = /^(.*):(\d+)\s*$/.exec(rest);
+    if (!mLine) {
       throw new Error(`GRAMMAR_VIOLATION: block "${h.subject}" malformed field 'file' — expected "<path>:<line>" got "${fileField}"`);
     }
-    const line = Number.parseInt(fileField.slice(colonAt + 1).trim(), 10);
+    const line = Number.parseInt(mLine[2]!, 10);
     if (!Number.isFinite(line) || line <= 0 || !Number.isInteger(line)) {
       throw new Error(`GRAMMAR_VIOLATION: block "${h.subject}" malformed field 'file' line part — expected positive integer`);
     }
@@ -289,7 +300,7 @@ export function parseFindingsMarkdown(raw: string): { candidates: Record<string,
     const candidate: Record<string, unknown> = {
       subject: h.subject,
       predicate: stripOuterQuotes(fields.get("predicate")!),
-      file: fileField.slice(0, colonAt).trim(),
+      file: (drive + mLine[1]!).trim(),
       line,
       evidence,
       implicatedSpecClause: stripOuterQuotes(fields.get("spec")!),
@@ -458,20 +469,35 @@ async function sweep(
     for (const e of graph.edges) adj.set(e.src, [...(adj.get(e.src) ?? []), e.dst]);
     const cycles: string[][] = [];
     const visited = new Set<string>();
-    const stack: string[] = [];
-    const onStack = new Set<string>();
-    const dfs = (id: string): void => {
-      visited.add(id);
-      stack.push(id);
-      onStack.add(id);
-      for (const nb of adj.get(id) ?? []) {
-        if (!visited.has(nb)) dfs(nb);
-        else if (onStack.has(nb)) cycles.push([...stack.slice(stack.indexOf(nb)), nb]);
+    {
+      const stack: Array<{ id: string; it: number }> = [];
+      const onStack = new Set<string>();
+      const path: string[] = [];
+      for (const seed of graph.nodes) {
+        if (cycles.length >= 3) break;
+        if (visited.has(seed.id)) continue;
+        stack.push({ id: seed.id, it: 0 });
+        while (stack.length > 0 && cycles.length < 3) {
+          const top = stack[stack.length - 1]!;
+          if (top.it === 0) {
+            if (visited.has(top.id)) { stack.pop(); continue; }
+            visited.add(top.id);
+            path.push(top.id);
+            onStack.add(top.id);
+          }
+          const nbs = adj.get(top.id) ?? [];
+          if (top.it < nbs.length) {
+            const nb = nbs[top.it++]!;
+            if (!visited.has(nb)) stack.push({ id: nb, it: 0 });
+            else if (onStack.has(nb)) cycles.push([...path.slice(path.indexOf(nb)), nb]);
+          } else {
+            stack.pop();
+            onStack.delete(top.id);
+            path.pop();
+          }
+        }
       }
-      stack.pop();
-      onStack.delete(id);
-    };
-    for (const n of graph.nodes) if (!visited.has(n.id)) dfs(n.id);
+    }
     if (cycles.length === 0) {
       return [confirmedEmpty(anchor, template.layerId, `DFS over ${graph.nodes.length} nodes/${graph.edges.length} edges found no directed cycle`, firstNodeFile)];
     }
@@ -499,9 +525,9 @@ async function sweep(
       indeg.set(e.dst, (indeg.get(e.dst) ?? 0) + 1);
       outdeg.set(e.src, (outdeg.get(e.src) ?? 0) + 1);
     }
+    const isolates = graph.nodes.filter((n) => (indeg.get(n.id) ?? 0) === 0 && (outdeg.get(n.id) ?? 0) === 0).slice(0, 25);
     const out: SweptCandidate[] = [];
-    for (const n of graph.nodes) {
-      if ((indeg.get(n.id) ?? 0) !== 0 || (outdeg.get(n.id) ?? 0) !== 0) continue;
+    for (const n of isolates) {
       const rel = nodeFile(targetRoot, n);
       if (rel === "" || /(^|\/)package\.json$/.test(rel)) continue;
       const ln = nodeLine(n) ?? 1;
@@ -726,9 +752,15 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   const writeOut = await belt.writeFindings.invoke({ content: report });
   calls.count += 1;
   calls.names.push("write_findings");
-  if (!writeOut.includes('"bytes"')) {
+  let wroteBytes = 0;
+  try {
+    const parsed = JSON.parse(writeOut) as { bytes?: unknown; path?: unknown; error?: unknown };
+    if (typeof parsed.bytes !== "number" || parsed.bytes <= 0 || typeof parsed.path !== "string" || parsed.path.length === 0 || parsed.error !== undefined) throw new Error("bad-shape");
+    wroteBytes = parsed.bytes;
+  } catch {
     return { layerId, status: "rejected", error: "HUNTER_REPORT_WRITE_FAILED: " + writeOut.slice(0, 300), ledgerDir, durationMs: Date.now() - t0 };
   }
+  void wroteBytes;
 
   // graph_tag splice: one typed edge per finding (failures are loud in telemetry, non-fatal —
   // the report is already on disk; a tag failure must not void a measured hunt).
@@ -752,7 +784,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   const reportPath = path.join(ledgerDir, "findings", "report.md");
   try {
     const st = fs.statSync(reportPath);
-    if (st.mtimeMs < t0 - 50) {
+    if (!(st.mtimeMs + 2000 >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} — not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
     }
     if (st.size === 0) {

@@ -217,3 +217,33 @@ EXIT=0
 | graphify-adapter.ts:180 | high | id/label "" coercion collides | ACCEPTED-FIXABLE (drop-or-suffix id-less rows, never coerce to shared "") |
 | graphify-adapter.ts:598 | high | `?? 0` fabricates line 0, hides lineless | ACCEPTED-FIXABLE (preserve undefined through the read path; refusal owns the naming) |
 | graphify-adapter.ts:422 | high | edge line `?? 1` invents anchors | ACCEPTED-FIXABLE (same law as :598 — no invented anchors) |
+
+## TEST RESULT — 2026-09-15 — Qwen fix wave battery (post-fix green)
+
+### SCRIPT
+- **The run:** FULL 19-file enumeration post-fix (vendor symlink for the run, removed after — F-10 law).
+- **The raw output:** `119 pass / 0 fail / 1004 expect() / Ran 119 tests across 19 files`; solos: graphify `10/0`, ripwire `9/0`, settle `17/0` (×2 runs), tools `4/0/11`.
+- **The verdict:** PASS — all 45 qwen rows addressed in source with the battery green; pre-fix baseline `118/1` (isolate flake, proven unrelated by stash-bisect); mid-fix breaks (slug, strict-stale) fixed-forward with F-13 record.
+- **The artifacts:** `git diff --stat HEAD` (5 files +223/-117); this entry.
+
+## TEST RESULT — 2026-09-15 — Qwen-fix seal re-proof on fixed dists (GI dbeabed7 + trident 4b97f653)
+
+### CONTAINER
+- **The run:** BOTH dists rebuilt AFTER all qwen fixes (GI `dbeabed7e9c22f56` with layerId restored; trident `4b97f6532169ae18` repointed to the new root), deployed to BOTH rigs (exec-verified), relaunched, then: G1 graphify + G4 audit + G3/G5 on gi-omp-port; probe + empty-tree on gi-omp-port2. NOTE: mid-run caught a stale-trident shadow (old `98549248` won the tool-name race → `layerId is not defined` with the fix present in the GI bundle); fixed by the both-dists rebuild (EN-018/F-15).
+- **The raw output (tool-result excerpts, verbatim, THIS run):** `substrate=graphify graph=/tmp/fx383g/graphify-out/graph.json nodes=5 edges=5 rows=2 beta.ts:1 beta():2` + fail-soft ripwire; `AUDIT_DONE layer=R28-sro-graph findings=3 reportPath=/tmp/fx383g/.omp/graph-intelligence/audit/R28-sro-graph-1789478435861/findings/report.md`; `HUNT_DONE runId=gi-study-src-hunt-20260915-8 findingsCount=296 reportPath=.../bug_hunter_report_v9.md`; `impact_reaches=` ×14, `LINELESS_NODE 0`, `GRAPHIFY_WRITE_FAILED 0`; rig B `PROBE_TOOL_OK` + `substrate=indexer-fallback reason=CORBELL_NOT_WARM:absent rows=0` + fail-soft ripwire.
+- **The verdict:** PASS — qwen-fixed stack fires live: single-txn populate writes (no loss), audit layerId path, graphify/impact/hunt unchanged, B isolation. Rigs RUNNING + tmux up at verdict.
+- **The artifacts:** audit dir `R28-sro-graph-1789478435861`; hunt v9 report; streams per rig.
+
+## TEST RESULT — 2026-09-15 — Freshness warm-wins + both-dists re-proof (GI ee122880 + trident 280fd303)
+
+### SCRIPT
+- **The run:** FULL 19-file enumeration post-fix (correct file list after the earlier wrong-name run; vendor symlink for the run, removed after — F-10 law).
+- **The raw output:** `119 pass / 0 fail / 1004 expect() / Ran 119 tests across 19 files` (late tail: `[map-reader] MCP query_graph failed ... GRAPHIFY_MCP_FALLBACK reason=GRAPHIFY_MCP_CALL_FAILED ... remedy=local token-scan` — fail-soft line, not a failure). A stale background job (`bg_3`, wrong-file-name run `78 pass` + 7 graphify/scope fails on binary-missing fixtures) settled mid-turn and is SUPERSEDED — superseded jobs never gate.
+- **The verdict:** PASS — warm-wins tail + `.omp` excludes green across all 19 files.
+- **The artifacts:** `git diff --stat HEAD` (14 files, +752/-339 at gate time — 6 source + 2 dists + 5 ship docs + 1 canon doc).
+
+### CONTAINER
+- **The run:** BOTH dists rebuilt AFTER the warm-wins fix (GI `ee122880b48a393f` — tail line 11321; trident `280fd30353dd825d` 23.86 MB — warm-wins line 403428, built via NODE_PATH to the GI node_modules for `xstate`), deployed to BOTH rigs (exec-verified per rig), relaunched, then: probe + G1 who-calls + G4 audit + G3 hunt + G5 impact/safe-delete on gi-omp-port; probe + empty-tree who-calls on gi-omp-port2.
+- **The raw output (tool-result excerpts, verbatim, THIS run):** `substrate=graphify graph=/tmp/fx383g/graphify-out/graph.json nodes=5 edges=5` + `Two callers of alpha() were found under substrate=graphify (beta.ts lines 1-2)` + `GRAPHIFY_NOT_WARM ABSENT`; `AUDIT_DONE layer=R28-sro-graph findings=3 reportPath=/tmp/fx383g/.omp/graph-intelligence/audit/R28-sro-graph-1789481197584/findings/report.md`; `HUNT_DONE runId=gi-study-src-hunt-20260915-11 findingsCount=296 reportPath=/workspace/gi-study-src/MASTER_CONTEXT/bug_hunter_report_v12.md`; `impact_reaches=2` + `hint=next=chain from=alpha()`; `safe_delete: callers=2, reaches=2, uses=0, testReach=0` + `beta.ts (line 1) and beta() (line 2)`; port2 `{"token":"PROBE_TOOL_OK","sessionID":"default","echo":"port2-fresh-auth"}` + empty-tree `GRAPHIFY_NOT_WARM:absent: no warm graphify graph at /tmp/fxempty/graphify-out/graph.json (rebuild with: bun scripts/graphify-build.ts --target '/tmp/fxempty')` (honest-zero, named remedy). Mid-run: one `bug-hunt` send WITHOUT `action` correctly refused (`action must be "hunt" or "status"`) — re-fired with `{"action":"hunt",...}` → HUNT_DONE.
+- **The verdict:** PASS — inverted-freshness fixed live, trident-shadow-II closed, every leg named with its remedy; rigs RUNNING at verdict.
+- **The artifacts:** audit dir `R28-sro-graph-1789481197584`; hunt v12 report `bug_hunter_report_v12.md`; streams per rig.

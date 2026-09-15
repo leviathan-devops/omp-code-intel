@@ -89,3 +89,59 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Root cause:** Mixed bag — 1 critical REFUTED by callee read (wipe gate lives in gi-registry.ts:111 + 2 battery pins), 1 critical + most highs are REAL debt (txn ordering, rollback absence, sessionId trust, targetPath allowlist, populate-on-read locking, empty-pool wording, grace-law masking, session-pin docs, singleton thrash, BFS quadratic, stringify-200, line-regex, id-normalize, line-0 masking, edge-line default).
 - **Impact:** Ship-ready claim BLOCKED per gate law until triaged; no silent pass.
 - **Disposition:** TRIAGED (table in TESTING_LOG) — gate verdict FAIL pending V-16/V-17 fixes or accepted-debt sign-off. No fixes applied inside the gate run (read-only law).
+
+### F-12 — Qwen mediums/low unreported until operator demanded full list (2026-09-15)
+
+- **What happened:** Qwen triage covered 23 crit/high rows; 21 medium + 1 low sat in the session JSONL with no per-row verdict. Operator: "report all the issues the code audit flagged."
+- **Found:** Same turn, full JSONL extraction (`/tmp/qwen-45.json`, 45 rows).
+- **Root cause:** Gate-thinking (only blockers get rows) vs operator ask (every issue gets a row).
+- **Impact:** 22 findings undispositioned in the log; zero code impact (all were read — just not written down).
+- **Disposition:** FIXED — full 45-row report in chat + V-16/V-17/V-18 fix wave below; mediums dispositioned as fix/debt with reasons.
+
+### F-13 — Qwen fix wave broke 5 tests mid-flight, battery caught both (2026-09-15)
+
+- **What happened:** Fix edits introduced (1) dropped `slug` line in `minimalGraphifyProfile` (3 graphify failures) + (2) over-strict stale check `mtime >= t0` (settle all-14 flake across templates) — full battery `114/5` then `111/8` at the worst point.
+- **Found:** Same turn, full 19-file enumeration (never solo-green trust).
+- **Root cause:** Scripted whole-function replacements landing off-anchor (slug) + clock-skew reality (same-ms mtime writes on fast tmpfs).
+- **Impact:** Zero ship impact (dists never rebuilt mid-fix); two fix-forward rounds.
+- **Disposition:** FIXED — slug restored, stale window 2s (green twice), full `119/0/1004` post-fix. Stash-bisect proved the remaining isolate failure pre-exists (flake, unrelated to qwen edits).
+
+### F-14 — Audit 100% refused after guard edit dropped layerId (2026-09-15)
+
+- **What happened:** Post-qwen-fix TUI: every `aether-code-audit` call → `GI_AUDIT_NOT_WIRED: layerId is not defined` (29 hits, 0 AUDIT_DONE).
+- **Found:** Same turn, stream census + bundle grep (zero `const layerId` in execute closure).
+- **Root cause:** Guard-insert edit consumed the neighboring layerId line + try opener; repairs half-landed.
+- **Impact:** Audit leg fully down on dists `7060853f`; graphify + hunt unaffected. Zero ship impact (no seal on broken dists).
+- **Disposition:** FIXED in source (layerId + try + comment restored, IMPORT-OK); rebuild + re-proof next.
+
+### F-15 — Stale trident shadow masked layerId fix for a full relaunch cycle (2026-09-15)
+
+- **What happened:** layerId fix verified in source + bundle + rig file, yet TUI kept failing — one wasted relaunch + send cycle diagnosing the wrong bundle.
+- **Found:** Same turn — trident dist predated the rescope (old-path import, old bytes `98549248`).
+- **Root cause:** Both-dists law violated (GI-only rebuild/deploy).
+- **Impact:** One cycle burned; zero ship impact (no seal on shadowed rigs).
+- **Disposition:** FIXED — trident repointed + rebuilt (`4b97f653`) + both rigs both dists + AUDIT_DONE green.
+
+### F-16 — Qwen re-run: FAIL persists at 16 high (0 critical), fix-now set named (2026-09-15)
+
+- **What happened:** Re-run `ocr scan` (same 5 files, JSON) → 43 findings (0 critical, 16 high, 21 medium, 6 low), session `8a24ae08`.
+- **Found:** Same turn, JSONL severity recount (never the prose summary).
+- **Root cause:** Residual hardening + consistency rows (see EN-019 triage): shape casts, LINELESS consistency, txn ownership, token normalization, probe narrowness, ok-spread, targetPath containment, populate race, grep semantics, graph_tag predicate, pool window/dead-mark/idx/singleton/pin wording.
+- **Impact:** Ship-ready claim stays BLOCKED per gate law (highs > 0). No silent pass.
+- **Disposition:** TRIAGED — fix-now set (shape guard, LINELESS consistency, idx -1/go-0, empty-snapshot throw, ledge-layer sanitize, grep no-match/cap, graph_tag predicate, ok-spread, targetPath containment note, writeJson gi_meta single-source) vs accepted-debt set (txn ownership doc, probe breadth, populate lock doc, window wording extensions, singleton LRU, session-pin contract text, perf caps, sync-IO shape) — executed below as V-18 wave; re-run owed after.
+
+### F-17 — Freshness scope bug made legit flake (spec.md newer than graph.json)
+
+- **What happened:** `legit-zero-misfire` failed 3/3 with `GRAPHIFY_NOT_WARM:stale` — the fixture writes spec.md/profile.yaml AFTER extract, and the freshness walk scanned the whole root.
+- **Found:** Same turn, instrumented reason print (`LEGIT-DBG reason: GRAPHIFY_NOT_WARM:stale`), instrument removed after.
+- **Root cause:** Freshness walked `root` (everything) instead of the profile `scope` (src); plus ms-granularity skew.
+- **Impact:** Test-only flake; live TUI unaffected (real profiles scope src).
+- **Disposition:** FIXED — scope-aware walk + 1s guard; legit 3/3 green; full `119/0/1004`.
+
+### F-18 — G1 MISS on warm graph (inverted freshness) + stale-trident shadow II (2026-09-15)
+
+- **What happened:** Three G1 sends + one full relaunch cycle burned on `GRAPHIFY_NOT_WARM:stale` against a provably-warm graph; then one more GI-only deploy cycle burned on the trident shadow (EN-018 repeated).
+- **Found:** Same turn — rig-side mtime walk (`warm 1789479950139 > newest 1789454611000` yet MISS) + bundle grep (trident `dfafeaea:237898` still inverted while the GI bundle was fixed).
+- **Root cause:** Inverted `newest + 1000 > warmMtime → fresh` comparison + skipped both-dists rebuild (trident `bun run build` red on xstate).
+- **Impact:** Four wasted send/relaunch cycles; zero ship impact (no seal claimed on refusing rigs).
+- **Disposition:** FIXED — warm-wins tail + `.omp` excludes + trident `280fd303` rebuilt/deployed both rigs; G1/G4/G3/G5 + port2 legs green.
