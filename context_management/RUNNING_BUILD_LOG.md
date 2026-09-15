@@ -181,3 +181,10 @@
 - WHY: G1 MISS-on-warm (inverted comparison) + EN-018 second instance (GI-only deploy vs frozen trident).
 - EVIDENCE: battery 119/0/1004; GI ee122880 + trident 280fd303 exec-verified all four copies; G1 nodes=5/edges=5/rows=2 MISS-absent; G4 findings=3; G3 296/v12; G5 impact=2 + safe-delete 2/2/0/0; port2 probe + honest-empty.
 - NEXT: checkpoint refresh on ee122880/280fd303; qwen RE-RUN for the verdict flip (V-16/V-17 CLOSED in source, re-run owed).
+
+## [2026-09-15T20:15+04:00] — V-20 WAVE: gate convergence + host-deploy seal (GI eab074e3 + trident 27b1b59c)
+- WHAT: corbell txn parity; per-table supersede guard; caller-owned close; projection guard; unified confineTargetPath (BOTH handlers); freshness scope+suffix parity+stale-budget; UNIQUE partial indexes; BFS seed; dirname; size-hint-only+read-once; community join; quota classifier+server; redaction; stale 100ms; grep containment; Z-anchor.
+- WHY: operator order — fix all, ready for host deploy.
+- EVIDENCE: battery 119/0/1004 ×3; SHAs exec-verified 4 copies; TUI G1+G4+G5 green (run-id 1789492431044); re-runs IV/V/VI = 56/55/60 findings, crits 1→0→1→0 (real crit fixed; wipe crit refuted gi-registry.ts:111).
+- GATE STATUS: FAIL-by-count stands (highs ≠ 0); residual = bounded fix-now vs accepted-debt per TESTING_LOG re-run III/IV/V/VI triage. Convergence law: EN-023/F-20.
+- NEXT: operator ruling on debt set → fixed-scope re-run VII → production-grade verdict.
