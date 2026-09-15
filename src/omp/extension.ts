@@ -1,6 +1,7 @@
 // GI-OMP extension factory — T-4. Dedicated sibling to trident-omp.
 // pi.zod schemas (JSON-schema-only is a silent skip on this runtime).
 
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { blastRadius, chainCalls, countTypedNodes, gateAdvisory, getMeta, impact, safeDelete, unwiredNodes, whoCalls, wouldBreak } from "./typed-write.ts";
 import { GiScopeError, openSessionStore } from "./store-open.ts";
@@ -20,273 +21,303 @@ export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-
 // aether-code-audit with the SAME execute (one shared handler, zero drift).
 // Removal: only on explicit operator order (never silently drop the alias).
 export const GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" } as const;
+  // Shared H12 confinement (graph-query + aether-code-audit): realpath,
+// isDirectory, and the GI_TARGET_ROOTS/cwd+/tmp allowlist.
+const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {
+  let real = normalized;
+  try { real = fs.realpathSync(normalized); } catch {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath does not exist: '${normalized.slice(0, 120)}'` };
+  }
+  let st: import("node:fs").Stats | null = null;
+  try { st = fs.statSync(real); } catch { st = null; }
+  if (!st || !st.isDirectory()) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
+  }
+  const allowRoots = (process.env.GI_TARGET_ROOTS ?? "")
+    .split(":").map((r) => r.trim()).filter((r) => r.length > 0);
+  const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
+  const within = roots.some((root) => {
+    const rel = path.relative(path.resolve(root), real);
+    return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  });
+  if (!within) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
+  }
+  return { ok: true, real };
+};
+
 
 type Zodish = {
-  string: () => { optional: () => unknown };
-  enum: (v: [string, ...string[]]) => unknown;
-  object: (shape: Record<string, unknown>) => unknown;
+string: () => { optional: () => unknown };
+enum: (v: [string, ...string[]]) => unknown;
+object: (shape: Record<string, unknown>) => unknown;
 };
 
 export interface GiExtensionAPI {
-  zod: Zodish;
-  registerTool: (tool: {
-    name: string;
-    description: string;
-    parameters: unknown;
-    execute: (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>;
-  }) => void;
-  on?: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => void;
+zod: Zodish;
+registerTool: (tool: {
+  name: string;
+  description: string;
+  parameters: unknown;
+  execute: (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>;
+}) => void;
+on?: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => void;
 }
 function textResult(text: string, details: Record<string, unknown>) {
-  return { content: [{ type: "text" as const, text }], details };
+return { content: [{ type: "text" as const, text }], details };
 }
 
 /** Fail-soft ripwire leg (qwen 8a24ae08): store-primary survives a leg throw. */
 function safeRipwire(fn: () => import("./ripwire-bridge.ts").RipwireLeg): import("./ripwire-bridge.ts").RipwireLeg {
-  try {
-    return fn();
-  } catch (e) {
-    return { present: false, ok: false, summary: "absent (leg threw: " + String(e instanceof Error ? e.message : e).slice(0, 80) + ")", data: {} };
-  }
+try {
+  return fn();
+} catch (e) {
+  return { present: false, ok: false, summary: "absent (leg threw: " + String(e instanceof Error ? e.message : e).slice(0, 80) + ")", data: {} };
+}
 }
 
 /** layerId sanitize (qwen 8a24ae08: no ../ or separators into ledgerDir). */
 function sanitizeLayerId(raw: string): string {
-  const t = raw.trim() === "" ? "R28-sro-graph" : raw.trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t)) return "R28-sro-graph";
-  return t;
+const t = raw.trim() === "" ? "R28-sro-graph" : raw.trim();
+if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t)) return "R28-sro-graph";
+return t;
 }
 
 /** Shared graph-query verb dispatch (default + graphify legs — identical verbs, different popNote). */
 async function runGraphQueryVerbs(
-  verb: string,
-  p: Record<string, unknown>,
-  storePath: string,
-  scopeRoot: string,
-  sessionId: string,
-  popNote: string,
-  substrate?: string,
+verb: string,
+p: Record<string, unknown>,
+storePath: string,
+scopeRoot: string,
+sessionId: string,
+popNote: string,
+substrate?: string,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }> {
-  if (verb === "who-calls") {
-    const sym = String(p.target ?? p.symbol ?? "");
-    if (sym.trim() === "") return textResult("QUERY_INVALID: target required (who-calls needs a symbol)", { ok: false, error: "QUERY_INVALID", verb });
-    const q = whoCalls(storePath, sym); // (legs isolated below — a ripwire throw keeps this primary)
-    const head = q.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join("\n");
-    // RIPWIRE CROSS-CHECK (complete delegation): the session-store callers
-    // stay primary; the live-tree ripwire leg rides the same result, named.
-    const rw = safeRipwire(() => ripwireCallers(scopeRoot, sym));
-    return textResult(`${popNote}rows=${q.rows}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate ?? "indexer-fallback", ripwire: rw });
+if (verb === "who-calls") {
+  const sym = String(p.target ?? p.symbol ?? "");
+  if (sym.trim() === "") return textResult("QUERY_INVALID: target required (who-calls needs a symbol)", { ok: false, error: "QUERY_INVALID", verb });
+  const q = whoCalls(storePath, sym); // (legs isolated below — a ripwire throw keeps this primary)
+  const head = q.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join("\n");
+  // RIPWIRE CROSS-CHECK (complete delegation): the session-store callers
+  // stay primary; the live-tree ripwire leg rides the same result, named.
+  const rw = safeRipwire(() => ripwireCallers(scopeRoot, sym));
+  return textResult(`${popNote}rows=${q.rows}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate ?? "indexer-fallback", ripwire: rw });
+}
+if (verb === "blast-radius") {
+  const b = blastRadius(storePath, String(p.target ?? p.symbol ?? ""));
+  const rw = safeRipwire(() => ripwireImpact(scopeRoot, String(p.target ?? p.symbol ?? "")));
+  return textResult(`rows=${b.nodes.length} root=${b.root} depth=${b.depth}\nripwire: ${rw.summary}`, { ok: true, rows: b.nodes.length, root: b.root, depth: b.depth, nodes: b.nodes, ripwire: rw });
+}
+if (verb === "would-break") {
+  const sym = String(p.target ?? p.symbol ?? "");
+  const w = wouldBreak(storePath, sym, String(p.proposed ?? ""));
+  const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
+  return textResult(`callers=${w.callers} argsUnknown=${w.argsUnknown}\nripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: true });
+}
+if (verb === "unwired") {
+  const u = unwiredNodes(storePath);
+  const head = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`).join("\n");
+  const rw = safeRipwire(() => ripwireDeadCode(scopeRoot));
+  return textResult(`rows=${u.length}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: u.length, names: u.map((r) => r.name), unwired: u, ripwire: rw });
+}
+if (verb === "chain") {
+  const from = String(p.from ?? p.target ?? p.symbol ?? "");
+  const to = String(p.to ?? "");
+  const steps = chainCalls(storePath, from, to);
+  const head = steps.map((s) => `${s.from} -> ${s.to} [${s.kind}]`).join("\n");
+  const rw = safeRipwire(() => (to.length > 0 ? ripwirePath(scopeRoot, from, to) : { present: true, ok: false, summary: "skipped (no `to` argument)", data: {} }));
+  return textResult(`rows=${steps.length}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: steps.length, steps, ripwire: rw });
+}
+if (verb === "impact") {
+  const sym = String(p.target ?? p.symbol ?? "");
+  const im = impact(storePath, sym, 8);
+  const head = im.ledger.slice(0, 20).map((r) => `${r.symbol}@depth${r.depth} (${r.file}:${r.line}) via ${r.via}`).join("\n");
+  const rw = safeRipwire(() => ripwireImpact(scopeRoot, sym));
+  return textResult(`${popNote}impact_reaches=${im.reaches}\n${head}\nhint=${im.hint}\nripwire: ${rw.summary}`, { ok: true, rows: im.reaches, impact_reaches: im.reaches, ledger: im.ledger, hint: im.hint, ripwire: rw });
+}
+if (verb === "safe-delete") {
+  const sym = String(p.target ?? p.symbol ?? "");
+  const sd = safeDelete(storePath, sym);
+  const head = sd.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join("\n");
+  const rw = safeRipwire(() => ripwireSafeDelete(scopeRoot, sym));
+  return textResult(`${popNote}safe_delete: ${sym} callers=${sd.callers.length} reaches=${sd.reaches} uses=${sd.uses.length} testReach=${sd.testReach.length}\n${head}\nripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: true });
+}
+if (verb === "gate") {
+  const dialRaw = String((p as Record<string, unknown>).dial ?? "STEER").toUpperCase();
+  const sym = String(p.target ?? p.symbol ?? "");
+  // RIPWIRE EDIT-CHECK DELEGATION (the W4 seam): the mandate's own verb —
+  // "did SYM's contract change, and which callers no longer fit".
+  const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
+  const ga = gateAdvisory(storePath, [sym], dialRaw === "FULL" ? "FULL" : "STEER", { ok: rw.ok, summary: rw.summary });
+  return textResult(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: true });
+}
+if (verb === "verify") {
+  // RIPWIRE CLAIM VERIFY (new verb): the claim language is CLOSED —
+  // calls(A,B) · uses(SYM) · unused(SYM) · contains(FILE,"LIT") ·
+  // defines(FILE,SYM) · reaches(SYM,"FILE"|LAYER). Refused/absent are named.
+  const claim = String(p.target ?? p.symbol ?? "");
+  if (claim.length === 0) {
+    return textResult("VERIFY_INVALID: claim required (closed shapes: calls(A,B), uses(SYM), unused(SYM), contains(FILE,\"LIT\"), defines(FILE,SYM), reaches(SYM,FILTER))", { ok: false, error: "VERIFY_INVALID" });
   }
-  if (verb === "blast-radius") {
-    const b = blastRadius(storePath, String(p.target ?? p.symbol ?? ""));
-    const rw = safeRipwire(() => ripwireImpact(scopeRoot, String(p.target ?? p.symbol ?? "")));
-    return textResult(`rows=${b.nodes.length} root=${b.root} depth=${b.depth}\nripwire: ${rw.summary}`, { ok: true, rows: b.nodes.length, root: b.root, depth: b.depth, nodes: b.nodes, ripwire: rw });
+  const rw = safeRipwire(() => ripwireVerify(scopeRoot, claim));
+  return textResult(`${popNote}verify: ${rw.summary}`, { ...rw.data, ripwire: rw, ok: rw.ok, error: rw.ok ? undefined : (rw.present ? "VERIFY_FAILED" : "RIPWIRE_ABSENT") });
+}
+if (verb === "must-implement" || verb === "rule" || verb === "violations" || verb === "consistency") {
+  // COVERAGE DELEGATION: these verbs have no typed-write twin — they read
+  // the hunt substrate (graph_nodes lineage / compiled_predicates /
+  // findings) through the ported runQueryTool, READ-ONLY over THIS
+  // session store. The 5 verbs above stay on typed-write (no regression).
+  const sym = String(p.target ?? p.symbol ?? "");
+  const delegated = await runQueryTool({
+    sessionId,
+    scopeRoot,
+    verb: verb as QueryVerb,
+    symbol: sym || undefined,
+    from: typeof p.from === "string" ? p.from : undefined,
+    to: typeof p.to === "string" ? p.to : undefined,
+    ruleId: sym || undefined,
+    proposed: typeof p.proposed === "string" ? p.proposed : undefined,
+  });
+  let items: unknown[];
+  try {
+    const parsed: unknown = JSON.parse(delegated);
+    if (!Array.isArray(parsed)) return textResult(`QUERY_DELEGATION_INVALID: verb ${verb} delegation returned non-array`, { ok: false, error: "QUERY_DELEGATION_INVALID", verb });
+    items = parsed;
+  } catch {
+    return textResult(`QUERY_DELEGATION_INVALID: verb ${verb} delegation unparseable`, { ok: false, error: "QUERY_DELEGATION_INVALID", verb });
   }
-  if (verb === "would-break") {
-    const sym = String(p.target ?? p.symbol ?? "");
-    const w = wouldBreak(storePath, sym, String(p.proposed ?? ""));
-    const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
-    return textResult(`callers=${w.callers} argsUnknown=${w.argsUnknown}\nripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: true });
-  }
-  if (verb === "unwired") {
-    const u = unwiredNodes(storePath);
-    const head = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`).join("\n");
-    const rw = safeRipwire(() => ripwireDeadCode(scopeRoot));
-    return textResult(`rows=${u.length}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: u.length, names: u.map((r) => r.name), unwired: u, ripwire: rw });
-  }
-  if (verb === "chain") {
-    const from = String(p.from ?? p.target ?? p.symbol ?? "");
-    const to = String(p.to ?? "");
-    const steps = chainCalls(storePath, from, to);
-    const head = steps.map((s) => `${s.from} -> ${s.to} [${s.kind}]`).join("\n");
-    const rw = safeRipwire(() => (to.length > 0 ? ripwirePath(scopeRoot, from, to) : { present: true, ok: false, summary: "skipped (no `to` argument)", data: {} }));
-    return textResult(`rows=${steps.length}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: steps.length, steps, ripwire: rw });
-  }
-  if (verb === "impact") {
-    const sym = String(p.target ?? p.symbol ?? "");
-    const im = impact(storePath, sym, 8);
-    const head = im.ledger.slice(0, 20).map((r) => `${r.symbol}@depth${r.depth} (${r.file}:${r.line}) via ${r.via}`).join("\n");
-    const rw = safeRipwire(() => ripwireImpact(scopeRoot, sym));
-    return textResult(`${popNote}impact_reaches=${im.reaches}\n${head}\nhint=${im.hint}\nripwire: ${rw.summary}`, { ok: true, rows: im.reaches, impact_reaches: im.reaches, ledger: im.ledger, hint: im.hint, ripwire: rw });
-  }
-  if (verb === "safe-delete") {
-    const sym = String(p.target ?? p.symbol ?? "");
-    const sd = safeDelete(storePath, sym);
-    const head = sd.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join("\n");
-    const rw = safeRipwire(() => ripwireSafeDelete(scopeRoot, sym));
-    return textResult(`${popNote}safe_delete: ${sym} callers=${sd.callers.length} reaches=${sd.reaches} uses=${sd.uses.length} testReach=${sd.testReach.length}\n${head}\nripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: true });
-  }
-  if (verb === "gate") {
-    const dialRaw = String((p as Record<string, unknown>).dial ?? "STEER").toUpperCase();
-    const sym = String(p.target ?? p.symbol ?? "");
-    // RIPWIRE EDIT-CHECK DELEGATION (the W4 seam): the mandate's own verb —
-    // "did SYM's contract change, and which callers no longer fit".
-    const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
-    const ga = gateAdvisory(storePath, [sym], dialRaw === "FULL" ? "FULL" : "STEER", { ok: rw.ok, summary: rw.summary });
-    return textResult(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: true });
-  }
-  if (verb === "verify") {
-    // RIPWIRE CLAIM VERIFY (new verb): the claim language is CLOSED —
-    // calls(A,B) · uses(SYM) · unused(SYM) · contains(FILE,"LIT") ·
-    // defines(FILE,SYM) · reaches(SYM,"FILE"|LAYER). Refused/absent are named.
-    const claim = String(p.target ?? p.symbol ?? "");
-    if (claim.length === 0) {
-      return textResult("VERIFY_INVALID: claim required (closed shapes: calls(A,B), uses(SYM), unused(SYM), contains(FILE,\"LIT\"), defines(FILE,SYM), reaches(SYM,FILTER))", { ok: false, error: "VERIFY_INVALID" });
-    }
-    const rw = safeRipwire(() => ripwireVerify(scopeRoot, claim));
-    return textResult(`${popNote}verify: ${rw.summary}`, { ...rw.data, ripwire: rw, ok: rw.ok, error: rw.ok ? undefined : (rw.present ? "VERIFY_FAILED" : "RIPWIRE_ABSENT") });
-  }
-  if (verb === "must-implement" || verb === "rule" || verb === "violations" || verb === "consistency") {
-    // COVERAGE DELEGATION: these verbs have no typed-write twin — they read
-    // the hunt substrate (graph_nodes lineage / compiled_predicates /
-    // findings) through the ported runQueryTool, READ-ONLY over THIS
-    // session store. The 5 verbs above stay on typed-write (no regression).
-    const sym = String(p.target ?? p.symbol ?? "");
-    const delegated = await runQueryTool({
-      sessionId,
-      scopeRoot,
-      verb: verb as QueryVerb,
-      symbol: sym || undefined,
-      from: typeof p.from === "string" ? p.from : undefined,
-      to: typeof p.to === "string" ? p.to : undefined,
-      ruleId: sym || undefined,
-      proposed: typeof p.proposed === "string" ? p.proposed : undefined,
-    });
-    let items: unknown[];
-    try {
-      const parsed: unknown = JSON.parse(delegated);
-      if (!Array.isArray(parsed)) return textResult(`QUERY_DELEGATION_INVALID: verb ${verb} delegation returned non-array`, { ok: false, error: "QUERY_DELEGATION_INVALID", verb });
-      items = parsed;
-    } catch {
-      return textResult(`QUERY_DELEGATION_INVALID: verb ${verb} delegation unparseable`, { ok: false, error: "QUERY_DELEGATION_INVALID", verb });
-    }
-    return textResult(`${popNote}rows=${items.length}\n${delegated}`, { ok: true, verb, rows: items.length, items });
-  }
-  return textResult(`rows=0`, { ok: true, rows: 0, verb });
+  return textResult(`${popNote}rows=${items.length}\n${delegated}`, { ok: true, verb, rows: items.length, items });
+}
+return textResult(`rows=0`, { ok: true, rows: 0, verb });
 }
 
 export function registerGiOmpTools(pi: GiExtensionAPI, cwdOf: (ctx?: { cwd?: string; sessionID?: string }) => string): string[] {
-  const zstr = () => pi.zod.string();
-  const obj = (shape: Record<string, unknown>) => pi.zod.object(shape);
+const zstr = () => pi.zod.string();
+const obj = (shape: Record<string, unknown>) => pi.zod.object(shape);
 
-  pi.registerTool({
-    name: "graph-probe",
-    description: "GI-OMP health probe. Returns PROBE_TOOL_OK + session identity. action=wipe is env-gated.",
-    parameters: obj({ i: zstr().optional(), echo: zstr().optional(), action: zstr().optional() }),
-    execute: async (_id, params, _sig, _upd, ctx) => {
-      const p = (params && typeof params === "object" ? params : {}) as { echo?: string; action?: string };
-      if (String(p.action ?? "").toLowerCase() === "wipe") {
-        try {
-          clearGiRegistry();
-          return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
-        } catch (e) {
-          const err = e as GiClearError;
-          const code = "code" in err ? String(err.code) : "GI_CLEAR_REFUSED";
-          return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
-        }
-      }
-      const sessionID = String((ctx as { sessionID?: string } | undefined)?.sessionID ?? "default");
-      return textResult(
-        JSON.stringify({ token: "PROBE_TOOL_OK", sessionID, echo: p.echo ?? null }),
-        { ok: true, token: "PROBE_TOOL_OK", sessionID },
-      );
-    },
-  });
-  pi.registerTool({
-    name: "graph-query",
-    description: "Parse-grade GI query against THIS session store only. Verbs: who-calls, blast-radius, would-break, unwired, chain, impact (upstream closure + depth ledger), safe-delete (callers + reaches + uses + test-reach), gate (STEER/FULL caller advisory), verify (ripwire claim check: calls(A,B) uses(SYM) unused(SYM) contains(FILE,LIT) defines(FILE,SYM) reaches(SYM,FILTER)), must-implement, rule, violations, consistency. Params substrate+targetPath select the graphify leg (explicit absolute targetPath). Every twin verb appends a `ripwire:` cross-check line (store-primary, live-tree ripwire leg named).",
-    parameters: obj({
-      i: zstr().optional(),
-      verb: zstr(),
-      target: zstr().optional(),
-      symbol: zstr().optional(),
-      from: zstr().optional(),
-      to: zstr().optional(),
-      proposed: zstr().optional(),
-      sessionId: zstr().optional(),
-      dial: zstr().optional(),
-      substrate: zstr().optional(),
-      targetPath: zstr().optional(),
-    }),
-    execute: async (_id, params, _sig, _upd, ctx) => {
-      const p = params && typeof params === "object" ? params as Record<string, unknown> : {};
-      const verb = String(p.verb ?? "");
-      const verbs = ["who-calls", "blast-radius", "would-break", "unwired", "chain", "impact", "safe-delete", "gate", "verify", "must-implement", "rule", "violations", "consistency"];
-      if (!verbs.includes(verb)) {
-        return textResult("QUERY_INVALID: " + verb, { ok: false, error: "QUERY_INVALID" });
-      }
-      let callerId = "omp-default-session";
-      if (ctx && typeof ctx === "object" && "sessionID" in ctx && typeof (ctx as { sessionID?: unknown }).sessionID === "string" && String((ctx as { sessionID: string }).sessionID).length > 0) {
-        callerId = String((ctx as { sessionID: string }).sessionID);
-      }
-      const sessionId = callerId;
-      const substrate = typeof p.substrate === "string" ? p.substrate : "";
-      const targetPathRaw = typeof p.targetPath === "string" ? p.targetPath : "";
-      // TARGET-PATH SCOPE (graphify leg): an explicit absolute targetPath pins
-      // the query root (the operator-built graph.json tree); otherwise the
-      // caller cwd. A non-absolute targetPath is the named GI_PATH_DENIED.
-      let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx as { cwd?: string } : undefined);
-      if (targetPathRaw.length > 0) {
-        if (!path.isAbsolute(targetPathRaw)) {
-          return textResult(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
-        }
-        scopeRoot = path.normalize(targetPathRaw);
-      }
+pi.registerTool({
+  name: "graph-probe",
+  description: "GI-OMP health probe. Returns PROBE_TOOL_OK + session identity. action=wipe is env-gated.",
+  parameters: obj({ i: zstr().optional(), echo: zstr().optional(), action: zstr().optional() }),
+  execute: async (_id, params, _sig, _upd, ctx) => {
+    const p = (params && typeof params === "object" ? params : {}) as { echo?: string; action?: string };
+    if (String(p.action ?? "").toLowerCase() === "wipe") {
       try {
-        const opened = openSessionStore({ sessionId, scopeRoot, callerSessionId: callerId });
-        // THE GRAPHIFY LEG (GI-OMP full-port W1 follow-up): substrate==='graphify'
-        // routes to the graphify graph.json leg — freshness vs graph.json mtime,
-        // then populateSessionStore(..., {substrate:'graphify'}). HIT flows into
-        // the SAME verb dispatch below with a substrate=graphify note; MISS is
-        // LOUD (ok:false + GRAPHIFY_NOT_WARM/GRAPH_EMPTY + the rebuild remedy),
-        // never a corbell substitute.
-        if (substrate === "graphify") {
-          const graphPath = graphifyOutPath(scopeRoot);
-          const fresh = isGraphifyCheckoutFreshFor(scopeRoot, graphPath);
-          if (!fresh.fresh) {
-            const reason = `GRAPHIFY_NOT_WARM:${fresh.reason}`;
-            return textResult(`${reason}: no warm graphify graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
-          }
-          const pop = populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" });
-          if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
-            const reason = pop.fallbackReason ?? "GRAPHIFY_NOT_WARM:miss";
-            return textResult(`${reason}: graphify populate missed (graph=${graphPath}; rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
-          }
-          const popNote = `substrate=graphify graph=${graphPath} nodes=${pop.nodes} edges=${pop.edges}\n`;
-          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, "graphify");
-        }
-        // THE SUBSTRATE LAW, reconcile edition: the store RECORDS its substrate
-        // (gi_meta). Queries SURFACE it ALWAYS - a regex-populated store must
-        // never silently masquerade once corbell is warm. When a warm checkout
-        // exists and the store was populated by the fallback (or predates the
-        // ledger), repopulate from corbell so the upgrade takes effect.
-        let popNote = "";
-        const stored = getMeta(opened.storePath, "substrate");
-        const empty = countTypedNodes(opened.storePath) === 0;
-        const warmPath = corbellCheckoutPath(scopeRoot);
-        const warm = empty ? { fresh: false } : isCorbellCheckoutFreshFor(scopeRoot, warmPath);
-        if (empty || (warm.fresh && stored !== "corbell")) {
-          const pop = populateSessionStore(opened.storePath, scopeRoot);
-          popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}\n`;
-          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
-        } else {
-          popNote = `substrate=${stored ?? "indexer-fallback"}\n`;
-          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, stored ?? "indexer-fallback");
-        }
+        clearGiRegistry();
+        return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
       } catch (e) {
-        const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code: unknown }).code) : "GI_QUERY_FAIL";
-        return textResult(`${code}: ${String(e instanceof Error ? e.message : e)}`, { ok: false, error: code });
+        const err = e as GiClearError;
+        const code = "code" in err ? String(err.code) : "GI_CLEAR_REFUSED";
+        return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
       }
-    },
-  });
+    }
+    const sessionID = String((ctx as { sessionID?: string } | undefined)?.sessionID ?? "default");
+    return textResult(
+      JSON.stringify({ token: "PROBE_TOOL_OK", sessionID, echo: p.echo ?? null }),
+      { ok: true, token: "PROBE_TOOL_OK", sessionID },
+    );
+  },
+});
+pi.registerTool({
+  name: "graph-query",
+  description: "Parse-grade GI query against THIS session store only. Verbs: who-calls, blast-radius, would-break, unwired, chain, impact (upstream closure + depth ledger), safe-delete (callers + reaches + uses + test-reach), gate (STEER/FULL caller advisory), verify (ripwire claim check: calls(A,B) uses(SYM) unused(SYM) contains(FILE,LIT) defines(FILE,SYM) reaches(SYM,FILTER)), must-implement, rule, violations, consistency. Params substrate+targetPath select the graphify leg (explicit absolute targetPath). Every twin verb appends a `ripwire:` cross-check line (store-primary, live-tree ripwire leg named).",
+  parameters: obj({
+    i: zstr().optional(),
+    verb: zstr(),
+    target: zstr().optional(),
+    symbol: zstr().optional(),
+    from: zstr().optional(),
+    to: zstr().optional(),
+    proposed: zstr().optional(),
+    sessionId: zstr().optional(),
+    dial: zstr().optional(),
+    substrate: zstr().optional(),
+    targetPath: zstr().optional(),
+  }),
+  execute: async (_id, params, _sig, _upd, ctx) => {
+    const p = params && typeof params === "object" ? params as Record<string, unknown> : {};
+    const verb = String(p.verb ?? "");
+    const verbs = ["who-calls", "blast-radius", "would-break", "unwired", "chain", "impact", "safe-delete", "gate", "verify", "must-implement", "rule", "violations", "consistency"];
+    if (!verbs.includes(verb)) {
+      return textResult("QUERY_INVALID: " + verb, { ok: false, error: "QUERY_INVALID" });
+    }
+    let callerId = "omp-default-session";
+    if (ctx && typeof ctx === "object" && "sessionID" in ctx && typeof (ctx as { sessionID?: unknown }).sessionID === "string" && String((ctx as { sessionID: string }).sessionID).length > 0) {
+      callerId = String((ctx as { sessionID: string }).sessionID);
+    }
+    const sessionId = callerId;
+    const substrate = typeof p.substrate === "string" ? p.substrate : "";
+    const targetPathRaw = typeof p.targetPath === "string" ? p.targetPath : "";
+    // TARGET-PATH SCOPE (graphify leg): an explicit absolute targetPath pins
+    // the query root (the operator-built graph.json tree); otherwise the
+    // caller cwd. A non-absolute targetPath is the named GI_PATH_DENIED.
+    let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx as { cwd?: string } : undefined);
+    const callerCwd = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx as { cwd?: string } : undefined);
+    if (targetPathRaw.length > 0) {
+      if (!path.isAbsolute(targetPathRaw)) {
+        return textResult(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      const confined = confineTargetPath(path.normalize(targetPathRaw), callerCwd);
+      if (!confined.ok) {
+        return textResult(confined.error, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      scopeRoot = confined.real;
+    }
+    try {
+      const opened = openSessionStore({ sessionId, scopeRoot, callerSessionId: callerId });
+      // THE GRAPHIFY LEG (GI-OMP full-port W1 follow-up): substrate==='graphify'
+      // routes to the graphify graph.json leg — freshness vs graph.json mtime,
+      // then populateSessionStore(..., {substrate:'graphify'}). HIT flows into
+      // the SAME verb dispatch below with a substrate=graphify note; MISS is
+      // LOUD (ok:false + GRAPHIFY_NOT_WARM/GRAPH_EMPTY + the rebuild remedy),
+      // never a corbell substitute.
+      if (substrate === "graphify") {
+        const graphPath = graphifyOutPath(scopeRoot);
+        const fresh = isGraphifyCheckoutFreshFor(scopeRoot, graphPath);
+        if (!fresh.fresh) {
+          const reason = `GRAPHIFY_NOT_WARM:${fresh.reason}`;
+          return textResult(`${reason}: no warm graphify graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
+        }
+        const pop = populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" });
+        if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
+          const reason = pop.fallbackReason ?? "GRAPHIFY_NOT_WARM:miss";
+          return textResult(`${reason}: graphify populate missed (graph=${graphPath}; rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
+        }
+        const popNote = `substrate=graphify graph=${graphPath} nodes=${pop.nodes} edges=${pop.edges}\n`;
+        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, "graphify");
+      }
+      // THE SUBSTRATE LAW, reconcile edition: the store RECORDS its substrate
+      // (gi_meta). Queries SURFACE it ALWAYS - a regex-populated store must
+      // never silently masquerade once corbell is warm. When a warm checkout
+      // exists and the store was populated by the fallback (or predates the
+      // ledger), repopulate from corbell so the upgrade takes effect.
+      let popNote = "";
+      const stored = getMeta(opened.storePath, "substrate");
+      const empty = countTypedNodes(opened.storePath) === 0;
+      const warmPath = corbellCheckoutPath(scopeRoot);
+      const warm = empty ? { fresh: false } : isCorbellCheckoutFreshFor(scopeRoot, warmPath);
+      if (empty || (warm.fresh && stored !== "corbell")) {
+        const pop = populateSessionStore(opened.storePath, scopeRoot);
+        popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}\n`;
+        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
+      } else {
+        popNote = `substrate=${stored ?? "indexer-fallback"}\n`;
+        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, stored ?? "indexer-fallback");
+      }
+    } catch (e) {
+      const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code: unknown }).code) : "GI_QUERY_FAIL";
+      return textResult(`${code}: ${String(e instanceof Error ? e.message : e)}`, { ok: false, error: code });
+    }
+  },
+});
 
-  // bug-hunt is owned by the ported adapter (src/hunter/tools/bug-hunt.ts):
-  // action=status reads the session store (unwired count + fix order);
-  // action=hunt runs the REAL micro-loop under hunt-lock (fail-closed
-  // INCONCLUSIVE as RESULT, HUNT_DONE + report artifact on success).
-  createBugHuntTool(pi, { cwdOf });
+// bug-hunt is owned by the ported adapter (src/hunter/tools/bug-hunt.ts):
+// action=status reads the session store (unwired count + fix order);
+// action=hunt runs the REAL micro-loop under hunt-lock (fail-closed
+// INCONCLUSIVE as RESULT, HUNT_DONE + report artifact on success).
+createBugHuntTool(pi, { cwdOf });
 
-  // aether-code-audit: bound to the hydra auditor run path (W7). execute routes
+// aether-code-audit: bound to the hydra auditor run path (W7). execute routes
   // {targetPath} → runTemplateAudit (src/hydra/auditor.ts, deterministic sweep over
   // the operator-built graph.json via the EN-38 guarded reader) → findings +
   // reportPath, {ok:true, findings, reportPath}. Default template R28-sro-graph;
@@ -306,7 +337,19 @@ export function registerGiOmpTools(pi: GiExtensionAPI, cwdOf: (ctx?: { cwd?: str
     if (targetRaw !== "" && !path.isAbsolute(targetRaw)) {
       return textResult(`GI_PATH_DENIED: targetPath must be absolute, got '${targetRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
     }
-    const targetRoot = targetRaw !== "" ? path.normalize(targetRaw) : scopeRoot;
+    // CRITICAL fix (qwen 6768692f): the audit handler gets the SAME H12
+    // confinement as graph-query — realpath + isDirectory + GI_TARGET_ROOTS/
+    // cwd+/tmp allowlist, BEFORE any ledgerDir write or graph read.
+    let targetRoot: string;
+    if (targetRaw !== "") {
+      const confined = confineTargetPath(path.normalize(targetRaw), scopeRoot);
+      if (!confined.ok) {
+        return textResult(confined.error, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      targetRoot = confined.real;
+    } else {
+      targetRoot = scopeRoot;
+    }
     const layerId = sanitizeLayerId(String(p.template ?? ""));
     try {
       // Function-local dynamic imports (NOT top-of-file statics): the audit-bind

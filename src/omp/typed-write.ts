@@ -2,6 +2,7 @@
 // without going through openSessionStore (GI_SCOPE_REFUSED).
 
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import { assertSessionStorePath } from "../scoping/index.ts";
 
@@ -20,8 +21,10 @@ export class GiStoreCorruptError extends Error {
 export const GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
 export const GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
 
-export function parseGraphJsonGuarded(contents: string, size = 0): Record<string, unknown> {
-  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+export function parseGraphJsonGuarded(contents: string, sizeHint = 0): Record<string, unknown> {
+  // H11 (qwen 33d64eca): size is a HINT only — the budget checks the ACTUAL bytes
+  // (a spoofed/TOCTOU small size can no longer bypass the 128MiB load budget).
+  const byteLen = Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
     throw new Error(
       `GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`,
@@ -31,12 +34,13 @@ export function parseGraphJsonGuarded(contents: string, size = 0): Record<string
 }
 
 // Async variant for large-but-legal payloads: yields above the 8MiB floor.
-export async function parseGraphJsonGuardedAsync(contents: string, size = 0): Promise<Record<string, unknown>> {
-  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+export async function parseGraphJsonGuardedAsync(contents: string, sizeHint = 0): Promise<Record<string, unknown>> {
+  // H11: actual bytes decide; the hint can only trigger the early yield.
+  const byteLen = Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_PARSE_YIELD_BYTES && byteLen <= GRAPH_LOAD_BUDGET_BYTES) {
     await new Promise<void>((resolve) => setImmediate(resolve));
   }
-  return parseGraphJsonGuarded(contents, byteLen);
+  return parseGraphJsonGuarded(contents);
 }
 
 // Fork TYPED_GRAPH_DDL subset (migrations.ts:10-30, ontology.ts:1-10): the
@@ -64,9 +68,11 @@ export const TYPED_STORE_DDL: readonly string[] = [
     created_run TEXT NOT NULL,
     superseded_run TEXT
   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_tn_live_canonical ON typed_nodes(canonical_id) WHERE superseded_run IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id)`,
   `CREATE INDEX IF NOT EXISTS idx_tn_label ON typed_nodes(label)`,
   `CREATE INDEX IF NOT EXISTS idx_tn_file ON typed_nodes(file)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`,
@@ -105,8 +111,11 @@ export function setMeta(storePath: string, key: string, value: string): void {
 
 export function openTypedStore(storePath: string): Database {
   assertSessionStorePath(storePath);
+  // H10 (qwen 33d64eca): path.dirname (slashless-safe) + UNCONDITIONAL recursive
+  // mkdir — no exists/stat TOCTOU, no bogus dir when storePath has no "/".
+  fs.mkdirSync(path.dirname(storePath), { recursive: true });
   if (!fs.existsSync(storePath) || fs.statSync(storePath).size === 0) {
-    fs.mkdirSync(storePath.slice(0, storePath.lastIndexOf("/")), { recursive: true });
+    // fresh store path — DDL below creates the schema
   } else {
     const head = Buffer.alloc(16);
     const fd = fs.openSync(storePath, "r");
@@ -121,7 +130,22 @@ export function openTypedStore(storePath: string): Database {
   }
   const db = new Database(storePath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
-  for (const stmt of TYPED_STORE_DDL) db.run(stmt);
+  // H08/M14 (qwen 33d64eca): per-statement replay — a legacy store holding
+  // duplicate live rows cannot host the new UNIQUE index; that ONE statement
+  // fails loudly in stderr and the rest of the DDL lands (the store keeps
+  // working; new stores get the constraint from birth).
+  for (const stmt of TYPED_STORE_DDL) {
+    try {
+      db.run(stmt);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("UNIQUE")) {
+        console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${msg.slice(0, 120)}`);
+        continue;
+      }
+      throw e;
+    }
+  }
   return db;
 }
 
@@ -163,6 +187,9 @@ export interface ForkEdge {
   dstCanonical: string;
   predicate: string;
   evidence: string;
+  /** Warm-copy confidence (M05, qwen 33d64eca): corbell reads confidence from
+   *  the warm store — the copy must carry it, not re-default to 1.0. */
+  confidence?: number;
   run: string;
 }
 
@@ -170,8 +197,8 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
   const db = openTypedStore(storePath);
   try {
     db.run(
-      "INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, 1.0, ?, NULL)",
-      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, edge.run],
+      "INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
     );
   } finally {
     db.close();
@@ -192,8 +219,8 @@ export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[])
 export function insertForkEdgesBatch(db: { run: (sql: string, params: unknown[]) => void }, edges: ForkEdge[]): void {
   for (const edge of edges) {
     db.run(
-      "INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, 1.0, ?, NULL)",
-      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, edge.run],
+      "INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
     );
   }
 }
@@ -449,6 +476,13 @@ export function impact(storePath: string, symbol: string, depth = 8): ImpactResu
   try {
     const ledger: ImpactLedgerRow[] = [];
     const seen = new Set<string>();
+    // H09 (qwen 33d64eca): seed seen with the start symbol's canonical_ids
+    // BEFORE the loop — on a cycle (A calls B, B calls A) the start node must
+    // never ledger itself as its own upstream caller.
+    const startSeeds = db.query(
+      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+    ).all(symbol) as Array<{ canonical_id: string }>;
+    for (const seed of startSeeds) seen.add(seed.canonical_id);
     let frontier: string[] = [symbol];
     for (let d = 1; d <= depth && frontier.length > 0; d++) {
       const next: string[] = [];
@@ -470,10 +504,6 @@ export function impact(storePath: string, symbol: string, depth = 8): ImpactResu
       }
       frontier = next;
     }
-    const startIds = db.query(
-      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
-    ).all(symbol) as Array<{ canonical_id: string }>;
-    for (const s of startIds) seen.add(s.canonical_id);
     return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
   } finally {
     db.close();

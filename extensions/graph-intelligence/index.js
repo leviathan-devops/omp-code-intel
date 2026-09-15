@@ -8224,7 +8224,7 @@ function kindForLayer(layerId) {
 
 // src/hydra/map-reader.ts
 import fs21 from "fs";
-import path23 from "path";
+import path24 from "path";
 function parseGraphJson(contents, size) {
   const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES2) {
@@ -8278,7 +8278,7 @@ async function readGraphJson(graphPath) {
   if (typeof graphPath !== "string" || graphPath.trim() === "") {
     throw new Error("GRAPHIFY_CONNECT_INVALID: graphPath must be non-empty string");
   }
-  const resolved = path23.resolve(graphPath);
+  const resolved = path24.resolve(graphPath);
   let stat;
   try {
     stat = fs21.statSync(resolved);
@@ -8318,7 +8318,7 @@ class GraphifyMapReader {
   }
   async load(graphPath) {
     const g = await readGraphJson(graphPath);
-    this.lastGraphPath = path23.resolve(graphPath);
+    this.lastGraphPath = path24.resolve(graphPath);
     return g;
   }
   async query(graph, question) {
@@ -8465,23 +8465,23 @@ __export(exports_auditor, {
   runTemplateAudit: () => runTemplateAudit
 });
 import fs22 from "fs";
-import path24 from "path";
+import path25 from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 function realResolve(p) {
-  const resolved = path24.resolve(p);
+  const resolved = path25.resolve(p);
   try {
     return fs22.realpathSync(resolved);
   } catch {
     try {
-      return path24.join(fs22.realpathSync(path24.dirname(resolved)), path24.basename(resolved));
+      return path25.join(fs22.realpathSync(path25.dirname(resolved)), path25.basename(resolved));
     } catch {
       return resolved;
     }
   }
 }
 function isWithinRoot(realPath, realRoot) {
-  return realPath === realRoot || realPath.startsWith(realRoot + path24.sep);
+  return realPath === realRoot || realPath.startsWith(realRoot + path25.sep);
 }
 function makeCappedReadTool(targetRoot) {
   return {
@@ -8497,8 +8497,8 @@ function makeCappedReadTool(targetRoot) {
         return `READ_CAP_EXCEEDED: ${limit} > ${READ_CAP}`;
       if (!filePath)
         return "READ_INVALID: path required";
-      const rootReal = realResolve(path24.resolve(targetRoot));
-      const resolved = path24.isAbsolute(filePath) ? path24.resolve(filePath) : path24.resolve(targetRoot, filePath);
+      const rootReal = realResolve(path25.resolve(targetRoot));
+      const resolved = path25.isAbsolute(filePath) ? path25.resolve(filePath) : path25.resolve(targetRoot, filePath);
       const realFile = realResolve(resolved);
       if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal) {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
@@ -8557,19 +8557,19 @@ function makeForceBoundWriteTool(pinnedPath, ledgerDir) {
     description: `Force-bound write to ${pinnedPath} (ONLY this path is writable)`,
     invoke: async (params) => {
       const attempted = String(params.path ?? "").trim();
-      const pinnedReal = realResolve(path24.resolve(pinnedPath));
+      const pinnedReal = realResolve(path25.resolve(pinnedPath));
       if (attempted !== "") {
-        const attemptedReal = realResolve(path24.resolve(attempted));
+        const attemptedReal = realResolve(path25.resolve(attempted));
         if (attemptedReal !== pinnedReal) {
           return JSON.stringify({ error: GRAPH_TOOL_VIOLATION, detail: `path ${attemptedReal} != pinned ${pinnedReal}`, recorded: true });
         }
       }
-      const ledgerReal = realResolve(path24.resolve(ledgerDir));
+      const ledgerReal = realResolve(path25.resolve(ledgerDir));
       if (!isWithinRoot(pinnedReal, ledgerReal) && pinnedReal !== ledgerReal) {
         return JSON.stringify({ error: WRITE_SCOPE_VIOLATION, detail: "pinned target outside ledger", recorded: true });
       }
       try {
-        fs22.mkdirSync(path24.dirname(pinnedReal), { recursive: true });
+        fs22.mkdirSync(path25.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
         fs22.writeFileSync(pinnedReal, content, "utf-8");
         return JSON.stringify({ path: pinnedReal, bytes: Buffer.byteLength(content, "utf-8") });
@@ -8613,8 +8613,8 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
         created_run: layerId,
         confidence: 1
       };
-      const splicePath = path24.join(path24.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
-      fs22.mkdirSync(path24.dirname(splicePath), { recursive: true });
+      const splicePath = path25.join(path25.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
+      fs22.mkdirSync(path25.dirname(splicePath), { recursive: true });
       fs22.appendFileSync(splicePath, JSON.stringify(row) + `
 `, "utf-8");
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
@@ -8628,7 +8628,7 @@ function buildAuditorTools(ledgerDir, targetRoot, layerId, defaultPredicate) {
   if (!targetRoot || typeof targetRoot !== "string" || targetRoot.trim() === "") {
     throw new Error("AUDITOR_TOOLS_INVALID: targetRoot required");
   }
-  const reportPath = path24.join(path24.resolve(ledgerDir), "findings", "report.md");
+  const reportPath = path25.join(path25.resolve(ledgerDir), "findings", "report.md");
   const read = makeCappedReadTool(targetRoot);
   const grep = makeCappedGrepTool(targetRoot);
   const writeFindings = makeForceBoundWriteTool(reportPath, ledgerDir);
@@ -8705,7 +8705,7 @@ function parseFindingsMarkdown(raw) {
     }
     candidates.push(candidate);
   }
-  const summaryRe = /^##\s+SUMMARY\s*\n([\s\S]*?)(?=\n##\s+|\Z)/im;
+  const summaryRe = /^##\s+SUMMARY\s*\n([\s\S]*?)(?=\n##\s+|$)/im;
   const sm = raw.match(summaryRe);
   const summary = sm?.[1]?.trim().slice(0, 4000) ?? `${candidates.length} finding(s) extracted from markdown report`;
   return { candidates, summary };
@@ -8754,16 +8754,16 @@ function nodeLine(node) {
 function nodeFile(targetRoot, node) {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
   const rel = raw.replace(/^\.\//, "");
-  if (rel && !path24.isAbsolute(rel))
+  if (rel && !path25.isAbsolute(rel))
     return rel;
   if (rel)
-    return path24.relative(targetRoot, rel) || rel;
+    return path25.relative(targetRoot, rel) || rel;
   return "";
 }
 function sourceLineQuote(targetRoot, relFile, line) {
   try {
-    const abs = path24.resolve(targetRoot, relFile);
-    const rootReal = realResolve(path24.resolve(targetRoot));
+    const abs = path25.resolve(targetRoot, relFile);
+    const rootReal = realResolve(path25.resolve(targetRoot));
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal)
       return "";
@@ -8985,7 +8985,19 @@ async function sweep(template, graph, targetRoot, belt, calls) {
     const firstLine = hit.split(`
 `)[0] ?? "";
     const flm = firstLine.match(/^(.+?):(\d+):/);
-    const rel = flm ? path24.relative(targetRoot, flm[1]) || flm[1] : firstNodeFile;
+    let hitPath = flm ? flm[1] : "";
+    let contained = false;
+    if (hitPath) {
+      try {
+        const realHit = realResolve(path25.isAbsolute(hitPath) ? hitPath : path25.resolve(targetRoot, hitPath));
+        contained = isWithinRoot(realHit, realResolve(path25.resolve(targetRoot)));
+        if (contained)
+          hitPath = realHit;
+      } catch {
+        contained = false;
+      }
+    }
+    const rel = flm && contained ? path25.relative(targetRoot, hitPath) || hitPath : firstNodeFile;
     return [{
       subject: `${anchor} signal \u2014 "${probe}" present at ${rel}`,
       predicate: `${anchor}.signal`,
@@ -9003,7 +9015,7 @@ async function runTemplateAudit(args) {
   const t0 = Date.now();
   const template = args.template;
   const layerId = template?.layerId ?? "unknown";
-  const ledgerDir = path24.resolve(args.ledgerDir ?? "");
+  const ledgerDir = path25.resolve(args.ledgerDir ?? "");
   const errors = [];
   const calls = { count: 0, names: [] };
   if (!template || typeof template.layerId !== "string" || template.layerId.trim() === "") {
@@ -9018,7 +9030,7 @@ async function runTemplateAudit(args) {
   if (!args.targetRoot || typeof args.targetRoot !== "string" || args.targetRoot.trim() === "") {
     return { layerId, status: "rejected", error: "HUNTER_TARGET_INVALID: targetRoot required", ledgerDir, durationMs: Date.now() - t0 };
   }
-  const targetRoot = path24.resolve(args.targetRoot);
+  const targetRoot = path25.resolve(args.targetRoot);
   if (!fs22.existsSync(targetRoot)) {
     return { layerId, status: "rejected", error: `HUNTER_TARGET_INVALID: targetRoot not found: ${targetRoot}`, ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -9045,7 +9057,7 @@ async function runTemplateAudit(args) {
     `- anchorPredicate: ${template.anchorPredicate}`,
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
-    `- graphPath: ${path24.resolve(args.graphPath)}`,
+    `- graphPath: ${path25.resolve(args.graphPath)}`,
     `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${graph.godNodes.slice(0, 5).join(", ")}]`,
     `- graphQueries: ${(template.graphQueries ?? []).join(" | ")}`,
     `- inputData: ${args.inputData ?? ""}`,
@@ -9055,7 +9067,7 @@ async function runTemplateAudit(args) {
   ].join(`
 `);
   try {
-    fs22.writeFileSync(path24.join(ledgerDir, "brief.md"), brief, "utf-8");
+    fs22.writeFileSync(path25.join(ledgerDir, "brief.md"), brief, "utf-8");
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_BRIEF_WRITE_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -9124,10 +9136,11 @@ ${summary}
       errors.push("GRAPH_TAG_FAILED: " + String(e.message).slice(0, 200));
     }
   }
-  const reportPath = path24.join(ledgerDir, "findings", "report.md");
+  const reportPath = path25.join(ledgerDir, "findings", "report.md");
   try {
     const st = fs22.statSync(reportPath);
-    if (!(st.mtimeMs + 2000 >= t0)) {
+    const REPORT_MTIME_SLACK_MS = 100;
+    if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
     }
     if (st.size === 0) {
@@ -9170,10 +9183,12 @@ var init_auditor = __esm(() => {
 });
 
 // src/omp/extension.ts
-import * as path25 from "path";
+import * as fs23 from "fs";
+import * as path26 from "path";
 
 // src/omp/typed-write.ts
 import * as fs2 from "fs";
+import * as path4 from "path";
 import { Database as Database2 } from "bun:sqlite";
 // src/scoping/db-path.ts
 import * as os from "os";
@@ -9314,8 +9329,8 @@ class GiStoreCorruptError extends Error {
 }
 var GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
 var GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
-function parseGraphJsonGuarded(contents, size = 0) {
-  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+function parseGraphJsonGuarded(contents, sizeHint = 0) {
+  const byteLen = Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
     throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
   }
@@ -9342,9 +9357,11 @@ var TYPED_STORE_DDL = [
     created_run TEXT NOT NULL,
     superseded_run TEXT
   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_tn_live_canonical ON typed_nodes(canonical_id) WHERE superseded_run IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id)`,
   `CREATE INDEX IF NOT EXISTS idx_tn_label ON typed_nodes(label)`,
   `CREATE INDEX IF NOT EXISTS idx_tn_file ON typed_nodes(file)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`,
@@ -9373,9 +9390,8 @@ function setMeta(storePath, key, value) {
 }
 function openTypedStore(storePath) {
   assertSessionStorePath(storePath);
-  if (!fs2.existsSync(storePath) || fs2.statSync(storePath).size === 0) {
-    fs2.mkdirSync(storePath.slice(0, storePath.lastIndexOf("/")), { recursive: true });
-  } else {
+  fs2.mkdirSync(path4.dirname(storePath), { recursive: true });
+  if (!fs2.existsSync(storePath) || fs2.statSync(storePath).size === 0) {} else {
     const head = Buffer.alloc(16);
     const fd = fs2.openSync(storePath, "r");
     try {
@@ -9389,8 +9405,18 @@ function openTypedStore(storePath) {
   }
   const db = new Database2(storePath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
-  for (const stmt of TYPED_STORE_DDL)
-    db.run(stmt);
+  for (const stmt of TYPED_STORE_DDL) {
+    try {
+      db.run(stmt);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("UNIQUE")) {
+        console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) \u2014 ${msg.slice(0, 120)}`);
+        continue;
+      }
+      throw e;
+    }
+  }
   return db;
 }
 function insertForkNodesBatch(db, nodes) {
@@ -9400,7 +9426,7 @@ function insertForkNodesBatch(db, nodes) {
 }
 function insertForkEdgesBatch(db, edges) {
   for (const edge of edges) {
-    db.run("INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, 1.0, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, edge.run]);
+    db.run("INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
   }
 }
 function countTypedNodes(storePath) {
@@ -9552,6 +9578,9 @@ function impact(storePath, symbol, depth = 8) {
   try {
     const ledger = [];
     const seen = new Set;
+    const startSeeds = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(symbol);
+    for (const seed of startSeeds)
+      seen.add(seed.canonical_id);
     let frontier = [symbol];
     for (let d = 1;d <= depth && frontier.length > 0; d++) {
       const next = [];
@@ -9572,9 +9601,6 @@ function impact(storePath, symbol, depth = 8) {
       }
       frontier = next;
     }
-    const startIds = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(symbol);
-    for (const s of startIds)
-      seen.add(s.canonical_id);
     return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
   } finally {
     db.close();
@@ -9623,11 +9649,11 @@ function gateAdvisory(storePath, symbols, dial = "STEER", ripwire) {
 
 // src/omp/store-open.ts
 import * as fs3 from "fs";
-import * as path5 from "path";
+import * as path6 from "path";
 
 // src/omp/gi-registry.ts
 import * as os3 from "os";
-import * as path4 from "path";
+import * as path5 from "path";
 var GI_REGISTRY_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS gi_sessions (
     session_id TEXT PRIMARY KEY,
@@ -9641,14 +9667,14 @@ var resolveRegistryPath = makeDbPath({
   envVars: ["GI_OMP_DB_DIR"],
   defaultDir: "~/.omp/graph-intelligence",
   fileName: "registry.sqlite",
-  testFile: path4.join(os3.tmpdir(), "gi-omp-registry-test.sqlite")
+  testFile: path5.join(os3.tmpdir(), "gi-omp-registry-test.sqlite")
 });
 function giRegistryPath() {
   if (!process.env.GI_OMP_DB_DIR) {
     const argv1 = process.argv[1] ?? "";
     const bunTestUnset = process.env.BUN_TEST === "1" || argv1.includes("st-gi-omp") || argv1.includes(".test.") || argv1.includes("_test_");
     if (bunTestUnset) {
-      return path4.join(os3.tmpdir(), "gi-omp-registry-test.sqlite");
+      return path5.join(os3.tmpdir(), "gi-omp-registry-test.sqlite");
     }
   }
   return resolveRegistryPath();
@@ -9707,7 +9733,7 @@ function openSessionStore(input) {
   if (existing && existing.session_id !== ownerKey) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} owned by ${existing.session_id}; caller ${callerKey}`);
   }
-  fs3.mkdirSync(path5.dirname(storePath), { recursive: true });
+  fs3.mkdirSync(path6.dirname(storePath), { recursive: true });
   const created = !fs3.existsSync(storePath);
   if (created)
     fs3.writeFileSync(storePath, "");
@@ -9940,109 +9966,19 @@ function attachGiGraphGate(pi) {
 
 // src/omp/populate.ts
 import * as fs10 from "fs";
-import * as path10 from "path";
+import * as path11 from "path";
 
 // src/omp/populate-corbell.ts
-import * as fs6 from "fs";
-import * as path6 from "path";
-import { Database as Database3 } from "bun:sqlite";
-var CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
-var CORBELL_FRESHNESS_BUDGET = 500;
-function corbellCheckoutPath(root) {
-  return path6.join(root, CORBELL_CHECKOUT_REL);
-}
-function isCorbellCheckoutFreshFor(root, warmPath) {
-  if (!fs6.existsSync(warmPath))
-    return { fresh: false, reason: "absent" };
-  const st = fs6.statSync(warmPath);
-  if (st.size === 0)
-    return { fresh: false, reason: "empty" };
-  const warmMtime = st.mtimeMs;
-  let newest = 0;
-  const budget = { n: CORBELL_FRESHNESS_BUDGET };
-  const walk = (dir) => {
-    if (budget.n <= 0)
-      return;
-    let entries;
-    try {
-      entries = fs6.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (budget.n <= 0)
-        return;
-      if (entry.isDirectory()) {
-        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name))
-          continue;
-        budget.n--;
-        walk(path6.join(dir, entry.name));
-      } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
-        budget.n--;
-        try {
-          const m = fs6.statSync(path6.join(dir, entry.name)).mtimeMs;
-          if (m > newest)
-            newest = m;
-        } catch {}
-      }
-    }
-  };
-  walk(root);
-  if (newest > warmMtime)
-    return { fresh: false, reason: "stale" };
-  return { fresh: true, reason: "fresh" };
-}
-function populateFromCorbellCheckout(storePath, root, runTag) {
-  const warmPath = corbellCheckoutPath(root);
-  const freshness = isCorbellCheckoutFreshFor(root, warmPath);
-  if (!freshness.fresh) {
-    return { ok: false, reason: `CORBELL_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath: warmPath };
-  }
-  let rows = [];
-  let edges = [];
-  const src = new Database3(warmPath, { readonly: true });
-  try {
-    rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL").all();
-    edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL").all();
-  } catch (e) {
-    return { ok: false, reason: `CORBELL_NOT_WARM:unreadable:${e instanceof Error ? e.message.slice(0, 60) : String(e)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
-  } finally {
-    src.close();
-  }
-  if (rows.length === 0) {
-    return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
-  }
-  const db = openTypedStore(storePath);
-  try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.exec("BEGIN IMMEDIATE;");
-    const nodeRows = rows.map((r) => ({
-      canonicalId: r.canonical_id,
-      kind: r.kind,
-      label: r.label,
-      file: r.file,
-      line: r.line,
-      run: runTag
-    }));
-    const edgeRows = edges.map((e) => ({
-      srcCanonical: e.src_canonical,
-      dstCanonical: e.dst_canonical,
-      predicate: e.predicate,
-      evidence: e.evidence_quote,
-      run: runTag
-    }));
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
-    db.exec("COMMIT;");
-  } finally {
-    db.close();
-  }
-  return { ok: true, nodes: rows.length, edges: edges.length, checkoutPath: warmPath };
-}
+import * as fs9 from "fs";
+import * as path10 from "path";
+import { Database as Database4 } from "bun:sqlite";
+
+// src/omp/populate-graphify.ts
+import * as fs8 from "fs";
+import * as path9 from "path";
 
 // src/hunter/graph/graphify-adapter.ts
-import * as fs8 from "fs";
+import * as fs7 from "fs";
 import * as path8 from "path";
 
 // src/hunter/log.ts
@@ -10051,20 +9987,20 @@ function tridentLog(level, ns, msg) {
 }
 
 // src/hunter/graph/corbell-adapter.ts
-import fs7 from "fs";
+import fs6 from "fs";
 import path7 from "path";
 import { execSync } from "child_process";
-import { Database as Database4 } from "bun:sqlite";
+import { Database as Database3 } from "bun:sqlite";
 function resolveCorbell(profile, env = process.env) {
   const fromProfile = profile?.graph?.binaryPath;
-  if (fromProfile && fromProfile.length > 0 && fs7.existsSync(fromProfile))
+  if (fromProfile && fromProfile.length > 0 && fs6.existsSync(fromProfile))
     return fromProfile;
   const fromEnv = env.CORBELL_BIN;
-  if (fromEnv && fromEnv.length > 0 && fs7.existsSync(fromEnv))
+  if (fromEnv && fromEnv.length > 0 && fs6.existsSync(fromEnv))
     return fromEnv;
   const VENV_SITES = [path7.join("/home", "leviathan", "corbell-venv", "bin", "corbell"), path7.join("/", "opt", "corbell-venv", "bin", "corbell")];
   for (const candidate of VENV_SITES) {
-    if (fs7.existsSync(candidate))
+    if (fs6.existsSync(candidate))
       return candidate;
   }
   const pathEnv = env.PATH ?? process.env.PATH ?? "";
@@ -10072,7 +10008,7 @@ function resolveCorbell(profile, env = process.env) {
     if (!dir)
       continue;
     const cand = path7.join(dir, "corbell");
-    if (fs7.existsSync(cand))
+    if (fs6.existsSync(cand))
       return cand;
   }
   throw new Error("CORBELL_NOT_FOUND - the corbell binary is missing; install it with 'pip install git+https://github.com/Corbell-AI/Corbell.git' or set CORBELL_BIN or graph.binaryPath");
@@ -10120,7 +10056,7 @@ function mapNodeType(t) {
   }
 }
 var resolveNodeFileCache = new Map;
-function resolveNodeFile(stored, root, fsMod = fs7) {
+function resolveNodeFile(stored, root, fsMod = fs6) {
   const cacheKey = `${stored}\x00${root}`;
   const cached = resolveNodeFileCache.get(cacheKey);
   if (cached !== undefined)
@@ -10232,11 +10168,11 @@ class CorbellAdapter {
   async build(profile) {
     this.assertCorbell(profile);
     const wsConfigPath = path7.join(profile.project.root, "corbell-data", "workspace.yaml");
-    const wsConfigExists = fs7.existsSync(wsConfigPath);
+    const wsConfigExists = fs6.existsSync(wsConfigPath);
     let wsConfigStale = !wsConfigExists;
     if (wsConfigExists) {
       try {
-        const wsText = fs7.readFileSync(wsConfigPath, "utf8");
+        const wsText = fs6.readFileSync(wsConfigPath, "utf8");
         const rootMatch = /root:\s*["']?([^"'\n]+)/.exec(wsText);
         const svcMatch = /repo:\s*["']?([^"'\n]+)/.exec(wsText);
         if (rootMatch && svcMatch) {
@@ -10298,7 +10234,7 @@ class CorbellAdapter {
       }
       const storePath = path7.join(profile.project.root, "corbell-data", ".corbell", "workspace.db");
       try {
-        const st = fs7.statSync(storePath);
+        const st = fs6.statSync(storePath);
         const MB = 1024 * 1024;
         if (st.size > 512 * MB) {
           throw adapterFailed("corbell graph build --methods", `CORBELL_STORE_BLOATED: ${storePath} is ${(st.size / MB).toFixed(0)}MB (>512MB) \u2014 ` + `the build escaped its scope. Remedy: delete the store, verify the ` + `CORBELL_COUPLING_* knobs reached the vendor, rebuild.`);
@@ -10372,8 +10308,8 @@ class CorbellAdapter {
     ].join(`
 `);
     try {
-      fs7.mkdirSync(path7.dirname(wsConfigPath), { recursive: true });
-      fs7.writeFileSync(wsConfigPath, config, "utf8");
+      fs6.mkdirSync(path7.dirname(wsConfigPath), { recursive: true });
+      fs6.writeFileSync(wsConfigPath, config, "utf8");
     } catch (e) {
       throw adapterFailed("write corbell-data/workspace.yaml", `the profile-driven config write failed: ${String(e)}`);
     }
@@ -10396,11 +10332,11 @@ class CorbellAdapter {
   }
   readCorbellStore(profile) {
     const dbPath = path7.join(profile.project.root, "corbell-data", ".corbell", "workspace.db");
-    if (!fs7.existsSync(dbPath))
+    if (!fs6.existsSync(dbPath))
       return { nodes: [], edges: [] };
     let db;
     try {
-      db = new Database4(dbPath, { readonly: true });
+      db = new Database3(dbPath, { readonly: true });
     } catch (e) {
       throw adapterFailed(`read ${dbPath}`, `could not open the corbell store: ${String(e)}`);
     }
@@ -10419,7 +10355,7 @@ class CorbellAdapter {
         if (file && typeof data["comparator"] !== "number") {
           try {
             const srcPath = path7.isAbsolute(file) ? file : path7.join(profile.project.root, file);
-            const src = fs7.readFileSync(srcPath, "utf8");
+            const src = fs6.readFileSync(srcPath, "utf8");
             const nums = [...src.matchAll(/(\d+\.\d+)/g)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n));
             if (nums.length > 0) {
               data["comparator"] = Math.max(...nums);
@@ -10603,7 +10539,7 @@ class CorbellAdapter {
       const rel = path7.isAbsolute(file) ? path7.relative(this.profile.project.root, file) : file;
       let text = "";
       try {
-        text = fs7.readFileSync(path7.resolve(this.profile.project.root, rel), "utf8");
+        text = fs6.readFileSync(path7.resolve(this.profile.project.root, rel), "utf8");
       } catch (e) {
         console.error("[corbell-adapter] unreadable subtree file skipped:", rel, e instanceof Error ? e.message : String(e));
         continue;
@@ -10726,7 +10662,7 @@ function resolveGraphifyOut(profile, override, env = process.env) {
 function loadGraphifyFileSync(graphPath) {
   let size = 0;
   try {
-    size = fs8.statSync(graphPath).size;
+    size = fs7.statSync(graphPath).size;
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${path8.dirname(path8.dirname(graphPath))}')`);
   }
@@ -10737,7 +10673,11 @@ function loadGraphifyFileSync(graphPath) {
   }
   let raw;
   try {
-    raw = parseGraphJsonGuarded(fs8.readFileSync(graphPath, "utf8"), size);
+    const text = fs7.readFileSync(graphPath, "utf8");
+    if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
+      throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
+    }
+    raw = parseGraphJsonGuarded(text);
   } catch (e) {
     if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
       throw e;
@@ -10750,6 +10690,7 @@ function normalizeGraphifyGraph(raw) {
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] : Array.isArray(raw["edges"]) ? raw["edges"] : [];
   const rawLinks = rawLinkSrc;
   const seenIds = new Set;
+  const nodeIdByRaw = new Map;
   let dropped = 0;
   const nodes = [];
   for (const n of rawNodes) {
@@ -10763,6 +10704,7 @@ function normalizeGraphifyGraph(raw) {
     if (seenIds.has(id))
       id = `${id}#${seenIds.size}`;
     seenIds.add(id);
+    nodeIdByRaw.set(r, id);
     nodes.push({
       id,
       label,
@@ -10782,15 +10724,19 @@ function normalizeGraphifyGraph(raw) {
   });
   const communityMap = new Map;
   for (const n of rawNodes) {
-    const cid = n["community"];
+    const r = n;
+    const cid = r["community"];
     if (typeof cid === "number") {
       const arr = communityMap.get(cid) ?? [];
-      arr.push(String(n["id"] ?? ""));
+      arr.push(r);
       communityMap.set(cid, arr);
     }
   }
   const communities = [];
-  for (const [cid, members] of communityMap.entries()) {
+  for (const [cid, memberObjs] of communityMap.entries()) {
+    const members = memberObjs.map((r) => nodeIdByRaw.get(r)).filter((id) => typeof id === "string" && id.length > 0);
+    if (members.length === 0)
+      continue;
     communities.push({ id: String(cid), label: `Community ${cid}`, members, size: members.length });
   }
   const degree = new Map;
@@ -11074,12 +11020,12 @@ class GraphifyAdapter {
     const graphPath = resolveGraphifyOut(profile);
     this.lastGraphPath = graphPath;
     const t0 = Date.now();
-    if (!fs8.existsSync(graphPath)) {
+    if (!fs7.existsSync(graphPath)) {
       throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${root}')`);
     }
     let size = 0;
     try {
-      size = fs8.statSync(graphPath).size;
+      size = fs7.statSync(graphPath).size;
     } catch (e) {
       throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e instanceof Error ? e.message.slice(0, 80) : String(e)}`);
     }
@@ -11093,7 +11039,11 @@ class GraphifyAdapter {
     }
     let raw;
     try {
-      raw = parseGraphJsonGuarded(fs8.readFileSync(graphPath, "utf8"), size);
+      const text = fs7.readFileSync(graphPath, "utf8");
+      if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
+        throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
+      }
+      raw = parseGraphJsonGuarded(text);
     } catch (e) {
       if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
         throw e;
@@ -11259,8 +11209,6 @@ class GraphifyAdapter {
 }
 
 // src/omp/populate-graphify.ts
-import * as fs9 from "fs";
-import * as path9 from "path";
 var GRAPHIFY_FRESHNESS_BUDGET = 500;
 function graphifyOutPath(root, profile) {
   if (profile)
@@ -11268,11 +11216,11 @@ function graphifyOutPath(root, profile) {
   return resolveGraphifyOut({ project: { root: path9.resolve(root) } });
 }
 function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
-  if (!fs9.existsSync(graphPath))
+  if (!fs8.existsSync(graphPath))
     return { fresh: false, reason: "absent" };
   let st;
   try {
-    st = fs9.statSync(graphPath);
+    st = fs8.statSync(graphPath);
   } catch {
     return { fresh: false, reason: "absent" };
   }
@@ -11280,6 +11228,95 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
   let newest = 0;
   let exhausted = false;
   const budget = { n: GRAPHIFY_FRESHNESS_BUDGET };
+  const walk = (dir) => {
+    if (budget.n <= 0) {
+      exhausted = true;
+      return;
+    }
+    let entries;
+    try {
+      entries = fs8.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (budget.n <= 0) {
+        exhausted = true;
+        return;
+      }
+      if (entry.isDirectory()) {
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name))
+          continue;
+        budget.n--;
+        walk(path9.join(dir, entry.name));
+      } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        budget.n--;
+        try {
+          const m = fs8.statSync(path9.join(dir, entry.name)).mtimeMs;
+          if (m > newest)
+            newest = m;
+        } catch {}
+      }
+    }
+  };
+  for (const rel of scope) {
+    const dir = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    if (fs8.existsSync(dir))
+      walk(dir);
+  }
+  if (exhausted)
+    return { fresh: false, reason: "stale-budget" };
+  if (newest <= warmMtime + 1000)
+    return { fresh: true, reason: "fresh" };
+  return { fresh: false, reason: "stale" };
+}
+function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
+  if (nodeRows.length === 0 && edgeRows.length === 0) {
+    throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
+  }
+  db.exec("BEGIN IMMEDIATE;");
+  try {
+    if (nodeRows.length > 0) {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkNodesBatch(db, nodeRows);
+    }
+    if (edgeRows.length > 0) {
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkEdgesBatch(db, edgeRows);
+    }
+    for (const [k, v] of meta) {
+      db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
+    }
+    db.exec("COMMIT;");
+  } catch (e) {
+    try {
+      db.exec("ROLLBACK;");
+    } catch {}
+    throw e;
+  }
+}
+
+// src/omp/populate-corbell.ts
+var CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
+var CORBELL_FRESHNESS_BUDGET = 500;
+function corbellCheckoutPath(root) {
+  return path10.join(root, CORBELL_CHECKOUT_REL);
+}
+function isCorbellCheckoutFreshFor(root, warmPath) {
+  if (!fs9.existsSync(warmPath))
+    return { fresh: false, reason: "absent" };
+  let st;
+  try {
+    st = fs9.statSync(warmPath);
+  } catch {
+    return { fresh: false, reason: "absent" };
+  }
+  if (st.size === 0)
+    return { fresh: false, reason: "empty" };
+  const warmMtime = st.mtimeMs;
+  let newest = 0;
+  let exhausted = false;
+  const budget = { n: CORBELL_FRESHNESS_BUDGET };
   const walk = (dir) => {
     if (budget.n <= 0) {
       exhausted = true;
@@ -11297,30 +11334,81 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
         return;
       }
       if (entry.isDirectory()) {
-        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name))
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name))
           continue;
         budget.n--;
-        walk(path9.join(dir, entry.name));
+        walk(path10.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
         try {
-          const m = fs9.statSync(path9.join(dir, entry.name)).mtimeMs;
+          const m = fs9.statSync(path10.join(dir, entry.name)).mtimeMs;
           if (m > newest)
             newest = m;
         } catch {}
       }
     }
   };
-  for (const rel of scope) {
-    const dir = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
-    if (fs9.existsSync(dir))
-      walk(dir);
-  }
+  walk(root);
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
-  if (newest <= warmMtime + 1000)
-    return { fresh: true, reason: "fresh" };
-  return { fresh: false, reason: "stale" };
+  if (newest > warmMtime)
+    return { fresh: false, reason: "stale" };
+  return { fresh: true, reason: "fresh" };
+}
+function populateFromCorbellCheckout(storePath, root, runTag) {
+  const warmPath = corbellCheckoutPath(root);
+  const freshness = isCorbellCheckoutFreshFor(root, warmPath);
+  if (!freshness.fresh) {
+    return { ok: false, reason: `CORBELL_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath: warmPath };
+  }
+  let rows = [];
+  let edges = [];
+  let src = null;
+  try {
+    src = new Database4(warmPath, { readonly: true });
+    rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL").all();
+    edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL").all();
+  } catch (e) {
+    return { ok: false, reason: `CORBELL_NOT_WARM:unreadable:${e instanceof Error ? e.message.slice(0, 60) : String(e)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
+  } finally {
+    try {
+      src?.close();
+    } catch {}
+  }
+  if (rows.length === 0) {
+    return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
+  }
+  const nodeRows = rows.map((r) => ({
+    canonicalId: r.canonical_id,
+    kind: r.kind,
+    label: r.label,
+    file: r.file,
+    line: r.line,
+    run: runTag
+  }));
+  const edgeRows = edges.map((e) => ({
+    srcCanonical: e.src_canonical,
+    dstCanonical: e.dst_canonical,
+    predicate: e.predicate,
+    evidence: e.evidence_quote,
+    confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1,
+    run: runTag
+  }));
+  const db = openTypedStore(storePath);
+  try {
+    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
+      ["substrate", "corbell"],
+      ["corbell_checkout", warmPath],
+      ["corbell_nodes", String(nodeRows.length)],
+      ["corbell_edges", String(edgeRows.length)]
+    ]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: `CORBELL_WRITE_FAILED:${msg.slice(0, 120)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
+  } finally {
+    db.close();
+  }
+  return { ok: true, nodes: rows.length, edges: edges.length, checkoutPath: warmPath };
 }
 
 // src/omp/populate.ts
@@ -11340,10 +11428,10 @@ function collectTsFiles(root, budget) {
         if (EXCLUDED_DIRS.has(entry.name))
           continue;
         left.n--;
-        walk(path10.join(dir, entry.name), left);
+        walk(path11.join(dir, entry.name), left);
       } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
         left.n--;
-        files.push(path10.join(dir, entry.name));
+        files.push(path11.join(dir, entry.name));
       }
     }
   };
@@ -11384,7 +11472,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
   const EXPORT_STAR_RE = /export\s*\*\s*from\s*['"]([^'"]+)['"]/g;
   const EXPORT_TYPE_RE = /export\s+type\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]*['"])?/g;
   for (const abs of files) {
-    const rel = path10.relative(root, abs).split(path10.sep).join("/");
+    const rel = path11.relative(root, abs).split(path11.sep).join("/");
     let content = "";
     try {
       content = fs10.readFileSync(abs, "utf8");
@@ -11423,7 +11511,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
       const spec = sm[1];
       if (!spec.startsWith("."))
         continue;
-      const base = path10.posix.normalize(path10.posix.join(path10.posix.dirname(rel), spec)).replace(/\.(ts|js)x?$/, "");
+      const base = path11.posix.normalize(path11.posix.join(path11.posix.dirname(rel), spec)).replace(/\.(ts|js)x?$/, "");
       const cands = [`${base}.ts`, base, `${base}.js`, `${base}/index.ts`];
       let target = null;
       for (const c of cands) {
@@ -11454,7 +11542,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
   const seenN = new Set;
   const seenE = new Set;
   for (const abs of files) {
-    const rel = path10.relative(root, abs).split(path10.sep).join("/");
+    const rel = path11.relative(root, abs).split(path11.sep).join("/");
     const content = contents.get(rel);
     if (content === undefined)
       continue;
@@ -11512,7 +11600,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
       const spec = m[1];
       if (!spec.startsWith("."))
         continue;
-      const resolved = path10.posix.normalize(path10.posix.join(path10.posix.dirname(rel), spec));
+      const resolved = path11.posix.normalize(path11.posix.join(path11.posix.dirname(rel), spec));
       const dstCanon = "File:" + resolved;
       if (!seenN.has(dstCanon)) {
         seenN.add(dstCanon);
@@ -11532,7 +11620,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
       const rawSpec = m[2];
       if (!rawSpec.startsWith("."))
         continue;
-      const base = path10.posix.normalize(path10.posix.join(path10.posix.dirname(rel), rawSpec)).replace(/\.(ts|js)x?$/, "");
+      const base = path11.posix.normalize(path11.posix.join(path11.posix.dirname(rel), rawSpec)).replace(/\.(ts|js)x?$/, "");
       const cands = [`${base}.ts`, base, `${base}.js`, `${base}/index.ts`];
       let resolvedFile = null;
       for (const c of cands) {
@@ -11605,10 +11693,10 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
     corbellCheckout: corbell.checkoutPath
   };
 }
-function populateGraphifySessionStore(storePath, root, runTag) {
-  const resolvedRoot = path10.resolve(root);
+function populateGraphifySessionStore(storePath, root, runTag, scope) {
+  const resolvedRoot = path11.resolve(root);
   const graphPath = graphifyOutPath(resolvedRoot);
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath);
+  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, scope ?? ["src"]);
   if (!freshness.fresh) {
     const reason = `GRAPHIFY_NOT_WARM:${freshness.reason}`;
     console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (build with: bun scripts/graphify-build.ts --target '${root}')`);
@@ -11645,7 +11733,7 @@ function populateGraphifySessionStore(storePath, root, runTag) {
 import { spawnSync } from "child_process";
 import * as fs11 from "fs";
 import * as os4 from "os";
-import * as path11 from "path";
+import * as path12 from "path";
 var RIPWIRE_TIMEOUT_MS = 8000;
 var RIPWIRE_MAX_BUFFER = 32 * 1024 * 1024;
 function resolveRipwire(env = process.env) {
@@ -11653,13 +11741,13 @@ function resolveRipwire(env = process.env) {
   if (fromEnv && fromEnv.length > 0 && fs11.existsSync(fromEnv))
     return fromEnv;
   const home = env.HOME && env.HOME.length > 0 ? env.HOME : os4.homedir();
-  const homeBin = path11.join(home, ".local", "bin", "ripwire");
+  const homeBin = path12.join(home, ".local", "bin", "ripwire");
   if (fs11.existsSync(homeBin))
     return homeBin;
   for (const dir of (env.PATH ?? "").split(":")) {
     if (!dir)
       continue;
-    const cand = path11.join(dir, "ripwire");
+    const cand = path12.join(dir, "ripwire");
     if (fs11.existsSync(cand))
       return cand;
   }
@@ -11867,15 +11955,15 @@ function ripwireVerify(root, claim, opts) {
 }
 
 // src/hunter/tools/bug-hunt.ts
-import path22 from "path";
+import path23 from "path";
 
 // src/hunter/harness/hunt-lock.ts
 import fs12 from "fs";
 import os5 from "os";
-import path12 from "path";
+import path13 from "path";
 var STALE_LOCK_TTL_MS = 30 * 60 * 1000;
 function lockPathFor(targetPath) {
-  return path12.join(targetPath, ".trident", "hunt.lock");
+  return path13.join(targetPath, ".trident", "hunt.lock");
 }
 function isPidAlive(pid) {
   try {
@@ -11917,7 +12005,7 @@ function readPayload(lockPath) {
 }
 function acquireHuntLock(targetPath) {
   const lockPath = lockPathFor(targetPath);
-  fs12.mkdirSync(path12.dirname(lockPath), { recursive: true });
+  fs12.mkdirSync(path13.dirname(lockPath), { recursive: true });
   const payload = {
     pid: process.pid,
     acquiredAt: new Date().toISOString(),
@@ -11972,11 +12060,11 @@ function releaseHuntLock(targetPath) {
 var import_xstate_development_cjs = __toESM(require_xstate_development_cjs(), 1);
 
 // src/hunter/harness/micro-loop-machine.ts
-import path21 from "path";
+import path22 from "path";
 
 // src/hunter/shared/db.ts
 import fs13 from "fs";
-import path13 from "path";
+import path14 from "path";
 import { Database as Database5 } from "bun:sqlite";
 
 // src/hunter/shared/migrations.ts
@@ -12302,8 +12390,8 @@ class SharedDb {
     this.handle.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)").run(kind, JSON.stringify(payload), Date.now());
   }
   mirrorToMasterContext(profile) {
-    const mirrorDir = path13.join(profile.project.root, "MASTER_CONTEXT", "knowledge-graph");
-    const mirrorPath = path13.join(mirrorDir, "graph.db");
+    const mirrorDir = path14.join(profile.project.root, "MASTER_CONTEXT", "knowledge-graph");
+    const mirrorPath = path14.join(mirrorDir, "graph.db");
     let mirror;
     try {
       fs13.mkdirSync(mirrorDir, { recursive: true });
@@ -12341,7 +12429,7 @@ class SharedDb {
 }
 function openStore(dbPath) {
   if (dbPath !== ":memory:") {
-    fs13.mkdirSync(path13.dirname(dbPath), { recursive: true });
+    fs13.mkdirSync(path14.dirname(dbPath), { recursive: true });
   }
   const handle = new Database5(dbPath);
   applyPragmas(handle);
@@ -12364,14 +12452,14 @@ function mirrorToMasterContext(db, profile) {
 
 // src/hunter/diagnostics/engine.ts
 import fs15 from "fs";
-import path15 from "path";
+import path16 from "path";
 
 // ../../OMP/Graph_Intelligence/node_modules/typescript/lib/version.cjs
 var { version } = require_package();
 
 // src/hunter/profile/loader.ts
 import fs14 from "fs";
-import path14 from "path";
+import path15 from "path";
 
 // src/hunter/profile/schema.ts
 init_zod();
@@ -12879,12 +12967,12 @@ function loadProfile(profilePath) {
     throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
   }
   for (const entry of profile.rules.corpus) {
-    if (!fs14.existsSync(path14.resolve(resolvedRoot, entry))) {
+    if (!fs14.existsSync(path15.resolve(resolvedRoot, entry))) {
       throw corpusMissing(entry);
     }
   }
   for (const entry of profile.history.failureLogs) {
-    if (!fs14.existsSync(path14.resolve(resolvedRoot, entry))) {
+    if (!fs14.existsSync(path15.resolve(resolvedRoot, entry))) {
       throw historyMissing(entry);
     }
   }
@@ -13787,7 +13875,7 @@ function violationFrequencies(profile, ruleIds) {
   for (const id of ruleIds)
     counts.set(id, 0);
   for (const logPath of profile.history.failureLogs) {
-    const abs = path15.resolve(profile.project.root, logPath);
+    const abs = path16.resolve(profile.project.root, logPath);
     let text;
     try {
       text = fs15.readFileSync(abs, "utf8");
@@ -13819,7 +13907,7 @@ function rankFindings(findings, profile) {
 function lockdownReadSource(profile) {
   return {
     read(file, range) {
-      const abs = path15.resolve(profile.project.root, file);
+      const abs = path16.resolve(profile.project.root, file);
       let text;
       try {
         text = fs15.readFileSync(abs, "utf8");
@@ -13890,7 +13978,7 @@ function assertNoBlindness(checkpoint) {
 
 // src/hunter/harness/recon.ts
 import fs16 from "fs";
-import path16 from "path";
+import path17 from "path";
 function awarenessDocMissing(docPath) {
   return new Error(`CORPUS_MISSING: path=${docPath} remedy=the awareness doc must exist (fix the profile's awareness.docs)`);
 }
@@ -13898,7 +13986,7 @@ var QUOTE_MARKER_RE = /^\s*>/;
 function countQuotedRules(profile) {
   let count = 0;
   for (const entry of profile.rules.corpus) {
-    const abs = path16.isAbsolute(entry) ? entry : path16.resolve(profile.project.root, entry);
+    const abs = path17.isAbsolute(entry) ? entry : path17.resolve(profile.project.root, entry);
     let text;
     try {
       text = fs16.readFileSync(abs, "utf8");
@@ -13917,12 +14005,12 @@ function countQuotedRules(profile) {
 function recon(profilePath) {
   const profile = loadProfile(profilePath);
   for (const doc of profile.awareness.docs) {
-    const abs = path16.isAbsolute(doc) ? doc : path16.resolve(profile.project.root, doc);
+    const abs = path17.isAbsolute(doc) ? doc : path17.resolve(profile.project.root, doc);
     if (!fs16.existsSync(abs)) {
       throw awarenessDocMissing(doc);
     }
   }
-  const dbPath = path16.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
+  const dbPath = path17.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
   const runId = openAndNextRunId(projectToken(profile.project.name), dbPath);
   return {
     stages: profile.pipeline.stages.length,
@@ -13963,7 +14051,7 @@ function openAndNextRunId(token, dbPath) {
 }
 
 // src/hunter/harness/map.ts
-import path17 from "path";
+import path18 from "path";
 
 // src/hunter/shared/line-resolve.ts
 function tryResolveLine(node, edge) {
@@ -14011,7 +14099,7 @@ async function map(profile, adapterOverride) {
   const adapter = adapterOverride ?? selectAdapter(profile);
   const buildResult = await adapter.build(profile);
   assertMappableLines(buildResult);
-  const dbPath = path17.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
+  const dbPath = path18.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
   const db = openStore(dbPath);
   try {
     writeGraph(db, buildResult.nodes, buildResult.edges);
@@ -14051,7 +14139,7 @@ function assertMappableLines(buildResult) {
 }
 
 // src/hunter/harness/scan.ts
-import path19 from "path";
+import path20 from "path";
 
 // src/hunter/lexicon/compiler.ts
 import fs18 from "fs";
@@ -14396,7 +14484,7 @@ function severityFromBinding(v) {
 
 // src/hunter/diagnostics/calibration.ts
 import fs19 from "fs";
-import path18 from "path";
+import path19 from "path";
 class CalibrationError extends Error {
   code;
   constructor(code, message) {
@@ -14524,7 +14612,7 @@ ${p.verbatimQuote}`).join(`
 `);
     const version = this.batteryVersion(fixtureVersion);
     if (write) {
-      const recordPath = write.recordPath ?? path18.join(profile.project.root, ".trident", "bug-hunter");
+      const recordPath = write.recordPath ?? path19.join(profile.project.root, ".trident", "bug-hunter");
       if (write.db) {
         this.writeCalibrationRows(write.db, records, fixtureVersion);
       }
@@ -14640,7 +14728,7 @@ ${p.verbatimQuote}`).join(`
     fs19.mkdirSync(recordPath, { recursive: true });
     const existing = fs19.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
     const n = existing + 1;
-    const file = path18.join(recordPath, `CALIBRATION_v${n}.md`);
+    const file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
     const rows = data.records.map((r) => `| ${r.predicateId} | ${r.verdict} | ${r.failedTest ?? "-"} | ${r.fire.fired ? "FIRED" : "MISS"} | ${r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE"} |`).join(`
 `);
     const excludedIds = data.excluded.map((p) => p.id);
@@ -14699,7 +14787,7 @@ function markCalibrated(p, verdict) {
 
 // src/hunter/harness/scan.ts
 function resolveCorpusPaths(profile) {
-  const corpus = profile.rules.corpus.map((entry) => path19.isAbsolute(entry) ? entry : path19.resolve(profile.project.root, entry));
+  const corpus = profile.rules.corpus.map((entry) => path20.isAbsolute(entry) ? entry : path20.resolve(profile.project.root, entry));
   return {
     ...profile,
     rules: { ...profile.rules, corpus }
@@ -14847,7 +14935,7 @@ function strike(findings, profile, traces = []) {
 
 // src/hunter/harness/report.ts
 import fs20 from "fs";
-import path20 from "path";
+import path21 from "path";
 
 // src/hunter/firewall/lexicon-types.ts
 var MASTER_CONTEXT_VARIANTS = [
@@ -14894,7 +14982,7 @@ function resolveMasterContextDir(projectRoot) {
   }
   for (const form of MASTER_CONTEXT_VARIANTS) {
     if (entries.includes(form)) {
-      return path20.join(projectRoot, form);
+      return path21.join(projectRoot, form);
     }
   }
   return null;
@@ -14916,10 +15004,10 @@ function nextReportVersion(masterContextDir) {
   return versions.length === 0 ? 1 : Math.max(...versions) + 1;
 }
 async function writeReportDirect(input) {
-  const masterContextDir = resolveMasterContextDir(input.projectRoot) ?? path20.join(input.projectRoot, "MASTER_CONTEXT");
+  const masterContextDir = resolveMasterContextDir(input.projectRoot) ?? path21.join(input.projectRoot, "MASTER_CONTEXT");
   fs20.mkdirSync(masterContextDir, { recursive: true });
   const version = nextReportVersion(masterContextDir);
-  const reportPath = path20.join(masterContextDir, `bug_hunter_report_v${version}.md`);
+  const reportPath = path21.join(masterContextDir, `bug_hunter_report_v${version}.md`);
   const lines = [
     `# BUG-HUNT REPORT \u2014 v${version}`,
     "",
@@ -15201,7 +15289,7 @@ function createMicroLoop(options) {
     actors: {
       recon: import_xstate_development_cjs.fromPromise(async ({ input }) => {
         if (profileOverride) {
-          const dbPath = path21.join(profileOverride.project.root, ".trident", "knowledge-graph", "shared.db");
+          const dbPath = path22.join(profileOverride.project.root, ".trident", "knowledge-graph", "shared.db");
           const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
           const slug = profileOverride.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
           const store = openStore(dbPath);
@@ -15469,7 +15557,7 @@ function createBugHuntTool(pi, opts) {
       const scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
       if (String(p.action ?? "").toLowerCase() === "hunt") {
         const targetPath = typeof p.targetPath === "string" && p.targetPath.length > 0 ? p.targetPath : scopeRoot;
-        const profilePath = typeof p.profilePath === "string" && p.profilePath.length > 0 ? p.profilePath : path22.join(scopeRoot, "profile.yaml");
+        const profilePath = typeof p.profilePath === "string" && p.profilePath.length > 0 ? p.profilePath : path23.join(scopeRoot, "profile.yaml");
         try {
           const result = await spawnBugHunterLoop({ targetPath, profilePath });
           if (result.state === "inconclusive") {
@@ -15855,6 +15943,33 @@ async function runQueryTool(args) {
 // src/omp/extension.ts
 var GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit"];
 var GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" };
+var confineTargetPath = (normalized, callerCwd) => {
+  let real = normalized;
+  try {
+    real = fs23.realpathSync(normalized);
+  } catch {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath does not exist: '${normalized.slice(0, 120)}'` };
+  }
+  let st = null;
+  try {
+    st = fs23.statSync(real);
+  } catch {
+    st = null;
+  }
+  if (!st || !st.isDirectory()) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
+  }
+  const allowRoots = (process.env.GI_TARGET_ROOTS ?? "").split(":").map((r) => r.trim()).filter((r) => r.length > 0);
+  const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
+  const within = roots.some((root) => {
+    const rel = path26.relative(path26.resolve(root), real);
+    return rel === "" || !rel.startsWith("..") && !path26.isAbsolute(rel);
+  });
+  if (!within) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
+  }
+  return { ok: true, real };
+};
 function textResult2(text, details) {
   return { content: [{ type: "text", text }], details };
 }
@@ -16033,11 +16148,16 @@ function registerGiOmpTools(pi, cwdOf) {
       const substrate = typeof p.substrate === "string" ? p.substrate : "";
       const targetPathRaw = typeof p.targetPath === "string" ? p.targetPath : "";
       let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
+      const callerCwd = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
       if (targetPathRaw.length > 0) {
-        if (!path25.isAbsolute(targetPathRaw)) {
+        if (!path26.isAbsolute(targetPathRaw)) {
           return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
         }
-        scopeRoot = path25.normalize(targetPathRaw);
+        const confined = confineTargetPath(path26.normalize(targetPathRaw), callerCwd);
+        if (!confined.ok) {
+          return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
+        }
+        scopeRoot = confined.real;
       }
       try {
         const opened = openSessionStore({ sessionId, scopeRoot, callerSessionId: callerId });
@@ -16083,10 +16203,19 @@ function registerGiOmpTools(pi, cwdOf) {
     const p = params && typeof params === "object" ? params : {};
     const scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
     const targetRaw = String(p.targetPath ?? "").trim();
-    if (targetRaw !== "" && !path25.isAbsolute(targetRaw)) {
+    if (targetRaw !== "" && !path26.isAbsolute(targetRaw)) {
       return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
     }
-    const targetRoot = targetRaw !== "" ? path25.normalize(targetRaw) : scopeRoot;
+    let targetRoot;
+    if (targetRaw !== "") {
+      const confined = confineTargetPath(path26.normalize(targetRaw), scopeRoot);
+      if (!confined.ok) {
+        return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      targetRoot = confined.real;
+    } else {
+      targetRoot = scopeRoot;
+    }
     const layerId = sanitizeLayerId(String(p.template ?? ""));
     try {
       const [{ templateByLayerId }, { runTemplateAudit }] = await Promise.all([

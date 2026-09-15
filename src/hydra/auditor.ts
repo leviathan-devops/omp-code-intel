@@ -323,7 +323,8 @@ export function parseFindingsMarkdown(raw: string): { candidates: Record<string,
     }
     candidates.push(candidate);
   }
-  const summaryRe = /^##\s+SUMMARY\s*\n([\s\S]*?)(?=\n##\s+|\Z)/im;
+  // H23 (qwen 33d64eca): \Z matches a literal "Z" in JS — end-of-input is $.
+  const summaryRe = /^##\s+SUMMARY\s*\n([\s\S]*?)(?=\n##\s+|$)/im;
   const sm = raw.match(summaryRe);
   const summary = sm?.[1]?.trim().slice(0, 4000) ?? `${candidates.length} finding(s) extracted from markdown report`;
   return { candidates, summary };
@@ -620,7 +621,18 @@ async function sweep(
   if (!hit.startsWith("(no matches)") && !hit.startsWith("SEARCH_FAILED") && !hit.startsWith("GREP_INVALID")) {
     const firstLine = hit.split("\n")[0] ?? "";
     const flm = firstLine.match(/^(.+?):(\d+):/);
-    const rel = flm ? path.relative(targetRoot, flm[1]!) || flm[1]! : firstNodeFile;
+    // H22 (qwen 33d64eca): the grep-hit path must resolve INSIDE targetRoot —
+    // a `../`-escaped match falls back to firstNodeFile (never leaves the root).
+    let hitPath = flm ? flm[1]! : "";
+    let contained = false;
+    if (hitPath) {
+      try {
+        const realHit = realResolve(path.isAbsolute(hitPath) ? hitPath : path.resolve(targetRoot, hitPath));
+        contained = isWithinRoot(realHit, realResolve(path.resolve(targetRoot)));
+        if (contained) hitPath = realHit;
+      } catch { contained = false; }
+    }
+    const rel = flm && contained ? path.relative(targetRoot, hitPath) || hitPath : firstNodeFile;
     return [{
       subject: `${anchor} signal — "${probe}" present at ${rel}`,
       predicate: `${anchor}.signal`,
@@ -784,7 +796,11 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   const reportPath = path.join(ledgerDir, "findings", "report.md");
   try {
     const st = fs.statSync(reportPath);
-    if (!(st.mtimeMs + 2000 >= t0)) {
+    // H21 (qwen 33d64eca): the freshness slack is FILESYSTEM-GRANULARITY only
+    // (100ms) — the old +2000ms accepted a report written up to 2s BEFORE the
+    // run started as "produced by this hunt".
+    const REPORT_MTIME_SLACK_MS = 100;
+    if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} — not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
     }
     if (st.size === 0) {

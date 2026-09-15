@@ -149,7 +149,9 @@ export async function populateFromGraphifyCheckout(
   // writes it); the session rows go to storePath above — callers must not
   // confuse the two (qwen 8a24ae08).
   const checkoutPath = graphifyCheckoutPath(resolvedRoot);
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath);
+  // H05 (qwen 33d64eca): the probe walks the PROFILE's scope — a custom-scope
+  // profile must be checked against ITS file set, never the ["src"] default.
+  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"]);
   if (!freshness.fresh) {
     return { ok: false, reason: `GRAPHIFY_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
@@ -166,9 +168,22 @@ export async function populateFromGraphifyCheckout(
   if (build.nodes.length === 0) {
     return { ok: false, reason: "GRAPH_EMPTY:graphify graph produced zero nodes", nodes: 0, edges: 0, checkoutPath, graphPath };
   }
-  const { nodeRows, edgeRows } = mapGraphifyToTyped(build.nodes, build.edges, runTag);
+  // H17 (qwen 6768692f): the typed projection runs INSIDE its own guard —
+  // a LINELESS_NODE (or shape TypeError) is a NAMED data defect result
+  // ({ok:false}), never an escaping promise rejection.
+  let nodeRows: ForkNode[];
+  let edgeRows: ForkEdge[];
   try {
-    supersedeThenInsert(openTypedStore(storePath), runTag, nodeRows, edgeRows, [
+    ({ nodeRows, edgeRows } = mapGraphifyToTyped(build.nodes, build.edges, runTag));
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const named = /LINELESS_NODE|GRAPHIFY_/.test(msg) ? msg.slice(0, 200) : `GRAPHIFY_CORRUPT:projection-failed ${msg.slice(0, 140)}`;
+    return { ok: false, reason: named, nodes: 0, edges: 0, checkoutPath, graphPath };
+  }
+  const db = openTypedStore(storePath);
+  try {
+    // Caller owns close (the helper never closes a caller-owned connection).
+    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
       ["substrate", "graphify"],
       ["graphify_graph", graphPath],
       ["graphify_nodes", String(nodeRows.length)],
@@ -178,6 +193,8 @@ export async function populateFromGraphifyCheckout(
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `GRAPHIFY_WRITE_FAILED:${msg.slice(0, 160)}`, nodes: 0, edges: 0, checkoutPath, graphPath };
+  } finally {
+    db.close();
   }
   console.error(
     `[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`,
@@ -203,22 +220,33 @@ export function supersedeThenInsert(
   edgeRows: ForkEdge[],
   meta: Array<[string, string]>,
 ): void {
+  // H07 + re-run-V: PER-TABLE empty guard — a nodes-only batch must not
+  // supersede live edges into void (and vice versa). Zero rows in BOTH is
+  // the only full refusal.
+  if (nodeRows.length === 0 && edgeRows.length === 0) {
+    throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
+  }
   db.exec("BEGIN IMMEDIATE;");
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
+    // Per-table guard: only supersede a table we are about to re-populate.
+    if (nodeRows.length > 0) {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkNodesBatch(db, nodeRows);
+    }
+    if (edgeRows.length > 0) {
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkEdgesBatch(db, edgeRows);
+    }
     for (const [k, v] of meta) {
       db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
     }
     db.exec("COMMIT;");
   } catch (e) {
-    try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back — close still runs */ }
+    try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back */ }
     throw e;
-  } finally {
-    db.close();
   }
+  // Caller owns close (typed-write batch-writer contract) — the helper never
+  // closes a connection it did not open (re-run-V high: close+leak pair).
 }
 /** Inspection-checkout writer (the scripts/graphify-build.ts path): the SAME
  *  typed DDL + the SAME batch writers + the SAME supersede discipline as

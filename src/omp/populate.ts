@@ -297,10 +297,12 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
     corbellCheckout: corbell.checkoutPath,
   };
 }
-function populateGraphifySessionStore(storePath: string, root: string, runTag: string): PopulateResult {
+function populateGraphifySessionStore(storePath: string, root: string, runTag: string, scope?: string[]): PopulateResult {
   const resolvedRoot = path.resolve(root);
   const graphPath = graphifyOutPath(resolvedRoot);
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath);
+  // H05 (qwen 33d64eca): the probe walks the CALLER's scope when provided
+  // (session bridge path) — never a blind ["src"] default.
+  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, scope ?? ["src"]);
   if (!freshness.fresh) {
     const reason = `GRAPHIFY_NOT_WARM:${freshness.reason}`;
     console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (build with: bun scripts/graphify-build.ts --target '${root}')`);

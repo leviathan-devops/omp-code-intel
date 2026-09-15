@@ -35,13 +35,17 @@ describe("GI_STORE_CORRUPT", () => {
 
   test("129MiB graph.json fails loud GRAPHIFY_GRAPH_TOO_LARGE, process alive", () => {
     expect(GRAPH_LOAD_BUDGET_BYTES).toBe(128 * 1024 * 1024);
+    // V-20 H11: the guard reads the ACTUAL bytes — the size argument is a
+    // hint only. A spoofed-small hint on over-budget contents still trips;
+    // a spoofed-huge hint on tiny contents parses fine (hint not authoritative).
+    const overBudget = "x".repeat(GRAPH_LOAD_BUDGET_BYTES + 1);
     let caught: Error | null = null;
     try {
-      parseGraphJsonGuarded("{}", 129 * 1024 * 1024);
+      parseGraphJsonGuarded(overBudget, 1);
     } catch (e) {
       caught = e as Error;
     }
     expect(caught?.message).toContain("GRAPHIFY_GRAPH_TOO_LARGE");
-    expect(parseGraphJsonGuarded('{"nodes":[]}', 13)).toEqual({ nodes: [] });
+    expect(parseGraphJsonGuarded('{"nodes":[]}', 129 * 1024 * 1024)).toEqual({ nodes: [] });
   });
 });

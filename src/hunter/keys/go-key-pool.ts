@@ -190,6 +190,15 @@ export function parseGoWindowMs(err: string): number {
   return 3_600_000; // unknown 429 → re-probe in 1h (re-arms longer on the next window name)
 }
 
+// H19 (qwen 33d64eca): key material must never hit the (world-readable) tmp
+// sqlite. Redact sk-/Bearer/api-key patterns BEFORE the reason slice persists.
+export function redactKeyMaterial(err: string): string {
+  return String(err ?? "")
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-[REDACTED]')
+    .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, 'Bearer [REDACTED]')
+    .replace(/(x-?api-key\s*[:=]\s*)\S+/gi, '$1[REDACTED]');
+}
+
 // THE DEAD-MARK — persists the window + the REASON (the 300-char error slice)
 // + marked_at: the audit trail (who died, why, when) rides in the row.
 export function markGoKeyDead(idx: number, err: string, now: number = Date.now(), sessionId?: string): number {
@@ -200,7 +209,7 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
     db(sessionId).run(
       `INSERT INTO go_key_pool (idx, dead_until, reason, marked_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(idx) DO UPDATE SET dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
-      [idx, until, msg.slice(0, 300), now],
+      [idx, until, redactKeyMaterial(msg).slice(0, 300), now],
     );
   } catch (e) {
     console.error('[go-key-pool] markGoKeyDead write failed (degraded, in-memory only):', e instanceof Error ? e.message : String(e));
@@ -236,12 +245,17 @@ export function goPoolSnapshot(now: number = Date.now(), sessionId?: string): st
 // 'quota' → dead-mark · 'rejected' → dead-mark · 'contract' (400
 // MissingSessionID) → NEVER dead-mark · 'other' → never mark. Contract beats
 // quota beats rejected; status codes word-boundaried (see the canon).
-export type GoErrorClass = 'quota' | 'rejected' | 'contract' | 'other';
+export type GoErrorClass = 'quota' | 'rejected' | 'contract' | 'other' | 'server';
 
 export function classifyGoError(err: string): GoErrorClass {
   const e = String(err ?? '');
   if (/MissingSessionID/i.test(e)) return 'contract';
-  if (/GoUsageLimitError|usage limit|quota|rate limit|overloaded|\b429\b|\b402\b|\b529\b|\b5\d\d\b/i.test(e)) return 'quota';
+  // H18 (qwen 33d64eca): explicit quota signals ONLY — the old \b5\d\d\b
+  // bucketed every 500/502/503 (and stack-trace line numbers) as 1h+ exile.
+  // 5xx is a TRANSIENT provider fault: classify 'server' → short re-probe,
+  // never a dead-mark from parseGoWindowMs's window names.
+  if (/GoUsageLimitError|usage limit|quota|rate limit|overloaded|\b429\b|\b402\b|\b529\b/i.test(e)) return 'quota';
+  if (/\b50[0-4]\b|\b52[0-9]\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(e)) return 'server';
   if (/\b401\b|\b403\b|invalid_api_key|invalid x-api-key|unauthorized/i.test(e)) return 'rejected';
   return 'other';
 }
@@ -327,6 +341,9 @@ export type GoFallbackAction = 'advance-same-rung' | 'fall-to-openrouter' | 'wal
 export function routeGoError(idx: number, err: string, now: number = Date.now(), sessionId?: string): GoFallbackAction {
   const cls = classifyGoError(err);
   if (cls === 'contract') return 'walk-rungs-no-mark';
+  // H18: 'server' (5xx) = transient provider fault → advance, NO dead-mark,
+  // NO window (the next call re-probes the key immediately).
+  if (cls === 'server') return 'advance-no-mark';
   if (cls === 'quota' || cls === 'rejected') {
     markGoKeyDead(idx, err, now, sessionId);
     const next = decideGoFallback(now, sessionId);

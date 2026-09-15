@@ -166,7 +166,14 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
   }
   let raw: Record<string, unknown>;
   try {
-    raw = parseGraphJsonGuarded(fs.readFileSync(graphPath, "utf8"), size);
+    // H13 (qwen 33d64eca): read ONCE, then guard on the ACTUAL byte count —
+    // the pre-read stat size is only a fast-fail hint; growth between stat
+    // and read can no longer bypass the budget (the guard re-checks).
+    const text = fs.readFileSync(graphPath, "utf8");
+    if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
+      throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
+    }
+    raw = parseGraphJsonGuarded(text);
   } catch (e: unknown) {
     if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed — ${e instanceof Error ? e.message : String(e)}`);
@@ -180,6 +187,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>): GraphifyGr
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] as unknown[] : (Array.isArray(raw["edges"]) ? raw["edges"] as unknown[] : []);
   const rawLinks = rawLinkSrc as Record<string, unknown>[];
   const seenIds = new Set<string>();
+  const nodeIdByRaw = new Map<Record<string, unknown>, string>();
   let dropped = 0;
   const nodes: GraphifyNode[] = [];
   for (const n of rawNodes) {
@@ -189,6 +197,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>): GraphifyGr
     if (id.length === 0) { dropped++; continue; }
     if (seenIds.has(id)) id = `${id}#${seenIds.size}`;
     seenIds.add(id);
+    nodeIdByRaw.set(r, id);
     nodes.push({
       id,
       label,
@@ -205,17 +214,28 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>): GraphifyGr
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };
   });
-  const communityMap = new Map<number, string[]>();
-  for (const n of rawNodes as Record<string, unknown>[]) {
-    const cid = n["community"];
+  // H14 (qwen 33d64eca): community members must resolve through the SAME
+  // dedup map the nodes got (raw ids + "" for dropped rows could never join
+  // the deduped node ids). We collect member NODE OBJECTS per community, then
+  // project each through the same normalize pass result (the nodes[] ids).
+  const communityMap = new Map<number, unknown[]>();
+  for (const n of rawNodes) {
+    const r = n as Record<string, unknown>;
+    const cid = r["community"];
     if (typeof cid === "number") {
       const arr = communityMap.get(cid) ?? [];
-      arr.push(String(n["id"] ?? ""));
+      arr.push(r);
       communityMap.set(cid, arr);
     }
   }
+  // Community members resolve to their FINAL deduped node ids via nodeIdByRaw
+  // (built during the normalize loop — alignment-proof against dropped rows).
   const communities: GraphifyCommunity[] = [];
-  for (const [cid, members] of communityMap.entries()) {
+  for (const [cid, memberObjs] of communityMap.entries()) {
+    const members = memberObjs
+      .map((r) => nodeIdByRaw.get(r as Record<string, unknown>))
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    if (members.length === 0) continue;
     communities.push({ id: String(cid), label: `Community ${cid}`, members, size: members.length });
   }
   const degree = new Map<string, number>();
@@ -544,7 +564,12 @@ export class GraphifyAdapter implements GraphAdapter {
     }
     let raw: Record<string, unknown>;
     try {
-      raw = parseGraphJsonGuarded(fs.readFileSync(graphPath, "utf8"), size);
+      // H13: read-once + actual-bytes guard (same law as the sync path).
+      const text = fs.readFileSync(graphPath, "utf8");
+      if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
+        throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
+      }
+      raw = parseGraphJsonGuarded(text);
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);

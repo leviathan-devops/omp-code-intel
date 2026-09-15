@@ -193,3 +193,13 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 **The evidence:** Battery `119 pass / 0 fail / 1004 expect()` across 19 files; GI `ee122880b48a393f9a54429f33d1043f808817c28d2f39ddbfc62dacebaa12ce` + trident `280fd30353dd825d24d43cdfa3b4a254df94741981e3bcec3176be2ed78846bd` identical at extensions/, host-deploy, and both rigs (exec-verified). Manifest artifact GI SHA closes this file (`ee122880b48a393f9a54429f33d1043f808817c28d2f39ddbfc62dacebaa12ce`).
 **The verification:** G1 `nodes=5 edges=5 rows=2 beta.ts:1 beta():2` + MISS ABSENT; G4 `AUDIT_DONE findings=3`; G3 `HUNT_DONE findingsCount=296 v12`; G5 `impact_reaches=2` + `safe_delete 2/2/0/0`; port2 probe + honest-empty.
 **The honest notes:** Four send/relaunch cycles burned (F-18); one malformed `bug-hunt` send correctly refused then re-fired; bg_3 stale-job output superseded (wrong-file run, never a gate input).
+
+## [2026-09-15] V-20 FIX WAVE — gate convergence run, all legs live green (GI eab074e3 + trident 27b1b59c)
+
+**The built:** corbell txn parity (helper + ROLLBACK + CORBELL_WRITE_FAILED + per-table supersede guard + caller-owned close); projection guard (LINELESS named); H12 confinement unified in module-scope confineTargetPath on BOTH graph-query and aether-code-audit; freshness scope threading + suffix parity + loud stale-budget; UNIQUE partial indexes (legacy-deferred); BFS seed-by-id; dirname; size-hint-only + read-once guards; community join (nodeIdByRaw); quota classifier + 'server' class; key redaction; stale 100ms; grep containment; \Z→$.
+**The why:** Operator order — "FIX ALL OF THIS AND GET IT READY FOR HOST DEPLOY." Gate re-runs measured 56/55/60 with crits 1→0→1→0; the real critical (audit confinement) is fixed; the wipe CRITICAL refuted by gi-registry.ts:111 (env-gated, battery-pinned).
+**The evidence:** Battery 119/0/1004 ×3 rounds; final dists GI eab074e3f3b2a3be + trident 27b1b59c30a7986e exec-verified on both rigs; TUI G1 nodes=5/edges=5 + safe_delete 2/2/0/0, G4 AUDIT_DONE findings=3 run-id 1789492431044.
+**The verification:** This file's tail SHA = deployed dist (S5 law); checkpoint before-state gi-gatefail-pre-V20-ee122880 committed cfb6893; audit sessions 6768692f/108fd2de/4cc25858 JSONL on disk.
+**The honest notes:** Gate highs did NOT converge to 0 (depth scales with churn); residual triaged fix-now-bounded vs accepted-debt — production-grade needs an operator ruling on the debt set; convergence law recorded EN-023/F-20.
+
+Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b79f11b889a66ddfbbfef59192cc8` — full hex; trident `27b1b59c30a7986e24d43cdfa3b4a254df94741981e3bcec3176be2ed78846bd` mid-entry).
