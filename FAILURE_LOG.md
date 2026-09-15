@@ -145,3 +145,11 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Root cause:** Inverted `newest + 1000 > warmMtime → fresh` comparison + skipped both-dists rebuild (trident `bun run build` red on xstate).
 - **Impact:** Four wasted send/relaunch cycles; zero ship impact (no seal claimed on refusing rigs).
 - **Disposition:** FIXED — warm-wins tail + `.omp` excludes + trident `280fd303` rebuilt/deployed both rigs; G1/G4/G3/G5 + port2 legs green.
+
+### F-19 — Qwen RE-RUN III: GATE FAIL at 23 high, 0 critical (2026-09-15)
+
+- **What happened:** Seal-state audit `ocr scan` (7 sealed files, JSON) → 57 findings (0 critical, 23 high, 26 medium, 8 low), session `33d64eca` (207s, `llm_failures 2`).
+- **Found:** Same turn, JSONL comment recount (never the prose summary) + per-finding refute reads against the sealed source.
+- **Root cause:** Residual hardening + consistency layer (see EN-022 triage): txn ownership still split (corbell), throw-outside-try paths, global supersede, missing UNIQUEs, path/size/TOCTOU budgets, pool contract wording vs behavior, auditor windows/regex/grep-scope/isolate-storm.
+- **Impact:** Ship-ready / production-grade claims stay BLOCKED per gate law (highs > 0). No silent pass.
+- **Disposition:** TRIAGED — fix-now set (corbell txn helper + ROLLBACK, map-throw wrap, supersede run-filter + empty-guard, UNIQUEs, dirname, size-hint-only, stat-read-once, community join, BFS seed-by-id, stale 100ms, grep containment, `\Z`→`$`, isolate batches, targetPath confinement note, scope threading, openTypedStore-in-try, DDL-via-helper) vs accepted-debt set (warm-wins 1s tolerance wording, pool window extensions, perf caps, sync-IO shape, alias-list row, sessionId-schema row, unwired-line row, empty-check duplication, predicate double-call, god-node degree, test-heuristic, nested-ternary, wroteBytes-void, execFileAsync-dead, confidence-float, SEARCH_FAILED-vs-absence) — executed as V-20 wave on operator order; re-run IV owed after.

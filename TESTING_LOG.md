@@ -247,3 +247,50 @@ EXIT=0
 - **The raw output (tool-result excerpts, verbatim, THIS run):** `substrate=graphify graph=/tmp/fx383g/graphify-out/graph.json nodes=5 edges=5` + `Two callers of alpha() were found under substrate=graphify (beta.ts lines 1-2)` + `GRAPHIFY_NOT_WARM ABSENT`; `AUDIT_DONE layer=R28-sro-graph findings=3 reportPath=/tmp/fx383g/.omp/graph-intelligence/audit/R28-sro-graph-1789481197584/findings/report.md`; `HUNT_DONE runId=gi-study-src-hunt-20260915-11 findingsCount=296 reportPath=/workspace/gi-study-src/MASTER_CONTEXT/bug_hunter_report_v12.md`; `impact_reaches=2` + `hint=next=chain from=alpha()`; `safe_delete: callers=2, reaches=2, uses=0, testReach=0` + `beta.ts (line 1) and beta() (line 2)`; port2 `{"token":"PROBE_TOOL_OK","sessionID":"default","echo":"port2-fresh-auth"}` + empty-tree `GRAPHIFY_NOT_WARM:absent: no warm graphify graph at /tmp/fxempty/graphify-out/graph.json (rebuild with: bun scripts/graphify-build.ts --target '/tmp/fxempty')` (honest-zero, named remedy). Mid-run: one `bug-hunt` send WITHOUT `action` correctly refused (`action must be "hunt" or "status"`) — re-fired with `{"action":"hunt",...}` → HUNT_DONE.
 - **The verdict:** PASS — inverted-freshness fixed live, trident-shadow-II closed, every leg named with its remedy; rigs RUNNING at verdict.
 - **The artifacts:** audit dir `R28-sro-graph-1789481197584`; hunt v12 report `bug_hunter_report_v12.md`; streams per rig.
+
+## TEST RESULT — 2026-09-15 — Qwen RE-RUN III on sealed files (session 33d64eca, GATE FAIL)
+
+### SCRIPT (audit gate — read-only, no source edits)
+- **The run:** `ocr scan --preview --path <7 sealed files>` → `7 file(s) +3217 -0`; then `ocr scan --path <same 7> --format json` (207s, background job bg_22, hub-wait recovered).
+- **The raw output:** `TOTAL: 57 {high 23, medium 26, low 8}` (critical 0); per-file `go-key-pool 11 / adapter 9 / auditor 9 / populate-graphify 8 / corbell 7 / typed-write 7 / extension 6`; session JSONL 114 lines; summary `files_reviewed 9, llm_failures 2` (2 per-file LLM failures — degraded, loudly marked). Rows extracted to `/tmp/qwen-rerun3.json` (57).
+- **The verdict:** GATE: FAIL (0 critical, 23 high) — ship-ready / production-grade claims BLOCKED until V-20 fix wave + re-run IV PASS.
+- **The artifacts:** session JSONL `~/.opencodereview/sessions/home-leviathan-JARVIS_WORKSPACE-Shared_Workspace-Graph_Intelligence/33d64eca-ab5f-4be4-9446-7d5a2e392390.jsonl`; `/tmp/qwen-rerun3.json`; preview output this turn.
+
+### TRIAGE — all 23 HIGH (refute-read against sealed source this turn)
+| # | File:lines | Claim | Verdict |
+|---|---|---|---|
+| H01 | populate-corbell.ts:62-64 | freshness budget truncation → false-fresh (no `truncated` flag) | ACCEPTED-FIXABLE (parity with graphify `stale-budget`: track exhausted → `stale-budget`) |
+| H02 | populate-corbell.ts:96-98 | supersede UPDATEs autocommit BEFORE BEGIN (non-atomic wipe) | ACCEPTED-FIXABLE (corbell `supersedeThenInsert` helper parity with graphify V-16) |
+| H03 | populate-corbell.ts:114-119 | no ROLLBACK in BEGIN/COMMIT (WAL lock + throw vs loud-fallback) | ACCEPTED-FIXABLE (ROLLBACK parity) |
+| H04 | populate-corbell.ts:77 | `new Database` + `openTypedStore` outside try (throws escape `ok:false`) | ACCEPTED-FIXABLE (wrap both → `CORBELL_NOT_WARM:*`) |
+| H05 | populate-graphify.ts:152 | probe called with default `scope=['src']`, ignores `pinned.graph.scope` | ACCEPTED-FIXABLE (thread `pinned.graph.scope ?? ['src']`) |
+| H06 | populate-graphify.ts:169 | `mapGraphifyToTyped` throw outside try (promise rejects vs `{ok:false}`) | ACCEPTED-FIXABLE (wrap projection → `GRAPHIFY_*` named) |
+| H07 | populate-graphify.ts:206-209 | global supersede (no run/substrate filter, no empty-guard) + caller-owned close + nested-BEGIN risk | ACCEPTED-FIXABLE (run-filter + empty-input guard + single-owner txn documented) |
+| H08 | typed-write.ts:47-49 | INSERT OR REPLACE without UNIQUE (duplicates inflate counts) | ACCEPTED-FIXABLE (UNIQUE(canonical_id) + UNIQUE(src,dst,predicate,run) or DELETE-first) |
+| H09 | typed-write.ts:473-476 | BFS late-seen + label/id mismatch (self-reach on cycles) | ACCEPTED-FIXABLE (seed start canonical_ids, visit by id) |
+| H10 | typed-write.ts:108-109 | slashless-path `slice/lastIndexOf` + exists/stat/open TOCTOU | ACCEPTED-FIXABLE (`path.dirname` + unconditional recursive mkdir; atomic open handling) |
+| H11 | typed-write.ts:23-24 | caller `size` bypasses load budget; string already materialized | ACCEPTED-FIXABLE (size-hint-only: `byteLen = Buffer.byteLength(contents)`) |
+| H12 | extension.ts:229-234 | absolute targetPath → arbitrary store/ledger/ripwire roots (no confinement) | ACCEPTED-FIXABLE (existence + allowlist/confinement + realpath check; doc the trust boundary meanwhile) |
+| H13 | graphify-adapter.ts:169 | stat-size reused as guard (TOCTOU growth → OOM) | ACCEPTED-FIXABLE (read-once then guard on actual bytes) |
+| H14 | graphify-adapter.ts:209-216 | community members raw ids never join deduped `graphify:<id>[#N]` | ACCEPTED-FIXABLE (resolve via dedup/prefix map) |
+| H15 | go-key-pool.ts:98 | session-pinned DB defeats shared-pool contract | ACCEPTED-DEBT (F-34 lineage: pinning FIXED shared-file corruption; header reword owed, behavior stays — operator order only) |
+| H16 | go-key-pool.ts:160 | grace-law all-alive masks faults + hot-cycle | ACCEPTED-DEBT (GRACE LAW is the documented design — cycler never kills a call; caller gate owns loud-throw) |
+| H17 | go-key-pool.ts:141 | LRU closes live handles + WAL/busy_timeout shared try | ACCEPTED-DEBT (single path per process live shape; fd churn is test-flip, not live — operator order only) |
+| H18 | go-key-pool.ts:244 | `\b5\d\d\b` buckets all 500s as quota (1h+ exile, premature fallthrough) | ACCEPTED-FIXABLE (narrow to 429/402/529/quota tokens; 5xx retryable without exile) |
+| H19 | go-key-pool.ts:203 | raw error slice → world-readable tmp sqlite (key-material risk, no 0600) | ACCEPTED-FIXABLE (redact key-like patterns + restrictive create mode) |
+| H20 | auditor.ts:530-534 | 25 sequential greps (serial subprocess storm) | ACCEPTED-DEBT (fixture-scale machine; bounded-concurrency only on operator order — same class as prior isolate-storm row) |
+| H21 | auditor.ts:787-789 | `mtimeMs + 2000 >= t0` accepts 2s-old report as fresh | ACCEPTED-FIXABLE (100ms FS-slack, not 2000ms-before) |
+| H22 | auditor.ts:621-623 | grep-hit `path.relative` without containment (`../` escape) | ACCEPTED-FIXABLE (`isWithinRoot(realResolve)` + firstNodeFile fallback) |
+| H23 | auditor.ts:326 | `\Z` matches literal Z (SUMMARY never matches) | ACCEPTED-FIXABLE (`$` + m flag) |
+
+### TRIAGE — all 26 MEDIUM (one-line verdicts; fix-now vs debt)
+- corbell:33 TOCTOU probe-throw → FIXABLE (try/absent); corbell:107 confidence dropped → FIXABLE (carry confidence); corbell:53 `.ts`-only filter → FIXABLE (parity suffix set).
+- graphify:102 warm-wins 1s tolerance → DEBT (wording; zero-tolerance only on operator order); graphify:50 `as ProjectProfile` stub → DEBT (minimal-profile by design); graphify:171 openTypedStore-in-try → FIXABLE (move inside); graphify:242 DDL/helper drift → FIXABLE (route via helper); graphify:241 DDL idempotence → FIXABLE (prove IF NOT EXISTS or txn).
+- typed-write:497 nested connections → FIXABLE (single-handle pass-through); typed-write:361 chain BFS enqueue storm → FIXABLE (visited-on-enqueue + index queue); typed-write:511 test-heuristic overmatch → FIXABLE (boundary match).
+- extension:54 layerId coerce-to-default → FIXABLE (loud on invalid); extension:80 missing-symbol validation → FIXABLE (all verbs); extension:145 delegation await outside try → FIXABLE (wrap → QUERY_DELEGATION_INVALID).
+- adapter:542 setImmediate-no-chunk → DEBT (fixture-scale; chunked parse only on operator order); adapter:352 line-shape narrow → FIXABLE; adapter:190 dedup-once collide → FIXABLE (loop-until-unique); adapter:221 god-degree on invalid endpoints → FIXABLE; adapter:718 unwired line unchecked → FIXABLE (LINELESS parity).
+- pool:179 window parser narrow → DEBT (extensions only on operator order); pool:229 corrupt-DB snapshot throw → FIXABLE (finite clamp); pool:315 empty-pool throw vs action → FIXABLE (return, not throw).
+- auditor:459 nested ternary → DEBT (style; extract on operator order); auditor:755 wroteBytes-void → FIXABLE (validate or drop); auditor:537 SEARCH_FAILED-vs-absence → FIXABLE (broken-tool ≠ empty).
+
+### TRIAGE — all 8 LOW (fix-now smalls except where noted)
+- extension:368 alias omitted from return/boot list → FIXABLE; extension:222 sessionId schema-vs-ignore → FIXABLE (remove param or honor); adapter:560 redundant empty-check → FIXABLE; adapter:443 double predicate call → FIXABLE (hoist); pool:317 hardcoded `go-` label → FIXABLE (`goKeyLabel`); auditor:318 parseFloat garbage → FIXABLE (strict Number); auditor:26 execFileAsync dead → FIXABLE (remove); pool:80 import-time sync key load → DEBT (design; hermeticity via env override only on operator order).
