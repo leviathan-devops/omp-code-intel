@@ -181,3 +181,39 @@ EXIT=0
 - **The raw output:** `119 pass / 0 fail / 1004 expect() / Ran 119 tests across 19 files`.
 - **The verdict:** PASS — the move breaks nothing; vendor exclusion + symlink-then-remove recorded in F-10.
 - **The artifacts:** MIGRATION_MANIFEST.md (743/743 SHA); battery tail this entry.
+
+## TEST RESULT — 2026-09-15 — Qwen ship gate on the 5 wave files (scan, JSON)
+
+### CONTAINER
+- **The run:** `/home/leviathan/.npm-global/bin/ocr scan --path src/omp/extension.ts,src/hunter/keys/go-key-pool.ts,src/hunter/graph/graphify-adapter.ts,src/omp/populate-graphify.ts,src/hydra/auditor.ts --format json` (147s wall; new root; session `1aca90d4-584f-410e-859c-264c97bc2ebb`, 58-line JSONL).
+- **The raw output:** FINDINGS 45 {medium 21, high 21, critical 2, low 1}; per-file populate-graphify 8 / extension 9 / auditor 9 / go-key-pool 8 / graphify-adapter 11.
+- **The verdict:** GATE: FAIL (2 critical, 21 high) — triaged row by row below. No silent pass, no remembered verdict.
+- **The artifacts:** session JSONL `~/.opencodereview/sessions/...Graph_Intelligence/1aca90d4-...jsonl`; recount script output this turn.
+
+### TRIAGE (every critical/high, verdict = refuted-by-code / accepted-debt / accepted-fixable)
+
+| File:line | Severity | Claim | Verdict |
+|---|---|---|---|
+| populate-graphify.ts:155 | critical | supersede UPDATEs autocommit BEFORE BEGIN; insert throw loses live rows | ACCEPTED-FIXABLE (V-16: single-txn helper + ROLLBACK) |
+| extension.ts:153 | critical | wipe has no env gate | REFUTED-BY-CODE — gate is `gi-registry.ts:111` (`GI_OMP_ALLOW_CLEAR !== "1"` → throw), caught `:157-161`; pinned by `st-gi-omp-tools.ts:33-39` + `st-gi-omp-wipe.ts:22-40` |
+| populate-graphify.ts:173 | high | BEGIN/COMMIT without ROLLBACK; close in finally while locked | ACCEPTED-FIXABLE (V-16, same helper) |
+| populate-graphify.ts:227 | high | same defect in writeGraphifyCheckout + DDL drift risk | ACCEPTED-FIXABLE (V-16, same helper + DDL single-source) |
+| populate-graphify.ts:143 | high | adapter failure raw message, no GRAPHIFY_NOT_WARM:/GRAPH_EMPTY: token | ACCEPTED-FIXABLE (wrap build errors in named tokens; data-defect LINELESS_NODE must propagate, not be swallowed) |
+| populate-graphify.ts:89 | high | freshness-budget exhaustion returns false-fresh | ACCEPTED-FIXABLE (budget-hit → `{fresh:false, reason:stale-budget}` loud, never fresh) |
+| extension.ts:196 | high | caller sessionId overrides callerId unchecked | ACCEPTED-FIXABLE (V-17: authorize or drop the override; scope law owns this) |
+| extension.ts:301 | high | aether targetPath no absolute/allowlist check | ACCEPTED-FIXABLE (V-17: mirror the graph-query GI_PATH_DENIED guard) |
+| extension.ts:243 | high | populate-on-read mutates without locking | ACCEPTED-DEBT (single-TUI-write model + hunt-lock on hunts; concurrent-query race documented; rework only on operator order) |
+| auditor.ts:729 | high | write-success by substring bytes fragile | ACCEPTED-FIXABLE (parse writeFindings JSON, validate bytes/path) |
+| auditor.ts:134 | high | grep stdout treated as success on timeout/maxBuffer error | ACCEPTED-FIXABLE (surface err explicitly when stdout partial) |
+| auditor.ts:509 | high | per-isolate rg/grep process storm | ACCEPTED-DEBT (fixture-scale machine; cap only on operator order) |
+| auditor.ts:474 | high | recursive DFS blowup on dense graphs | ACCEPTED-DEBT (fixture-scale; iterative+early-slice only on operator order) |
+| go-key-pool.ts:297 | high | empty pool silently falls to OpenRouter vs header LOUD promise | ACCEPTED-FIXABLE (V-17 DOC-or-CODE: either loud `GO_POOL_EMPTY` when zero keys configured, or reword header — operator picks) |
+| go-key-pool.ts:152 | high | grace-law degrade masks persistent outage | ACCEPTED-DEBT (GRACE LAW is the documented design — cycler never kills a call; caller gate owns loud-throw) |
+| go-key-pool.ts:93 | high | session-pinned files vs machine-wide sharing doc | ACCEPTED-DEBT (F-34 lineage: pinning FIXED shared-file corruption; header reword owed, behavior stays) |
+| go-key-pool.ts:107 | high | singleton thrashes on sessionId vary | ACCEPTED-DEBT (path-keyed handle already; test-flip churn is not the live shape — single path per process) |
+| graphify-adapter.ts:628 | high | chain() BFS O(V*E) + linear lookups | ACCEPTED-DEBT (fixture-scale; index on operator order) |
+| graphify-adapter.ts:545 | high | stringify-128MB for 200-char error slice | ACCEPTED-FIXABLE (truncate raw input length, never stringify the graph for an error) |
+| graphify-adapter.ts:339 | high | line regex catches digits in versions/hashes | ACCEPTED-FIXABLE (anchor match `^L?\s*\d+\s*$`) |
+| graphify-adapter.ts:180 | high | id/label "" coercion collides | ACCEPTED-FIXABLE (drop-or-suffix id-less rows, never coerce to shared "") |
+| graphify-adapter.ts:598 | high | `?? 0` fabricates line 0, hides lineless | ACCEPTED-FIXABLE (preserve undefined through the read path; refusal owns the naming) |
+| graphify-adapter.ts:422 | high | edge line `?? 1` invents anchors | ACCEPTED-FIXABLE (same law as :598 — no invented anchors) |

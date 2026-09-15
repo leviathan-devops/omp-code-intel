@@ -81,3 +81,11 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Root cause:** Correct exclusion (never ship vendor) meets a root without installed deps; the new repo has no `bun install` history yet.
 - **Impact:** One red run, zero source impact.
 - **Disposition:** FIXED — temporary symlink to OMP node_modules for the verification run (`119/0/1004` green), symlink REMOVED after; fresh clones run `bun install` from bun.lock. Recorded so the next migration doesn't re-litigate it.
+
+### F-11 — Qwen gate returns 2 critical + 21 high on the ship wave (2026-09-15)
+
+- **What happened:** `ocr scan` (5 wave files, JSON) → 45 findings (critical 2, high 21, medium 21, low 1), session `1aca90d4`.
+- **Found:** Same turn, severity recount from the session JSONL (never the prose summary).
+- **Root cause:** Mixed bag — 1 critical REFUTED by callee read (wipe gate lives in gi-registry.ts:111 + 2 battery pins), 1 critical + most highs are REAL debt (txn ordering, rollback absence, sessionId trust, targetPath allowlist, populate-on-read locking, empty-pool wording, grace-law masking, session-pin docs, singleton thrash, BFS quadratic, stringify-200, line-regex, id-normalize, line-0 masking, edge-line default).
+- **Impact:** Ship-ready claim BLOCKED per gate law until triaged; no silent pass.
+- **Disposition:** TRIAGED (table in TESTING_LOG) — gate verdict FAIL pending V-16/V-17 fixes or accepted-debt sign-off. No fixes applied inside the gate run (read-only law).
