@@ -1,0 +1,10 @@
+# omp-ct:master addendum — bake the host's ripwire 0.6.0 binary into the image.
+# WHY: the container rigs must carry ripwire so (a) the `ripwire` OMP tool
+# (code-retrieval extension) works in-container, and (b) the GI gate advisory's
+# ripwire edit-check delegation is exercisable. Incremental layer FROM the
+# current omp-ct:master (the original full context's stage/ was reclaimed; the
+# main Dockerfile.omp-ct now also carries the COPY for the next full rebuild).
+FROM omp-ct:master
+COPY stage/ripwire /root/.local/bin/ripwire
+RUN chmod +x /root/.local/bin/ripwire && /root/.local/bin/ripwire --version
+ENV PATH="/root/.local/bin:${PATH}"

@@ -1,0 +1,306 @@
+{
+ "accuracy": {
+  "macro_precision": 0.523,
+  "macro_recall": 0.568,
+  "protocol": "GI who-calls caller names vs ripwire --callers ground truth, 8 symbols, v11 store (0 dangling dst)",
+  "per_symbol": {
+   "openSessionStore": {
+    "fn": 0,
+    "fp": 0,
+    "note": "both empty; OMP-tree def outside populate root",
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 0
+   },
+   "openStore": {
+    "fn": 5,
+    "fp": 11,
+    "note": "FP = file-node src labels + def-site residuals; FN = method-local callers",
+    "precision": 0.35,
+    "recall": 0.55,
+    "tp": 6
+   },
+   "parseExports": {
+    "fn": 2,
+    "fp": 1,
+    "note": "single inbound edge from project-scope.ts; ripwire cites ensureGraphPopulated+runGraphGate fn sites",
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "resolveDial": {
+    "fn": 0,
+    "fp": 0,
+    "note": "both empty",
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 0
+   },
+   "runGraphGate": {
+    "fn": 0,
+    "fp": 1,
+    "note": "GI file-node caller vs ripwire empty (method-local)",
+    "precision": 0.0,
+    "recall": 1.0,
+    "tp": 0
+   },
+   "runQuery": {
+    "fn": 2,
+    "fp": 4,
+    "note": "TP=2 fn-label callers; FP=file nodes + def residuals",
+    "precision": 0.33,
+    "recall": 0.5,
+    "tp": 2
+   },
+   "spawnBugHunterLoop": {
+    "fn": 1,
+    "fp": 1,
+    "note": "TP=createBugHuntTool",
+    "precision": 0.5,
+    "recall": 0.5,
+    "tp": 1
+   },
+   "whoCalls": {
+    "fn": 2,
+    "fp": 0,
+    "note": "GI empty; ripwire check+runQuery are METHOD sites, not bare exports",
+    "precision": 1.0,
+    "recall": 0.0,
+    "tp": 0
+   }
+  },
+  "unit_mismatch": "GI reports caller FILE labels for top-of-file import sites; ripwire reports enclosing FUNCTION names. v4+ attributes enclosing exported fn when site is inside one, else file node. File-vs-fn comparison depresses precision honestly; next loop iteration reports both label kinds.",
+  "fn_label_only": {
+   "macro_precision": 0.982,
+   "macro_recall": 0.568,
+   "note": "R7: same 8 symbols, caller names restricted to kind=Function. File-node callers are a different unit (top-of-file import sites); fn-only P shows the edge attribution is near-exact where units match."
+  },
+  "dual_label_split": {
+   "openStore": {
+    "file": 10,
+    "fn": 7,
+    "total": 17
+   },
+   "parseExports": {
+    "file": 1,
+    "fn": 0,
+    "total": 1
+   },
+   "runGraphGate": {
+    "file": 1,
+    "fn": 0,
+    "total": 1
+   },
+   "runQuery": {
+    "file": 4,
+    "fn": 2,
+    "total": 6
+   },
+   "spawnBugHunterLoop": {
+    "file": 1,
+    "fn": 1,
+    "total": 2
+   }
+  }
+ },
+ "container_tui": {
+  "blast_rows_token": "CLOSED 2026-09-14 ~13:07 UTC: rows=135 root=openStore depth=6 (14 occurrences in /tmp/tui-stream.txt, tool-result context; agent prose notes identical to previous run)",
+  "model_chain": "Grok 4.6 quota 403 -> MiMo V2.5 Free 429s -> zhipu-coding-plan/glm-5.3-flash live",
+  "query_invalid": "MATCH@1039747 QUERY_INVALID",
+  "store_counts": {
+   "dangling_dst": 144,
+   "edges": 1950,
+   "kinds": {
+    "File": 303,
+    "Function": 1637
+   },
+   "nodes": 1940,
+   "note": "container store is v6 populate (pre-scope-check, pre-star-merge); host v11 is 2035/1857/0-dangling",
+   "path": "/workspace/gi-study/.omp/graph-intelligence/sessions/omp-default-session/store.sqlite",
+   "predicates": {
+    "calls": 1387,
+    "imports": 563
+   }
+  },
+  "who_calls_runQuery": "rows=6 with supremacy-brief.ts, likec4-drift.ts, detectR17Drift, query-registration.ts, runQueryTool, tools/graph-query.ts (TUI tool result, still present in stream)",
+  "note": "container store is v6 populate (pre-scope-check). Host v11 store frozen at /tmp/gi-accuracy-store.sqlite (2035 nodes / 1857 edges / 0 dangling). Overnight loop redeploys v11 dists and re-runs TUI.",
+  "v12_reverify": "who-calls runQuery rows=6 in tool result on v12 dists (scopeRoot fix holds; no new GI_QUERY_FAIL after 14:28 UTC bounce)",
+  "chain": "CLOSED: rows=1 runQueryTool->runQuery path step in tool result (v13)",
+  "hunt_status": "CLOSED: state=done findingsCount=1183 fixOrderCount=20 in tool result (v13); GI_HUNT_NOT_WIRED never fired"
+ },
+ "date": "2026-09-14",
+ "dists": {
+  "gi_index_sha16": "34b9d7df93f9429d8b399",
+  "note": "final: graph-code-audit rename + EN-38 yield; deployed host+w7",
+  "trident_dist_sha16": "b98b0ace7055a80eb61f3",
+  "trident_note": "CT native provision port + adopt + trust-clear + status-bar wait + pipe retry + docker.sock + code-retrieval i-optional fix"
+ },
+ "gap_classes": [
+  "def-only symbols have zero inbound edges (correct per edge semantics; ripwire finds method-local sites)",
+  "method and constructor call sites missed by bare-call negative lookbehind",
+  "file-node vs function-node caller label unit mismatch in P/R accounting",
+  "export-type re-export indexed; export-star merged; package-spec edges skipped",
+  "V5_CONFIDENCE phantom killed by declaration scope check (validator uses-but-never-declares)",
+  "import-type bindings create calls edges for type-only imports",
+  "no line numbers (line null) vs fork schema line",
+  "chain and unwired verbs return GI_VERB_NOT_WIRED",
+  "bug-hunt and gi-audit return GI_HUNT_NOT_WIRED and GI_AUDIT_NOT_WIRED",
+  "cwd-not-defined bug FOUND in TUI and FIXED (extension used bare cwd; now scopeRoot from cwdOf(ctx))"
+ ],
+ "parser_recall": {
+  "after": 1.0,
+  "after_missed": 0,
+  "after_nodes": 1637,
+  "baseline": 0.366,
+  "baseline_missed": 906,
+  "baseline_nodes": 564,
+  "fix": "ported fork GG-BUG-2 v2 EXPORTED-NAME semantics (declaration + braces-alias + default)"
+ },
+ "populate": {
+  "budget": 1000,
+  "edges": 1857,
+  "excluded_dirs": [
+   "node_modules",
+   ".git",
+   "dist",
+   "build",
+   "coverage"
+  ],
+  "files_indexed": 238,
+  "label_contract": "0 dangling dst edges (every edge dst names an existing node canonical)",
+  "nodes": 2035,
+  "run_tagged": true,
+  "scope_check": "binding must be declared in target (kills V5_CONFIDENCE_FLOOR phantom + package ghosts)",
+  "star_merge": "export-star target names merged into star-file canonicals",
+  "store_bytes_host": 1757184,
+  "batch": "R2: collect-then-single-transaction; 24.6s -> 0.5s host (49x); counts frozen 2035/1857"
+ },
+ "query_latency_ms": {
+  "host_who_calls_p50": 0.2,
+  "host_who_calls_range": "0.13-0.55",
+  "ripwire_callers_cli_wall_per_symbol": "0.13-0.47 (includes process spawn plus full-tree parse)"
+ },
+ "ripwire_map": {
+  "bytes": 22668,
+  "top_k": 200,
+  "wall_s": 0.27
+ },
+ "runtime_precision": {
+  "bottleneck": "every insertTypedNode/insertForkNode opens and closes the sqlite connection; 3890 open-close cycles per populate",
+  "populate_per_file_ms": 36,
+  "query_p50_ms": 0.2
+ },
+ "st": {
+  "battery": "23 pass / 0 fail / 61 expect across 7 files (bun 1.4.2) + populate 4/4",
+  "note": "corrupt suite gained 129MiB GRAPHIFY_GRAPH_TOO_LARGE test; populate frozen to v11 2035/1857",
+  "target": "fork-v143/live-tree, 238 .ts files, 3.36MB ts bytes"
+ },
+ "verbs": {
+  "blast_radius": "live (rows=135 root=openStore depth=6 TUI)",
+  "bug_hunt": "live status (state=done + fix order); full 6-phase machine NOT ported",
+  "chain": "live (rows=1 runQueryTool->runQuery TUI + ST)",
+  "gi_audit": "STILL STUB (GI_AUDIT_NOT_WIRED)",
+  "unwired": "live (rows=1259 host; TUI pending explicit re-quote)",
+  "would_break": "live (honest argsUnknown)",
+  "who_calls": "live (rows=6 TUI, macro-P/R in accuracy block)"
+ },
+ "code_retrieval_t8": "CLOSED: skill is four-engine (grep/ripwire/opengrok/graph-query); decision tree has warm-store branch; role split + physics + activation updated",
+ "ct_native_port": {
+  "status": "SHIPPED + E2E PROVEN",
+  "ported": [
+   "adopt flag",
+   "docker.sock passthrough",
+   "native provision script (vault insert + model roles)",
+   "trust-dialog auto-clear",
+   "status-bar wait",
+   "pipe-pane retry x5 + stream reset",
+   "enriched setup return"
+  ],
+  "default_model": "openrouter/poolside/laguna-s-2.1:free (smol: laguna-xs-2.1:free)",
+  "key_source": "base image baked opencode auth store (/root/.local/share/opencode/auth.json openrouter entry)",
+  "proof": {
+   "w7_tui": "welcome shows Laguna S 2.1 (free)/openrouter; status bar 'Laguna S 2.1 (free) ... 262K'",
+   "w7_serve": "omp -p -> LAGUNA_LIVE_OK 6s",
+   "w8_fresh": "PROVISION openrouter-credential:inserted model:roles-created; omp -p -> W8_LAGUNA_OK 6.8s",
+   "w8_config": "modelRoles.default: openrouter/poolside/laguna-s-2.1:free"
+  }
+ },
+ "rename": "gi-audit -> graph-code-audit (GI_TOOL_NAMES, registration, skills, docs; ST green)",
+ "tool_channel_findings": {
+  "ripwire_native": "VALIDATION-REFUSED pre-transport ('i must be concise intent (was missing)') - wrapper required i; FIXED i-optional in all 4 wrapper files (effective next session)",
+  "opengrok_native": "same validation refusal; REST /api/v1/projects 401 (auth-gated metadata endpoint); /api/v1/search = 200 ANONYMOUS (primary op works); /system/ping 200",
+  "opengrok_token": "etc/webapp_api_token exists (65B, uid-1111, 0600) - not readable by host user; OPENGROK_TOKEN env unset"
+ },
+ "scouts": {
+  "en38": "21 graphify/OOM entries; G21 = STILL-OPEN whoCalls id-space defect = direct ancestor of our 0.568 recall gap",
+  "paragon": "A1-A12 corbell fixes; A4 'Tree-sitter misleading = scaffolding-only' ; relative-root + quoted-version canonical",
+  "bibles": "23-step ordered bug hunter port plan; EXCLUDE list; ripwire+opengrok same validation failure"
+ },
+ "port_wave_2026_09_14": {
+  "substrate": "corbell PRIMARY (warm checkout .omp/graph-intelligence/corbell-checkout/store.sqlite); regex indexer NAMED fallback (CORBELL_NOT_WARM token + warm command in the log)",
+  "corbell_big_tree": {
+   "nodes": 2086,
+   "edges": 9386,
+   "kinds": "module=1 method=1949 function=71 class=65",
+   "edge_kinds": "calls=4698 traces-to=4688",
+   "wall": "20.2s reproducible",
+   "checkout": "fork-v143/live-tree/.omp/graph-intelligence/corbell-checkout/store.sqlite"
+  },
+  "host_proof": "who-calls openStore => substrate=corbell rows=12 (execute tools/graph-query.ts:52, ensureGraphPopulated hooks/project-scope.ts:125, ...); blast rows=160 depth=5; details.substrate=corbell",
+  "ported": {
+   "W3_P1": [
+    "triad",
+    "shared/ontology",
+    "shared/kind-for-layer",
+    "firewall/lexicon-types",
+    "identity/warhead",
+    "testing/inconclusive"
+   ],
+   "W3_P2": [
+    "keys/go-key-pool (5-key zero-literal)",
+    "shared/migrations (CHECKs enforced)",
+    "shared/db.ts WHOLE STORE (openStore/writeGraph/appendFinding/mirror)"
+   ],
+   "W3_P3": [
+    "lexicon/rule-card+templates+compiler+compiled-store",
+    "graph/mechanical+merge+resolver",
+    "shared/query-engine"
+   ],
+   "W3_P4": [
+    "diagnostics/findings-store+semantic-predicates+engine+calibration+fixture-calibration"
+   ],
+   "W3_P5": [
+    "firewall/readonly+artifact-scope (exact-token behavior proven)",
+    "hooks/bus-hook",
+    "surface/query-tool (DEV-4 8/64)",
+    "surface/lsp-injector"
+   ],
+   "W2_harness": [
+    "micro-loop-machine (XState5)",
+    "recon/map-legacy/scan/trace-legacy/strike/report",
+    "hunt-lock",
+    "types",
+    "st-hunter-port proof (report artifact + HUNT_DONE + PROFILE_INVALID INCONCLUSIVE)"
+   ],
+   "W1_corbell": [
+    "profile/schema+loader (523L)",
+    "graph/corbell-adapter (894L fix-bundle)",
+    "graph/interface (+ix loud-REMOVED seam)",
+    "graph/store-map",
+    "scripts/corbell-build.ts",
+    "st-corbell-port (6 checks)"
+   ]
+  },
+  "batteries": "41 pass / 0 fail / 158 expect across 11 files",
+  "dists": {
+   "gi_index_sha16": "2c32f73f2f5f2ab6",
+   "trident_dist_sha16": "e3db7a4391084418"
+  },
+  "remaining": [
+   "tool adapters (bug-hunt/query-registration/report-writer) into extension.ts",
+   "TUI dual-FRESH on omp-ct:master (CORBELL_SUBSTRATE_LIVE / HUNT_DONE tokens)",
+   "W4 verbs (impact/safe-delete + gate advisory callers)",
+   "P6 W8 writer / L6 trace / SRO map swaps"
+  ]
+ }
+}

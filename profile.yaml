@@ -1,0 +1,26 @@
+# GI-OMP project constitution (W1) — the ONLY project-specific artifact in the machine.
+# Substrate: corbell (PRIMARY); scope: src; 8 excludes per the W1 wiring plan.
+# Corpus points at an existing md; pipeline stages >= 1; history/awareness present.
+profileVersion: 1
+project:
+  name: gi-omp
+  root: /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+  languages: [typescript]
+  entryPoints: [src/omp/extension.ts]
+  build: bun run build
+  test: bun test
+graph:
+  substrate: corbell
+  scope: [src]
+  excludes: [node_modules, dist, build, .git, Checkpoints, corbell-data, context_management, .trident]
+rules:
+  corpus: [docs/GI_OMP_PORT_MASTER_PROMPT.md]
+pipeline:
+  stages:
+    - id: s1
+      entry: main
+      contract: "the corbell substrate builds the parse-grade graph"
+history:
+  failureLogs: []
+awareness:
+  docs: []

@@ -1,0 +1,52 @@
+{
+  "suite": "gi-omp-w7-dual-fresh",
+  "containers": ["gi-omp-w7", "gi-omp-w7b"],
+  "image": "runtime-grade-container-sandbox:master",
+  "tui": "omp",
+  "model": "xai-oauth/grok-4.6",
+  "overallVerdict": "PASS",
+  "phaseE": {
+    "shaDeploy": true,
+    "authProbe": true,
+    "allScenariosExecuted": true,
+    "tokensAsserted": true,
+    "noCircular": true,
+    "noTimeouts": true,
+    "blastCovered": true,
+    "adversarial": true,
+    "containerAlive": true,
+    "artifactWritten": true
+  },
+  "phaseEScore": "10/10",
+  "hostHygiene": "bun test 22 pass / 0 fail / 58 expect across 7 files",
+  "fork": { "liveTreeFiles": 249, "sha16": "63247bff8e2baf8f" },
+  "registry": {
+    "path": "/root/.omp/graph-intelligence/registry.sqlite",
+    "rowsAfterWipeRefuse": 3,
+    "sessionIds": ["default", "omp-default-session", "ssion-identity-key-w7-s1"],
+    "GI_OMP_ALLOW_CLEAR": "unset"
+  },
+  "containerConfigExtensions": [
+    "/root/.omp/agent/extensions/trident-omp/dist.js",
+    "/root/.omp/agent/extensions/graph-intelligence/index.js"
+  ],
+  "hostConfigExtensions": "APPEND trident-omp + code-retrieval + graph-intelligence",
+  "scenarios": [
+    {"name": "S1 IDENTITY w7", "passToken": "PROBE_TOOL_OK", "verdict": "PASS"},
+    {"name": "S2 TOOLS w7", "passToken": "rows=", "verdict": "PASS"},
+    {"name": "S3 FIREWALL FULL w7", "passToken": "GRAPH_GATE_SIGNATURE_BREAK", "verdict": "PASS"},
+    {"name": "S4 STEER TUI", "passToken": "[GATE STEER]", "verdict": "PASS"},
+    {"name": "S5 OFF TUI", "passToken": "GATE_TOKENS_ABSENT", "verdict": "PASS"},
+    {"name": "S7 ERRORS", "passToken": "QUERY_INVALID", "verdict": "PASS"},
+    {"name": "A1 GI_SCOPE_REFUSED", "passToken": "GI_SCOPE_REFUSED", "verdict": "PASS"},
+    {"name": "A2 GI_CLEAR_REFUSED TUI", "passToken": "GI_CLEAR_REFUSED", "verdict": "PASS", "toolResultContext": "graph-probe action=wipe; registry still 3 rows"},
+    {"name": "RB-STATE GI_STORE_CORRUPT TUI", "passToken": "GI_STORE_CORRUPT", "verdict": "PASS"},
+    {"name": "RB-CONFIG default registry", "verdict": "PASS", "path": "/root/.omp/graph-intelligence/registry.sqlite"},
+    {"name": "RB-CONCURRENCY 3 registry rows", "verdict": "PASS"},
+    {"name": "B1 IDENTITY w7b", "passToken": "PROBE_TOOL_OK", "verdict": "PASS"},
+    {"name": "B2 TOOLS w7b", "passToken": "rows=", "verdict": "PASS"},
+    {"name": "B5 FIREWALL FULL w7b", "passToken": "GRAPH_GATE_SIGNATURE_BREAK", "verdict": "PASS"},
+    {"name": "ISOLATION", "verdict": "PASS"}
+  ],
+  "notes": "Dual FRESH both Grok 4.6. FULL gate on both containers. STEER injects [GATE STEER] on tool_result. OFF has no gate tokens. Wipe refused without GI_OMP_ALLOW_CLEAR. Trident runBefore remains always-allow."
+}

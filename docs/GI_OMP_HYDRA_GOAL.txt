@@ -1,0 +1,129 @@
+/goal GI-OMP first-class session-scoped Graph Intelligence — LIVE INNER = W0 scoping interfaces; classifier may not weaken; legal stop = WAVE 4 (SC-14 headed dual-FRESH OMP TUI). gauntlet-loop is not required.
+
+PRODUCT: GI-OMP (plugin / product_tui). NOT a game. Four bound skills only: trident-deep-planning, hydra-mode, hydra-orchestrator, wave-planning.
+
+TREE: /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+SPEC: docs/GI_OMP_FIRST_CLASS_DPL1_SPEC.md
+FORK: fork-v143/ live-tree 249 files seal sha16 63247bff8e2baf8f (v1.4.3 live-sealed — only recoverable GI tree)
+BOILERPLATE: vendor/workspace-scoped-state-boilerplate/
+OMP DESK: /home/leviathan/JARVIS_WORKSPACE/OMP
+PARENT MIMOCODE GI: READ-ONLY
+
+FRESH CURRENT REALITY (2026-09-14, this-turn disk):
+- Fork exists: 274 files under fork-v143/; live-tree 249; boilerplate 9 files.
+- graph-mapper.ts sha16 3383c961609d24c0 byte-identical to v443-en38 (EN-38 already in the fork).
+- OMP boot pid 236567: registered 18 tools including container-testing, ripwire, opengrok. GI tools ABSENT from advertised schema.
+- ripwire live via eval bridge; cwd jail RIPWIRE_PATH_DENIED; OpenGrok ping 200; GI trees not in Lucene index (resultCount 0 = miss).
+- No Evidence/play/cycle-* on this tree (plugin, not capture product). Next unused inner = W0 src/scoping copy. Do not invent play-forge-t1.
+- CLOSED: EN-38 OOM guards; GI v1.4.3 mechanical classes at 0 in parent; ripwire/opengrok registration path known.
+- OPEN: GI not first-class in OMP; no session-scoped stores; project extensions override class still a landmine.
+- TRASH: treating MiMoCode per-project store as OMP-ready; claiming tools wired because registerTool logged in a different product.
+
+START NOW: open inner W0 only (copy boilerplate into src/scoping + GI ecosystem table + ST that MUST refuse shared path). Do not rewrite this WAVE PLAN after cycle 0.
+
+================================================================================
+BUILD SPEC
+================================================================================
+Runtime-grade thesis: GI must run in a real OMP TUI session with a dedicated per-session sqlite store — host bun test is hygiene.
+
+T-1 Session store path {scopeRoot}/.omp/graph-intelligence/sessions/{sid24}/store.sqlite exists after first graph-probe.
+T-2 Master registry WAL sqlite, env GI_OMP_DB_DIR → BUN_TEST → ~/.omp/graph-intelligence/registry.sqlite; NO JSON fallback.
+T-3 GI_SCOPE_REFUSED on cross-session open, naming owner sessionKey.
+T-4 Tools graph-query, graph-probe, bug-hunt, graph-code-audit registered (dedicated extension AND trident-omp); boot log names them.
+T-5 graph-gate on write/edit; STEER default; FULL → GRAPH_GATE_SIGNATURE_BREAK; no store → GI_NO_STORE ALLOW+warn.
+T-6 Dual FRESH sessions same project: disjoint typed_nodes (no leak).
+T-7 EN-38 frozen: GRAPHIFY_GRAPH_TOO_LARGE 128MiB; do not strip mapper/classifier.
+T-8 code-retrieval fourth branch; do not replace grep/ripwire/opengrok.
+T-9 JARVIS_WORKSPACE/OMP/.omp/config.yml extensions APPEND (never replace the list — that killed code-retrieval).
+T-10 WAVE 3 isolation critic + WAVE 4 headed TUI ship; classifier may not weaken.
+
+Frozen surfaces: EN-38 mapper bytes; MIMOCODE parent; ripwire binary; OpenGrok docker; Poseidon/identity/waves (out of GI scope ruling).
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+SC-1 Fork 249 files sha16 63247bff8e2baf8f still present.
+SC-2 Boot log contains graph-query and graph-probe.
+SC-3 graph-probe tool result contains PROBE_TOOL_OK and this session id.
+SC-4 Two sessions → two store paths under /sessions/; sqlite counts isolated.
+SC-5 Cross-session open → GI_SCOPE_REFUSED (known-bad MUST refuse).
+SC-6 BUN_TEST does not write ~/.omp/graph-intelligence/registry.sqlite.
+SC-7 FULL strip → GRAPH_GATE_SIGNATURE_BREAK + file UNCHANGED.
+SC-8 STEER strip lands with [GATE STEER]; OFF lands zero gate tokens.
+SC-9 WAVE 3: concurrent A+B writes; no leaked nodes (isolation critic).
+SC-10 WAVE 4: headed OMP TUI, dual FRESH, Phase E 10/10, ct-results overallVerdict PASS.
+Last rows SC-9/SC-10 = legal /goal complete. LIVE INNER / sub-inner PASS is not /goal complete. A fixture E2E is not /goal done. classifier may not weaken.
+
+================================================================================
+SCRIPT TESTING
+================================================================================
+bun test tests/st-gi-omp-*.ts (hygiene, never GATE B, never /goal complete).
+known-bad fixtures that MUST refuse: shared store path; cross-session open; clear() without GI_OMP_ALLOW_CLEAR; 129MiB graph.json; bad verb; BUN_TEST writing prod registry.
+Commands: bun test tests/st-gi-omp-scope.ts; bun test tests/st-gi-omp-refuse.ts; bun test tests/st-gi-omp-isolate.ts; bun test tests/st-gi-omp-wipe.ts.
+
+================================================================================
+CONTAINER TESTING
+================================================================================
+Rig: container-testing action=setup tui=omp memoryLimitMb=4096. Launch env: GI_DIAL, GI_OMP_DB_DIR sandbox, no host project sqlite mounts as the session store.
+product_tui dual FRESH age-bound. Host pytest never ship.
+
+RB-IDENTITY  passToken: PROBE_TOOL_OK in tool result  failToken: tool absent
+RB-TOOLS     passToken: graph-query rows= numeric     failToken: silent grep fallback
+RB-FIREWALL  passToken: GRAPH_GATE_SIGNATURE_BREAK + UNCHANGED  failToken: Edit applied
+RB-LIFECYCLE passToken: sticky scopeRoot after restart failToken: foreign root
+RB-INTEGRATION passToken: two store files isolated    failToken: shared typed_nodes
+RB-ERRORS    passToken: QUERY_INVALID                 failToken: crash
+RB-STATE     passToken: GI_STORE_CORRUPT named        failToken: silent empty
+RB-CONFIG    passToken: default registry path         failToken: /tmp leftover store
+RB-CONCURRENCY passToken: 3 registry rows             failToken: last-writer clobber
+
+≥5 adversarial angles: IDENTITY TOOLS FIREWALL LIFECYCLE INTEGRATION ERRORS STATE CONFIG CONCURRENCY.
+
+================================================================================
+CLASSIFIER FIREWALL
+================================================================================
+LIVE INNER = W0 (or whatever the progress ledger says is open). sub-inner PASS ≠ /goal complete.
+FORBIDDEN: fixture / OK-chat / bun test green / one FAIL take sold as WAVE 4.
+FORBIDDEN: demote WAVE 3 / WAVE 4 to optional evidence.
+classifier may not weaken. fixture is not /goal done.
+
+================================================================================
+HYDRA ORCHESTRATOR
+================================================================================
+Orch != builder. hydra-mode + hydra-orchestrator. min 5 desks/turn. cap 4 product-file writers. disjoint write-sets. claim-is-a-claim: orch re-runs bun test and reads store paths.
+Preflight: .trident/wave-plan.md WAVES:N + script-test known-bad + CT plan with tokens — then dispatch same turn.
+Dispatch law: MISSION / READ FIRST / KNOWN STATE / TASKS WHAT-HOW-WHY / CONSTRAINTS / VERIFICATION / RETURN.
+Kick cut desks. Do not stamp Achieved on a sub-inner. Record canon+ship docs same turn.
+wave-planning: START NOW = open inner only.
+
+================================================================================
+ANTI-PATTERNS
+================================================================================
+AP-1 SHARED-PROJECT-STORE     kill: path must include /sessions/{sid24}/
+AP-2 GLOBAL-HOME-GRAPH        kill: openStore != ~/.omp/graph-intelligence/store.sqlite
+AP-3 JSON-SESSION-MAP         kill: no whole-file sessions.json writer
+AP-4 DUAL-WRITE               kill: sqlite only (boilerplate R2)
+AP-5 EXTENSIONS-OVERRIDE      kill: config.yml extensions APPEND; grep siblings remain
+AP-6 TOOL-SCHEMA-SNAPSHOT     kill: process restart + boot log names tools
+AP-7 SILENT-DOWNGRADE         kill: GI down named; never silent grep
+AP-8 WIPE-PROD-DB             kill: clear() refused without GI_OMP_ALLOW_CLEAR
+AP-9 STUB-HYDRA               kill: 0 stubbed:true in shipped tree (WARHEAD 18)
+AP-10 REPLACE-RIPWIRE         kill: code-retrieval still routes ripwire/opengrok/grep
+AP-11 MIMO-HOOK-ON-OMP        kill: no @mimo-ai/plugin import in OMP extension
+AP-12 START-WITHOUT-RUN       kill: no desks until operator says run
+
+================================================================================
+WAVE PLAN
+================================================================================
+WAVES: 8
+Wave 0 — scoping interfaces (START NOW)  files: src/scoping/*  Gate: bun test st-gi-omp-scope.ts exit 0
+Wave 1 — registry + openSessionStore     files: src/omp/store-open.ts src/omp/gi-registry.ts  Gate: st-refuse + st-wipe MUST refuse
+Wave 2 — tools extension                 files: src/omp/extension.ts extensions/graph-intelligence/index.js  Gate: factory registerTool names
+Wave 3 — WAVE 3 isolation critic         files: tests/st-gi-omp-isolate.ts + concurrent fixture  Gate: disjoint typed_nodes
+Wave 4 — WAVE 4 gate middleware          files: src/omp/gate-middleware.ts  Gate: FULL token + OFF zero-misfire
+Wave 5 — trident-omp + config.yml APPEND files: OMP_WORKSPACE/trident-omp/src/tools/* + both config.yml  Gate: boot log 4 GI names + ripwire still listed
+Wave 6 — skills + code-retrieval branch  files: ~/.omp/agent/skills/graph-intelligence/SKILL.md (managed or user skills per operator)  Gate: skill file exists
+Wave 7 — headed dual-FRESH container     files: docs/ct + .omp/ct-results.json  Gate: Phase E 10/10 PASS = WAVE 4 runtime legal stop
+
+Parallel only if files disjoint. Do not rewrite this WAVE PLAN after cycle 0.
+next unused inner: W0 src/scoping. START NOW = W0 only.

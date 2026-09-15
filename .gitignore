@@ -1,0 +1,12 @@
+# GI self-contained repo: keep sources+docs, ignore bulk/regen/vendor
+node_modules/
+bun.lockb
+*.sqlite-shm
+*.sqlite-wal
+fork-v143/
+live-tree
+vendor/
+Ship_Packages/
+Checkpoints/
+ct-image/stage/
+extensions/graph-intelligence/extension.js

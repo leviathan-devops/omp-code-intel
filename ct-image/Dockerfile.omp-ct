@@ -1,0 +1,51 @@
+# omp-ct:master — the first proper OMP container image.
+# Extends mimo-ct:master (bun, node, tmux, docker CLI, sqlite3, baked opencode auth)
+# with the OMP runtime + prebuilt config + extensions + threads contract.
+FROM mimo-ct:master
+
+# --- OMP runtime (byte-parity via docker cp from runtime-grade-container-sandbox:master) ---
+# omp is a symlink -> ../install/global/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js
+# (shebang #!/usr/bin/env bun; needs bun on PATH — mimo-ct carries /root/.bun/bin/bun).
+# v2: FULL global node_modules tree (bun-resolved siblings like @babel/parser live
+# beside @oh-my-pi; copying @oh-my-pi alone broke resolution — v1 LESSON).
+COPY stage/sibling-modules /root/.bun/install/global/node_modules
+COPY stage/global-package.json /root/.bun/install/global/package.json
+COPY stage/bun.lock /root/.bun/install/global/bun.lock
+RUN ln -sf ../install/global/node_modules/@oh-my-pi/pi-coding-agent/dist/cli.js /root/.bun/bin/omp \
+ && ln -sf ../install/global/node_modules/@oh-my-pi/pi-mnemopi/src/cli.ts /root/.bun/install/global/node_modules/.bin/mnemopi 2>/dev/null || true
+
+# --- Prebuilt OMP agent config (model pins, extensions, mnemopi, theme) ---
+COPY omp-agent/config.yml /root/.omp/agent/config.yml
+COPY omp-agent/models.yml /root/.omp/agent/models.yml
+COPY omp-agent/extensions/trident-omp/dist.js /root/.omp/agent/extensions/trident-omp/dist.js
+COPY omp-agent/extensions/graph-intelligence/index.js /root/.omp/agent/extensions/graph-intelligence/index.js
+COPY omp-agent/extensions/code-retrieval/index.js /root/.omp/agent/extensions/code-retrieval/index.js
+COPY omp-agent/skills/update-thread /root/.omp/agent/skills/update-thread
+COPY omp-agent/skills/journal-master /root/.omp/agent/skills/journal-master
+COPY omp-agent/skills/threads-manager /root/.omp/agent/skills/threads-manager
+
+# --- Credential staging (mimo auth.stage pattern): the openrouter key the
+# setup-time provision step reads. Staged at build time from the running
+# opencode image auth store; chmod 600; never committed to git. ---
+COPY stage/opencode-auth.json /root/.local/share/opencode/auth.json
+RUN chmod 600 /root/.local/share/opencode/auth.json \
+ && python3 -c "import json; d=json.load(open('/root/.local/share/opencode/auth.json')); print('AUTH-STAGED providers:', list(d.keys()))"
+
+# --- ripwire (structural code map tool; the host binary, byte-identical) ---
+# Baked so the code-retrieval `ripwire` tool works in-container and the GI gate
+# advisory's ripwire edit-check delegation is exercisable (2026-09-15).
+COPY stage/ripwire /root/.local/bin/ripwire
+RUN chmod +x /root/.local/bin/ripwire
+ENV PATH="/root/.local/bin:${PATH}"
+
+# --- Threads memory system (native OMP path: /root/.omp/threads) ---
+COPY threads/ /root/.omp/threads/
+RUN mkdir -p /root/.omp/agent/sessions /workspace \
+ && chmod 644 /root/.omp/agent/config.yml /root/.omp/agent/models.yml \
+ && ls -la /root/.bun/bin/omp /root/.omp/agent/config.yml /root/.omp/threads/
+
+COPY bin/omp-ct-provision.sh /usr/local/bin/omp-ct-provision.sh
+RUN chmod +x /usr/local/bin/omp-ct-provision.sh
+
+WORKDIR /workspace
+CMD ["tail", "-f", "/dev/null"]
