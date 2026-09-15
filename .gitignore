@@ -7,6 +7,7 @@ fork-v143/
 live-tree
 vendor/
 Ship_Packages/
-Checkpoints/
+Checkpoints/*
+!Checkpoints/gi-rescope-shipped-34ba3ffe/
 ct-image/stage/
 extensions/graph-intelligence/extension.js

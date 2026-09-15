@@ -160,3 +160,12 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 **The evidence:** Battery `119/0/1004` (19 files); fallback solo `8/0/24`; pool `GO_KEYS len: 6`; CT PASS artifact + ship TUI re-proof (TESTING_LOG). Manifest artifact GI `34ba3ffe2b0b68ef913ca851efda6a4b4aa1beec65bc4f55d2458969c7bf8bf9` (566,951 B, host + deploy identical, both rigs pending re-verify at re-proof).
 **The verification:** `sha256sum` lines + battery tails + TUI excerpts in TESTING_LOG seal entries.
 **The honest notes:** Trident sibling `67dc892a55c06e1113035d6b6c34111cbedd283ee3dc66255fc9fbd7524fbd93` recorded mid-entry; the MANIFEST-artifact GI SHA closes this file (`34ba3ffe2b0b68ef913ca851efda6a4b4aa1beec65bc4f55d2458969c7bf8bf9`).
+
+## [2026-09-15] RESCOPE — self-contained repo Shared_Workspace/Graph_Intelligence (operator order)
+
+**The built:** 743-file SHA-gated move from `OMP/Graph_Intelligence` (archive husks left, never deleted); `MIGRATION_MANIFEST.md` (761 lines, 743/743 match); anchor rewrite (`corbell-adapter.ts:185` + 13 files OMP→Shared_Workspace root); fresh repo `jarvis/gi-main` commit `c3db965`; detached worktree `Graph_Intelligence-wt-gi-ship`; graph-tools-docs skill (SKILL + 5 references, mirrored at `skills/graph-tools-docs/`); rescope-target companion skill; EN-013/F-10/V-15 records.
+**The why:** Operator order — clean git tree for the entire GI pipeline; plus graph-tools-docs full set; plus refresh + ship + qwen-audit to follow.
+**The how:** rescope skill (survey → move → verify) + rescope-target inputs (TARGET/SOURCE/REWRITES/EXCLUDE); node_modules excluded, symlinked-only for the verification battery, then removed.
+**The evidence:** `VERIFY: 743/743 match`; battery `119/0/1004` from the NEW root; `git log` baseline commit; worktree list both trees.
+**The verification:** SHA gate output + battery tail + git log/worktree outputs this turn.
+**The honest notes:** Mimocode-path rewrite = ONE code anchor (`corbell-adapter.ts:185`, OPENCODE kept as fallback) — no `Shared Workspace Context/MIMOCODE` hits existed in code/tests/scripts; OMP git still shows deletions-vs-HEAD (its history preserved; new history starts here). F-10 red-then-green battery recorded.

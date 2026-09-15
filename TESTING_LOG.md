@@ -173,3 +173,11 @@ EXIT=0
 - **The raw output (tool-result excerpts, verbatim, THIS run):** `{"token":"PROBE_TOOL_OK","sessionID":"default","echo":"final-seal-auth"}`; `substrate=graphify graph=/tmp/fx383g/graphify-out/graph.json nodes=5 edges=5 rows=2 beta.ts (/tmp/fx383g/src/beta.ts:1) beta() (/tmp/fx383g/src/beta.ts:2)` + fail-soft ripwire line; `AUDIT_DONE layer=R28-sro-graph findings=3 reportPath=/tmp/fx383g/.omp/graph-intelligence/audit/R28-sro-graph-1789467936525/findings/report.md` (new dir, 1305 B class); `HUNT_DONE runId=gi-study-src-hunt-20260915-5 findingsCount=296 reportPath=/workspace/gi-study-src/MASTER_CONTEXT/bug_hunter_report_v6.md` (453,787 B v6); rig B `{"token":"PROBE_TOOL_OK","sessionID":"default","echo":"final-seal-b"}` + `substrate=indexer-fallback reason=CORBELL_NOT_WARM:absent rows=0` + fail-soft ripwire line.
 - **The verdict:** PASS — auth both rigs; graphify leg; aether audit (canonical name); hunt + artifact; B honest-zero with isolation. Rigs RUNNING + tmux up at verdict.
 - **The artifacts:** audit dir `R28-sro-graph-1789467936525`; hunt v6 report 453,787 B; streams per rig.
+
+## TEST RESULT — 2026-09-15 — Rescope migration battery from NEW root
+
+### SCRIPT
+- **The run:** FULL 19-file enumeration from `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence` (first run red `102/8 + 3 errors` on missing xstate vendor; symlink node_modules for verification, then removed).
+- **The raw output:** `119 pass / 0 fail / 1004 expect() / Ran 119 tests across 19 files`.
+- **The verdict:** PASS — the move breaks nothing; vendor exclusion + symlink-then-remove recorded in F-10.
+- **The artifacts:** MIGRATION_MANIFEST.md (743/743 SHA); battery tail this entry.

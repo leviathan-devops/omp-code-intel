@@ -73,3 +73,11 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Root cause:** Depth + missing last rung (see EN-012). Proxy itself healthy (ACTIVE, healthz green, single listener) — no proxy change needed; the §6 contract needed its chain counterpart in-tree.
 - **Impact:** Pre-fix, all-Go-dead = loud dead end with no fallback. Post-fix, degrades to laguna s2.1 free.
 - **Disposition:** FIXED — key provisioned (5→6, 0600), §FALLBACK wired, `8/0/24` battery green, full `119/0/1004` green, both dists rebuilt.
+
+### F-10 — Rescope move broke battery until node_modules linked (2026-09-15)
+
+- **What happened:** First battery from the NEW root: `102/8 + 3 errors` — `Cannot find package 'xstate'` (vendor excluded from the move by design).
+- **Found:** Same turn, full 19-file enumeration (solo-green would have hidden it — F-05 class).
+- **Root cause:** Correct exclusion (never ship vendor) meets a root without installed deps; the new repo has no `bun install` history yet.
+- **Impact:** One red run, zero source impact.
+- **Disposition:** FIXED — temporary symlink to OMP node_modules for the verification run (`119/0/1004` green), symlink REMOVED after; fresh clones run `bun install` from bun.lock. Recorded so the next migration doesn't re-litigate it.
