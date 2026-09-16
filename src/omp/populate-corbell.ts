@@ -58,7 +58,7 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
     } catch {
       // V21 cleanup fix-now: ANY unreadable dir sets walkFresh → stale-read-failed.
       // returning made newest stay 0 and an unreadable tree read "fresh".
-      if (dir === root) walkFailed = true;
+      walkFailed = true; // ANY unreadable dir — not just root
       return;
     }
     for (const entry of entries) {
@@ -187,5 +187,5 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   } finally {
     try { db.close(); } catch (closeErr) { console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`); }
   }
-  return { ok: true, nodes: rows.length, edges: edges.length, checkoutPath: warmPath };
+  return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped };
 }
