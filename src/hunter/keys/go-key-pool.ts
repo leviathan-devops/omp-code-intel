@@ -286,9 +286,12 @@ export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?
 export function goPoolSnapshot(now: number = Date.now(), sessionId?: string): string {
   // V21 cleanup: ONE read feeds the snapshot; non-finite values clamp to
   // alive (a corrupt row can no longer throw RangeError out of toISOString).
+  const MAX_DATE_MS = 8_640_000_000_000; // Date range ceiling — beyond this toISOString throws
   return readDeadUntil(sessionId).map((until, i) => {
-    const finite = typeof until === 'number' && Number.isFinite(until) && until > now;
-    return finite
+    // V21 cleanup fix-now: finite AND within the Date range — 1e20 passed the
+    // old isFinite check and threw RangeError out of toISOString.
+    const sane = typeof until === 'number' && Number.isFinite(until) && until > now && until <= MAX_DATE_MS;
+    return sane
       ? goKeyLabel(i) + ' dead until ' + new Date(until).toISOString()
       : goKeyLabel(i) + ' ok';
   }).join(' · ');

@@ -205,7 +205,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       let k = 2;
       while (seenIds.has(`${original}#${k}`)) k++;
       id = `${original}#${k}`;
-      renamedFrom.set(original, id);
+      // edges referencing the bare original follow the FIRST kept
+      // representative (later duplicates are new ids, not rename targets).
+      if (!renamedFrom.has(original)) renamedFrom.set(original, id);
     }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);

@@ -10821,7 +10821,8 @@ function normalizeGraphifyGraph(raw, opts) {
       while (seenIds.has(`${original}#${k}`))
         k++;
       id = `${original}#${k}`;
-      renamedFrom.set(original, id);
+      if (!renamedFrom.has(original))
+        renamedFrom.set(original, id);
     }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
@@ -11386,6 +11387,7 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
   }
   const warmMtime = st.mtimeMs;
   let newest = 0;
+  let filesSeen = 0;
   let exhausted = false;
   const budget = { n: GRAPHIFY_FRESHNESS_BUDGET };
   const walk = (dir) => {
@@ -11417,15 +11419,30 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
           const m = fs8.statSync(path9.join(dir, entry.name)).mtimeMs;
           if (m > newest)
             newest = m;
+          filesSeen += 1;
         } catch {}
       }
     }
   };
   for (const rel of scope) {
-    const dir = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
-    if (fs8.existsSync(dir))
-      walk(dir);
+    const target = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    let stTarget = null;
+    try {
+      stTarget = fs8.statSync(target);
+    } catch {
+      stTarget = null;
+    }
+    if (stTarget?.isFile()) {
+      if (stTarget.mtimeMs > newest)
+        newest = stTarget.mtimeMs;
+      filesSeen += 1;
+      continue;
+    }
+    if (stTarget?.isDirectory())
+      walk(target);
   }
+  if (filesSeen === 0)
+    return { fresh: false, reason: "stale-unscooped" };
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
   if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000))
@@ -11433,6 +11450,9 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
   return { fresh: false, reason: "stale" };
 }
 function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
+  if (db.inTransaction === true) {
+    throw new Error("GI_TXN_REQUIRED: supersedeThenInsert called inside an existing transaction (the helper owns BEGIN/COMMIT)");
+  }
   if (nodeRows.length === 0 && edgeRows.length === 0) {
     throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
   }
@@ -11477,6 +11497,7 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
     return { fresh: false, reason: "empty" };
   const warmMtime = st.mtimeMs;
   let newest = 0;
+  let walkFailed = false;
   let exhausted = false;
   const budget = { n: CORBELL_FRESHNESS_BUDGET };
   const walk = (dir) => {
@@ -11488,6 +11509,8 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
     try {
       entries = fs9.readdirSync(dir, { withFileTypes: true });
     } catch {
+      if (dir === root)
+        walkFailed = true;
       return;
     }
     for (const entry of entries) {
@@ -11511,6 +11534,8 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
     }
   };
   walk(root);
+  if (walkFailed)
+    return { fresh: false, reason: "stale-read-failed" };
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
   if (newest > warmMtime)
@@ -11525,6 +11550,13 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   }
   let rows = [];
   let edges = [];
+  const stBefore = (() => {
+    try {
+      return fs9.statSync(warmPath).mtimeMs;
+    } catch {
+      return -1;
+    }
+  })();
   let src = null;
   try {
     src = new Database4(warmPath, { readonly: true });
@@ -11540,13 +11572,6 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   if (rows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  const stBefore = (() => {
-    try {
-      return fs9.statSync(warmPath).mtimeMs;
-    } catch {
-      return -1;
-    }
-  })();
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
   const mtimeAfter = (() => {
     try {

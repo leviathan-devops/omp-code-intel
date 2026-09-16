@@ -45,6 +45,7 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
   if (st.size === 0) return { fresh: false, reason: "empty" };
   const warmMtime = st.mtimeMs;
   let newest = 0;
+  let walkFailed = false;
   // H01 (qwen 33d64eca): budget exhaustion is LOUD — truncated walk answers
   // stale-budget (parity with the graphify probe), never a false-fresh.
   let exhausted = false;
@@ -55,6 +56,9 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
+      // V21 cleanup fix-now: an unreadable root is a LOUD failure — silently
+      // returning made newest stay 0 and an unreadable tree read "fresh".
+      if (dir === root) walkFailed = true;
       return;
     }
     for (const entry of entries) {
@@ -75,6 +79,7 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
     }
   };
   walk(root);
+  if (walkFailed) return { fresh: false, reason: "stale-read-failed" };
   if (exhausted) return { fresh: false, reason: "stale-budget" };
   if (newest > warmMtime) return { fresh: false, reason: "stale" };
   return { fresh: true, reason: "fresh" };
@@ -94,6 +99,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   // survive the copy — never re-hardcoded to 1.0 on insert. ForkEdge gains
   // an optional confidence; insertForkEdgesBatch honors it (typed-write).
 
+  // V21 cleanup fix-now: the TOCTOU baseline is captured BEFORE the reads.
+  const stBefore = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -1; } })();
   let src: Database | null = null;
   try {
     // H04 (qwen 33d64eca): the open is INSIDE the try — a corrupt/locked warm
@@ -113,11 +120,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   if (rows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  // V21 W11 + cleanup: REAL TOCTOU guard — capture the warm store's mtime
-  // BEFORE the read and compare AFTER; any change in between (rebuild, write)
-  // refuses the copy as CORBELL_NOT_WARM:changed-mid-read. The prior version
-  // compared two AFTER-stats (self-comparison, always equal — dead check).
-  const stBefore = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -1; } })();
+  // V21 W11 + cleanup fix-now: the AFTER stat compares against the BEFORE
+  // baseline captured above the reads.
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
   const mtimeAfter = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -2; } })();
   if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {

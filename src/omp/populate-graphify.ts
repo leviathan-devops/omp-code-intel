@@ -71,6 +71,7 @@ export function isGraphifyCheckoutFreshFor(
   }
   const warmMtime = st.mtimeMs;
   let newest = 0;
+  let filesSeen = 0;
   let exhausted = false;
   const budget = { n: GRAPHIFY_FRESHNESS_BUDGET };
   const walk = (dir: string): void => {
@@ -93,14 +94,27 @@ export function isGraphifyCheckoutFreshFor(
         try {
           const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
           if (m > newest) newest = m;
+          filesSeen += 1;
         } catch { /* unreadable file — skip */ }
       }
     }
   };
-  for (const rel of scope) {
-    const dir = path.isAbsolute(rel) ? rel : path.join(root, rel);
-    if (fs.existsSync(dir)) walk(dir);
+    for (const rel of scope) {
+    const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    // V21 cleanup fix-now: a scope entry may be a FILE — stat it directly
+    // (walk() on a file throws ENOTDIR and silently counted nothing).
+    let stTarget: fs.Stats | null = null;
+    try { stTarget = fs.statSync(target); } catch { stTarget = null; }
+    if (stTarget?.isFile()) {
+      if (stTarget.mtimeMs > newest) newest = stTarget.mtimeMs;
+      filesSeen += 1;
+      continue;
+    }
+    if (stTarget?.isDirectory()) walk(target);
   }
+  // V21 cleanup fix-now: zero indexable files seen = the probe proved nothing
+  // — fail-closed (fresh-by-vacuity is the silent-staleness class).
+  if (filesSeen === 0) return { fresh: false, reason: "stale-unscooped" };
   if (exhausted) return { fresh: false, reason: "stale-budget" };
   // WARM-WINS (V21 cleanup): second-granularity comparison — same-second
   // writes stay fresh (fs mtime granularity), an edit even 1ms into the NEXT
@@ -226,12 +240,17 @@ export function supersedeThenInsert(
   // Caller-owned connection: the caller opens (openTypedStore / new Database)
   // and MUST NOT be inside a transaction (bare BEGIN fails otherwise — the
   // helper owns BEGIN/COMMIT/ROLLBACK/close for exactly one unit of work).
-  db: Database,
+  db: Database & { inTransaction?: boolean },
   runTag: string,
   nodeRows: ForkNode[],
   edgeRows: ForkEdge[],
   meta: Array<[string, string]>,
 ): void {
+  // V21 cleanup fix-now: BEGIN fails inside an open transaction — enforce the
+  // documented precondition loudly instead of letting sqlite throw opaque.
+  if (db.inTransaction === true) {
+    throw new Error("GI_TXN_REQUIRED: supersedeThenInsert called inside an existing transaction (the helper owns BEGIN/COMMIT)");
+  }
   // H07 + re-run-V: PER-TABLE empty guard — a nodes-only batch must not
   // supersede live edges into void (and vice versa). Zero rows in BOTH is
   // the only full refusal.
