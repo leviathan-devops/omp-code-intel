@@ -33,8 +33,10 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
   if (!st || !st.isDirectory()) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
   }
+  // V21 cleanup: separator ':' on this Linux host; '|' also accepted so
+  // Windows-style drive-letter roots can be listed unsplit (documented escape).
   const allowRoots = (process.env.GI_TARGET_ROOTS ?? "")
-    .split(":").map((r) => r.trim()).filter((r) => r.length > 0);
+    .split(/[:|]/).map((r) => r.trim()).filter((r) => r.length > 0);
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
     const rel = path.relative(path.resolve(root), real);
@@ -76,11 +78,17 @@ try {
 }
 }
 
-/** layerId sanitize (qwen 8a24ae08: no ../ or separators into ledgerDir). */
-function sanitizeLayerId(raw: string): string {
-const t = raw.trim() === "" ? "R28-sro-graph" : raw.trim();
-if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t)) return "R28-sro-graph";
-return t;
+/** layerId sanitize (qwen 8a24ae08: no ../ or separators into ledgerDir).
+ *  V21 cleanup: an EXPLICIT invalid template is a loud rejection
+ *  (HUNTER_TEMPLATE_INVALID) — silent coercion to the default masked caller
+ *  mistakes. Empty/absent still resolves to the documented default. */
+function sanitizeLayerId(raw: string): { ok: true; layerId: string } | { ok: false; error: string } {
+const t = raw.trim();
+if (t === "") return { ok: true, layerId: "R28-sro-graph" };
+if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t)) {
+return { ok: false, error: `HUNTER_TEMPLATE_INVALID: '${t.slice(0, 64)}' is not a valid layerId (allowed: alnum . _ -, <= 64 chars)` };
+}
+return { ok: true, layerId: t };
 }
 
 /** Shared graph-query verb dispatch (default + graphify legs — identical verbs, different popNote). */
@@ -348,9 +356,19 @@ createBugHuntTool(pi, { cwdOf });
       }
       targetRoot = confined.real;
     } else {
-      targetRoot = scopeRoot;
+      // V21 cleanup: the default root is confined too — resolve + verify the
+      // cwd exists (a deleted cwd must not become a ghost ledger root).
+      const confined = confineTargetPath(path.resolve(scopeRoot), scopeRoot);
+      if (!confined.ok) {
+        return textResult(confined.error, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      targetRoot = confined.real;
     }
-    const layerId = sanitizeLayerId(String(p.template ?? ""));
+    const sanitized = sanitizeLayerId(String(p.template ?? ""));
+    if (!sanitized.ok) {
+      return textResult(sanitized.error, { ok: false, error: "HUNTER_TEMPLATE_INVALID" });
+    }
+    const layerId = sanitized.layerId;
     try {
       // Function-local dynamic imports (NOT top-of-file statics): the audit-bind
       // Named exception to the static-import law: the specifiers are tree-relative

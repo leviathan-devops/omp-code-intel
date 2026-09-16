@@ -139,6 +139,19 @@ function db(sessionId?: string): Database {
     reason TEXT,
     marked_at INTEGER
   )`);
+  // V21 cleanup: stable key identity — a KEYID (fingerprint prefix) column so
+  // a reload/reorder can never misattribute a deadUntil row to the wrong key.
+  // Legacy idx-keyed rows migrate by position on first open (best effort).
+  try {
+    fresh.run(`ALTER TABLE go_key_pool ADD COLUMN keyid TEXT`);
+  } catch (_dup) { /* column exists */ }
+  try {
+    const goKeysNow = GO_KEYS;
+    for (let i = 0; i < goKeysNow.length; i++) {
+      const kid = goKeysNow[i]!.slice(0, 12);
+      fresh.run(`UPDATE go_key_pool SET keyid = ? WHERE idx = ? AND (keyid IS NULL OR keyid = '')`, [kid, i]);
+    }
+  } catch (_mig) { /* fresh DB — nothing to migrate */ }
   poolDbByPath.set(want, fresh);
   while (poolDbByPath.size > POOL_DB_LRU_MAX) {
     const oldest = poolDbByPath.keys().next();
@@ -155,11 +168,25 @@ export function goKeyLabel(idx: number): string {
 
 // THE STATE READER — GRACE LAW: a DB hiccup degrades to ALL-ALIVE, logged,
 // never thrown. The cycler keeps cycling; the pool re-arms on the first 429.
+function keyidFor(idx: number): string {
+  const k = GO_KEYS[idx];
+  return k ? k.slice(0, 12) : '';
+}
+
 function readDeadUntil(sessionId?: string): number[] {
   try {
-    const rows = db(sessionId).query('SELECT idx, dead_until FROM go_key_pool').all() as Array<{ idx: number; dead_until: number }>;
-    const map = new Map(rows.map((r) => [r.idx, r.dead_until]));
-    return GO_KEYS.map((_, i) => (typeof map.get(i) === 'number' ? (map.get(i) as number) : 0));
+    const rows = db(sessionId).query('SELECT idx, keyid, dead_until FROM go_key_pool').all() as Array<{ idx: number; keyid: string | null; dead_until: number }>;
+    // V21 cleanup: KEYID-first resolution — marks follow the KEY, not the
+    // positional slot, across reloads/reorders. Legacy rows (keyid NULL)
+    // still match by idx.
+    const byKeyid = new Map(rows.filter((r) => r.keyid).map((r) => [r.keyid as string, r.dead_until]));
+    const byIdx = new Map(rows.map((r) => [r.idx, r.dead_until]));
+    return GO_KEYS.map((k, i) => {
+      const kid = k.slice(0, 12);
+      if (byKeyid.has(kid)) return byKeyid.get(kid) as number;
+      const legacy = byIdx.get(i);
+      return typeof legacy === 'number' ? legacy : 0;
+    });
   } catch (e) {
     console.error('[go-key-pool] read degraded to all-alive:', e instanceof Error ? e.message : String(e));
     return GO_KEYS.map(() => 0);
@@ -194,6 +221,12 @@ export function parseGoWindowMs(err: string): number {
   if (resetSec) return clamp(Number(resetSec[1]) * 1000);
   const resetDays = err.match(/resets? in\s*(\d+)\s*days?/i);
   if (resetDays) return clamp(Number(resetDays[1]) * 24 * 3_600_000);
+  // V21 cleanup: precise weeks/months resets (the keyword fallback only knew
+  // bare 'weekly'/'monthly' — 'Resets in 2 weeks' fell to unknown-1h).
+  const resetWeeks = err.match(/resets? in\s*(\d+)\s*weeks?/i);
+  if (resetWeeks) return clamp(Number(resetWeeks[1]) * 7 * 24 * 3_600_000);
+  const resetMonths = err.match(/resets? in\s*(\d+)\s*months?/i);
+  if (resetMonths) return clamp(Number(resetMonths[1]) * 30 * 24 * 3_600_000);
   if (/\b5\s*-?\s*hours?\b|\bhourly\b/i.test(err)) return clamp(5 * 3_600_000);
   if (/\bdaily\b|\bper[-\s]?day\b/i.test(err)) return clamp(24 * 3_600_000);
   if (/\bweekly\b|\bper[-\s]?week\b/i.test(err)) return clamp(7 * 24 * 3_600_000);
@@ -221,12 +254,16 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
   const until = now + parseGoWindowMs(msg);
   try {
     db(sessionId).run(
-      `INSERT INTO go_key_pool (idx, dead_until, reason, marked_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(idx) DO UPDATE SET dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
-      [idx, until, redactKeyMaterial(msg).slice(0, 300), now],
+      `INSERT INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
+      [idx, keyidFor(idx), until, redactKeyMaterial(msg).slice(0, 300), now],
     );
   } catch (e) {
-    console.error('[go-key-pool] markGoKeyDead write failed (degraded, in-memory only):', e instanceof Error ? e.message : String(e));
+    // V21 cleanup: a failed write returns 0 — the caller knows NO exile was
+    // persisted (the old return `until` falsely signalled an exile that the
+    // next readDegraded-to-all-alive would contradict anyway).
+    console.error('[go-key-pool] markGoKeyDead write FAILED (no exile persisted):', e instanceof Error ? e.message : String(e));
+    return 0;
   }
   return until;
 }
@@ -247,11 +284,14 @@ export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?
 // THE OBSERVABILITY LINE — per-key state for the [chain] logs + the loud
 // fail. Carries LABELS, never keys (AP-4).
 export function goPoolSnapshot(now: number = Date.now(), sessionId?: string): string {
-  return readDeadUntil(sessionId).map((until, i) =>
-    until > now
+  // V21 cleanup: ONE read feeds the snapshot; non-finite values clamp to
+  // alive (a corrupt row can no longer throw RangeError out of toISOString).
+  return readDeadUntil(sessionId).map((until, i) => {
+    const finite = typeof until === 'number' && Number.isFinite(until) && until > now;
+    return finite
       ? goKeyLabel(i) + ' dead until ' + new Date(until).toISOString()
-      : goKeyLabel(i) + ' ok'
-  ).join(' · ');
+      : goKeyLabel(i) + ' ok';
+  }).join(' · ');
 }
 
 // ═══ THE ERROR CLASSIFIER (mirrored from the boilerplate canon 2026-09-13:
@@ -268,15 +308,18 @@ export function classifyGoError(err: string): GoErrorClass {
   // quota (capacity window); no regex overlap remains between classes.
   if (/MissingSessionID/i.test(e)) return 'contract';
   if (/\b50[0-4]\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(e)) return 'server';
-  if (/GoUsageLimitError|usage limit|quota|rate limit|\b429\b|\b402\b|\b529\b/i.test(e)) return 'quota';
-  if (/overloaded/i.test(e)) return 'quota';
+  if (/\b529\b/i.test(e)) return 'quota';
+  if (/GoUsageLimitError|usage limit|quota|rate limit|\b429\b|\b402\b/i.test(e)) return 'quota';
+  // V21 cleanup: bare 'overloaded' (no 529/429 code) is transient capacity —
+  // short re-probe (server class), never a 1h quota exile.
+  if (/overloaded/i.test(e)) return 'server';
   if (/\b401\b|\b403\b|invalid_api_key|invalid x-api-key|unauthorized/i.test(e)) return 'rejected';
   return 'other';
 }
 
 // ═══ THE EARLIEST-EXPIRY RESOLVER + INDEX RESOLVER (mirrored from the canon
 // 2026-09-13 — consumers must import these, never re-declare the SELECT) ═══
-export function goEarliestDeadIdx(sessionId?: string): { idx: number; expiryKnown: boolean; dropped: number } {
+export function goEarliestDeadIdx(sessionId?: string, now: number = Date.now()): { idx: number; expiryKnown: boolean; dropped: number } {
   try {
     const rows = db(sessionId).query('SELECT idx, dead_until FROM go_key_pool').all() as Array<{ idx: number; dead_until: number }>;
     let dropped = 0;
@@ -286,7 +329,9 @@ export function goEarliestDeadIdx(sessionId?: string): { idx: number; expiryKnow
     for (const r of rows) {
       if (typeof r.idx !== 'number' || typeof r.dead_until !== 'number' || !Number.isFinite(r.dead_until)) { dropped++; continue; }
       if (!Number.isInteger(r.idx) || r.idx < 0 || r.idx >= GO_KEYS.length) { dropped++; continue; }
-      if (r.dead_until <= 0) continue; // alive rows don't compete — earliest EXPIRY among the dead
+      // V21 cleanup: an EXPIRED mark (dead_until <= now) means the key is
+      // alive again — it does not compete for earliest-expiry.
+      if (r.dead_until <= now) continue;
       seen++;
       if (r.dead_until < bestUntil) { bestUntil = r.dead_until; best = r.idx; }
     }
@@ -301,7 +346,7 @@ export function resolveGoKeyIndex(now: number = Date.now(), sessionId?: string):
   for (let i = 0; i < GO_KEYS.length; i++) {
     if ((untils[i] ?? 0) <= now) return { idx: i, alive: true, expiryKnown: true };
   }
-  const r = goEarliestDeadIdx(sessionId);
+  const r = goEarliestDeadIdx(sessionId, now);
   return { idx: r.idx, alive: false, expiryKnown: r.expiryKnown };
 }
 //

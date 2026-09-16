@@ -113,13 +113,14 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   if (rows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  // V21 W11 (TOCTOU): the warm store was stat'd by the freshness probe BEFORE
-  // the read — re-stat after the copy; a store that changed mid-read is a
-  // named NOT_WARM, never half-of-two-generations served as current.
-  let stAfter: fs.Stats | null = null;
-  try { stAfter = fs.statSync(warmPath); } catch { stAfter = null; }
+  // V21 W11 + cleanup: REAL TOCTOU guard — capture the warm store's mtime
+  // BEFORE the read and compare AFTER; any change in between (rebuild, write)
+  // refuses the copy as CORBELL_NOT_WARM:changed-mid-read. The prior version
+  // compared two AFTER-stats (self-comparison, always equal — dead check).
+  const stBefore = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -1; } })();
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
-  if (!freshnessAfter.fresh || (stAfter !== null && stAfter.mtimeMs !== fs.statSync(warmPath).mtimeMs)) {
+  const mtimeAfter = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -2; } })();
+  if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
     return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   // Write into the session store, superseding the previous run's rows.

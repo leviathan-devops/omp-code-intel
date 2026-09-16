@@ -9085,7 +9085,20 @@ async function sweep(template, graph, targetRoot, belt, calls) {
       confidence: 0.7
     }];
   }
+  if (hit.startsWith("SEARCH_FAILED") || hit.startsWith("GREP_INVALID")) {
+    return [confirmedEmpty(anchor, template.layerId, `probe INCOMPLETE: ${hit.slice(0, 140)} \u2014 no verdict possible from a failed probe`, firstNodeFile)];
+  }
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
+}
+function assertGraphShape(graph) {
+  if (graph === null || typeof graph !== "object")
+    throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json did not parse to an object");
+  const g = graph;
+  if (!Array.isArray(g.nodes))
+    throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing a nodes[] array");
+  if (!Array.isArray(g.edges))
+    throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing an edges[] array");
+  return { nodes: g.nodes, edges: g.edges };
 }
 async function runTemplateAudit(args) {
   const t0 = Date.now();
@@ -9113,6 +9126,7 @@ async function runTemplateAudit(args) {
   let graph;
   try {
     graph = args.client ? await new GraphifyMapReader(args.client).load(args.graphPath) : await readGraphJson(args.graphPath);
+    assertGraphShape(graph);
   } catch (e) {
     return { layerId, status: "rejected", error: String(e.message ?? e).slice(0, 500), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -9706,13 +9720,17 @@ function safeDelete(storePath, symbol) {
   try {
     const q = whoCalls(storePath, symbol);
     const imp = impact(storePath, symbol);
-    const uses = db.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
-       FROM typed_edges e
-       JOIN typed_nodes src ON e.src_canonical = src.canonical_id AND src.label = ?
-       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
-       WHERE e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         AND src.superseded_run IS NULL AND dst.superseded_run IS NULL`).all(symbol);
-    const mappedUses = uses.map((u) => ({ symbol: u.symbol, file: u.file ?? "", line: u.line ?? 0 }));
+    const srcIds = resolveLiveIds(db, symbol);
+    let mappedUses = [];
+    if (srcIds.length > 0) {
+      const uses = db.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
+         FROM typed_edges e
+         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+         WHERE e.src_canonical IN (${ph(srcIds.length)})
+           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND dst.superseded_run IS NULL`).all(...srcIds);
+      mappedUses = uses.filter((u) => u.line !== null && u.line !== undefined).map((u) => ({ symbol: u.symbol, file: u.file ?? "", line: u.line }));
+    }
     const isTestPath = (f) => /(test|spec|mock|fixture)/i.test(f);
     const testReach = [
       ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
@@ -10786,6 +10804,7 @@ function normalizeGraphifyGraph(raw, opts) {
   const rawLinks = rawLinkSrc;
   const seenIds = new Set;
   const nodeIdByRaw = new Map;
+  const renamedFrom = new Map;
   let dropped = 0;
   const nodes = [];
   for (const n of rawNodes) {
@@ -10796,8 +10815,14 @@ function normalizeGraphifyGraph(raw, opts) {
       dropped++;
       continue;
     }
-    if (seenIds.has(id))
-      id = `${id}#${seenIds.size}`;
+    const original = id;
+    if (seenIds.has(id)) {
+      let k = 2;
+      while (seenIds.has(`${original}#${k}`))
+        k++;
+      id = `${original}#${k}`;
+      renamedFrom.set(original, id);
+    }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
     nodes.push({
@@ -10811,8 +10836,12 @@ function normalizeGraphifyGraph(raw, opts) {
   if (dropped > 0)
     tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   const edges = rawLinks.map((e) => {
-    const src = String(e["source"] ?? e["src"] ?? "");
-    const dst = String(e["target"] ?? e["dst"] ?? "");
+    let src = String(e["source"] ?? e["src"] ?? "");
+    let dst = String(e["target"] ?? e["dst"] ?? "");
+    if (renamedFrom.has(src))
+      src = renamedFrom.get(src);
+    if (renamedFrom.has(dst))
+      dst = renamedFrom.get(dst);
     const relation = String(e["relation"] ?? "references");
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };
@@ -10842,7 +10871,8 @@ function normalizeGraphifyGraph(raw, opts) {
         return opts.root;
       }
     })();
-    for (const n of nodes) {
+    for (let i = 0;i < nodes.length; i++) {
+      const n = nodes[i];
       const f = n.file;
       if (f.length === 0)
         continue;
@@ -10852,10 +10882,14 @@ function normalizeGraphifyGraph(raw, opts) {
         real = fs7.realpathSync(abs);
       } catch {}
       const rel = path8.relative(rootReal, real);
-      if (rel.startsWith("..") || path8.isAbsolute(rel))
-        n.file = "";
-      else
-        n.file = rel.split(path8.sep).join("/");
+      const contained = !rel.startsWith("..") && !path8.isAbsolute(rel);
+      const safeFile = contained ? rel.split(path8.sep).join("/") : "";
+      if (safeFile !== n.file) {
+        nodes[i] = { ...n, file: safeFile };
+        const at = nodeIdByRaw.get(rawNodes[i]);
+        if (at === n.id)
+          nodeIdByRaw.set(rawNodes[i], nodes[i].id);
+      }
     }
   }
   const degree = new Map;
@@ -11225,20 +11259,20 @@ class GraphifyAdapter {
       throw adapterFailed("graphify query", "no graph built \u2014 call build() first (the query verbs read the built graph)");
     }
   }
-  whoCalls(symbol) {
+  whoCalls(symbol, onLineless) {
     this.ensureBuilt();
     const target = this.resolveNodeId(symbol);
-    return this.cachedEdges.filter((e) => e.kind === "calls" && e.targetId === target).map((e) => {
+    const out = [];
+    for (const e of this.cachedEdges.filter((e2) => e2.kind === "calls" && e2.targetId === target)) {
       const caller = this.nodeById(e.sourceId);
       const line = e.line ?? caller?.line;
-      if (line === undefined)
-        throw new Error(`LINELESS_NODE: no line for whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
-      return {
-        file: caller?.file ?? this.profile.project.root,
-        line,
-        caller: caller?.name ?? e.sourceId
-      };
-    });
+      if (line === undefined) {
+        onLineless?.(`LINELESS_NODE skipped: whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
+        continue;
+      }
+      out.push({ file: caller?.file ?? this.profile.project.root, line, caller: caller?.name ?? e.sourceId });
+    }
+    return out;
   }
   buildSync(graphPath) {
     const root = path8.resolve(this.profile.project.root);
@@ -11339,7 +11373,9 @@ function graphifyOutPath(root, profile) {
     return resolveGraphifyOut(profile);
   return resolveGraphifyOut({ project: { root: path9.resolve(root) } });
 }
-function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
+function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes = []) {
+  if (scope.length === 0)
+    return { fresh: false, reason: "stale-unscooped" };
   if (!fs8.existsSync(graphPath))
     return { fresh: false, reason: "absent" };
   let st;
@@ -11371,6 +11407,8 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name))
           continue;
+        if (excludes.includes(entry.name))
+          continue;
         budget.n--;
         walk(path9.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
@@ -11390,7 +11428,7 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"]) {
   }
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
-  if (newest <= warmMtime + 1000)
+  if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000))
     return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
@@ -11502,14 +11540,22 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   if (rows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  let stAfter = null;
-  try {
-    stAfter = fs9.statSync(warmPath);
-  } catch {
-    stAfter = null;
-  }
+  const stBefore = (() => {
+    try {
+      return fs9.statSync(warmPath).mtimeMs;
+    } catch {
+      return -1;
+    }
+  })();
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
-  if (!freshnessAfter.fresh || stAfter !== null && stAfter.mtimeMs !== fs9.statSync(warmPath).mtimeMs) {
+  const mtimeAfter = (() => {
+    try {
+      return fs9.statSync(warmPath).mtimeMs;
+    } catch {
+      return -2;
+    }
+  })();
+  if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
     return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   const nodeRows = rows.map((r) => ({
@@ -16104,7 +16150,7 @@ var confineTargetPath = (normalized, callerCwd) => {
   if (!st || !st.isDirectory()) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
   }
-  const allowRoots = (process.env.GI_TARGET_ROOTS ?? "").split(":").map((r) => r.trim()).filter((r) => r.length > 0);
+  const allowRoots = (process.env.GI_TARGET_ROOTS ?? "").split(/[:|]/).map((r) => r.trim()).filter((r) => r.length > 0);
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
     const rel = path26.relative(path26.resolve(root), real);
@@ -16126,10 +16172,13 @@ function safeRipwire(fn) {
   }
 }
 function sanitizeLayerId(raw) {
-  const t = raw.trim() === "" ? "R28-sro-graph" : raw.trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t))
-    return "R28-sro-graph";
-  return t;
+  const t = raw.trim();
+  if (t === "")
+    return { ok: true, layerId: "R28-sro-graph" };
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(t)) {
+    return { ok: false, error: `HUNTER_TEMPLATE_INVALID: '${t.slice(0, 64)}' is not a valid layerId (allowed: alnum . _ -, <= 64 chars)` };
+  }
+  return { ok: true, layerId: t };
 }
 async function runGraphQueryVerbs(verb, p, storePath, scopeRoot, sessionId, popNote, substrate) {
   if (verb === "who-calls") {
@@ -16359,9 +16408,17 @@ function registerGiOmpTools(pi, cwdOf) {
       }
       targetRoot = confined.real;
     } else {
-      targetRoot = scopeRoot;
+      const confined = confineTargetPath(path26.resolve(scopeRoot), scopeRoot);
+      if (!confined.ok) {
+        return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      targetRoot = confined.real;
     }
-    const layerId = sanitizeLayerId(String(p.template ?? ""));
+    const sanitized = sanitizeLayerId(String(p.template ?? ""));
+    if (!sanitized.ok) {
+      return textResult2(sanitized.error, { ok: false, error: "HUNTER_TEMPLATE_INVALID" });
+    }
+    const layerId = sanitized.layerId;
     try {
       const [{ templateByLayerId }, { runTemplateAudit }] = await Promise.all([
         Promise.resolve().then(() => (init_templates(), exports_templates)),

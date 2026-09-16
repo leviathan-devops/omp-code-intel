@@ -188,6 +188,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   const rawLinks = rawLinkSrc as Record<string, unknown>[];
   const seenIds = new Set<string>();
   const nodeIdByRaw = new Map<Record<string, unknown>, string>();
+  // V21 cleanup A1: rename ledger — edges referencing a renamed id remap to
+  // the deduped id (before: edges silently dangled at the pre-rename id).
+  const renamedFrom = new Map<string, string>();
   let dropped = 0;
   const nodes: GraphifyNode[] = [];
   for (const n of rawNodes) {
@@ -195,7 +198,15 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     let id = String(r["id"] ?? r["label"] ?? "");
     const label = String(r["label"] ?? r["id"] ?? "");
     if (id.length === 0) { dropped++; continue; }
-    if (seenIds.has(id)) id = `${id}#${seenIds.size}`;
+    const original = id;
+    // V21 cleanup A1: collision-PROOF dedup — loop until free (the one-shot
+    // `#size` suffix could itself collide: [x, x#2, x] produced two x#2).
+    if (seenIds.has(id)) {
+      let k = 2;
+      while (seenIds.has(`${original}#${k}`)) k++;
+      id = `${original}#${k}`;
+      renamedFrom.set(original, id);
+    }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
     nodes.push({
@@ -208,8 +219,11 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   }
   if (dropped > 0) tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   const edges: GraphifyEdge[] = rawLinks.map((e) => {
-    const src = String(e["source"] ?? e["src"] ?? "");
-    const dst = String(e["target"] ?? e["dst"] ?? "");
+    let src = String(e["source"] ?? e["src"] ?? "");
+    let dst = String(e["target"] ?? e["dst"] ?? "");
+    // V21 cleanup A1: remap renamed endpoints so edges follow their nodes.
+    if (renamedFrom.has(src)) src = renamedFrom.get(src)!;
+    if (renamedFrom.has(dst)) dst = renamedFrom.get(dst)!;
     const relation = String(e["relation"] ?? "references");
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };
@@ -244,15 +258,23 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   // keeps its identity; only the anchor is dropped to "").
   if (opts?.root) {
     const rootReal = (() => { try { return fs.realpathSync(opts.root); } catch { return opts.root; } })();
-    for (const n of nodes) {
+    // V21 cleanup A2: nodes are `readonly` — containment builds normalized
+    // COPIES (never mutates the declared-immutable rows in place).
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]!;
       const f = n.file;
       if (f.length === 0) continue;
       const abs = path.isAbsolute(f) ? f : path.resolve(rootReal, f);
       let real = abs;
       try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
       const rel = path.relative(rootReal, real);
-      if (rel.startsWith("..") || path.isAbsolute(rel)) n.file = "";
-      else n.file = rel.split(path.sep).join("/");
+      const contained = !rel.startsWith("..") && !path.isAbsolute(rel);
+      const safeFile = contained ? rel.split(path.sep).join("/") : "";
+      if (safeFile !== n.file) {
+        nodes[i] = { ...n, file: safeFile };
+        const at = nodeIdByRaw.get(rawNodes[i] as Record<string, unknown>);
+        if (at === n.id) nodeIdByRaw.set(rawNodes[i] as Record<string, unknown>, nodes[i]!.id);
+      }
     }
   }
   const degree = new Map<string, number>();
@@ -656,21 +678,22 @@ export class GraphifyAdapter implements GraphAdapter {
     }
   }
 
-  whoCalls(symbol: string): CallSite[] {
+  whoCalls(symbol: string, onLineless?: (info: string) => void): CallSite[] {
     this.ensureBuilt();
     const target = this.resolveNodeId(symbol);
-    return this.cachedEdges
-      .filter((e) => e.kind === "calls" && e.targetId === target)
-      .map((e) => {
-        const caller = this.nodeById(e.sourceId);
-        const line = e.line ?? caller?.line;
-        if (line === undefined) throw new Error(`LINELESS_NODE: no line for whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
-        return {
-          file: caller?.file ?? this.profile.project.root,
-          line,
-          caller: caller?.name ?? e.sourceId,
-        };
-      });
+    const out: CallSite[] = [];
+    for (const e of this.cachedEdges.filter((e2) => e2.kind === "calls" && e2.targetId === target)) {
+      const caller = this.nodeById(e.sourceId);
+      const line = e.line ?? caller?.line;
+      // V21 cleanup A3: a lineless ROW is skipped + named (telemetry callback)
+      // — one data defect no longer aborts a query with N-1 good rows.
+      if (line === undefined) {
+        onLineless?.(`LINELESS_NODE skipped: whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
+        continue;
+      }
+      out.push({ file: caller?.file ?? this.profile.project.root, line, caller: caller?.name ?? e.sourceId });
+    }
+    return out;
   }
 
   /** Sync build from an explicit graph.json path (the populate sync-bridge path). */

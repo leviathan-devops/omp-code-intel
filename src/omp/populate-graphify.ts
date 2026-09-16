@@ -57,7 +57,11 @@ export function isGraphifyCheckoutFreshFor(
   root: string,
   graphPath: string,
   scope: string[] = ["src"],
+  excludes: string[] = [],
 ): { fresh: boolean; reason: string } {
+  // V21 cleanup P2: empty scope = nothing declared to index → the probe CANNOT
+  // prove freshness → fail-closed stale-unscooped (never fresh-by-vacuity).
+  if (scope.length === 0) return { fresh: false, reason: "stale-unscooped" };
   if (!fs.existsSync(graphPath)) return { fresh: false, reason: "absent" };
   let st: fs.Stats;
   try {
@@ -81,6 +85,7 @@ export function isGraphifyCheckoutFreshFor(
       if (budget.n <= 0) { exhausted = true; return; }
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name)) continue;
+        if (excludes.includes(entry.name)) continue;
         budget.n--;
         walk(path.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
@@ -97,9 +102,10 @@ export function isGraphifyCheckoutFreshFor(
     if (fs.existsSync(dir)) walk(dir);
   }
   if (exhausted) return { fresh: false, reason: "stale-budget" };
-  // WARM-WINS: the graph is fresh when NO source file is newer than it.
-  // (newest <= warmMtime; the +1000ms tolerance covers same-second writes.)
-  if (newest <= warmMtime + 1000) return { fresh: true, reason: "fresh" };
+  // WARM-WINS (V21 cleanup): second-granularity comparison — same-second
+  // writes stay fresh (fs mtime granularity), an edit even 1ms into the NEXT
+  // second is stale. No tolerance window: a newer source is never served.
+  if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000)) return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
 function minimalGraphifyProfile(root: string): ProjectProfile {
@@ -151,7 +157,7 @@ export async function populateFromGraphifyCheckout(
   const checkoutPath = graphifyCheckoutPath(resolvedRoot);
   // H05 (qwen 33d64eca): the probe walks the PROFILE's scope — a custom-scope
   // profile must be checked against ITS file set, never the ["src"] default.
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"]);
+  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
   if (!freshness.fresh) {
     return { ok: false, reason: `GRAPHIFY_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
@@ -180,7 +186,13 @@ export async function populateFromGraphifyCheckout(
     const named = /LINELESS_NODE|GRAPHIFY_/.test(msg) ? msg.slice(0, 200) : `GRAPHIFY_CORRUPT:projection-failed ${msg.slice(0, 140)}`;
     return { ok: false, reason: named, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
-  const db = openTypedStore(storePath);
+  let db: ReturnType<typeof openTypedStore>;
+  try {
+    db = openTypedStore(storePath);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: `GRAPHIFY_WRITE_FAILED:open ${msg.slice(0, 140)}`, nodes: 0, edges: 0, checkoutPath, graphPath };
+  }
   try {
     // Caller owns close (the helper never closes a caller-owned connection).
     supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
@@ -194,7 +206,7 @@ export async function populateFromGraphifyCheckout(
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `GRAPHIFY_WRITE_FAILED:${msg.slice(0, 160)}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   } finally {
-    db.close();
+    try { db.close(); } catch (closeErr) { console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`); }
   }
   console.error(
     `[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`,
@@ -269,8 +281,10 @@ export function writeGraphifyCheckout(
     for (const stmt of TYPED_STORE_DDL) db.run(stmt);
     db.exec("BEGIN IMMEDIATE;");
     try {
-      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      // V21 cleanup P4: per-table parity with the session helper — an
+      // edges-only or nodes-only checkout batch never voids the other side.
+      if (taggedNodes.length > 0) db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      if (taggedEdges.length > 0) db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
       insertForkNodesBatch(db, taggedNodes);
       insertForkEdgesBatch(db, taggedEdges);
       db.exec("COMMIT;");

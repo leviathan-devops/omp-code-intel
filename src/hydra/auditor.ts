@@ -727,10 +727,25 @@ async function sweep(
       confidence: 0.7,
     }];
   }
+  // V21 cleanup AUD-C2: infrastructure failure is LOUD here too — the generic
+  // leg never reports a clean-empty that a failed probe produced.
+  if (hit.startsWith("SEARCH_FAILED") || hit.startsWith("GREP_INVALID")) {
+    return [confirmedEmpty(anchor, template.layerId, `probe INCOMPLETE: ${hit.slice(0, 140)} — no verdict possible from a failed probe`, firstNodeFile)];
+  }
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }
 
 // ── Runner (fork runLayerHunter :86-226, AetherAgent replaced by sweep) ──
+
+/** V21 cleanup AUD-C3: the loaded graph is shape-validated BEFORE the sweep —
+ *  a malformed graph.json is a named rejection, never a TypeError mid-sweep. */
+function assertGraphShape(graph: unknown): { nodes: unknown[]; edges: unknown[] } {
+  if (graph === null || typeof graph !== "object") throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json did not parse to an object");
+  const g = graph as { nodes?: unknown; edges?: unknown };
+  if (!Array.isArray(g.nodes)) throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing a nodes[] array");
+  if (!Array.isArray(g.edges)) throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing an edges[] array");
+  return { nodes: g.nodes, edges: g.edges };
+}
 
 export interface RunTemplateAuditArgs {
   template: AuditorTemplate;
@@ -771,6 +786,9 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   let graph: GraphifyGraph;
   try {
     graph = args.client ? await new GraphifyMapReader(args.client).load(args.graphPath) : await readGraphJson(args.graphPath);
+    // V21 cleanup AUD-C3: shape-validated before the sweep — a malformed
+    // graph.json is a named rejection, never a TypeError mid-sweep.
+    assertGraphShape(graph);
   } catch (e) {
     return { layerId, status: "rejected", error: String((e as Error).message ?? e).slice(0, 500), ledgerDir, durationMs: Date.now() - t0 };
   }

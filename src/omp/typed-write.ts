@@ -602,15 +602,23 @@ export function safeDelete(storePath: string, symbol: string): SafeDeleteResult 
   try {
     const q = whoCalls(storePath, symbol);
     const imp = impact(storePath, symbol);
-    const uses = db.query(
-      `SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
-       FROM typed_edges e
-       JOIN typed_nodes src ON e.src_canonical = src.canonical_id AND src.label = ?
-       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
-       WHERE e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         AND src.superseded_run IS NULL AND dst.superseded_run IS NULL`,
-    ).all(symbol) as Array<{ symbol: string; file: string | null; line: number | null }>;
-    const mappedUses = uses.map((u) => ({ symbol: u.symbol, file: u.file ?? "", line: u.line ?? 0 }));
+    // V21 cleanup: uses resolved through canonical ids (label join conflated
+    // same-label identities — the exact W1 defect class).
+    const srcIds = resolveLiveIds(db, symbol);
+    let mappedUses: Array<{ symbol: string; file: string; line: number }> = [];
+    if (srcIds.length > 0) {
+      const uses = db.query(
+        `SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
+         FROM typed_edges e
+         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+         WHERE e.src_canonical IN (${ph(srcIds.length)})
+           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND dst.superseded_run IS NULL`,
+      ).all(...srcIds) as Array<{ symbol: string; file: string | null; line: number | null }>;
+      mappedUses = uses
+        .filter((u) => u.line !== null && u.line !== undefined)
+        .map((u) => ({ symbol: u.symbol, file: u.file ?? "", line: u.line as number }));
+    }
     const isTestPath = (f: string): boolean => /(test|spec|mock|fixture)/i.test(f);
     const testReach = [
       ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
