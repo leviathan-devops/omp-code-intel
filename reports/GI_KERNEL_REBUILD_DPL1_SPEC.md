@@ -346,3 +346,198 @@ Compatibility: the old extension is removed from `config.yml` `extensions:` list
 - The hunt harness internal design (micro-loop-machine 536L) is inherited, not redesigned — its finding surface was historically lower (1 template-level finding) but is not zero; a follow-up spec owns it if flagged.
 - Windows hosts are out of scope (documented in the confinement separator note).
 - `inferx`/`nvidia` rungs remain banned by operator law (V-14); the classifier's `server` class exists purely for correct non-exile routing.
+
+---
+
+# §11 · PER-VERB DETAILED SPECIFICATIONS (M4 — all 13 verbs, exact contracts)
+
+Each verb: signature (ids come from `identity.resolveIds` — L1), result shape, edge cases, failure modes. All verbs take `db: Database` (single connection — no nested opens) and return named-refusal results, never throws (except store-corrupt, which is fatal to the connection).
+
+## 11.1 `whoCalls(db, ids)` → `{ rows, callers: CallerRow[], linelessSkipped }`
+- CallerRow: `{ caller: string; file: string; line: number; kind: string; predicate: string; target_canonical: string }`
+- Query: edges WHERE `dst_canonical IN (ids)` AND predicate IN ('calls','traces-to','imports') AND live.
+- Edge cases: lineless caller row → skipped, `linelessSkipped++`; unknown id list (empty) → rows=0 (caller names the "not found" — the verb never fabricates).
+- Failure: store corrupt → throws GI_STORE_CORRUPT (connection fatal).
+
+## 11.2 `impact(db, ids, depth=8)` → `{ reaches, ledger: LedgerRow[], hint, linelessSkipped }`
+- LedgerRow: `{ id: string; symbol: string; depth: number; file: string; line: number; via: string }` — rows carry the canonical id (the V21 identity contract).
+- BFS: frontier = ids; visited ON ENQUEUE; chunked IN-clause (64 ids/batch) to stay under SQLITE_VARIABLE_NUMBER limits.
+- Edge cases: cycle touching a seed → seed never in ledger (pre-seeded visited); depth 0 → reaches=0; dense graph terminates (enqueue-marking).
+- Failure: none beyond store-fatal.
+
+## 11.3 `blastRadius(db, ids, depth=8)` → `{ root, nodes: BlastNode[] }`
+- BlastNode: `{ file: string; depth: number }` — file-level, MIN(depth) per file.
+- Recursive CTE over canonical ids (never files — the CROSS-JOIN fan-out class is dead).
+- Edge cases: id set with no edges → empty nodes; fileless src rows terminate the chain (surfaced by impact instead).
+
+## 11.4 `chain(db, fromIds, toLabel, maxDepth=64)` → `ChainStep[]`
+- ChainStep: `{ from: string; to: string; kind: string; file: string; line: number }` — `from` carries canonical_id, `to` the display label of the reached target.
+- Matching: BFS by id; a step TERMINATES when the reached node's label ∈ toLabel set AND not the trivial zero-step case.
+- Edge cases: `from === to` requires ≥1 hop; maxDepth head-check with FIFO (non-decreasing depth) is sound.
+- Failure: no path → empty array (named in tool result as no-chain, not an error).
+
+## 11.5 `safeDelete(db, ids)` → `{ symbol(s), callers, reaches, uses, testReach }`
+- uses: edges WHERE `src_canonical IN (ids)` (the label-join class is dead).
+- testReach: callers+uses whose file matches the test-path boundary regex `/^(?:test|spec|mock|fixture)[\\/_.-]|([\\/])[._]?(test|spec|mock|fixture)[\\/_.-]/i` — substring overmatch class dead.
+- Edge cases: empty ids → all-empty result (caller names "not found").
+
+## 11.6 `wouldBreak(db, ids, proposed?)`
+- Delegates to whoCalls; `argsUnknown: true` always (typed store has no signatures — honest).
+- proposed arity parsed from the first `(...)` group when present.
+
+## 11.7 `gate(db, symbols, dial, ripwire?)`
+- Advisory: caller list (capped 20) + ripwire note verbatim + dial echo. No store mutation.
+
+## 11.8 `verify(db, claim)` → named refusals
+- claim forms: `calls(A,B)`, `uses(SYM)`, `unused(SYM)`, `contains(FILE,LIT)`, `defines(FILE,SYM)`, `reaches(SYM,FILTER)`.
+- Unparseable claim → `VERIFY_CLAIM_INVALID: …` (never guessed semantics).
+
+## 11.9 `unwired(db)` → `UnwiredRow[] + linelessSkipped`
+- live nodes, kinds in the corbell-widened set, zero inbound calls/traces-to/imports, file NOT NULL; lineless → skipped+counted.
+
+## 11.10-11.13 `countNodes` / `countEdges` / `names` / delegation (must-implement|rule|violations|consistency)
+- Delegation route: hunter query-registration (unchanged contract); delegation non-array → `QUERY_DELEGATION_INVALID`.
+
+---
+
+# §12 · COMPLETE NAMED TEST LIST (the kernel battery, ~60 tests)
+
+## M1 store (8)
+1. `reinsert_tombstones_prior_generation_nodes` — 2 generations, r1 superseded_by r2, r2 live.
+2. `reinsert_tombstones_prior_generation_edges` — same law on the triple key.
+3. `midtxn_throw_rolls_back_zero_new_rows` — forced failure after nodes, before edges.
+4. `txn_guard_fails_closed_on_undefined_flag` — wrapper without `inTransaction` → GI_TXN_REQUIRED.
+5. `per_table_tombstone_edges_only_leaves_nodes_live`.
+6. `unique_defer_is_loud_meta_row` — legacy dup store → meta `unique_deferred=1` + stderr WARN.
+7. `predicate_check_rejects_unknown_relation`.
+8. `readonly_open_refuses_writes` (session scoping preserved).
+
+## M2 identity (3)
+9. `same_label_two_ids_resolves_two`.
+10. `unknown_label_empty_array`.
+11. `display_miss_empty_string`.
+
+## M3 warm (9)
+12. `same_second_rebuild_is_warm` (content-hash law).
+13. `content_edit_after_build_is_stale`.
+14. `new_file_after_build_is_stale`.
+15. `deleted_file_after_build_is_stale`.
+16. `unreadable_root_stale_read_failed`.
+17. `file_scoped_scope_entry_counted`.
+18. `empty_scope_stale_unscooped`.
+19. `excludes_honored`.
+20. `budget_exhaust_stale_budget` (synthetic tiny budget).
+
+## M4 verbs (14)
+21-23. conflation fixture triple (phantom-depth, whoCalls target_canonical, safeDelete uses id-keyed).
+24. `impact_cycle_seed_self_reach_never`.
+25. `impact_lineless_skipped_counted`.
+26. `who_calls_lineless_skipped_counted`.
+27. `blast_radius_id_recursion_matches_manual_walk`.
+28. `chain_terminates_dense_cycle`.
+29. `chain_no_path_empty_named`.
+30. `would_break_counts_callers_and_arity_parse`.
+31. `gate_advisory_capped_twenty`.
+32. `verify_each_claim_form_named`.
+33. `unwired_lineless_skipped_counted`.
+34. `delegation_non_array_named_invalid`.
+
+## M5 pool (12)
+35-46. classifier table ×12 (400/401/403/429/402/500/502/503/504/529/overloaded-bare/other); windows ×7 dialects+2 clamps; keyid reorder stability; 0600 db+wal+shm; degradedWrites→POOL_DEGRADED; snapshot 1e20 clamp; geometry-relative advance/fall; empty-pool GO_POOL_EMPTY.
+
+## M6 sweep (6)
+47. leading-dash pattern injection-safe.
+48. exit-1 = clean.
+49. missing binary = TOOL_FAILED named.
+50. hit-path escape dropped+escaped:N.
+51. cap clamp named in result.
+52. read_size_from_open_no_stat_window (TOCTOU regression).
+
+## M7 audit (7)
+53. malformed_graph_missing_edges_rejected_named.
+54. three_cycle_fixture_found.
+55. cross_seed_cycle_found (F1 regression).
+56. probe_failure_settlement_incomplete.
+57. fourteen_templates_all_settle.
+58. findings_path_escape_contained.
+59. report_bytes_positive_and_grammar_valid.
+
+## M8 extension (10+)
+60. wipe_refused_without_env_through_tool.
+61. wipe_cleared_with_env_through_tool.
+62. relative_target_denied_through_tool.
+63. etc_target_denied_through_tool.
+64. deleted_cwd_default_denied.
+65. invalid_template_refused_named.
+66. concurrent_populate_busy_named.
+67. inner_failure_ok_false_not_masked.
+68. alias_in_tool_enumeration.
+69. probe_echo_round_trip.
+70. graphify_who_calls_rows_through_tool (fixture).
+
+**Total: 70 named tests.** Every test name maps to a finding class or a contract row in this spec — no orphan tests, no uncovered classes.
+
+---
+
+# §13 · THE 14-TEMPLATE AUDIT MATRIX (M7)
+
+| # | layerId | family | anchor set | primary probes |
+|---|---|---|---|---|
+| 1 | R18-lasme-lexicon | LASME | lexicon drift, unknown-token | grep `probe` |
+| 2 | R19-lasme-actor | LASME | actor lifecycle | grep + graph isolates |
+| 3 | R20-lasme-state | LASME | state-machine transitions | graph + grep |
+| 4 | R21-lasme-engine | LASME | engine write-sites | grep `writeFileSync` |
+| 5 | R22-lasme-firewall | LASME | firewall coverage | graph + grep |
+| 6 | R23-lasme-throw | LASME | throw-only enforcement | grep throw |
+| 7 | R24-mpse-math | MPSE | math contracts | grep epsilon/threshold |
+| 8 | R25-mpse-spec | MPSE | spec conformance | grep + graph |
+| 9 | R26-mpse-sel | MPSE | SEL chokepoints | graph |
+| 10 | R27-mpse-persist | MPSE | T2/T1/T0 persistence | grep + graph |
+| 11 | R28-sro-graph | SRO | graph structure | graph (Tarjan cycles, dead-code, god-nodes, isolates) |
+| 12 | R29-sro-identity | SRO | identity/anchor | graph |
+| 13 | R30-sro-drift | SRO | drift | grep + graph |
+| 14 | R31-sro-surface | SRO | surface contracts | graph |
+
+Contract per template: runTemplateAudit returns a Settlement (fulfilled | rejected | incomplete); fulfilled requires bytes>0 + grammar-valid report + findings≤cap; INCOMPLETE (probe failures) is its own status and NEVER settles fulfilled-clean. Template add/remove requires: types.ts entry + index registration + battery row 57 updated.
+
+---
+
+# §14 · MIGRATION & COMPATIBILITY (per caller)
+
+| Caller | Old dependency | Migration | Risk |
+|---|---|---|---|
+| OMP TUI sessions | 4 tools via trident+GI bundles | byte-compatible tool surface (§5) | LOW — result envelope unchanged |
+| `scripts/graphify-build.ts` | wrote checkout store + graph.json | writes graph + hash via M3 (`writeWarmManifest`) | LOW — script updated in W3 |
+| corbell warm index | rows consumed by populate | M1 schema is a superset (keyid-less) | LOW — corbell reader maps columns |
+| st-go-fallback / pool tests | classifier + geometry | geometry-relative assertions already merged | NONE |
+| audit settle battery | /tmp/fx383 fixture | fixture builder script (W9) regenerates; count asserted MEASURED | MED — builder must be run in CI |
+| graph-code-audit alias | same execute | retained in enumeration (fixed) | NONE |
+| ripwire-bridge | spawn ripwire binary | unchanged (outside kernel scope, L5 applies to new code only) | NONE |
+
+Deleted with the old kernel (no migration): hand-rolled LRU shard map, per-session pool paths, `INSERT OR REPLACE` writers, mtime freshness, label-keyed traversal, per-verb LINELESS throws, `?? 0` fabrications, `x`/`#size` dedup, literal `5/5` fixture assertions.
+
+---
+
+# §15 · DEPLOY SCRIPT CONTRACT (`scripts/deploy.sh`, W9)
+
+```
+1. bun test <20-file battery>            → must be 0 fail, else abort
+2. bun build src/kernel/extension.ts → extensions/gi-kernel/index.js
+3. NODE_PATH=<gi>/node_modules bun build trident → dist/index.js
+4. cp both → ~/.omp/agent/extensions/...
+5. docker cp both → gi-omp-port (+port2 when up)
+6. exec sha256sum ×4 copies → all must match build outputs, else abort
+7. print the SHAs + rig states as the deploy receipt
+```
+The script ENCODES the both-dists law (P9/P10 dead), the F-10 symlink law (create/remove inside), and the fixture builder call. No manual deploy steps remain.
+
+---
+
+# §16 · RUNTIME-GRADE ACCEPTANCE (what "done" means for the whole rebuild)
+
+1. Battery: 70 named tests, 0 fail — every test drives the class it was named for.
+2. Frozen-kernel gate scan (7 new files): **0 critical / 0 high.**
+3. Live rig: probe echo + who-calls rows≥1 (canonical rows) + AUDIT_DONE on the new dists — all verbatim in the stream.
+4. deploy.sh runs green end-to-end twice in a row (idempotence).
+5. Ship docs: one BUILD_REPORT entry per wave, each with the RED/GREEN paste and the scan-gate output.
+6. The old kernel: archived, referenced, removed from the surface.

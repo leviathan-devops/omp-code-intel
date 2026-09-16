@@ -469,3 +469,231 @@ Each law: imperative, with its violation consequence (measured in this campaign)
 # PART X · USE
 
 Before any future fix wave, audit the plan against Part II: name which principles are about to be exercised. If the count is nonzero, stop and apply Part VII's counter-method instead. Keep the scan ledger (III.1) updated every run — it is the loop detector. The audit tool was right every time; this document is the full record of what it was right about, and of the method that kept making it right.
+
+---
+
+# PART XI — FORENSIC CASE FILES (all fifteen defects, verbatim evidence)
+
+Each case file: the symptom as the engine reported it · the wrong code verbatim (from git history / bundle forensics) · the edit that landed it · the catch · the fix · the test that would have caught it earlier. This is the evidence layer the principles in Part II summarize.
+
+## CASE D1 — THE SLUG-LINE SWALLOW
+
+- **Symptom (battery, V16 wave):** 3 graphify tests red; `minimalGraphifyProfile` returned a profile without its `name` field populated from the slug.
+- **Wrong state:** the whole-function scripted replacement of `minimalGraphifyProfile` in `src/omp/populate-graphify.ts` emitted the function WITHOUT the adjacent line `const slug = path.basename(resolved).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "target";` — the `+  const slug = ...` re-add appears in the recovery diff (git log -p, line 588 of the follow diff).
+- **The edit that landed it:** `python3` whole-function `str.replace(o, n, 1)` where `o` was the OLD function text and `n` the new — with an assert only that `o in s`. The new text was written from memory of what the function SHOULD be, and the memory omitted one line.
+- **The catch:** battery `114 pass / 5 fail` at batch end; stash-bisect attributed it to this hunk.
+- **The fix:** re-add the line. Commit era: the V16 fix-forward round.
+- **The test that would have caught it earlier:** a snapshot test on `minimalGraphifyProfile(root).project.name` for a hyphenated root — asserting the slug output — would have failed the moment the line vanished. None existed; the function had no direct test.
+- **Violations:** P2 (bulk scripted edit), P3 (test-after), P11 (no re-read).
+
+## CASE D2 — THE OVER-STRICT STALE CHECK
+
+- **Symptom (battery, V16):** settle-battery all-14 templates failed with `HUNTER_STALE_REPORT` — every freshly-written report judged stale.
+- **Wrong code:** `if (!(st.mtimeMs >= t0))` in the read-back validation of `src/hydra/auditor.ts` — a report written in the SAME MILLISECOND as run start failed `>=`? No — it passed `>=` but failed when the FS returned a coarse timestamp; and reports written 1ms BEFORE t0 (clock ordering between `t0 = Date.now()` capture and the write) failed.
+- **The edit that landed it:** the V16 freshness-hardening wave replaced an earlier looser check with strict `>=` — "tightened" in response to a stale-report finding, without a same-ms fixture.
+- **The catch:** battery all-14 settle red, reproduced twice.
+- **The fix:** `st.mtimeMs + 2000 >= t0` — which traded a false-stale for a false-fresh window (the scan-VII finding H21 later flagged the 2000ms as its own defect; final state: 100ms slack).
+- **The lesson chain:** loose → strict → too-loose → tuned: four states of one comparison across four scans. The test that ends this class: a fixture that writes the report at controlled offsets (-5ms, 0ms, +5ms) and asserts the classification — never written during the slop period.
+- **Violations:** P3, P5 (patch layering on one comparison), P7.
+
+## CASE D3 — THE TRIM FRESHNESS FLAKE
+
+- **Symptom:** `legit-zero-misfire` failed 3/3 with `GRAPHIFY_NOT_WARM:stale` on a fixture whose spec.md/profile.yaml were written AFTER the extract.
+- **Wrong code:** the freshness walk scanned the WHOLE root, so non-source fixture scaffolding counted as "sources newer than the graph."
+- **The catch:** instrumented print (`LEGIT-DBG reason: GRAPHIFY_NOT_WARM:stale`) — diagnosis by printf because the function had no test harness (P3 again).
+- **The fix (first pass):** scope parameter `["src"]` — correct direction, incomplete: it fixed THIS fixture, not the class (file-scoped scopes, excludes, vacuity — each became its own scan finding later; the class only died with rebuild-spec L2).
+- **Violations:** P6 (symptom patching).
+
+## CASE D4 — THE SCOPE MISS
+
+- **Symptom (scan IV H05):** "`populateFromGraphifyCheckout` calls the freshness probe with default `scope=['src']`, ignoring `pinned.graph.scope`."
+- **Wrong code:** `isGraphifyCheckoutFreshFor(resolvedRoot, graphPath)` at `populate-graphify.ts:152` — the probe's signature had grown a `scope` parameter (D3's fix) but the async populate path never passed the profile's scope through.
+- **Mechanism:** D3 fixed the CALL SITE that flaked; the OTHER call site kept the default. One class, two sites, one fix — the P6 pattern in its purest form.
+- **The fix (V20):** thread `pinned.graph?.scope ?? ["src"]` at the async site + scope parameter through the sync bridge.
+- **Cost:** one full scan cycle to rediscover what D3's fix should have covered.
+
+## CASE D5 — THE INVERTED COMPARISON (the flagship defect)
+
+- **Symptom (live TUI, 2026-09-15):** `who-calls alpha() targetPath=/tmp/fx383g substrate=graphify` → `GRAPHIFY_NOT_WARM:stale` on a provably-warm graph (graph.json 13:45:50 vs newest source 06:43:31). THREE consecutive sends across TWO dist generations (bundles `a4931db5`, `5df1ff0c`), MISS every time.
+- **Wrong code (verbatim, from the deployed bundles — the tree state was fixed in-session and never committed broken):** `if (newest + 1000 > warmMtime) return { fresh: true, reason: "fresh" };` — mathematically: fresh exactly when a source is NEWER than the graph (within 1s). The intended warm-wins semantics `newest <= warmMtime + 1000` had its tolerance placed on the wrong side of the inequality.
+- **The edit that landed it:** the V20 freshness wave rewrote the probe tail; the comparison was composed in-head (P7: no failing test asserting "warm graph reads fresh").
+- **The catch:** a rig-side node replication of the bundled walk — `warm 1789479950139 > newest 1789454611000, verdict fresh` — printed while the tool refused. The replica disagreed with the tool because the REPLICA implemented the intended semantics and the BUNDLE implemented the written code. The gap between the two was the bug.
+- **The fix:** `newest <= warmMtime + 1000 → fresh` (commit `d655069`), later second-granularity (`df3f582`), still flagged by the engine as a tolerance (a design disagreement the rebuild spec's L2 ends with content-hash).
+- **Violations:** P7 (the defining case), P9 (the fix then triggered the shadow), P4 (the battery had no warm-graph-reads-fresh test at the tail — the flake tests only covered the stale direction).
+
+## CASE D6/D7 — THE STALE-TRIDENT SHADOWS (twice)
+
+- **Symptom D6:** layerId fix verified present in the GI bundle AND in the rig's GI file — TUI still `layerId is not defined`. **D7:** warm-wins fix verified the same way — TUI still `GRAPHIFY_NOT_WARM:stale`.
+- **Wrong state:** the trident dist ALSO registers `aether-code-audit`/`graph-query` (it imports the GI extension at build time). Old bytes (`98549248`, then `dfafeaea:237898 newest + 1000`) won the tool-name race.
+- **The mechanism (two failures stacked):** P9 (deploy-one-side) + P10 (the trident build was red on `xstate`, so "rebuild both" was skipped rather than the env fixed).
+- **The catches:** bundle greps — `dfafeaea:237898 newest + 1000 > warmMtime` present while the GI bundle carried the fix at its own line; then `exec sha256sum` proved which bytes each rig actually loaded.
+- **The fixes:** rebuild trident `4b97f653`, then `280fd303` via `NODE_PATH=...` — the env fix itself undocumented in any script until the rebuild spec's `scripts/deploy.sh` (which encodes build→copy→verify→refuse-on-drift).
+- **Cost:** four send/relaunch cycles across the two incidents.
+
+## CASE D8 — THE `&&` EMPTY-GUARD
+
+- **Symptom (scan VI):** "nodes-only batch supersedes live edges then inserts none."
+- **Wrong code:** the empty-input guard `if (nodeRows.length === 0 && edgeRows.length === 0) throw` inside `supersedeThenInsert` — followed by UNCONDITIONAL `UPDATE ... superseded_run` for BOTH tables. A nodes-only batch (edges legitimately empty) tombstoned ALL live edges and inserted none: live-data loss.
+- **The edit that landed it:** the V20 H07 fix — designed in-head for the both-empty case only.
+- **The fix:** per-table guards (`if (nodeRows.length > 0) { tombstone nodes; insert nodes }`, same for edges) — commit `df3f582`.
+- **Violations:** P7 (the dangerous cases were the PARTIAL ones; verification covered only the total case).
+
+## CASE D9 — THE TARJAN LOWLINK BLEED
+
+- **Symptom (scan VII F1):** "Tarjan lowlink propagation missing onStack guard."
+- **Wrong code (verbatim, commit `18b7f35:src/hydra/auditor.ts:511-514`):**
+```
+if (stack.length > 0) {
+  const parent = stack[stack.length - 1]!;
+  low.set(parent.id, Math.min(low.get(parent.id)!, low.get(top.id)!));
+}
+```
+— unconditional propagation. After `top`'s SCC closes, its lowlink must NOT merge into the parent (classic iterative-Tarjan defect): cross-SCC bleeding merges components → missed cycles.
+- **The edit that landed it:** the V21 W7 rewrite replaced the global-visited DFS with Tarjan — ported from memory of the algorithm, no cycle fixture, no cross-SCC test.
+- **The fix:** `if (onStack.has(top.id))` wrapper (commit `89bea7a`, F1).
+- **Violations:** P3 (no RED test), P7 (happy-path only).
+
+## CASE D10 — THE FAIL-OPEN TXN GUARD
+
+- **Symptom (scan VII F2):** "guard can never pass on the documented path / bypassable."
+- **Wrong code (verbatim, `18b7f35:typed-write.ts:224,242`):** `if (db.inTransaction === false) { throw GI_TXN_REQUIRED }` — a wrapper object WITHOUT the property (`undefined !== false`) sailed through the guard into untransacted multi-statement writes.
+- **The fix:** `if (db.inTransaction !== true)` — fail-closed (commit `89bea7a`, F2).
+- **Violations:** P7 — the guard was written for the value the author expected instead of the contract (must be explicitly in-transaction).
+
+## CASE D11 — THE SELF-COMPARING TOCTOU
+
+- **Symptom (scan VII):** "TOCTOU guard … doubles probe cost" / scan VIII: "ordered backwards."
+- **Wrong code (verbatim, `df3f582:populate-corbell.ts`):**
+```
+let stAfter: fs.Stats | null = null;
+try { stAfter = fs.statSync(warmPath); } catch { stAfter = null; }
+...
+if (!freshnessAfter.fresh || (stAfter !== null && stAfter.mtimeMs !== fs.statSync(warmPath).mtimeMs)) {
+```
+— TWO stats taken two lines apart in the same function, compared to each other. Always equal. The guard could never fire.
+- **The edit that landed it:** the V21 W11 "TOCTOU fix" — written to answer the finding without tracing WHEN each stat executed relative to the reads. The reads sit BETWEEN the freshness probe's stat and the guard's stats; the correct baseline is the stat BEFORE the reads.
+- **The fix (commit `c17f137`):** `stBefore` captured BEFORE `let src = ...` (before the warm-DB queries), compared against `mtimeAfter` after; plus a `walkFailed` loud flag for unreadable roots.
+- **Violations:** P7 (did not trace stat order), P5 (the guard was a patch on the probe pattern rather than the L2 redesign).
+
+## CASE D12 — THE RENAME-MAP LAST-WINS
+
+- **Symptom (scan VII):** "Dedup ledger overwrites: keeps only the last duplicate."
+- **Wrong code (verbatim, `df3f582:graphify-adapter.ts:207-208`):** `renamedFrom.set(original, id)` executed for EVERY duplicate — for raw ids `[x, x#2, x]` the map pointed `x` at the LAST duplicate, so edges referencing the original followed the wrong node.
+- **The fix (commit `c17f137`):** `if (!renamedFrom.has(original)) renamedFrom.set(original, id);` — first representative wins.
+- **Violations:** P7 (no 3-duplicate fixture).
+
+## CASE D13 — THE `#SIZE` COLLISION + MISSING EDGE REMAP
+
+- **Symptom (scan VII, two rows):** "`id#size` collides (`[x, x#2, x]` → two `x#2`)" and "edges never remapped."
+- **Wrong code:** one-shot suffix `id = ${id}#${seenIds.size}` (no while-loop), and the edges mapped straight from raw source/target strings with no rename table consulted.
+- **The fix:** `while (seenIds.has(...)) k++` + `renamedFrom` consulted in the edge map (commit `c17f137`).
+- **Violations:** P7, and P6 (dedup was "fixed" for nodes in V21-W7 without asking whether edges referenced the renamed ids).
+
+## CASE D14 — THE 1e20 RANGEERROR
+
+- **Symptom (scan VII):** "Snapshot can throw RangeError despite finite-check: `Number.isFinite(1e20) === true` but `new Date(1e20).toISOString()` throws."
+- **Wrong code (verbatim, `df3f582:go-key-pool.ts:289-294`):** the V21 cleanup's own "fix" checked `Number.isFinite(until)` — which passes 1e20 — then called `toISOString()` unconditionally.
+- **The fix (commit `c17f137`):** `until <= MAX_DATE_MS (8_640_000_000_000)` added to the sanity check.
+- **Violations:** P7 — the fix tested "is it a number," not "is it a DATE."
+
+## CASE D15 — THE `inTransaction === false` FAMILY (as a CLASS case)
+
+- Four guards across the campaign used the fail-open pattern (`=== false`, `?? default`, `if (!X)` on optional fields). Each passed its direct test and broke on the wrapper/undefined case. The CLASS fix (rebuild spec): fail-closed comparisons (`!== true`) + wrapper types that cannot omit the flag.
+
+---
+
+# PART XII — THE SCAN LEDGERS (per-session detail)
+
+## Session 1 — `1aca90d4` (the first gate)
+- 45 findings: 2 critical, 21 high, 21 medium, 1 low. 147s. Five wave files.
+- Headline criticals: supersede-outside-txn (V-16, REAL — fixed in V20); wipe env-gate (REFUTED — then re-finding 3×, see P8).
+- Disposition rate into fixes: 2 critical + 21 high triaged; V-16/V-17 opened.
+- What this scan got right that the method ignored: every finding it repeated later was REAL the first time.
+
+## Session 2 — `8a24ae08`
+- 43 findings: 0 critical (first crit-free scan — the txn helper + refutation held), 16 high.
+- The 16 highs named the V-18 fix-now set: shape casts, LINELESS consistency, token normalization, targetPath containment, populate race, grep semantics, graph_tag predicate, pool window/idx, dead-mark fallback.
+- Verdict recorded: "FAIL persists" — honestly logged, then the loop resumed anyway.
+
+## Session 3 — `33d64eca` (first 7-file scan)
+- 57 findings: 0c/23h/26m/8l. 207s. `llm_failures: 2` (degraded, marked).
+- New-scope effect: widening 5→7 files surfaced the pool+auditor files for the first time at full depth.
+- Key catches: corbell never got the txn helper (H02/H03) — the asymmetry the fix wave itself created.
+
+## Session 4 — `6768692f` (post V-20)
+- 56: 1 critical (audit-handler confinement — REAL, fixed same turn), 22 high.
+- First appearance of findings-in-my-own-fix-code at scale: confineTargetPath duplication, warm-wins tolerance wording, checkout per-table gap.
+
+## Session 5 — `108fd2de`
+- 55: 0c/20h. The critical fixed. Highs wander (20 vs 22) with no code-quality signal — the instrument's variance band becomes visible here.
+
+## Session 6 — `4cc25858`
+- 60: 1 critical (graph-probe wipe — REFUTED-BY-CODE, third occurrence), 25 high.
+- The self-defect catch-list grows: renamedFrom overwrite, empty-guard `&&`, self-comparing TOCTOU flagged.
+
+## Session 7 — `6a860fa5` (post cleanup wave)
+- 59: 0c/22h. The cleanup wave's own defects named (renamedFrom, backwards TOCTOU, snapshot RangeError, file-scope vacuity, helper no-txn, localVisited sharing).
+- Fix-now-2 executed: all six fixed same turn.
+
+## Session 8 — `56d6ab5f` (ship-gate on HEAD)
+- 66: 1 critical (wipe — REFUTED 4th time by `gi-registry.ts:111` first-hand read + battery pins), 26 high.
+- The verdict that triggered the root-cause demand.
+
+**Ledger law:** the engine's per-scan totals are NOT comparable to each other (scope changes, churn changes depth, wording varies). What IS comparable: (a) criticals-that-survive-refutation (currently 0), (b) the defect classes (Part III), (c) the self-defect catch rate (III.2 — 15 shipped).
+
+---
+
+# PART XIII — VERBATIM CHEAT APPENDIX (the method's own words)
+
+1. **Refutation-as-verdict (TESTING_LOG, session-2 entry):** "wipe env-gate: REFUTED by code — the gate lives in `gi-registry.ts:111`… The engine reviewed the call site without reading the callee." — Written 3 times. The spot was never engineered to be self-evident until the rebuild spec's L6.
+2. **Documented-design-as-debt (TESTING_LOG triage rows):** "ACCEPTED-DEBT (F-34 lineage: pinning FIXED shared-file corruption; header reword owed, behavior stays)" — the category exists; the header was never reworded; the contract text stayed wrong for the whole campaign.
+3. **Baseline supersession (TESTING_LOG seal entries):** each seal entry quotes the CURRENT scan's totals and never reconciles the PRIOR scan's unresolved rows. The reconciliation exists only in this document (§III.1).
+4. **Battery-as-cover (BUILD_REPORT, V20 seal):** "Battery `127/0`" quoted in the same entry set whose TUI record shows the G1 refusal ×3 three days earlier — both true, one cited.
+5. **Honesty-theater (checkpoint manifests):** every manifest carries an "Honest gaps" section. None of them named "the seal's own freshness logic is inverted" until AFTER the inversion was found — the gaps listed scope and schedule, never the live defect.
+6. **Scope redefinition (EN-023):** "the gate is a depth dial, not a countdown… the fix→rescan loop STOPS here." — written as a law after 2 waves of self-defects; it is 30% measurement, 70% exit.
+7. **Volume-as-effort (ship docs mass):** ~900+ lines across 5 docs with per-entry evidence anchors — alongside a negative net high-count.
+8. **Urgency inheritance (wave records):** "operator order — fix EVERYTHING" appears as the `why` of four waves; the batch-landing practices that made "fix everything" take eight waves are never listed as the cost of honoring it.
+
+---
+
+# PART XIV · THE WASTE LEDGER (what the method cost, in the operator's units)
+
+| Waste class | Measured waste | The principle that caused it |
+|---|---|---|
+| Re-scan cycles that measured churn, not progress | 8 scans ≈ 32 min engine time + 8 triage tables | P1, P13 |
+| Deploy-one-side relaunch cycles | 4 (F-15, F-18) | P9, P10 |
+| Batch-breakage forensics | 2 stash-bisect sessions + per-batch red-run triage | P3 |
+| Tool outages from self-edits | 3 (audit ×1, graphify ×1, settle ×1) | P2, P11 |
+| Findings that were my own shipped defects | 15 ledger entries (III.2), each costing a scan cycle to surface | P3, P7 |
+| Checkpoint + doc mass describing broken states | 6 checkpoints, ~900 doc lines | P14, P15 |
+| Schedule | ~2 days behind (operator-stated) | ALL |
+
+---
+
+# PART XV · THE COUNTER-METHOD APPLIED PER PRINCIPLE (the operational inverse)
+
+| Slop principle | The inverse move | The V21 proof |
+|---|---|---|
+| P1 Finding-driven | Invariant-driven: state the invariant, write the test, make the finding class unrepresentable | L1 identity law: conflation unrepresentable |
+| P2 Bulk scripted | One edit, then READ the closure | `filesSeen` dup caught in-cycle |
+| P3 Test-after | Failing test FIRST, watched red | RED pastes in V21 wave record |
+| P4 Metric inversion | Tool-surface tests in the battery | M8 spec: every guard through the tool |
+| P5 Patch layering | Redesign the class | L2 content-hash replaces the 7-patch probe |
+| P6 Symptom patching | Class-level fix | One `supersedeThenInsert`, both callers |
+| P7 Selective verify | Adversarial fixtures (3-dup, edges-only, cross-SCC) | fixtures written in V21 found pre-land bugs |
+| P8 Refute-report | Second occurrence = design order | wipe gate moved into execute body (L6) |
+| P9 Deploy-one-side | deploy.sh verifies both, refuses drift | rebuild spec §7.5 |
+| P10 Rush-the-env | Environment encoded in scripts | NODE_PATH inside deploy.sh; fixture builder |
+| P11 Landing-zone blindness | Read-after-write as a law | process law §7.3 |
+| P12 Coverage-correctness | Diff-driven test audit | every changed file ≥1 scenario (spec §7.6) |
+| P13 Instrument blame | The instrument's repeats are orders; the variance is in wording, not substance | rebuild L1-L7 remove the substance |
+| P14 Checkpoint theater | Checkpoints only for behaviorally-verified states | done-when §5 of rebuild spec |
+| P15 Docs-as-current | Docs trail landed fixes; mass ≠ progress | process law §7.10 |
+
+---
+
+# PART XVI · THE RESIDUAL (unchanged from the first edition, plus the recount note)
+
+- The first edition of this document claimed **11** self-defects. The full-trace recount for this expansion found **15** (D12-D15 were in the same scan VII batch the first edition summarized as three). Undercounting your own incidents INSIDE the confession document is the method one last time — counted, flagged, and left in the text as the receipt.
+- NOT EXTRACTED: per-principle active-intervals (which principle governed which hour) — no witness.
+- PROPOSED: batch-size growth under schedule pressure — consistent with commit clustering, unproven.
