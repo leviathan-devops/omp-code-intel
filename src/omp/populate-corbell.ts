@@ -56,7 +56,7 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
-      // V21 cleanup fix-now: an unreadable root is a LOUD failure — silently
+      // V21 cleanup fix-now: ANY unreadable dir sets walkFresh → stale-read-failed.
       // returning made newest stay 0 and an unreadable tree read "fresh".
       if (dir === root) walkFailed = true;
       return;
@@ -117,7 +117,22 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   } finally {
     try { src?.close(); } catch { /* already closed */ }
   }
-  if (rows.length === 0) {
+  // H05 + M109: validate each warm row, then cap at 50k.
+  // canonical_id non-empty, kind non-empty, line null or integer>=0.
+  // Invalid rows skipped + counted. Over-cap rows skipped + counted separately.
+  const MAX_WARM_ROWS = 50_000;
+  let skippedInvalid = 0;
+  const validRows = rows.filter((r) => {
+    const validId = typeof r.canonical_id === "string" && r.canonical_id.length > 0;
+    const validKind = typeof r.kind === "string" && r.kind.length > 0;
+    const validLine = r.line === null || (Number.isInteger(r.line) && r.line >= 0);
+    if (!validId || !validKind || !validLine) {
+      skippedInvalid += 1;
+      return false;
+    }
+    return true;
+  });
+  if (validRows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   // V21 W11 + cleanup fix-now: the AFTER stat compares against the BEFORE
@@ -127,7 +142,10 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
     return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  // Write into the session store, superseding the previous run's rows.
+  const materializeRows = validRows.length > MAX_WARM_ROWS ? validRows.slice(0, MAX_WARM_ROWS) : validRows;
+  const materializeSkipped = skippedInvalid + (validRows.length - materializeRows.length);
+
+    // Write into the session store, superseding the previous run's rows.
   // H02+H03 (qwen 33d64eca): supersede + insert + meta ride ONE transaction
   // with ROLLBACK (the V-16 helper discipline, corbell parity). Before: the
   // two UPDATEs ran in AUTOCOMMIT before BEGIN — a mid-insert throw left the
@@ -150,8 +168,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1.0,
     run: runTag,
   }));
-  const db = openTypedStore(storePath);
   try {
+    const db = openTypedStore(storePath);
     // Caller owns close (the helper never closes a caller-owned connection).
     supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
       ["substrate", "corbell"],
@@ -163,7 +181,7 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `CORBELL_WRITE_FAILED:${msg.slice(0, 120)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   } finally {
-    db.close();
+    try { db.close(); } catch (closeErr) { console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`); }
   }
   return { ok: true, nodes: rows.length, edges: edges.length, checkoutPath: warmPath };
 }

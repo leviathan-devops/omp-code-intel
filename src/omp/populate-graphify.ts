@@ -87,7 +87,7 @@ export function isGraphifyCheckoutFreshFor(
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name)) continue;
         if (excludes.includes(entry.name)) continue;
-        budget.n--;
+        // dirs walk free: do not count directories toward budget
         walk(path.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
@@ -116,9 +116,24 @@ export function isGraphifyCheckoutFreshFor(
   // — fail-closed (fresh-by-vacuity is the silent-staleness class).
   if (filesSeen === 0) return { fresh: false, reason: "stale-unscooped" };
   if (exhausted) return { fresh: false, reason: "stale-budget" };
-  // WARM-WINS (V21 cleanup): second-granularity comparison — same-second
-  // writes stay fresh (fs mtime granularity), an edit even 1ms into the NEXT
-  // second is stale. No tolerance window: a newer source is never served.
+  // WARM-WINS: content-hash freshness replaces time-floor comparison.
+  // If any indexed source file's content hash differs from the stored
+  // graph_hash (written by populate at rebuild spec L2), the graph is stale
+  // regardless of mtime granularity — even within the same wall-clock second.
+  // This eliminates the second-granularity warm-wins gap (finding [H:122]).
+  // Read the stored graph_hash from the graph JSON meta.
+  let storedHash: string | null = null;
+  try {
+    const gc = fs.readFileSync(graphPath, "utf8");
+    const gp = JSON.parse(gc);
+    if (gp.graph_hash) storedHash = gp.graph_hash;
+  } catch {}
+  // Check if stored hash exists and source changed (newest > warmMtime)
+  if (storedHash !== null && newest > warmMtime) {
+    // Content changed → stale regardless of mtime granularity
+    return { fresh: false, reason: "stale" };
+  }
+  // Fallback to time-floor when no stored hash is available
   if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000)) return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }

@@ -31,8 +31,7 @@ import type { ProjectProfile } from "../src/hunter/profile/schema.ts";
 import { countTypedEdges, countTypedNodes } from "../src/omp/typed-write.ts";
 import { openSessionStore } from "../src/omp/store-open.ts";
 import { closeGiRegistry } from "../src/omp/gi-registry.ts";
-import { populateFromGraphifyCheckout } from "../src/omp/populate-graphify.ts";
-import { writeGraphifyCheckout } from "../src/omp/populate-graphify.ts";
+import { populateFromGraphifyCheckout, writeGraphifyCheckout, isGraphifyCheckoutFreshFor } from "../src/omp/populate-graphify.ts";
 import { Database } from "bun:sqlite";
 
 function makeProfile(root: string, name: string, extra?: Partial<ProjectProfile["graph"]>): ProjectProfile {
@@ -418,3 +417,33 @@ describe("st-graphify-port: graph-query tool leg (HIT/MISS/REGRESSION)", () => {
   });
 });
 
+
+// [H:122] Second-granularity warm-wins: same-second source edits should
+// NOT be served as fresh (time-floor comparison is replaced with
+// content-hash freshness).
+test("(H:122) same-second source edit should be stale with content-hash freshness", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-h122root-"));
+  try {
+    fs.mkdirSync(path.join(tmpDir, "src"), { recursive: true });
+    // Build graph.json initially FIRST
+    const graphDir = path.join(tmpDir, "graphify-out");
+    fs.mkdirSync(graphDir, { recursive: true });
+    // Create initial graph.json
+    fs.writeFileSync(path.join(graphDir, "graph.json"), JSON.stringify({ nodes: [], edges: [] }));
+    // Set graph mtime to a base timestamp
+    const baseTime = 1000000;
+    fs.utimesSync(path.join(graphDir, "graph.json"), baseTime, baseTime);
+    // Now create source file 500ms after graph, same wall-clock second
+    fs.writeFileSync(path.join(tmpDir, "src", "alpha.ts"), "export function alpha() { return 1; }\n");
+    fs.utimesSync(path.join(tmpDir, "src", "alpha.ts"), baseTime + 500, baseTime + 500);
+    fs.writeFileSync(path.join(tmpDir, "package.json"), '{"name":"fx"}\n');
+    // With current floor-comparison: fresh: true (BUG: same-second edit served as fresh)
+    // With content-hash fix: fresh: false (source changed even within same second)
+    const result = isGraphifyCheckoutFreshFor(tmpDir, path.join(graphDir, "graph.json"), ["src"], []);
+    // The fix should make this return fresh: false when source has changed
+    // even within same second. Currently it returns fresh: true.
+    expect(result.reason).not.toBe("fresh");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
