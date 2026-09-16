@@ -697,3 +697,264 @@ if (!freshnessAfter.fresh || (stAfter !== null && stAfter.mtimeMs !== fs.statSyn
 - The first edition of this document claimed **11** self-defects. The full-trace recount for this expansion found **15** (D12-D15 were in the same scan VII batch the first edition summarized as three). Undercounting your own incidents INSIDE the confession document is the method one last time — counted, flagged, and left in the text as the receipt.
 - NOT EXTRACTED: per-principle active-intervals (which principle governed which hour) — no witness.
 - PROPOSED: batch-size growth under schedule pressure — consistent with commit clustering, unproven.
+
+# APPENDIX A — THE COMPLETE SCAN-FINDING RECORD (primary data, generated from the session JSONLs)
+
+Every high/critical finding from every scan, verbatim file:line + engine text (trimmed 110 chars). This is the raw record the triage tables compress. Reading order: per session; the mortality question (which rows survive into the next session) is answerable by direct comparison.
+
+## SCAN 1 — `1aca90d4` — Initial gate (5 wave files)
+Total **45** — high 21 · medium 21 · critical 2 · low 1
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/omp/populate-graphify.ts:155 | CRITICAL | Supersede UPDATEs run outside the transaction (autocommit). If insertFork*Batch throws afterwards, the old liv |
+| src/omp/populate-graphify.ts:173 | HIGH | BEGIN IMMEDIATE/COMMIT without ROLLBACK. A throw from insertForkNodesBatch/insertForkEdgesBatch leaves the SQL |
+| src/omp/populate-graphify.ts:89 | HIGH | Freshness-budget exhaustion returns false-fresh. When budget.n hits 0 walk() aborts early with newest potentia |
+| src/omp/populate-graphify.ts:143 | HIGH | Adapter failure returns raw truncated message without GRAPHIFY_NOT_WARM:/GRAPH_EMPTY: token, so callers cannot |
+| src/omp/populate-graphify.ts:227 | HIGH | Same supersede-outside-txn + no-ROLLBACK defect duplicated in writeGraphifyCheckout inspection path. Also DDL  |
+| src/omp/extension.ts:153 | CRITICAL | Wipe action has no env gate: description and probe comment claim `action=wipe is env-gated`, but execute calls |
+| src/omp/extension.ts:243 | HIGH | Populate-on-read mutates session store without locking: `graph-query` calls `populateSessionStore` on read whe |
+| src/omp/extension.ts:301 | HIGH | aether-code-audit accepts arbitrary `targetPath` into `resolve/join` for graph read and `ledgerDir` writes wit |
+| src/omp/extension.ts:196 | HIGH | Caller-supplied `sessionId` overrides the ctx-derived `callerId` without authorization check before `openSessi |
+| src/hydra/auditor.ts:474 | HIGH | Recursive DFS over untrusted graph risks stack overflow and collects every directed cycle before slicing to 3, |
+| src/hydra/auditor.ts:509 | HIGH | Dead-code loop awaits a separate rg/grep process per isolated node until 3 findings, so many isolates spawn th |
+| src/hydra/auditor.ts:134 | HIGH | Grep wrapper treats any stdout as success even on timeout/maxBuffer error, so partial output is misread as mea |
+| src/hydra/auditor.ts:729 | HIGH | Write success detected by substring bytes is fragile to format changes and false positives. JSON-parse writeFi |
+| src/hunter/keys/go-key-pool.ts:107 | HIGH | Single-handle singleton thrashes when sessionId varies. db() caches one Database keyed to one resolved path, s |
+| src/hunter/keys/go-key-pool.ts:93 | HIGH | Session-pinned files contradict documented machine-wide sharing. Header says every session shares one pool and |
+| src/hunter/keys/go-key-pool.ts:152 | HIGH | Grace-law degrade hides persistent outage and hot-loops dead keys. readDeadUntil() swallows any DB error to al |
+| src/hunter/keys/go-key-pool.ts:297 | HIGH | Empty pool silently falls to OpenRouter instead of loud provisioning failure. Header promises EMPTY pool is NO |
+| src/hunter/graph/graphify-adapter.ts:422 | HIGH | Edge line silently defaults to `?? 1`, fabricating evidence anchors. `mapGraphifyToTyped` throws LINELESS_NODE |
+| src/hunter/graph/graphify-adapter.ts:598 | HIGH | whoCalls/chain/imports/awaits/unwired mask missing lines with `?? 0` (or `line: 0`), fabricating line 0 for li |
+| src/hunter/graph/graphify-adapter.ts:180 | HIGH | Normalizer coerces missing id/label to empty string with no dedup/validation. Multiple id-less rows all become |
+| src/hunter/graph/graphify-adapter.ts:339 | HIGH | parseLineValue regex extracts any digit substring (`/L?\s*(\d+)/`), so version strings, hashes, or prose like  |
+| src/hunter/graph/graphify-adapter.ts:545 | HIGH | JSON.stringify(raw) on a potentially 128MB graph just to slice 200 chars for an error message — O(n) stringify |
+| src/hunter/graph/graphify-adapter.ts:628 | HIGH | chain() BFS does `cachedEdges.filter(...)` per dequeued node plus linear `nodeById` scans per edge — O(V*E) wi |
+
+## SCAN 2 — `8a24ae08` — Post V16/17
+Total **43** — medium 21 · high 16 · low 6
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/hunter/graph/graphify-adapter.ts:692 | HIGH | Inconsistent LINELESS_NODE enforcement: `awaits()` throws on `line === undefined` while `whoCalls()/chain()/im |
+| src/hunter/graph/graphify-adapter.ts:177 | HIGH | Unsafe shape casts + ID skew: `raw["nodes"] as unknown[]` / `raw["links"] as unknown[]` accept non-arrays (str |
+| src/omp/populate-graphify.ts:70 | HIGH | Freshness probe is both too narrow and too eager to fail-closed: it only stats `*.ts` (excluding `*.d.ts`), so |
+| src/omp/populate-graphify.ts:150 | HIGH | Error-token normalization misclassifies defects as operational state: any unknown adapter throw is rewritten t |
+| src/omp/populate-graphify.ts:187 | HIGH | `supersedeThenInsert` assumes sole ownership of the passed `Database`: it issues bare `BEGIN IMMEDIATE` (fails |
+| src/omp/extension.ts:250 | HIGH | Unlocked store repopulation race (TOCTOU): `countTypedNodes()===0` / stale-substrate check followed by `popula |
+| src/omp/extension.ts:211 | HIGH | Unconstrained absolute targetPath scope escape: any absolute path is accepted via `path.normalize()` with no c |
+| src/omp/extension.ts:71 | HIGH | `ok` hijack via spread order: `{ ok: true, ...w, ... }`, `{ ok: true, ...sd, ... }`, `{ ok: true, ...ga, ... } |
+| src/hydra/auditor.ts:766 | HIGH | graph_tag loses per-finding predicate: sweep measures specific predicates (graph-structure.god-node, cycles.im |
+| src/hydra/auditor.ts:142 | HIGH | grep fallback ignores result cap: `rg` path passes `--max-count maxResults` but fallback `grep -rn -E pattern  |
+| src/hydra/auditor.ts:147 | HIGH | No-match is misclassified as SEARCH_FAILED: `rg`/`grep` exit non-zero on no matches, so `execFile` yields `err |
+| src/hunter/keys/go-key-pool.ts:93 | HIGH | Session-pinned file contradicts machine-wide shared-pool contract. Header says every session shares one pool,  |
+| src/hunter/keys/go-key-pool.ts:107 | HIGH | Singleton caches only one handle while goPoolDbFile can return N paths. Alternating sessionIds close and reope |
+| src/hunter/keys/go-key-pool.ts:264 | HIGH | resolveGoKeyIndex can return idx -1 (empty GO_KEYS or DB-error path in goEarliestDeadIdx). Callers indexing GO |
+| src/hunter/keys/go-key-pool.ts:200 | HIGH | markGoKeyDead returns false success on write failure with no in-memory fallback. It still returns computed unt |
+| src/hunter/keys/go-key-pool.ts:168 | HIGH | Timeout ladder misses real windows: hr-only branch misses hours/hrs/hour wording (under-exile to 1h default),  |
+
+## SCAN 3 — `33d64eca` — First 7-file (post V20)
+Total **57** — medium 26 · high 23 · low 8
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/omp/populate-corbell.ts:62 | HIGH | Freshness budget truncation reports false-fresh: `walk` aborts early when `budget.n<=0` but the function still |
+| src/omp/populate-corbell.ts:96 | HIGH | Supersede outside transaction is non-atomic: the two UPDATE superseded_run statements run in autocommit before |
+| src/omp/populate-corbell.ts:114 | HIGH | Missing ROLLBACK breaks loud-fallback contract: exception inside BEGIN/COMMIT skips COMMIT with no ROLLBACK an |
+| src/omp/populate-corbell.ts:77 | HIGH | Constructor/open throws escape loud fallback: `new Database(warmPath,{readonly:true})` and `openTypedStore(sto |
+| src/omp/populate-graphify.ts:152 | HIGH | Scope ignored: `populateFromGraphifyCheckout` calls the freshness probe with default `scope=['src']`, ignoring |
+| src/omp/populate-graphify.ts:169 | HIGH | Uncaught `mapGraphifyToTyped` throw breaks the named-miss contract: `GraphifyAdapter.build` is wrapped to retu |
+| src/omp/populate-graphify.ts:206 | HIGH | Unconditional global supersede + caller-owned close in `supersedeThenInsert`: (1) `UPDATE ... WHERE superseded |
+| src/omp/typed-write.ts:47 | HIGH | INSERT OR REPLACE never replaces: typed_nodes/typed_edges have no UNIQUE constraint on canonical_id / (src_can |
+| src/omp/typed-write.ts:473 | HIGH | Self-reach via late seen seeding + id/label type mismatch: seen stores canonical_id but frontier/next store la |
+| src/omp/typed-write.ts:108 | HIGH | Slashless path creates wrong directory + TOCTOU: storePath.slice(0, lastIndexOf('/')) is slice(0,-1) when no ' |
+| src/omp/typed-write.ts:23 | HIGH | Caller-supplied size bypasses load budget (and check is already too late): when size>0 byteLen trusts it, so s |
+| src/omp/extension.ts:229 | HIGH | Any absolute `targetPath` is accepted as `scopeRoot`/`targetRoot` via `path.normalize` only (both in graph-que |
+| src/hunter/graph/graphify-adapter.ts:169 | HIGH | TOCTOU stat-then-read budget bypass: `size` from `statSync` is reused as the guard argument (`parseGraphJsonGu |
+| src/hunter/graph/graphify-adapter.ts:209 | HIGH | Community members dangle: collected as raw `n["id"]` (including `""` for dropped id-less rows) while projected |
+| src/hunter/keys/go-key-pool.ts:98 | HIGH | Session-pinned DB defeats shared-pool contract. Header promises one machine-wide pool where a sibling's 429 sk |
+| src/hunter/keys/go-key-pool.ts:160 | HIGH | Grace-law all-alive masks storage faults and causes hot-cycle. readDeadUntil degrades any DB hiccup to all-zer |
+| src/hunter/keys/go-key-pool.ts:141 | HIGH | LRU eviction closes potentially live handles + busy_timeout skipped when WAL fails. Closing the oldest cached  |
+| src/hunter/keys/go-key-pool.ts:244 | HIGH | Overbroad quota classifier: \b5\d\d\b buckets every 500-599 as quota. Transient 500/502/503/504 and even stack |
+| src/hunter/keys/go-key-pool.ts:203 | HIGH | Raw error slice persisted to world-readable tmp sqlite. msg.slice(0,300) can echo key material (e.g. invalid x |
+| src/hydra/auditor.ts:530 | HIGH | Sequential `await belt.grep.invoke` inside the isolates loop issues up to 25 rg/grep subprocesses serially, bl |
+| src/hydra/auditor.ts:787 | HIGH | Stale-report check `mtimeMs + 2000 >= t0` accepts a report written up to 2s before this run started as fresh,  |
+| src/hydra/auditor.ts:621 | HIGH | Grep-hit path is relativized without scope validation: `path.relative(targetRoot, match)` can yield `../`-esca |
+| src/hydra/auditor.ts:326 | HIGH | SUMMARY regex uses `\Z` which in JS (non-unicode) matches literal `Z`, not end-of-input. A trailing `## SUMMAR |
+
+## SCAN 4 — `6768692f` — Post V20-fix
+Total **56** — medium 26 · high 22 · low 7 · critical 1
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/omp/populate-corbell.ts:66 | HIGH | Freshness probe only tracks `*.ts` (minus `.d.ts`), so any other indexed file type, deleted files, or symlink- |
+| src/omp/populate-corbell.ts:100 | HIGH | Warm-store rows are cast (`as typeof rows`) with no shape validation, but the schema allows corrupt/partially- |
+| src/omp/populate-corbell.ts:138 | HIGH | `openTypedStore(storePath)` is constructed inline as an argument to `supersedeThenInsert`. Verified helper (`p |
+| src/hunter/graph/graphify-adapter.ts:233 | HIGH | Community dedup join is misaligned when id-less rows are dropped. `rawIndexToNodeId` assumes `rawNodes[i]` ali |
+| src/hunter/graph/graphify-adapter.ts:377 | HIGH | `parseLineValue` only handles number/string, but `resolveGraphifyLine`/`projectGraphifyGraph` feed it whole `s |
+| src/hunter/graph/graphify-adapter.ts:627 | HIGH | Unknown symbols synthesize `graphify:${symbol}` that matches nothing, turning typos into silent empty arrays f |
+| src/hunter/graph/graphify-adapter.ts:748 | HIGH | `unwired()` violates the `DeadNode {file: string; line: number}` contract: it forwards `n.line` (which is `num |
+| src/omp/typed-write.ts:527 | HIGH | Nested openTypedStore while holding outer connection: safeDelete opens `db` then calls whoCalls()/impact() whi |
+| src/omp/typed-write.ts:568 | HIGH | Unused outer connection: gateAdvisory opens a DB it never queries — every symbol then opens another DB inside  |
+| src/omp/typed-write.ts:173 | HIGH | INSERT OR REPLACE in insertForkNode/insertForkEdge defeats the versioned live-row model: REPLACE deletes the c |
+| src/omp/typed-write.ts:210 | HIGH | Batch writers are not batched transactionally: per-row run() without BEGIN/COMMIT leaves a half-populated stor |
+| src/omp/typed-write.ts:486 | HIGH | Label-keyed traversal conflates identities: frontier is label strings and joins filter dst.label/src.label, so |
+| src/hunter/keys/go-key-pool.ts:95 | HIGH | Session-pinned DB contradicts machine-wide shared-pool contract. Header promises 'Every session on this machin |
+| src/hunter/keys/go-key-pool.ts:59 | HIGH | dead_until rows keyed by positional idx become misattributed after reloadGoKeys(). GO_KEYS is mutable/reloadab |
+| src/hunter/keys/go-key-pool.ts:285 | HIGH | resolveGoKeyIndex() can return idx -1 (empty GO_KEYS, empty/degraded DB, or TOCTOU between readDeadUntil and g |
+| src/omp/populate-graphify.ts:211 | HIGH | Partial-empty supersede wipe: guard only blocks when BOTH tables are empty (or nodes-only in checkout writer), |
+| src/omp/populate-graphify.ts:163 | HIGH | LINELESS_NODE swallowed as operational miss: header promises the typed-projection LINELESS_NODE propagates LOU |
+| src/hydra/auditor.ts:145 | HIGH | rg/grep exit-1 on no-matches is conflated with failure. `run()` resolves any `err` to `SEARCH_FAILED`, so `rg` |
+| src/hydra/auditor.ts:538 | HIGH | Failure-as-absence in dead-code two-leg: `!startsWith(SEARCH_FAILED) && !startsWith(GREP_INVALID)` means any g |
+| src/hydra/auditor.ts:109 | HIGH | TOCTOU + redundant scope check in capped read: `statSync(realFile).size` then `readFileSync(realFile)` is a ch |
+| src/hydra/auditor.ts:471 | HIGH | Iterative DFS shares global `visited` + single `path`/`onStack` with a hard 3-cycle cap: (a) cap silently trun |
+| src/omp/extension.ts:336 | CRITICAL | aether-code-audit targetPath lacks H12 confinement. graph-query resolves realpath, verifies isDirectory, and e |
+| src/omp/extension.ts:295 | HIGH | Check-then-populate on the shared storePath has no lock/singleflight: empty/countTypedNodes + isCorbellCheckou |
+
+## SCAN 5 — `108fd2de` — Post fix-now
+Total **55** — medium 31 · high 20 · low 4
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/omp/populate-corbell.ts:62 | HIGH | Symlinked directories are never traversed (`isDirectory()` is false for a symlink), so newer indexed files und |
+| src/omp/populate-corbell.ts:102 | HIGH | Warm store is fully materialized with `.all()` then duplicated again into `nodeRows`/`edgeRows` (2x memory, un |
+| src/omp/populate-graphify.ts:102 | HIGH | Warm-wins tolerance serves stale graph: `newest <= warmMtime + 1000` reports fresh even when a source file is  |
+| src/omp/populate-graphify.ts:222 | HIGH | Empty-input guard is inconsistent and wipes live rows on valid edgeless graphs. `supersedeThenInsert` only ref |
+| src/omp/populate-graphify.ts:225 | HIGH | `supersedeThenInsert` closes a caller-owned connection and leaks it when BEGIN fails. typed-write.ts documents |
+| src/hunter/graph/graphify-adapter.ts:198 | HIGH | Dedup suffix can re-collide and crashes on non-object rows: `id#size` is applied once without a `while(seenIds |
+| src/hunter/graph/graphify-adapter.ts:143 | HIGH | No containment check on out-path/binary resolution: absolute `override`/`graphifyOut`/`GRAPHIFY_OUT` is return |
+| src/hunter/graph/graphify-adapter.ts:650 | HIGH | One lineless row fails the whole query: `whoCalls`/`chain`/`imports`/`awaits` throw `LINELESS_NODE` inside `.m |
+| src/omp/typed-write.ts:527 | HIGH | Nested store opens while holding a connection: `safeDelete` holds `openTypedStore(storePath)` in `db` while ca |
+| src/omp/typed-write.ts:210 | HIGH | `INSERT OR REPLACE` destroys row identity/history: with the partial unique indexes `uq_tn_live_canonical`/`uq_ |
+| src/omp/typed-write.ts:219 | HIGH | Untransacted per-row batch loop: `insertForkNodesBatch`/`insertForkEdgesBatch` issue one `db.run` per row with |
+| src/omp/typed-write.ts:388 | HIGH | BFS bound/visited aliasing in `chainCalls`: guard `queue[0].steps.length < maxDepth` only inspects the head (r |
+| src/omp/typed-write.ts:313 | HIGH | File-level CTE fan-out + per-seed repetition in `blastRadius`: `CROSS JOIN typed_nodes dst ON dst.file=...` ×  |
+| src/hunter/keys/go-key-pool.ts:95 | HIGH | Session-pinned DB contradicts machine-wide shared-pool contract. Header says every session shares one pool, bu |
+| src/hunter/keys/go-key-pool.ts:153 | HIGH | Grace-law all-alive degradation causes retry storm. readDeadUntil returns all-zero on any DB error and resolve |
+| src/hunter/keys/go-key-pool.ts:257 | HIGH | Classifier overlap: 529 listed in quota makes server branch 52x for 529 dead code. overloaded and 402 bucketed |
+| src/hunter/keys/go-key-pool.ts:195 | HIGH | Key-material redaction incomplete and tmp DB has no 0600 hardening. Regexes only cover sk-/Bearer/x-api-key sh |
+| src/omp/extension.ts:318 | HIGH | H12 confinement duplicated inline for graph-query vs confineTargetPath for audit, risking drift. Both do check |
+| src/hydra/auditor.ts:145 | HIGH | Grep flag injection: `pattern` is passed positionally without a `--` terminator, so a leading-dash probe (e.g. |
+| src/hydra/auditor.ts:112 | HIGH | Path-containment TOCTOU / symlink escape: scope check uses `realpath-at-check-time` then separate sync `statSy |
+
+## SCAN 6 — `4cc25858` — Post fix-now-2
+Total **60** — medium 29 · high 25 · low 5 · critical 1
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/hunter/keys/go-key-pool.ts:95 | HIGH | Session-pinned DB defeats machine-wide shared-pool contract. Header promises every session shares one pool via |
+| src/hunter/keys/go-key-pool.ts:178 | HIGH | parseGoWindowMs misses spelled-out hours ('Resets in 2 hours', '1 hour', '2 hrs') and is unbounded. The leader |
+| src/hunter/keys/go-key-pool.ts:257 | HIGH | classifyGoError mis-buckets transient faults as quota: `overloaded` and `529` hit the quota branch before the  |
+| src/hunter/keys/go-key-pool.ts:195 | HIGH | Key material can persist in world-readable tmp sqlite. redactKeyMaterial only covers sk-/Bearer/x-api-key, mis |
+| src/hydra/auditor.ts:145 | HIGH | Grep flag injection: `pattern` is passed as bare argv without `--` separator. A pattern starting with `-` (e.g |
+| src/hydra/auditor.ts:111 | HIGH | Scope-check TOCTOU + redundant equality: `realResolve`→`isWithinRoot`→`statSync`/`readFileSync` has no revalid |
+| src/hydra/auditor.ts:483 | HIGH | Iterative DFS misses cycles: marking `visited` on first stack-visit and early-popping duplicates with shared ` |
+| src/hydra/auditor.ts:538 | HIGH | Tool failure treated as dead-code evidence: on `SEARCH_FAILED`/`GREP_INVALID` the code falls through to emit a |
+| src/omp/extension.ts:26 | HIGH | H12 confinement bypass/incomplete: `roots` are compared with `path.resolve(root)` while `real` is `realpathSyn |
+| src/omp/extension.ts:204 | CRITICAL | Env-gate missing for destructive `wipe`: description promises `action=wipe is env-gated` but `execute` calls ` |
+| src/omp/extension.ts:80 | HIGH | Silent `layerId` fallback masks invalid template: `sanitizeLayerId` coerces any malformed/empty `template` to  |
+| src/omp/extension.ts:295 | HIGH | Store repopulate race + blocking I/O: `countTypedNodes`/`isCorbellCheckoutFreshFor` then `populateSessionStore |
+| src/omp/populate-corbell.ts:139 | HIGH | Session-store open escapes the error contract and `db.close()` in `finally` can mask/throw. `openTypedStore()` |
+| src/omp/populate-corbell.ts:18 | HIGH | 500-entry freshness budget guarantees `stale-budget` on any real tree. `budget.n` is decremented per directory |
+| src/omp/populate-corbell.ts:85 | HIGH | TOCTOU between freshness probe and warm read: no revalidation after the copy. `isCorbellCheckoutFreshFor()` st |
+| src/hunter/graph/graphify-adapter.ts:475 | HIGH | Unvalidated file projection: absolute graph file values are accepted as-is and relative values are resolved ag |
+| src/hunter/graph/graphify-adapter.ts:743 | HIGH | unwired() leaks lineless rows: it forwards n.line (number\|null\|undefined) into DeadNode.line:number while whoC |
+| src/omp/typed-write.ts:24 | HIGH | Load budget checked AFTER load: `contents` is already a materialized string, so `Buffer.byteLength`+throw cann |
+| src/omp/typed-write.ts:137 | HIGH | Swallowing UNIQUE-index failures leaves live-uniqueness unenforced: legacy stores with duplicate live rows log |
+| src/omp/typed-write.ts:176 | HIGH | `INSERT OR REPLACE ... superseded_run=NULL` bypasses superseded_run tombstone semantics: REPLACE deletes the c |
+| src/omp/typed-write.ts:527 | HIGH | Re-entrant store opens + unused outer handle: `safeDelete`/`gateAdvisory` hold an outer `openTypedStore` conne |
+| src/omp/typed-write.ts:388 | HIGH | BFS blowup: `visited` marked on dequeue not enqueue allows exponential re-enqueue on cycles (A<->B pushes dupl |
+| src/omp/typed-write.ts:272 | HIGH | Label-anchored joins conflate homonyms: `JOIN ... dst.label = ?` / `src.label = ?` / frontier as label strings |
+| src/omp/typed-write.ts:313 | HIGH | Blast-radius CTE fan-out: `CROSS JOIN typed_nodes dst ON dst.file=blast.file` multiplies by nodes-per-file, th |
+| src/omp/populate-graphify.ts:272 | HIGH | Unconditional supersede wipes live inspection edges on nodes-only batch. Both UPDATEs run even when `edgeRows` |
+| src/omp/populate-graphify.ts:183 | HIGH | openTypedStore() escapes the {ok:false} contract. It runs outside the try/finally that maps failures to GRAPHI |
+
+## SCAN 7 — `6a860fa5` — Post cleanup wave
+Total **59** — medium 29 · high 22 · low 8
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/hunter/graph/graphify-adapter.ts:204 | HIGH | Dedup ledger overwrites: `renamedFrom: original->single id` keeps only the last duplicate (`[x,x,x]` maps x->x |
+| src/hunter/graph/graphify-adapter.ts:513 | HIGH | Absolute-path containment bypass: this keeps `n.file` absolute as-is with no re-check against `root`. Containm |
+| src/hunter/keys/go-key-pool.ts:171 | HIGH | Key-prefix persisted in world-readable store + collision risk: slice(0,12) is stored as `keyid` in tmp sqlite. |
+| src/hunter/keys/go-key-pool.ts:289 | HIGH | Snapshot can throw RangeError despite finite-check: `Number.isFinite(1e20) === true` but `new Date(1e20).toISO |
+| src/hunter/keys/go-key-pool.ts:406 | HIGH | Failed-write signal is dropped + empty-pool throw escapes: `markGoKeyDead` returns 0 on write failure but `rou |
+| src/omp/populate-graphify.ts:108 | HIGH | WARM-WINS second-granularity comparison can serve a stale graph: same-second edits stay `fresh`. If graph.json |
+| src/omp/populate-graphify.ts:100 | HIGH | Scope entries that are files (not dirs) and scopes with zero matching files report fresh-by-vacuity. `walk()`  |
+| src/omp/populate-graphify.ts:241 | HIGH | Helper assumes the caller is not in a transaction but does not enforce it: if `db.inTransaction === true`, `BE |
+| src/omp/populate-corbell.ts:120 | HIGH | TOCTOU guard is ordered backwards: stBefore is stat-ed AFTER the warm-DB queries despite the BEFORE-the-read c |
+| src/omp/populate-corbell.ts:55 | HIGH | Root-level walk failure yields false-fresh: if readdirSync(root) throws, walk returns silently with newest==0  |
+| src/omp/populate-corbell.ts:149 | HIGH | openTypedStore sits outside try/finally so a corrupt session store or DDL failure escapes as a throw instead o |
+| src/omp/extension.ts:38 | HIGH | Allowlist split breaks its own Windows-drive escape and roots are not canonicalized. `.split(/[:\|]/)` splits ` |
+| src/omp/extension.ts:256 | HIGH | `sessionId` request param is declared but never read — `sessionId` is always `callerId` from `ctx.sessionID`.  |
+| src/omp/extension.ts:121 | HIGH | Forced `ok:true` after spread masks underlying failure. `{...w, ripwire, ok:true}` (would-break), `{...sd, rip |
+| src/omp/extension.ts:307 | HIGH | Per-query `populateSessionStore` with no lock races. Both the `graphify` branch and the `empty \|\| (warm.fresh  |
+| src/omp/typed-write.ts:600 | HIGH | Nested store opens: safeDelete holds an outer openTypedStore connection while whoCalls/impact each open/close  |
+| src/omp/typed-write.ts:137 | HIGH | DDL UNIQUE failure swallowed: catching UNIQUE-index errors and continuing leaves legacy stores with duplicate  |
+| src/omp/typed-write.ts:445 | HIGH | chainCalls target conflates identities: targets resolved as DISTINCT label strings into toSet and matched via  |
+| src/omp/typed-write.ts:235 | HIGH | Batch txn guard likely breaks R2 fast path: insertForkNodesBatch/EdgesBatch require db.inTransaction===true, b |
+| src/hydra/auditor.ts:816 | HIGH | Unhandled throw on missing `godNodes` voids settlement contract. `graph.godNodes.slice(...)` is evaluated outs |
+| src/hydra/auditor.ts:631 | HIGH | INCOMPLETE sweeps settle as fulfilled LOW confirmed-empty, hiding infrastructure failure. Both dead-code and g |
+| src/hydra/auditor.ts:544 | HIGH | Per-SCC enumeration reintroduces the global-visited miss + misreports truncation. `localVisited` is shared acr |
+
+## SCAN 8 — `56d6ab5f` — Ship gate (current HEAD)
+Total **66** — medium 31 · high 26 · low 8 · critical 1
+
+| file:line | sev | finding (trimmed) |
+|---|---|---|
+| src/omp/populate-corbell.ts:153 | HIGH | Session-store open escapes the no-throw contract. openTypedStore(storePath) runs outside the try/finally, so a |
+| src/omp/populate-corbell.ts:123 | HIGH | Mid-read TOCTOU guard misses same-mtime replacement and doubles probe cost. mtimeAfter !== stBefore only catch |
+| src/omp/populate-corbell.ts:145 | HIGH | Warm rows are copied without validation; corrupt/attacker-controlled checkout rows flow into the session store |
+| src/hunter/graph/graphify-adapter.ts:275 | HIGH | Root-containment loop mis-indexes `rawNodes[i]` by `nodes[i]` position. `nodes[]` skips id-less rows (`dropped |
+| src/hunter/graph/graphify-adapter.ts:204 | HIGH | Dedup ledger inverts its own contract: first occurrence keeps bare `original`, but `renamedFrom.set(original,  |
+| src/hunter/graph/graphify-adapter.ts:692 | HIGH | Inconsistent LINELESS policy: `whoCalls` skips lineless rows with `onLineless` telemetry, but `chain`/`imports |
+| src/hunter/graph/graphify-adapter.ts:618 | HIGH | Dual roots risk anchor mismatch: `build()`/`loadGraphifyFileSync` contain paths with `dirname(dirname(graphPat |
+| src/omp/populate-graphify.ts:122 | HIGH | Second-granularity warm-wins serves stale graphs as fresh: a source edit milliseconds after the build but with |
+| src/omp/populate-graphify.ts:251 | HIGH | Transaction-ownership guard `db.inTransaction === true` will not reliably detect a nested transaction: `bun:sq |
+| src/omp/populate-graphify.ts:103 | HIGH | Scope expansion allows escape and silent skew: absolute `scope` entries are walked as-is with no containment u |
+| src/omp/typed-write.ts:600 | HIGH | Re-entrant store opens: safeDelete holds an outer openTypedStore connection while whoCalls and impact each ope |
+| src/omp/typed-write.ts:649 | HIGH | gateAdvisory opens db but never uses it; each symbol then calls whoCalls(storePath) which opens its own connec |
+| src/omp/typed-write.ts:142 | HIGH | DDL UNIQUE failures silently deferred: catching any error containing UNIQUE lets legacy stores run without liv |
+| src/omp/typed-write.ts:240 | HIGH | Batch txn guard can never pass on documented path: insertForkNodesBatch requires db.inTransaction===true but s |
+| src/omp/typed-write.ts:454 | HIGH | chainCalls mixes identities: from stores canonical_id while to stores label, and matching is by label so same- |
+| src/omp/extension.ts:212 | CRITICAL | graph-probe `wipe` missing env-gate: description claims "action=wipe is env-gated" but execute calls clearGiRe |
+| src/omp/extension.ts:38 | HIGH | H12 confinement is bypass-prone: 1) `roots` are only `path.resolve`d, never `realpath`d while `real` is realpa |
+| src/omp/extension.ts:41 | HIGH | Prefix check `!rel.startsWith("..") && !path.isAbsolute(rel)` is non-canonical and roots are unresolved (see a |
+| src/omp/extension.ts:303 | HIGH | Substrate dispatch has TOCTOU + repeated-repopulate cost: `isCorbellCheckoutFreshFor`/`isGraphifyCheckoutFresh |
+| src/omp/extension.ts:390 | HIGH | Audit ledgerDir is predictable + collides: `join(resolve(targetRoot), ".omp",...,`${layerId}-${Date.now()}`)`  |
+| src/hydra/auditor.ts:397 | HIGH | nodeFile returns graph-controlled paths without containment: relative `../` escapes and absolute paths outside |
+| src/hydra/auditor.ts:742 | HIGH | assertGraphShape only checks nodes/edges arrays, but runTemplateAudit immediately dereferences graph.godNodes. |
+| src/hydra/auditor.ts:631 | HIGH | Failed probes must not emit clean-empty `<anchor>.confirmed-empty` LOW/0.9. Both the dead-code sweep INCOMPLET |
+| src/hunter/keys/go-key-pool.ts:171 | HIGH | Secret-prefix keyid leaks key material and collides. slice(0,12) persists raw secret prefix in tmp sqlite and  |
+| src/hunter/keys/go-key-pool.ts:327 | HIGH | goEarliestDeadIdx is idx-only while readDeadUntil is keyid-first. After reload or reorder the earliest-expiry  |
+| src/hunter/keys/go-key-pool.ts:265 | HIGH | Failed write returns 0 while reads degrade to all-alive, causing hot-spin. routeGoError ignores the return val |
+| src/hunter/keys/go-key-pool.ts:131 | HIGH | Tmp DB chmod covers only the main file, never the WAL/SHM sidecars that carry the same keyid/fingerprint and r |
+
+# APPENDIX B — CLASS MORTALITY TABLE (which finding classes died when)
+
+| Class | First seen | Fixed in | Scans it survived | Status at scan 8 |
+|---|---|---|---|---|
+| supersede-outside-txn (graphify) | 1 | V16/V20 helper | 1 | DEAD (helper + per-table guards) |
+| supersede-outside-txn (corbell) | 4 | V21 cleanup | 4,5,6,7 | DEAD (parity) |
+| wipe env-gate "missing" | 2 | REFUTED 4×; rebuild L6 moves gate to boundary | 2,6,8 | DEAD BY DESIGN (rebuild L6) |
+| freshness inverted/tolerance | 3 | V20 warm-wins → granularity → rebuild L2 hash | 3,5,6,7,8 | DEAD BY DESIGN (rebuild L2) |
+| label-keyed identity | 4 | V21 W1 canonical traversal | 4,6,7 | DEAD BY DESIGN (rebuild L1) |
+| INSERT OR REPLACE history loss | 3 | V21 W2 tombstone | 3,4,7 | DEAD (tombstone-native) |
+| lineless fabrication (?? 0) | 3 | V21 W9 named refusals | 3,4,7 | DEAD (skip+count) |
+| grep flag injection / failure-as-absence | 4,7 | V21 W6/W8 + M6 | 4,7,8 | DEAD (sweep.ts) |
+| pool identity/staleness | 4 | V21 W10 keyid + ordered classifier | 4,7 | DEAD (rebuild L4) |
+| warm-wins tolerance (design disagreement) | 5 | narrowed twice; rebuild L2 hash ends it | 5,7,8 | DESIGN — ruled by rebuild L2 |
+| TOCTOU stat windows (sweeps/reads) | 7,8 | partially patched; M6 single-open law ends | 7,8 | REBUILD L5 |
+| depth/complexity of accreted paths | 7,8 | — | 7,8 | REBUILD (L7 ceiling) |
+
+# APPENDIX C — THE SELF-DEFECT CATCH-RATE LEDGER
+
+| Wave | Fixes landed | Self-defects shipped | Found by | Cycles to surface |
+|---|---|---|---|---|
+| V16/17 | ~30 | 3 (slug, strict-stale, trim-scope) | battery + instrumented print | same-batch + 1 |
+| V20 | ~15 | 5 (scope-miss inheritance, inverted cmp, shadow, empty-guard) | scans 3-4 + TUI | 1-4 cycles |
+| V21 W1-W12 | 12 | 0 in designed structures | — | — |
+| V21 cleanup | ~20 | 6 (renamedFrom, self-compare TOCTOU, rangeError, vacuity, no-txn, localVisited) | scan VII + VIII | 1 cycle |
+| V21 fix-now-2 | 6 | 1 (filesSeen dup decl) | battery | same cycle |
+
+The curve is the method's report card: defect-per-fix rate fell from ~25% (V16/20 untested batches) to ~0% (V21 designed structures) to ~30% (cleanup rush) to ~0% (fix-now-2, tested). The rate tracks the PROCESS in force, not the codebase.
