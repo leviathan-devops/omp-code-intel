@@ -1,0 +1,5 @@
+GOAL: gi-kernel-rebuild | ORCHESTRATOR ONLY — never write product code
+SPEC: reports/GI_KERNEL_REBUILD_DPL1_SPEC.md (v2 full density)
+LAWS: reports/SLOP-CODING-METHOD.md Part VIII (12 iron laws — violating any = wave FAIL)
+PREFLIGHT: git clean @HEAD; old battery 127/0; rigs state recorded; fixture builder absent (W5 delivers)
+SHIP BAR: 70/0 new battery + frozen 7-file scan 0c/0h + deploy.sh x2 green + live rig legs on new dists
