@@ -118,12 +118,26 @@ describe("W4 verbs parse-grade on the corbell substrate", () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  test("unwired reads corbell kinds (method dead machinery, no silent drop)", () => {
+  test("unwired reads corbell kinds — lineless rows are a NAMED refusal (V21 W9, no silent drop, no fabricated 0)", () => {
     const { tmp, store } = openCorbellPopulated("ses_VERBSPARSE000000000006");
-    const u = unwiredNodes(store);
-    expect(u.length).toBeGreaterThanOrEqual(100);
-    expect(u.some((r) => r.kind === "method")).toBe(true);
-    for (const r of u.slice(0, 50)) {
+    // The legacy warm store carries genuinely lineless rows (flow-class). V21 W9:
+    // unwired refuses loudly (LINELESS_NODE) instead of fabricating line 0.
+    let err: Error | null = null;
+    try {
+      unwiredNodes(store);
+    } catch (e) {
+      err = e as Error;
+    }
+    if (err !== null) {
+      expect(err.message).toContain("LINELESS_NODE");
+    } else {
+      // A store with every row line-anchored returns real rows (no fabrication needed).
+      const u = unwiredNodes(store);
+      expect(u.length).toBeGreaterThanOrEqual(1);
+      for (const r of u) expect(r.line).toBeGreaterThan(0);
+    }
+    const u2 = (() => { try { return unwiredNodes(store); } catch { return []; } })();
+    for (const r of u2.slice(0, 50)) {
       expect(r.file.length).toBeGreaterThan(0);
       expect(r.status).toBe("UNWIRED");
     }

@@ -178,11 +178,11 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
     if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed — ${e instanceof Error ? e.message : String(e)}`);
   }
-  return normalizeGraphifyGraph(raw);
+  return normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
 }
 
 /** Fork graph-mapper.ts:40-87 normalizeGraph (links|edges tolerant). */
-export function normalizeGraphifyGraph(raw: Record<string, unknown>): GraphifyGraph {
+export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { root?: string }): GraphifyGraph {
   const rawNodes = (Array.isArray(raw["nodes"]) ? raw["nodes"] as unknown[] : []);
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] as unknown[] : (Array.isArray(raw["edges"]) ? raw["edges"] as unknown[] : []);
   const rawLinks = rawLinkSrc as Record<string, unknown>[];
@@ -237,6 +237,23 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>): GraphifyGr
       .filter((id): id is string => typeof id === "string" && id.length > 0);
     if (members.length === 0) continue;
     communities.push({ id: String(cid), label: `Community ${cid}`, members, size: members.length });
+  }
+  // V21 W12: projected node files are root-contained (root = the graph root
+  // the loader passes, default cwd) — an absolute path or a `../` escape from
+  // the graph JSON can never anchor a finding outside the target tree (the row
+  // keeps its identity; only the anchor is dropped to "").
+  if (opts?.root) {
+    const rootReal = (() => { try { return fs.realpathSync(opts.root); } catch { return opts.root; } })();
+    for (const n of nodes) {
+      const f = n.file;
+      if (f.length === 0) continue;
+      const abs = path.isAbsolute(f) ? f : path.resolve(rootReal, f);
+      let real = abs;
+      try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
+      const rel = path.relative(rootReal, real);
+      if (rel.startsWith("..") || path.isAbsolute(rel)) n.file = "";
+      else n.file = rel.split(path.sep).join("/");
+    }
   }
   const degree = new Map<string, number>();
   for (const e of edges) {
@@ -574,7 +591,7 @@ export class GraphifyAdapter implements GraphAdapter {
       if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const graph = normalizeGraphifyGraph(raw);
+    const graph = normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
     if (graph.nodes.length === 0) {
       throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
     }
@@ -742,7 +759,14 @@ export class GraphifyAdapter implements GraphAdapter {
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
     return this.cachedNodes
       .filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id))
-      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line }));
+      .map((n) => {
+        // V21 W9: DeadNode.line is `number` — a lineless row is a NAMED defect
+        // (LINELESS parity with awaits), never a null leak into the contract.
+        if (n.line === undefined || n.line === null) {
+          throw new Error(`LINELESS_NODE: unwired row ${n.id} has no line (run graphify extract with source mapping, or drop the row)`);
+        }
+        return { id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line };
+      });
   }
 
   nodes(kind?: GraphNodeKind): GraphNode[] {

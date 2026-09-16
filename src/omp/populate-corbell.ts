@@ -113,6 +113,15 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   if (rows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
+  // V21 W11 (TOCTOU): the warm store was stat'd by the freshness probe BEFORE
+  // the read — re-stat after the copy; a store that changed mid-read is a
+  // named NOT_WARM, never half-of-two-generations served as current.
+  let stAfter: fs.Stats | null = null;
+  try { stAfter = fs.statSync(warmPath); } catch { stAfter = null; }
+  const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
+  if (!freshnessAfter.fresh || (stAfter !== null && stAfter.mtimeMs !== fs.statSync(warmPath).mtimeMs)) {
+    return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
+  }
   // Write into the session store, superseding the previous run's rows.
   // H02+H03 (qwen 33d64eca): supersede + insert + meta ride ONE transaction
   // with ROLLBACK (the V-16 helper discipline, corbell parity). Before: the

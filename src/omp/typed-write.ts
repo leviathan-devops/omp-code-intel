@@ -174,7 +174,13 @@ export function insertForkNode(storePath: string, node: ForkNode): void {
   const db = openTypedStore(storePath);
   try {
     db.run(
-      "INSERT OR REPLACE INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      // V21 W2: tombstone-then-insert — the prior live row survives as
+      // history (superseded_run = incoming run); REPLACE deleted it outright.
+      "UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL",
+      [node.run, node.canonicalId],
+    );
+    db.run(
+      "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
       [node.canonicalId, node.kind, node.label, node.file, node.line, node.run],
     );
   } finally {
@@ -197,7 +203,12 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
   const db = openTypedStore(storePath);
   try {
     db.run(
-      "INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      // V21 W2: tombstone-then-insert (same law as nodes).
+      "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
+      [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate],
+    );
+    db.run(
+      "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
       [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
     );
   } finally {
@@ -207,19 +218,38 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
 
 // R2 batch writers: ONE connection for the whole pass (baseline bottleneck
 // was 3890 open/close cycles per populate). Caller owns open/close.
-export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[]) => void }, nodes: ForkNode[]): void {
+export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[]) => void; inTransaction?: boolean }, nodes: ForkNode[]): void {
+  // V21 W3: a partial batch must never land — the writer refuses to run
+  // outside a transaction (supersedeThenInsert / writeGraphifyCheckout own one).
+  if (db.inTransaction === false) {
+    throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
+  }
   for (const node of nodes) {
     db.run(
-      "INSERT OR REPLACE INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      // V21 W2: tombstone-then-insert (history preserved, no REPLACE delete).
+      "UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL",
+      [node.run, node.canonicalId],
+    );
+    db.run(
+      "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
       [node.canonicalId, node.kind, node.label, node.file, node.line, node.run],
     );
   }
 }
 
-export function insertForkEdgesBatch(db: { run: (sql: string, params: unknown[]) => void }, edges: ForkEdge[]): void {
+export function insertForkEdgesBatch(db: { run: (sql: string, params: unknown[]) => void; inTransaction?: boolean }, edges: ForkEdge[]): void {
+  // V21 W3: same txn guard as nodes.
+  if (db.inTransaction === false) {
+    throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
+  }
   for (const edge of edges) {
     db.run(
-      "INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      // V21 W2: tombstone-then-insert.
+      "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
+      [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate],
+    );
+    db.run(
+      "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
       [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
     );
   }
@@ -255,7 +285,22 @@ export function namesInStore(storePath: string): string[] {
   }
 }
 
-export interface WhoCallsRow { caller: string; file: string; line: number; kind?: string; predicate?: string }
+export interface WhoCallsRow { caller: string; file: string; line: number; kind?: string; predicate?: string; target_canonical?: string }
+
+/** V21 W1 (identity model): resolve a display label to its LIVE canonical_ids.
+ *  Traversal keys on canonical_id — same-label functions in different files are
+ *  DIFFERENT identities and must never conflate in whoCalls/impact/chain/blast. */
+function resolveLiveIds(db: { query: (sql: string) => { all: (v?: unknown) => unknown[] } }, label: string): string[] {
+  const rows = db.query(
+    "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+  ).all(label) as Array<{ canonical_id: string }>;
+  return rows.map((r) => r.canonical_id);
+}
+
+/** IN-clause placeholders for a non-empty id list. */
+function ph(n: number): string {
+  return Array.from({ length: n }, () => "?").join(", ");
+}
 
 // Fork query-tool.ts:177-194 who-calls: typed 'calls'/'imports' edges into the
 // symbol, label-resolved like the gate. Returns caller rows, not self rows.
@@ -266,20 +311,26 @@ export interface WhoCallsRow { caller: string; file: string; line: number; kind?
 export function whoCalls(storePath: string, name: string): { rows: number; names: string[]; callers: WhoCallsRow[] } {
   const db = openTypedStore(storePath);
   try {
+    // V21 W1: dst resolved to canonical_ids FIRST — the join never matches by
+    // label, so same-label identities stay distinct; each row names its target.
+    const ids = resolveLiveIds(db, name);
+    if (ids.length === 0) return { rows: 0, names: [], callers: [] };
     const rows = db.query(
-      `SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line, e.predicate AS predicate
+      `SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
+              e.predicate AS predicate, e.dst_canonical AS target_canonical
        FROM typed_edges e
-       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
        JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-       WHERE e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         AND dst.superseded_run IS NULL AND src.superseded_run IS NULL`,
-    ).all(name) as Array<{ caller: string; kind: string | null; file: string | null; line: number | null; predicate: string }>;
+       WHERE e.dst_canonical IN (${ph(ids.length)})
+         AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+         AND src.superseded_run IS NULL`,
+    ).all(...ids) as Array<{ caller: string; kind: string | null; file: string | null; line: number | null; predicate: string; target_canonical: string }>;
     const mapped: WhoCallsRow[] = rows.map((r) => ({
       caller: r.caller,
       file: r.file ?? "",
       line: r.line ?? 0,
       kind: r.kind ?? "",
       predicate: r.predicate ?? "",
+      target_canonical: r.target_canonical,
     }));
     return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
   } finally {
@@ -298,38 +349,32 @@ export interface BlastNode { file: string; depth: number }
 export function blastRadius(storePath: string, symbol: string, depth = 8): { root: string; depth: number; nodes: BlastNode[] } {
   const db = openTypedStore(storePath);
   try {
-    const files = db.query(
-      "SELECT DISTINCT file FROM typed_nodes WHERE label = ? AND superseded_run IS NULL AND file IS NOT NULL",
-    ).all(symbol) as { file: string }[];
-    if (files.length === 0) return { root: symbol, depth: 0, nodes: [] };
-    const seen = new Set<string>();
-    const nodes: BlastNode[] = [];
-    let maxDepth = 0;
-    for (const f of files) {
-      const rows = db.query(
-        `WITH RECURSIVE blast(file, depth) AS (
-           SELECT ?, 0
-           UNION
-           SELECT src.file, blast.depth + 1
-           FROM blast
-           CROSS JOIN typed_nodes dst ON dst.file = blast.file
-           CROSS JOIN typed_edges e ON e.dst_canonical = dst.canonical_id
-           CROSS JOIN typed_nodes src ON src.canonical_id = e.src_canonical
-           WHERE e.predicate IN ('calls', 'traces-to', 'imports')
-             AND e.superseded_run IS NULL
-             AND dst.superseded_run IS NULL AND src.superseded_run IS NULL
-             AND src.file IS NOT NULL
-             AND blast.depth < ?
-         )
-         SELECT file, MIN(depth) AS depth FROM blast WHERE depth > 0 GROUP BY file`,
-      ).all(f.file, depth) as BlastNode[];
-      for (const r of rows) {
-        if (seen.has(r.file)) continue;
-        seen.add(r.file);
-        nodes.push({ file: r.file, depth: Number(r.depth) });
-        if (Number(r.depth) > maxDepth) maxDepth = Number(r.depth);
-      }
-    }
+    // V21 W1+W5: the recursion walks CANONICAL IDS (identity-true), not files —
+    // the old per-file CROSS JOIN (nodes-by-file x all edges) was an O(V*E)
+    // fan-out AND conflated every same-label node sharing a file.
+    const ids = resolveLiveIds(db, symbol);
+    if (ids.length === 0) return { root: symbol, depth: 0, nodes: [] };
+    const rows = db.query(
+      `WITH RECURSIVE blast(cid, depth) AS (
+         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)})
+         UNION
+         SELECT src.canonical_id, blast.depth + 1
+         FROM blast
+         JOIN typed_edges e ON e.dst_canonical = blast.cid
+         JOIN typed_nodes src ON src.canonical_id = e.src_canonical
+         WHERE e.predicate IN ('calls', 'traces-to', 'imports')
+           AND e.superseded_run IS NULL
+           AND src.superseded_run IS NULL
+           AND blast.depth < ?
+       )
+       SELECT n.file AS file, MIN(blast.depth) AS depth
+       FROM blast
+       JOIN typed_nodes n ON n.canonical_id = blast.cid
+       WHERE blast.depth > 0 AND n.file IS NOT NULL
+       GROUP BY n.file`,
+    ).all(...ids, depth) as BlastNode[];
+    const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
+    const maxDepth = nodes.reduce((m, n) => (n.depth > m ? n.depth : m), 0);
     return { root: symbol, depth: maxDepth, nodes };
   } finally {
     db.close();
@@ -385,12 +430,12 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
       "SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
     ).all(to) as { label: string }[];
     const toSet = new Set(targets.map((r) => r.label));
-    const visited = new Set<string>();
+    // V21 W4: visited marked on ENQUEUE — the dequeue-mark variant pushed the
+    // same id once per inbound edge (exponential churn on dense graphs).
+    const visited = new Set<string>(starts.map((s) => s.canonical_id));
     const queue: Array<{ id: string; steps: ChainStep[] }> = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
     while (queue.length > 0 && queue[0].steps.length < maxDepth) {
       const cur = queue.shift()!;
-      if (visited.has(cur.id)) continue;
-      visited.add(cur.id);
       const out = db.query(
         `SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                 dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
@@ -410,7 +455,10 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
         if (toSet.has(e.dst_label) && !(from === to && cur.steps.length === 0)) {
           return [...cur.steps, step];
         }
-        queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+        if (!visited.has(e.dst_id)) {
+          visited.add(e.dst_id);
+          queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+        }
       }
     }
     return [];
@@ -448,8 +496,14 @@ export function unwiredNodes(storePath: string): UnwiredRow[] {
            WHERE e.dst_canonical = n.canonical_id
              AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
          )`,
-    ).all() as { name: string; file: string; line: number; kind: string }[];
-    return rows.map((r) => ({ name: r.name, file: r.file ?? "", line: r.line ?? 0, status: "UNWIRED" as const, kind: r.kind ?? "" }));
+    ).all() as { name: string; file: string; line: number | null; kind: string }[];
+    return rows.map((r) => {
+      // V21 W9: no invented anchors — a lineless unwired row is a named defect.
+      if (r.line === null || r.line === undefined) {
+        throw new Error(`LINELESS_NODE: unwired row ${r.name} (${r.file ?? "?"}) has no line`);
+      }
+      return { name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED" as const, kind: r.kind ?? "" };
+    });
   } finally {
     db.close();
   }
@@ -476,30 +530,33 @@ export function impact(storePath: string, symbol: string, depth = 8): ImpactResu
   try {
     const ledger: ImpactLedgerRow[] = [];
     const seen = new Set<string>();
-    // H09 (qwen 33d64eca): seed seen with the start symbol's canonical_ids
-    // BEFORE the loop — on a cycle (A calls B, B calls A) the start node must
-    // never ledger itself as its own upstream caller.
-    const startSeeds = db.query(
-      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
-    ).all(symbol) as Array<{ canonical_id: string }>;
-    for (const seed of startSeeds) seen.add(seed.canonical_id);
-    let frontier: string[] = [symbol];
+    // V21 W1: the frontier carries CANONICAL IDS, never labels — same-label
+    // functions are distinct identities. Start ids are seeded BEFORE the loop
+    // (a cycle can never ledger the start as its own caller).
+    const startIds = resolveLiveIds(db, symbol);
+    if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
+    for (const id of startIds) seen.add(id);
+    let frontier: string[] = startIds;
     for (let d = 1; d <= depth && frontier.length > 0; d++) {
       const next: string[] = [];
-      for (const label of frontier) {
+      for (let i = 0; i < frontier.length; i += 64) {
+        const chunk = frontier.slice(i, i + 64);
         const callers = db.query(
           `SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
            FROM typed_edges e
-           JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
            JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-           WHERE e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-             AND dst.superseded_run IS NULL AND src.superseded_run IS NULL`,
-        ).all(label) as Array<{ id: string; caller: string; file: string | null; line: number | null; predicate: string }>;
+           WHERE e.dst_canonical IN (${ph(chunk.length)})
+             AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+             AND src.superseded_run IS NULL`,
+        ).all(...chunk) as Array<{ id: string; caller: string; file: string | null; line: number | null; predicate: string }>;
         for (const c of callers) {
+          // W4: mark visited on ENQUEUE — dequeue-marking re-enqueues the same
+          // id once per inbound edge before it is first expanded (exponential
+          // on dense/cyclic graphs).
           if (seen.has(c.id)) continue;
           seen.add(c.id);
           ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
-          next.push(c.caller);
+          next.push(c.id);
         }
       }
       frontier = next;

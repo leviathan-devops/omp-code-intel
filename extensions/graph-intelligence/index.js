@@ -8532,14 +8532,19 @@ function makeCappedGrepTool(targetRoot) {
       const maxResults = Math.min(typeof params.maxResults === "number" ? params.maxResults : GREP_CAP, GREP_CAP);
       const run = (cmd, args) => new Promise((resolve) => {
         execFile(cmd, args, { timeout: 1e4, maxBuffer: 2000000 }, (err, stdout) => {
-          if (err)
-            return resolve(`SEARCH_FAILED: ${String(err.message).slice(0, 160)}${stdout ? " | partial: " + String(stdout).slice(0, 400) : ""}`);
+          if (err) {
+            const code = err.code;
+            const msg = String(err.message);
+            if (code === 1 && !stdout)
+              return resolve("(no matches)");
+            return resolve(`SEARCH_FAILED: ${msg.slice(0, 160)}${stdout ? " | partial: " + String(stdout).slice(0, 400) : ""}`);
+          }
           resolve(String(stdout));
         });
       });
-      let out = await run("rg", ["-n", "--max-count", String(maxResults), pattern, targetRoot]);
+      let out = await run("rg", ["-n", "--max-count", String(maxResults), "--", pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
       }
       if (out.startsWith("SEARCH_FAILED"))
         return out;
@@ -8829,48 +8834,107 @@ async function sweep(template, graph, targetRoot, belt, calls) {
     const adj = new Map;
     for (const e of graph.edges)
       adj.set(e.src, [...adj.get(e.src) ?? [], e.dst]);
+    const selfLoop = new Set;
+    for (const e of graph.edges)
+      if (e.src === e.dst)
+        selfLoop.add(e.src);
+    const index = new Map;
+    const low = new Map;
+    const onStack = new Set;
+    const sccStack = [];
+    const sccs = [];
+    let counter = 0;
+    for (const seed of graph.nodes) {
+      if (index.has(seed.id))
+        continue;
+      const stack = [{ id: seed.id, it: 0 }];
+      while (stack.length > 0) {
+        const top = stack[stack.length - 1];
+        if (top.it === 0) {
+          index.set(top.id, counter);
+          low.set(top.id, counter);
+          counter += 1;
+          sccStack.push(top.id);
+          onStack.add(top.id);
+        }
+        const nbs = adj.get(top.id) ?? [];
+        if (top.it < nbs.length) {
+          const nb = nbs[top.it++];
+          if (!index.has(nb)) {
+            stack.push({ id: nb, it: 0 });
+          } else if (onStack.has(nb)) {
+            low.set(top.id, Math.min(low.get(top.id), index.get(nb)));
+          }
+        } else {
+          stack.pop();
+          if (stack.length > 0) {
+            const parent = stack[stack.length - 1];
+            low.set(parent.id, Math.min(low.get(parent.id), low.get(top.id)));
+          }
+          if (low.get(top.id) === index.get(top.id)) {
+            const comp = [];
+            for (;; ) {
+              const w = sccStack.pop();
+              onStack.delete(w);
+              comp.push(w);
+              if (w === top.id)
+                break;
+            }
+            if (comp.length > 1 || comp.length === 1 && selfLoop.has(comp[0]))
+              sccs.push(comp);
+          }
+        }
+      }
+    }
+    if (sccs.length === 0) {
+      return [confirmedEmpty(anchor, template.layerId, `Tarjan SCC over ${graph.nodes.length} nodes/${graph.edges.length} edges found no directed cycle`, firstNodeFile)];
+    }
     const cycles = [];
-    const visited = new Set;
-    {
-      const stack = [];
-      const onStack = new Set;
-      const path = [];
-      for (const seed of graph.nodes) {
-        if (cycles.length >= 3)
+    const CYCLE_CAP = 3;
+    for (const comp of sccs) {
+      if (cycles.length >= CYCLE_CAP)
+        break;
+      const compSet = new Set(comp);
+      const compAdj = new Map;
+      for (const n of comp)
+        compAdj.set(n, (adj.get(n) ?? []).filter((d) => compSet.has(d)));
+      const localVisited = new Set;
+      for (const seedOfComp of comp) {
+        if (cycles.length >= CYCLE_CAP)
           break;
-        if (visited.has(seed.id))
+        if (localVisited.has(seedOfComp))
           continue;
-        stack.push({ id: seed.id, it: 0 });
-        while (stack.length > 0 && cycles.length < 3) {
+        const stack = [{ id: seedOfComp, it: 0 }];
+        const path = [];
+        const onS = new Set;
+        while (stack.length > 0 && cycles.length < CYCLE_CAP) {
           const top = stack[stack.length - 1];
           if (top.it === 0) {
-            if (visited.has(top.id)) {
+            if (localVisited.has(top.id)) {
               stack.pop();
               continue;
             }
-            visited.add(top.id);
+            localVisited.add(top.id);
             path.push(top.id);
-            onStack.add(top.id);
+            onS.add(top.id);
           }
-          const nbs = adj.get(top.id) ?? [];
+          const nbs = compAdj.get(top.id) ?? [];
           if (top.it < nbs.length) {
             const nb = nbs[top.it++];
-            if (!visited.has(nb))
+            if (!localVisited.has(nb))
               stack.push({ id: nb, it: 0 });
-            else if (onStack.has(nb))
+            else if (onS.has(nb))
               cycles.push([...path.slice(path.indexOf(nb)), nb]);
           } else {
             stack.pop();
-            onStack.delete(top.id);
+            onS.delete(top.id);
             path.pop();
           }
         }
       }
     }
-    if (cycles.length === 0) {
-      return [confirmedEmpty(anchor, template.layerId, `DFS over ${graph.nodes.length} nodes/${graph.edges.length} edges found no directed cycle`, firstNodeFile)];
-    }
-    return cycles.slice(0, 3).map((c) => {
+    const truncated = sccs.length > 0 && cycles.length >= CYCLE_CAP;
+    return cycles.slice(0, CYCLE_CAP).map((c) => {
       const head = graph.nodes.find((n) => n.id === c[0]);
       const rel = head ? nodeFile(targetRoot, head) : "";
       return {
@@ -8878,7 +8942,7 @@ async function sweep(template, graph, targetRoot, belt, calls) {
         predicate: "cycles.import",
         file: rel === "" ? firstNodeFile : rel,
         line: head ? nodeLine(head) ?? 1 : 1,
-        evidence: `cycle [${c.join(", ")}] verified in graph edge set (${c.length - 1} hops)`,
+        evidence: `cycle [${c.join(", ")}] verified in graph edge set (${c.length - 1} hops); SCC count ${sccs.length}${truncated ? ` \u2014 CAP ${CYCLE_CAP} reached, more cycles may exist` : ""}`,
         spec: `${template.layerId} audit \u2014 circular dependency (structural audit, no external spec clause)`,
         severity: "HIGH",
         confidence: 0.85
@@ -8894,6 +8958,8 @@ async function sweep(template, graph, targetRoot, belt, calls) {
     }
     const isolates = graph.nodes.filter((n) => (indeg.get(n.id) ?? 0) === 0 && (outdeg.get(n.id) ?? 0) === 0).slice(0, 25);
     const out = [];
+    let probeFailures = 0;
+    let probeFailureReason = "";
     for (const n of isolates) {
       const rel = nodeFile(targetRoot, n);
       if (rel === "" || /(^|\/)package\.json$/.test(rel))
@@ -8902,7 +8968,12 @@ async function sweep(template, graph, targetRoot, belt, calls) {
       const grepHit = await belt.grep.invoke({ pattern: n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), maxResults: 5 });
       calls.count += 1;
       calls.names.push("grep");
-      if (!grepHit.startsWith("(no matches)") && !grepHit.startsWith("SEARCH_FAILED") && !grepHit.startsWith("GREP_INVALID")) {
+      if (grepHit.startsWith("SEARCH_FAILED") || grepHit.startsWith("GREP_INVALID")) {
+        probeFailures += 1;
+        probeFailureReason = grepHit.slice(0, 120);
+        continue;
+      }
+      if (!grepHit.startsWith("(no matches)")) {
         continue;
       }
       out.push({
@@ -8917,6 +8988,9 @@ async function sweep(template, graph, targetRoot, belt, calls) {
       });
       if (out.length >= 3)
         break;
+    }
+    if (out.length === 0 && probeFailures > 0) {
+      return [confirmedEmpty(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason}) \u2014 no dead-code verdict possible from a failed sweep`, firstNodeFile)];
     }
     return out.length > 0 ? out : [confirmedEmpty(anchor, template.layerId, `in-degree/out-degree scan over ${graph.nodes.length} nodes + grep two-leg verification found no dead declarations`, firstNodeFile)];
   }
@@ -9420,13 +9494,21 @@ function openTypedStore(storePath) {
   return db;
 }
 function insertForkNodesBatch(db, nodes) {
+  if (db.inTransaction === false) {
+    throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
+  }
   for (const node of nodes) {
-    db.run("INSERT OR REPLACE INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [node.canonicalId, node.kind, node.label, node.file, node.line, node.run]);
+    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL", [node.run, node.canonicalId]);
+    db.run("INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [node.canonicalId, node.kind, node.label, node.file, node.line, node.run]);
   }
 }
 function insertForkEdgesBatch(db, edges) {
+  if (db.inTransaction === false) {
+    throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
+  }
   for (const edge of edges) {
-    db.run("INSERT OR REPLACE INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
+    db.run("UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL", [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate]);
+    db.run("INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
   }
 }
 function countTypedNodes(storePath) {
@@ -9438,21 +9520,33 @@ function countTypedNodes(storePath) {
     db.close();
   }
 }
+function resolveLiveIds(db, label) {
+  const rows = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(label);
+  return rows.map((r) => r.canonical_id);
+}
+function ph(n) {
+  return Array.from({ length: n }, () => "?").join(", ");
+}
 function whoCalls(storePath, name) {
   const db = openTypedStore(storePath);
   try {
-    const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line, e.predicate AS predicate
+    const ids = resolveLiveIds(db, name);
+    if (ids.length === 0)
+      return { rows: 0, names: [], callers: [] };
+    const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
+              e.predicate AS predicate, e.dst_canonical AS target_canonical
        FROM typed_edges e
-       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
        JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-       WHERE e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         AND dst.superseded_run IS NULL AND src.superseded_run IS NULL`).all(name);
+       WHERE e.dst_canonical IN (${ph(ids.length)})
+         AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+         AND src.superseded_run IS NULL`).all(...ids);
     const mapped = rows.map((r) => ({
       caller: r.caller,
       file: r.file ?? "",
       line: r.line ?? 0,
       kind: r.kind ?? "",
-      predicate: r.predicate ?? ""
+      predicate: r.predicate ?? "",
+      target_canonical: r.target_canonical
     }));
     return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
   } finally {
@@ -9462,37 +9556,28 @@ function whoCalls(storePath, name) {
 function blastRadius(storePath, symbol, depth = 8) {
   const db = openTypedStore(storePath);
   try {
-    const files = db.query("SELECT DISTINCT file FROM typed_nodes WHERE label = ? AND superseded_run IS NULL AND file IS NOT NULL").all(symbol);
-    if (files.length === 0)
+    const ids = resolveLiveIds(db, symbol);
+    if (ids.length === 0)
       return { root: symbol, depth: 0, nodes: [] };
-    const seen = new Set;
-    const nodes = [];
-    let maxDepth = 0;
-    for (const f of files) {
-      const rows = db.query(`WITH RECURSIVE blast(file, depth) AS (
-           SELECT ?, 0
-           UNION
-           SELECT src.file, blast.depth + 1
-           FROM blast
-           CROSS JOIN typed_nodes dst ON dst.file = blast.file
-           CROSS JOIN typed_edges e ON e.dst_canonical = dst.canonical_id
-           CROSS JOIN typed_nodes src ON src.canonical_id = e.src_canonical
-           WHERE e.predicate IN ('calls', 'traces-to', 'imports')
-             AND e.superseded_run IS NULL
-             AND dst.superseded_run IS NULL AND src.superseded_run IS NULL
-             AND src.file IS NOT NULL
-             AND blast.depth < ?
-         )
-         SELECT file, MIN(depth) AS depth FROM blast WHERE depth > 0 GROUP BY file`).all(f.file, depth);
-      for (const r of rows) {
-        if (seen.has(r.file))
-          continue;
-        seen.add(r.file);
-        nodes.push({ file: r.file, depth: Number(r.depth) });
-        if (Number(r.depth) > maxDepth)
-          maxDepth = Number(r.depth);
-      }
-    }
+    const rows = db.query(`WITH RECURSIVE blast(cid, depth) AS (
+         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)})
+         UNION
+         SELECT src.canonical_id, blast.depth + 1
+         FROM blast
+         JOIN typed_edges e ON e.dst_canonical = blast.cid
+         JOIN typed_nodes src ON src.canonical_id = e.src_canonical
+         WHERE e.predicate IN ('calls', 'traces-to', 'imports')
+           AND e.superseded_run IS NULL
+           AND src.superseded_run IS NULL
+           AND blast.depth < ?
+       )
+       SELECT n.file AS file, MIN(blast.depth) AS depth
+       FROM blast
+       JOIN typed_nodes n ON n.canonical_id = blast.cid
+       WHERE blast.depth > 0 AND n.file IS NOT NULL
+       GROUP BY n.file`).all(...ids, depth);
+    const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
+    const maxDepth = nodes.reduce((m, n) => n.depth > m ? n.depth : m, 0);
     return { root: symbol, depth: maxDepth, nodes };
   } finally {
     db.close();
@@ -9524,13 +9609,10 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
     const starts = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(from);
     const targets = db.query("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to);
     const toSet = new Set(targets.map((r) => r.label));
-    const visited = new Set;
+    const visited = new Set(starts.map((s) => s.canonical_id));
     const queue = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
     while (queue.length > 0 && queue[0].steps.length < maxDepth) {
       const cur = queue.shift();
-      if (visited.has(cur.id))
-        continue;
-      visited.add(cur.id);
       const out = db.query(`SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                 dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
          FROM typed_edges e
@@ -9548,7 +9630,10 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
         if (toSet.has(e.dst_label) && !(from === to && cur.steps.length === 0)) {
           return [...cur.steps, step];
         }
-        queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+        if (!visited.has(e.dst_id)) {
+          visited.add(e.dst_id);
+          queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+        }
       }
     }
     return [];
@@ -9568,7 +9653,12 @@ function unwiredNodes(storePath) {
            WHERE e.dst_canonical = n.canonical_id
              AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
          )`).all();
-    return rows.map((r) => ({ name: r.name, file: r.file ?? "", line: r.line ?? 0, status: "UNWIRED", kind: r.kind ?? "" }));
+    return rows.map((r) => {
+      if (r.line === null || r.line === undefined) {
+        throw new Error(`LINELESS_NODE: unwired row ${r.name} (${r.file ?? "?"}) has no line`);
+      }
+      return { name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED", kind: r.kind ?? "" };
+    });
   } finally {
     db.close();
   }
@@ -9578,25 +9668,28 @@ function impact(storePath, symbol, depth = 8) {
   try {
     const ledger = [];
     const seen = new Set;
-    const startSeeds = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(symbol);
-    for (const seed of startSeeds)
-      seen.add(seed.canonical_id);
-    let frontier = [symbol];
+    const startIds = resolveLiveIds(db, symbol);
+    if (startIds.length === 0)
+      return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
+    for (const id of startIds)
+      seen.add(id);
+    let frontier = startIds;
     for (let d = 1;d <= depth && frontier.length > 0; d++) {
       const next = [];
-      for (const label of frontier) {
+      for (let i = 0;i < frontier.length; i += 64) {
+        const chunk = frontier.slice(i, i + 64);
         const callers = db.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
            FROM typed_edges e
-           JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
            JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-           WHERE e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-             AND dst.superseded_run IS NULL AND src.superseded_run IS NULL`).all(label);
+           WHERE e.dst_canonical IN (${ph(chunk.length)})
+             AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+             AND src.superseded_run IS NULL`).all(...chunk);
         for (const c of callers) {
           if (seen.has(c.id))
             continue;
           seen.add(c.id);
           ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
-          next.push(c.caller);
+          next.push(c.id);
         }
       }
       frontier = next;
@@ -10683,9 +10776,9 @@ function loadGraphifyFileSync(graphPath) {
       throw e;
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed \u2014 ${e instanceof Error ? e.message : String(e)}`);
   }
-  return normalizeGraphifyGraph(raw);
+  return normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
 }
-function normalizeGraphifyGraph(raw) {
+function normalizeGraphifyGraph(raw, opts) {
   const rawNodes = Array.isArray(raw["nodes"]) ? raw["nodes"] : [];
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] : Array.isArray(raw["edges"]) ? raw["edges"] : [];
   const rawLinks = rawLinkSrc;
@@ -10738,6 +10831,30 @@ function normalizeGraphifyGraph(raw) {
     if (members.length === 0)
       continue;
     communities.push({ id: String(cid), label: `Community ${cid}`, members, size: members.length });
+  }
+  if (opts?.root) {
+    const rootReal = (() => {
+      try {
+        return fs7.realpathSync(opts.root);
+      } catch {
+        return opts.root;
+      }
+    })();
+    for (const n of nodes) {
+      const f = n.file;
+      if (f.length === 0)
+        continue;
+      const abs = path8.isAbsolute(f) ? f : path8.resolve(rootReal, f);
+      let real = abs;
+      try {
+        real = fs7.realpathSync(abs);
+      } catch {}
+      const rel = path8.relative(rootReal, real);
+      if (rel.startsWith("..") || path8.isAbsolute(rel))
+        n.file = "";
+      else
+        n.file = rel.split(path8.sep).join("/");
+    }
   }
   const degree = new Map;
   for (const e of edges) {
@@ -11049,7 +11166,7 @@ class GraphifyAdapter {
         throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const graph = normalizeGraphifyGraph(raw);
+    const graph = normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
     if (graph.nodes.length === 0) {
       throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
     }
@@ -11200,7 +11317,12 @@ class GraphifyAdapter {
   unwired() {
     this.ensureBuilt();
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
-    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id)).map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line }));
+    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id)).map((n) => {
+      if (n.line === undefined || n.line === null) {
+        throw new Error(`LINELESS_NODE: unwired row ${n.id} has no line (run graphify extract with source mapping, or drop the row)`);
+      }
+      return { id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line };
+    });
   }
   nodes(kind) {
     this.ensureBuilt();
@@ -11377,6 +11499,16 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   }
   if (rows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
+  }
+  let stAfter = null;
+  try {
+    stAfter = fs9.statSync(warmPath);
+  } catch {
+    stAfter = null;
+  }
+  const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
+  if (!freshnessAfter.fresh || stAfter !== null && stAfter.mtimeMs !== fs9.statSync(warmPath).mtimeMs) {
+    return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   const nodeRows = rows.map((r) => ({
     canonicalId: r.canonical_id,
@@ -15594,9 +15726,20 @@ function createBugHuntTool(pi, opts) {
         if (countTypedNodes(opened.storePath) === 0) {
           populateSessionStore(opened.storePath, scopeRoot);
         }
-        const u = unwiredNodes(opened.storePath);
+        let u = [];
+        let linelessNote = "";
+        try {
+          u = unwiredNodes(opened.storePath);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg.includes("LINELESS_NODE")) {
+            linelessNote = ` store-note=${msg.slice(0, 120)}`;
+          } else {
+            throw e;
+          }
+        }
         const fixOrder = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`);
-        return textResult(`state=done findingsCount=${u.length} fixOrderCount=${fixOrder.length}`, {
+        return textResult(`state=done findingsCount=${u.length} fixOrderCount=${fixOrder.length}${linelessNote}`, {
           ok: true,
           state: "done",
           findingsCount: u.length,

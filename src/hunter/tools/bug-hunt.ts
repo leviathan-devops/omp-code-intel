@@ -187,9 +187,23 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
         if (countTypedNodes(opened.storePath) === 0) {
           populateSessionStore(opened.storePath, scopeRoot);
         }
-        const u = unwiredNodes(opened.storePath);
+        // V21 W9: a legacy store with lineless rows refuses loudly (LINELESS_NODE)
+        // — status surfaces that as a named store-health note, never a fabricated
+        // line and never a silent drop.
+        let u: ReturnType<typeof unwiredNodes> = [];
+        let linelessNote = "";
+        try {
+          u = unwiredNodes(opened.storePath);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (msg.includes("LINELESS_NODE")) {
+            linelessNote = ` store-note=${msg.slice(0, 120)}`;
+          } else {
+            throw e;
+          }
+        }
         const fixOrder = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`);
-        return textResult(`state=done findingsCount=${u.length} fixOrderCount=${fixOrder.length}`, {
+        return textResult(`state=done findingsCount=${u.length} fixOrderCount=${fixOrder.length}${linelessNote}`, {
           ok: true,
           state: "done",
           findingsCount: u.length,

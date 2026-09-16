@@ -92,10 +92,14 @@ export function sanitizeSessionScope(sessionId: string): string {
   return sessionId.trim().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64) || 'default';
 }
 
+// V21 W10 (identity of the pool): ONE machine-wide DB — the session-pinned
+// shard is GONE. The header contract ("a key a sibling proved rate-limited is
+// skipped by everyone") is now true by construction; sessionId args remain in
+// signatures for compatibility but no longer change the store location.
 export function goPoolDbFile(sessionId?: string): string {
+  void sessionId;
   if (process.env.GO_POOL_DB) return process.env.GO_POOL_DB;
   if (process.env.BUN_TEST) return path.join(os.tmpdir(), 'go-key-pool-test.sqlite');
-  if (sessionId) return path.join(os.tmpdir(), 'go-key-pool.' + sanitizeSessionScope(sessionId) + '.sqlite');
   return path.join(os.tmpdir(), '.go-key-pool.sqlite');
 }
 
@@ -124,6 +128,7 @@ function db(sessionId?: string): Database {
     }
   }
   const fresh = new Database(want, { create: true });
+  try { fs.chmodSync(want, 0o600); } catch (_umask) { /* fs may already restrict */ }
   try {
     fresh.exec('PRAGMA journal_mode = WAL;');
     fresh.exec('PRAGMA busy_timeout = 5000;');
@@ -171,23 +176,29 @@ export function goKeyDead(idx: number, now: number = Date.now(), sessionId?: str
 // a decision system — the provider's window name arrives as prose and there
 // is nothing structural to match on. The decision is the comparison in
 // goKeyDead — timestamp > now. A PatternFamily/AST here would be ceremony.)
+const GO_WINDOW_MIN_MS = 60_000;
+const GO_WINDOW_MAX_MS = 30 * 24 * 3_600_000;
+
 export function parseGoWindowMs(err: string): number {
   // THE PRECISE SIGNAL FIRST (live-proven 2026-08-30: GoUsageLimitError says
   // "Weekly usage limit reached. Resets in 14hr 37min" — the reset time IS
-  // the actual timeout; the keyword class is the fallback, never the leader):
-  const resetHrMin = err.match(/resets? in\s*(\d+)\s*hr(?:\s*(\d+)\s*min)?/i);
-  if (resetHrMin) return (Number(resetHrMin[1]) * 60 + Number(resetHrMin[2] ?? '0')) * 60_000;
+  // the actual timeout; the keyword class is the fallback, never the leader).
+  // V21 W10: hr-dialect coverage (hours/hrs/h) + EVERY return clamped to
+  // [1 minute, 30 days] — never a sub-minute hot-cycle, never a lost key.
+  const clamp = (ms: number): number => Math.min(Math.max(ms, GO_WINDOW_MIN_MS), GO_WINDOW_MAX_MS);
+  const resetHrMin = err.match(/resets? in\s*(\d+)\s*(?:hours?|hrs?|h)\b(?:\s*(\d+)\s*min)?/i);
+  if (resetHrMin) return clamp((Number(resetHrMin[1]) * 60 + Number(resetHrMin[2] ?? '0')) * 60_000);
   const resetMin = err.match(/resets? in\s*(\d+)\s*min(?!\s*hour)/i);
-  if (resetMin) return Number(resetMin[1]) * 60_000;
+  if (resetMin) return clamp(Number(resetMin[1]) * 60_000);
   const resetSec = err.match(/resets? in\s*(\d+)\s*(?:sec|secs|second|s)\b/i);
-  if (resetSec) return Number(resetSec[1]) * 1000;
+  if (resetSec) return clamp(Number(resetSec[1]) * 1000);
   const resetDays = err.match(/resets? in\s*(\d+)\s*days?/i);
-  if (resetDays) return Number(resetDays[1]) * 24 * 3_600_000;
-  if (/\b5\s*-?\s*hours?\b|\bhourly\b/i.test(err)) return 5 * 3_600_000;
-  if (/\bdaily\b|\bper[-\s]?day\b/i.test(err)) return 24 * 3_600_000;
-  if (/\bweekly\b|\bper[-\s]?week\b/i.test(err)) return 7 * 24 * 3_600_000;
-  if (/\bmonthly\b|\bper[-\s]?month\b/i.test(err)) return 30 * 24 * 3_600_000;
-  return 3_600_000; // unknown 429 → re-probe in 1h (re-arms longer on the next window name)
+  if (resetDays) return clamp(Number(resetDays[1]) * 24 * 3_600_000);
+  if (/\b5\s*-?\s*hours?\b|\bhourly\b/i.test(err)) return clamp(5 * 3_600_000);
+  if (/\bdaily\b|\bper[-\s]?day\b/i.test(err)) return clamp(24 * 3_600_000);
+  if (/\bweekly\b|\bper[-\s]?week\b/i.test(err)) return clamp(7 * 24 * 3_600_000);
+  if (/\bmonthly\b|\bper[-\s]?month\b/i.test(err)) return clamp(30 * 24 * 3_600_000);
+  return clamp(3_600_000); // unknown 429 → re-probe in 1h (re-arms longer on the next window name)
 }
 
 // H19 (qwen 33d64eca): key material must never hit the (world-readable) tmp
@@ -196,7 +207,10 @@ export function redactKeyMaterial(err: string): string {
   return String(err ?? "")
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-[REDACTED]')
     .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, 'Bearer [REDACTED]')
-    .replace(/(x-?api-key\s*[:=]\s*)\S+/gi, '$1[REDACTED]');
+    .replace(/(x-?api-key\s*[:=]\s*)\S+/gi, '$1[REDACTED]')
+    // V21 W10: JSON/header key shapes the first pass missed.
+    .replace(/"(?:api_?key|token|authorization)\s*"\s*:\s*"[^"]{6,}"/gi, '"api_key":"[REDACTED]"')
+    .replace(/(api_?key|token)\s*[:=]\s*[A-Za-z0-9._-]{8,}/gi, '$1=[REDACTED]');
 }
 
 // THE DEAD-MARK — persists the window + the REASON (the 300-char error slice)
@@ -249,13 +263,13 @@ export type GoErrorClass = 'quota' | 'rejected' | 'contract' | 'other' | 'server
 
 export function classifyGoError(err: string): GoErrorClass {
   const e = String(err ?? '');
+  // V21 W10: ORDERED classifier — server (500-504) BEFORE quota, so a 503
+  // body containing "overloaded" can never exile a key as quota; 529 stays
+  // quota (capacity window); no regex overlap remains between classes.
   if (/MissingSessionID/i.test(e)) return 'contract';
-  // H18 (qwen 33d64eca): explicit quota signals ONLY — the old \b5\d\d\b
-  // bucketed every 500/502/503 (and stack-trace line numbers) as 1h+ exile.
-  // 5xx is a TRANSIENT provider fault: classify 'server' → short re-probe,
-  // never a dead-mark from parseGoWindowMs's window names.
-  if (/GoUsageLimitError|usage limit|quota|rate limit|overloaded|\b429\b|\b402\b|\b529\b/i.test(e)) return 'quota';
-  if (/\b50[0-4]\b|\b52[0-9]\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(e)) return 'server';
+  if (/\b50[0-4]\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(e)) return 'server';
+  if (/GoUsageLimitError|usage limit|quota|rate limit|\b429\b|\b402\b|\b529\b/i.test(e)) return 'quota';
+  if (/overloaded/i.test(e)) return 'quota';
   if (/\b401\b|\b403\b|invalid_api_key|invalid x-api-key|unauthorized/i.test(e)) return 'rejected';
   return 'other';
 }

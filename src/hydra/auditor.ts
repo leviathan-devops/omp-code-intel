@@ -138,13 +138,22 @@ function makeCappedGrepTool(targetRoot: string): MissionTool {
       const run = (cmd: string, args: string[]): Promise<string> =>
         new Promise((resolve) => {
           execFile(cmd, args, { timeout: 10_000, maxBuffer: 2_000_000 }, (err, stdout) => {
-            if (err) return resolve(`SEARCH_FAILED: ${String((err as Error).message).slice(0, 160)}${stdout ? " | partial: " + String(stdout).slice(0, 400) : ""}`);
+            if (err) {
+              const code = (err as { code?: number }).code;
+              const msg = String((err as Error).message);
+              // V21 W8: rg/grep exit 1 with empty stdout = NO MATCHES (a normal
+              // answer), never a tool failure. Real failures keep the loud token.
+              if (code === 1 && !stdout) return resolve("(no matches)");
+              return resolve(`SEARCH_FAILED: ${msg.slice(0, 160)}${stdout ? " | partial: " + String(stdout).slice(0, 400) : ""}`);
+            }
             resolve(String(stdout));
           });
         });
-      let out = await run("rg", ["-n", "--max-count", String(maxResults), pattern, targetRoot]);
+      // V21 W6: `--` terminates flag parsing — a leading-dash pattern can no
+      // longer inject rg/grep flags.
+      let out = await run("rg", ["-n", "--max-count", String(maxResults), "--", pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
       }
       if (out.startsWith("SEARCH_FAILED")) return out;
       if (out.trim().length === 0) return "(no matches)";
@@ -465,44 +474,98 @@ async function sweep(
   }
 
   if (anchor === "cycles") {
-    // Mandate-true: ordered import/dependency cycles length>=2, verified against the edge set.
+    // V21 W7: Tarjan SCC first — cycle DETECTION is complete (a global-visited
+    // DFS misses cycles that pass through nodes visited by an earlier seed).
+    // Every SCC with >1 node (or a self-loop) holds a cycle; per-SCC DFS then
+    // enumerates concrete cycle rows, capped at 3 WITH the cap disclosed.
     const adj = new Map<string, string[]>();
     for (const e of graph.edges) adj.set(e.src, [...(adj.get(e.src) ?? []), e.dst]);
+    const selfLoop = new Set<string>();
+    for (const e of graph.edges) if (e.src === e.dst) selfLoop.add(e.src);
+    // Tarjan (iterative)
+    const index = new Map<string, number>();
+    const low = new Map<string, number>();
+    const onStack = new Set<string>();
+    const sccStack: string[] = [];
+    const sccs: string[][] = [];
+    let counter = 0;
+    for (const seed of graph.nodes) {
+      if (index.has(seed.id)) continue;
+      const stack: Array<{ id: string; it: number }> = [{ id: seed.id, it: 0 }];
+      while (stack.length > 0) {
+        const top = stack[stack.length - 1]!;
+        if (top.it === 0) {
+          index.set(top.id, counter); low.set(top.id, counter); counter += 1;
+          sccStack.push(top.id); onStack.add(top.id);
+        }
+        const nbs = adj.get(top.id) ?? [];
+        if (top.it < nbs.length) {
+          const nb = nbs[top.it++]!;
+          if (!index.has(nb)) {
+            stack.push({ id: nb, it: 0 });
+          } else if (onStack.has(nb)) {
+            low.set(top.id, Math.min(low.get(top.id)!, index.get(nb)!));
+          }
+        } else {
+          stack.pop();
+          if (stack.length > 0) {
+            const parent = stack[stack.length - 1]!;
+            low.set(parent.id, Math.min(low.get(parent.id)!, low.get(top.id)!));
+          }
+          if (low.get(top.id) === index.get(top.id)) {
+            const comp: string[] = [];
+            for (;;) {
+              const w = sccStack.pop()!;
+              onStack.delete(w);
+              comp.push(w);
+              if (w === top.id) break;
+            }
+            if (comp.length > 1 || (comp.length === 1 && selfLoop.has(comp[0]!))) sccs.push(comp);
+          }
+        }
+      }
+    }
+    if (sccs.length === 0) {
+      return [confirmedEmpty(anchor, template.layerId, `Tarjan SCC over ${graph.nodes.length} nodes/${graph.edges.length} edges found no directed cycle`, firstNodeFile)];
+    }
+    // Per-SCC concrete enumeration (bounded, inside the SCC only)
     const cycles: string[][] = [];
-    const visited = new Set<string>();
-    {
-      const stack: Array<{ id: string; it: number }> = [];
-      const onStack = new Set<string>();
-      const path: string[] = [];
-      for (const seed of graph.nodes) {
-        if (cycles.length >= 3) break;
-        if (visited.has(seed.id)) continue;
-        stack.push({ id: seed.id, it: 0 });
-        while (stack.length > 0 && cycles.length < 3) {
+    const CYCLE_CAP = 3;
+    for (const comp of sccs) {
+      if (cycles.length >= CYCLE_CAP) break;
+      const compSet = new Set(comp);
+      const compAdj = new Map<string, string[]>();
+      for (const n of comp) compAdj.set(n, (adj.get(n) ?? []).filter((d) => compSet.has(d)));
+      const localVisited = new Set<string>();
+      for (const seedOfComp of comp) {
+        if (cycles.length >= CYCLE_CAP) break;
+        if (localVisited.has(seedOfComp)) continue;
+        const stack: Array<{ id: string; it: number }> = [{ id: seedOfComp, it: 0 }];
+        const path: string[] = [];
+        const onS = new Set<string>();
+        while (stack.length > 0 && cycles.length < CYCLE_CAP) {
           const top = stack[stack.length - 1]!;
           if (top.it === 0) {
-            if (visited.has(top.id)) { stack.pop(); continue; }
-            visited.add(top.id);
+            if (localVisited.has(top.id)) { stack.pop(); continue; }
+            localVisited.add(top.id);
             path.push(top.id);
-            onStack.add(top.id);
+            onS.add(top.id);
           }
-          const nbs = adj.get(top.id) ?? [];
+          const nbs = compAdj.get(top.id) ?? [];
           if (top.it < nbs.length) {
             const nb = nbs[top.it++]!;
-            if (!visited.has(nb)) stack.push({ id: nb, it: 0 });
-            else if (onStack.has(nb)) cycles.push([...path.slice(path.indexOf(nb)), nb]);
+            if (!localVisited.has(nb)) stack.push({ id: nb, it: 0 });
+            else if (onS.has(nb)) cycles.push([...path.slice(path.indexOf(nb)), nb]);
           } else {
             stack.pop();
-            onStack.delete(top.id);
+            onS.delete(top.id);
             path.pop();
           }
         }
       }
     }
-    if (cycles.length === 0) {
-      return [confirmedEmpty(anchor, template.layerId, `DFS over ${graph.nodes.length} nodes/${graph.edges.length} edges found no directed cycle`, firstNodeFile)];
-    }
-    return cycles.slice(0, 3).map((c) => {
+    const truncated = sccs.length > 0 && cycles.length >= CYCLE_CAP;
+    return cycles.slice(0, CYCLE_CAP).map((c) => {
       const head = graph.nodes.find((n) => n.id === c[0]);
       const rel = head ? nodeFile(targetRoot, head) : "";
       return {
@@ -510,7 +573,7 @@ async function sweep(
         predicate: "cycles.import",
         file: rel === "" ? firstNodeFile : rel,
         line: head ? (nodeLine(head) ?? 1) : 1,
-        evidence: `cycle [${c.join(", ")}] verified in graph edge set (${c.length - 1} hops)`,
+        evidence: `cycle [${c.join(", ")}] verified in graph edge set (${c.length - 1} hops); SCC count ${sccs.length}${truncated ? ` — CAP ${CYCLE_CAP} reached, more cycles may exist` : ""}`,
         spec: `${template.layerId} audit — circular dependency (structural audit, no external spec clause)`,
         severity: "HIGH" as const,
         confidence: 0.85,
@@ -528,6 +591,8 @@ async function sweep(
     }
     const isolates = graph.nodes.filter((n) => (indeg.get(n.id) ?? 0) === 0 && (outdeg.get(n.id) ?? 0) === 0).slice(0, 25);
     const out: SweptCandidate[] = [];
+    let probeFailures = 0;
+    let probeFailureReason = "";
     for (const n of isolates) {
       const rel = nodeFile(targetRoot, n);
       if (rel === "" || /(^|\/)package\.json$/.test(rel)) continue;
@@ -535,7 +600,15 @@ async function sweep(
       const grepHit = await belt.grep.invoke({ pattern: n.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), maxResults: 5 });
       calls.count += 1;
       calls.names.push("grep");
-      if (!grepHit.startsWith("(no matches)") && !grepHit.startsWith("SEARCH_FAILED") && !grepHit.startsWith("GREP_INVALID")) {
+      // V21 W8: infrastructure failure is LOUD — the node is skipped (no verdict
+      // either way) and the failure is remembered. A dead-code row may never be
+      // built on a failed probe, and a clean-empty may never hide one.
+      if (grepHit.startsWith("SEARCH_FAILED") || grepHit.startsWith("GREP_INVALID")) {
+        probeFailures += 1;
+        probeFailureReason = grepHit.slice(0, 120);
+        continue;
+      }
+      if (!grepHit.startsWith("(no matches)")) {
         continue; // grep confirms a consumer — RED_HERRING per calibration (namespace-import class)
       }
       out.push({
@@ -549,6 +622,11 @@ async function sweep(
         confidence: 0.8,
       });
       if (out.length >= 3) break;
+    }
+    if (out.length === 0 && probeFailures > 0) {
+      // Every skipped probe means the sweep is INCOMPLETE — a clean-empty here
+      // would be a silent-degrade lie. Name the infrastructure failure instead.
+      return [confirmedEmpty(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason}) — no dead-code verdict possible from a failed sweep`, firstNodeFile)];
     }
     return out.length > 0 ? out : [confirmedEmpty(anchor, template.layerId, `in-degree/out-degree scan over ${graph.nodes.length} nodes + grep two-leg verification found no dead declarations`, firstNodeFile)];
   }
