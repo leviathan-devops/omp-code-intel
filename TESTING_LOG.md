@@ -324,3 +324,18 @@ EXIT=0
 - **The verdict:** GATE: BLOCKED — BOTH providers down. Not FAIL, not PASS. Per gate law: BLOCKED, never "probably fine."
 - **The artifacts:** sessions `c0c02caa` + `b95b2014` (both failed); deterministic rule output above.
 - **The retry condition:** when either provider recovers (muse key alive OR laguna rate-limit clears), re-run `ocr scan --resume <session-id>` or fresh scan. The battery (128/0) and live legs (verified this turn) are the positive evidence; the scan is the outstanding gate input.
+
+## TEST RESULT — 2026-09-16 — v1.1 cycle 3 (FINAL): GATE BLOCKED — HARD BOUND REACHED
+
+### SCRIPT
+- **The run:** Cycle 3 scan (muse-pinned) → `context deadline exceeded` ×7. Session `faa4da3b`. 600s.
+- **The raw output:** `Error: scan failed: all 7 file scan(s) failed — check your LLM configuration and API key`.
+- **The verdict:** GATE: BLOCKED — **HARD BOUND REACHED (3/3 cycles)**. All three cycles (muse ×2, laguna ×1, muse ×1) blocked by provider infrastructure. No LLM verdict obtainable.
+- **The artifacts:** sessions `fd377ba5` (c1), `c0c02caa` (c2-muse), `b95b2014` (c2-laguna), `faa4da3b` (c3-final).
+
+## MORTALITY LEDGER — v1.1 hard-bound disposition
+- ALL 23 scan-VIII rows in populate/pool files: **FIXED-IN-SOURCE** (commits df3f582, c17f137, 3a21dc1; battery 128/0).
+- ALL scan-VIII rows in typed-write/adapter/extension/auditor: **FIXED-IN-SOURCE** (V21 lineage commits 18b7f35, 89bea7a, df3f582, c17f137; verified by battery 128/0 + live legs).
+- The wipe CRITICAL: **FIXED-DIFFERENTLY-SATISFYING-THE-FINDING** — gate moved inline per rebuild L6 (extension.ts boundary); the callee gate remains as defense-in-depth. The finding's design concern (guard invisible at surface) is resolved by the rebuild spec.
+- Remaining scan-row status: **UNSCANNED** — the provider infrastructure (muse muse-spark + laguna fallback) is DOWN across all 3 cycles (~30 minutes of scan attempts). The code fixes are committed and battery-verified; the LLM verdict is outstanding, not absent.
+- Retry: `ocr scan --path <7 files> --format json` when either provider recovers. Sessions for resume: `fd377ba5`, `c0c02caa`, `b95b2014`, `faa4da3b`.
