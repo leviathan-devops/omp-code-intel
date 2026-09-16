@@ -36,3 +36,10 @@ Date: 2026-09-16. Branch jarvis/gi-main @ f3442be. Follows gi-gatefail-pre-V20-e
 ## Next work (the ordered cleanup wave, operator order "clean up ALL pending findings")
 - Per-file: typed-write (safeDelete identity, txn-guard hardening) → populate-graphify (warm-wins exact-granularity, excludes threading, open-in-try, checkout per-table guard) → populate-corbell (real TOCTOU re-stat, single-stat law) → extension (layerId loud, confinement empty-target + ':' split, delegation ruleId, repopulate guard) → go-key-pool (snapshot single-read, dead-mark honesty, earliest-dead expiry, weeks/months dialects, overloaded class, stable key identity) → graphify-adapter (lineless skip+count, single containment root, collision-proof dedup + edge remap, readonly fix) → auditor (nodeFile traversal, two-leg failure loud, graph shape guard).
 - Then: full battery → rebuild both dists → deploy both rigs → TUI legs → ONE final frozen scan → the verdict, triaged honestly.
+
+## Save verification (this save)
+- SHAs: GI MATCH + trident MATCH (zero drift); rigs exec-verified on the same bytes this turn.
+- Secret scan: sk-pattern grep over the tree -> zero hits.
+- src 80/80 .ts; tests 20/20; dist both copies; canon single-doc recorded; ship docs 5/5; spec + migration + rework plan + CT artifact present.
+- Recovery: root ship docs -> SHIP_DOCS_MANIFEST -> BUILD V21 entry -> DEBUG EN-024 -> F-20 -> TESTING re-run III/IV/V/VI triage -> this manifest -> dist SHAs.
+- MODE B (mutable working snapshot, no chattr) — the cleanup wave commits on top of this lineage; the close-out checkpoint follows it.
