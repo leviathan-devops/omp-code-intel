@@ -56,6 +56,7 @@ var __esm = (fn, res, err) => () => {
     throw err[0];
   return res;
 };
+var __require = import.meta.require;
 
 // ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-dev.development.cjs.js
 var require_xstate_dev_development_cjs = __commonJS(function(exports) {
@@ -9148,7 +9149,7 @@ async function runTemplateAudit(args) {
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
     `- graphPath: ${path25.resolve(args.graphPath)}`,
-    `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${graph.godNodes.slice(0, 5).join(", ")}]`,
+    `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${graph.godNodes ?? [].slice(0, 5).join(", ")}]`,
     `- graphQueries: ${(template.graphQueries ?? []).join(" | ")}`,
     `- inputData: ${args.inputData ?? ""}`,
     "",
@@ -9627,8 +9628,9 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
     const toSet = new Set(targets.map((r) => r.label));
     const visited = new Set(starts.map((s) => s.canonical_id));
     const queue = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
-    while (queue.length > 0 && queue[0].steps.length < maxDepth) {
-      const cur = queue.shift();
+    let head = 0;
+    while (head < queue.length && queue[head].steps.length < maxDepth) {
+      const cur = queue[head++];
       const out = db.query(`SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                 dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
          FROM typed_edges e
@@ -11432,6 +11434,9 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
       stTarget = null;
     }
     if (stTarget?.isFile()) {
+      const base = path9.basename(target);
+      if (excludes.includes(base))
+        continue;
       if (stTarget.mtimeMs > newest)
         newest = stTarget.mtimeMs;
       filesSeen += 1;
@@ -11444,19 +11449,73 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     return { fresh: false, reason: "stale-unscooped" };
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
+  const hashPath = graphPath.replace(/\.json$/, ".graph_hash");
   let storedHash = null;
   try {
-    const gc = fs8.readFileSync(graphPath, "utf8");
-    const gp = JSON.parse(gc);
-    if (gp.graph_hash)
-      storedHash = gp.graph_hash;
-  } catch {}
-  if (storedHash !== null && newest > warmMtime) {
-    return { fresh: false, reason: "stale" };
+    storedHash = fs8.readFileSync(hashPath, "utf8").trim() || null;
+  } catch (readErr) {
+    console.log(`[gi-omp] freshness: no hash sidecar at ${hashPath} (${readErr instanceof Error ? readErr.message.slice(0, 40) : "read error"})`);
+  }
+  if (storedHash) {
+    const currentHash = computeSourceHash(root, scope, excludes);
+    if (currentHash !== storedHash)
+      return { fresh: false, reason: "stale-content" };
+    return { fresh: true, reason: "fresh" };
   }
   if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000))
     return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
+}
+function computeSourceHash(root, scope, excludes) {
+  const crypto = __require("crypto");
+  const hash = crypto.createHash("sha256");
+  const budget = { n: 500 };
+  const walk = (dir, prefix) => {
+    if (budget.n <= 0)
+      return;
+    let entries;
+    try {
+      entries = fs8.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (budget.n <= 0)
+        return;
+      if (entry.isDirectory()) {
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name))
+          continue;
+        if (excludes.includes(entry.name))
+          continue;
+        walk(path9.join(dir, entry.name), prefix + entry.name + "/");
+      } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        budget.n--;
+        try {
+          const stat = fs8.statSync(path9.join(dir, entry.name));
+          const fd = fs8.openSync(path9.join(dir, entry.name), "r");
+          const buf = Buffer.alloc(Math.min(4096, stat.size));
+          fs8.readSync(fd, buf, 0, buf.length, 0);
+          fs8.closeSync(fd);
+          hash.update(`${prefix}${entry.name}\x00${stat.size}\x00`);
+          hash.update(buf);
+        } catch {}
+      }
+    }
+  };
+  for (const rel of scope) {
+    const target = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    try {
+      const st = fs8.statSync(target);
+      if (st.isFile()) {
+        hash.update(`${rel}\x00${st.size}\x00`);
+        continue;
+      }
+      if (st.isDirectory())
+        walk(target, "");
+    } catch {}
+  }
+  return hash.digest("hex");
 }
 function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
   if (db.inTransaction === true) {
@@ -11518,8 +11577,7 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
     try {
       entries = fs9.readdirSync(dir, { withFileTypes: true });
     } catch {
-      if (dir === root)
-        walkFailed = true;
+      walkFailed = true;
       return;
     }
     for (const entry of entries) {
@@ -11642,7 +11700,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
       console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
     }
   }
-  return { ok: true, nodes: rows.length, edges: edges.length, checkoutPath: warmPath };
+  return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped };
 }
 
 // src/omp/populate.ts
