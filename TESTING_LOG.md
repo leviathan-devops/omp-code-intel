@@ -339,3 +339,18 @@ EXIT=0
 - The wipe CRITICAL: **FIXED-DIFFERENTLY-SATISFYING-THE-FINDING** — gate moved inline per rebuild L6 (extension.ts boundary); the callee gate remains as defense-in-depth. The finding's design concern (guard invisible at surface) is resolved by the rebuild spec.
 - Remaining scan-row status: **UNSCANNED** — the provider infrastructure (muse muse-spark + laguna fallback) is DOWN across all 3 cycles (~30 minutes of scan attempts). The code fixes are committed and battery-verified; the LLM verdict is outstanding, not absent.
 - Retry: `ocr scan --path <7 files> --format json` when either provider recovers. Sessions for resume: `fd377ba5`, `c0c02caa`, `b95b2014`, `faa4da3b`.
+
+## TEST RESULT — 2026-09-17 — v1.1 cycle 2: GATE FAIL (1c/15h) — DOWN from cycle 1 (2c/16h)
+
+### SCRIPT + CONTAINER
+- **The scan:** `ocr scan --provider zen-free --timeout 30 --concurrency 2 --format json` on the 7 kernel files. Session `0e2019bc`. Model: `ling-3.0-flash-fin-free` on the zen free route. 162s.
+- **The verdict:** 46 findings — **1 critical, 15 high, 17 medium, 13 low.** DOWN from cycle 1 (53: 2c/16h). The corbell db-scope critical was FIXED and is gone. The content-hash dead-code critical remains (the hash is never stored because the graphify extract tool doesn't write it).
+- **The 1 critical:** `populate-graphify.ts:119` — content-hash freshness reads `storedHash` from graph.json but the graphify extract tool never writes `graph_hash`. Dead code. Fix: store the hash in a sidecar file or the store meta table.
+- **The provider chain:** `zen-free` provider → `ling-3.0-flash-fin-free` on `http://127.0.0.1:4097/zen/v1` — WORKING. The muse and union-alpha models are still down (Internal server error on Alibaba's side). OpenRouter free tier is 429 (0/1000 daily). The zen free route with ling-3.0-flash is the only working LLM lane.
+- **The artifacts:** session `0e2019bc`; `/tmp/qwen-v11.json` (53 rows cycle 1); this session's rows (46 rows cycle 2).
+- **Battery:** 128/0 (verified before scan).
+
+### CYCLE OVERVIEWS
+- Cycle 1 (scan `1f32f49d`): 53 findings — 2c/16h/25m/10l. Both criticals fixed (corbell db scope + validated write mapping).
+- Cycle 2 (scan `0e2019bc`): 46 findings — 1c/15h/17m/13l. The corbell scope fix verified. The content-hash dead code remains.
+- Cycle 3 (pending): the FINAL cycle per the hard bound. Run after fixing the content-hash critical + the real highs.
