@@ -1,0 +1,5 @@
+# CANON_MANIFEST — omp-code-intel
+Project root: /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/omp-code-intel-plugin
+Dist artifact: dist/index.js
+Last updated: 2026-09-16T00:00:00+00:00
+Docs (200+ floors): COMPACTION_SURVIVAL, CURRENT_STATE, NEXT_STEPS, TASK_QUEUE, BUILD_STATE, CHANGELOG, POST-COMPACTION_PROMPT, DECISION_CHAIN, EVIDENCE_STATE, RUNNING_BUILD_LOG, RUNNING_DEBUG_LOG
