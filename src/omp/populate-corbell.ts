@@ -152,7 +152,9 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   // previous run wiped with nothing committed; a throw inside BEGIN skipped
   // COMMIT with no ROLLBACK (held WAL lock, escaping throw). The helper owns
   // BEGIN/COMMIT/ROLLBACK/close for exactly one unit of work.
-  const nodeRows: ForkNode[] = rows.map((r) => ({
+  // CRITICAL fix: nodeRows maps from materializeRows (validated + capped),
+  // NOT from the raw unvalidated rows — invalid/over-cap rows were being written.
+  const nodeRows: ForkNode[] = materializeRows.map((r) => ({
     canonicalId: r.canonical_id,
     kind: r.kind,
     label: r.label,
@@ -160,7 +162,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     line: r.line,
     run: runTag,
   }));
-  const edgeRows: ForkEdge[] = edges.map((e) => ({
+  const cappedEdges = edges.length > MAX_WARM_ROWS * 3 ? edges.slice(0, MAX_WARM_ROWS * 3) : edges;
+  const edgeRows: ForkEdge[] = cappedEdges.map((e) => ({
     srcCanonical: e.src_canonical,
     dstCanonical: e.dst_canonical,
     predicate: e.predicate,
@@ -168,8 +171,9 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1.0,
     run: runTag,
   }));
+  let db: ReturnType<typeof openTypedStore>;
   try {
-    const db = openTypedStore(storePath);
+    db = openTypedStore(storePath);
     // Caller owns close (the helper never closes a caller-owned connection).
     supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
       ["substrate", "corbell"],
