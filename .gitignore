@@ -11,5 +11,6 @@ Checkpoints/*
 !Checkpoints/gi-rescope-shipped-34ba3ffe/
 !Checkpoints/gi-warmwins-seal-ee122880/
 !Checkpoints/gi-gatefail-pre-V20-ee122880/
+!Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/
 ct-image/stage/
 extensions/graph-intelligence/extension.js
