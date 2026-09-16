@@ -958,3 +958,32 @@ Total **66** — medium 31 · high 26 · low 8 · critical 1
 | V21 fix-now-2 | 6 | 1 (filesSeen dup decl) | battery | same cycle |
 
 The curve is the method's report card: defect-per-fix rate fell from ~25% (V16/20 untested batches) to ~0% (V21 designed structures) to ~30% (cleanup rush) to ~0% (fix-now-2, tested). The rate tracks the PROCESS in force, not the codebase.
+
+---
+
+# PART XVII · THE REAL-TIME SLOP DETECTOR (the checklist, run per fix)
+
+Run BEFORE landing any fix. Any YES = stop, apply the counter-method (Part XV row) before proceeding.
+
+1. Am I editing more than ONE finding's code right now? (P3)
+2. Am I using a script to make this edit? If yes: have I scheduled the post-edit re-read? (P2/P11)
+3. Does a failing test exist that is RED right now, naming THIS defect? (P3)
+4. Am I adding a conditional to a function that already has 3+ conditionals answering findings? (P5 — stop, design)
+5. Did I fix the reported LINE while the CLASS lives elsewhere? Grep the class pattern kernel-wide. (P6)
+6. Does my verification cover the error paths and the adjacent invariants, or only the happy path? (P7)
+7. Is this the SECOND time this finding class has appeared? If yes: this is a DESIGN ORDER, not a triage row. (P8)
+8. Am I rebuilding/deploying all bundles that share the tool surface? (P9)
+9. Is a build/test environment failure being worked around instead of fixed? (P10)
+10. Have I re-read the full modified function? (P11)
+11. Does the battery drive the surface I changed, or only the internals? (P12)
+12. Am I about to explain persisting findings by the instrument? (P13 — forbidden as root cause)
+13. Am I about to checkpoint a state I have not behaviorally verified? (P14)
+14. Am I writing docs about work that has not landed? (P15)
+
+---
+
+# PART XVIII · THE REPRODUCTION TEST (Instrument 3, self-applied)
+
+**The test:** a fresh agent, given ONLY this document, must (a) recognize each slop pattern from a live description, (b) name the principle, (c) apply the counter-move.
+
+**Self-scored result (honest):** CARRIED — the fifteen principles with their incidents; the class-vs-line distinction (P6); the fail-closed comparison law; the both-dists law; the second-occurrence-is-an-order law. **MISSED (named for the next revision):** the exact threshold at which patch-layering becomes redesign-mandatory (P5 says "3+ conditionals" — a heuristic, not an invariant); the interaction matrix between principles (P2 makes P11 certain; P13 enables P8 — the interactions are named in §V's ecology but not per-pair). The next revision of this document owns both.

@@ -541,3 +541,71 @@ The script ENCODES the both-dists law (P9/P10 dead), the F-10 symlink law (creat
 4. deploy.sh runs green end-to-end twice in a row (idempotence).
 5. Ship docs: one BUILD_REPORT entry per wave, each with the RED/GREEN paste and the scan-gate output.
 6. The old kernel: archived, referenced, removed from the surface.
+
+---
+
+# §17 · RESULT ENVELOPE SCHEMAS (the exact shapes every tool returns)
+
+```ts
+// graph-query (all 13 verbs share the envelope)
+interface GraphQueryResult {
+  body: string;                       // human-readable, includes popNote + remedy strings
+  payload: {
+    ok: boolean;
+    rows?: number;                    // who-calls
+    impact_reaches?: number;          // impact
+    ledger?: LedgerRow[];             // impact
+    nodes?: BlastNode[];              // blast-radius
+    callers?: CallerRow[];            // who-calls / safe-delete / gate
+    uses?: UseRow[];                  // safe-delete
+    testReach?: UseRow[];             // safe-delete
+    linelessSkipped?: number;         // every verb (V21 law)
+    hint?: string;                    // impact: next=chain from=X
+    ripwire?: RipwireNote;            // twin-verb cross-check line
+    error?: string;                   // named code on failure
+    reason?: string;                  // full named reason on failure
+  };
+}
+// aether-code-audit
+interface AuditResult {
+  body: string;                       // includes reportPath
+  payload: { ok: boolean; findings: number; reportPath?: string; error?: string; status?: "fulfilled"|"rejected"|"incomplete" };
+}
+// bug-hunt
+interface HuntResult {
+  body: string;                       // HUNT_DONE runId=... findingsCount=... reportPath=... | schema refusal
+  payload: { ok: boolean; state?: "done"|"inconclusive"; findingsCount?: number; reportPath?: string|null; fixOrder?: string[]; error?: string };
+}
+// graph-probe
+interface ProbeResult {
+  body: string;                       // PROBE_TOOL_OK + echo | GI_CLEAR_REFUSED | GI_CLEARED
+  payload: { ok: boolean; token?: string; echo?: string; error?: string };
+}
+```
+**Law:** `payload.ok` is computed from the operation's own result object. `ok: true` is never spread over a failed result; `ok: false` always carries `error` (the named code) and `reason` where applicable.
+
+---
+
+# §18 · THE HUNT CONTRACT (inherited, pinned)
+
+The bug-hunt micro-loop (recon → map → scan → trace → strike → report) keeps its harness (micro-loop-machine, recon, map, scan, trace, strike, report writers). The rebuild pins — not rewrites — the harness:
+- `action=hunt` acquires the hunt-lock (fail-closed INCONCLUSIVE as RESULT under contention).
+- `action=status` reads the session store: unwired count (lineless-skipped surfaced as store-note) + fix order.
+- RunId: `{target-basename}-hunt-{YYYYMMDD}-{seq}` — sequence by design (V-11 ruling: findings-identity + batteryVersion-identity are the assertions, NOT runId equality).
+- Report: `{runId}` versioned markdown under `MASTER_CONTEXT/`, 500-cap, stripBeforeSeal, N-versioned local writes.
+- Battery pin: the 3 hunt tests in §12 drive spawnBugHunterLoop with overridden adapter/profile/battery/reportWriter (the host-proof seam).
+
+---
+
+# §19 · IMPLEMENTATION NOTES (the decisions this spec has already made, so M1-M8 don't re-litigate them)
+
+1. **Hash = sha256 over `path\0size\0first4k` per file, files sorted by relative path.** First-4k (not whole-file) keeps the walk O(files) with bounded I/O; content edits beyond 4k that preserve size are caught by the graph-build's own parse (the hash is a freshness gate, not a ChangeDetector).
+2. **Chunked IN-clauses = 64 ids.** SQLITE_MAX_VARIABLE_NUMBER default is 32766 in modern SQLite but 64 keeps plans small and predictable.
+3. **`lineless` policy: skip+count everywhere.** Rationale: one data-defective row must not veto N-1 real answers; the count is surfaced in the result and in `status` store-notes. Fabrication (`?? 0`) remains banned.
+4. **Test-path regex:** boundary-anchored (`/(^|[\\/_.-])(test|spec|mock|fixture)([\\/_.-]|$)/i`) — `contest`/`latest` no longer match.
+5. **Classifier ordering is load-bearing:** contract → rejected(401/403) → server(500-504) → quota(429/402/529 + usage words) → overloaded-bare(server) → other. Reordering reintroduces the 503-as-quota-exile class.
+6. **keyid = sha256(key)[0..16]** — 64 bits of fingerprint: collision-improbable at pool scale, reveals nothing about the key.
+7. **`labels` appear in exactly one query per concern:** identity.resolveIds (SELECT by label), names() (display listing), chain toLabel matching. Any new label join is a spec violation.
+8. **Population single-flight lives at the extension surface** (M8 `POPULATE_BUSY`), not in the store — the store stays lock-simple; the surface serializes.
+9. **Every `reason:` string is grep-stable** (snake/caps tokens) — the battery and the stream census both rely on token greps.
+10. **The alias `graph-code-audit` is registered AND enumerated.** The enumeration gap (V-26-class) is closed by the return-list test.
