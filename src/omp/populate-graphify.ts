@@ -106,6 +106,9 @@ export function isGraphifyCheckoutFreshFor(
     let stTarget: fs.Stats | null = null;
     try { stTarget = fs.statSync(target); } catch { stTarget = null; }
     if (stTarget?.isFile()) {
+      // H-fix: file-scoped scope entries also respect excludes
+      const base = path.basename(target);
+      if (excludes.includes(base)) continue;
       if (stTarget.mtimeMs > newest) newest = stTarget.mtimeMs;
       filesSeen += 1;
       continue;
@@ -116,26 +119,68 @@ export function isGraphifyCheckoutFreshFor(
   // — fail-closed (fresh-by-vacuity is the silent-staleness class).
   if (filesSeen === 0) return { fresh: false, reason: "stale-unscooped" };
   if (exhausted) return { fresh: false, reason: "stale-budget" };
-  // WARM-WINS: content-hash freshness replaces time-floor comparison.
-  // If any indexed source file's content hash differs from the stored
-  // graph_hash (written by populate at rebuild spec L2), the graph is stale
-  // regardless of mtime granularity — even within the same wall-clock second.
-  // This eliminates the second-granularity warm-wins gap (finding [H:122]).
-  // Read the stored graph_hash from the graph JSON meta.
+  // WARM-WINS (L2 content-hash): compare a hash sidecar against the current
+  // source fingerprint. The sidecar (.graph_hash) is written by populate()
+  // after a successful build. If it's missing → not fresh (first run or wipe).
+  // If it differs from the recomputed hash → sources changed → stale.
+  // No mtime involved — this is deterministic and granularity-independent.
+  const hashPath = graphPath.replace(/\.json$/, ".graph_hash");
   let storedHash: string | null = null;
   try {
-    const gc = fs.readFileSync(graphPath, "utf8");
-    const gp = JSON.parse(gc);
-    if (gp.graph_hash) storedHash = gp.graph_hash;
-  } catch {}
-  // Check if stored hash exists and source changed (newest > warmMtime)
-  if (storedHash !== null && newest > warmMtime) {
-    // Content changed → stale regardless of mtime granularity
-    return { fresh: false, reason: "stale" };
+    storedHash = fs.readFileSync(hashPath, "utf8").trim() || null;
+  } catch (readErr) {
+    // sidecar missing or unreadable → not fresh (no baseline to compare)
+    console.log(`[gi-omp] freshness: no hash sidecar at ${hashPath} (${readErr instanceof Error ? readErr.message.slice(0, 40) : "read error"})`);
   }
-  // Fallback to time-floor when no stored hash is available
+  if (storedHash) {
+    const currentHash = computeSourceHash(root, scope, excludes);
+    if (currentHash !== storedHash) return { fresh: false, reason: "stale-content" };
+    return { fresh: true, reason: "fresh" };
+  }
+  // No stored hash → fall through to mtime fallback (legacy compat)
   if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000)) return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
+}
+/** L2 content-hash: deterministic hash of all indexed source files.
+ *  Sorted by relative path, hashing path+size+first4KB per file. */
+function computeSourceHash(root: string, scope: string[], excludes: string[]): string {
+  const crypto = require("crypto") as typeof import("crypto");
+  const hash = crypto.createHash("sha256");
+  const budget = { n: 500 };
+  const walk = (dir: string, prefix: string): void => {
+    if (budget.n <= 0) return;
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (budget.n <= 0) return;
+      if (entry.isDirectory()) {
+        if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name)) continue;
+        if (excludes.includes(entry.name)) continue;
+        walk(path.join(dir, entry.name), prefix + entry.name + "/");
+      } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        budget.n--;
+        try {
+          const stat = fs.statSync(path.join(dir, entry.name));
+          const fd = fs.openSync(path.join(dir, entry.name), "r");
+          const buf = Buffer.alloc(Math.min(4096, stat.size));
+          fs.readSync(fd, buf, 0, buf.length, 0);
+          fs.closeSync(fd);
+          hash.update(`${prefix}${entry.name}\0${stat.size}\0`);
+          hash.update(buf);
+        } catch { /* unreadable — skip */ }
+      }
+    }
+  };
+  for (const rel of scope) {
+    const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    try {
+      const st = fs.statSync(target);
+      if (st.isFile()) { hash.update(`${rel}\0${st.size}\0`); continue; }
+      if (st.isDirectory()) walk(target, "");
+    } catch { /* skip missing scope entries */ }
+  }
+  return hash.digest("hex");
 }
 function minimalGraphifyProfile(root: string): ProjectProfile {
   const resolved = path.resolve(root);
@@ -231,6 +276,14 @@ export async function populateFromGraphifyCheckout(
       ["graphify_edges", String(edgeRows.length)],
       ["populated_at", new Date().toISOString()],
     ]);
+    // L2: write the content-hash sidecar so the freshness probe can compare
+    const hashPath = graphPath.replace(/\.json$/, ".graph_hash");
+    try {
+      const hash = computeSourceHash(path.resolve(root), pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
+      fs.writeFileSync(hashPath, hash, "utf8");
+    } catch (hashErr) {
+      console.log(`[gi-omp] hash sidecar write failed (non-fatal): ${hashErr instanceof Error ? hashErr.message.slice(0, 60) : "?"}`);
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `GRAPHIFY_WRITE_FAILED:${msg.slice(0, 160)}`, nodes: 0, edges: 0, checkoutPath, graphPath };
