@@ -21,7 +21,10 @@ export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-
 // aether-code-audit with the SAME execute (one shared handler, zero drift).
 // Removal: only on explicit operator order (never silently drop the alias).
 export const GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" } as const;
-  // Shared H12 confinement (graph-query + aether-code-audit): realpath,
+  // Shared H12 confinement — used by BOTH graph-query and aether-code-audit.
+// The parse→confine→error pattern at each call site is intentionally thin:
+// the LOGIC lives in confineTargetPath (single implementation).
+// realpath,
 // isDirectory, and the GI_TARGET_ROOTS/cwd+/tmp allowlist.
 const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {
   let real = normalized;

@@ -813,7 +813,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
     `- graphPath: ${path.resolve(args.graphPath)}`,
-    `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${graph.godNodes.slice(0, 5).join(", ")}]`,
+    `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${graph.godNodes ?? [].slice(0, 5).join(", ")}]`,
     `- graphQueries: ${(template.graphQueries ?? []).join(" | ")}`,
     `- inputData: ${args.inputData ?? ""}`,
     "",
