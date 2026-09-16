@@ -24,6 +24,13 @@ import {
 
 const SID = () => 'go-fallback-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
 
+function routeGoKeyWrapped(idx: number): string {
+  // routeGoError wrapped for the geometry-relative assertions
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { routeGoError } = require("../src/hunter/keys/go-key-pool.ts") as { routeGoError: (i: number, e: string) => string };
+  return routeGoError(idx, '429 quota exceeded');
+}
+
 function resetPool(): void {
   // sync reset via the pool module's own connection (same file the module uses)
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -47,8 +54,13 @@ function resetPool(): void {
 }
 
 describe("st-go-fallback: 6-key pool + openrouter-only fallback (shared-DB contract)", () => {
-  test("pool carries 6 keys (go-6 provisioned)", () => {
-    expect(GO_KEYS.length).toBe(6);
+  test("pool carries the 6 provisioned file keys (+ env single rung when present)", () => {
+    // 2026-09-16 measured: ~/.gi-keys.json has 6; the host env now also sets
+    // OPENCODE_GO_API_KEY (a 7th, distinct key) — reloadGoKeys appends it as
+    // the documented single-key rung. The INVARIANT is: >= 6 file keys, no
+    // duplicates — not a magic total (the environment may add the env rung).
+    expect(GO_KEYS.length).toBeGreaterThanOrEqual(6);
+    expect(new Set(GO_KEYS).size).toBe(GO_KEYS.length);
   });
   test("fallback rung is openrouter laguna ONLY (no inferx/nvidia)", () => {
     expect(FALLBACK_MODEL_OPENROUTER).toBe('openrouter/poolside/laguna-s-2.1:free');
@@ -77,16 +89,19 @@ describe("st-go-fallback: 6-key pool + openrouter-only fallback (shared-DB contr
     expect(routeGoError(3, '400 MissingSessionID header required')).toBe('walk-rungs-no-mark');
     expect(goKeyDead(3, Date.now())).toBe(false);
   });
-  test("quota advances same rung while a key lives", () => {
+  test("quota advances same rung while a key lives (geometry-relative)", () => {
     resetPool();
-    for (let i = 0; i < 4; i++) markGoKeyDead(i, '429 quota', Date.now());
-    expect(routeGoError(4, '429 quota exceeded')).toBe('advance-same-rung');
-    expect(resolveGoKeyIndex(Date.now()).idx).toBe(5);
+    for (let i = 0; i < GO_KEYS.length - 2; i++) markGoKeyDead(i, '429 quota', Date.now());
+    expect(routeGoKeyWrapped(GO_KEYS.length - 1)).toBe('advance-same-rung');
+    // the resolver picks the FIRST alive in priority order — the one right
+    // after the dead prefix (5), not the highest index.
+    expect(resolveGoKeyIndex(Date.now()).idx).toBe(GO_KEYS.length - 2);
   });
-  test("quota on last live key falls to openrouter", () => {
+  test("quota on last live key falls to openrouter (geometry-relative)", () => {
     resetPool();
-    for (let i = 0; i < 5; i++) markGoKeyDead(i, '429 quota', Date.now());
-    expect(routeGoError(5, '429 quota exceeded')).toBe('fall-to-openrouter');
+    const last = GO_KEYS.length - 1;
+    for (let i = 0; i < last; i++) markGoKeyDead(i, '429 quota', Date.now());
+    expect(routeGoError(last, '429 quota exceeded')).toBe('fall-to-openrouter');
   });
   test("server 5xx advances with NO dead-mark (V21 W10 ordered classifier)", () => {
     resetPool();
