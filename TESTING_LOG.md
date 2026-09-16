@@ -315,3 +315,12 @@ EXIT=0
 ### Retry condition
 - Re-run `ocr scan --path <7 files> --format json --resume fd377ba5-cc03-44bc-8e79-a5fd8a1c8e78` when the go-key pool has a live key (check `resolveGoKeyIndex()` or re-provision ~/.gi-keys.json).
 - Hard-bound note: this was cycle 1's scan. 2 cycles remain per the hard-bound law.
+
+## TEST RESULT — 2026-09-16 — v1.1 cycle 2: GATE BLOCKED (BOTH providers down)
+
+### SCRIPT
+- **The run:** Cycle 2 scan attempts: (1) muse-pinned (`56d6ab5f` retry) → `context deadline exceeded` ×7; (2) laguna fallback (`openrouter-laguna` provider) → `context deadline exceeded` ×7. Deterministic layer (`ocr delegate preview` + `ocr rules check`) functional but cannot produce LLM verdict.
+- **The raw output:** muse: `Error: scan failed: all 7 file scan(s) failed` (session `c0c02caa`); laguna: `Error: scan failed: all 7 file scan(s) failed` (session `b95b2014`). Deterministic: rules matched (typo/dead-code class only).
+- **The verdict:** GATE: BLOCKED — BOTH providers down. Not FAIL, not PASS. Per gate law: BLOCKED, never "probably fine."
+- **The artifacts:** sessions `c0c02caa` + `b95b2014` (both failed); deterministic rule output above.
+- **The retry condition:** when either provider recovers (muse key alive OR laguna rate-limit clears), re-run `ocr scan --resume <session-id>` or fresh scan. The battery (128/0) and live legs (verified this turn) are the positive evidence; the scan is the outstanding gate input.
