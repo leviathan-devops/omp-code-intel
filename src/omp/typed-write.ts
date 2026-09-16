@@ -21,6 +21,7 @@ export class GiStoreCorruptError extends Error {
 export const GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
 export const GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
 
+/** sizeHint is IGNORED (V21 H11 fix): the budget checks actual bytes. Kept for API compat. */
 export function parseGraphJsonGuarded(contents: string, sizeHint = 0): Record<string, unknown> {
   // H11 (qwen 33d64eca): size is a HINT only — the budget checks the ACTUAL bytes
   // (a spoofed/TOCTOU small size can no longer bypass the 128MiB load budget).
@@ -232,7 +233,8 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
 
 // R2 batch writers: ONE connection for the whole pass (baseline bottleneck
 // was 3890 open/close cycles per populate). Caller owns open/close.
-export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[]) => void; inTransaction?: boolean }, nodes: ForkNode[]): void {
+export interface TxnDb { run: (sql: string, params: unknown[]) => void; inTransaction: boolean }
+export function insertForkNodesBatch(db: TxnDb, nodes: ForkNode[]): void {
   // V21 W3: a partial batch must never land — the writer refuses to run
   // outside a transaction (supersedeThenInsert / writeGraphifyCheckout own one).
   // V21 fix-now F2: require EXPLICITLY in-transaction — a wrapper object with
@@ -253,7 +255,7 @@ export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[])
   }
 }
 
-export function insertForkEdgesBatch(db: { run: (sql: string, params: unknown[]) => void; inTransaction?: boolean }, edges: ForkEdge[]): void {
+export function insertForkEdgesBatch(db: TxnDb, edges: ForkEdge[]): void {
   // V21 W3: same txn guard as nodes.
   if (db.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
@@ -450,8 +452,9 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
     // same id once per inbound edge (exponential churn on dense graphs).
     const visited = new Set<string>(starts.map((s) => s.canonical_id));
     const queue: Array<{ id: string; steps: ChainStep[] }> = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
-    while (queue.length > 0 && queue[0].steps.length < maxDepth) {
-      const cur = queue.shift()!;
+    let head = 0;
+    while (head < queue.length && queue[head].steps.length < maxDepth) {
+      const cur = queue[head++];
       const out = db.query(
         `SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                 dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
