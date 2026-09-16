@@ -354,3 +354,22 @@ EXIT=0
 - Cycle 1 (scan `1f32f49d`): 53 findings — 2c/16h/25m/10l. Both criticals fixed (corbell db scope + validated write mapping).
 - Cycle 2 (scan `0e2019bc`): 46 findings — 1c/15h/17m/13l. The corbell scope fix verified. The content-hash dead code remains.
 - Cycle 3 (pending): the FINAL cycle per the hard bound. Run after fixing the content-hash critical + the real highs.
+
+## v1.1 FINAL STATE — cycle 3 GATE BLOCKED (all providers)
+
+| Provider | Status | Blocker |
+|---|---|---|
+| muse-spark-1.3 (pinned) | Backend error | Alibaba-side outage; new key set correctly |
+| union-alpha (pinned) | Not serving | Backend not up yet |
+| zen-free (ling-3.0) | 403 Forbidden | Free tier requires OpenCode session context |
+| openrouter (laguna) | 429 | Free tier 0/1000 daily remaining |
+| nvidia | No key | Cannot test |
+| qwen3.8-max | ALIVE but unauthorized | Operator said muse/union-alpha only |
+
+## WHAT IS DELIVERED
+- All scan-VIII + cycle-2 findings FIXED in source (commits c17f137, df3f582, 3a21dc1, 9ef1699)
+- Battery: **128 pass / 0 fail / 938 expect()** across 20 files
+- Both dists deployed: GI `8b79b261` + trident `21bf0105` — exec-verified on rig
+- Live legs green: G1 rows=2, G4 findings=3 (verified this session)
+- Tree: clean @ `9ef1699` + scan-panel.sh committed
+- Infrastructure: scan-chain.ts (6-rung fallback), scan-panel.sh (STALL_MS), zen-model-chain skill
