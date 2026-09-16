@@ -303,3 +303,15 @@ EXIT=0
 - **The verdict:** every finding from the pre-cleanup scan is dispositioned (fixed or named-refuted). The post-cleanup scan measures a NEW set — the convergence law (EN-023) held: fixes are new code, the engine reads deeper each pass. Per the law, the fix→rescan loop STOPS here; the 22-high set is the triage baseline for the operator's ruling.
 - **The artifacts:** sessions 3759fac5 (before) + 6a860fa5 (after); checkpoints `gi-v21-seal-pre-cleanup-3ee605dd`; commits 36ea932/df3f582/c17f137.
 - **Cleanup highlights (fixed, test-pinned or live-proven):** corbell REAL TOCTOU (before-read baseline + loud walk failure); per-table supersede parity in the checkout writer; warm-wins second-granularity (no 1s window); excludes + file-scoped scopes threaded, fresh-by-vacuity fail-closed; helper no-txn enforcement + open-in-try + non-masking close; layerId loud rejection (no silent coercion); audit default-root confined; `|` allowlist separator; pool: keyid-stable identity (reorder-proof marks), honest dead-mark (failed write = no exile), expired-marks-are-alive, weeks/months dialects, 529-vs-overloaded split, Date-range clamp, 0600; adapter: collision-proof dedup + edge remap, first-representative rename map, readonly-safe containment copies, lineless skip+count callback; auditor: nodeFile containment, loud INCOMPLETE rows (never false clean-empty), graph shape guard before sweep.
+
+## TEST RESULT — 2026-09-16 — v1.1 cleanup cycle 1: GATE BLOCKED (provider failure)
+
+### SCRIPT
+- **The run:** W1 gi-populate + gi-pool completed (all 23 rows fixed, battery 128/0); W2+W3 fixes already in tree from V21 lineage; W4 rebuild both dists (GI `00dadcf2e9db126b` + trident `21bf0105ac48fe7b`) deployed to gi-omp-port, live legs green (G1 nodes=4/edges=5/rows=2, G4 AUDIT_DONE findings=3 run-id 1789576792620). Then frozen scan → **BLOCKED**.
+- **The raw output:** `ocr scan` session `fd377ba5` — `[ocr] Scan subtask error for src/hunter/graph/graphify-adapter.ts (batch #0): LLM completion error: context deadline exceeded` → `Error: scan failed: all 7 file scan(s) failed — check your LLM configuration and API key`.
+- **The verdict:** GATE: BLOCKED — provider failure, not a code verdict. Per gate law: BLOCKED, never "probably fine."
+- **The artifacts:** session `fd377ba5` (retry with `--resume`); commits 3a21dc1 (W1 fixes) + deploy SHAs; battery tail `128 pass / 0 fail / 938 expect()`.
+
+### Retry condition
+- Re-run `ocr scan --path <7 files> --format json --resume fd377ba5-cc03-44bc-8e79-a5fd8a1c8e78` when the go-key pool has a live key (check `resolveGoKeyIndex()` or re-provision ~/.gi-keys.json).
+- Hard-bound note: this was cycle 1's scan. 2 cycles remain per the hard-bound law.
