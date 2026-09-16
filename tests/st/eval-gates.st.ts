@@ -15,14 +15,14 @@
  *   - Hooks key `"session.post"`: `km.killAll()` (fire-and-forget) — kernels
  *     die with the session (SC-11).
  * SPEC ANCHORS: DPL1 §6 SC-10 (persistence), SC-11 (cleanup: post-session
- * `pgrep -f mimo-intel-eval` returns nothing), §7 CONFIG angle
+ * `pgrep -f omp-intel-eval` returns nothing), §7 CONFIG angle
  * (`{eval:{py:false}}` → named disabled-error, js path advertised); the RB-08
  * form is GATE-2 below (py disabled / js alive in the SAME options object).
  *
  * SUITE-ORDERING LAW (CONTRACTS-W3, from the W2-E finding): this suite must
  * NOT touch the project-cwd chain. Tool ctx directories are sandbox-absolute
  * (`mkCtx(dir)` per harness). The KernelManager singleton base itself is
- * cwd-derived by contract (`<cwd>/.mimocode/mimo-intel`, W3-C wiring), so this
+ * cwd-derived by contract (`<cwd>/.mimocode/omp-intel`, W3-C wiring), so this
  * suite snapshots pre-existence of that dir + its `eval-rpc/` subdir and the
  * LAST scenario removes ONLY what WE created (never a pre-existing chain;
  * chain rows are append-only and untouched — this suite never invokes
@@ -106,7 +106,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 // ---------------------------------------------------------------------------
 // Suite-ordering-law bookkeeping: snapshot BEFORE first touch, restore AFTER.
 // ---------------------------------------------------------------------------
-const intelDir = (): string => join(process.cwd(), ".mimocode", "mimo-intel");
+const intelDir = (): string => join(process.cwd(), ".mimocode", "omp-intel");
 const rpcDir = (): string => join(intelDir(), "eval-rpc");
 let baseSnap: { intelExisted: boolean; rpcExisted: boolean } | null = null;
 const snapshotBase = (): void => {
@@ -357,9 +357,9 @@ const scCleanupDisk: Scenario = asyncScenario("eval-gates-cleanup-disk", async (
   const chainFile = join(intelDir(), "merkle-chain.jsonl");
   if (!baseSnap.intelExisted && !existsSync(chainFile) && existsSync(intelDir())) {
     rmSync(intelDir(), { recursive: true, force: true });
-    notes.push("removed created .mimocode/mimo-intel/");
+    notes.push("removed created .mimocode/omp-intel/");
   } else if (baseSnap.intelExisted) {
-    notes.push("preserved pre-existing .mimocode/mimo-intel/");
+    notes.push("preserved pre-existing .mimocode/omp-intel/");
   } else {
     notes.push("intel dir left: chain file present (owned by another suite)");
   }

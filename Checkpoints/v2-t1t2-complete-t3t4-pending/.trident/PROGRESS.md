@@ -67,8 +67,8 @@
 - src/read.ts NEW (shadow read: [path]#tag + Symbols + file#symbol selectors + NO_SYMBOL/READ_NOT_FOUND/READ_BINARY named).
 - src/diag.ts NEW + edit.ts step-6 + ast.ts resolve apply: diagnostics-on-write in the SAME card; DIAG_UNAVAILABLE never fails a good write.
 - src/eval/rpc.ts NEW + kernels.ts preamble hook (once-per-process, queue-ordered, warn-once): intel_read proven end-to-end inside py kernel (hello-rpc). JS re-entry NOT wired (preamble only py) — honest gap for T2 notes.
-- src/mv.ts NEW (mimo_mv) + client.willRename: LIVE-PROVEN import rewrite (./util → ./lib on disk). Mechanism fix found: tsserver needs didOpen before willRename (zero-edit answer without it).
-- src/index.ts: mimo_mv always-additive; read shadow opt-in-only; RPC watcher lifecycle (start on eval-enabled init, stop on session.post) + watcher unref (process-exit hygiene).
+- src/mv.ts NEW (omp_mv) + client.willRename: LIVE-PROVEN import rewrite (./util → ./lib on disk). Mechanism fix found: tsserver needs didOpen before willRename (zero-edit answer without it).
+- src/index.ts: omp_mv always-additive; read shadow opt-in-only; RPC watcher lifecycle (start on eval-enabled init, stop on session.post) + watcher unref (process-exit hygiene).
 - NATIVE QUIRK (measured): astGrep file-scope drops statement patterns; extension-class globs don't rescue; fix = parent-dir + *ext + client-side filter + recomputed totals (src/ast.ts). astEdit/grep natives unaffected (proven).
 - TS-GENERATION GUARD (measured): typescript-language-server needs TS≤5 w/ tsserver.js on disk (this env has TS 6); diagSection probes node resolution first → DIAG_UNAVAILABLE instead of a doomed handshake.
 - Orch gate: tsc 0; ST 65/65 exit 0 (10 new v2w1 rows); registration probe (7 base ids + read under shadow); clean process exit; no cwd residue.
@@ -77,7 +77,7 @@
 ## cycle-7 · 2026-09-13 · V2 T2 (battery) DONE — host gate green
 
 - tests/st/safety.st.ts NEW (14 rows): destructive sha-diff (stale-tag shaEq, readonly-file READ_ONLY_FILE, stale-resolve count-drift), malformed (empty/10MB/binary/unicode/wrong-types→INVALID_ARGS), concurrency (parallel edits exactly-one, parallel eval serialized), hygiene (no tmp leftovers, killAll-zero), soak ×3, tree-stability control.
-- Product fixes the battery forced: mimo_edit INVALID_ARGS guard (wrapper doesn't enforce zod — raw values reached path.join); READ_ONLY_FILE bit check (atomic tmp+rename bypasses file bits); read.ts literal-path-wins for `#`-in-filenames.
+- Product fixes the battery forced: omp_edit INVALID_ARGS guard (wrapper doesn't enforce zod — raw values reached path.join); READ_ONLY_FILE bit check (atomic tmp+rename bypasses file bits); read.ts literal-path-wins for `#`-in-filenames.
 - Native behaviors measured + documented (not bugs): file-scope statement-pattern drop → parent-dir+ext-glob+filter fix in ast.ts; identical-content cross-file dedup; sub-second dir-scan cache staleness (soak pre-creates fixtures); typed-const needs `: $T` pattern form.
 - Orch gate THIS TURN: tsc 0; ST 79/79 exit 0 (/tmp/st-t2final.log); no cwd residue. CT plan written: .trident/CT-PLAN-V2.md (4,987 chars ≥2000 floor).
 - BLOCKER for T3: this session has NO container tool (mimo-ct absent from tool surface; raw docker run/exec into test rigs is lock-blocked). T3 container execution must run in the equipped session. T9 → done; T10 open, blocked on tool surface.

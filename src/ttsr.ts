@@ -15,7 +15,7 @@ export interface Violation {
   body: string;
 }
 
-export const RULE_MARKER_PREFIX = "[mimo-intel rule ";
+export const RULE_MARKER_PREFIX = "[omp-intel rule ";
 
 // ReDoS guard: rule patterns come from plugin options (operator config,
 // not attacker bytes), but a pasted evil pattern (nested quantifiers like
@@ -335,7 +335,7 @@ export function compileRules(rules: Rule[]): CompiledRule[] {
       const clean = new RegExp(re.source);
       out.push({ key: rr.key, body: rr.body, re: clean });
     } catch {
-      console.warn(`[mimo-code-intel] dropped invalid ttsr rule: ${label}`);
+      console.warn(`[omp-code-intel] dropped invalid ttsr rule: ${label}`);
     }
   }
   return out;
@@ -667,26 +667,26 @@ export function persistContext(compiled: CompiledRule[]): string[] {
 // advisor-scan hits coexist until the next transform consumes them); a single
 // push-then-take round trip is identical to the old overwrite semantics.
 const vg = globalThis as typeof globalThis & {
-  __mimoIntelViolations?: Map<string, Violation[]>;
-  __mimoIntelLastViolationSession?: string | null;
-  __mimoIntelLastPushCallID?: string | null;
-  __mimoIntelPushedAt?: Map<string, number>;
+  __ompIntelViolations?: Map<string, Violation[]>;
+  __ompIntelLastViolationSession?: string | null;
+  __ompIntelLastPushCallID?: string | null;
+  __ompIntelPushedAt?: Map<string, number>;
 };
-const violationsBySession: Map<string, Violation[]> = (vg.__mimoIntelViolations ??= new Map());
+const violationsBySession: Map<string, Violation[]> = (vg.__ompIntelViolations ??= new Map());
 // TTL: a pushed batch unconsumed after 60s is stale — its session is gone
 // (or never coming back) and serving it to a LATER unrelated anonymous
 // transform is disclosure of dead data. Live pairs complete in ms, so 60s
 // never clips real traffic. Sweep on push + on fallback take.
 const BATCH_TTL_MS = 60000;
-const pushedAt: Map<string, number> = (vg.__mimoIntelPushedAt ??= new Map());
+const pushedAt: Map<string, number> = (vg.__ompIntelPushedAt ??= new Map());
 function sweepStaleBatches(now: number): void {
   for (const [sid, at] of [...pushedAt]) {
     if (now - at > BATCH_TTL_MS) {
       pushedAt.delete(sid);
       violationsBySession.delete(sid);
-      if (vg.__mimoIntelLastViolationSession === sid) {
-        vg.__mimoIntelLastViolationSession = null;
-        vg.__mimoIntelLastPushCallID = null;
+      if (vg.__ompIntelLastViolationSession === sid) {
+        vg.__ompIntelLastViolationSession = null;
+        vg.__ompIntelLastPushCallID = null;
       }
     }
   }
@@ -718,18 +718,18 @@ export function pushViolations(sessionID: string, v: Violation[], callID?: strin
     if (oldest === undefined) break;
     violationsBySession.delete(oldest);
     pushedAt.delete(oldest);
-    if (vg.__mimoIntelLastViolationSession === oldest) {
-      vg.__mimoIntelLastViolationSession = null;
-      vg.__mimoIntelLastPushCallID = null;
+    if (vg.__ompIntelLastViolationSession === oldest) {
+      vg.__ompIntelLastViolationSession = null;
+      vg.__ompIntelLastPushCallID = null;
     }
   }
-  vg.__mimoIntelLastViolationSession = sessionID;
-  vg.__mimoIntelLastPushCallID = callID ?? null;
+  vg.__ompIntelLastViolationSession = sessionID;
+  vg.__ompIntelLastPushCallID = callID ?? null;
 }
 
 export function clearLastPushCorrelation(): void {
-  vg.__mimoIntelLastViolationSession = null;
-  vg.__mimoIntelLastPushCallID = null;
+  vg.__ompIntelLastViolationSession = null;
+  vg.__ompIntelLastPushCallID = null;
 }
 
 // Returns the pending batch for sessionID and deletes it (consume-on-read).
@@ -743,9 +743,9 @@ export function takeViolations(sessionID: string): Violation[] | null {
   // Paired clear: session pointer AND callID correlation reset together —
   // leaving the callID set while the session is nulled breaks the pair
   // invariant the mismatch gate relies on. Empty batch reads as unchanged.
-  if (vg.__mimoIntelLastViolationSession === sessionID) {
-    vg.__mimoIntelLastViolationSession = null;
-    vg.__mimoIntelLastPushCallID = null;
+  if (vg.__ompIntelLastViolationSession === sessionID) {
+    vg.__ompIntelLastViolationSession = null;
+    vg.__ompIntelLastPushCallID = null;
   }
   return batch.length > 0 ? batch : null;
 }
@@ -778,10 +778,10 @@ export function takeViolations(sessionID: string): Violation[] | null {
 // takeViolations path, which is exact).
 export function takeLastViolations(callID?: string): Violation[] | null {
   sweepStaleBatches(Date.now());
-  const key = vg.__mimoIntelLastViolationSession ?? null;
+  const key = vg.__ompIntelLastViolationSession ?? null;
   if (key === null) return null;
   const g2 = vg as Record<string, unknown>;
-  const pushed = g2.__mimoIntelLastPushCallID as string | null;
+  const pushed = g2.__ompIntelLastPushCallID as string | null;
   if (callID !== undefined && pushed !== null && pushed !== undefined && callID !== pushed) {
     // Mismatch: the batch belongs to a proven-different host message. Do NOT
     // delete it — it is session B's live batch and B's keyed take must still
@@ -803,8 +803,8 @@ export function takeLastViolations(callID?: string): Violation[] | null {
     // (fail closed permanently for the fallback — a later anonymous take
     // must not serve this previously-ambiguous batch). Batches stay for
     // keyed owners; only the anonymous fallback is disarmed.
-    vg.__mimoIntelLastViolationSession = null;
-    g2.__mimoIntelLastPushCallID = null;
+    vg.__ompIntelLastViolationSession = null;
+    g2.__ompIntelLastPushCallID = null;
     return null;
   }
   return takeViolations(key);

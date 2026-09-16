@@ -27,7 +27,7 @@ def intel_grep(pat, path=None):
 def _intel_call(name, args):
     import random as _r
     rid = "%08x" % _r.getrandbits(32)
-    d = _os.environ.get("MIMO_INTEL_RPC_DIR", "")
+    d = _os.environ.get("OMP_INTEL_RPC_DIR", "")
     req = _os.path.join(d, rid + ".req")
     res = _os.path.join(d, rid + ".res")
     with open(req, "w") as f:
@@ -56,7 +56,7 @@ function intel_read(p) { return _intelCall("read", { path: p }); }
 function intel_grep(pat, p) { return _intelCall("grep", { pat: pat, path: p }); }
 function _intelCall(name, args) {
   const rid = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, "0");
-  const d = process.env.MIMO_INTEL_RPC_DIR || "";
+  const d = process.env.OMP_INTEL_RPC_DIR || "";
   const req = _path.join(d, rid + ".req");
   const res = _path.join(d, rid + ".res");
   _fs.writeFileSync(req, JSON.stringify({ id: rid, name: name, args: args }));
@@ -157,5 +157,5 @@ export function newRequestId(): string {
 }
 
 export function rpcEnv(baseDir: string): Record<string, string> {
-  return { MIMO_INTEL_RPC_DIR: ensureRpcDir(baseDir) };
+  return { OMP_INTEL_RPC_DIR: ensureRpcDir(baseDir) };
 }

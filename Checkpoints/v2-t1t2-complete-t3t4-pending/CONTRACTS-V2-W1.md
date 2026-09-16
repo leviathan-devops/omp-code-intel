@@ -14,7 +14,7 @@ Exports: only `shadowReadTool`. Imports: TagStore store, resolveAbs, astGrep fro
 
 ## diag-on-write (Desk W1-C owns src/edit.ts + src/ast.ts edits ONLY)
 
-- After successful write+retag in `mimoEditTool` (edit.ts step 6) AND after successful apply in `resolveTool` (ast.ts): if ext ∈ {.ts,.tsx,.js,.jsx,.mjs,.cjs,.py} → run vendored `LspClient` diagnostics on the written file (spawn per call, bounded 15s total, cold start acceptable); append to output: `\nDiagnostics: <n> problem(s)` + `\n<rel>:<line> [<severity>] <message>` rows when n>0, or `\nDiagnostics: clean` when 0. Binary spawn ENOENT or op timeout → append NOTHING to output; set `metadata.diag = "DIAG_UNAVAILABLE"` (write succeeded; diagnostics best-effort — never fail a good write).
+- After successful write+retag in `ompEditTool` (edit.ts step 6) AND after successful apply in `resolveTool` (ast.ts): if ext ∈ {.ts,.tsx,.js,.jsx,.mjs,.cjs,.py} → run vendored `LspClient` diagnostics on the written file (spawn per call, bounded 15s total, cold start acceptable); append to output: `\nDiagnostics: <n> problem(s)` + `\n<rel>:<line> [<severity>] <message>` rows when n>0, or `\nDiagnostics: clean` when 0. Binary spawn ENOENT or op timeout → append NOTHING to output; set `metadata.diag = "DIAG_UNAVAILABLE"` (write succeeded; diagnostics best-effort — never fail a good write).
 - Unserved ext → no section, no metadata key. W1 ST suite (47-row lock) outputs MUST stay byte-identical on unserved-ext fixtures — the fixtures are .ts so diag WILL fire there; W1-C must update any W1 ST expectation that breaks ONLY by appending the new section (list each touched expectation in the return).
 - Import LspClient from ../lsp/client (relative from edit.ts: `./lsp/client`? edit.ts is src/edit.ts → `./lsp/client`; ast.ts same). No new deps.
 
@@ -24,16 +24,16 @@ Exports: only `shadowReadTool`. Imports: TagStore store, resolveAbs, astGrep fro
 - kernels.ts edit (W1-B ONLY): add optional ctor param `preamble?: Partial<Record<Lang, string>>`; in execInner, before user code, first evaluate `this.preamble?.[lang]` once per process lifetime (track per-lang boolean; preamble failures → proceed WITHOUT preamble and note once via console.warn — never fail the cell). No other kernels.ts changes.
 - index.ts wiring is W1-E's (watcher start with dispatch {read: worktree-resolved fs read, grep: natives grep}, stop on session.post alongside killAll).
 
-## src/mv.ts — mimo_mv (Desk W1-D owns src/mv.ts + src/lsp/client.ts willRename addition ONLY)
+## src/mv.ts — omp_mv (Desk W1-D owns src/mv.ts + src/lsp/client.ts willRename addition ONLY)
 
 - client.ts addition: `async willRename(pairs: Array<{from: string; to: string}>): Promise<Map<string, TextEdit[]>>` — sends `workspace/willRenameFiles` with `{files: [{oldUri, newUri}]}`; server null/empty/no-support → return empty map (caller decides the note). Reuse requestRaw/pending machinery; 10s timeout.
-- mimoMvTool: args `{from: z.string(), to: z.string()}`. Behavior: resolve both abs; `from` must exist and not be a directory (dirs → named `MV_DIR_UNSUPPORTED`); if ext served AND server binary present → willRename → apply returned edits atomic per file (reuse applyEditsToFile export from client — export it); then fs renameSync; TagStore.invalidate(from) + snapshot(to). Output: `moved <rel-from> -> <rel-to>` + `\nimports updated in <n> file(s)` (+ per-file rows) OR `\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten` when the server path was skipped. metadata `{moved: true, importsRewritten: n}`.
-- Exports: mimoMvTool from mv.ts; willRename + applyEditsToFile from client.ts.
+- ompMvTool: args `{from: z.string(), to: z.string()}`. Behavior: resolve both abs; `from` must exist and not be a directory (dirs → named `MV_DIR_UNSUPPORTED`); if ext served AND server binary present → willRename → apply returned edits atomic per file (reuse applyEditsToFile export from client — export it); then fs renameSync; TagStore.invalidate(from) + snapshot(to). Output: `moved <rel-from> -> <rel-to>` + `\nimports updated in <n> file(s)` (+ per-file rows) OR `\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten` when the server path was skipped. metadata `{moved: true, importsRewritten: n}`.
+- Exports: ompMvTool from mv.ts; willRename + applyEditsToFile from client.ts.
 
 ## src/index.ts wiring (Desk W1-E owns index.ts edits + ALL W1 ST files ONLY)
 
-- Register: `Object.assign(tool, { mimo_mv: mimoMvTool })` always (additive); `if ((opts.shadow ?? []).includes("read")) Object.assign(tool, { read: shadowReadTool })` — shadow read ONLY under opt-in (AP-6). NEVER replace builtin read by default.
-- RPC watcher: when eval enabled, `const stopRpc = startWatcher(path.join(process.cwd(), ".mimocode", "mimo-intel", "eval-rpc"), dispatch)` with dispatch read (fs.readFile utf8 resolved against... session worktree is per-call — dispatch signature has no ctx; resolve against process.cwd() and DOCUMENT the limitation); session.post: stopRpc() + killAll.
+- Register: `Object.assign(tool, { omp_mv: ompMvTool })` always (additive); `if ((opts.shadow ?? []).includes("read")) Object.assign(tool, { read: shadowReadTool })` — shadow read ONLY under opt-in (AP-6). NEVER replace builtin read by default.
+- RPC watcher: when eval enabled, `const stopRpc = startWatcher(path.join(process.cwd(), ".mimocode", "omp-intel", "eval-rpc"), dispatch)` with dispatch read (fs.readFile utf8 resolved against... session worktree is per-call — dispatch signature has no ctx; resolve against process.cwd() and DOCUMENT the limitation); session.post: stopRpc() + killAll.
 - ST: tests/st/v2w1.st.ts (read-shadow rows: tag header, Symbols section, selector hit, NO_SYMBOL; diag rows: bad edit → [error] row in card, unserved ext → no section; rpc rows: intel_read inside py kernel → file content, missing file → RPC error row; mv rows: willRename import updated OR WILLRENAME_UNSUPPORTED named note) + run.ts concat BEFORE hooks arrays (ordering law). Sandbox-absolute dirs only; never project cwd chain.
 
 ## Suite-ordering + write-set law (all desks)

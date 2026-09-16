@@ -17,10 +17,10 @@
 - Mode B mutable snapshot — no chattr lock (guardian-owned layer).
 - Per-file roles: index.ts (entry+hooks) / shim.ts (ctx+options) /
   config.ts (defaults) / types.ts (Ctx) / tagstore.ts (hash tags) /
-  ast.ts (ast_grep/edit/resolve) / edit.ts (mimo_edit) / read.ts (shadow
+  ast.ts (ast_grep/edit/resolve) / edit.ts (omp_edit) / read.ts (shadow
   read) / diag.ts (diagnostics helper) / merkle.ts + evidence.ts (chain) /
   ttsr.ts (rules+store) / advisor.ts (trajectory scan) / grep.ts (shadow) /
-  mv.ts (mimo_mv) / lsp/client.ts + tool.ts (vendored client+tool) /
+  mv.ts (omp_mv) / lsp/client.ts + tool.ts (vendored client+tool) /
   eval/kernels.ts + prelude.ts + rpc.ts (drivers+bridge).
 - Test roles: harness (Effect spine) / run (concat+timeout runner) / ast,
   edit, merkle, ttsr, hooks, eval, eval-gates, w4, v2w1, safety suites.

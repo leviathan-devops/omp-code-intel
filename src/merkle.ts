@@ -8,8 +8,8 @@
 // (prev|"root"|ts|tool|passed|dataHash joined with "|"), same append-only
 // JSONL persistence, same verify-walks-previousHash-links semantics.
 //
-// Adaptations for mimo-code-intel (CONTRACTS-W2, exact spec):
-// - default base ".mimocode/mimo-intel". A relative base resolves against
+// Adaptations for omp-code-intel (CONTRACTS-W2, exact spec):
+// - default base ".mimocode/omp-intel". A relative base resolves against
 //   process.cwd() AT CALL TIME (not at construction); an absolute base
 //   passes through untouched — the plugin passes an absolute base when
 //   available, the evidence tool derives one from ctx.directory.
@@ -38,7 +38,7 @@ export interface MerkleNode {
 
 const CHAIN_FILE = "merkle-chain.jsonl";
 
-export const DEFAULT_INTEL_BASE = ".mimocode/mimo-intel";
+export const DEFAULT_INTEL_BASE = ".mimocode/omp-intel";
 
 export class EvidencePipeline {
   private chain: MerkleNode[] = [];
@@ -114,7 +114,7 @@ export class EvidencePipeline {
       // Ported non-fatal posture, made loud: record() still returns the
       // node; the gap surfaces via chainLength()/verify() on fresh loads.
       const detail = err instanceof Error ? err.message : String(err);
-      console.warn(`[mimo-intel merkle] persist failed for tool=${node.tool}: ${detail}`);
+      console.warn(`[omp-intel merkle] persist failed for tool=${node.tool}: ${detail}`);
     }
   }
 

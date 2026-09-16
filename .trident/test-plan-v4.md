@@ -1,4 +1,4 @@
-# CONTAINER TEST PLAN — mimo-code-intel v4 OBSERVABILITY battery
+# CONTAINER TEST PLAN — omp-code-intel v4 OBSERVABILITY battery
 
 ## OBJECTIVE
 
@@ -9,8 +9,8 @@ plugin-written receipt file). Changed surface vs v3c: NO source change — this 
 purely observational; it exercises src/ast.ts (ast_edit, resolve), src/evidence.ts,
 src/eval/rpc.ts (negative paths), src/grep.ts (shadow grep), src/lsp/tool.ts (shadow lsp),
 src/eval/kernels.ts (js driver), src/diag.ts (image-dependent), src/ttsr.ts (reminder
-receipt), src/advisor.ts (advisor receipt). Rig: mimo-intel-v2-t4, image mimo-ct:master,
-plugin tree /root/MIMOCODE_WORKSPACE/mimo-code-intel (file-source plugin entry in
+receipt), src/advisor.ts (advisor receipt). Rig: omp-intel-v2-t4, image mimo-ct:master,
+plugin tree /root/MIMOCODE_WORKSPACE/omp-code-intel (file-source plugin entry in
 /root/.config/mimocode/mimocode.jsonc). HONEST SCOPE: the diag row depends on the image
 shipping typescript-language-server; if it is absent the row must be recorded as an honest
 skip with the image proof, never claimed. Tokens must appear in typed tool parts
@@ -68,7 +68,7 @@ Every changed file has a scenario; no coverage gap remains.
 
 ### Scenario 5: evidence integrity false after middle delete
 - Feature under test: middle-row deletion invalidates the chain
-- Prompt: (shell) delete the middle row of .mimocode/mimo-intel/merkle-chain.jsonl, then run evidence again and report the raw result.
+- Prompt: (shell) delete the middle row of .mimocode/omp-intel/merkle-chain.jsonl, then run evidence again and report the raw result.
 - Pass token: integrity=false
 - Fail token: integrity=true after the delete
 - Max wait: 180000
@@ -123,8 +123,8 @@ Every changed file has a scenario; no coverage gap remains.
 - Evidence capture: tool part
 
 ### Scenario 12: diag-on-write
-- Feature under test: diagnostics appended in the same mimo_edit card
-- Prompt: mimo_edit a .ts line into a type error and report the SAME card.
+- Feature under test: diagnostics appended in the same omp_edit card
+- Prompt: omp_edit a .ts line into a type error and report the SAME card.
 - Pass token: [error] in the card
 - Fail token: silence with the language server present
 - Max wait: 240000
@@ -135,7 +135,7 @@ Every changed file has a scenario; no coverage gap remains.
 ### Scenario 13: ttsr receipt
 - Feature under test: the reminder path is observable via a receipt
 - Prompt: run a tool whose output contains console.log, then read the receipt file.
-- Pass token: [mimo-intel rule in the receipt
+- Pass token: [omp-intel rule in the receipt
 - Fail token: no line while the trigger output matched
 - Max wait: 180000
 - Evidence capture: receipt file bytes
@@ -172,8 +172,8 @@ the artifact, and exec outputs (sha256sum, wc -l, ps) for disk truth. Receipt ro
 receipt file bytes. Results append-only to
 projects/omp-code-intel/.trident/container-test-results.json as the suite v4-battery; v1/v3
 rows are never mutated. OMP private notes only in
-/home/leviathan/JARVIS_WORKSPACE/OMP/mimo-code-intel-v2-campaign (corrected path:
-/home/leviathan/JARVIS_WORKSPACE/OMP/mimo-code-intel-v2-campaign).
+/home/leviathan/JARVIS_WORKSPACE/OMP/omp-code-intel-v2-campaign (corrected path:
+/home/leviathan/JARVIS_WORKSPACE/OMP/omp-code-intel-v2-campaign).
 
 ## PASS CRITERIA
 

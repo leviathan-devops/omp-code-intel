@@ -17,9 +17,9 @@
  *
  * BASE LAYOUT ASSUMPTION (pinned, reconciles with W2-A on mismatch): the spec
  * (§0 decisions + §8 SC-8) fixes the canonical chain at
- * `.mimocode/mimo-intel/merkle-chain.jsonl`, and CONTRACTS-W2 fixes the
- * pipeline default base to ".mimocode/mimo-intel". Every scenario therefore uses
- * base = join(sandbox, ".mimocode", "mimo-intel") and reads
+ * `.mimocode/omp-intel/merkle-chain.jsonl`, and CONTRACTS-W2 fixes the
+ * pipeline default base to ".mimocode/omp-intel". Every scenario therefore uses
+ * base = join(sandbox, ".mimocode", "omp-intel") and reads
  * join(base, "merkle-chain.jsonl"). The evidence tool is called with
  * ctx.directory = sandbox, so a conforming W2-A evidence implementation
  * resolves the same subpath. If W2-A resolves elsewhere, the evidence row
@@ -61,7 +61,7 @@ const EVIDENCE_MOD = "../../src/evidence";
 const CHAIN_FILE = "merkle-chain.jsonl";
 
 /** Canonical base inside the sandbox (spec §0/SC-8 layout). */
-const baseOf = (dir: string): string => join(dir, ".mimocode", "mimo-intel");
+const baseOf = (dir: string): string => join(dir, ".mimocode", "omp-intel");
 const fileOf = (base: string): string => join(base, CHAIN_FILE);
 
 /** Structural view of the real pipeline — sync or async methods both awaited. */

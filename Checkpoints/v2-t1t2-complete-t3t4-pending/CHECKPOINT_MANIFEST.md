@@ -25,7 +25,7 @@
 - Specs: OMP_CODE_INTEL_DPL1_SPEC.md (460L v1 build spec).
 - `.trident/`: PROGRESS.md (cycles 0–14), wave-plan.md (WAVES: 4),
   container-test-results.json (4 suites pass — v1 code only).
-- `package.json` (`mimo-code-intel@0.1.0`), `tsconfig.json`, `README.md`,
+- `package.json` (`omp-code-intel@0.1.0`), `tsconfig.json`, `README.md`,
   `THIRD-PARTY-NOTICES`, `bun.lock`.
 
 ## Honest gaps

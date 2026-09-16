@@ -1,8 +1,8 @@
 /**
- * tests/st/edit.st.ts — script tests for src/edit.ts (W1-C, mimo_edit) through the REAL tools.
+ * tests/st/edit.st.ts — script tests for src/edit.ts (W1-C, omp_edit) through the REAL tools.
  *
  * Snapshots come from the REAL ast_grep (src/ast.ts, W1-B): the tag is parsed
- * from the `[path]#tag` header, then fed to the REAL mimo_edit (src/edit.ts).
+ * from the `[path]#tag` header, then fed to the REAL omp_edit (src/edit.ts).
  *
  * LEGIT (SC-5): valid tag+hunk → `applied` in output, disk line 2 replaced,
  * new tag !== old. Reusing the old tag → exact STALE_ANCHOR + bytes identical.
@@ -101,7 +101,7 @@ const scApplyRetag: Scenario = {
             return Effect.map(
               attempt(
                 EDIT_MOD,
-                "mimoEditTool",
+                "ompEditTool",
                 { file_path: fixture, tag: snap.tag, hunks: [{ line: 2, old: LINE2_OLD, new: "REPLACED" }] },
                 ctx,
               ),
@@ -147,7 +147,7 @@ const scStaleReuse: Scenario = {
             return Effect.flatMap(
               attempt(
                 EDIT_MOD,
-                "mimoEditTool",
+                "ompEditTool",
                 { file_path: fixture, tag: oldTag, hunks: [{ line: 2, old: LINE2_OLD, new: "REPLACED" }] },
                 ctx,
               ),
@@ -163,7 +163,7 @@ const scStaleReuse: Scenario = {
                 return Effect.map(
                   attempt(
                     EDIT_MOD,
-                    "mimoEditTool",
+                    "ompEditTool",
                     { file_path: fixture, tag: oldTag, hunks: [{ line: 3, old: `export const gamma = "three";`, new: "SHOULD_NOT_APPLY" }] },
                     ctx,
                   ),
@@ -202,7 +202,7 @@ const scReadFirst: Scenario = {
           Effect.map(
             attempt(
               EDIT_MOD,
-              "mimoEditTool",
+              "ompEditTool",
               { file_path: fixture, tag: "abcd", hunks: [{ line: 1, old: `export const alpha = "one";`, new: "SHOULD_NOT_APPLY" }] },
               mkCtx(dir, "st-edit-readfirst"),
             ),
@@ -241,7 +241,7 @@ const scAnchorMismatch: Scenario = {
             return Effect.map(
               attempt(
                 EDIT_MOD,
-                "mimoEditTool",
+                "ompEditTool",
                 { file_path: fixture, tag: snap.tag, hunks: [{ line: 2, old: `export const beta = "WRONG";`, new: "SHOULD_NOT_APPLY" }] },
                 ctx,
               ),
@@ -283,7 +283,7 @@ const scOobTamper: Scenario = {
             return Effect.map(
               attempt(
                 EDIT_MOD,
-                "mimoEditTool",
+                "ompEditTool",
                 { file_path: fixture, tag: snap.tag, hunks: [{ line: 2, old: LINE2_OLD, new: "SHOULD_NOT_APPLY" }] },
                 ctx,
               ),

@@ -3,7 +3,7 @@
  *
  * LEGIT (CONTRACTS-W2 ttsr.st.ts row + spec §11 zero-misfire half):
  * clean output → scan() == [] ; reminderLine() EXACT
- * `[mimo-intel rule <key>] <body>` ; persistContext() returns the bodies array.
+ * `[omp-intel rule <key>] <body>` ; persistContext() returns the bodies array.
  * ADVERSARIAL (spec §8.9 negative half): matching output → exactly 1 violation
  * carrying the rule key ; compileRules() DROPS the invalid regex "([a-"
  * (kept count 1 of 2, survivor is the valid rule — never crashes the hook).
@@ -24,8 +24,8 @@ import { fail, pass, type Row, type Scenario } from "./harness";
 /** The canonical probe rule (CONTRACTS-W2 hooks.st.ts row verbatim). */
 const PROBE_RULES: Rule[] = [{ key: "no-console-log", re: "console\\.log", body: "use logger.debug" }];
 
-/** Exact reminder line per CONTRACTS-W2: `[mimo-intel rule <key>] <body>`. */
-const EXPECTED_REMINDER = "[mimo-intel rule no-console-log] use logger.debug";
+/** Exact reminder line per CONTRACTS-W2: `[omp-intel rule <key>] <body>`. */
+const EXPECTED_REMINDER = "[omp-intel rule no-console-log] use logger.debug";
 
 const BAD_RULE: Rule = { key: "bad-rule", re: "([a-", body: "never" };
 

@@ -8,12 +8,12 @@ import { diagSection } from "./diag";
 import type { Ctx } from "./types";
 
 // RB-06 concurrency property (no locks by design): the tag check in Step 2 IS
-// the serialization. Two parallel mimo_edit calls with the same file+tag race;
+// the serialization. Two parallel omp_edit calls with the same file+tag race;
 // the winner's Step-6 retag changes currentTag, so the loser's Step-2 comparison
 // (or a re-read after the winner's atomic rename) fails with STALE_ANCHOR.
 // Sequential execution in one process is the degenerate case of the same rule:
 // the second call always observes the first call's retag.
-export const mimoEditTool = tool({
+export const ompEditTool = tool({
   description:
     "Hashline-anchored edit: apply exact-line hunks to a file previously snapshotted via ast_grep/ast_edit. Verifies the 4-char content tag before writing; rejects stale tags (STALE_ANCHOR) and drifted lines (ANCHOR_MISMATCH) with no disk write.",
   args: {
@@ -107,7 +107,7 @@ export const mimoEditTool = tool({
       lines[hunk.line - 1] = hunk.new;
     }
     const newText = lines.join("\n") + (trailingEmpty ? "\n" : "");
-    const tmp = `${abs}.mimo-tmp`;
+    const tmp = `${abs}.omp-tmp`;
     try {
       writeFileSync(tmp, newText, "utf8");
       renameSync(tmp, abs);

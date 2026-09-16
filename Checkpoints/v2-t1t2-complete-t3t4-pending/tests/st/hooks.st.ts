@@ -2,7 +2,7 @@
  * tests/st/hooks.st.ts — script tests for the REAL src/index.ts hook wiring
  * (W2-C) against the REAL src/ttsr.ts rule engine (W2-B). Mode B: observable
  * channels only — returned hook objects + the project-cwd chain-file bytes
- * (`<cwd>/.mimocode/mimo-intel/merkle-chain.jsonl`). Exact tokens.
+ * (`<cwd>/.mimocode/omp-intel/merkle-chain.jsonl`). Exact tokens.
  *
  * Plugin under test: `pluginFn({}, {merkle:true,
  * ttsr:{rules:[{key:"no-console-log", re:"console\\.log",
@@ -10,9 +10,9 @@
  *
  * LEGIT/POSITIVE: tool.execute.after(edit, "console.log(1)") →
  * messages.transform yields 1 synthetic message whose parts[0].text
- * startsWith "[mimo-intel rule no-console-log]" ; second transform → 0
+ * startsWith "[omp-intel rule no-console-log]" ; second transform → 0
  * (store cleared) ; session.compacting context includes "use logger.debug" ;
- * system.transform yields 1 line containing "mimo-code-intel active:".
+ * system.transform yields 1 line containing "omp-code-intel active:".
  * ADVERSARIAL/NEGATIVE (§8.9 zero-misfire half): tool.execute.after with tool
  * "read" → NO new chain row (mutating-set gate held) ; the after-hook NEVER
  * mutates the output object (byte-identical JSON before/after) ;
@@ -20,7 +20,7 @@
  *
  * TEST ISOLATION: the chain file lives under process.cwd() (the project dir
  * when run via run.ts) — NOT the scenario sandbox. The first chain-touching
- * scenario snapshots whether `<cwd>/.mimocode/mimo-intel` pre-existed; the
+ * scenario snapshots whether `<cwd>/.mimocode/omp-intel` pre-existed; the
  * final cleanup scenario rmSyncs ONLY that dir when WE created it, and when
  * it pre-existed asserts append-only preservation (rows >= snapshot, never
  * wiped). Every positive scenario DRAINS its own violation batch so the
@@ -35,14 +35,14 @@ import { fail, pass, type Row, type Scenario } from "./harness";
 
 const RULES = [{ key: "no-console-log", re: "console\\.log", body: "use logger.debug" }];
 const RULE_BODY = "use logger.debug";
-const RULE_PREFIX = "[mimo-intel rule no-console-log]";
-const CAPABILITY_TOKEN = "mimo-code-intel active:";
+const RULE_PREFIX = "[omp-intel rule no-console-log]";
+const CAPABILITY_TOKEN = "omp-code-intel active:";
 
 type Hooks = Awaited<ReturnType<typeof pluginFn>>;
 
 const loadHooks = (): Promise<Hooks> => pluginFn({}, { merkle: true, ttsr: { rules: RULES } });
 
-const intelDir = (): string => join(process.cwd(), ".mimocode", "mimo-intel");
+const intelDir = (): string => join(process.cwd(), ".mimocode", "omp-intel");
 const chainFile = (): string => join(intelDir(), "merkle-chain.jsonl");
 
 /** Chain row count from disk bytes (readFileSync split/filter — same as merkle.st.ts). -1 on read defect. */
@@ -55,7 +55,7 @@ const chainRows = (): number => {
   }
 };
 
-/** Test-isolation baseline: did <cwd>/.mimocode/mimo-intel exist before WE wrote? Set once, by the first scenario that touches the chain. */
+/** Test-isolation baseline: did <cwd>/.mimocode/omp-intel exist before WE wrote? Set once, by the first scenario that touches the chain. */
 let baseline: { mimocodeExisted: boolean; rows: number } | null = null;
 const snapshotBaseline = (): void => {
   if (baseline === null) {
@@ -236,7 +236,7 @@ const scOmpEditChainRow: Scenario = asyncScenario("hooks-legit-omp-edit-appends-
   snapshotBaseline();
   const before = chainRows();
   await hooks["tool.execute.after"](
-    { tool: "mimo_edit", sessionID: "st-hooks-ompedit", callID: "c4", args: {} },
+    { tool: "omp_edit", sessionID: "st-hooks-ompedit", callID: "c4", args: {} },
     { title: "", output: "const ok = 1;", metadata: {} },
   );
   const exists = existsSync(chainFile());
@@ -262,12 +262,12 @@ const scCleanup: Scenario = asyncScenario("hooks-cleanup-created-mimocode", asyn
       ? pass("hooks-cleanup-created-mimocode", `preserved pre-existing .mimocode rows ${baseline.rows}->${now}`)
       : fail("hooks-cleanup-created-mimocode", `pre-existing .mimocode damaged: rows ${baseline.rows}->${now}`);
   }
-  // We created it: remove ONLY the mimo-intel dir we wrote, then prove it.
+  // We created it: remove ONLY the omp-intel dir we wrote, then prove it.
   rmSync(intelDir(), { recursive: true, force: true });
   const gone = !existsSync(intelDir());
   return gone
-    ? pass("hooks-cleanup-created-mimocode", "removed created .mimocode/mimo-intel")
-    : fail("hooks-cleanup-created-mimocode", "rmSync did not remove created .mimocode/mimo-intel");
+    ? pass("hooks-cleanup-created-mimocode", "removed created .mimocode/omp-intel")
+    : fail("hooks-cleanup-created-mimocode", "rmSync did not remove created .mimocode/omp-intel");
 });
 
 export const scenarios: ReadonlyArray<Scenario> = [

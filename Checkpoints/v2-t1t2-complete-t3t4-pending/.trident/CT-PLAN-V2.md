@@ -1,4 +1,4 @@
-# CONTAINER TEST PLAN — mimo-code-intel v2 battery (T2 deliverable, T3 executes)
+# CONTAINER TEST PLAN — omp-code-intel v2 battery (T2 deliverable, T3 executes)
 
 ## 1. OBJECTIVE
 
@@ -13,15 +13,15 @@ exec sha/diff/ps is disk truth. Agent prose as evidence is CIRCULAR → FAIL.
 
 ## 2. TOOLS UNDER TEST
 
-Plugin `mimo-code-intel` v0.2.0 (projects/omp-code-intel, 20 src modules):
-additive ids ast_grep/ast_edit/resolve/mimo_edit/eval/evidence/mimo_mv +
+Plugin `omp-code-intel` v0.2.0 (projects/omp-code-intel, 20 src modules):
+additive ids ast_grep/ast_edit/resolve/omp_edit/eval/evidence/omp_mv +
 opt-in shadows read/grep/lsp + hooks (execute.after merkle+ttsr, transforms,
 compacting, file.edited, session.post). Blast radius: registration set per
 options, all execute paths, chain file, kernel lifecycle, server-cwd RPC dir.
 Builtins untouched except under explicit shadow opt-in. Zero MiMo-core edits.
 Diff under test vs v1 LOCK: src/read.ts, src/diag.ts, edit.ts step-6,
 ast.ts resolve path, src/eval/rpc.ts + kernels preamble hook, src/mv.ts +
-client.willRename, index.ts wiring, renamed surface (mimo_edit etc).
+client.willRename, index.ts wiring, renamed surface (omp_edit etc).
 
 ## 3. TEST SCENARIOS (each: prompt shape / passToken / failToken / max)
 
@@ -31,13 +31,13 @@ S2 RB-11 read shadow: read work/fixture.ts under shadow:["read"]. PASS:
 `[work/fixture.ts]#` + `Symbols:` in card. FAIL: raw dump, no tag. Max 180s.
 S3 RB-11b selector: read work/fixture.ts#<symbol>. PASS: window centered on
 symbol line. FAIL: NO_SYMBOL on a present symbol. Max 180s.
-S4 RB-12 diag-on-write: mimo_edit writes a type error into .ts fixture.
+S4 RB-12 diag-on-write: omp_edit writes a type error into .ts fixture.
 PASS: `[error]` diagnostics row in SAME card. FAIL: silence. Max 240s.
 S5 RB-13 eval re-entry: eval py `intel_read("data.txt")` then print. PASS:
 file content in kernel stdout. FAIL: RPC_TIMEOUT. Max 240s.
-S6 RB-14 willRename: mimo_mv module with importer. PASS: `imports updated
+S6 RB-14 willRename: omp_mv module with importer. PASS: `imports updated
 in 1 file(s)` + rewritten import on disk. FAIL: broken import. Max 240s.
-S7 RB-02/RB-15 stale firewall: mimo_edit tag ffff. PASS: STALE_ANCHOR +
+S7 RB-02/RB-15 stale firewall: omp_edit tag ffff. PASS: STALE_ANCHOR +
 exec sha unchanged. FAIL: bytes changed. Max 180s.
 S8 RB-05 kernel persistence (regression): eval py x=41 then print(x+1).
 PASS: `42`. FAIL: undefined. Max 240s.
@@ -46,8 +46,8 @@ evidence. PASS: `integrity=false`. FAIL: true post-corruption. Max 180s.
 S10 RB-04 toggle-off reboot (regression): remove plugin entry → fresh boot →
 ast_grep probe. PASS: "No such tool exists" + builtin read works. FAIL: any
 plugin tool renders. Then restore → ast_grep back (toggle-on sanity). Max 300s.
-S11 renamed-id proof: mimo_edit named on-screen in a real card (closes the
-prior inconclusive spot). PASS: `⚙ mimo_edit` renders + applied/retag.
+S11 renamed-id proof: omp_edit named on-screen in a real card (closes the
+prior inconclusive spot). PASS: `⚙ omp_edit` renders + applied/retag.
 FAIL: id absent. Max 180s.
 S12 concurrency: two prompts same-file same-tag (sequential sends, race at
 the tool). PASS: exactly one applied + loser STALE_ANCHOR + sha == winner.
@@ -61,7 +61,7 @@ FAIL: hang or survivor. Max 120s.
 A2 malformed burst: empty pat, 10MB file read, binary read, unicode name.
 PASS: named rejection each (incl. READ_BINARY), outBytes bounded. FAIL: stack
 trace or hang. Max 300s.
-A3 readonly: chmod 444 fixture → mimo_edit valid tag. PASS: READ_ONLY_FILE +
+A3 readonly: chmod 444 fixture → omp_edit valid tag. PASS: READ_ONLY_FILE +
 sha unchanged. FAIL: bytes changed. Max 180s.
 A4 corrupt kernel binary (binOverrides equivalent in-container: PATH without
 python): eval py. PASS: KERNEL_MISSING. FAIL: stack dump. Max 120s (skip

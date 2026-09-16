@@ -1,17 +1,17 @@
-# MIMO_CODE_INTEL OMP CODE-INTEL SERIES — ENGINEERING REPORT v8
+# OMP_CODE_INTEL OMP CODE-INTEL SERIES — ENGINEERING REPORT v8
 
 **Series:** OMP Code Intel (judge-lane-closure lineage; the base-tree
 series is `OPENCODE_WORKSPACE/reports/OMP_Code_Intel_Engineering_Report_v1..v3`; v4 covers the
 production close-out and the S5 deep dive plus the observability plan; v5/v6 carry the
 observability evidence and v7 the reconciliation on this same tree).
 
-**Project:** `mimo-code-intel` v0.2.0 (MiMo plugin)
+**Project:** `omp-code-intel` v0.2.0 (MiMo plugin)
 **Date:** 2026-09-15
 **Author:** Trident Agent (mechanically intelligent engineering machine; omp runtime)
 **Baseline:** donor `research/sep11-aether-hw` @ `f38ce911581696334312af3402888ac39e928667`
-**Branch / Commit:** `mimo-code-intel-v2-closeout` @ HEAD (this v8 report commit — `git rev-parse --short HEAD` at read time)
+**Branch / Commit:** `omp-code-intel-v2-closeout` @ HEAD (this v8 report commit — `git rev-parse --short HEAD` at read time)
 **Tags:** `v0.2.0` @ `cc40d62c` · `v0.2.0-observability` @ HEAD (seal==HEAD: see §STOP)
-**Container:** `mimo-intel-v2-t4` (DOWN at report time — evidence quoted from its committed session-DB rows and receipt bytes) · **Image:** `mimo-ct:master`
+**Container:** `omp-intel-v2-t4` (DOWN at report time — evidence quoted from its committed session-DB rows and receipt bytes) · **Image:** `mimo-ct:master`
 
 **PLACEMENT RULING (AP-12):** same as v4/v5/v6/v7 — OMP-side worktree carries this report so
 no campaign artifact spills into the donor tree. Series bumped to v8 because the judge story
@@ -166,7 +166,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> honest DIAG_UNAVAILABLE skip per pin SC-6: mimo_edit card metadata.diag='DIAG_UNAVAILABLE'; image proof: `ls node_modules | grep -c
+> honest DIAG_UNAVAILABLE skip per pin SC-6: omp_edit card metadata.diag='DIAG_UNAVAILABLE'; image proof: `ls node_modules | grep -c
 > typescript-language-server` = 0 and `which typescript-language-server` = NO_TS_LS_BINARY (tsserver.js itself IS present; the LANGUAGE SERVER binary
 > is absent)
 
@@ -193,7 +193,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> tool part mimo_mv: output 'moved work/util.ts -> work/lib.ts\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten' metadata {moved:true,
+> tool part omp_mv: output 'moved work/util.ts -> work/lib.ts\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten' metadata {moved:true,
 > importsRewritten:0}
 
 ### S7 RB-02 stale firewall
@@ -206,7 +206,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> tool part mimo_edit: output 'STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/log-probe.ts changed since snapshot (had ffff, now 3cff)'; bash sha256sum
+> tool part omp_edit: output 'STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/log-probe.ts changed since snapshot (had ffff, now 3cff)'; bash sha256sum
 > = 3cff24de… == tag 3cff (bytes unchanged)
 
 ### S8 RB-05 kernel persistence
@@ -252,12 +252,12 @@ Every module above was verified this turn through the seal==HEAD proof
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ verdict: PASS                                                            │
-│ pass: mimo_edit applied + retag on disk                                  │
+│ pass: omp_edit applied + retag on disk                                  │
 │ fail: omp_edit                                                           │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> tool part mimo_edit: 'applied 1 hunk(s) → [work/fixture.ts]#…'; disk line4 = logger.debug(1); sha e5b25b98 -> 9b177527
+> tool part omp_edit: 'applied 1 hunk(s) → [work/fixture.ts]#…'; disk line4 = logger.debug(1); sha e5b25b98 -> 9b177527
 
 ### S12 RB-15 concurrency
 
@@ -269,7 +269,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> two mimo_edit with SAME tag 3cff: first -> 'applied 1 hunk(s) → [work/sel-probe.ts]#c637'; second -> 'STALE_ANCHOR: … changed si…'; disk sha prefix
+> two omp_edit with SAME tag 3cff: first -> 'applied 1 hunk(s) → [work/sel-probe.ts]#c637'; second -> 'STALE_ANCHOR: … changed si…'; disk sha prefix
 > c637 == winner tag, content 'export const alpha = 2;'
 
 ### A1 fork-kill
@@ -330,13 +330,13 @@ Every module above was verified this turn through the seal==HEAD proof
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ verdict: SKIPPED                                                         │
-│ pass: [mimo-intel rule …] message in context                             │
+│ pass: [omp-intel rule …] message in context                             │
 │ fail: (none)                                                             │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 > NOT tool-result observable: after configuring ttsr.rules and firing a console.log-matching tool call, the session DB has 0/2 parts matching
-> '%mimo-intel rule%' (the trigger tool output IS present: 2 parts match 'console.log(3)'), and the pane shows no reminder. The injected-message path
+> '%omp-intel rule%' (the trigger tool output IS present: 2 parts match 'console.log(3)'), and the pane shows no reminder. The injected-message path
 > has no tool-result token; asking the model is prose = circular (AP-4). Mechanically covered by ST (hooks.st.ts inject + w4.st.ts cleared rows).
 
 ### T-1 ast_edit propose then resolve
@@ -388,7 +388,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> bare id FAILED live (builtin grammar 'Found 1 matches ... Line 4:' observed) -> additive id fix -> tool part mimo_grep -> 'matches=1
+> bare id FAILED live (builtin grammar 'Found 1 matches ... Line 4:' observed) -> additive id fix -> tool part omp_grep -> 'matches=1
 > files=1\n[work/fixture.ts]#5e72\n4:logger.debug(1);' metadata {matchCount:1,fileCount:1}
 
 ### T-5 shadow lsp live row
@@ -401,7 +401,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> tool part mimo_lsp (definition) -> 'No LSP server available for .ts files (typescript-language-server not installed)' metadata.error NO_LSP_SERVER
+> tool part omp_lsp (definition) -> 'No LSP server available for .ts files (typescript-language-server not installed)' metadata.error NO_LSP_SERVER
 
 ### T-6 js-side intel_read
 
@@ -437,7 +437,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> honest skip with image proof: mimo_edit wrote a type error (line1 'export const alpha: number = "str";') and metadata.diag=DIAG_UNAVAILABLE; 'which
+> honest skip with image proof: omp_edit wrote a type error (line1 'export const alpha: number = "str";') and metadata.diag=DIAG_UNAVAILABLE; 'which
 > typescript-language-server' -> NO_TS_LS_BINARY, zero global/local installs (tsserver.js alone is not the LS binary)
 
 ### T-9 ttsr injection receipt
@@ -445,12 +445,12 @@ Every module above was verified this turn through the seal==HEAD proof
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ verdict: PASS                                                            │
-│ pass: [mimo-intel rule in the receipt                                    │
+│ pass: [omp-intel rule in the receipt                                    │
 │ fail: no line while the trigger matched                                  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> receipt file line: '2026-09-14T18:05:03.309Z injected=2 :: [mimo-intel rule no-console-log] use logger.debug' — closes the S17 gap from the v3
+> receipt file line: '2026-09-14T18:05:03.309Z injected=2 :: [omp-intel rule no-console-log] use logger.debug' — closes the S17 gap from the v3
 > battery
 
 ### T-10 advisor receipt
@@ -463,7 +463,7 @@ Every module above was verified this turn through the seal==HEAD proof
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-> receipt file line: '... injected=2 :: [mimo-intel rule no-console-log] ... [mimo-intel rule advisor:no-console-log] use logger.debug'
+> receipt file line: '... injected=2 :: [omp-intel rule no-console-log] ... [omp-intel rule advisor:no-console-log] use logger.debug'
 
 ### T-11 A3 contract + seal
 
@@ -520,7 +520,7 @@ Every module above was verified this turn through the seal==HEAD proof
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ ast_edit  propose only: disk+sha provably unchanged                      │
 │ resolve   consume op: fresh tag, disk moves, tag=sha                     │
-│ mimo_edit stale tag -> STALE_ANCHOR, bytes kept                          │
+│ omp_edit stale tag -> STALE_ANCHOR, bytes kept                          │
 │   two same-tag edits -> one wins (S12 #c637)                             │
 │   444-bit file -> READ_ONLY_FILE (tool layer);                           │
 │   root agents can still write (A3, README contract)                      │
@@ -683,7 +683,7 @@ fine'. Each row names the exact wall it hit and the artifact that proves the wal
 | surface | wall | proof that the wall is real |
 |---|---|---|
 | T-8/S4 `[error]` card | the image has no `typescript-language-server` | proof: `which` -> NO_TS_LS_BINARY, zero global/local installs; the write lands and metadata.diag=DIAG_UNAVAILABLE names the absence instead of faking a diagnostic |
-| direct `grep` id | the host registry does not yield it; the builtin grammar wins | proof: same prompt returns builtin grammar for bare `grep` but plugin grammar `matches=N files=M` + `[path]#tag` for `mimo_grep`; ST text-covers it |
+| direct `grep` id | the host registry does not yield it; the builtin grammar wins | proof: same prompt returns builtin grammar for bare `grep` but plugin grammar `matches=N files=M` + `[path]#tag` for `omp_grep`; ST text-covers it |
 | reminder without receipts | message injection emits no tool result by construction | proof: session DB has 0 parts matching the rule marker while the trigger output IS present (v3c S17); the receipt sink (off by default) is the only observable |
 | advisor without the option | hook is inert unless `advisor.model` is set | proof: no advisor-prefixed line appears until the model option is configured, then the receipt line appears |
 | js cells when the bridge is gone | the named RPC_CJS_ONLY guard is the only honest output | proof: the guard line PREAMBLE_JS (rpc.ts/prelude.ts) plus the fallback throw |
@@ -694,9 +694,9 @@ fine'. Each row names the exact wall it hit and the artifact that proves the wal
 The plan (`.trident/test-plan-v4.md`, 8701 bytes) converted every ST-only,
 tool-layer-only, image-blocked, or structurally-unobservable surface into a LIVE
 rig row with a typed tool part or a plugin-written receipt as evidence — never
-agent prose (circular = FAIL). Rig `mimo-intel-v2-t4`, image `mimo-ct:master`,
-plugin tree `/root/MIMOCODE_WORKSPACE/mimo-code-intel`. The T3 battery ran under
-`.trident/CT-PLAN-V2.md` (4,987 chars) on rig `mimo-intel-v2-t3b`.
+agent prose (circular = FAIL). Rig `omp-intel-v2-t4`, image `mimo-ct:master`,
+plugin tree `/root/MIMOCODE_WORKSPACE/omp-code-intel`. The T3 battery ran under
+`.trident/CT-PLAN-V2.md` (4,987 chars) on rig `omp-intel-v2-t3b`.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -712,7 +712,7 @@ plugin tree `/root/MIMOCODE_WORKSPACE/mimo-code-intel`. The T3 battery ran under
 │ L2 rows (same rig, same session, regression):                            │
 ├──────────────────────────────────────────────────────────────────────────┤
 │   fresh-base repro THREW before / OK after                               │
-│   same-prompt grammar twin (bare vs mimo_grep)                           │
+│   same-prompt grammar twin (bare vs omp_grep)                           │
 │   T-6 rerun js hello-rpc after the bridge fix                            │
 │   T-9/T-10 receipt lines, already quoted                                 │
 │   BUSY probe: RES9 RPC_BUSY + REQ9 unlinked                              │
@@ -761,7 +761,7 @@ Wave-scope: only defects FOUND AND FIXED between the v3c seal and this report (6
 | # | bug | root cause | fix | evidence |
 |---|---|---|---|
 | F1 | fresh workspace: EVERY intel_read timed out | ensureRpcDir mkdir'd only the leaf; the parent did not exist on a new project; the plugin-init catch swallowed ENOENT | recursive base mkdir + loud console.warn (003cc09a) | fresh-base repro THREW before / OK after; eval-rpc present at plugin-init time; three T-3 rows green |
-| F2 | bare shadow ids unreachable live | host registry does not yield grep/lsp ids (builtin won; lsp absent), though the plugin registered both | additive mimo_grep/mimo_lsp behind opts.shadow (003cc09a) | T-4 grammar LIVE; T-5 NO_LSP_SERVER LIVE |
+| F2 | bare shadow ids unreachable live | host registry does not yield grep/lsp ids (builtin won; lsp absent), though the plugin registered both | additive omp_grep/omp_lsp behind opts.shadow (003cc09a) | T-4 grammar LIVE; T-5 NO_LSP_SERVER LIVE |
 | F3 | js re-entry dead: TypeError in a live js cell | vm scope seeded console/Buffer/timers/process but NOT require or crypto; the ST row only asserted preamble TEXT | seed createRequire + randomBytes + globalThis; named RPC_CJS_ONLY fallback (003cc09a) | T-6 re-run: hello-rpc in js, exit ok |
 | F4 | hook reminders had no observable | message-injection hooks produce no tool result by construction | opt-in injection-receipt.log, default off (003cc09a) | two receipt lines with the rule and advisor tokens (T-9/T-10) |
 | F5 | detached-full shed leaked the .req with a bare timeout | early return wrote no reply and unlinked nothing (judge high) | named RPC_BUSY reply + unlink (d24fee43) | live BUSY probe: RES9 RPC_BUSY + REQ9 gone |
@@ -885,12 +885,12 @@ only — zero product bytes since the v4 seal.
 ## WHAT'S NEEDED FROM THE OPERATOR
 
 1. **`npm publish`** — still staged, NOT run (AP-7). Explicit GO required; nothing in this report changes that.
-2. **Push the closeout branch — BLOCKED, measured twice:** `git push origin mimo-code-intel-v2-closeout --tags` exit 1, pre-receive hook declined on >100MB blobs elsewhere on the branch (`trident-paragon-tmp/v2/v2-escalation.db` 197.35MB, `projects/railway-opencode-vanilla/opencode-bin/opencode` 135.50MB — none under `projects/omp-code-intel/`). Remedy needs operator decision: LFS, history surgery, or a narrow refspec — NOT attempted unilaterally. Both tags local-only.
+2. **Push the closeout branch — BLOCKED, measured twice:** `git push origin omp-code-intel-v2-closeout --tags` exit 1, pre-receive hook declined on >100MB blobs elsewhere on the branch (`trident-paragon-tmp/v2/v2-escalation.db` 197.35MB, `projects/railway-opencode-vanilla/opencode-bin/opencode` 135.50MB — none under `projects/omp-code-intel/`). Remedy needs operator decision: LFS, history surgery, or a narrow refspec — NOT attempted unilaterally. Both tags local-only.
 3. **P0 flipped to green — the judge lane:** the pinned muse lane stays quota-dead (5/5 keys 429), but the operator-ordered fallback (master-image key + nemotron-3.5-lightning:free) reads GATE: PASS (0 critical/high) on 003cc09a + all four seal commits. Re-run the pinned lane on refill only if single-engine purity is wanted.
 4. **P0 still open — `typescript-language-server`** absent from `mimo-ct:master`; T-8/S4 stay honest skips until the image ships it.
 5. **Ruling carried — A3 threat model:** the 444-bit guard is a tool-layer invariant; README now states it. Real jail or accepted as-is?
 6. **Ruling carried — receipt sink default:** covered by the opt-in sink genuinely exercised live (T-9/T-10), not just ST. Leave default-OFF or promote to default-ON?
-7. **Rig hygiene:** `mimo-intel-v2-t4` is DOWN at report time; the session DB + receipt bytes it held survive in the committed rows. `mimo-intel-v2-t3b` holds the T3 evidence. Confirm reap timing.
+7. **Rig hygiene:** `omp-intel-v2-t4` is DOWN at report time; the session DB + receipt bytes it held survive in the committed rows. `omp-intel-v2-t3b` holds the T3 evidence. Confirm reap timing.
 
 ---
 
@@ -919,12 +919,12 @@ complete. A fixture, an ST suite, or a tool-layer probe is VOID as a close.
   003cc09a {low:1} (sess 6e9bc11e, 7 files, 211944 tokens, 31m35s; low = driver_py
   STATE-global maintainability, pre-existing driver shape, not a v4 hunk).
   **GATE: PASS (0 critical/high)** on the nemo lane for 003cc09a + four seal commits;
-  evidence `mimo-code-intel-v2-campaign/qwen-nemo-*-2026-09-15.json` (+ deterministic
+  evidence `omp-code-intel-v2-campaign/qwen-nemo-*-2026-09-15.json` (+ deterministic
   10-rule audit PASS, kept alongside). Seal protocol: this v8 commits first, then the tag
   follows to the v8 commit — the STOP claim above names the post-commit state.
 
 **What the seal explicitly does NOT cover** (stated so the next session cannot over-read it):
 the T-8 diagnostic card remains an honest skip (the language-server binary is absent from the
 image); the pinned muse lane stays quota-dead (nemo PASS stands with the delta disclosed —
-re-run muse on refill only for single-engine purity); and `mimo-intel-v2-t4` is DOWN at report
+re-run muse on refill only for single-engine purity); and `omp-intel-v2-t4` is DOWN at report
 time, so any future row must boot a fresh rig rather than trust its pane.

@@ -1,9 +1,9 @@
-// src/index.ts — mimo-code-intel plugin entry (W1-D + W2-C hooks).
+// src/index.ts — omp-code-intel plugin entry (W1-D + W2-C hooks).
 // MiMo's loader imports this module and the tool registry consumes the
 // returned Hooks: tool-map KEYS become registered tool ids verbatim
 // (tool/registry.ts:246-249, 336-337 — custom ids REPLACE same-id
 // builtins, so W1 registers ONLY additive ids: ast_grep, ast_edit,
-// resolve, mimo_edit; shadow ids grep/lsp are W4 opt-in (registered ONLY via
+// resolve, omp_edit; shadow ids grep/lsp are W4 opt-in (registered ONLY via
 // opts.shadow — AP-6 zero-opt-in law) plus the advisor hook (default OFF).
 // Loader shapes served: named `server` fn + function default export
 // (plugin/index.ts applyPlugin: V1 `mod.default.server` detect, else the
@@ -21,7 +21,7 @@ import path from "node:path";
 import { z } from "zod";
 import { loadOptions } from "./config";
 import { astEditTool, astGrepTool, resolveTool } from "./ast";
-import { mimoEditTool } from "./edit";
+import { ompEditTool } from "./edit";
 import { evidenceTool } from "./evidence";
 import { KernelManager } from "./eval/kernels";
 import { newPipeline } from "./merkle";
@@ -29,7 +29,7 @@ import { compileRules, scan, reminderLine, persistContext, pushViolations, takeV
 import { grepTool } from "./grep";
 import { lspTool } from "./lsp/tool";
 import { shadowReadTool } from "./read";
-import { mimoMvTool } from "./mv";
+import { ompMvTool } from "./mv";
 import { startWatcher, PREAMBLE_PY } from "./eval/rpc";
 import { advisorHooks } from "./advisor";
 import { store } from "./tagstore";
@@ -37,12 +37,12 @@ import type { Ctx } from "./types";
 
 // W2-C: exact mutating-tool set from CONTRACTS-W2 — membership gates the
 // merkle record() call ("read" and other observers never append a row).
-const MUTATING_TOOLS = ["edit", "write", "apply_patch", "multiedit", "notebook_edit", "mimo_edit", "resolve"];
+const MUTATING_TOOLS = ["edit", "write", "apply_patch", "multiedit", "notebook_edit", "omp_edit", "resolve"];
 
-// W2-C: lazy singleton pipeline; base defaults to relative ".mimocode/mimo-intel"
+// W2-C: lazy singleton pipeline; base defaults to relative ".mimocode/omp-intel"
 // inside newPipeline(). NOTE: that resolves against process.cwd() of the MiMo
 // server process — in practice the project dir (per-project server), so the
-// chain lands at <project>/.mimocode/mimo-intel/merkle-chain.jsonl. Laziness
+// chain lands at <project>/.mimocode/omp-intel/merkle-chain.jsonl. Laziness
 // keeps plugin init free of fs work; record() mkdir -ps on first write.
 let pipeline: ReturnType<typeof newPipeline> | null = null;
 function getPipeline() {
@@ -50,13 +50,13 @@ function getPipeline() {
 }
 
 // W3-C: lazy KernelManager singleton; base matches the merkle home
-// (<project>/.mimocode/mimo-intel). Laziness keeps init free of fs work.
+// (<project>/.mimocode/omp-intel). Laziness keeps init free of fs work.
 // V2: preamble param wires the RPC injectors; extraEnv passes the RPC dir.
 let km: KernelManager | null = null;
 function getKm() {
-  return (km ??= new KernelManager(path.join(process.cwd(), ".mimocode", "mimo-intel"), undefined, {
+  return (km ??= new KernelManager(path.join(process.cwd(), ".mimocode", "omp-intel"), undefined, {
     py: PREAMBLE_PY,
-  }, { MIMO_INTEL_RPC_DIR: path.join(process.cwd(), ".mimocode", "mimo-intel", "eval-rpc") }));
+  }, { OMP_INTEL_RPC_DIR: path.join(process.cwd(), ".mimocode", "omp-intel", "eval-rpc") }));
 }
 
 // W4-C: the per-session violation store moved to src/ttsr.ts
@@ -70,7 +70,7 @@ function getKm() {
 // W2-C: capability brief injected once per system array by
 // "experimental.chat.system.transform" (gated on opts.ast).
 const CAPABILITY_BRIEF =
-  "mimo-code-intel active: ast_grep/ast_edit/mimo_edit provide hashline-tagged structural editing — prefer [path]#tag anchors from ast_grep output when editing.";
+  "omp-code-intel active: ast_grep/ast_edit/omp_edit provide hashline-tagged structural editing — prefer [path]#tag anchors from ast_grep output when editing.";
 
 // W3-C: OMP evalSchema subset (language/code/title/timeout/reset).
 const evalArgs = { language: z.enum(["py", "js"]), code: z.string(), title: z.string().optional(), timeout: z.number().optional(), reset: z.boolean().optional() };
@@ -90,7 +90,7 @@ function ensureRpcWatcher() {
   } catch {
     // never started
   }
-  rpcStop = startWatcher(path.join(process.cwd(), ".mimocode", "mimo-intel"), async (name, args) => {
+  rpcStop = startWatcher(path.join(process.cwd(), ".mimocode", "omp-intel"), async (name, args) => {
     if (name === "read") {
       const { readFileSync } = await import("node:fs");
       const p = String((args as Record<string, unknown>).path ?? "");
@@ -121,7 +121,7 @@ export default async function plugin(input: any, options?: Record<string, unknow
   // (W1 container proofs depend on the exact registration surface).
   const tool: Record<string, unknown> = {};
   if (opts.ast !== false) Object.assign(tool, { ast_grep: astGrepTool, ast_edit: astEditTool, resolve: resolveTool });
-  if (opts.hashline !== false) Object.assign(tool, { mimo_edit: mimoEditTool });
+  if (opts.hashline !== false) Object.assign(tool, { omp_edit: ompEditTool });
   if (opts.merkle !== false) Object.assign(tool, { evidence: evidenceTool });
   // W3-C: persistent py/js kernels via the lazy singleton. State persists
   // across calls in the driver process; reset:true wipes that language.
@@ -168,9 +168,9 @@ export default async function plugin(input: any, options?: Record<string, unknow
   // W4-C: shadow registration — opt-in ONLY. ids "grep"/"lsp" replace same-id
   // builtins via the registry; absent without explicit opts.shadow (AP-6).
   for (const id of opts.shadow ?? []) { if (id === "grep") Object.assign(tool, { grep: grepTool }); else if (id === "lsp") Object.assign(tool, { lsp: lspTool }); }
-  // V2 W1-E: mimo_mv is always additive; read shadow is opt-in ONLY
+  // V2 W1-E: omp_mv is always additive; read shadow is opt-in ONLY
   // (replacing the hottest builtin by default would be aggressive — AP-6).
-  Object.assign(tool, { mimo_mv: mimoMvTool });
+  Object.assign(tool, { omp_mv: ompMvTool });
   if ((opts.shadow ?? []).includes("read")) Object.assign(tool, { read: shadowReadTool });
   const base = {
     tool,
@@ -198,13 +198,13 @@ export default async function plugin(input: any, options?: Record<string, unknow
       const batch = sid !== undefined ? takeViolations(sid) : takeLastViolations();
       if (batch === null || batch.length === 0) return output; // zero-misfire: no violations → unchanged.
       output.messages.push({
-        info: { role: "user", id: `mimo-intel-rule-${Date.now()}` },
+        info: { role: "user", id: `omp-intel-rule-${Date.now()}` },
         parts: [{ type: "text", text: batch.map(reminderLine).join("\n") }],
       });
       return output;
     },
     "experimental.chat.system.transform": async (_hookInput: any, output: any) => {
-      if (opts.ast !== false && !output.system.some((l: string) => l.includes("mimo-code-intel active:"))) {
+      if (opts.ast !== false && !output.system.some((l: string) => l.includes("omp-code-intel active:"))) {
         output.system.push(CAPABILITY_BRIEF);
       }
       return output;
@@ -224,7 +224,7 @@ export default async function plugin(input: any, options?: Record<string, unknow
           if (typeof p === "string") store.invalidate(path.isAbsolute(p) ? p : path.join(process.cwd(), p));
         }
       } catch (e) {
-        console.warn("[mimo-code-intel] event hook:", (e as any)?.message ?? e);
+        console.warn("[omp-code-intel] event hook:", (e as any)?.message ?? e);
       }
     },
     // W3-C (SC-11): kernels die with the session (the killAll swallow is this module's only catch-all).

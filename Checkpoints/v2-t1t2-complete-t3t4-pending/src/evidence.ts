@@ -28,7 +28,7 @@ export const evidenceTool = tool({
       typeof ctx?.directory === "string" && ctx.directory.length > 0
         ? ctx.directory
         : process.cwd();
-    const pipeline = new EvidencePipeline(path.join(dir, ".mimocode/mimo-intel"));
+    const pipeline = new EvidencePipeline(path.join(dir, ".mimocode/omp-intel"));
     pipeline.loadChain();
     const chainLength = pipeline.chainLength();
     const lastHash = pipeline.lastHash();

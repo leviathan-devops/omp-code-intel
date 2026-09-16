@@ -253,7 +253,7 @@
     },
     {
       "suite": "v3-battery",
-      "container": "mimo-intel-v2-t3",
+      "container": "omp-intel-v2-t3",
       "image": "mimo-ct:master",
       "date": "2026-09-14",
       "closeoutHead": "d4f8ae3f",
@@ -294,7 +294,7 @@
           "evidence": "eval card after RPC poll fix"
         },
         {
-          "name": "S6-mimo_mv",
+          "name": "S6-omp_mv",
           "verdict": "PASS",
           "passToken": "moved",
           "toolResultContext": "true",
@@ -329,11 +329,11 @@
           "evidence": "Tool error: tool named exactly ast_grep does not exist; builtin read served fixture"
         },
         {
-          "name": "S11-mimo_edit-id",
+          "name": "S11-omp_edit-id",
           "verdict": "PASS",
-          "passToken": "mimo_edit",
+          "passToken": "omp_edit",
           "toolResultContext": "true",
-          "evidence": "card header \u2699 mimo_edit"
+          "evidence": "card header \u2699 omp_edit"
         },
         {
           "name": "S12-concurrency",
@@ -389,7 +389,7 @@
     },
     {
       "suite": "v3b-battery",
-      "container": "mimo-intel-v2-t3b",
+      "container": "omp-intel-v2-t3b",
       "image": "mimo-ct:master",
       "date": "2026-09-14",
       "closeoutHead": "da2aa3b1",
@@ -449,8 +449,8 @@
         },
         {
           "name": "S11 renamed-id",
-          "feature": "mimo_edit",
-          "passToken": "mimo_edit applied on disk",
+          "feature": "omp_edit",
+          "passToken": "omp_edit applied on disk",
           "failToken": "omp_edit",
           "passTokenMatch": true,
           "failTokenAbsent": true,
@@ -463,7 +463,7 @@
         {
           "name": "S17 ttsr reminder",
           "feature": "src/ttsr.ts",
-          "passToken": "mimo-intel rule",
+          "passToken": "omp-intel rule",
           "failToken": "n/a",
           "passTokenMatch": false,
           "failTokenAbsent": true,
@@ -504,7 +504,7 @@
     },
     {
       "suite": "v3c-battery",
-      "container": "mimo-intel-v2-t3b",
+      "container": "omp-intel-v2-t3b",
       "image": "mimo-ct:master",
       "date": "2026-09-14",
       "closeoutHead": "74c4dc96",
@@ -560,7 +560,7 @@
         },
         {
           "name": "S4 RB-12 diag-on-write",
-          "feature": "src/diag.ts append on mimo_edit",
+          "feature": "src/diag.ts append on omp_edit",
           "passToken": "[error] in SAME card",
           "failToken": "silence",
           "passTokenMatch": false,
@@ -569,7 +569,7 @@
           "maxWaitMs": 240000,
           "timedOut": false,
           "verdict": "SKIPPED",
-          "evidence": "honest DIAG_UNAVAILABLE skip per pin SC-6: mimo_edit card metadata.diag='DIAG_UNAVAILABLE'; image proof: `ls node_modules | grep -c typescript-language-server` = 0 and `which typescript-language-server` = NO_TS_LS_BINARY (tsserver.js itself IS present; the LANGUAGE SERVER binary is absent)"
+          "evidence": "honest DIAG_UNAVAILABLE skip per pin SC-6: omp_edit card metadata.diag='DIAG_UNAVAILABLE'; image proof: `ls node_modules | grep -c typescript-language-server` = 0 and `which typescript-language-server` = NO_TS_LS_BINARY (tsserver.js itself IS present; the LANGUAGE SERVER binary is absent)"
         },
         {
           "name": "S5 RB-13 eval re-entry",
@@ -595,11 +595,11 @@
           "maxWaitMs": 240000,
           "timedOut": false,
           "verdict": "PASS",
-          "evidence": "tool part mimo_mv: output 'moved work/util.ts -> work/lib.ts\\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten' metadata {moved:true, importsRewritten:0}"
+          "evidence": "tool part omp_mv: output 'moved work/util.ts -> work/lib.ts\\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten' metadata {moved:true, importsRewritten:0}"
         },
         {
           "name": "S7 RB-02 stale firewall",
-          "feature": "mimo_edit STALE_ANCHOR",
+          "feature": "omp_edit STALE_ANCHOR",
           "passToken": "STALE_ANCHOR + sha unchanged",
           "failToken": "applied 1 hunk",
           "passTokenMatch": true,
@@ -608,7 +608,7 @@
           "maxWaitMs": 180000,
           "timedOut": false,
           "verdict": "PASS",
-          "evidence": "tool part mimo_edit: output 'STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/log-probe.ts changed since snapshot (had ffff, now 3cff)'; bash sha256sum = 3cff24de\u2026 == tag 3cff (bytes unchanged)"
+          "evidence": "tool part omp_edit: output 'STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/log-probe.ts changed since snapshot (had ffff, now 3cff)'; bash sha256sum = 3cff24de\u2026 == tag 3cff (bytes unchanged)"
         },
         {
           "name": "S8 RB-05 kernel persistence",
@@ -651,8 +651,8 @@
         },
         {
           "name": "S11 renamed-id",
-          "feature": "mimo_edit tool id",
-          "passToken": "mimo_edit applied + retag on disk",
+          "feature": "omp_edit tool id",
+          "passToken": "omp_edit applied + retag on disk",
           "failToken": "omp_edit",
           "passTokenMatch": true,
           "failTokenAbsent": true,
@@ -660,7 +660,7 @@
           "maxWaitMs": 180000,
           "timedOut": false,
           "verdict": "PASS",
-          "evidence": "tool part mimo_edit: 'applied 1 hunk(s) \u2192 [work/fixture.ts]#\u2026'; disk line4 = logger.debug(1); sha e5b25b98 -> 9b177527"
+          "evidence": "tool part omp_edit: 'applied 1 hunk(s) \u2192 [work/fixture.ts]#\u2026'; disk line4 = logger.debug(1); sha e5b25b98 -> 9b177527"
         },
         {
           "name": "S12 RB-15 concurrency",
@@ -673,7 +673,7 @@
           "maxWaitMs": 240000,
           "timedOut": false,
           "verdict": "PASS",
-          "evidence": "two mimo_edit with SAME tag 3cff: first -> 'applied 1 hunk(s) \u2192 [work/sel-probe.ts]#c637'; second -> 'STALE_ANCHOR: \u2026 changed si\u2026'; disk sha prefix c637 == winner tag, content 'export const alpha = 2;'"
+          "evidence": "two omp_edit with SAME tag 3cff: first -> 'applied 1 hunk(s) \u2192 [work/sel-probe.ts]#c637'; second -> 'STALE_ANCHOR: \u2026 changed si\u2026'; disk sha prefix c637 == winner tag, content 'export const alpha = 2;'"
         },
         {
           "name": "A1 fork-kill",
@@ -730,7 +730,7 @@
         {
           "name": "S17 ttsr violation reminder",
           "feature": "src/ttsr.ts scan + messages.transform injection",
-          "passToken": "[mimo-intel rule \u2026] message in context",
+          "passToken": "[omp-intel rule \u2026] message in context",
           "failToken": "(none)",
           "passTokenMatch": false,
           "failTokenAbsent": false,
@@ -738,7 +738,7 @@
           "maxWaitMs": 180000,
           "timedOut": false,
           "verdict": "SKIPPED",
-          "evidence": "NOT tool-result observable: after configuring ttsr.rules and firing a console.log-matching tool call, the session DB has 0/2 parts matching '%mimo-intel rule%' (the trigger tool output IS present: 2 parts match 'console.log(3)'), and the pane shows no reminder. The injected-message path has no tool-result token; asking the model is prose = circular (AP-4). Mechanically covered by ST (hooks.st.ts inject + w4.st.ts cleared rows)."
+          "evidence": "NOT tool-result observable: after configuring ttsr.rules and firing a console.log-matching tool call, the session DB has 0/2 parts matching '%omp-intel rule%' (the trigger tool output IS present: 2 parts match 'console.log(3)'), and the pane shows no reminder. The injected-message path has no tool-result token; asking the model is prose = circular (AP-4). Mechanically covered by ST (hooks.st.ts inject + w4.st.ts cleared rows)."
         }
       ],
       "planAmendments": [
@@ -762,7 +762,7 @@
       "overallVerdict": "pass",
       "findings": [
         "A1 (fixed f6a8594c): fork-storm payload left 1 reparented survivor with the single-pass tree walk; driver now spawns via setsid and teardown SIGKILLs the whole process group atomically -> 0 survivors measured.",
-        "S5 (fixed 74c4dc96): after the host pruned .mimocode/mimo-intel/eval-rpc mid-session, intel_read raised a raw Python FileNotFoundError; both stubs now defensively mkdir and degrade to the NAMED RPC_TIMEOUT.",
+        "S5 (fixed 74c4dc96): after the host pruned .mimocode/omp-intel/eval-rpc mid-session, intel_read raised a raw Python FileNotFoundError; both stubs now defensively mkdir and degrade to the NAMED RPC_TIMEOUT.",
         "S4 (image gap, not code): DIAG_UNAVAILABLE because typescript-language-server is absent from the image; tsserver.js alone is present.",
         "A3 (threat model): the 444-bit guard holds at the tool layer but a root agent can still write by other means \u2014 documented, not claimed as a jail.",
         "S17 (observability): the ttsr reminder is a message-injection path with no tool-result token; ST is the mechanical channel."
@@ -770,7 +770,7 @@
     },
     {
       "suite": "v4-battery",
-      "container": "mimo-intel-v2-t4",
+      "container": "omp-intel-v2-t4",
       "image": "mimo-ct:master",
       "date": "2026-09-14",
       "closeoutHead": "cf2a5690",
@@ -809,7 +809,7 @@
           "level": "L1",
           "passToken": "matches= with [path]#tag rows",
           "failToken": "raw native output",
-          "evidence": "bare id FAILED live (builtin grammar 'Found 1 matches ... Line 4:' observed) -> additive id fix -> tool part mimo_grep -> 'matches=1 files=1\\n[work/fixture.ts]#5e72\\n4:logger.debug(1);' metadata {matchCount:1,fileCount:1}"
+          "evidence": "bare id FAILED live (builtin grammar 'Found 1 matches ... Line 4:' observed) -> additive id fix -> tool part omp_grep -> 'matches=1 files=1\\n[work/fixture.ts]#5e72\\n4:logger.debug(1);' metadata {matchCount:1,fileCount:1}"
         },
         {
           "name": "T-5 shadow lsp live row",
@@ -817,7 +817,7 @@
           "level": "L1",
           "passToken": "NO_LSP_SERVER",
           "failToken": "stack trace",
-          "evidence": "tool part mimo_lsp (definition) -> 'No LSP server available for .ts files (typescript-language-server not installed)' metadata.error NO_LSP_SERVER"
+          "evidence": "tool part omp_lsp (definition) -> 'No LSP server available for .ts files (typescript-language-server not installed)' metadata.error NO_LSP_SERVER"
         },
         {
           "name": "T-6 js-side intel_read",
@@ -841,15 +841,15 @@
           "level": "-",
           "passToken": "[error] in the card",
           "failToken": "silence with the server present",
-          "evidence": "honest skip with image proof: mimo_edit wrote a type error (line1 'export const alpha: number = \"str\";') and metadata.diag=DIAG_UNAVAILABLE; 'which typescript-language-server' -> NO_TS_LS_BINARY, zero global/local installs (tsserver.js alone is not the LS binary)"
+          "evidence": "honest skip with image proof: omp_edit wrote a type error (line1 'export const alpha: number = \"str\";') and metadata.diag=DIAG_UNAVAILABLE; 'which typescript-language-server' -> NO_TS_LS_BINARY, zero global/local installs (tsserver.js alone is not the LS binary)"
         },
         {
           "name": "T-9 ttsr injection receipt",
           "verdict": "PASS",
           "level": "L2",
-          "passToken": "[mimo-intel rule in the receipt",
+          "passToken": "[omp-intel rule in the receipt",
           "failToken": "no line while the trigger matched",
-          "evidence": "receipt file line: '2026-09-14T18:05:03.309Z injected=2 :: [mimo-intel rule no-console-log] use logger.debug' \u2014 closes the S17 gap from the v3 battery"
+          "evidence": "receipt file line: '2026-09-14T18:05:03.309Z injected=2 :: [omp-intel rule no-console-log] use logger.debug' \u2014 closes the S17 gap from the v3 battery"
         },
         {
           "name": "T-10 advisor receipt",
@@ -857,7 +857,7 @@
           "level": "L2",
           "passToken": "advisor marker in the receipt",
           "failToken": "nothing on a matching trajectory",
-          "evidence": "receipt file line: '... injected=2 :: [mimo-intel rule no-console-log] ... [mimo-intel rule advisor:no-console-log] use logger.debug'"
+          "evidence": "receipt file line: '... injected=2 :: [omp-intel rule no-console-log] ... [omp-intel rule advisor:no-console-log] use logger.debug'"
         },
         {
           "name": "T-11 A3 contract + seal",
@@ -870,7 +870,7 @@
       ],
       "findings": [
         "F1 fresh-home watcher defect (FAIL -> fixed): ensureRpcDir only mkdir'd the leaf; on a brand-new workspace the base did not exist, ENOENT was swallowed by the silent plugin-init catch, and EVERY intel_read returned RPC_TIMEOUT. Fix: recursive base mkdir + a loud warn instead of a silent catch. Verified on a fresh base and after deleting the whole home.",
-        "F2 bare shadow ids not reachable live (FAIL -> fixed): the bare `grep`/`lsp` ids did not reach the model on MiMo 0.1.14 (builtin grammar observed; `lsp` absent from the model's list) while the plugin registered both correctly. Fix: additive mimo_grep / mimo_lsp registered alongside, gated behind opts.shadow.",
+        "F2 bare shadow ids not reachable live (FAIL -> fixed): the bare `grep`/`lsp` ids did not reach the model on MiMo 0.1.14 (builtin grammar observed; `lsp` absent from the model's list) while the plugin registered both correctly. Fix: additive omp_grep / omp_lsp registered alongside, gated behind opts.shadow.",
         "F3 js re-entry broken live, ST blind (FAIL -> fixed): the vm context had no require and no crypto, so the JS stub died with a raw TypeError; the ST row only asserted the preamble TEXT contains RPC_TIMEOUT. Fix: driver seeds createRequire + randomBytes + globalThis; the stub now throws the NAMED RPC_CJS_ONLY when the bridge is absent.",
         "F4 S17-class gap closed: the ttsr/advisor reminder path was structurally unobservable; the receipt sink makes it L2-observable (opt-in, off by default)."
       ],
@@ -892,7 +892,7 @@
     },
     {
       "suite": "v6-master-laguna",
-      "container": "mimo-intel-master-laguna",
+      "container": "omp-intel-master-laguna",
       "image": "runtime-grade-container-sandbox:master@sha256:bdc3d773054bede90a17f4e26561d52b88507eae7c22a6ade9a2c2d6799a1cb5",
       "date": "2026-09-15",
       "model": "poolside/laguna-s-2.1:free via openrouter (master baked key)",
@@ -926,7 +926,7 @@
           "toolResultContext": true,
           "timedOut": false,
           "maxWaitMs": 180000,
-          "evidence": "Laguna called mimo_edit tag=ffff 4x (cards observed in pane) but narrated INVALID_ARGS and asked to use valid tag #4d1e instead of reporting the raw STALE_ANCHOR card; then detoured via node -e JSON echo (MODULE_NOT_FOUND crash in pane) and ast_edit/resolve on the fixture (tag #1ddb -> #4d1e, disk line2 now console.log(modified), sha 4d1ef7fb). Derailment class: model paraphrase + fix-offer instead of verbatim tool-result report. Disk truth: fixture.ts untouched (f49f60ff); log-probe.ts MODIFIED by model detour (was x-tagged, now 4d1e). Direct-execute control in mimo-ct rig PROVES the behavior: same-tag stale -> STALE_ANCHOR + shaEq (rt15/rt18/rt19 rows)."
+          "evidence": "Laguna called omp_edit tag=ffff 4x (cards observed in pane) but narrated INVALID_ARGS and asked to use valid tag #4d1e instead of reporting the raw STALE_ANCHOR card; then detoured via node -e JSON echo (MODULE_NOT_FOUND crash in pane) and ast_edit/resolve on the fixture (tag #1ddb -> #4d1e, disk line2 now console.log(modified), sha 4d1ef7fb). Derailment class: model paraphrase + fix-offer instead of verbatim tool-result report. Disk truth: fixture.ts untouched (f49f60ff); log-probe.ts MODIFIED by model detour (was x-tagged, now 4d1e). Direct-execute control in mimo-ct rig PROVES the behavior: same-tag stale -> STALE_ANCHOR + shaEq (rt15/rt18/rt19 rows)."
         },
         {
           "name": "S2 ANCHOR LOOP (queued)",
@@ -952,7 +952,7 @@
           "toolResultContext": true,
           "timedOut": false,
           "maxWaitMs": 0,
-          "evidence": "19 direct ops in mimo-intel-runtime-v5 (identical tree df126da5): S1 matches=3 #f49f; S2 shadow #b17d + selector @TagStore:10 #0632; D5 empty->named + wrong-types->INVALID_ARGS; D2 mimo_grep matches=9 #db8d + NO_LSP_SERVER; S5/S8/T6/D6/MV/EV/T7/T5/T4 all named-correct after fresh-home fix; mismatch rows ANCHOR_MISMATCH; 444 file READ_ONLY_FILE + sha/mode exec proof; KernelManager KERNEL_MISSING; D1 second-use STALE_ANCHOR + revert to #0632; D8 race one-applied + loser STALE_ANCHOR + restore #0632; tree git-clean, sha df126da5. TUI-quota dead (muse 5d + zen 429) so direct path was the honest vehicle; per container-testing law exec + tool returns are ground truth for behavior."
+          "evidence": "19 direct ops in omp-intel-runtime-v5 (identical tree df126da5): S1 matches=3 #f49f; S2 shadow #b17d + selector @TagStore:10 #0632; D5 empty->named + wrong-types->INVALID_ARGS; D2 omp_grep matches=9 #db8d + NO_LSP_SERVER; S5/S8/T6/D6/MV/EV/T7/T5/T4 all named-correct after fresh-home fix; mismatch rows ANCHOR_MISMATCH; 444 file READ_ONLY_FILE + sha/mode exec proof; KernelManager KERNEL_MISSING; D1 second-use STALE_ANCHOR + revert to #0632; D8 race one-applied + loser STALE_ANCHOR + restore #0632; tree git-clean, sha df126da5. TUI-quota dead (muse 5d + zen 429) so direct path was the honest vehicle; per container-testing law exec + tool returns are ground truth for behavior."
         }
       ],
       "phaseE": {

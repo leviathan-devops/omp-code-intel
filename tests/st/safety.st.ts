@@ -71,7 +71,7 @@ const scStaleTagShaEq: Scenario = define("safety-destructive-stale-tag", (dir) =
     const before = shaFile(f);
     const r = yield* callTool(
       "../../src/edit",
-      "mimoEditTool",
+      "ompEditTool",
       { file_path: f, tag: "ffff", hunks: [{ line: 1, old: "const x = 1;", new: "const x = 2;" }] },
       mkCtx(dir),
     );
@@ -93,7 +93,7 @@ const scReadonlyFile: Scenario = define("safety-destructive-readonly-file", (dir
     const before = shaFile(f);
     const r = yield* callTool(
       "../../src/edit",
-      "mimoEditTool",
+      "ompEditTool",
       { file_path: f, tag, hunks: [{ line: 1, old: "const x = 1;", new: "const x = 2;" }] },
       mkCtx(dir),
     );
@@ -181,7 +181,7 @@ const scUnicodeName: Scenario = define("safety-malformed-unicode-name", (dir) =>
 
 const scWrongTypes: Scenario = define("safety-malformed-wrong-types", (dir) =>
   Effect.gen(function* () {
-    const r = yield* callTool("../../src/edit", "mimoEditTool", { file_path: 42, tag: 7, hunks: "nope" }, mkCtx(dir));
+    const r = yield* callTool("../../src/edit", "ompEditTool", { file_path: 42, tag: 7, hunks: "nope" }, mkCtx(dir));
     const token = extractToken(r);
     // Raw caller values reach execute (the wrapper does not enforce zod):
     // the tool must answer with the named INVALID_ARGS rejection, never a
@@ -205,8 +205,8 @@ const scParallelEdits: Scenario = define("safety-concurrency-parallel-edits", (d
     const mkArgs = (v: string) => ({ file_path: f, tag, hunks: [{ line: 1, old: "const x = 1;", new: `const x = ${v};` }] });
     const both = yield* Effect.all(
       [
-        callTool("../../src/edit", "mimoEditTool", mkArgs("2"), ctxA),
-        callTool("../../src/edit", "mimoEditTool", mkArgs("3"), ctxB),
+        callTool("../../src/edit", "ompEditTool", mkArgs("2"), ctxA),
+        callTool("../../src/edit", "ompEditTool", mkArgs("3"), ctxB),
       ],
       { concurrency: "unbounded" },
     );
@@ -261,14 +261,14 @@ const scNoTmpLeftovers: Scenario = define("safety-hygiene-no-tmp-leftovers", (di
     if (tag === "") return fail("safety-hygiene-no-tmp-leftovers", "no snapshot tag minted");
     yield* callTool(
       "../../src/edit",
-      "mimoEditTool",
+      "ompEditTool",
       { file_path: f, tag, hunks: [{ line: 1, old: "const x = 1;", new: "const x = 2;" }] },
       mkCtx(dir),
     );
-    const leftovers = readdirSync(dir).filter((e) => e.includes(".mimo-tmp") || e.includes(".lsp-tmp-"));
+    const leftovers = readdirSync(dir).filter((e) => e.includes(".omp-tmp") || e.includes(".lsp-tmp-"));
     const ok = leftovers.length === 0;
     return ok
-      ? pass("safety-hygiene-no-tmp-leftovers", "no *.mimo-tmp / *.lsp-tmp-* after successful edit")
+      ? pass("safety-hygiene-no-tmp-leftovers", "no *.omp-tmp / *.lsp-tmp-* after successful edit")
       : fail("safety-hygiene-no-tmp-leftovers", `leftovers: ${leftovers.join(",")}`);
   }),
 );
@@ -316,7 +316,7 @@ const scSoakRejections: Scenario = define("safety-soak-rejections-x3", (dir) =>
       const before = shaFile(f);
       const r = yield* callTool(
         "../../src/edit",
-        "mimoEditTool",
+        "ompEditTool",
         { file_path: f, tag: "ffff", hunks: [{ line: 1, old: `const x${i} = ${i};`, new: `const x${i} = 9;` }] },
         mkCtx(dir, `st-soak-${i}`),
       );

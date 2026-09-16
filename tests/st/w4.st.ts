@@ -97,7 +97,7 @@ const sc14NoShadowClean: Scenario = asyncScenario("w4-sc14-no-shadow-no-grep-no-
   const keys = toolKeysOf(hooks);
   const hasGrep = keys.includes("grep");
   const hasLsp = keys.includes("lsp");
-  const need = ["ast_grep", "mimo_edit", "evidence", "eval"];
+  const need = ["ast_grep", "omp_edit", "evidence", "eval"];
   const missing = need.filter((k) => !keys.includes(k));
   const ok = !hasGrep && !hasLsp && missing.length === 0;
   return ok
@@ -115,7 +115,7 @@ const sc14ShadowHasBoth: Scenario = asyncScenario("w4-sc14-shadow-has-grep-lsp",
   const hasGrep = keys.includes("grep");
   const hasLsp = keys.includes("lsp");
   // Builtin ids must be otherwise unaffected by opting into shadows.
-  const need = ["ast_grep", "mimo_edit", "evidence", "eval"];
+  const need = ["ast_grep", "omp_edit", "evidence", "eval"];
   const missing = need.filter((k) => !keys.includes(k));
   const ok = hasGrep && hasLsp && missing.length === 0;
   return ok
@@ -289,7 +289,7 @@ const scGrepGrammar: Scenario = asyncScenario("w4-grep-grammar-or-unavailable", 
 
 const ADVISOR_RULES = [{ key: "no-cl", re: "console\\.log", body: "use logger" }];
 const ADVISOR_OPTS = { advisor: { model: "x" }, ttsr: { rules: ADVISOR_RULES } };
-const ADVISOR_MARKER = "[mimo-intel rule advisor:no-cl]";
+const ADVISOR_MARKER = "[omp-intel rule advisor:no-cl]";
 
 const scAdvisorOff: Scenario = asyncScenario("w4-advisor-off-no-userquery-post", async () => {
   const pluginFn = await loadPluginFn();

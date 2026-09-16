@@ -3,7 +3,7 @@
 // Design (CONTRACTS-W3, honest scope): one long-lived DRIVER PROCESS per
 // language, spawned lazily via Bun.spawn with piped stdio. Protocol per
 // execution: write base64(UTF-8 code)+"\n" to stdin; read stdout lines until
-// the `<<<MCI>>>` ... `<<<END>>>` envelope; parse the inner JSON
+// the `<<<OCI>>>` ... `<<<END>>>` envelope; parse the inner JSON
 // {ok, stdout, error}. State persists across exec calls in the SAME process;
 // reset kills that language's driver and respawns (state gone).
 // Named outcomes: KERNEL_MISSING (spawn failure) and EVAL_TIMEOUT (timer kill).
@@ -349,7 +349,7 @@ export class KernelManager {
           PATH: process.env.PATH ?? "/usr/bin:/bin",
           HOME: process.env.HOME ?? "/tmp",
           LANG: process.env.LANG ?? "C",
-          MIMO_INTEL_RPC_DIR: path.join(this.baseDir, "eval-rpc"),
+          OMP_INTEL_RPC_DIR: path.join(this.baseDir, "eval-rpc"),
         },
       });
     } catch (err) {
@@ -394,10 +394,10 @@ export class KernelManager {
       slot.p = (async (): Promise<void> => {
         try {
           const res = await this.runCell(state, lang, pre);
-          if (!res.ok) console.warn(`[mimo-code-intel] ${lang} preamble failed: ${res.error ?? "unknown"}`);
+          if (!res.ok) console.warn(`[omp-code-intel] ${lang} preamble failed: ${res.error ?? "unknown"}`);
         } catch (err) {
           state.buf = "";
-          console.warn(`[mimo-code-intel] ${lang} preamble failed: ${msg80(err)}`);
+          console.warn(`[omp-code-intel] ${lang} preamble failed: ${msg80(err)}`);
         } finally {
           if (this.procs.get(lang) === state) this.preambleDone.add(lang);
           if (this.creationDeferred.get(lang) === slot.p) this.creationDeferred.delete(lang);
@@ -453,7 +453,7 @@ export class KernelManager {
     }
     const nonce = randomBytes(16).toString("hex");
     state.nonce = nonce;
-    state.start = `<<<MCI:${nonce}>>>`;
+    state.start = `<<<OCI:${nonce}>>>`;
     const rest: Uint8Array = Buffer.from(nonce + " " + Buffer.from(code, "utf8").toString("base64") + "\n");
     let off = 0;
     const CHUNK = 65536;

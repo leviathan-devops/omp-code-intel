@@ -4,7 +4,7 @@ import { LspClient } from "./lsp/client";
 
 // src/diag.ts — diagnostics-on-write helper (V2 W1-C).
 //
-// Shared by mimo_edit (src/edit.ts step 6) and resolve (src/ast.ts apply
+// Shared by omp_edit (src/edit.ts step 6) and resolve (src/ast.ts apply
 // path): after a successful write, run the vendored LSP diagnostics over the
 // touched file and return the card section to append. Best-effort by design:
 // a good write NEVER fails on diagnostics.

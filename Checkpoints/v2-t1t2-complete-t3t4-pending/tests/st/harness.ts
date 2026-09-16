@@ -154,7 +154,7 @@ export interface Scenario {
 export const withSandbox = <A, E>(use: (dir: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
   Effect.scoped(
     Effect.flatMap(
-      Effect.sync(() => mkdtempSync(join(tmpdir(), "mimo-intel-st-"))),
+      Effect.sync(() => mkdtempSync(join(tmpdir(), "omp-intel-st-"))),
       (dir) =>
         Effect.zipRight(
           Effect.addFinalizer(() => Effect.sync(() => rmSync(dir, { recursive: true, force: true }))),

@@ -19,7 +19,7 @@ def _emit(payload, nonce=""):
         body["n"] = nonce
         text = json.dumps(body, separators=(",", ":"))
         text = text.replace("<<<", "\\u003c\\u003c\\u003c")
-        sys.stdout.write("<<<MCI:%s>>>\\n" % nonce)
+        sys.stdout.write("<<<OCI:%s>>>\\n" % nonce)
         sys.stdout.write(text)
         sys.stdout.write("\\n<<<END>>>\\n")
         sys.stdout.flush()
@@ -119,7 +119,7 @@ function errStr(e) {
 function emit(obj, nonce) {
   const body = Object.assign({}, obj, { n: nonce || "" });
   const text = JSON.stringify(body).split("<<<").join("\\u003c\\u003c\\u003c");
-  process.stdout.write("<<<MCI:" + (nonce || "") + ">>>\\n" + text + "\\n<<<END>>>\\n");
+  process.stdout.write("<<<OCI:" + (nonce || "") + ">>>\\n" + text + "\\n<<<END>>>\\n");
 }
 
 function isB64(text) {

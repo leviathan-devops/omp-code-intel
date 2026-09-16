@@ -3,7 +3,7 @@
 // Design (CONTRACTS-W3, honest scope): one long-lived DRIVER PROCESS per
 // language, spawned lazily via Bun.spawn with piped stdio. Protocol per
 // execution: write base64(UTF-8 code)+"\n" to stdin; read stdout lines until
-// the `<<<MCI>>>` ... `<<<END>>>` envelope; parse the inner JSON
+// the `<<<OCI>>>` ... `<<<END>>>` envelope; parse the inner JSON
 // {ok, stdout, error}. State persists across exec calls in the SAME process;
 // reset kills that language's driver and respawns (state gone).
 // Named outcomes: KERNEL_MISSING (spawn failure) and EVAL_TIMEOUT (timer kill).
@@ -20,7 +20,7 @@ import { DRIVER_PY, DRIVER_JS } from "./prelude";
 export type Lang = "py" | "js";
 export interface ExecResult { ok: boolean; stdout: string; error?: string }
 
-const START = "<<<MCI>>>";
+const START = "<<<OCI>>>";
 const END = "<<<END>>>";
 const DEFAULT_TIMEOUT_MS = 30000;
 
@@ -258,9 +258,9 @@ export class KernelManager {
       const p = (async (): Promise<void> => {
         try {
           const res = await this.runCell(state, lang, pre);
-          if (!res.ok) console.warn(`[mimo-code-intel] ${lang} preamble failed: ${res.error ?? "unknown"}`);
+          if (!res.ok) console.warn(`[omp-code-intel] ${lang} preamble failed: ${res.error ?? "unknown"}`);
         } catch (err) {
-          console.warn(`[mimo-code-intel] ${lang} preamble failed: ${msg80(err)}`);
+          console.warn(`[omp-code-intel] ${lang} preamble failed: ${msg80(err)}`);
         } finally {
           this.preambleDone.add(lang);
         }

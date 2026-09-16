@@ -1,6 +1,6 @@
 import path from "node:path";
 
-export interface MimoIntelOptions {
+export interface OmpIntelOptions {
   ast?: boolean;
   hashline?: boolean;
   eval?: { py?: boolean; js?: boolean };
@@ -15,8 +15,8 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-export function loadOptions(raw: Record<string, unknown> | undefined): MimoIntelOptions {
-  const out: MimoIntelOptions = {};
+export function loadOptions(raw: Record<string, unknown> | undefined): OmpIntelOptions {
+  const out: OmpIntelOptions = {};
   if (raw === undefined) return out;
   if (typeof raw.ast === "boolean") out.ast = raw.ast;
   if (typeof raw.hashline === "boolean") out.hashline = raw.hashline;

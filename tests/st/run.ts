@@ -44,6 +44,6 @@ const program: Effect.Effect<void> = Effect.map(
   },
 );
 
-process.env.MIMO_INTEL_ALLOW_TMP ??= "1";
+process.env.OMP_INTEL_ALLOW_TMP ??= "1";
 
 Effect.runPromise(program);

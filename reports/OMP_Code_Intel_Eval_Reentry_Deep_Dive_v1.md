@@ -3,9 +3,9 @@
 **Series:** OMP Code Intel (same lineage as `OMP_Code_Intel_Engineering_Report_v4.md`; this is a
 subsystem deep dive, so it takes its own counter at v1).
 
-**Project:** `mimo-code-intel` v0.2.0 · **Date:** 2026-09-14 · **Author:** Trident Agent
+**Project:** `omp-code-intel` v0.2.0 · **Date:** 2026-09-14 · **Author:** Trident Agent
 **Baseline:** donor `research/sep11-aether-hw` @ `f38ce911` · **Commit:** `cc40d62c` (tag `v0.2.0`)
-**Container:** `mimo-intel-v2-t3b` · **Image:** `mimo-ct:master`
+**Container:** `omp-intel-v2-t3b` · **Image:** `mimo-ct:master`
 
 ---
 
@@ -149,7 +149,7 @@ what goes down the line.
 │    the queue (a kernel without re-entry still runs cells)              │
 │ 4 runCell re-asserts cwd per cell (src/eval/kernels.ts:408+)           │
 │    and FAILS LOUD if the chdir assert fails                            │
-│ 5 envelope: <<<MCI:<nonce>>> + base64 code; replies parsed             │
+│ 5 envelope: <<<OCI:<nonce>>> + base64 code; replies parsed             │
 │    with ok/nonce checks; 8MB tripwire closes the state                 │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -205,7 +205,7 @@ what goes down the line.
 
 | condition | detection | token the model sees |
 |---|---|---|
-| no `MIMO_INTEL_RPC_DIR` env | stub head | `RPC_TIMEOUT` (raised) |
+| no `OMP_INTEL_RPC_DIR` env | stub head | `RPC_TIMEOUT` (raised) |
 | folder missing/pruned | stub + host both `makedirs`/`ensureRpcDir` | recovered silently; if it fails, `RPC_TIMEOUT` |
 | request name not read/grep | host parse | `{ok:false,error:'RPC_UNKNOWN_TOOL:<name>'}` → raised in the cell |
 | request JSON malformed | host parse | `RPC_UNKNOWN_TOOL:malformed` |
@@ -239,7 +239,7 @@ what goes down the line.
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │ D1  raw FileNotFoundError out of intel_read   (74c4dc96)               │
-│     trigger : the host pruned .mimocode/mimo-intel/eval-rpc            │
+│     trigger : the host pruned .mimocode/omp-intel/eval-rpc            │
 │               mid-session (workspace hygiene)                          │
 │     symptom : the eval card showed a Python traceback naming           │
 │               '<...>/eval-rpc/<id>.req.tmp'                            │

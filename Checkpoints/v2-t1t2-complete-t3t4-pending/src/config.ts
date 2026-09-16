@@ -1,10 +1,10 @@
 import { loadOptions } from "./shim";
-import type { MimoIntelOptions } from "./shim";
+import type { OmpIntelOptions } from "./shim";
 
 export { loadOptions };
-export type { MimoIntelOptions };
+export type { OmpIntelOptions };
 
-export const DEFAULTS: Required<Pick<MimoIntelOptions, "ast" | "hashline" | "merkle" | "eval">> & {
+export const DEFAULTS: Required<Pick<OmpIntelOptions, "ast" | "hashline" | "merkle" | "eval">> & {
   ttsr: { rules: [] };
   advisor: undefined;
   shadow: [];

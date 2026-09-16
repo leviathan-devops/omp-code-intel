@@ -15,7 +15,7 @@ export interface Violation {
   body: string;
 }
 
-export const RULE_MARKER_PREFIX = "[mimo-intel rule ";
+export const RULE_MARKER_PREFIX = "[omp-intel rule ";
 
 export function compileRules(rules: Rule[]): CompiledRule[] {
   if (!Array.isArray(rules) || rules.length === 0) return [];
@@ -24,7 +24,7 @@ export function compileRules(rules: Rule[]): CompiledRule[] {
     try {
       out.push({ key: r.key, body: r.body, re: new RegExp(r.re) });
     } catch {
-      console.warn(`[mimo-code-intel] dropped invalid ttsr rule: ${r.key}`);
+      console.warn(`[omp-code-intel] dropped invalid ttsr rule: ${r.key}`);
     }
   }
   return out;

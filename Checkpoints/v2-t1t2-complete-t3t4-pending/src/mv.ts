@@ -8,7 +8,7 @@ import { resolveAbs } from "./shim";
 import { readFileSync } from "node:fs";
 import type { Ctx } from "./types";
 
-// src/mv.ts — mimo_mv (V2 W1-D): file moves with import rewriting.
+// src/mv.ts — omp_mv (V2 W1-D): file moves with import rewriting.
 //
 // Order of operations: (1) validate the source; (2) compute server-side
 // import edits via workspace/willRenameFiles (when served); (3) apply those
@@ -31,7 +31,7 @@ function namedReject(message: string): { output: string; metadata: Record<string
 
 const RENAME_TIMEOUT_NOTE = "WILLRENAME_UNSUPPORTED: plain move, imports not rewritten";
 
-export const mimoMvTool = tool({
+export const ompMvTool = tool({
   description:
     "Move a file with import rewriting: asks the language server for workspace/willRenameFiles edits, applies them, then moves. Falls back to a plain move with a named note when unserved.",
   args: mvArgs,
@@ -44,7 +44,7 @@ export const mimoMvTool = tool({
     } catch {
       return namedReject(`MV_NOT_FOUND: ${args.from}`);
     }
-    if (st.isDirectory()) return namedReject("MV_DIR_UNSUPPORTED: directories are not moved by mimo_mv");
+    if (st.isDirectory()) return namedReject("MV_DIR_UNSUPPORTED: directories are not moved by omp_mv");
     if (from === to) return namedReject("MV_IDENTICAL: source and destination are the same file");
 
     const client = LspClient.forFile(from);

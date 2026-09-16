@@ -31,7 +31,7 @@ def intel_grep(pat, path=None):
 def _intel_call(name, args):
     import secrets as _secrets
     rid = _secrets.token_hex(8)
-    d = _os.environ.get("MIMO_INTEL_RPC_DIR", "")
+    d = _os.environ.get("OMP_INTEL_RPC_DIR", "")
     if not d:
         raise RuntimeError("RPC_TIMEOUT")
     # The host may prune the harness dir mid-session (workspace hygiene), so
@@ -90,7 +90,7 @@ function _intelCall(name, args) {
   // bridge (live finding, v4 row 6).
   if (!_fs || !_path || !_crypto) throw new Error("RPC_CJS_ONLY");
   const rid = _crypto.randomBytes(8).toString("hex");
-  const d = process.env.MIMO_INTEL_RPC_DIR || "";
+  const d = process.env.OMP_INTEL_RPC_DIR || "";
   if (!d) throw new Error("RPC_TIMEOUT");
   // Same defensive mkdir as the py stub: a pruned harness dir must yield the
   // named RPC_TIMEOUT, never a raw fs error.
@@ -202,7 +202,7 @@ export function ensureRpcDir(baseDir: string): string {
   }
   const dir = rpcDir(canonBase);
   // FIX (v4 observability row 3): the BASE may not exist yet on a fresh
-  // workspace (`.mimocode/mimo-intel` is created lazily by the first kernel
+  // workspace (`.mimocode/omp-intel` is created lazily by the first kernel
   // spawn). A leaf-only mkdir throws ENOENT, which the plugin-init catch
   // swallowed silently -> no watcher -> every intel_read returns
   // RPC_TIMEOUT on a brand-new project. Create the base first.
@@ -615,5 +615,5 @@ export function requestPath(baseDir: string, id: string): string {
 }
 
 export function rpcEnv(baseDir: string): Record<string, string> {
-  return { MIMO_INTEL_RPC_DIR: ensureRpcDir(baseDir) };
+  return { OMP_INTEL_RPC_DIR: ensureRpcDir(baseDir) };
 }

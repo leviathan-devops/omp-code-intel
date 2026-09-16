@@ -67,8 +67,8 @@
 - src/read.ts NEW (shadow read: [path]#tag + Symbols + file#symbol selectors + NO_SYMBOL/READ_NOT_FOUND/READ_BINARY named).
 - src/diag.ts NEW + edit.ts step-6 + ast.ts resolve apply: diagnostics-on-write in the SAME card; DIAG_UNAVAILABLE never fails a good write.
 - src/eval/rpc.ts NEW + kernels.ts preamble hook (once-per-process, queue-ordered, warn-once): intel_read proven end-to-end inside py kernel (hello-rpc). JS re-entry NOT wired (preamble only py) — honest gap for T2 notes.
-- src/mv.ts NEW (mimo_mv) + client.willRename: LIVE-PROVEN import rewrite (./util → ./lib on disk). Mechanism fix found: tsserver needs didOpen before willRename (zero-edit answer without it).
-- src/index.ts: mimo_mv always-additive; read shadow opt-in-only; RPC watcher lifecycle (start on eval-enabled init, stop on session.post) + watcher unref (process-exit hygiene).
+- src/mv.ts NEW (omp_mv) + client.willRename: LIVE-PROVEN import rewrite (./util → ./lib on disk). Mechanism fix found: tsserver needs didOpen before willRename (zero-edit answer without it).
+- src/index.ts: omp_mv always-additive; read shadow opt-in-only; RPC watcher lifecycle (start on eval-enabled init, stop on session.post) + watcher unref (process-exit hygiene).
 - NATIVE QUIRK (measured): astGrep file-scope drops statement patterns; extension-class globs don't rescue; fix = parent-dir + *ext + client-side filter + recomputed totals (src/ast.ts). astEdit/grep natives unaffected (proven).
 - TS-GENERATION GUARD (measured): typescript-language-server needs TS≤5 w/ tsserver.js on disk (this env has TS 6); diagSection probes node resolution first → DIAG_UNAVAILABLE instead of a doomed handshake.
 - Orch gate: tsc 0; ST 65/65 exit 0 (10 new v2w1 rows); registration probe (7 base ids + read under shadow); clean process exit; no cwd residue.
@@ -77,7 +77,7 @@
 ## cycle-7 · 2026-09-13 · V2 T2 (battery) DONE — host gate green
 
 - tests/st/safety.st.ts NEW (14 rows): destructive sha-diff (stale-tag shaEq, readonly-file READ_ONLY_FILE, stale-resolve count-drift), malformed (empty/10MB/binary/unicode/wrong-types→INVALID_ARGS), concurrency (parallel edits exactly-one, parallel eval serialized), hygiene (no tmp leftovers, killAll-zero), soak ×3, tree-stability control.
-- Product fixes the battery forced: mimo_edit INVALID_ARGS guard (wrapper doesn't enforce zod — raw values reached path.join); READ_ONLY_FILE bit check (atomic tmp+rename bypasses file bits); read.ts literal-path-wins for `#`-in-filenames.
+- Product fixes the battery forced: omp_edit INVALID_ARGS guard (wrapper doesn't enforce zod — raw values reached path.join); READ_ONLY_FILE bit check (atomic tmp+rename bypasses file bits); read.ts literal-path-wins for `#`-in-filenames.
 - Native behaviors measured + documented (not bugs): file-scope statement-pattern drop → parent-dir+ext-glob+filter fix in ast.ts; identical-content cross-file dedup; sub-second dir-scan cache staleness (soak pre-creates fixtures); typed-const needs `: $T` pattern form.
 - Orch gate THIS TURN: tsc 0; ST 79/79 exit 0 (/tmp/st-t2final.log); no cwd residue. CT plan written: .trident/CT-PLAN-V2.md (4,987 chars ≥2000 floor).
 - BLOCKER for T3: this session has NO container tool (mimo-ct absent from tool surface; raw docker run/exec into test rigs is lock-blocked). T3 container execution must run in the equipped session. T9 → done; T10 open, blocked on tool surface.
@@ -148,21 +148,21 @@
 
 - Checkpoint: Checkpoints/v2-t1t2-complete-t3t4-pending (32/32 .ts, SHA 16054fefa9cacf11, manifest 60L) committed f38ce911. NOTE: commit co-swept ~1828 prior-staged workspace files (history append-only, recorded, not rewritten).
 - Engineering report: reports/OMP_Code_Intel_Engineering_Report_v3.md (series v3).
-- Handover: docs/handovers/MIMO_CODE_INTEL_V2_HANDOVER.md (1009 lines, zero FILL rows) + MIMO_CODE_INTEL_V2_CONTEXT_HANDOVER.zip (90KB, 17 files, 5 classified folders + README.txt at root, packer-verified).
-- Binding: docs/compose/spec/mimo-code-intel-v2.md. Next agent starts at §8 order → T3 preflight.
+- Handover: docs/handovers/OMP_CODE_INTEL_V2_HANDOVER.md (1009 lines, zero FILL rows) + OMP_CODE_INTEL_V2_CONTEXT_HANDOVER.zip (90KB, 17 files, 5 classified folders + README.txt at root, packer-verified).
+- Binding: docs/compose/spec/omp-code-intel-v2.md. Next agent starts at §8 order → T3 preflight.
 
 ## cycle-17 · 2026-09-14 · T3 executed — v3b fail adjudicated, v3c pass
 
-- v3b-battery (mimo-intel-v2-t3b, HEAD retest per 0176d6bf): 4 PASS / 2 FAIL / 1 split, no flips. Two-sided adjudication → fixes (setsid group kill f6a8594c for A1 fork-storm survivors; defensive mkdir 74c4dc96 for pruned-harness RPC FileNotFound; A1 escaped driver-specific sweep + verified-pgid kill cc40d62c per judge highs) → identical retest.
-- v3c-battery (mimo-intel-v2-t3b): 15 PASS / 2 SKIPPED / 17 rows, overallVerdict pass. S1-S12 + A1-A4 per CT-PLAN-V2. S4 diag honest-skip (SC-6 pin: metadata.diag=DIAG_UNAVAILABLE, image which=NO_TS_LS_BINARY). S17 structurally unobservable (session DB 0/2 parts match receipt marker while trigger present; pane silent; prose circular per AP-4) → ST-covered skip. S9/A3/A4 tool-layer probes recorded loud (toolResultContext false), never TUI cards. Phase E 11/11 true incl allPlannedScenariosExecuted.
+- v3b-battery (omp-intel-v2-t3b, HEAD retest per 0176d6bf): 4 PASS / 2 FAIL / 1 split, no flips. Two-sided adjudication → fixes (setsid group kill f6a8594c for A1 fork-storm survivors; defensive mkdir 74c4dc96 for pruned-harness RPC FileNotFound; A1 escaped driver-specific sweep + verified-pgid kill cc40d62c per judge highs) → identical retest.
+- v3c-battery (omp-intel-v2-t3b): 15 PASS / 2 SKIPPED / 17 rows, overallVerdict pass. S1-S12 + A1-A4 per CT-PLAN-V2. S4 diag honest-skip (SC-6 pin: metadata.diag=DIAG_UNAVAILABLE, image which=NO_TS_LS_BINARY). S17 structurally unobservable (session DB 0/2 parts match receipt marker while trigger present; pane silent; prose circular per AP-4) → ST-covered skip. S9/A3/A4 tool-layer probes recorded loud (toolResultContext false), never TUI cards. Phase E 11/11 true incl allPlannedScenariosExecuted.
 - Tag v0.2.0 @ cc40d62c (message: T3 battery 15 PASS / 2 honest-skip + A1 fix, NOT published). npm pack --dry-run green at 0.2.0.
 - Gates at seal time: tsc 0; ST 79/79. Core tree untouched (zero MiMo-core edits).
 
 ## cycle-18 · 2026-09-14 · v4 observability wave — live defects fixed, battery sealed
 
-- Plan .trident/test-plan-v4.md (8701 bytes, 16 scenarios + pass criteria; legal inner stop SC-14). Rig mimo-intel-v2-t4, image mimo-ct:master.
-- v4-battery (mimo-intel-v2-t4): 10 PASS / 1 SKIPPED / 11 rows, overallVerdict pass-with-one-honest-skip. Every row L1 (typed tool part) or L2 (receipt). T-8 pinned image-blocked skip with proof (SC-14 mapping recorded 5f794d34, no verdict flip).
-- Live-only defects found+fixed+retested same session: F1 fresh-home watcher (recursive base mkdir 003cc09a; T-3 re-measured triple green); F2 bare shadow ids unreachable (additive mimo_grep/mimo_lsp 003cc09a; T-4/T-5 live); F3 js bridge TypeError (driver seeds + RPC_CJS_ONLY guard 003cc09a; T-6 re-run hello-rpc); F4 receipt sink (opt-in injection-receipt.log 003cc09a; T-9/T-10 lines close S17 gap); F5 detached-full silent skip (named RPC_BUSY + unlink d24fee43; live RES9+REQ9 probe); F6 unbounded invalid-id gate (bound {16} hex 5c2681ed; regress hello-rpc).
+- Plan .trident/test-plan-v4.md (8701 bytes, 16 scenarios + pass criteria; legal inner stop SC-14). Rig omp-intel-v2-t4, image mimo-ct:master.
+- v4-battery (omp-intel-v2-t4): 10 PASS / 1 SKIPPED / 11 rows, overallVerdict pass-with-one-honest-skip. Every row L1 (typed tool part) or L2 (receipt). T-8 pinned image-blocked skip with proof (SC-14 mapping recorded 5f794d34, no verdict flip).
+- Live-only defects found+fixed+retested same session: F1 fresh-home watcher (recursive base mkdir 003cc09a; T-3 re-measured triple green); F2 bare shadow ids unreachable (additive omp_grep/omp_lsp 003cc09a; T-4/T-5 live); F3 js bridge TypeError (driver seeds + RPC_CJS_ONLY guard 003cc09a; T-6 re-run hello-rpc); F4 receipt sink (opt-in injection-receipt.log 003cc09a; T-9/T-10 lines close S17 gap); F5 detached-full silent skip (named RPC_BUSY + unlink d24fee43; live RES9+REQ9 probe); F6 unbounded invalid-id gate (bound {16} hex 5c2681ed; regress hello-rpc).
 - Judge seals post-T3 (all 0 critical/high): d24fee43 {medium:1}, e643250d {}, 5c2681ed {medium:1,low:1}, 5f794d34 {}. Scope mode:commit, 1 file each per run summaries.
 - Tag v0.2.0-observability @ 5f794d34 (message: 11/11 T/S items, F1-F6 incl BUSY+hex, v4 10 PASS T-8 skip w/ proof, judge set PASS, publish NOT run). Phase E 11/11 true. Publish staged only, never executed.
 
@@ -177,9 +177,9 @@
 
 - Gates final: tsc exit 0; ST 79/79 exit 0; npm pack --dry-run 0.2.0 green (23 files, shasum 42f813d1d50f5cb0f95a57f33b04863dc17154e0). Report v7 committed (892 lines, 14 sections, 0 diagram overruns).
 - Seal: tag v0.2.0-observability re-pointed to HEAD (56971813); git diff tag..HEAD empty. Product byte-identical seal→HEAD.
-- Judge final: BLOCKED loud (provider HTTP 429 measured 0.24s; range + 003cc09a + d24fee43 control all fail `context deadline exceeded`; evidence in mimo-code-intel-v2-campaign/qwen-*-2026-09-15-BLOCKED.*). 8 per-commit PASS (0 critical) stand. Retry: quota refill → ocr review --commit 003cc09a.
+- Judge final: BLOCKED loud (provider HTTP 429 measured 0.24s; range + 003cc09a + d24fee43 control all fail `context deadline exceeded`; evidence in omp-code-intel-v2-campaign/qwen-*-2026-09-15-BLOCKED.*). 8 per-commit PASS (0 critical) stand. Retry: quota refill → ocr review --commit 003cc09a.
 - Push: BLOCKED loud (pre-receive decline; 3 >100MB blobs elsewhere on branch; remedy needs operator: LFS/surgery/refspec). Tags local-only.
-- Publish: BLOCKED on operator GO — npm publish NEVER run this wave (package mimo-code-intel@0.2.0 staged only). No registry write attempted.
+- Publish: BLOCKED on operator GO — npm publish NEVER run this wave (package omp-code-intel@0.2.0 staged only). No registry write attempted.
 
 ## cycle-21 · 2026-09-15 · fallback judge lane — nemo GATE PASS, push re-probed
 

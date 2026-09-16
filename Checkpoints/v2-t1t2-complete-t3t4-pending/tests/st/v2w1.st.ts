@@ -85,7 +85,7 @@ export const scenarios: Scenario[] = [
       if (tag === "") return { name: "v2-diag-write-appends", verdict: "FAIL", got: "no snapshot tag minted" } as Row;
       const r = yield* callTool(
         "../../src/edit",
-        "mimoEditTool",
+        "ompEditTool",
         { file_path: f, tag, hunks: [{ line: 1, old: "const x = 1;", new: "const x = 2;" }] },
         mkCtx(dir),
       );
@@ -104,7 +104,7 @@ export const scenarios: Scenario[] = [
       if (tag === "") return { name: "v2-diag-unserved-ext", verdict: "FAIL", got: "no snapshot tag minted for .zzz fixture" } as Row;
       const r = yield* callTool(
         "../../src/edit",
-        "mimoEditTool",
+        "ompEditTool",
         { file_path: f, tag, hunks: [{ line: 1, old: "hello", new: "world" }] },
         mkCtx(dir),
       );
@@ -192,7 +192,7 @@ export const scenarios: Scenario[] = [
     Effect.catchAll(Effect.gen(function* () {
       const f = join(dir, "a.zzz");
       writeFileSync(f, "data\n", "utf8");
-      const r = yield* callTool("../../src/mv", "mimoMvTool", { from: f, to: join(dir, "b.zzz") }, mkCtx(dir));
+      const r = yield* callTool("../../src/mv", "ompMvTool", { from: f, to: join(dir, "b.zzz") }, mkCtx(dir));
       const ok = r.output.includes("moved ") && r.output.includes("WILLRENAME_UNSUPPORTED") && r.metadata.moved === true;
       return { name: "v2-mv-plain-move-unsupported", verdict: ok ? "PASS" : "FAIL", got: r.output.split("\n").slice(0, 2).join(" | ") } as Row;
     }),
@@ -207,7 +207,7 @@ export const scenarios: Scenario[] = [
       });
       const sub = join(dir, "sub");
       mkdirSync(sub, { recursive: true });
-      const r = yield* callTool("../../src/mv", "mimoMvTool", { from: sub, to: join(dir, "sub2") }, mkCtx(dir));
+      const r = yield* callTool("../../src/mv", "ompMvTool", { from: sub, to: join(dir, "sub2") }, mkCtx(dir));
       const ok = extractToken(r).startsWith("MV_DIR_UNSUPPORTED");
       return { name: "v2-mv-dir-unsupported", verdict: ok ? "PASS" : "FAIL", got: r.output.slice(0, 80) } as Row;
     }),

@@ -15,7 +15,7 @@ STATE = {"__builtins__": __builtins__}
 
 def _emit(payload):
     try:
-        sys.stdout.write("<<<MCI>>>\\n")
+        sys.stdout.write("<<<OCI>>>\\n")
         sys.stdout.write(json.dumps(payload, separators=(",", ":")))
         sys.stdout.write("\\n<<<END>>>\\n")
         sys.stdout.flush()
@@ -98,7 +98,7 @@ function errStr(e) {
 }
 
 function emit(obj) {
-  process.stdout.write("<<<MCI>>>\\n" + JSON.stringify(obj) + "\\n<<<END>>>\\n");
+  process.stdout.write("<<<OCI>>>\\n" + JSON.stringify(obj) + "\\n<<<END>>>\\n");
 }
 
 function isB64(text) {
