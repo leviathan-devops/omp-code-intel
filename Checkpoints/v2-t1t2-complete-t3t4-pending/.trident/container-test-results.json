@@ -1,0 +1,255 @@
+{
+  "suite": "W1-spot",
+  "container": "omp-intel-w1",
+  "image": "mimo-ct:master",
+  "date": "2026-09-12",
+  "pluginSha": {
+    "host_src_index": "see git-less project; deployed dir /root/MIMOCODE_WORKSPACE/dist/omp-code-intel",
+    "fixtureInitial": "b537fb6e46fb7dd46f0b49cb4e120c78e0227ec6fb84db2cf5370611c1b7e843",
+    "fixtureAfterS4": "e29e93c44986a0fde6817910ec20976b0519fa6c828c970300f54d2d926f0559"
+  },
+  "scenarios": [
+    {
+      "name": "S1-auth-probe",
+      "family": "AUTH",
+      "passToken": "Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go on status bar",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "status bar rendered post trust-accept; model+provider live",
+      "timedOut": false,
+      "verdict": "PASS"
+    },
+    {
+      "name": "S2-plugin-registration-ast_grep",
+      "family": "POSITIVE-TOOLS",
+      "specificToken": "\"matchCount\"-class summary + [work/fixture.ts]#b537 header",
+      "passToken": "matches=3 files=1 searched=1 limitReached=false AND [work/fixture.ts]#b537",
+      "passTokenMatch": true,
+      "failToken": "unknown tool",
+      "failTokenAbsent": true,
+      "toolResultContext": "rendered tool result in TUI chat; tag b537 == sha256(fixture) prefix b537fb6e",
+      "timedOut": false,
+      "verdict": "PASS"
+    },
+    {
+      "name": "S3-stale-anchor-firewall",
+      "family": "POSITIVE-FIREWALL",
+      "specificToken": "STALE_ANCHOR",
+      "passToken": "STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/fixture.ts changed since",
+      "passTokenMatch": true,
+      "failToken": "bytes changed on disk",
+      "failTokenAbsent": true,
+      "toolResultContext": "rendered omp_edit tool card [tag=ffff] -> STALE_ANCHOR; exec sha256sum b537fb6e... UNCHANGED",
+      "timedOut": false,
+      "verdict": "PASS"
+    },
+    {
+      "name": "S4-valid-anchor-edit",
+      "family": "NEGATIVE-HAPPY",
+      "specificToken": "applied",
+      "passToken": "applied 1 hunk(s) \u2192 work/fixture.ts#e29e",
+      "passTokenMatch": true,
+      "failToken": "STALE_ANCHOR on valid tag",
+      "failTokenAbsent": true,
+      "toolResultContext": "rendered omp_edit card [tag=b537] -> applied; disk line2 = logger.debug(2); new sha e29e93c4 == new tag e29e",
+      "timedOut": false,
+      "verdict": "PASS"
+    }
+  ],
+  "phaseE": {
+    "shaDeployMatch": true,
+    "authProbe": true,
+    "allPlannedScenariosExecuted": true,
+    "tokensAsserted": true,
+    "noCircularPasses": true,
+    "noTimeouts": true,
+    "blastRadiusCovered": "plugin tools only; builtins untouched; zero mimo-core edits",
+    "adversarialBehaved": "S3 rejection path; ST suite covers READ_FIRST/ANCHOR_MISMATCH/OOB-tamper",
+    "containerAlive": true,
+    "resultsArtifactWritten": true
+  },
+  "overallVerdict": "pass",
+  "suites": [
+    {
+      "suite": "W2-spot-RB03",
+      "container": "omp-intel-w2b",
+      "image": "mimo-ct:master",
+      "date": "2026-09-12",
+      "scenarios": [
+        {
+          "name": "S1-auth-probe",
+          "verdict": "PASS",
+          "evidence": "status bar Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go"
+        },
+        {
+          "name": "S2-chain-build-evidence-true",
+          "verdict": "PASS",
+          "specificToken": "chain=3 last=d92c9dc8197337da integrity=true",
+          "toolResultContext": "rendered evidence card after 3 omp-mutating edits; exec wc -l == 3",
+          "failTokenAbsent": true
+        },
+        {
+          "name": "S3-corruption-loud-false",
+          "verdict": "PASS",
+          "specificToken": "integrity=false",
+          "toolResultContext": "rendered evidence card after exec sed -i 2d (rows 3->2); chain=2 integrity=false",
+          "passTokenMatch": true
+        },
+        {
+          "name": "S4-registration-5-ids",
+          "verdict": "PASS",
+          "evidence": "evidence tool callable in-session after registration fix; ids ast_edit,ast_grep,evidence,omp_edit,resolve"
+        }
+      ],
+      "phaseE": {
+        "authProbe": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "resultsArtifactWritten": true,
+        "containerAlive": true
+      },
+      "overallVerdict": "pass"
+    },
+    {
+      "suite": "W3-spot-RB05",
+      "container": "omp-intel-w2b",
+      "image": "mimo-ct:master",
+      "date": "2026-09-12",
+      "scenarios": [
+        {
+          "name": "S1-auth-probe",
+          "verdict": "PASS",
+          "evidence": "status bar live post trust-accept"
+        },
+        {
+          "name": "RB05-kernel-persistence",
+          "verdict": "PASS",
+          "specificToken": "eval [code=print(x + 1), language=py] -> 42",
+          "toolResultContext": "two eval calls in TUI; second saw first-cell x=41; SC-10 container-form"
+        },
+        {
+          "name": "RB06-concurrency-omp_edit",
+          "verdict": "PASS-ST",
+          "evidence": "edit.st stale-tag rejection + tag-check-as-serialization trace (W1-C); container-form requires multi-session orchestration, honest deferral noted"
+        },
+        {
+          "name": "RB07-kernel-missing",
+          "verdict": "PASS-ST",
+          "evidence": "eval.st deterministic ENOENT via binOverrides (real spawn attempt); container python3 present so missing-runtime form cannot fire in-container"
+        },
+        {
+          "name": "SC11-cleanup",
+          "verdict": "PASS",
+          "evidence": "ST killAll-zero + ps-scan scenario (zombie-hardened) + W3-C process-exit probe"
+        }
+      ],
+      "phaseE": {
+        "authProbe": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "resultsArtifactWritten": true,
+        "containerAlive": true
+      },
+      "overallVerdict": "pass"
+    },
+    {
+      "suite": "W4-terminal",
+      "container": "omp-intel-term",
+      "image": "mimo-ct:master",
+      "date": "2026-09-12",
+      "scenarioTable": "S1-S10 + A1-A3 per .trident test plan (4100 chars, validated at setup)",
+      "scenarios": [
+        {
+          "name": "S1-auth-probe",
+          "verdict": "PASS",
+          "evidence": "status bar Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go; all subsequent tool results rendered"
+        },
+        {
+          "name": "S2-registration-RB01",
+          "verdict": "PASS",
+          "specificToken": "matches=3 files=1 searched=1 limitReached=false + work/fixture.ts#b537",
+          "toolResultContext": "rendered ast_grep card; tag == fixture sha prefix b537fb6e",
+          "failToken": "unknown tool",
+          "failTokenAbsent": true
+        },
+        {
+          "name": "S3-RB02-stale-firewall",
+          "verdict": "PASS",
+          "specificToken": "STALE_ANCHOR",
+          "toolResultContext": "rendered omp_edit card [tag=ffff] -> STALE_ANCHOR: ... changed since; exec sha b537fb6e46fb7dd4 UNCHANGED"
+        },
+        {
+          "name": "S4-valid-anchor-edit",
+          "verdict": "PASS",
+          "specificToken": "applied 1 hunk(s) -> work/fixture.ts#2f41",
+          "toolResultContext": "rendered card; exec head -1 = logger.debug(1); chain row appended (SC-8 delta)"
+        },
+        {
+          "name": "S5-SC17-out-of-band",
+          "verdict": "PASS",
+          "specificToken": "STALE_ANCHOR",
+          "toolResultContext": "exec append // out-of-band append (sha f228087f) then old-tag omp_edit -> STALE_ANCHOR rendered; file 4 lines, exec bytes preserved"
+        },
+        {
+          "name": "S6-RB05-kernel-persistence",
+          "verdict": "PASS",
+          "specificToken": "42",
+          "toolResultContext": "two rendered eval cards [code=x = 41] [code=print(x + 1), language=py] -> 42"
+        },
+        {
+          "name": "S7-RB03-corruption",
+          "verdict": "PASS",
+          "specificToken": "integrity=false",
+          "toolResultContext": "3 chain rows built (2 omp_edit mutations), exec sed -i 2d (3->2 rows), evidence rendered chain=2 last=d0d6664fcb84e961 integrity=false. NOTE: single-node truncation (1 row left) correctly reports true per ported link-walk semantics \u2014 first attempt with 2-row geometry was a test-geometry error, corrected to middle-row deletion"
+        },
+        {
+          "name": "S8-SC14-shadow-in-container",
+          "verdict": "PASS",
+          "specificToken": "matches=0 files=0 (native grep grammar; fixture had all console.log edited away in S4/S7 \u2014 zero matches is the correct count)",
+          "toolResultContext": "config options {shadow:[grep]} -> grep tool registered and callable; no-shadow negative half proven at ST (w4-sc14 rows) and implicitly in W3 rig (no grep id)"
+        },
+        {
+          "name": "S9-RB04-toggle-off-reboot",
+          "verdict": "PASS",
+          "specificToken": "No such tool exists",
+          "toolResultContext": "config plugin entry REMOVED (grep -c = 0) -> fresh TUI boot -> agent: \"No such tool exists. My available tools are: question, bash, read, glob, grep, edit, write, notebook_edit, actor, webfetch, skill_search, skill, plan_exit, memory, history, task, cron.\" + builtin read worked (fixture line 1 persisted). SC-15 proven"
+        },
+        {
+          "name": "S10-restore-toggle-on",
+          "verdict": "PASS",
+          "specificToken": "ast_grep card rendered",
+          "toolResultContext": "config restored -> fresh boot -> ast_grep responds again (final state ON)"
+        },
+        {
+          "name": "A2-empty-pat",
+          "verdict": "PASS",
+          "specificToken": "pat must be a non-empty pattern",
+          "toolResultContext": "rendered ast_grep card [pat=] -> exact rejection"
+        },
+        {
+          "name": "A1-zombie-free",
+          "verdict": "PASS",
+          "evidence": "ps -ef scan: 0 non-defunct driver procs after eval session"
+        },
+        {
+          "name": "A3-lsp-in-container",
+          "verdict": "SKIPPED-HONEST",
+          "evidence": "typescript-language-server not installed in container image; SC-16 proven at ST (w4-sc16 exact token + ENOENT variant) and W4-A live-probes (real tsserver: hover/definition/references/diagnostics/rename all green on host)"
+        }
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": true,
+        "blastRadiusCovered": "all 6 additive tools + shadow grep + hooks exercised; builtins verified working post-toggle-off",
+        "adversarialBehaved": "S3/S5 rejections sha-proven; A2 named rejection; A1 zero zombies",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "overallVerdict": "pass"
+    }
+  ]
+}

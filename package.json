@@ -1,0 +1,39 @@
+{
+  "name": "mimo-code-intel",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@oh-my-pi/pi-natives": "18.1.18",
+    "@mimo-ai/plugin": "0.1.14",
+    "zod": "4.1.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5",
+    "effect": "latest"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:st": "bun run tests/st/run.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "THIRD-PARTY-NOTICES"
+  ],
+  "keywords": [
+    "mimocode",
+    "plugin",
+    "ast",
+    "lsp",
+    "eval",
+    "omp"
+  ],
+  "engines": {
+    "bun": ">=1.3.14"
+  }
+}

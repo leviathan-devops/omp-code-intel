@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.mimocode/
+*.db-shm
+*.db-wal
+*.tgz
+.DS_Store

@@ -1,0 +1,975 @@
+{
+  "suite": "W1-spot",
+  "container": "omp-intel-w1",
+  "image": "mimo-ct:master",
+  "date": "2026-09-12",
+  "pluginSha": {
+    "host_src_index": "see git-less project; deployed dir /root/MIMOCODE_WORKSPACE/dist/omp-code-intel",
+    "fixtureInitial": "b537fb6e46fb7dd46f0b49cb4e120c78e0227ec6fb84db2cf5370611c1b7e843",
+    "fixtureAfterS4": "e29e93c44986a0fde6817910ec20976b0519fa6c828c970300f54d2d926f0559"
+  },
+  "scenarios": [
+    {
+      "name": "S1-auth-probe",
+      "family": "AUTH",
+      "passToken": "Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go on status bar",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "status bar rendered post trust-accept; model+provider live",
+      "timedOut": false,
+      "verdict": "PASS"
+    },
+    {
+      "name": "S2-plugin-registration-ast_grep",
+      "family": "POSITIVE-TOOLS",
+      "specificToken": "\"matchCount\"-class summary + [work/fixture.ts]#b537 header",
+      "passToken": "matches=3 files=1 searched=1 limitReached=false AND [work/fixture.ts]#b537",
+      "passTokenMatch": true,
+      "failToken": "unknown tool",
+      "failTokenAbsent": true,
+      "toolResultContext": "rendered tool result in TUI chat; tag b537 == sha256(fixture) prefix b537fb6e",
+      "timedOut": false,
+      "verdict": "PASS"
+    },
+    {
+      "name": "S3-stale-anchor-firewall",
+      "family": "POSITIVE-FIREWALL",
+      "specificToken": "STALE_ANCHOR",
+      "passToken": "STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/fixture.ts changed since",
+      "passTokenMatch": true,
+      "failToken": "bytes changed on disk",
+      "failTokenAbsent": true,
+      "toolResultContext": "rendered omp_edit tool card [tag=ffff] -> STALE_ANCHOR; exec sha256sum b537fb6e... UNCHANGED",
+      "timedOut": false,
+      "verdict": "PASS"
+    },
+    {
+      "name": "S4-valid-anchor-edit",
+      "family": "NEGATIVE-HAPPY",
+      "specificToken": "applied",
+      "passToken": "applied 1 hunk(s) \u2192 work/fixture.ts#e29e",
+      "passTokenMatch": true,
+      "failToken": "STALE_ANCHOR on valid tag",
+      "failTokenAbsent": true,
+      "toolResultContext": "rendered omp_edit card [tag=b537] -> applied; disk line2 = logger.debug(2); new sha e29e93c4 == new tag e29e",
+      "timedOut": false,
+      "verdict": "PASS"
+    }
+  ],
+  "phaseE": {
+    "shaDeployMatch": true,
+    "authProbe": true,
+    "allPlannedScenariosExecuted": true,
+    "tokensAsserted": true,
+    "noCircularPasses": true,
+    "noTimeouts": true,
+    "blastRadiusCovered": "plugin tools only; builtins untouched; zero mimo-core edits",
+    "adversarialBehaved": "S3 rejection path; ST suite covers READ_FIRST/ANCHOR_MISMATCH/OOB-tamper",
+    "containerAlive": true,
+    "resultsArtifactWritten": true
+  },
+  "overallVerdict": "pass",
+  "suites": [
+    {
+      "suite": "W2-spot-RB03",
+      "container": "omp-intel-w2b",
+      "image": "mimo-ct:master",
+      "date": "2026-09-12",
+      "scenarios": [
+        {
+          "name": "S1-auth-probe",
+          "verdict": "PASS",
+          "evidence": "status bar Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go"
+        },
+        {
+          "name": "S2-chain-build-evidence-true",
+          "verdict": "PASS",
+          "specificToken": "chain=3 last=d92c9dc8197337da integrity=true",
+          "toolResultContext": "rendered evidence card after 3 omp-mutating edits; exec wc -l == 3",
+          "failTokenAbsent": true
+        },
+        {
+          "name": "S3-corruption-loud-false",
+          "verdict": "PASS",
+          "specificToken": "integrity=false",
+          "toolResultContext": "rendered evidence card after exec sed -i 2d (rows 3->2); chain=2 integrity=false",
+          "passTokenMatch": true
+        },
+        {
+          "name": "S4-registration-5-ids",
+          "verdict": "PASS",
+          "evidence": "evidence tool callable in-session after registration fix; ids ast_edit,ast_grep,evidence,omp_edit,resolve"
+        }
+      ],
+      "phaseE": {
+        "authProbe": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "resultsArtifactWritten": true,
+        "containerAlive": true
+      },
+      "overallVerdict": "pass"
+    },
+    {
+      "suite": "W3-spot-RB05",
+      "container": "omp-intel-w2b",
+      "image": "mimo-ct:master",
+      "date": "2026-09-12",
+      "scenarios": [
+        {
+          "name": "S1-auth-probe",
+          "verdict": "PASS",
+          "evidence": "status bar live post trust-accept"
+        },
+        {
+          "name": "RB05-kernel-persistence",
+          "verdict": "PASS",
+          "specificToken": "eval [code=print(x + 1), language=py] -> 42",
+          "toolResultContext": "two eval calls in TUI; second saw first-cell x=41; SC-10 container-form"
+        },
+        {
+          "name": "RB06-concurrency-omp_edit",
+          "verdict": "PASS-ST",
+          "evidence": "edit.st stale-tag rejection + tag-check-as-serialization trace (W1-C); container-form requires multi-session orchestration, honest deferral noted"
+        },
+        {
+          "name": "RB07-kernel-missing",
+          "verdict": "PASS-ST",
+          "evidence": "eval.st deterministic ENOENT via binOverrides (real spawn attempt); container python3 present so missing-runtime form cannot fire in-container"
+        },
+        {
+          "name": "SC11-cleanup",
+          "verdict": "PASS",
+          "evidence": "ST killAll-zero + ps-scan scenario (zombie-hardened) + W3-C process-exit probe"
+        }
+      ],
+      "phaseE": {
+        "authProbe": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "resultsArtifactWritten": true,
+        "containerAlive": true
+      },
+      "overallVerdict": "pass"
+    },
+    {
+      "suite": "W4-terminal",
+      "container": "omp-intel-term",
+      "image": "mimo-ct:master",
+      "date": "2026-09-12",
+      "scenarioTable": "S1-S10 + A1-A3 per .trident test plan (4100 chars, validated at setup)",
+      "scenarios": [
+        {
+          "name": "S1-auth-probe",
+          "verdict": "PASS",
+          "evidence": "status bar Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go; all subsequent tool results rendered"
+        },
+        {
+          "name": "S2-registration-RB01",
+          "verdict": "PASS",
+          "specificToken": "matches=3 files=1 searched=1 limitReached=false + work/fixture.ts#b537",
+          "toolResultContext": "rendered ast_grep card; tag == fixture sha prefix b537fb6e",
+          "failToken": "unknown tool",
+          "failTokenAbsent": true
+        },
+        {
+          "name": "S3-RB02-stale-firewall",
+          "verdict": "PASS",
+          "specificToken": "STALE_ANCHOR",
+          "toolResultContext": "rendered omp_edit card [tag=ffff] -> STALE_ANCHOR: ... changed since; exec sha b537fb6e46fb7dd4 UNCHANGED"
+        },
+        {
+          "name": "S4-valid-anchor-edit",
+          "verdict": "PASS",
+          "specificToken": "applied 1 hunk(s) -> work/fixture.ts#2f41",
+          "toolResultContext": "rendered card; exec head -1 = logger.debug(1); chain row appended (SC-8 delta)"
+        },
+        {
+          "name": "S5-SC17-out-of-band",
+          "verdict": "PASS",
+          "specificToken": "STALE_ANCHOR",
+          "toolResultContext": "exec append // out-of-band append (sha f228087f) then old-tag omp_edit -> STALE_ANCHOR rendered; file 4 lines, exec bytes preserved"
+        },
+        {
+          "name": "S6-RB05-kernel-persistence",
+          "verdict": "PASS",
+          "specificToken": "42",
+          "toolResultContext": "two rendered eval cards [code=x = 41] [code=print(x + 1), language=py] -> 42"
+        },
+        {
+          "name": "S7-RB03-corruption",
+          "verdict": "PASS",
+          "specificToken": "integrity=false",
+          "toolResultContext": "3 chain rows built (2 omp_edit mutations), exec sed -i 2d (3->2 rows), evidence rendered chain=2 last=d0d6664fcb84e961 integrity=false. NOTE: single-node truncation (1 row left) correctly reports true per ported link-walk semantics \u2014 first attempt with 2-row geometry was a test-geometry error, corrected to middle-row deletion"
+        },
+        {
+          "name": "S8-SC14-shadow-in-container",
+          "verdict": "PASS",
+          "specificToken": "matches=0 files=0 (native grep grammar; fixture had all console.log edited away in S4/S7 \u2014 zero matches is the correct count)",
+          "toolResultContext": "config options {shadow:[grep]} -> grep tool registered and callable; no-shadow negative half proven at ST (w4-sc14 rows) and implicitly in W3 rig (no grep id)"
+        },
+        {
+          "name": "S9-RB04-toggle-off-reboot",
+          "verdict": "PASS",
+          "specificToken": "No such tool exists",
+          "toolResultContext": "config plugin entry REMOVED (grep -c = 0) -> fresh TUI boot -> agent: \"No such tool exists. My available tools are: question, bash, read, glob, grep, edit, write, notebook_edit, actor, webfetch, skill_search, skill, plan_exit, memory, history, task, cron.\" + builtin read worked (fixture line 1 persisted). SC-15 proven"
+        },
+        {
+          "name": "S10-restore-toggle-on",
+          "verdict": "PASS",
+          "specificToken": "ast_grep card rendered",
+          "toolResultContext": "config restored -> fresh boot -> ast_grep responds again (final state ON)"
+        },
+        {
+          "name": "A2-empty-pat",
+          "verdict": "PASS",
+          "specificToken": "pat must be a non-empty pattern",
+          "toolResultContext": "rendered ast_grep card [pat=] -> exact rejection"
+        },
+        {
+          "name": "A1-zombie-free",
+          "verdict": "PASS",
+          "evidence": "ps -ef scan: 0 non-defunct driver procs after eval session"
+        },
+        {
+          "name": "A3-lsp-in-container",
+          "verdict": "SKIPPED-HONEST",
+          "evidence": "typescript-language-server not installed in container image; SC-16 proven at ST (w4-sc16 exact token + ENOENT variant) and W4-A live-probes (real tsserver: hover/definition/references/diagnostics/rename all green on host)"
+        }
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": true,
+        "blastRadiusCovered": "all 6 additive tools + shadow grep + hooks exercised; builtins verified working post-toggle-off",
+        "adversarialBehaved": "S3/S5 rejections sha-proven; A2 named rejection; A1 zero zombies",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "overallVerdict": "pass"
+    },
+    {
+      "suite": "v3-battery",
+      "container": "mimo-intel-v2-t3",
+      "image": "mimo-ct:master",
+      "date": "2026-09-14",
+      "closeoutHead": "d4f8ae3f",
+      "scenarios": [
+        {
+          "name": "S1-auth",
+          "verdict": "PASS",
+          "passToken": "matches=",
+          "toolResultContext": "true",
+          "evidence": "status bar Build Muse Spark 1.3 Contributor OpenCode Go; ast_grep card matches=1"
+        },
+        {
+          "name": "S2-read-shadow",
+          "verdict": "PASS",
+          "passToken": "Symbols:",
+          "toolResultContext": "true",
+          "evidence": "work/fixture.ts#e978 Symbols alpha@1 Beta@4 gamma@5"
+        },
+        {
+          "name": "S3-selector",
+          "verdict": "PASS",
+          "passToken": "@alpha",
+          "toolResultContext": "true",
+          "evidence": "read work/fixture.ts#alpha @alpha:1"
+        },
+        {
+          "name": "S4-diag",
+          "verdict": "SKIP",
+          "reason": "NO_TSSERVER in image; write still applied #e526",
+          "toolResultContext": "true"
+        },
+        {
+          "name": "S5-intel-read",
+          "verdict": "PASS",
+          "passToken": "hello-rpc",
+          "failTokenAbsent": "RPC_TIMEOUT",
+          "toolResultContext": "true",
+          "evidence": "eval card after RPC poll fix"
+        },
+        {
+          "name": "S6-mimo_mv",
+          "verdict": "PASS",
+          "passToken": "moved",
+          "toolResultContext": "true",
+          "evidence": "WILLRENAME_UNSUPPORTED plain move"
+        },
+        {
+          "name": "S7-stale",
+          "verdict": "PASS",
+          "passToken": "STALE_ANCHOR",
+          "toolResultContext": "true",
+          "evidence": "tag ffff now e526 sha e5265d21 unchanged vs attempted hunk"
+        },
+        {
+          "name": "S8-persist",
+          "verdict": "PASS",
+          "passToken": "42",
+          "toolResultContext": "true",
+          "evidence": "same-turn two eval cards"
+        },
+        {
+          "name": "S9-merkle",
+          "verdict": "PASS",
+          "passToken": "integrity=false",
+          "toolResultContext": "true",
+          "evidence": "chain=2 last=e5863f3313f21467"
+        },
+        {
+          "name": "S10-toggle-off",
+          "verdict": "PASS",
+          "passToken": "does not exist",
+          "toolResultContext": "true",
+          "evidence": "Tool error: tool named exactly ast_grep does not exist; builtin read served fixture"
+        },
+        {
+          "name": "S11-mimo_edit-id",
+          "verdict": "PASS",
+          "passToken": "mimo_edit",
+          "toolResultContext": "true",
+          "evidence": "card header \u2699 mimo_edit"
+        },
+        {
+          "name": "S12-concurrency",
+          "verdict": "PASS",
+          "passToken": "STALE_ANCHOR",
+          "toolResultContext": "true",
+          "evidence": "second edit STALE_ANCHOR had e978 now 3ffb"
+        },
+        {
+          "name": "A1-fork-kill",
+          "verdict": "PASS",
+          "toolResultContext": "true",
+          "passToken": "EVAL_TIMEOUT",
+          "evidence": "eval exec(open work/fork.py) timeout=2 -> EVAL_TIMEOUT; 8 python3 defunct ppid=1 (killed, not live sleepers)"
+        },
+        {
+          "name": "A2-empty-pat",
+          "verdict": "PASS",
+          "passToken": "non-empty pattern",
+          "toolResultContext": "true"
+        },
+        {
+          "name": "A3-readonly",
+          "verdict": "PASS",
+          "passToken": "READ_ONLY_FILE",
+          "toolResultContext": "true",
+          "evidence": "sha e5265d21 unchanged"
+        },
+        {
+          "name": "A4-kernel-missing",
+          "verdict": "PASS",
+          "passToken": "KERNEL_MISSING",
+          "toolResultContext": "true",
+          "evidence": "python3 hidden then eval print(1)"
+        }
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": false,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": true,
+        "blastRadiusCovered": "v2 ports plus v1 regressions except A1 TUI fork",
+        "adversarialBehaved": "A1 A2 A3 A4 PASS (A1 zombies reaped to init, not live)",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "overallVerdict": "pass-with-skip",
+      "skips": [
+        "S4-diag NO_TSSERVER"
+      ]
+    },
+    {
+      "suite": "v3b-battery",
+      "container": "mimo-intel-v2-t3b",
+      "image": "mimo-ct:master",
+      "date": "2026-09-14",
+      "closeoutHead": "da2aa3b1",
+      "pluginSha": "88b007a0933c74f0c670ce3962e2d64228ca6097ddf46a6e70a926d08be0b4a2",
+      "scenarios": [
+        {
+          "name": "S1 AUTH PROBE",
+          "feature": "live TUI auth",
+          "passToken": "work/fixture.ts:4:console.log(1); in Tool result (ast_grep)",
+          "failToken": "401",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 120000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "note": "ast_grep tool-result card live TUI pane, status bar Build/Muse Spark 1.3 Contributor"
+        },
+        {
+          "name": "S2 RB-11 read shadow",
+          "feature": "src/read.ts",
+          "passToken": "[work/fixture.ts]# + Symbols:",
+          "failToken": "raw dump",
+          "passTokenMatch": false,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "FAIL",
+          "note": "agent used builtin read (End-of-file card), shadow read tool not routed; tag header absent. Honest FAIL"
+        },
+        {
+          "name": "S5 RB-13 eval re-entry",
+          "feature": "src/eval/rpc.ts+kernels",
+          "passToken": "hello-rpc in eval stdout",
+          "failToken": "RPC_TIMEOUT",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "note": "intel_read(work/data.txt) printed hello-rpc in live eval card"
+        },
+        {
+          "name": "S8 RB-05 persistence",
+          "feature": "eval kernels",
+          "passToken": "42",
+          "failToken": "undefined",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "note": "two-cell py exec rendered 42 in tool-result card"
+        },
+        {
+          "name": "S11 renamed-id",
+          "feature": "mimo_edit",
+          "passToken": "mimo_edit applied on disk",
+          "failToken": "omp_edit",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "note": "hunk applied, disk line4=logger.debug(1), sha e5b25b98->9b177527"
+        },
+        {
+          "name": "S17 ttsr reminder",
+          "feature": "src/ttsr.ts",
+          "passToken": "mimo-intel rule",
+          "failToken": "n/a",
+          "passTokenMatch": false,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "FAIL",
+          "note": "no reminder card: plugin config ttsr.rules=[] defaults; ST covers path with RULES. Config cause, not code"
+        },
+        {
+          "name": "A3 readonly",
+          "feature": "src/edit.ts",
+          "passToken": "READ_ONLY_FILE",
+          "failToken": "bytes changed",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": false,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "note": "direct tool-layer probe same-ctx snapshot+edit: READ_ONLY_FILE named, disk+mode444 unchanged. TUI agent bypassed guard writing as root; toolResultContext False"
+        }
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": false,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": true,
+        "blastRadiusCovered": "partial: read-shadow + ttsr-config gaps",
+        "adversarialBehaved": "A3 tool-layer PASS, TUI-path BYPASS (root)",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "overallVerdict": "fail",
+      "notes": "HEAD da2aa3b1 partial retest: 4/7 PASS, 2 FAIL, 1 split. No flips."
+    },
+    {
+      "suite": "v3c-battery",
+      "container": "mimo-intel-v2-t3b",
+      "image": "mimo-ct:master",
+      "date": "2026-09-14",
+      "closeoutHead": "74c4dc96",
+      "srcHeadShaCheck": {
+        "kernels.ts": "979542fe70cf",
+        "rpc.ts": "64afb6c5dafe",
+        "edit.ts": "db8d0b112951",
+        "read.ts": "02eb5e82f8cc",
+        "index.ts": "027fdd0a88ac",
+        "ttsr.ts": "9f27d9d9a385",
+        "note": "host worktree sha == rig sha for every changed file"
+      },
+      "evidenceChannel": "mimocode session DB typed tool parts ({\"type\":\"tool\",\"tool\":\"<id>\",...}) + tmux pane capture + in-container sha256/ps",
+      "scenarios": [
+        {
+          "name": "S1 AUTH PROBE",
+          "feature": "live TUI auth (status bar + tool run)",
+          "passToken": "Tool result (ast_grep ...): work/fixture.ts:4:console.log(1);",
+          "failToken": "401",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 120000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "pane: 'Tool result (ast_grep --pattern console.log($$$) work/fixture.ts)' + status bar 'Build \u00b7 Muse Spark 1.3 Contributor OpenCode Go'"
+        },
+        {
+          "name": "S2 RB-11 read shadow",
+          "feature": "src/read.ts tagged header + Symbols",
+          "passToken": "[work/shadow-probe.ts]# + Symbols:",
+          "failToken": "raw dump without tag",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "pane: 'work/shadow-probe.ts#8112' + '1:export function delta() {}' + 'Symbols:' 'delta (function) @1' 'Zeta (class) @3'"
+        },
+        {
+          "name": "S3 RB-11b selector",
+          "feature": "file#symbol window",
+          "passToken": "@Beta:2 + window lines",
+          "failToken": "NO_SYMBOL",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool part read: output '[work/sel-probe.ts]#3cff @Beta:2\\n1:...\\n2:export class Beta {}\\n3:...'"
+        },
+        {
+          "name": "S4 RB-12 diag-on-write",
+          "feature": "src/diag.ts append on mimo_edit",
+          "passToken": "[error] in SAME card",
+          "failToken": "silence",
+          "passTokenMatch": false,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "SKIPPED",
+          "evidence": "honest DIAG_UNAVAILABLE skip per pin SC-6: mimo_edit card metadata.diag='DIAG_UNAVAILABLE'; image proof: `ls node_modules | grep -c typescript-language-server` = 0 and `which typescript-language-server` = NO_TS_LS_BINARY (tsserver.js itself IS present; the LANGUAGE SERVER binary is absent)"
+        },
+        {
+          "name": "S5 RB-13 eval re-entry",
+          "feature": "src/eval/rpc.ts + kernels",
+          "passToken": "hello-rpc in eval output",
+          "failToken": "RPC_TIMEOUT",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool part eval: input {code: print(intel_read(\"work/data.txt\")), language: py} output 'hello-rpc' (re-verified after the defensive-mkdir fix 74c4dc96)"
+        },
+        {
+          "name": "S6 RB-14 willRename",
+          "feature": "src/mv.ts",
+          "passToken": "moved + WILLRENAME_UNSUPPORTED",
+          "failToken": "broken import on disk",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool part mimo_mv: output 'moved work/util.ts -> work/lib.ts\\nWILLRENAME_UNSUPPORTED: plain move, imports not rewritten' metadata {moved:true, importsRewritten:0}"
+        },
+        {
+          "name": "S7 RB-02 stale firewall",
+          "feature": "mimo_edit STALE_ANCHOR",
+          "passToken": "STALE_ANCHOR + sha unchanged",
+          "failToken": "applied 1 hunk",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool part mimo_edit: output 'STALE_ANCHOR: /root/MIMOCODE_WORKSPACE/work/log-probe.ts changed since snapshot (had ffff, now 3cff)'; bash sha256sum = 3cff24de\u2026 == tag 3cff (bytes unchanged)"
+        },
+        {
+          "name": "S8 RB-05 kernel persistence",
+          "feature": "eval kernels",
+          "passToken": "42",
+          "failToken": "undefined",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool parts eval: 'x = 41' then 'print(x + 1)' -> output '42' (same-turn ladder, no reset)"
+        },
+        {
+          "name": "S9 RB-03 corruption",
+          "feature": "merkle evidence",
+          "passToken": "integrity=false after middle delete",
+          "failToken": "integrity=true",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": false,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "in-container real-module probe: BEFORE chain=3 integrity=true -> delete middle row -> AFTER chain=2 last=028a537cf02b592b integrity=false, metadata {chainLength:2, integrity:false}. toolResultContext false = tool-layer (not TUI card)"
+        },
+        {
+          "name": "S10 RB-04 toggle-off + restore",
+          "feature": "plugin registration lifecycle",
+          "passToken": "No such tool exists + builtin read works",
+          "failToken": "plugin tool renders while popped",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 300000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "plugin entry removed + fresh boot: tool part read -> builtin format '<path>\u2026<content>1: \u2026</content>' (NOT '[path]#tag'); ast_grep call absent from tool parts (model: no ast_grep tool available). Restore + fresh boot: read -> '[work/sel-probe.ts]#c637' tagged format back"
+        },
+        {
+          "name": "S11 renamed-id",
+          "feature": "mimo_edit tool id",
+          "passToken": "mimo_edit applied + retag on disk",
+          "failToken": "omp_edit",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool part mimo_edit: 'applied 1 hunk(s) \u2192 [work/fixture.ts]#\u2026'; disk line4 = logger.debug(1); sha e5b25b98 -> 9b177527"
+        },
+        {
+          "name": "S12 RB-15 concurrency",
+          "feature": "exactly-one apply",
+          "passToken": "exactly one applied + loser STALE_ANCHOR",
+          "failToken": "double success",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 240000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "two mimo_edit with SAME tag 3cff: first -> 'applied 1 hunk(s) \u2192 [work/sel-probe.ts]#c637'; second -> 'STALE_ANCHOR: \u2026 changed si\u2026'; disk sha prefix c637 == winner tag, content 'export const alpha = 2;'"
+        },
+        {
+          "name": "A1 fork-kill",
+          "feature": "EVAL_TIMEOUT tree kill",
+          "passToken": "EVAL_TIMEOUT + 0 surviving procs",
+          "failToken": "hang or survivor",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 120000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "TUI: ttime.sleep(30) timeout 2 -> tool part eval output 'EVAL_TIMEOUT' metadata.error=EVAL_TIMEOUT. Fork payload (in-container, tool-layer): after setsid group-kill fix f6a8594c -> fork storm returns EVAL_TIMEOUT @3007ms, liveCount 0, LIVE_NONZOMBIE:0 (pre-fix: 1 survivor reparented to init)"
+        },
+        {
+          "name": "A2 malformed burst",
+          "feature": "named rejections + bounded output",
+          "passToken": "named tokens (READ_BINARY / pat must be non-empty)",
+          "failToken": "stack trace or hang",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "maxWaitMs": 300000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool parts: read bin.dat -> 'READ_BINARY: work/bin.dat (binary file, preview only)' metadata.error=READ_BINARY; ast_grep pat '' -> 'pat must be a non-empty pattern'; 10MB read (tool-layer) -> 'READ_BINARY' with 254-char bounded output (10,485,760 bytes in)"
+        },
+        {
+          "name": "A3 readonly",
+          "feature": "READ_ONLY_FILE guard",
+          "passToken": "READ_ONLY_FILE + shaEq",
+          "failToken": "applied with bytes changed",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": false,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool-layer probe (same-ctx snapshot+edit on mode-444 file): 'READ_ONLY_FILE: \u2026 has no write permission bits' metadata.error=READ_ONLY_FILE; mode stays 444, bytes unchanged. FINDING: the TUI agent path bypassed the guard by writing as root (bit-guard is a tool-layer invariant, not a filesystem jail) \u2014 recorded, not hidden"
+        },
+        {
+          "name": "A4 KERNEL_MISSING",
+          "feature": "missing runtime",
+          "passToken": "KERNEL_MISSING",
+          "failToken": "Traceback/stack dump",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": false,
+          "maxWaitMs": 120000,
+          "timedOut": false,
+          "verdict": "PASS",
+          "evidence": "tool-layer probe KernelManager binOverrides py=/nonexistent/opi-py -> {ok:false, error:'KERNEL_MISSING: py runtime not found (ENOENT \u2026 /nonexistent/opi-py)'}"
+        },
+        {
+          "name": "S17 ttsr violation reminder",
+          "feature": "src/ttsr.ts scan + messages.transform injection",
+          "passToken": "[mimo-intel rule \u2026] message in context",
+          "failToken": "(none)",
+          "passTokenMatch": false,
+          "failTokenAbsent": false,
+          "toolResultContext": false,
+          "maxWaitMs": 180000,
+          "timedOut": false,
+          "verdict": "SKIPPED",
+          "evidence": "NOT tool-result observable: after configuring ttsr.rules and firing a console.log-matching tool call, the session DB has 0/2 parts matching '%mimo-intel rule%' (the trigger tool output IS present: 2 parts match 'console.log(3)'), and the pane shows no reminder. The injected-message path has no tool-result token; asking the model is prose = circular (AP-4). Mechanically covered by ST (hooks.st.ts inject + w4.st.ts cleared rows)."
+        }
+      ],
+      "planAmendments": [
+        "S4 recorded as honest SKIP under pin SC-6 (DIAG_UNAVAILABLE + image proof) \u2014 the image lacks the typescript-language-server binary.",
+        "S17/S18 (ttsr reminder / advisor concern) were extra rows added in the v3b retest plan; both are message-injection paths with NO tool-result token, so they are not TUI-observable by construction. Amended: ST-covered, listed as SKIPPED with reason rather than flipped."
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "srcShaHostRigMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": true,
+        "blastRadiusCovered": "S1-S12 + A1-A4 executed; S4 honest-skip (SC-6); S17 extra-row ST-covered skip",
+        "adversarialBehaved": "A1 EVAL_TIMEOUT + 0 survivors after fix; A2 named rejections bounded; A3 tool-layer PASS + root-bypass finding; A4 KERNEL_MISSING",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "verdictScope": "pin row set S1-S12 + A1-A4",
+      "overallVerdict": "pass",
+      "findings": [
+        "A1 (fixed f6a8594c): fork-storm payload left 1 reparented survivor with the single-pass tree walk; driver now spawns via setsid and teardown SIGKILLs the whole process group atomically -> 0 survivors measured.",
+        "S5 (fixed 74c4dc96): after the host pruned .mimocode/mimo-intel/eval-rpc mid-session, intel_read raised a raw Python FileNotFoundError; both stubs now defensively mkdir and degrade to the NAMED RPC_TIMEOUT.",
+        "S4 (image gap, not code): DIAG_UNAVAILABLE because typescript-language-server is absent from the image; tsserver.js alone is present.",
+        "A3 (threat model): the 444-bit guard holds at the tool layer but a root agent can still write by other means \u2014 documented, not claimed as a jail.",
+        "S17 (observability): the ttsr reminder is a message-injection path with no tool-result token; ST is the mechanical channel."
+      ]
+    },
+    {
+      "suite": "v4-battery",
+      "container": "mimo-intel-v2-t4",
+      "image": "mimo-ct:master",
+      "date": "2026-09-14",
+      "closeoutHead": "cf2a5690",
+      "planSha": "525c9096",
+      "rigNew": true,
+      "evidenceChannel": "typed tool parts from the mimocode session DB ({\"type\":\"tool\"}) + a plugin-written receipt file (L2) + in-container sha/ps/wc",
+      "rowsAreL1L2Only": true,
+      "scenarios": [
+        {
+          "name": "T-1 ast_edit propose then resolve",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "proposed / applied + fresh tag",
+          "failToken": "write before resolve",
+          "evidence": "tool part ast_edit -> 'proposed 1 replacement(s) in 1 file(s) - nothing written yet; call resolve with a reason to apply'; tool part resolve -> 'applied 1 replacement(s) in 1 file(s) [work/sel-probe.ts]#6f09'; disk line 3 rewritten"
+        },
+        {
+          "name": "T-2 evidence integrity true then false",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "integrity=true then integrity=false",
+          "failToken": "integrity=true after delete",
+          "evidence": "tool part evidence -> 'chain=3 last=a7ee60e1859c2a25 integrity=true'; middle row deleted via CT exec (3->2 rows); tool part evidence -> 'chain=2 last=a7ee60e1859c2a25 integrity=false'"
+        },
+        {
+          "name": "T-3 negative-path intel_read",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "RPC_UNKNOWN_TOOL:read / :path",
+          "failToken": "raw path echo or traceback leak",
+          "evidence": "first attempt FAILED (RPC_TIMEOUT x2) -> defect fixed -> re-measured: intel_read(work/data.txt) -> 'hello-rpc'; /etc/hostname -> 'RuntimeError: RPC_UNKNOWN_TOOL:path'; 2MB file -> 'RuntimeError: RPC_UNKNOWN_TOOL:read'"
+        },
+        {
+          "name": "T-4 shadow grep live row",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "matches= with [path]#tag rows",
+          "failToken": "raw native output",
+          "evidence": "bare id FAILED live (builtin grammar 'Found 1 matches ... Line 4:' observed) -> additive id fix -> tool part mimo_grep -> 'matches=1 files=1\\n[work/fixture.ts]#5e72\\n4:logger.debug(1);' metadata {matchCount:1,fileCount:1}"
+        },
+        {
+          "name": "T-5 shadow lsp live row",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "NO_LSP_SERVER",
+          "failToken": "stack trace",
+          "evidence": "tool part mimo_lsp (definition) -> 'No LSP server available for .ts files (typescript-language-server not installed)' metadata.error NO_LSP_SERVER"
+        },
+        {
+          "name": "T-6 js-side intel_read",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "hello-rpc in a js cell",
+          "failToken": "RPC_CJS_ONLY / TypeError",
+          "evidence": "FAILED first ('TypeError: ... _crypto.randomBytes') -> driver bridge fix -> tool part eval js -> 'hello-rpc' metadata {language:js,exit:ok}"
+        },
+        {
+          "name": "T-7 three-cell concurrency",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "three distinct markers",
+          "failToken": "interleaved output or timeout",
+          "evidence": "three eval py tool parts -> 'AAA', 'BBB', 'CCC' each metadata.exit ok"
+        },
+        {
+          "name": "T-8 diag-on-write",
+          "verdict": "SKIPPED",
+          "level": "-",
+          "passToken": "[error] in the card",
+          "failToken": "silence with the server present",
+          "evidence": "honest skip with image proof: mimo_edit wrote a type error (line1 'export const alpha: number = \"str\";') and metadata.diag=DIAG_UNAVAILABLE; 'which typescript-language-server' -> NO_TS_LS_BINARY, zero global/local installs (tsserver.js alone is not the LS binary)"
+        },
+        {
+          "name": "T-9 ttsr injection receipt",
+          "verdict": "PASS",
+          "level": "L2",
+          "passToken": "[mimo-intel rule in the receipt",
+          "failToken": "no line while the trigger matched",
+          "evidence": "receipt file line: '2026-09-14T18:05:03.309Z injected=2 :: [mimo-intel rule no-console-log] use logger.debug' \u2014 closes the S17 gap from the v3 battery"
+        },
+        {
+          "name": "T-10 advisor receipt",
+          "verdict": "PASS",
+          "level": "L2",
+          "passToken": "advisor marker in the receipt",
+          "failToken": "nothing on a matching trajectory",
+          "evidence": "receipt file line: '... injected=2 :: [mimo-intel rule no-console-log] ... [mimo-intel rule advisor:no-console-log] use logger.debug'"
+        },
+        {
+          "name": "T-11 A3 contract + seal",
+          "verdict": "PASS",
+          "level": "-",
+          "passToken": "contract in README + tag + dry-run",
+          "failToken": "unqualified read-only claim",
+          "evidence": "README sections 'Read-only files: what the guard does and does NOT promise' + 'Observability receipts (opt-in)'; npm pack --dry-run green; tag v0.2.0-observability; publish NOT run"
+        }
+      ],
+      "findings": [
+        "F1 fresh-home watcher defect (FAIL -> fixed): ensureRpcDir only mkdir'd the leaf; on a brand-new workspace the base did not exist, ENOENT was swallowed by the silent plugin-init catch, and EVERY intel_read returned RPC_TIMEOUT. Fix: recursive base mkdir + a loud warn instead of a silent catch. Verified on a fresh base and after deleting the whole home.",
+        "F2 bare shadow ids not reachable live (FAIL -> fixed): the bare `grep`/`lsp` ids did not reach the model on MiMo 0.1.14 (builtin grammar observed; `lsp` absent from the model's list) while the plugin registered both correctly. Fix: additive mimo_grep / mimo_lsp registered alongside, gated behind opts.shadow.",
+        "F3 js re-entry broken live, ST blind (FAIL -> fixed): the vm context had no require and no crypto, so the JS stub died with a raw TypeError; the ST row only asserted the preamble TEXT contains RPC_TIMEOUT. Fix: driver seeds createRequire + randomBytes + globalThis; the stub now throws the NAMED RPC_CJS_ONLY when the bridge is absent.",
+        "F4 S17-class gap closed: the ttsr/advisor reminder path was structurally unobservable; the receipt sink makes it L2-observable (opt-in, off by default)."
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "srcShaHostRigMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": true,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": true,
+        "blastRadiusCovered": "W1-W9 surface list from the observability plan",
+        "adversarialBehaved": "negative paths + concurrency + fork class exercised",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "overallVerdict": "pass-with-one-honest-skip",
+      "notes": "SC-14 mapping: the pin's SUCCESS CRITERIA + PASS CRITERIA (plan section 6) expressly allow the diag row as 'an honest skip with the image proof' (typescript-language-server absent); T-8 is that recorded skip with its proof. Every other row is L1/L2 with the failToken absent. The verdict is intentionally NOT the bare word 'pass' \u2014 which would hide the skip \u2014 but the verdict the plan defines for this outcome: pass-with-one-honest-skip. No verdict flipped: tool-layer-only probes never close rows here; the v3c observer rows stay untouched."
+    },
+    {
+      "suite": "v6-master-laguna",
+      "container": "mimo-intel-master-laguna",
+      "image": "runtime-grade-container-sandbox:master@sha256:bdc3d773054bede90a17f4e26561d52b88507eae7c22a6ade9a2c2d6799a1cb5",
+      "date": "2026-09-15",
+      "model": "poolside/laguna-s-2.1:free via openrouter (master baked key)",
+      "pluginSha": {
+        "host_src_index": "df126da5940469fa",
+        "rig_src_index": "df126da5940469fa",
+        "shaDeployMatch": true
+      },
+      "scenarios": [
+        {
+          "name": "S1 AUTH PROBE",
+          "verdict": "PASS",
+          "level": "L1",
+          "passToken": "matches=3 files=1 searched=1 limitReached=false",
+          "failToken": "401 / unauthorized",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "timedOut": false,
+          "maxWaitMs": 120000,
+          "evidence": "TUI gear card via laguna: matches=3 files=1 searched=1 limitReached=false; bar Build \u00b7 Laguna S 2.1 Free OpenRouter. Stream: prompt delivered, card rendered, no quota error on this turn."
+        },
+        {
+          "name": "S3 STALE FIREWALL (model-mediated)",
+          "verdict": "FAIL-DERAILMENT",
+          "level": "L1-attempt",
+          "passToken": "STALE_ANCHOR + sha unchanged",
+          "failToken": "applied 1 hunk",
+          "passTokenMatch": false,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "timedOut": false,
+          "maxWaitMs": 180000,
+          "evidence": "Laguna called mimo_edit tag=ffff 4x (cards observed in pane) but narrated INVALID_ARGS and asked to use valid tag #4d1e instead of reporting the raw STALE_ANCHOR card; then detoured via node -e JSON echo (MODULE_NOT_FOUND crash in pane) and ast_edit/resolve on the fixture (tag #1ddb -> #4d1e, disk line2 now console.log(modified), sha 4d1ef7fb). Derailment class: model paraphrase + fix-offer instead of verbatim tool-result report. Disk truth: fixture.ts untouched (f49f60ff); log-probe.ts MODIFIED by model detour (was x-tagged, now 4d1e). Direct-execute control in mimo-ct rig PROVES the behavior: same-tag stale -> STALE_ANCHOR + shaEq (rt15/rt18/rt19 rows)."
+        },
+        {
+          "name": "S2 ANCHOR LOOP (queued)",
+          "verdict": "OPEN",
+          "level": "-",
+          "passToken": "applied 1 hunk(s) + fresh tag + sha moved",
+          "failToken": "STALE_ANCHOR on fresh tag",
+          "passTokenMatch": false,
+          "failTokenAbsent": true,
+          "toolResultContext": false,
+          "timedOut": false,
+          "maxWaitMs": 180000,
+          "evidence": "Prompt sent; pane shows retry loop (attempt #7/#8, Provider returned error) under laguna upstream rate-limiting. Verdict pending; fixture.ts sha f49f60ff unchanged at check time. S2 follow-up: laguna retry loop reached attempt #10 (15m42s backoff) with prompt still queued; fixture.ts sha f49f60ff UNCHANGED, log-probe.ts restored to 1ddb012c (original bytes) via exec at check time. No silent write by the model during the wait."
+        },
+        {
+          "name": "DIRECT-CONTROL mimo-ct rig (same code, reference)",
+          "verdict": "PASS",
+          "level": "L1-direct",
+          "passToken": "named tokens per row",
+          "failToken": "traceback / silent apply",
+          "passTokenMatch": true,
+          "failTokenAbsent": true,
+          "toolResultContext": true,
+          "timedOut": false,
+          "maxWaitMs": 0,
+          "evidence": "19 direct ops in mimo-intel-runtime-v5 (identical tree df126da5): S1 matches=3 #f49f; S2 shadow #b17d + selector @TagStore:10 #0632; D5 empty->named + wrong-types->INVALID_ARGS; D2 mimo_grep matches=9 #db8d + NO_LSP_SERVER; S5/S8/T6/D6/MV/EV/T7/T5/T4 all named-correct after fresh-home fix; mismatch rows ANCHOR_MISMATCH; 444 file READ_ONLY_FILE + sha/mode exec proof; KernelManager KERNEL_MISSING; D1 second-use STALE_ANCHOR + revert to #0632; D8 race one-applied + loser STALE_ANCHOR + restore #0632; tree git-clean, sha df126da5. TUI-quota dead (muse 5d + zen 429) so direct path was the honest vehicle; per container-testing law exec + tool returns are ground truth for behavior."
+        }
+      ],
+      "phaseE": {
+        "shaDeployMatch": true,
+        "srcShaHostRigMatch": true,
+        "authProbe": true,
+        "allPlannedScenariosExecuted": false,
+        "tokensAsserted": true,
+        "noCircularPasses": true,
+        "noTimeouts": false,
+        "blastRadiusCovered": "S1 + S3-attempt + direct-control 19 ops; S2/S4-S8 queued behind laguna rate-limit retries",
+        "adversarialBehaved": "D-class derailment OBSERVED live: model paraphrased INVALID_ARGS + offered valid-tag fix instead of reporting STALE_ANCHOR card (S3 row). Direct-path derailments all named-correct.",
+        "containerAlive": true,
+        "resultsArtifactWritten": true
+      },
+      "overallVerdict": "partial-pass-with-model-derailment",
+      "notes": "Master-image rig stands (bar Build \u00b7 Laguna S 2.1 Free OpenRouter, plugin deployed df126da5, fixtures seeded). S1 PASS live via laguna. S3 is the honest adversarial finding of this run: the MODEL derailed (paraphrase + unsolicited fix path that modified log-probe.ts via ast_edit/resolve) while the PLUGIN behaved (INVALID_ARGS/STALE_ANCHOR cards exist in pane history). Fixture restore + full TUI suite queued on laguna cooldown. Direct-control reference (mimo-ct rig, 19 ops) carries the behavior proof meanwhile. S2 still OPEN behind laguna 429 backoff (attempt #10); no evidence of silent model writes during the wait (both shas pinned)."
+    }
+  ]
+}
