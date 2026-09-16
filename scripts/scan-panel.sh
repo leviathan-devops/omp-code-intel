@@ -31,7 +31,7 @@ echo ""
 runOneFile() {
   local FILE="$1" OUTFILE="$2"
   # launch ocr normally
-  ocr scan --path "$REPO/$FILE" --provider "$PROVIDER" --timeout 30 --format json > "$OUTFILE" 2>&1 &
+  ocr scan --path "$FILE" --provider "$PROVIDER" --timeout 30 --format json > "$OUTFILE" 2>&1 &
   local PID=$!
   local last_size=0 last_change=$(date +%s)
   # ═══ THE STALL WATCHDOG (the STALL_MS pattern) ═══
@@ -57,7 +57,7 @@ runOneFile() {
   wait "$PID" 2>/dev/null
   local exit_code=$?
   # did we get valid JSON?
-  if [ -s "$OUTFILE" ] && python3 -c "import json; json.load(open('$OUTFILE'))" 2>/dev/null; then
+  if [ -s "$OUTFILE" ] && grep -v '^\[ocr\]' "$OUTFILE" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null; then
     return 0  # success
   fi
   return 1  # completed but no valid JSON = failed
