@@ -510,7 +510,12 @@ async function sweep(
           stack.pop();
           if (stack.length > 0) {
             const parent = stack[stack.length - 1]!;
-            low.set(parent.id, Math.min(low.get(parent.id)!, low.get(top.id)!));
+            // V21 fix-now F1: propagate only while top is still on the SCC
+            // stack — after its component closes, its lowlink must NOT bleed
+            // into the parent (classic iterative-Tarjan defect).
+            if (onStack.has(top.id)) {
+              low.set(parent.id, Math.min(low.get(parent.id)!, low.get(top.id)!));
+            }
           }
           if (low.get(top.id) === index.get(top.id)) {
             const comp: string[] = [];

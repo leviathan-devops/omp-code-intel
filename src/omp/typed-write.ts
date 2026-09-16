@@ -173,16 +173,23 @@ export interface ForkNode {
 export function insertForkNode(storePath: string, node: ForkNode): void {
   const db = openTypedStore(storePath);
   try {
-    db.run(
-      // V21 W2: tombstone-then-insert — the prior live row survives as
-      // history (superseded_run = incoming run); REPLACE deleted it outright.
-      "UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL",
-      [node.run, node.canonicalId],
-    );
-    db.run(
-      "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-      [node.canonicalId, node.kind, node.label, node.file, node.line, node.run],
-    );
+    // V21 fix-now F3: tombstone + insert are ONE transaction — an INSERT
+    // failure must roll back the tombstone (never zero live rows).
+    db.exec("BEGIN IMMEDIATE;");
+    try {
+      db.run(
+        "UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL",
+        [node.run, node.canonicalId],
+      );
+      db.run(
+        "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+        [node.canonicalId, node.kind, node.label, node.file, node.line, node.run],
+      );
+      db.exec("COMMIT;");
+    } catch (e) {
+      try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
   } finally {
     db.close();
   }
@@ -202,15 +209,22 @@ export interface ForkEdge {
 export function insertForkEdge(storePath: string, edge: ForkEdge): void {
   const db = openTypedStore(storePath);
   try {
-    db.run(
-      // V21 W2: tombstone-then-insert (same law as nodes).
-      "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
-      [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate],
-    );
-    db.run(
-      "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
-    );
+    // V21 fix-now F3: same single-txn law as insertForkNode.
+    db.exec("BEGIN IMMEDIATE;");
+    try {
+      db.run(
+        "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
+        [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate],
+      );
+      db.run(
+        "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+        [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
+      );
+      db.exec("COMMIT;");
+    } catch (e) {
+      try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
   } finally {
     db.close();
   }
@@ -221,7 +235,9 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
 export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[]) => void; inTransaction?: boolean }, nodes: ForkNode[]): void {
   // V21 W3: a partial batch must never land — the writer refuses to run
   // outside a transaction (supersedeThenInsert / writeGraphifyCheckout own one).
-  if (db.inTransaction === false) {
+  // V21 fix-now F2: require EXPLICITLY in-transaction — a wrapper object with
+  // no inTransaction property must FAIL CLOSED, not slip past the guard.
+  if (db.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
   }
   for (const node of nodes) {
@@ -239,7 +255,7 @@ export function insertForkNodesBatch(db: { run: (sql: string, params: unknown[])
 
 export function insertForkEdgesBatch(db: { run: (sql: string, params: unknown[]) => void; inTransaction?: boolean }, edges: ForkEdge[]): void {
   // V21 W3: same txn guard as nodes.
-  if (db.inTransaction === false) {
+  if (db.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
   }
   for (const edge of edges) {

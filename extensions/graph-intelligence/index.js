@@ -8869,7 +8869,9 @@ async function sweep(template, graph, targetRoot, belt, calls) {
           stack.pop();
           if (stack.length > 0) {
             const parent = stack[stack.length - 1];
-            low.set(parent.id, Math.min(low.get(parent.id), low.get(top.id)));
+            if (onStack.has(top.id)) {
+              low.set(parent.id, Math.min(low.get(parent.id), low.get(top.id)));
+            }
           }
           if (low.get(top.id) === index.get(top.id)) {
             const comp = [];
@@ -9494,7 +9496,7 @@ function openTypedStore(storePath) {
   return db;
 }
 function insertForkNodesBatch(db, nodes) {
-  if (db.inTransaction === false) {
+  if (db.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
   }
   for (const node of nodes) {
@@ -9503,7 +9505,7 @@ function insertForkNodesBatch(db, nodes) {
   }
 }
 function insertForkEdgesBatch(db, edges) {
-  if (db.inTransaction === false) {
+  if (db.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
   }
   for (const edge of edges) {
