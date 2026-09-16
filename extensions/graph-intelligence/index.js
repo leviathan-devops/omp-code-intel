@@ -9462,20 +9462,20 @@ var TYPED_STORE_DDL = [
 ];
 var SQLITE_MAGIC = Buffer.from("SQLite format 3");
 function getMeta(storePath, key) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    const row = db.query("SELECT value FROM gi_meta WHERE key = ?").get(key);
+    const row = db2.query("SELECT value FROM gi_meta WHERE key = ?").get(key);
     return row?.value ?? null;
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function setMeta(storePath, key, value) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value]);
+    db2.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value]);
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function openTypedStore(storePath) {
@@ -9493,11 +9493,11 @@ function openTypedStore(storePath) {
       throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath}`);
     }
   }
-  const db = new Database2(storePath, { create: true });
-  db.exec("PRAGMA journal_mode = WAL;");
+  const db2 = new Database2(storePath, { create: true });
+  db2.exec("PRAGMA journal_mode = WAL;");
   for (const stmt of TYPED_STORE_DDL) {
     try {
-      db.run(stmt);
+      db2.run(stmt);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("UNIQUE")) {
@@ -9507,49 +9507,49 @@ function openTypedStore(storePath) {
       throw e;
     }
   }
-  return db;
+  return db2;
 }
-function insertForkNodesBatch(db, nodes) {
-  if (db.inTransaction !== true) {
+function insertForkNodesBatch(db2, nodes) {
+  if (db2.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
   }
   for (const node of nodes) {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL", [node.run, node.canonicalId]);
-    db.run("INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [node.canonicalId, node.kind, node.label, node.file, node.line, node.run]);
+    db2.run("UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL", [node.run, node.canonicalId]);
+    db2.run("INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [node.canonicalId, node.kind, node.label, node.file, node.line, node.run]);
   }
 }
-function insertForkEdgesBatch(db, edges) {
-  if (db.inTransaction !== true) {
+function insertForkEdgesBatch(db2, edges) {
+  if (db2.inTransaction !== true) {
     throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
   }
   for (const edge of edges) {
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL", [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate]);
-    db.run("INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
+    db2.run("UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL", [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate]);
+    db2.run("INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
   }
 }
 function countTypedNodes(storePath) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    const row = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get();
+    const row = db2.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get();
     return Number(row.n);
   } finally {
-    db.close();
+    db2.close();
   }
 }
-function resolveLiveIds(db, label) {
-  const rows = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(label);
+function resolveLiveIds(db2, label) {
+  const rows = db2.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(label);
   return rows.map((r) => r.canonical_id);
 }
 function ph(n) {
   return Array.from({ length: n }, () => "?").join(", ");
 }
 function whoCalls(storePath, name) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    const ids = resolveLiveIds(db, name);
+    const ids = resolveLiveIds(db2, name);
     if (ids.length === 0)
       return { rows: 0, names: [], callers: [] };
-    const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
+    const rows = db2.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
               e.predicate AS predicate, e.dst_canonical AS target_canonical
        FROM typed_edges e
        JOIN typed_nodes src ON e.src_canonical = src.canonical_id
@@ -9566,16 +9566,16 @@ function whoCalls(storePath, name) {
     }));
     return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function blastRadius(storePath, symbol, depth = 8) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    const ids = resolveLiveIds(db, symbol);
+    const ids = resolveLiveIds(db2, symbol);
     if (ids.length === 0)
       return { root: symbol, depth: 0, nodes: [] };
-    const rows = db.query(`WITH RECURSIVE blast(cid, depth) AS (
+    const rows = db2.query(`WITH RECURSIVE blast(cid, depth) AS (
          SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)})
          UNION
          SELECT src.canonical_id, blast.depth + 1
@@ -9596,7 +9596,7 @@ function blastRadius(storePath, symbol, depth = 8) {
     const maxDepth = nodes.reduce((m, n) => n.depth > m ? n.depth : m, 0);
     return { root: symbol, depth: maxDepth, nodes };
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function wouldBreak(storePath, symbol, proposed = "") {
@@ -9620,16 +9620,16 @@ function wouldBreak(storePath, symbol, proposed = "") {
   };
 }
 function chainCalls(storePath, from, to, maxDepth = 64) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    const starts = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(from);
-    const targets = db.query("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to);
+    const starts = db2.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(from);
+    const targets = db2.query("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to);
     const toSet = new Set(targets.map((r) => r.label));
     const visited = new Set(starts.map((s) => s.canonical_id));
     const queue = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
     while (queue.length > 0 && queue[0].steps.length < maxDepth) {
       const cur = queue.shift();
-      const out = db.query(`SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
+      const out = db2.query(`SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                 dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
          FROM typed_edges e
          JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
@@ -9654,13 +9654,13 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
     }
     return [];
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function unwiredNodes(storePath) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    const rows = db.query(`SELECT n.label AS name, n.file AS file, n.line AS line, n.kind AS kind
+    const rows = db2.query(`SELECT n.label AS name, n.file AS file, n.line AS line, n.kind AS kind
        FROM typed_nodes n
        WHERE n.kind IN ('method', 'flow', 'service', 'class', 'function', 'file', 'module', 'Function', 'Class', 'File', 'Module') AND n.superseded_run IS NULL
          AND n.file IS NOT NULL
@@ -9676,15 +9676,15 @@ function unwiredNodes(storePath) {
       return { name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED", kind: r.kind ?? "" };
     });
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function impact(storePath, symbol, depth = 8) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
     const ledger = [];
     const seen = new Set;
-    const startIds = resolveLiveIds(db, symbol);
+    const startIds = resolveLiveIds(db2, symbol);
     if (startIds.length === 0)
       return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
     for (const id of startIds)
@@ -9694,7 +9694,7 @@ function impact(storePath, symbol, depth = 8) {
       const next = [];
       for (let i = 0;i < frontier.length; i += 64) {
         const chunk = frontier.slice(i, i + 64);
-        const callers = db.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
+        const callers = db2.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
            FROM typed_edges e
            JOIN typed_nodes src ON e.src_canonical = src.canonical_id
            WHERE e.dst_canonical IN (${ph(chunk.length)})
@@ -9712,18 +9712,18 @@ function impact(storePath, symbol, depth = 8) {
     }
     return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function safeDelete(storePath, symbol) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
     const q = whoCalls(storePath, symbol);
     const imp = impact(storePath, symbol);
-    const srcIds = resolveLiveIds(db, symbol);
+    const srcIds = resolveLiveIds(db2, symbol);
     let mappedUses = [];
     if (srcIds.length > 0) {
-      const uses = db.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
+      const uses = db2.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
          FROM typed_edges e
          JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
          WHERE e.src_canonical IN (${ph(srcIds.length)})
@@ -9738,11 +9738,11 @@ function safeDelete(storePath, symbol) {
     ];
     return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach };
   } finally {
-    db.close();
+    db2.close();
   }
 }
 function gateAdvisory(storePath, symbols, dial = "STEER", ripwire) {
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
     const callers = [];
     for (const symbol of symbols) {
@@ -9756,7 +9756,7 @@ function gateAdvisory(storePath, symbols, dial = "STEER", ripwire) {
     const advisory = dial === "FULL" ? `GRAPH_GATE_SIGNATURE_BREAK symbols=${symbols.join(",")} callers=${callers.length}${named ? ` no-longer-fit: ${named}` : ""} ${ripwireNote}` : `[GATE STEER] symbols=${symbols.join(",")} callers=${callers.length}${named ? ` review: ${named}` : ""} ${ripwireNote}`;
     return { dial, symbols, callers, advisory };
   } finally {
-    db.close();
+    db2.close();
   }
 }
 
@@ -9808,8 +9808,8 @@ function upsertGiSession(row) {
   });
 }
 function findGiSessionByStorePath(storePath) {
-  const db = openGiRegistry();
-  const hit = db.query("SELECT session_id, scope_root, store_path FROM gi_sessions WHERE store_path = ?").get(storePath);
+  const db2 = openGiRegistry();
+  const hit = db2.query("SELECT session_id, scope_root, store_path FROM gi_sessions WHERE store_path = ?").get(storePath);
   return hit ?? null;
 }
 class GiClearError extends Error {
@@ -9823,8 +9823,8 @@ function clearGiRegistry() {
   if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
     throw new GiClearError("GI_CLEAR_REFUSED: set GI_OMP_ALLOW_CLEAR=1 to wipe the registry (never default)");
   }
-  const db = openGiRegistry();
-  db.run("DELETE FROM gi_sessions");
+  const db2 = openGiRegistry();
+  db2.run("DELETE FROM gi_sessions");
 }
 
 // src/omp/store-open.ts
@@ -10447,15 +10447,15 @@ class CorbellAdapter {
     const dbPath = path7.join(profile.project.root, "corbell-data", ".corbell", "workspace.db");
     if (!fs6.existsSync(dbPath))
       return { nodes: [], edges: [] };
-    let db;
+    let db2;
     try {
-      db = new Database3(dbPath, { readonly: true });
+      db2 = new Database3(dbPath, { readonly: true });
     } catch (e) {
       throw adapterFailed(`read ${dbPath}`, `could not open the corbell store: ${String(e)}`);
     }
     const nodes = [];
     try {
-      for (const row of db.prepare("SELECT id, node_type, data FROM graph_nodes").all()) {
+      for (const row of db2.prepare("SELECT id, node_type, data FROM graph_nodes").all()) {
         const id = String(row["id"]);
         const nodeType = String(row["node_type"]);
         let data = {};
@@ -10527,7 +10527,7 @@ class CorbellAdapter {
       }
       const edges = [];
       const nodeIds = new Set(nodes.map((n) => n.id));
-      for (const row of db.prepare("SELECT source_id, target_id, kind, metadata FROM graph_edges").all()) {
+      for (const row of db2.prepare("SELECT source_id, target_id, kind, metadata FROM graph_edges").all()) {
         let meta = {};
         try {
           meta = JSON.parse(String(row["metadata"] ?? "{}"));
@@ -10552,7 +10552,7 @@ class CorbellAdapter {
     } catch (e) {
       throw adapterFailed(`read ${dbPath}`, `could not read the corbell store rows: ${String(e)}`);
     } finally {
-      db.close();
+      db2.close();
     }
   }
   readStore(profile) {
@@ -11411,7 +11411,6 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
           continue;
         if (excludes.includes(entry.name))
           continue;
-        budget.n--;
         walk(path9.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
@@ -11445,34 +11444,44 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     return { fresh: false, reason: "stale-unscooped" };
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
+  let storedHash = null;
+  try {
+    const gc = fs8.readFileSync(graphPath, "utf8");
+    const gp = JSON.parse(gc);
+    if (gp.graph_hash)
+      storedHash = gp.graph_hash;
+  } catch {}
+  if (storedHash !== null && newest > warmMtime) {
+    return { fresh: false, reason: "stale" };
+  }
   if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000))
     return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
-function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
-  if (db.inTransaction === true) {
+function supersedeThenInsert(db2, runTag, nodeRows, edgeRows, meta) {
+  if (db2.inTransaction === true) {
     throw new Error("GI_TXN_REQUIRED: supersedeThenInsert called inside an existing transaction (the helper owns BEGIN/COMMIT)");
   }
   if (nodeRows.length === 0 && edgeRows.length === 0) {
     throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
   }
-  db.exec("BEGIN IMMEDIATE;");
+  db2.exec("BEGIN IMMEDIATE;");
   try {
     if (nodeRows.length > 0) {
-      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-      insertForkNodesBatch(db, nodeRows);
+      db2.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkNodesBatch(db2, nodeRows);
     }
     if (edgeRows.length > 0) {
-      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-      insertForkEdgesBatch(db, edgeRows);
+      db2.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkEdgesBatch(db2, edgeRows);
     }
     for (const [k, v] of meta) {
-      db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
+      db2.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
     }
-    db.exec("COMMIT;");
+    db2.exec("COMMIT;");
   } catch (e) {
     try {
-      db.exec("ROLLBACK;");
+      db2.exec("ROLLBACK;");
     } catch {}
     throw e;
   }
@@ -11569,7 +11578,19 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
       src?.close();
     } catch {}
   }
-  if (rows.length === 0) {
+  const MAX_WARM_ROWS = 50000;
+  let skippedInvalid = 0;
+  const validRows = rows.filter((r) => {
+    const validId = typeof r.canonical_id === "string" && r.canonical_id.length > 0;
+    const validKind = typeof r.kind === "string" && r.kind.length > 0;
+    const validLine = r.line === null || Number.isInteger(r.line) && r.line >= 0;
+    if (!validId || !validKind || !validLine) {
+      skippedInvalid += 1;
+      return false;
+    }
+    return true;
+  });
+  if (validRows.length === 0) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
@@ -11583,6 +11604,8 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
     return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
+  const materializeRows = validRows.length > MAX_WARM_ROWS ? validRows.slice(0, MAX_WARM_ROWS) : validRows;
+  const materializeSkipped = skippedInvalid + (validRows.length - materializeRows.length);
   const nodeRows = rows.map((r) => ({
     canonicalId: r.canonical_id,
     kind: r.kind,
@@ -11599,9 +11622,9 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1,
     run: runTag
   }));
-  const db = openTypedStore(storePath);
   try {
-    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
+    const db2 = openTypedStore(storePath);
+    supersedeThenInsert(db2, runTag, nodeRows, edgeRows, [
       ["substrate", "corbell"],
       ["corbell_checkout", warmPath],
       ["corbell_nodes", String(nodeRows.length)],
@@ -11611,7 +11634,11 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `CORBELL_WRITE_FAILED:${msg.slice(0, 120)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   } finally {
-    db.close();
+    try {
+      db.close();
+    } catch (closeErr) {
+      console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
+    }
   }
   return { ok: true, nodes: rows.length, edges: edges.length, checkoutPath: warmPath };
 }
@@ -11665,12 +11692,12 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
   }
   console.error(`[gi-omp] populate falling back to the mechanical indexer: ${corbell.reason} (warm with: bun scripts/corbell-build.ts --target '${root}')`);
   const files = collectTsFiles(root, POPULATE_FILE_BUDGET);
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    db2.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    db2.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
   } finally {
-    db.close();
+    db2.close();
   }
   const contents = new Map;
   const labelIndex = new Map;
@@ -11914,16 +11941,16 @@ function populateGraphifySessionStore(storePath, root, runTag, scope) {
     console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph=${graphPath})`);
     return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason, graphifyGraph: graphPath };
   }
-  const db = openTypedStore(storePath);
+  const db2 = openTypedStore(storePath);
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
-    db.exec("COMMIT;");
+    db2.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    db2.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    db2.exec("BEGIN IMMEDIATE;");
+    insertForkNodesBatch(db2, nodeRows);
+    insertForkEdgesBatch(db2, edgeRows);
+    db2.exec("COMMIT;");
   } finally {
-    db.close();
+    db2.close();
   }
   setMeta(storePath, "substrate", "graphify");
   setMeta(storePath, "graphify_graph", graphPath);
@@ -12491,10 +12518,10 @@ CREATE TABLE IF NOT EXISTS events (
   kind TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER
 );
 `;
-function applyPragmas(db) {
+function applyPragmas(db2) {
   const execPragma = (pragma) => {
     try {
-      db.exec(pragma);
+      db2.exec(pragma);
     } catch (e) {
       throw pragmaFailed(pragma, `driver=bun:sqlite message=${e instanceof Error ? e.message : String(e)}`);
     }
@@ -12642,17 +12669,17 @@ function openStore(dbPath) {
   handle.exec(TYPED_GRAPH_DDL);
   return new SharedDb(dbPath, handle);
 }
-function writeGraph(db, nodes, edges) {
-  db.writeGraph(nodes, edges);
+function writeGraph(db2, nodes, edges) {
+  db2.writeGraph(nodes, edges);
 }
-function appendReportSection(db, section, runId) {
-  db.appendReportSection(section, runId);
+function appendReportSection(db2, section, runId) {
+  db2.appendReportSection(section, runId);
 }
-function appendEvent(db, kind, payload) {
-  db.appendEvent(kind, payload);
+function appendEvent(db2, kind, payload) {
+  db2.appendEvent(kind, payload);
 }
-function mirrorToMasterContext(db, profile) {
-  return db.mirrorToMasterContext(profile);
+function mirrorToMasterContext(db2, profile) {
+  return db2.mirrorToMasterContext(profile);
 }
 
 // src/hunter/diagnostics/engine.ts
@@ -13196,13 +13223,13 @@ function toFindingInput(f) {
     verdict: f.verdict
   };
 }
-function appendFindings(db, findings, runId, week) {
+function appendFindings(db2, findings, runId, week) {
   for (let i = 0;i < findings.length; i++) {
     const f = findings[i];
     if (typeof f.evidence !== "string" || f.evidence.trim() === "") {
       throw findingNoTriplet(`finding ${f.ruleId} at ${f.file}:${f.line} carries an empty evidence string (landed=${i} remaining=${findings.length - i} of ${findings.length})`);
     }
-    db.appendFinding(toFindingInput(f), runId, week);
+    db2.appendFinding(toFindingInput(f), runId, week);
   }
   return { runId, week: week ?? null, appended: findings.length };
 }
@@ -13213,7 +13240,7 @@ init_zod();
 // src/hunter/lexicon/templates.ts
 init_zod();
 import { createHash } from "crypto";
-import { readFileSync as readFileSync5 } from "fs";
+import { readFileSync as readFileSync6 } from "fs";
 class LexiconError extends Error {
   code;
   constructor(code, message) {
@@ -13358,7 +13385,7 @@ var WIRING_EXPORT_IMPORTER = {
       if (!lines) {
         lines = new Set;
         try {
-          const src = readFileSync5(file, "utf-8").split(`
+          const src = readFileSync6(file, "utf-8").split(`
 `);
           for (let i = 0;i < src.length; i++)
             if (/^\s*export\s/.test(src[i]))
@@ -14132,7 +14159,7 @@ function lockdownReadSource(profile) {
     }
   };
 }
-function runBattery(battery, graph, profile, runId, db, week) {
+function runBattery(battery, graph, profile, runId, db2, week) {
   const semantic = buildSemanticBattery();
   const fullBattery = [...battery, ...semantic];
   const source = lockdownReadSource(profile);
@@ -14141,8 +14168,8 @@ function runBattery(battery, graph, profile, runId, db, week) {
   const raw = run(fullBattery, ctx);
   const deduped = dedupe(raw);
   const ranked = rankFindings(deduped, profile);
-  if (db) {
-    appendFindings(db, ranked, runId, week);
+  if (db2) {
+    appendFindings(db2, ranked, runId, week);
   }
   const summary = {
     runId,
@@ -14230,12 +14257,12 @@ function projectToken(projectName) {
   return slug === "" ? "project" : slug;
 }
 function openAndNextRunId(token, dbPath) {
-  const db = openStore(dbPath);
+  const db2 = openStore(dbPath);
   try {
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const prefix = `${token}-hunt-${day}-`;
     let seq = 0;
-    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
+    for (const row of db2.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
       let payload;
       try {
         payload = JSON.parse(String(row["payload"] ?? "{}"));
@@ -14251,7 +14278,7 @@ function openAndNextRunId(token, dbPath) {
     }
     return `${prefix}${seq + 1}`;
   } finally {
-    db.close();
+    db2.close();
   }
 }
 
@@ -14305,14 +14332,14 @@ async function map(profile, adapterOverride) {
   const buildResult = await adapter.build(profile);
   assertMappableLines(buildResult);
   const dbPath = path18.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
-  const db = openStore(dbPath);
+  const db2 = openStore(dbPath);
   try {
-    writeGraph(db, buildResult.nodes, buildResult.edges);
-    const mirrorPath = mirrorToMasterContext(db, profile);
-    return { adapter, buildResult, db, dbPath, mirrorPath };
+    writeGraph(db2, buildResult.nodes, buildResult.edges);
+    const mirrorPath = mirrorToMasterContext(db2, profile);
+    return { adapter, buildResult, db: db2, dbPath, mirrorPath };
   } catch (e) {
     try {
-      db.close();
+      db2.close();
     } catch {}
     throw e;
   }
@@ -14507,31 +14534,31 @@ var COMPILED_PREDICATES_COLUMNS = [
   "battery_version",
   "calibrated"
 ].join(",");
-function writeBattery(db, battery) {
+function writeBattery(db2, battery) {
   if (battery.length === 0)
     return;
-  const stmt = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  const stmt = db2.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
   for (const p of battery) {
     const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
     stmt.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
   }
 }
-function writeRuleCards(db, cards, corpusHash) {
-  db.exec("BEGIN");
+function writeRuleCards(db2, cards, corpusHash) {
+  db2.exec("BEGIN");
   try {
-    db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?").run(corpusHash);
-    const ins = db.prepare("INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)");
+    db2.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?").run(corpusHash);
+    const ins = db2.prepare("INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)");
     for (const c of cards) {
       ins.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
     }
-    db.exec("COMMIT");
+    db2.exec("COMMIT");
   } catch (e) {
-    db.exec("ROLLBACK");
+    db2.exec("ROLLBACK");
     throw e;
   }
 }
-function loadBattery(db, batteryVersion) {
-  const rows = db.prepare("SELECT id,family,template,bindings,verbatim_quote,anchor,severity,check_code,battery_version FROM compiled_predicates WHERE battery_version = ?").all(batteryVersion);
+function loadBattery(db2, batteryVersion) {
+  const rows = db2.prepare("SELECT id,family,template,bindings,verbatim_quote,anchor,severity,check_code,battery_version FROM compiled_predicates WHERE battery_version = ?").all(batteryVersion);
   return rows.map((row) => rehydrate(row));
 }
 function rehydrate(row) {
@@ -14664,19 +14691,19 @@ async function compile(profile) {
   const cards = extractRuleCards(profile.rules.corpus);
   return [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
 }
-async function compileBattery(profile, db) {
+async function compileBattery(profile, db2) {
   const version = batteryVersion(profile);
-  if (db) {
-    const row = db.prepare("SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?").get(version);
+  if (db2) {
+    const row = db2.prepare("SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?").get(version);
     if (Number(row?.["c"] ?? 0) > 0) {
-      return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
+      return { battery: loadBattery(db2, version), batteryVersion: version, fromCache: true };
     }
   }
   const cards = extractRuleCards(profile.rules.corpus);
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
-  if (db) {
-    writeRuleCards(db, cards, version);
-    writeBattery(db, battery);
+  if (db2) {
+    writeRuleCards(db2, cards, version);
+    writeBattery(db2, battery);
   }
   return { battery, batteryVersion: version, fromCache: false };
 }
@@ -14921,8 +14948,8 @@ ${p.verbatimQuote}`).join(`
       markCalibrated(p, "PENDING");
     }
   }
-  writeCalibrationRows(db, records, fixtureVersion) {
-    const ins = db.prepare("INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)");
+  writeCalibrationRows(db2, records, fixtureVersion) {
+    const ins = db2.prepare("INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)");
     const runId = `calibration-${fixtureVersion}`;
     for (const r of records) {
       ins.run(r.predicateId, "FIRE", r.fire.fixtureAnchor, r.fire.fired ? "FIRED" : "MISS", r.fire.evidence, runId, Date.now());
@@ -14998,10 +15025,10 @@ function resolveCorpusPaths(profile) {
     rules: { ...profile.rules, corpus }
   };
 }
-async function scan(profile, adapter, runId, db) {
+async function scan(profile, adapter, runId, db2) {
   try {
     const normalized = resolveCorpusPaths(profile);
-    const { battery, batteryVersion } = await compileBattery(normalized, db);
+    const { battery, batteryVersion } = await compileBattery(normalized, db2);
     if (battery.length === 0) {
       throw new Error("HUNT_NO_COVERAGE: rulesCompiled=0 \u2014 the rule battery compiled zero actionable predicates. " + "The corpus must contain machine-matchable rules (not prose contracts). state=inconclusive.");
     }
@@ -15031,7 +15058,7 @@ async function scan(profile, adapter, runId, db) {
     } catch (calErr) {
       console.warn(`[scan] D17 calibration gate failed (non-fatal, battery unchanged): ${calErr instanceof Error ? calErr.message : String(calErr)}`);
     }
-    const run = runBattery(liveBattery, adapter, normalized, runId, db);
+    const run = runBattery(liveBattery, adapter, normalized, runId, db2);
     return { battery, batteryVersion, run };
   } catch (e) {
     console.warn(`[scan] failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -15832,22 +15859,22 @@ function createBugHuntTool(pi, opts) {
 var DEFAULT_BLAST_DEPTH = 8;
 var MAX_QUERY_ROWS = 200;
 var MAX_QUERY_ROWS_FULL = 2000;
-function runQuery(input, db, adapter, ext) {
+function runQuery(input, db2, adapter, ext) {
   switch (input.verb) {
     case "who-calls":
-      return whoCalls2(input, db);
+      return whoCalls2(input, db2);
     case "chain":
-      return chain(input, db);
+      return chain(input, db2);
     case "must-implement":
-      return mustImplement(db);
+      return mustImplement(db2);
     case "unwired":
-      return unwired(db, adapter);
+      return unwired(db2, adapter);
     case "rule":
-      return rule(input, db);
+      return rule(input, db2);
     case "violations":
-      return violations(input, db);
+      return violations(input, db2);
     case "consistency":
-      return consistency(db);
+      return consistency(db2);
     case "semantic-search":
       return semanticVerb(input, ext?.semantic);
     case "code-search":
@@ -15855,9 +15882,9 @@ function runQuery(input, db, adapter, ext) {
     case "docs-patterns":
       return docsPatternsVerb(input, ext?.docs);
     case "blast-radius":
-      return blastRadius2(input, db);
+      return blastRadius2(input, db2);
     case "would-break":
-      return wouldBreak2(input, db);
+      return wouldBreak2(input, db2);
     default: {
       const v = verbOf(input);
       if (typeof v !== "undefined") {
@@ -15887,9 +15914,9 @@ function rowAs(row, label) {
   }
   return row;
 }
-function whoCalls2(input, db) {
+function whoCalls2(input, db2) {
   const symbol = input.symbol ?? "";
-  const edges = rowsAs(db.prepare(`
+  const edges = rowsAs(db2.prepare(`
       SELECT DISTINCT src.label AS src_label, src.file AS src_file, src.line AS src_line
       FROM typed_edges e
       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
@@ -15904,12 +15931,12 @@ function whoCalls2(input, db) {
   }));
   return formatRows(rows, input.format);
 }
-function chain(input, db) {
+function chain(input, db2) {
   const from = input.from ?? input.symbol ?? "";
   const to = input.to ?? "";
   const MAX_DEPTH = 64;
-  const startIds = rowsAs(db.prepare("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(from), "chain start nodes");
-  const toLabels = rowsAs(db.prepare("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to), "chain target labels");
+  const startIds = rowsAs(db2.prepare("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(from), "chain start nodes");
+  const toLabels = rowsAs(db2.prepare("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to), "chain target labels");
   const toSet = new Set(toLabels.map((r) => r.label));
   const visited = new Set;
   const queue = startIds.map((s) => ({ id: s.canonical_id, steps: [] }));
@@ -15918,7 +15945,7 @@ function chain(input, db) {
     if (visited.has(cur.id))
       continue;
     visited.add(cur.id);
-    const out = rowsAs(db.prepare(`
+    const out = rowsAs(db2.prepare(`
         SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
         FROM typed_edges e
@@ -15953,17 +15980,17 @@ function stageEntry(node) {
   }
   return node.name;
 }
-function mustImplement(db) {
-  const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED' AND kind = 'stage'").all(), "must-implement spec");
-  const code = rowsAs(db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "must-implement code");
+function mustImplement(db2) {
+  const spec = rowsAs(db2.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED' AND kind = 'stage'").all(), "must-implement spec");
+  const code = rowsAs(db2.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "must-implement code");
   const codeNames = new Set(code.map((r) => r.name));
   return spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: "MUST_IMPLEMENT" }));
 }
-function unwired(db, adapter) {
+function unwired(db2, adapter) {
   if (adapter) {
     return adapter.unwired().map((d) => ({ name: d.name, file: d.file, line: d.line, status: "UNWIRED" }));
   }
-  const code = rowsAs(db.prepare(`
+  const code = rowsAs(db2.prepare(`
       SELECT n.canonical_id AS id, n.label, n.file, n.line
       FROM typed_nodes n
       WHERE n.kind IN ('Function', 'Class') AND n.superseded_run IS NULL
@@ -15976,12 +16003,12 @@ function unwired(db, adapter) {
     `).all(), "unwired code");
   return code.map((n) => ({ name: n.label, file: n.file ?? "", line: n.line ?? 0, status: "UNWIRED" }));
 }
-function rule(input, db) {
+function rule(input, db2) {
   const ruleId = input.ruleId ?? "";
-  const p = rowAs(db.prepare("SELECT family, template, bindings, verbatim_quote, anchor, severity FROM compiled_predicates WHERE id = ?").get(ruleId), "rule predicate");
+  const p = rowAs(db2.prepare("SELECT family, template, bindings, verbatim_quote, anchor, severity FROM compiled_predicates WHERE id = ?").get(ruleId), "rule predicate");
   if (!p)
     return [];
-  const findings = rowsAs(db.prepare("SELECT severity, file, line, evidence, verdict, run_id FROM findings WHERE rule_id = ? ORDER BY severity DESC").all(ruleId), "rule findings");
+  const findings = rowsAs(db2.prepare("SELECT severity, file, line, evidence, verdict, run_id FROM findings WHERE rule_id = ? ORDER BY severity DESC").all(ruleId), "rule findings");
   return [{
     ruleId,
     family: p.family,
@@ -15992,7 +16019,7 @@ function rule(input, db) {
     violations: findings.map((f) => ({ file: f.file ?? "", line: f.line ?? 0, severity: f.severity, verdict: f.verdict, runId: f.run_id }))
   }];
 }
-function violations(input, db) {
+function violations(input, db2) {
   const byRun = input.runId ? " AND run_id = ?" : "";
   const byWeek = input.week ? " AND week = ?" : "";
   const params = [];
@@ -16000,7 +16027,7 @@ function violations(input, db) {
     params.push(input.runId);
   if (input.week)
     params.push(input.week);
-  const rows = rowsAs(db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params), "violations");
+  const rows = rowsAs(db2.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params), "violations");
   const effectiveCap = input.format === "llm" ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
   const total = rows.length;
   const capped = rows.slice(0, effectiveCap);
@@ -16011,9 +16038,9 @@ function violations(input, db) {
   result.push({ pagination: { offset: off, limit: lim, total } });
   return result;
 }
-function consistency(db) {
-  const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(), "consistency spec");
-  const code = rowsAs(db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "consistency code");
+function consistency(db2) {
+  const spec = rowsAs(db2.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(), "consistency spec");
+  const code = rowsAs(db2.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "consistency code");
   const codeNames = new Set(code.map((r) => r.name));
   return spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ status: "DRIFT", specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source }));
 }
@@ -16053,18 +16080,18 @@ function docsPatternsVerb(input, surface) {
   }));
   return formatRows(rows, input.format);
 }
-function blastRadius2(input, db) {
+function blastRadius2(input, db2) {
   const root = (input.symbol ?? input.from ?? "").trim();
   if (!root)
     return [{ root: "", depth: 0, nodes: [] }];
-  const files = rowsAs(db.prepare("SELECT DISTINCT file FROM typed_nodes WHERE label = ? AND superseded_run IS NULL AND file IS NOT NULL").all(root), "blast-radius files");
+  const files = rowsAs(db2.prepare("SELECT DISTINCT file FROM typed_nodes WHERE label = ? AND superseded_run IS NULL AND file IS NOT NULL").all(root), "blast-radius files");
   if (files.length === 0)
     return [{ root, depth: 0, nodes: [] }];
   const seen = new Set;
   const nodes = [];
   let maxDepth = 0;
   for (const f of files) {
-    const rows = rowsAs(db.prepare(`
+    const rows = rowsAs(db2.prepare(`
         WITH RECURSIVE blast(file, depth) AS (
           SELECT ?, 0
           UNION
@@ -16091,7 +16118,7 @@ function blastRadius2(input, db) {
   }
   return [{ root, depth: maxDepth, nodes }];
 }
-function wouldBreak2(input, db) {
+function wouldBreak2(input, db2) {
   const symbol = (input.symbol ?? "").trim();
   const proposed = (input.proposed ?? "").trim();
   let proposedCount = 0;
@@ -16102,7 +16129,7 @@ function wouldBreak2(input, db) {
       proposedCount = inside.split(",").map((s) => s.trim()).filter((s) => s.length > 0).length;
     }
   }
-  const callers = rowsAs(db.prepare(`
+  const callers = rowsAs(db2.prepare(`
       SELECT DISTINCT src.label AS src_label, src.file AS src_file, src.line AS src_line
       FROM typed_edges e
       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
@@ -16132,7 +16159,7 @@ function formatRows(rows, format) {
 // src/hunter/tools/query-registration.ts
 async function runQueryTool(args) {
   const opened = openSessionStore({ sessionId: args.sessionId, scopeRoot: args.scopeRoot, callerSessionId: args.sessionId });
-  const db = openStore(opened.storePath);
+  const db2 = openStore(opened.storePath);
   try {
     const rows = runQuery({
       verb: args.verb,
@@ -16149,10 +16176,10 @@ async function runQueryTool(args) {
       offset: args.offset,
       proposed: args.proposed,
       depth: args.depth
-    }, db, undefined, undefined);
+    }, db2, undefined, undefined);
     return JSON.stringify(rows, null, 2);
   } finally {
-    db.close();
+    db2.close();
   }
 }
 
