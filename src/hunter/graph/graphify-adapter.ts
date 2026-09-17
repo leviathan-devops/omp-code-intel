@@ -296,6 +296,33 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   return { nodes, edges, communities, godNodes };
 }
 
+/** P1.6 (W4 gi-scoping): the typed store carries ONLY scoped rows. The raw
+ *  `graphify extract` scans the whole target root (the external CLI has no
+ *  exclude mechanism — operator-confirmed), which leaked Checkpoints/,
+ *  Ship_Packages/, reports/ and test rows into the store (duplicate-label
+ *  pollution). This filter runs between build() and mapGraphifyToTyped:
+ *  nodes outside every scope dir (or unanchored) are dropped, edges are kept
+ *  only when BOTH endpoints survive. */
+export function scopeBuildToProfile(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  root: string,
+  scopeDirs: string[],
+): { nodes: GraphNode[]; edges: GraphEdge[]; dropped: number } {
+  const norm = (s: string): string => s.replace(/\/+$/, "");
+  const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  const inScope = (f: string | undefined): boolean => {
+    if (f === undefined || f.length === 0) return false;
+    const rel = path.isAbsolute(f) ? path.relative(root, f) : f.replace(/^\.\//, "");
+    if (rel.length === 0 || rel.startsWith("..")) return false;
+    return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
+  };
+  const nodesIn = nodes.filter((n) => inScope(n.file));
+  const idSet = new Set(nodesIn.map((n) => n.id));
+  const edgesIn = edges.filter((e) => idSet.has(e.sourceId) && idSet.has(e.targetId));
+  return { nodes: nodesIn, edges: edgesIn, dropped: nodes.length - nodesIn.length };
+}
+
 // ---------------------------------------------------------------------------
 // Kind / predicate maps
 // ---------------------------------------------------------------------------

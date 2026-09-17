@@ -10,7 +10,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
-import { GraphifyAdapter, mapGraphifyToTyped, resolveGraphifyBinary } from "../src/hunter/graph/graphify-adapter.ts";
+import { GraphifyAdapter, mapGraphifyToTyped, resolveGraphifyBinary, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { writeGraphifyCheckout } from "../src/omp/populate-graphify.ts";
 import { loadProfile } from "../src/hunter/profile/loader.ts";
 import type { ProjectProfile } from "../src/hunter/profile/schema.ts";
@@ -105,7 +105,13 @@ if (extract) {
 }
 
 const adapter = new GraphifyAdapter(profile);
-const build = await adapter.build(profile);
+const rawBuild = await adapter.build(profile);
+// P1.6 (W4 gi-scoping): store ONLY scoped rows — the raw extract scans the
+// whole root; Checkpoints/Ship_Packages/reports/tests never reach the store.
+const scopeDirs = profile.graph?.scope ?? ["src"];
+const { nodes: scopedNodes, edges: scopedEdges, dropped } = scopeBuildToProfile(rawBuild.nodes, rawBuild.edges, root, scopeDirs);
+console.log(`[graphify-build] scope filter: kept ${scopedNodes.length}/${rawBuild.nodes.length} nodes, dropped ${dropped} out-of-scope rows (scope=${scopeDirs.join(",")})`);
+const build = { ...rawBuild, nodes: scopedNodes, edges: scopedEdges };
 const { nodeRows, edgeRows } = mapGraphifyToTyped(build.nodes, build.edges, `graphify-build-${Date.now().toString(36)}`);
 
 const checkoutDir = path.join(root, ".omp", "graph-intelligence", "graphify-checkout");
