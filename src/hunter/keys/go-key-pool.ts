@@ -120,11 +120,19 @@ function db(sessionId?: string): Database {
   if (hit) {
     try {
       hit.query('SELECT 1').get();
+      // W9 (frozen-scan HIGH): SQLite can RECREATE -wal/-shm on later
+      // checkpoints with the process umask — re-chmod on every cached hit.
+      try {
+        fs.chmodSync(want, 0o600);
+        for (const side of [want + '-wal', want + '-shm']) {
+          if (fs.existsSync(side)) fs.chmodSync(side, 0o600);
+        }
+      } catch { /* best-effort */ }
       poolDbByPath.delete(want);
       poolDbByPath.set(want, hit);
       return hit;
     } catch (_sick) {
-      try { hit.close(); } catch (_c) { /* already closed */ }
+      try { hit.close(); } catch { /* already closed */ }
       poolDbByPath.delete(want);
     }
   }
@@ -324,7 +332,13 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
 export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?: string): boolean {
   if (!Number.isInteger(idx) || idx < 0 || idx >= GO_KEYS.length) return false;
   try {
-    const r = db(sessionId).run('UPDATE go_key_pool SET dead_until = 0 WHERE idx = ? AND dead_until > ?', [idx, now]);
+    // W9 (frozen-scan HIGH): clear by KEYID (keyid-first parity with the
+    // dead-mark/reads) — the positional clear hit the WRONG key after a
+    // reload/reorder, resurrecting a dead sibling instead.
+    const r = db(sessionId).run(
+      'UPDATE go_key_pool SET dead_until = 0 WHERE keyid = ? AND dead_until > ?',
+      [keyidFor(idx), now],
+    );
     return r.changes > 0;
   } catch (e) {
     console.error('[go-key-pool] markGoKeyAlive write failed:', e instanceof Error ? e.message : String(e));
@@ -461,7 +475,10 @@ export function routeGoError(idx: number, err: string, now: number = Date.now(),
   // NO window (the next call re-probes the key immediately).
   if (cls === 'server') return 'advance-no-mark';
   if (cls === 'quota' || cls === 'rejected') {
-    markGoKeyDead(idx, err, now, sessionId);
+    // W9 (frozen-scan HIGH): a 0 from markGoKeyDead means NO exile was
+    // persisted (write failed) — advancing the same rung would hammer the
+    // still-rate-limited key; fall to the router instead.
+    if (markGoKeyDead(idx, err, now, sessionId) === 0) return 'fall-to-openrouter';
     // P1.1.6 (W1 gi-resource): an EMPTY pool makes decideGoFallback throw
     // GO_POOL_EMPTY — routeGoError must answer a NAMED action, never throw:
     // with zero keys there is nothing to advance to → fall-to-openrouter.

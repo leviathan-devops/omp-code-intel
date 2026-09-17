@@ -397,11 +397,12 @@ function nodeLine(node: { data?: Record<string, unknown> }): number | null {
 function nodeFile(targetRoot: string, node: { file: string; data?: Record<string, unknown> }): string {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
   let rel = raw.replace(/^\.\//, "");
-  // P1.2.2 (W2 gi-containment): a relative anchor that escapes the root is
-  // DROPPED (""), never returned verbatim — "../x" used to flow into findings.
+  // P1.2.2 + W9 (frozen-scan HIGH): normalize FIRST, then judge — `a/../../x`
+  // does not literally start with `../` and slipped the old prefix check.
+  if (rel.length > 0) rel = path.normalize(rel); // empty stays empty (normalize(".") === ".")
   if (rel && !path.isAbsolute(rel)) {
-    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path.sep}`)) return ""; // P1.3.3: both separator spellings
-    return rel;
+    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path.sep}`)) return ""; // both separator spellings
+    return rel.split(path.sep).join("/");
   }
   if (rel) {
     // Absolute anchor: contained-only, emitted as root-relative posix (the

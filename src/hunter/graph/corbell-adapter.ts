@@ -59,10 +59,19 @@ export type ExecFn = (cmd: string, opts?: { cwd?: string; timeout?: number; env?
 /** The default exec: the real corbell binary via child_process.execSync. */
 /** Resolve the corbell binary via profile/env/PATH walk with the named CORBELL_NOT_FOUND on miss (spec §3.9 BUG-B permanent fix). */
 export function resolveCorbell(profile?: { graph?: { binaryPath?: string } }, env: NodeJS.ProcessEnv = process.env): string {
+  // BLAST CRITICAL fix (qwen corbell-leg circuit): the resolved path is
+  // interpolated into /bin/sh -c strings (the ExecFn contract) — a binary
+  // path carrying shell metacharacters is a named refusal, fail-closed.
+  const safe = (p: string): string => {
+    if (/[^A-Za-z0-9_@%+=:,./\\-]/.test(p)) {
+      throw new Error(`CORBELL_BIN_UNSAFE: resolved binary path contains shell metacharacters: ${p.slice(0, 120)}`);
+    }
+    return p;
+  };
   const fromProfile = (profile as unknown as { graph?: { binaryPath?: string } })?.graph?.binaryPath;
-  if (fromProfile && fromProfile.length > 0 && fs.existsSync(fromProfile)) return fromProfile;
+  if (fromProfile && fromProfile.length > 0 && fs.existsSync(fromProfile)) return safe(fromProfile);
   const fromEnv = env.CORBELL_BIN;
-  if (fromEnv && fromEnv.length > 0 && fs.existsSync(fromEnv)) return fromEnv;
+  if (fromEnv && fromEnv.length > 0 && fs.existsSync(fromEnv)) return safe(fromEnv);
   // THE DURABLE SITES ONLY (HT-BUG-15/17 — the /tmp fallback deleted): the
   // per-user venv on /home first, then /opt. A tmp-dir install is the wiped-
   // install class and is never a sanctioned resolution target.

@@ -224,12 +224,21 @@ export function writeCorbellCheckout(
     created_run TEXT NOT NULL,
     superseded_run TEXT
   )`);
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    // BLAST CRITICAL fix (qwen corbell-leg circuit): supersede + inserts ride
+    // ONE transaction with ROLLBACK — the old split (supersede AUTOCOMMIT
+    // before BEGIN, no rollback) left ZERO live rows with no replacements if
+    // either batch threw, and dangled the open transaction on close.
     db.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
-    db.exec("COMMIT;");
+    try {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkNodesBatch(db, nodeRows);
+      insertForkEdgesBatch(db, edgeRows);
+      db.exec("COMMIT;");
+    } catch (e) {
+      try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
     const nRow = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get() as { n: number };
     const eRow = db.query("SELECT COUNT(*) AS n FROM typed_edges WHERE superseded_run IS NULL").get() as { n: number };
     return { nodes: nodeRows.length, edges: edgeRows.length, runTag, storeNodes: Number(nRow.n), storeEdges: Number(eRow.n) };
