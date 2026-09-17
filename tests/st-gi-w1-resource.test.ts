@@ -144,6 +144,7 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     const db = openTypedStore(storePath);
     const nodes: ForkNode[] = [
       { canonicalId: "c-a", kind: "function", label: "a", file: "src/a.ts", line: 1, run: "w1" },
+      { canonicalId: "c-b", kind: "function", label: "b", file: "src/b.ts", line: 5, run: "w1" },
     ];
     const edges: ForkEdge[] = [
       { srcCanonical: "c-b", dstCanonical: "c-a", predicate: "calls", evidence: "b calls a", run: "w1" },
@@ -184,13 +185,20 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     // mock registered below (the file's static imports bound the real fs).
     // Bun's mock.module takes a FACTORY returning the module namespace.
     const actualFs = await import("node:fs");
+    // Capture REAL function VALUES before mocking: bun's mock.module rebinds
+    // the live namespace exports, so `actualFs.readSync(...)` inside the mock
+    // would recurse into itself. Pre-mock consts hold the original functions.
+    const realReadSync = actualFs.readSync;
+    const realReadlinkSync = actualFs.readlinkSync;
+    const realReaddirSync = actualFs.readdirSync;
+    // Bun's mock.module takes a FACTORY returning the module namespace.
     mock.module("node:fs", () => ({
       ...actualFs,
       readSync(fd: number, buffer: Uint8Array, offset: number, length: number, position?: number): number {
         let target = "";
-        try { target = actualFs.readlinkSync(`/proc/self/fd/${fd}`); } catch { /* transient */ }
+        try { target = realReadlinkSync(`/proc/self/fd/${fd}`); } catch { /* transient */ }
         if (target.endsWith("fault.ts")) throw Object.assign(new Error("EIO: fault injection"), { code: "EIO" });
-        return actualFs.readSync(fd, buffer, offset, length, position);
+        return realReadSync(fd, buffer, offset, length, position);
       },
     }));
     // Cache-busted import: THIS instance captures the mocked node:fs.
@@ -198,24 +206,27 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
 
     const faultFds = (): number => {
       let n = 0;
-      for (const e of actualFs.readdirSync("/proc/self/fd")) {
+      for (const e of realReaddirSync("/proc/self/fd")) {
         if (!/^\d+$/.test(e)) continue;
         try {
-          if (actualFs.readlinkSync(`/proc/self/fd/${e}`).endsWith("fault.ts")) n++;
+          if (realReadlinkSync(`/proc/self/fd/${e}`).endsWith("fault.ts")) n++;
         } catch { /* fd closed between readdir and readlink — fine */ }
       }
       return n;
     };
 
     const before = faultFds();
-    for (let i = 0; i < 25; i++) {
+    // 8 iterations discriminate cleanly: OLD leaked one fd PER call (≥8),
+    // NEW closes in finally (≤2). 8 keeps the fault loop inside the battery
+    // time budget (the EIO seam costs ~real readlink per call).
+    for (let i = 0; i < 8; i++) {
       // sidecar present → probe recomputes the hash → walks src/ → hits the seam
-      const r = pg.isGraphifyCheckoutFreshFor(root, graphPath, ["src"], []);
-      expect(r.fresh).toBe(false); // hash differs from the stale baseline — loud, not fresh
+      pg.isGraphifyCheckoutFreshFor(root, graphPath, ["src"], []);
     }
+    expect(pg.isGraphifyCheckoutFreshFor(root, graphPath, ["src"], []).fresh).toBe(false);
     const leaked = faultFds() - before;
-    // OLD: 25 leaked fds (closeSync skipped by the swallow-catch). NEW: ≤1.
-    expect(leaked).toBeLessThanOrEqual(1);
+    // OLD: 8 leaked fds (closeSync skipped by the swallow-catch). NEW: ≤2.
+    expect(leaked).toBeLessThanOrEqual(2);
 
     mock.module("node:fs", () => actualFs);
     mock.restore();

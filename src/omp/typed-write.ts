@@ -326,38 +326,41 @@ function ph(n: number): string {
 // + src/hunter/graph/store-map.ts:73-95 corbellEdgeToPredicate (method_call->calls + flow_step->traces-to).
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // Flow 'traces-to' callers have NULL file — they are still callers (file="" line=0, honest not silent).
+// P1.1.2 (W1 gi-resource): the handle-injected core — callers that ALREADY
+// hold an open store connection (safeDelete) never open a second one.
+export function whoCallsInDb(db: Database, name: string): { rows: number; names: string[]; callers: WhoCallsRow[] } {
+  // V21 W1: dst resolved to canonical_ids FIRST — the join never matches by
+  // label, so same-label identities stay distinct; each row names its target.
+  const ids = resolveLiveIds(db, name);
+  if (ids.length === 0) return { rows: 0, names: [], callers: [] };
+  const rows = db.query(
+    `SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
+            e.predicate AS predicate, e.dst_canonical AS target_canonical
+     FROM typed_edges e
+     JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+     WHERE e.dst_canonical IN (${ph(ids.length)})
+       AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+       AND src.superseded_run IS NULL`,
+  ).all(...ids) as Array<{ caller: string; kind: string | null; file: string | null; line: number | null; predicate: string; target_canonical: string }>;
+  const mapped: WhoCallsRow[] = rows.map((r) => ({
+    caller: r.caller,
+    file: r.file ?? "",
+    line: r.line ?? 0,
+    kind: r.kind ?? "",
+    predicate: r.predicate ?? "",
+    target_canonical: r.target_canonical,
+  }));
+  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
+}
+
 export function whoCalls(storePath: string, name: string): { rows: number; names: string[]; callers: WhoCallsRow[] } {
   const db = openTypedStore(storePath);
   try {
-    // V21 W1: dst resolved to canonical_ids FIRST — the join never matches by
-    // label, so same-label identities stay distinct; each row names its target.
-    const ids = resolveLiveIds(db, name);
-    if (ids.length === 0) return { rows: 0, names: [], callers: [] };
-    const rows = db.query(
-      `SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
-              e.predicate AS predicate, e.dst_canonical AS target_canonical
-       FROM typed_edges e
-       JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-       WHERE e.dst_canonical IN (${ph(ids.length)})
-         AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         AND src.superseded_run IS NULL`,
-    ).all(...ids) as Array<{ caller: string; kind: string | null; file: string | null; line: number | null; predicate: string; target_canonical: string }>;
-    const mapped: WhoCallsRow[] = rows.map((r) => ({
-      caller: r.caller,
-      file: r.file ?? "",
-      line: r.line ?? 0,
-      kind: r.kind ?? "",
-      predicate: r.predicate ?? "",
-      target_canonical: r.target_canonical,
-    }));
-    return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
+    return whoCallsInDb(db, name);
   } finally {
     db.close();
   }
 }
-
-export interface BlastNode { file: string; depth: number }
-
 // Fork query-tool.ts:415-458 blast-radius: symbol -> files -> depth-capped
 // recursive CTE over 'calls'/'imports'. Default depth 8 (DEFAULT_BLAST_DEPTH).
 // PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:416-458
@@ -544,58 +547,52 @@ export interface ImpactResult {
 // (the JOIN shape: typed_edges e + typed_nodes dst on dst.label + typed_nodes src).
 // CORBELL VOCABULARY: predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // BFS over callers-of-callers with a depth ledger; hint names the follow-up (next=chain).
+// P1.1.2 (W1 gi-resource): handle-injected core (see whoCallsInDb).
+export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResult {
+  const ledger: ImpactLedgerRow[] = [];
+  const seen = new Set<string>();
+  // V21 W1: the frontier carries CANONICAL IDS, never labels — same-label
+  // functions are distinct identities. Start ids are seeded BEFORE the loop
+  // (a cycle can never ledger the start as its own caller).
+  const startIds = resolveLiveIds(db, symbol);
+  if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
+  for (const id of startIds) seen.add(id);
+  let frontier: string[] = startIds;
+  for (let d = 1; d <= depth && frontier.length > 0; d++) {
+    const next: string[] = [];
+    for (let i = 0; i < frontier.length; i += 64) {
+      const chunk = frontier.slice(i, i + 64);
+      const callers = db.query(
+        `SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
+         FROM typed_edges e
+         JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+         WHERE e.dst_canonical IN (${ph(chunk.length)})
+           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND src.superseded_run IS NULL`,
+      ).all(...chunk) as Array<{ id: string; caller: string; file: string | null; line: number | null; predicate: string }>;
+      for (const c of callers) {
+        // W4: mark visited on ENQUEUE — dequeue-marking re-enqueues the same
+        // id once per inbound edge before it is first expanded (exponential
+        // on dense/cyclic graphs).
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        next.push(c.id);
+      }
+    }
+    frontier = next;
+  }
+  return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
+}
+
 export function impact(storePath: string, symbol: string, depth = 8): ImpactResult {
   const db = openTypedStore(storePath);
   try {
-    const ledger: ImpactLedgerRow[] = [];
-    const seen = new Set<string>();
-    // V21 W1: the frontier carries CANONICAL IDS, never labels — same-label
-    // functions are distinct identities. Start ids are seeded BEFORE the loop
-    // (a cycle can never ledger the start as its own caller).
-    const startIds = resolveLiveIds(db, symbol);
-    if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
-    for (const id of startIds) seen.add(id);
-    let frontier: string[] = startIds;
-    for (let d = 1; d <= depth && frontier.length > 0; d++) {
-      const next: string[] = [];
-      for (let i = 0; i < frontier.length; i += 64) {
-        const chunk = frontier.slice(i, i + 64);
-        const callers = db.query(
-          `SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
-           FROM typed_edges e
-           JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-           WHERE e.dst_canonical IN (${ph(chunk.length)})
-             AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-             AND src.superseded_run IS NULL`,
-        ).all(...chunk) as Array<{ id: string; caller: string; file: string | null; line: number | null; predicate: string }>;
-        for (const c of callers) {
-          // W4: mark visited on ENQUEUE — dequeue-marking re-enqueues the same
-          // id once per inbound edge before it is first expanded (exponential
-          // on dense/cyclic graphs).
-          if (seen.has(c.id)) continue;
-          seen.add(c.id);
-          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
-          next.push(c.id);
-        }
-      }
-      frontier = next;
-    }
-    return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
+    return impactInDb(db, symbol, depth);
   } finally {
     db.close();
   }
 }
-
-export interface SafeDeleteResult {
-  symbol: string;
-  callers: WhoCallsRow[];
-  reaches: number;
-  uses: Array<{ symbol: string; file: string; line: number }>;
-  testReach: Array<{ symbol: string; file: string; line: number }>;
-}
-
-// W4 safe-delete (OMP-NEW, no single fork source: combines the fork's who-calls JOIN
-// in surface/query-tool.ts:178-194 with the upstream closure shape above).
 // PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:178-194
 // ONE result: direct callers (NAMED file:line) + transitive reaches (callers-of-callers
 // count via impact) + uses (symbols this symbol calls) + test-reach (callers/uses whose
@@ -603,8 +600,10 @@ export interface SafeDeleteResult {
 export function safeDelete(storePath: string, symbol: string): SafeDeleteResult {
   const db = openTypedStore(storePath);
   try {
-    const q = whoCalls(storePath, symbol);
-    const imp = impact(storePath, symbol);
+    // P1.1.2 (W1 gi-resource): the whoCalls/impact cores ride THIS connection —
+    // the old path opened a second + third connection to the same store file.
+    const q = whoCallsInDb(db, symbol);
+    const imp = impactInDb(db, symbol);
     // V21 cleanup: uses resolved through canonical ids (label join conflated
     // same-label identities — the exact W1 defect class).
     const srcIds = resolveLiveIds(db, symbol);

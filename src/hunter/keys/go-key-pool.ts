@@ -134,6 +134,12 @@ function db(sessionId?: string): Database {
     fresh.exec('PRAGMA journal_mode = WAL;');
     fresh.exec('PRAGMA busy_timeout = 5000;');
   } catch (_nonfatal) { /* an in-memory/tmp db may refuse WAL — non-fatal */ }
+  // P1.1.4 (W1 gi-resource): the -wal/-shm sidecars exist from the WAL pragma
+  // onward — chmod them explicitly (they usually inherit the main file's mode,
+  // but the contract is 0600-unconditional, not inheritance-luck).
+  for (const side of [want + '-wal', want + '-shm']) {
+    try { if (fs.existsSync(side)) fs.chmodSync(side, 0o600); } catch { /* best-effort */ }
+  }
   fresh.run(`CREATE TABLE IF NOT EXISTS go_key_pool (
     idx INTEGER PRIMARY KEY,
     dead_until INTEGER NOT NULL DEFAULT 0,
