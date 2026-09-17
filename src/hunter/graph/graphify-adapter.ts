@@ -515,11 +515,23 @@ export function mapGraphifyToTyped(
   return { nodeRows, edgeRows };
 }
 
-/** Shared GraphifyGraph -> GraphNode/GraphEdge projection (build() and the populate sync bridge). */
+/** Shared GraphifyGraph -> GraphNode/GraphEdge projection (build() and the populate sync bridge).
+ * C3 (qwen d5d5c883 [3]): the projection re-enforces root containment
+ * itself — an absolute or `../` escape can never flow into a finding anchor
+ * or `source`, even when called without (or with a mismatched) normalize
+ * containment. Escapes resolve to undefined (identity kept, anchor dropped). */
 export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const rootReal: string = (() => { try { return fs.realpathSync(root); } catch { return path.resolve(root); } })();
   const nodes: GraphNode[] = graph.nodes.map((n) => {
     const kind = graphifyKindToNodeKind(n.type, n);
-    const file = n.file && n.file.length > 0 ? (path.isAbsolute(n.file) ? n.file : path.resolve(root, n.file)) : undefined;
+    let file: string | undefined;
+    if (n.file && n.file.length > 0) {
+      const abs = path.isAbsolute(n.file) ? n.file : path.resolve(rootReal, n.file);
+      let real = abs;
+      try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
+      const rel = path.relative(rootReal, real);
+      if (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)) file = abs;
+    }
     const data = (n.data ?? {}) as Record<string, unknown>;
     const line = tryResolveGraphifyLine({ data });
     const name = n.label && n.label.length > 0 ? n.label : n.id;

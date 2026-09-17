@@ -462,6 +462,19 @@ test("(C1) dedup keeps bare-id edges on the first representative", () => {
   expect(g.edges[0]!.dst).toBe("x");
 });
 
+// C3 RED (qwen d5d5c883 [3]): projection never emits an absolute anchor
+// outside the project root — an absolute escape resolves to "" (identity kept).
+test("(C3) projection contains absolute escapes inside the root", () => {
+  const { projectGraphifyGraph } = require("../src/hunter/graph/graphify-adapter.ts") as typeof import("../src/hunter/graph/graphify-adapter.ts");
+  const root = "/tmp/gi-c3-root";
+  const { nodes } = projectGraphifyGraph(
+    { nodes: [{ id: "x", label: "x", type: "function", file: "/etc/passwd", data: {} }], edges: [], communities: [], godNodes: [] },
+    root,
+  );
+  expect(nodes).toHaveLength(1);
+  expect(nodes[0]!.file ?? "").not.toBe("/etc/passwd");
+});
+
 // C2 RED (qwen d5d5c883 [2]): an unresolvable containment base must not flip
 // anchors — an absolute escape judged against a non-real base is skipped
 // (kept as-is) instead of compared real-vs-non-real.
