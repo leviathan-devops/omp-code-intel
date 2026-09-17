@@ -188,9 +188,10 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   const rawLinks = rawLinkSrc as Record<string, unknown>[];
   const seenIds = new Set<string>();
   const nodeIdByRaw = new Map<Record<string, unknown>, string>();
-  // V21 cleanup A1: rename ledger — edges referencing a renamed id remap to
-  // the deduped id (before: edges silently dangled at the pre-rename id).
-  const renamedFrom = new Map<string, string>();
+  // C1 (qwen d5d5c883 [1]): NO rename ledger — the bare original still
+  // identifies the FIRST kept node, so edges referencing it are already
+  // correct. The prior ledger remapped bare→second-duplicate (off-by-one for
+  // [x,x] and [x,x,x] alike). Duplicates get fresh suffixed ids; nothing remaps.
   let dropped = 0;
   const nodes: GraphifyNode[] = [];
   for (const n of rawNodes) {
@@ -199,15 +200,13 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     const label = String(r["label"] ?? r["id"] ?? "");
     if (id.length === 0) { dropped++; continue; }
     const original = id;
-    // V21 cleanup A1: collision-PROOF dedup — loop until free (the one-shot
-    // `#size` suffix could itself collide: [x, x#2, x] produced two x#2).
+    // C1: collision-PROOF dedup — loop until free (the one-shot `#size`
+    // suffix could itself collide: [x, x#2, x] produced two x#2). The bare
+    // original is NEVER remapped (it still names the first-kept node).
     if (seenIds.has(id)) {
       let k = 2;
       while (seenIds.has(`${original}#${k}`)) k++;
       id = `${original}#${k}`;
-      // edges referencing the bare original follow the FIRST kept
-      // representative (later duplicates are new ids, not rename targets).
-      if (!renamedFrom.has(original)) renamedFrom.set(original, id);
     }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
@@ -220,12 +219,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     });
   }
   if (dropped > 0) tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
-  const edges: GraphifyEdge[] = rawLinks.map((e) => {
-    let src = String(e["source"] ?? e["src"] ?? "");
-    let dst = String(e["target"] ?? e["dst"] ?? "");
-    // V21 cleanup A1: remap renamed endpoints so edges follow their nodes.
-    if (renamedFrom.has(src)) src = renamedFrom.get(src)!;
-    if (renamedFrom.has(dst)) dst = renamedFrom.get(dst)!;
+  const edges: GraphEdge[] = rawLinks.map((e) => {
+    const src = String(e["source"] ?? e["src"] ?? "");
+    const dst = String(e["target"] ?? e["dst"] ?? "");
     const relation = String(e["relation"] ?? "references");
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };

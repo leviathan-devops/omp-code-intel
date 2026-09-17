@@ -23,6 +23,7 @@ import {
   graphifyKindToTyped,
   graphifyPredicateToTyped,
   mapGraphifyToTyped,
+  normalizeGraphifyGraph,
   resolveGraphifyBinary,
   resolveGraphifyOut,
 } from "../src/hunter/graph/graphify-adapter.ts";
@@ -446,4 +447,17 @@ test("(H:122) same-second source edit should be stale with content-hash freshnes
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+// C1 RED (qwen d5d5c883 [1]): the bare original id still identifies the FIRST
+// kept node — edges referencing it must NOT be rewritten to a duplicate.
+test("(C1) dedup keeps bare-id edges on the first representative", () => {
+  const g = normalizeGraphifyGraph({
+    nodes: [{ id: "x" }, { id: "x" }],
+    edges: [{ source: "x", target: "x", relation: "calls" }],
+  });
+  expect(g.nodes.map((n) => n.id)).toEqual(["x", "x#2"]);
+  expect(g.edges).toHaveLength(1);
+  expect(g.edges[0]!.src).toBe("x");
+  expect(g.edges[0]!.dst).toBe("x");
 });
