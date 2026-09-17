@@ -53,7 +53,7 @@ battery converged on the same defects independently:
    `tryResolveGraphifyLine` maps null→undefined (dead catch removed);
    `whoCalls` null-tolerant skip.
 
-**Loop pass 3 (dist a9f13c6fe0eb83ab, battery 166/0/1590):**
+**Loop pass 3 (dist a9f13c6fe0eb83ab, battery 168/0/1592 across 27 files):**
 `extension` 0c/4h/7m/1l (the scan's ReferenceError critical on the previous
 edit was itself fixed — the catch now narrows `e`). 9 highs fixed this pass:
 scope filter wired into adapter build()+buildSync (the session-populate bypass),
@@ -61,13 +61,24 @@ corbell deterministic cap + edge referential integrity, primitive-safe error
 mapping, ledgerDir entropy suffix, hash skip-marks, prod shape-gate element
 spot-checks.
 
+**Loop pass 4 (pool unification, battery 168/0/1592):**
+`mergedDeadViews` — ONE keyid-MAX merge shared by readDeadUntil AND
+goEarliestDeadIdx (stale duplicate rows can no longer win the earliest-expiry
+hint); positional fallback serves keyid-LESS rows only (cross-contamination
+killed); markGoKeyDead deletes keyid sibling rows (one row per key).
+`go-key-pool` verify3: 0 critical. NOTE: the pool module is not part of the
+extension bundle import graph (hunter consumes it out-of-process) — it ships
+via source; battery st-gi-w7-scanhighs 2/0 + st-go-fallback green prove it.
+
 ### END STATE (this session)
 - **Critical tier: 0 across all 7 kernel files** (was 2) — PROVEN by verify passes.
-- **High tier: 19** (was 22) — the remaining pile is documented design-level
-  work: keyid MAX-vs-MIN pool divergence, TOCTOU classes (confinement,
-  capped-read), first-run mtime downgrade, cycle-enumeration precision,
-  default-allowlist breadth. Each has a named counter in the triage ledger;
-  the loop resumes there next session.
+- **High tier: 16** (was 22) — fixed this session: 2 scan criticals, lineless
+  policy unification (4 verbs), shape-gate element wiring, scope-filter
+  integration, corbell determinism/integrity, pool keyid-merge unification,
+  wipe env gate. The REMAINING pile is documented design-level work:
+  TOCTOU classes (confinement, capped-read), first-run mtime downgrade,
+  cycle-enumeration precision, default-allowlist breadth — the loop resumes
+  there next session.
 - Dist SHAs exec-verified ×5 at `a9f13c6fe0eb83ab` (build ext+idx, host OMP ×2, rig).
 
 
