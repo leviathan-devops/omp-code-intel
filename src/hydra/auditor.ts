@@ -396,9 +396,20 @@ function nodeLine(node: { data?: Record<string, unknown> }): number | null {
 
 function nodeFile(targetRoot: string, node: { file: string; data?: Record<string, unknown> }): string {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
-  const rel = raw.replace(/^\.\//, "");
-  if (rel && !path.isAbsolute(rel)) return rel;
-  if (rel) return path.relative(targetRoot, rel) || rel;
+  let rel = raw.replace(/^\.\//, "");
+  // P1.2.2 (W2 gi-containment): a relative anchor that escapes the root is
+  // DROPPED (""), never returned verbatim — "../x" used to flow into findings.
+  if (rel && !path.isAbsolute(rel)) {
+    if (rel === ".." || rel.startsWith(`..${path.sep}`)) return "";
+    return rel;
+  }
+  if (rel) {
+    // Absolute anchor: contained-only, emitted as root-relative posix (the
+    // same format as the graphify normalize/projection containment).
+    const r = path.relative(path.resolve(targetRoot), rel);
+    if (r === "" || r === ".." || r.startsWith(`..${path.sep}`) || path.isAbsolute(r)) return "";
+    return r.split(path.sep).join("/");
+  }
   return "";
 }
 

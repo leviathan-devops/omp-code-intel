@@ -526,16 +526,24 @@ export function mapGraphifyToTyped(
  * or `source`, even when called without (or with a mismatched) normalize
  * containment. Escapes resolve to undefined (identity kept, anchor dropped). */
 export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const rootReal: string = (() => { try { return fs.realpathSync(root); } catch { return path.resolve(root); } })();
+  // P1.2.1 (W2 gi-containment): FAIL-CLOSED base — when the root cannot
+  // canonicalize, containment cannot be proven, so NO anchor is emitted (the
+  // old path.resolve fallback contained anchors against a non-real base and
+  // emitted absolute anchors for files that do not exist).
+  const rootReal: string | null = (() => { try { return fs.realpathSync(root); } catch { return null; } })();
   const nodes: GraphNode[] = graph.nodes.map((n) => {
     const kind = graphifyKindToNodeKind(n.type, n);
     let file: string | undefined;
-    if (n.file && n.file.length > 0) {
+    if (rootReal !== null && n.file && n.file.length > 0) {
       const abs = path.isAbsolute(n.file) ? n.file : path.resolve(rootReal, n.file);
       let real = abs;
       try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
       const rel = path.relative(rootReal, real);
-      if (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)) file = abs;
+      const contained = rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+      // P1.2.4 (W2 gi-containment): contained anchors are root-relative
+      // POSIX — the SAME format normalize emits (the old absolute format
+      // diverged from every other layer's anchor spelling).
+      if (contained) file = rel.split(path.sep).join("/");
     }
     const data = (n.data ?? {}) as Record<string, unknown>;
     const line = tryResolveGraphifyLine({ data });

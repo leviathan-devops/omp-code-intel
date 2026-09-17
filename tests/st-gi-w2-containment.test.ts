@@ -67,6 +67,27 @@ describe("st-gi-w2-containment: P1.2 fixes + pins", () => {
     expect(nodes[0]!.id).toBe("graphify:x");
   });
 
+  // ---------- T5 (P1.2.5 — the normalize→projection chain) ----------
+  test("test_w2_chain_containment_survives_rootless_normalize", () => {
+    const root = w2Tmp("gi-w2-chain-");
+    fs.mkdirSync(path.join(root, "src"), { recursive: true });
+    fs.writeFileSync(path.join(root, "src", "a.ts"), "export const a = 1;\n");
+    // A rootless normalize call runs NO containment pass (the loader owns the
+    // root) — the escape must still be dropped by the projection backstop
+    // BEFORE any row reaches the typed store.
+    const g = normalizeGraphifyGraph({
+      nodes: [
+        { id: "in", label: "in", type: "function", file: "src/a.ts" },
+        { id: "out", label: "out", type: "function", file: "/etc/passwd" },
+      ],
+      edges: [{ source: "in", target: "out", relation: "calls" }],
+    });
+    const { nodes } = projectGraphifyGraph(g, root);
+    const byId = new Map(nodes.map((n) => [n.id, n] as const));
+    expect(byId.get("graphify:in")?.file ?? "").toBe("src/a.ts");
+    expect(byId.get("graphify:out")?.file ?? "").toBe("");
+  });
+
   // ---------- T3 (P1.2.2 — pin: V21 already guards) ----------
   test("test_w2_auditor_nodefile_no_escape", () => {
     const root = "/tmp/gi-w2-audit-root";
