@@ -233,8 +233,8 @@ pi.registerTool({
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
         // narrow with in/typeof instead (checked surface kept small).
         let code = "GI_CLEAR_REFUSED";
-        if (err !== null && typeof err === "object" && "code" in err) {
-          const c: unknown = err.code;
+        if (e !== null && typeof e === "object" && "code" in e) {
+          const c: unknown = e.code;
           if (typeof c === "string" && c.length > 0) code = c;
         }
         return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
