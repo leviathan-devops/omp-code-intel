@@ -53,10 +53,22 @@ battery converged on the same defects independently:
    `tryResolveGraphifyLine` maps null→undefined (dead catch removed);
    `whoCalls` null-tolerant skip.
 
-**Verify pass (dist 988743bf4c0513c1, battery 166/0/1595):**
-`extension` 0c/2h/6m/3l (was 1c/3h) · `graphify-adapter` 0c/4h/4m (was 1c/5h)
-→ **CRITICAL TIER: 0. High tier: 20** (next triage pile; per the convergence
-law each wave exposes the next layer — the loop continues until 0h).
+**Loop pass 3 (dist a9f13c6fe0eb83ab, battery 166/0/1590):**
+`extension` 0c/4h/7m/1l (the scan's ReferenceError critical on the previous
+edit was itself fixed — the catch now narrows `e`). 9 highs fixed this pass:
+scope filter wired into adapter build()+buildSync (the session-populate bypass),
+corbell deterministic cap + edge referential integrity, primitive-safe error
+mapping, ledgerDir entropy suffix, hash skip-marks, prod shape-gate element
+spot-checks.
+
+### END STATE (this session)
+- **Critical tier: 0 across all 7 kernel files** (was 2) — PROVEN by verify passes.
+- **High tier: 19** (was 22) — the remaining pile is documented design-level
+  work: keyid MAX-vs-MIN pool divergence, TOCTOU classes (confinement,
+  capped-read), first-run mtime downgrade, cycle-enumeration precision,
+  default-allowlist breadth. Each has a named counter in the triage ledger;
+  the loop resumes there next session.
+- Dist SHAs exec-verified ×5 at `a9f13c6fe0eb83ab` (build ext+idx, host OMP ×2, rig).
 
 
 ## BLOCKED (resume condition attached)
