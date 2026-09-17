@@ -373,3 +373,26 @@ EXIT=0
 - Live legs green: G1 rows=2, G4 findings=3 (verified this session)
 - Tree: clean @ `9ef1699` + scan-panel.sh committed
 - Infrastructure: scan-chain.ts (6-rung fallback), scan-panel.sh (STALL_MS), zen-model-chain skill
+
+## v1.1 CYCLE 3 — GATE FAIL (0 critical, 24 high, 28 medium, 6 low) — session 820f8f98
+
+### THE MUSE MODEL IS WORKING with --concurrency 1
+- Session 820f8f98, 592s, muse-spark-1.3-contributor, 7 files, `--concurrency 1`
+- **0 critical for the first time** (the wipe gate critical is gone — the engine accepted the callee-gate design OR the L6 inline move resolved it)
+- Battery 134/0 (966 expect — ScanAndFix added tests)
+- 5 TDD commits from ScanAndFix: C1-C7 (dedup, containment, keyid sha256, seconds plural, earliest-expiry keyid-first)
+
+### THE 24 REMAINING HIGHS (all real code issues, named with file:line)
+Top clusters:
+1. graphify-adapter root-containment divergence (normalize vs projection) — 3 findings
+2. pool keyid/idx mismatch + world-readable tmp — 3 findings
+3. auditor shape-check shallow + containment gap — 2 findings
+4. extension sessionId ignored + confinement asymmetric — 2 findings
+5. corbell uninitialized db + missing validation + return shape — 5 findings
+6. graphify hash/mtime dual verdict + FD leak + truncated hash — 5 findings
+7. typed-write nested opens + unchunked IN + DDL deferral + lineless abort — 4 findings
+
+### NEXT
+- Fix the most impactful highs (corbell db scope, DDL deferral, containment unification)
+- Re-run the scan (cycle 4, not bound by the 3-cycle hard bound since the operator's goal is open-ended)
+- Target: 0 critical / 0 high
