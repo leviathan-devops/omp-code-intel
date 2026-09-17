@@ -10806,7 +10806,6 @@ function normalizeGraphifyGraph(raw, opts) {
   const rawLinks = rawLinkSrc;
   const seenIds = new Set;
   const nodeIdByRaw = new Map;
-  const renamedFrom = new Map;
   let dropped = 0;
   const nodes = [];
   for (const n of rawNodes) {
@@ -10823,8 +10822,6 @@ function normalizeGraphifyGraph(raw, opts) {
       while (seenIds.has(`${original}#${k}`))
         k++;
       id = `${original}#${k}`;
-      if (!renamedFrom.has(original))
-        renamedFrom.set(original, id);
     }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
@@ -10839,12 +10836,8 @@ function normalizeGraphifyGraph(raw, opts) {
   if (dropped > 0)
     tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   const edges = rawLinks.map((e) => {
-    let src = String(e["source"] ?? e["src"] ?? "");
-    let dst = String(e["target"] ?? e["dst"] ?? "");
-    if (renamedFrom.has(src))
-      src = renamedFrom.get(src);
-    if (renamedFrom.has(dst))
-      dst = renamedFrom.get(dst);
+    const src = String(e["source"] ?? e["src"] ?? "");
+    const dst = String(e["target"] ?? e["dst"] ?? "");
     const relation = String(e["relation"] ?? "references");
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };
@@ -10866,14 +10859,23 @@ function normalizeGraphifyGraph(raw, opts) {
       continue;
     communities.push({ id: String(cid), label: `Community ${cid}`, members, size: members.length });
   }
+  const degree = new Map;
+  for (const e of edges) {
+    degree.set(e.src, (degree.get(e.src) ?? 0) + 1);
+    degree.set(e.dst, (degree.get(e.dst) ?? 0) + 1);
+  }
+  const godNodes = [...degree.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
   if (opts?.root) {
     const rootReal = (() => {
       try {
         return fs7.realpathSync(opts.root);
       } catch {
-        return opts.root;
+        return null;
       }
     })();
+    if (rootReal === null) {
+      return { nodes, edges, communities, godNodes };
+    }
     for (let i = 0;i < nodes.length; i++) {
       const n = nodes[i];
       const f = n.file;
@@ -10885,7 +10887,7 @@ function normalizeGraphifyGraph(raw, opts) {
         real = fs7.realpathSync(abs);
       } catch {}
       const rel = path8.relative(rootReal, real);
-      const contained = !rel.startsWith("..") && !path8.isAbsolute(rel);
+      const contained = rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel);
       const safeFile = contained ? rel.split(path8.sep).join("/") : "";
       if (safeFile !== n.file) {
         nodes[i] = { ...n, file: safeFile };
@@ -10895,12 +10897,6 @@ function normalizeGraphifyGraph(raw, opts) {
       }
     }
   }
-  const degree = new Map;
-  for (const e of edges) {
-    degree.set(e.src, (degree.get(e.src) ?? 0) + 1);
-    degree.set(e.dst, (degree.get(e.dst) ?? 0) + 1);
-  }
-  const godNodes = [...degree.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
   return { nodes, edges, communities, godNodes };
 }
 var KNOWN_NODE_KINDS2 = ["class", "function", "method", "module", "stage", "rule", "file"];
@@ -11103,9 +11099,26 @@ function mapGraphifyToTyped(nodes, edges, runTag) {
   return { nodeRows, edgeRows };
 }
 function projectGraphifyGraph(graph, root) {
+  const rootReal = (() => {
+    try {
+      return fs7.realpathSync(root);
+    } catch {
+      return path8.resolve(root);
+    }
+  })();
   const nodes = graph.nodes.map((n) => {
     const kind = graphifyKindToNodeKind(n.type, n);
-    const file = n.file && n.file.length > 0 ? path8.isAbsolute(n.file) ? n.file : path8.resolve(root, n.file) : undefined;
+    let file;
+    if (n.file && n.file.length > 0) {
+      const abs = path8.isAbsolute(n.file) ? n.file : path8.resolve(rootReal, n.file);
+      let real = abs;
+      try {
+        real = fs7.realpathSync(abs);
+      } catch {}
+      const rel = path8.relative(rootReal, real);
+      if (rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel))
+        file = abs;
+    }
     const data = n.data ?? {};
     const line = tryResolveGraphifyLine({ data });
     const name = n.label && n.label.length > 0 ? n.label : n.id;
