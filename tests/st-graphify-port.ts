@@ -461,3 +461,15 @@ test("(C1) dedup keeps bare-id edges on the first representative", () => {
   expect(g.edges[0]!.src).toBe("x");
   expect(g.edges[0]!.dst).toBe("x");
 });
+
+// C2 RED (qwen d5d5c883 [2]): an unresolvable containment base must not flip
+// anchors — an absolute escape judged against a non-real base is skipped
+// (kept as-is) instead of compared real-vs-non-real.
+test("(C2) containment with unresolvable root leaves anchors untouched", () => {
+  const g = normalizeGraphifyGraph(
+    { nodes: [{ id: "b", file: "/etc/passwd" }], edges: [] },
+    { root: "/nonexistent-gi-root-xyz" },
+  );
+  expect(g.nodes).toHaveLength(1);
+  expect(g.nodes[0]!.file).toBe("/etc/passwd");
+});

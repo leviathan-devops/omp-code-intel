@@ -250,12 +250,28 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     if (members.length === 0) continue;
     communities.push({ id: String(cid), label: `Community ${cid}`, members, size: members.length });
   }
+  // Degree/godNodes derive from edge endpoints only (containment below only
+  // rewrites node file anchors), so they are computed BEFORE the early return.
+  const degree = new Map<string, number>();
+  for (const e of edges) {
+    degree.set(e.src, (degree.get(e.src) ?? 0) + 1);
+    degree.set(e.dst, (degree.get(e.dst) ?? 0) + 1);
+  }
+  const godNodes = [...degree.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
   // V21 W12: projected node files are root-contained (root = the graph root
   // the loader passes, default cwd) — an absolute path or a `../` escape from
   // the graph JSON can never anchor a finding outside the target tree (the row
   // keeps its identity; only the anchor is dropped to "").
   if (opts?.root) {
-    const rootReal = (() => { try { return fs.realpathSync(opts.root); } catch { return opts.root; } })();
+    // C2 (qwen d5d5c883 [2]): the base MUST canonicalize — when realpath
+    // fails the base is non-real while targets resolve real, so relative()
+    // would compare different canonicalizations (symlink bypass). Fail
+    // closed: skip the pass (anchors stay as the loader wrote them). The
+    // `..` check is an exact segment match (`..` or `../`), never a prefix.
+    const rootReal: string | null = (() => { try { return fs.realpathSync(opts.root); } catch { return null; } })();
+    if (rootReal === null) {
+      return { nodes, edges, communities, godNodes };
+    }
     // V21 cleanup A2: nodes are `readonly` — containment builds normalized
     // COPIES (never mutates the declared-immutable rows in place).
     for (let i = 0; i < nodes.length; i++) {
@@ -266,7 +282,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       let real = abs;
       try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
       const rel = path.relative(rootReal, real);
-      const contained = !rel.startsWith("..") && !path.isAbsolute(rel);
+      const contained = rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
       const safeFile = contained ? rel.split(path.sep).join("/") : "";
       if (safeFile !== n.file) {
         nodes[i] = { ...n, file: safeFile };
@@ -275,12 +291,6 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       }
     }
   }
-  const degree = new Map<string, number>();
-  for (const e of edges) {
-    degree.set(e.src, (degree.get(e.src) ?? 0) + 1);
-    degree.set(e.dst, (degree.get(e.dst) ?? 0) + 1);
-  }
-  const godNodes = [...degree.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
   return { nodes, edges, communities, godNodes };
 }
 
