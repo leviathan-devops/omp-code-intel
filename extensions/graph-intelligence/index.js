@@ -56,7 +56,6 @@ var __esm = (fn, res, err) => () => {
     throw err[0];
   return res;
 };
-var __require = import.meta.require;
 
 // ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-dev.development.cjs.js
 var require_xstate_dev_development_cjs = __commonJS(function(exports) {
@@ -8759,11 +8758,18 @@ function nodeLine(node) {
 }
 function nodeFile(targetRoot, node) {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
-  const rel = raw.replace(/^\.\//, "");
-  if (rel && !path25.isAbsolute(rel))
+  let rel = raw.replace(/^\.\//, "");
+  if (rel && !path25.isAbsolute(rel)) {
+    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path25.sep}`))
+      return "";
     return rel;
-  if (rel)
-    return path25.relative(targetRoot, rel) || rel;
+  }
+  if (rel) {
+    const r = path25.relative(path25.resolve(targetRoot), rel);
+    if (r === "" || r === ".." || r.startsWith(`..${path25.sep}`) || path25.isAbsolute(r))
+      return "";
+    return r.split(path25.sep).join("/");
+  }
   return "";
 }
 function sourceLineQuote(targetRoot, relFile, line) {
@@ -9496,19 +9502,23 @@ function openTypedStore(storePath) {
   }
   const db = new Database2(storePath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
+  db.exec("PRAGMA busy_timeout = 5000;");
+  applyTypedDdl(db);
+  return db;
+}
+function applyTypedDdl(db) {
   for (const stmt of TYPED_STORE_DDL) {
     try {
       db.run(stmt);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("UNIQUE")) {
+      if (stmt.includes("CREATE UNIQUE INDEX") && /UNIQUE constraint failed/i.test(msg)) {
         console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) \u2014 ${msg.slice(0, 120)}`);
         continue;
       }
       throw e;
     }
   }
-  return db;
 }
 function insertForkNodesBatch(db, nodes) {
   if (db.inTransaction !== true) {
@@ -9544,28 +9554,31 @@ function resolveLiveIds(db, label) {
 function ph(n) {
   return Array.from({ length: n }, () => "?").join(", ");
 }
+function whoCallsInDb(db, name) {
+  const ids = resolveLiveIds(db, name);
+  if (ids.length === 0)
+    return { rows: 0, names: [], callers: [] };
+  const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
+            e.predicate AS predicate, e.dst_canonical AS target_canonical
+     FROM typed_edges e
+     JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+     WHERE e.dst_canonical IN (${ph(ids.length)})
+       AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+       AND src.superseded_run IS NULL`).all(...ids);
+  const mapped = rows.map((r) => ({
+    caller: r.caller,
+    file: r.file ?? "",
+    line: r.line ?? 0,
+    kind: r.kind ?? "",
+    predicate: r.predicate ?? "",
+    target_canonical: r.target_canonical
+  }));
+  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
+}
 function whoCalls(storePath, name) {
   const db = openTypedStore(storePath);
   try {
-    const ids = resolveLiveIds(db, name);
-    if (ids.length === 0)
-      return { rows: 0, names: [], callers: [] };
-    const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
-              e.predicate AS predicate, e.dst_canonical AS target_canonical
-       FROM typed_edges e
-       JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-       WHERE e.dst_canonical IN (${ph(ids.length)})
-         AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         AND src.superseded_run IS NULL`).all(...ids);
-    const mapped = rows.map((r) => ({
-      caller: r.caller,
-      file: r.file ?? "",
-      line: r.line ?? 0,
-      kind: r.kind ?? "",
-      predicate: r.predicate ?? "",
-      target_canonical: r.target_canonical
-    }));
-    return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
+    return whoCallsInDb(db, name);
   } finally {
     db.close();
   }
@@ -9627,7 +9640,7 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
     const targets = db.query("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to);
     const toSet = new Set(targets.map((r) => r.label));
     const visited = new Set(starts.map((s) => s.canonical_id));
-    const queue = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
+    const queue = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
     let head = 0;
     while (head < queue.length && queue[head].steps.length < maxDepth) {
       const cur = queue[head++];
@@ -9639,7 +9652,7 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
            AND dst.superseded_run IS NULL`).all(cur.id);
       for (const e of out) {
         const step = {
-          from: cur.id,
+          from: cur.label,
           to: e.dst_label,
           kind: e.predicate,
           file: e.dst_file ?? "",
@@ -9650,7 +9663,7 @@ function chainCalls(storePath, from, to, maxDepth = 64) {
         }
         if (!visited.has(e.dst_id)) {
           visited.add(e.dst_id);
-          queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+          queue.push({ id: e.dst_id, label: e.dst_label, steps: [...cur.steps, step] });
         }
       }
     }
@@ -9671,48 +9684,58 @@ function unwiredNodes(storePath) {
            WHERE e.dst_canonical = n.canonical_id
              AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
          )`).all();
-    return rows.map((r) => {
+    const out = [];
+    let linelessSkipped = 0;
+    for (const r of rows) {
       if (r.line === null || r.line === undefined) {
-        throw new Error(`LINELESS_NODE: unwired row ${r.name} (${r.file ?? "?"}) has no line`);
+        linelessSkipped += 1;
+        continue;
       }
-      return { name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED", kind: r.kind ?? "" };
-    });
+      out.push({ name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED", kind: r.kind ?? "" });
+    }
+    if (linelessSkipped > 0) {
+      console.warn(`[gi-omp] unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
+    }
+    return out;
   } finally {
     db.close();
   }
 }
+function impactInDb(db, symbol, depth = 8) {
+  const ledger = [];
+  const seen = new Set;
+  const startIds = resolveLiveIds(db, symbol);
+  if (startIds.length === 0)
+    return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
+  for (const id of startIds)
+    seen.add(id);
+  let frontier = startIds;
+  for (let d = 1;d <= depth && frontier.length > 0; d++) {
+    const next = [];
+    for (let i = 0;i < frontier.length; i += 64) {
+      const chunk = frontier.slice(i, i + 64);
+      const callers = db.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
+         FROM typed_edges e
+         JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+         WHERE e.dst_canonical IN (${ph(chunk.length)})
+           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND src.superseded_run IS NULL`).all(...chunk);
+      for (const c of callers) {
+        if (seen.has(c.id))
+          continue;
+        seen.add(c.id);
+        ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        next.push(c.id);
+      }
+    }
+    frontier = next;
+  }
+  return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
+}
 function impact(storePath, symbol, depth = 8) {
   const db = openTypedStore(storePath);
   try {
-    const ledger = [];
-    const seen = new Set;
-    const startIds = resolveLiveIds(db, symbol);
-    if (startIds.length === 0)
-      return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
-    for (const id of startIds)
-      seen.add(id);
-    let frontier = startIds;
-    for (let d = 1;d <= depth && frontier.length > 0; d++) {
-      const next = [];
-      for (let i = 0;i < frontier.length; i += 64) {
-        const chunk = frontier.slice(i, i + 64);
-        const callers = db.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
-           FROM typed_edges e
-           JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-           WHERE e.dst_canonical IN (${ph(chunk.length)})
-             AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-             AND src.superseded_run IS NULL`).all(...chunk);
-        for (const c of callers) {
-          if (seen.has(c.id))
-            continue;
-          seen.add(c.id);
-          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
-          next.push(c.id);
-        }
-      }
-      frontier = next;
-    }
-    return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
+    return impactInDb(db, symbol, depth);
   } finally {
     db.close();
   }
@@ -9720,10 +9743,11 @@ function impact(storePath, symbol, depth = 8) {
 function safeDelete(storePath, symbol) {
   const db = openTypedStore(storePath);
   try {
-    const q = whoCalls(storePath, symbol);
-    const imp = impact(storePath, symbol);
+    const q = whoCallsInDb(db, symbol);
+    const imp = impactInDb(db, symbol);
     const srcIds = resolveLiveIds(db, symbol);
     let mappedUses = [];
+    let usesLinelessDropped = 0;
     if (srcIds.length > 0) {
       const uses = db.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
          FROM typed_edges e
@@ -9731,14 +9755,20 @@ function safeDelete(storePath, symbol) {
          WHERE e.src_canonical IN (${ph(srcIds.length)})
            AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
            AND dst.superseded_run IS NULL`).all(...srcIds);
-      mappedUses = uses.filter((u) => u.line !== null && u.line !== undefined).map((u) => ({ symbol: u.symbol, file: u.file ?? "", line: u.line }));
+      for (const u of uses) {
+        if (u.line === null || u.line === undefined) {
+          usesLinelessDropped += 1;
+          continue;
+        }
+        mappedUses.push({ symbol: u.symbol, file: u.file ?? "", line: u.line });
+      }
     }
     const isTestPath = (f) => /(test|spec|mock|fixture)/i.test(f);
     const testReach = [
       ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
       ...mappedUses.filter((u) => isTestPath(u.file))
     ];
-    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach };
+    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach, usesLinelessDropped };
   } finally {
     db.close();
   }
@@ -9748,7 +9778,7 @@ function gateAdvisory(storePath, symbols, dial = "STEER", ripwire) {
   try {
     const callers = [];
     for (const symbol of symbols) {
-      const q = whoCalls(storePath, symbol);
+      const q = whoCallsInDb(db, symbol);
       for (const c of q.callers) {
         callers.push({ symbol, caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" });
       }
@@ -10089,6 +10119,7 @@ import * as path10 from "path";
 import { Database as Database4 } from "bun:sqlite";
 
 // src/omp/populate-graphify.ts
+import { createHash } from "crypto";
 import * as fs8 from "fs";
 import * as path9 from "path";
 
@@ -10801,6 +10832,13 @@ function loadGraphifyFileSync(graphPath) {
   return normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
 }
 function normalizeGraphifyGraph(raw, opts) {
+  const safeRoot = opts?.root ? (() => {
+    try {
+      return fs7.realpathSync(opts.root);
+    } catch {
+      return;
+    }
+  })() : undefined;
   const rawNodes = Array.isArray(raw["nodes"]) ? raw["nodes"] : [];
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] : Array.isArray(raw["edges"]) ? raw["edges"] : [];
   const rawLinks = rawLinkSrc;
@@ -11060,7 +11098,7 @@ function resolveGraphifyLine(node, edge, context = "") {
     if (n !== undefined)
       return n;
   }
-  throw new Error(`LINELESS_NODE: no line for ${context || "graphify node"} (checked line/line_start/line_end/source_location)`);
+  return null;
 }
 function tryResolveGraphifyLine(node, edge) {
   try {
@@ -11103,21 +11141,22 @@ function projectGraphifyGraph(graph, root) {
     try {
       return fs7.realpathSync(root);
     } catch {
-      return path8.resolve(root);
+      return null;
     }
   })();
   const nodes = graph.nodes.map((n) => {
     const kind = graphifyKindToNodeKind(n.type, n);
     let file;
-    if (n.file && n.file.length > 0) {
+    if (rootReal !== null && n.file && n.file.length > 0) {
       const abs = path8.isAbsolute(n.file) ? n.file : path8.resolve(rootReal, n.file);
       let real = abs;
       try {
         real = fs7.realpathSync(abs);
       } catch {}
       const rel = path8.relative(rootReal, real);
-      if (rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel))
-        file = abs;
+      const contained = rel !== "" && rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel);
+      if (contained)
+        file = rel.split(path8.sep).join("/");
     }
     const data = n.data ?? {};
     const line = tryResolveGraphifyLine({ data });
@@ -11319,14 +11358,17 @@ class GraphifyAdapter {
     const steps = [];
     const seen = new Set([start]);
     const queue = [start];
+    let linelessSkipped = 0;
     while (queue.length > 0) {
       const from = queue.shift();
       for (const e of bySource.get(from) ?? []) {
         const caller = this.nodeById(e.sourceId);
         const callee = this.nodeById(e.targetId);
         const line = e.line ?? callee?.line;
-        if (line === undefined)
-          throw new Error(`LINELESS_NODE: no line for chain edge ${e.sourceId}->${e.targetId} (edge + callee both lineless)`);
+        if (line === undefined || line === null) {
+          linelessSkipped += 1;
+          continue;
+        }
         steps.push({
           from: caller?.name ?? e.sourceId,
           to: callee?.name ?? e.targetId,
@@ -11340,41 +11382,69 @@ class GraphifyAdapter {
         }
       }
     }
+    if (linelessSkipped > 0)
+      tridentLog("WARN", "graphify-adapter", `chain: skipped ${linelessSkipped} lineless step(s) (counted, never silent)`);
     return steps;
   }
   imports(module) {
     this.ensureBuilt();
     const start = this.resolveNodeId(module);
-    return this.cachedEdges.filter((e) => e.kind === "imports" && e.sourceId === start).map((e) => {
+    const out = [];
+    let linelessSkipped = 0;
+    for (const e of this.cachedEdges) {
+      if (e.kind !== "imports" || e.sourceId !== start)
+        continue;
       const src = this.nodeById(e.sourceId);
       const dst = this.nodeById(e.targetId);
       const line = e.line ?? src?.line;
-      if (line === undefined)
-        throw new Error(`LINELESS_NODE: no line for imports edge ${e.sourceId} (edge + source both lineless)`);
-      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line };
-    });
+      if (line === undefined || line === null) {
+        linelessSkipped += 1;
+        continue;
+      }
+      out.push({ from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line });
+    }
+    if (linelessSkipped > 0)
+      tridentLog("WARN", "graphify-adapter", `imports: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
+    return out;
   }
   awaits(symbol) {
     this.ensureBuilt();
     const start = this.resolveNodeId(symbol);
-    return this.cachedEdges.filter((e) => e.kind === "awaits" && e.sourceId === start).map((e) => {
+    const out = [];
+    let linelessSkipped = 0;
+    for (const e of this.cachedEdges) {
+      if (e.kind !== "awaits" || e.sourceId !== start)
+        continue;
       const src = this.nodeById(e.sourceId);
       const dst = this.nodeById(e.targetId);
       const aline = e.line ?? src?.line;
-      if (aline === undefined)
-        throw new Error(`LINELESS_NODE: no line for awaits edge ${e.sourceId} (edge + source both lineless)`);
-      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline };
-    });
+      if (aline === undefined || aline === null) {
+        linelessSkipped += 1;
+        continue;
+      }
+      out.push({ from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline });
+    }
+    if (linelessSkipped > 0)
+      tridentLog("WARN", "graphify-adapter", `awaits: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
+    return out;
   }
   unwired() {
     this.ensureBuilt();
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
-    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id)).map((n) => {
+    const out = [];
+    let linelessSkipped = 0;
+    for (const n of this.cachedNodes) {
+      if (!((n.kind === "function" || n.kind === "class") && !callTargets.has(n.id)))
+        continue;
       if (n.line === undefined || n.line === null) {
-        throw new Error(`LINELESS_NODE: unwired row ${n.id} has no line (run graphify extract with source mapping, or drop the row)`);
+        linelessSkipped += 1;
+        continue;
       }
-      return { id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line };
-    });
+      out.push({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line });
+    }
+    if (linelessSkipped > 0)
+      tridentLog("WARN", "graphify-adapter", `unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
+    return out;
   }
   nodes(kind) {
     this.ensureBuilt();
@@ -11462,7 +11532,7 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     return { fresh: false, reason: "stale-unscooped" };
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
-  const hashPath = graphPath.replace(/\.json$/, ".graph_hash");
+  const hashPath = graphHashSidecarPath(graphPath);
   let storedHash = null;
   try {
     storedHash = fs8.readFileSync(hashPath, "utf8").trim() || null;
@@ -11479,13 +11549,42 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
-function computeSourceHash(root, scope, excludes) {
-  const crypto = __require("crypto");
-  const hash = crypto.createHash("sha256");
-  const budget = { n: 500 };
+function graphHashSidecarPath(graphPath) {
+  return /\.json$/.test(graphPath) ? graphPath.replace(/\.json$/, ".graph_hash") : `${graphPath}.graph_hash`;
+}
+var GRAPH_HASH_WHOLE_FILE_MAX = 65536;
+function hashSourceTree(root, scope, excludes, budgetN) {
+  const hash = createHash("sha256");
+  const budget = { n: budgetN };
+  let exhausted = false;
+  const hashFile = (abs, anchor, size) => {
+    let fd = null;
+    try {
+      fd = fs8.openSync(abs, "r");
+      if (size <= GRAPH_HASH_WHOLE_FILE_MAX) {
+        const buf = Buffer.alloc(size);
+        fs8.readSync(fd, buf, 0, size, 0);
+        hash.update(`${anchor}\x00${size}\x00`);
+        hash.update(buf);
+      } else {
+        const head = Buffer.alloc(4096);
+        const tail = Buffer.alloc(4096);
+        fs8.readSync(fd, head, 0, 4096, 0);
+        fs8.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
+        hash.update(`${anchor}\x00${size}\x00`);
+        hash.update(head);
+        hash.update(tail);
+      }
+    } finally {
+      if (fd !== null)
+        fs8.closeSync(fd);
+    }
+  };
   const walk = (dir, prefix) => {
-    if (budget.n <= 0)
+    if (budget.n <= 0) {
+      exhausted = true;
       return;
+    }
     let entries;
     try {
       entries = fs8.readdirSync(dir, { withFileTypes: true });
@@ -11494,8 +11593,10 @@ function computeSourceHash(root, scope, excludes) {
     }
     entries.sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
-      if (budget.n <= 0)
+      if (budget.n <= 0) {
+        exhausted = true;
         return;
+      }
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name))
           continue;
@@ -11506,12 +11607,7 @@ function computeSourceHash(root, scope, excludes) {
         budget.n--;
         try {
           const stat = fs8.statSync(path9.join(dir, entry.name));
-          const fd = fs8.openSync(path9.join(dir, entry.name), "r");
-          const buf = Buffer.alloc(Math.min(4096, stat.size));
-          fs8.readSync(fd, buf, 0, buf.length, 0);
-          fs8.closeSync(fd);
-          hash.update(`${prefix}${entry.name}\x00${stat.size}\x00`);
-          hash.update(buf);
+          hashFile(path9.join(dir, entry.name), `${prefix}${entry.name}`, stat.size);
         } catch {}
       }
     }
@@ -11520,15 +11616,19 @@ function computeSourceHash(root, scope, excludes) {
     const target = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
     try {
       const st = fs8.statSync(target);
-      if (st.isFile()) {
-        hash.update(`${rel}\x00${st.size}\x00`);
-        continue;
-      }
-      if (st.isDirectory())
+      if (st.isFile())
+        hashFile(target, rel, st.size);
+      else if (st.isDirectory())
         walk(target, "");
     } catch {}
   }
+  if (exhausted)
+    hash.update(`gi-graph-hash:budget-exhausted
+`);
   return hash.digest("hex");
+}
+function computeSourceHash(root, scope, excludes) {
+  return hashSourceTree(root, scope, excludes, 500);
 }
 function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
   if (db.inTransaction === true) {
@@ -11655,7 +11755,8 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     const validId = typeof r.canonical_id === "string" && r.canonical_id.length > 0;
     const validKind = typeof r.kind === "string" && r.kind.length > 0;
     const validLine = r.line === null || Number.isInteger(r.line) && r.line >= 0;
-    if (!validId || !validKind || !validLine) {
+    const validLabel = typeof r.label === "string" && r.label.length > 0;
+    if (!validId || !validKind || !validLabel || !validLine) {
       skippedInvalid += 1;
       return false;
     }
@@ -11685,7 +11786,15 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     line: r.line,
     run: runTag
   }));
-  const cappedEdges = edges.length > MAX_WARM_ROWS * 3 ? edges.slice(0, MAX_WARM_ROWS * 3) : edges;
+  let edgeSkipped = 0;
+  const validEdges = edges.filter((e) => {
+    const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0 && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0 && ["calls", "traces-to", "imports"].includes(e.predicate);
+    if (!ok)
+      edgeSkipped += 1;
+    return ok;
+  });
+  const cappedEdges = validEdges.length > MAX_WARM_ROWS * 3 ? validEdges.slice(0, MAX_WARM_ROWS * 3) : validEdges;
+  edgeSkipped += validEdges.length - cappedEdges.length;
   const edgeRows = cappedEdges.map((e) => ({
     srcCanonical: e.src_canonical,
     dstCanonical: e.dst_canonical,
@@ -11707,13 +11816,15 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `CORBELL_WRITE_FAILED:${msg.slice(0, 120)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   } finally {
-    try {
-      db.close();
-    } catch (closeErr) {
-      console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
+    if (db !== undefined) {
+      try {
+        db.close();
+      } catch (closeErr) {
+        console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
+      }
     }
   }
-  return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped };
+  return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped + edgeSkipped };
 }
 
 // src/omp/populate.ts
@@ -13312,7 +13423,7 @@ init_zod();
 
 // src/hunter/lexicon/templates.ts
 init_zod();
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 import { readFileSync as readFileSync6 } from "fs";
 class LexiconError extends Error {
   code;
@@ -13329,7 +13440,7 @@ function templateMissing(templateId) {
   return new LexiconError("TEMPLATE_MISSING", `TEMPLATE_MISSING: template=${templateId} (the stored check_code names a template absent from the library \u2014 the battery cannot be reinstated)`);
 }
 function sha256(input) {
-  return createHash("sha256").update(input, "utf8").digest("hex");
+  return createHash2("sha256").update(input, "utf8").digest("hex");
 }
 function readPath(obj, dotted) {
   let cur = obj;
@@ -16278,7 +16389,15 @@ var confineTargetPath = (normalized, callerCwd) => {
   const allowRoots = (process.env.GI_TARGET_ROOTS ?? "").split(/[:|]/).map((r) => r.trim()).filter((r) => r.length > 0);
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
-    const rel = path26.relative(path26.resolve(root), real);
+    let rootReal = null;
+    try {
+      rootReal = fs23.realpathSync(root);
+    } catch {
+      rootReal = null;
+    }
+    if (rootReal === null)
+      return false;
+    const rel = path26.relative(rootReal, real);
     return rel === "" || !rel.startsWith("..") && !path26.isAbsolute(rel);
   });
   if (!within) {
