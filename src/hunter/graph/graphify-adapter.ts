@@ -463,14 +463,17 @@ export interface GraphifyLineLike {
   source_location?: unknown;
 }
 
-/** Loud line resolution: node line ?? data.line ?? data.line_start ??
- *  data.line_end ?? node/data source_location L-number ?? edge
- *  source_location L-number. NONE -> named LINELESS_NODE (never a silent 0). */
+/** Line resolution: node line ?? data.line ?? data.line_start ?? data.line_end
+ *  ?? node/data source_location L-number ?? edge source_location L-number.
+ *  P1.5.1 contract (W3, frozen-scan CRITICAL fixed): returns `number | null` —
+ *  NULL means LINELESS (the caller counts + skips; V1.1 removed the throw that
+ *  aborted whole populates on module/external references). The old signature
+ *  declared `: number` while returning null — a documented-contract lie. */
 export function resolveGraphifyLine(
   node: GraphifyLineLike,
   edge?: { source_location?: unknown; metadata?: unknown } | null,
   context = "",
-): number {
+): number | null {
   const data = node.data ?? {};
   const candidates: unknown[] = [
     node.line,
@@ -492,16 +495,16 @@ export function resolveGraphifyLine(
   return null;
 }
 
-/** Silent probe for build() passthrough: number or undefined, never throws. */
+/** Silent probe for build() passthrough: number or undefined, never throws,
+ *  never returns null (resolveGraphifyLine's null maps to undefined here —
+ *  the old signature declared undefined while passing the null through, and
+ *  its catch was dead code). */
 export function tryResolveGraphifyLine(
   node: GraphifyLineLike,
   edge?: { source_location?: unknown; metadata?: unknown } | null,
 ): number | undefined {
-  try {
-    return resolveGraphifyLine(node, edge ?? null, "");
-  } catch {
-    return undefined;
-  }
+  const n = resolveGraphifyLine(node, edge ?? null, "");
+  return n === null ? undefined : n;
 }
 
 // ---------------------------------------------------------------------------
@@ -745,9 +748,7 @@ export class GraphifyAdapter implements GraphAdapter {
     for (const e of this.cachedEdges.filter((e2) => e2.kind === "calls" && e2.targetId === target)) {
       const caller = this.nodeById(e.sourceId);
       const line = e.line ?? caller?.line;
-      // V21 cleanup A3: a lineless ROW is skipped + named (telemetry callback)
-      // — one data defect no longer aborts a query with N-1 good rows.
-      if (line === undefined) {
+      if (line === undefined || line === null) { // P1.5.1: null counts as lineless too
         onLineless?.(`LINELESS_NODE skipped: whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
         continue;
       }

@@ -219,6 +219,13 @@ pi.registerTool({
   execute: async (_id, params, _sig, _upd, ctx) => {
     const p = (params && typeof params === "object" ? params : {}) as { echo?: string; action?: string };
     if (String(p.action ?? "").toLowerCase() === "wipe") {
+      // CRITICAL fix (frozen scan): defense-in-depth AT the tool layer — the
+      // description promises an env gate; the deep gate lives inside
+      // clearGiRegistry (GI_OMP_ALLOW_CLEAR, code GI_CLEAR_REFUSED). The tool
+      // now refuses with the SAME env + code before touching the registry.
+      if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
+        return textResult("GI_CLEAR_REFUSED: action=wipe requires GI_OMP_ALLOW_CLEAR=1 in the environment", { ok: false, error: "GI_CLEAR_REFUSED" });
+      }
       try {
         clearGiRegistry();
         return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });

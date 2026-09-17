@@ -11101,11 +11101,8 @@ function resolveGraphifyLine(node, edge, context = "") {
   return null;
 }
 function tryResolveGraphifyLine(node, edge) {
-  try {
-    return resolveGraphifyLine(node, edge ?? null, "");
-  } catch {
-    return;
-  }
+  const n = resolveGraphifyLine(node, edge ?? null, "");
+  return n === null ? undefined : n;
 }
 function graphifyEvidence(predicate, src, dst, file, line) {
   const anchor = file && file.length > 0 ? `${file}:${line}` : src;
@@ -11321,7 +11318,7 @@ class GraphifyAdapter {
     for (const e of this.cachedEdges.filter((e2) => e2.kind === "calls" && e2.targetId === target)) {
       const caller = this.nodeById(e.sourceId);
       const line = e.line ?? caller?.line;
-      if (line === undefined) {
+      if (line === undefined || line === null) {
         onLineless?.(`LINELESS_NODE skipped: whoCalls edge ${e.sourceId}->${e.targetId} (edge + caller both lineless)`);
         continue;
       }
@@ -16542,6 +16539,9 @@ function registerGiOmpTools(pi, cwdOf) {
     execute: async (_id, params, _sig, _upd, ctx) => {
       const p = params && typeof params === "object" ? params : {};
       if (String(p.action ?? "").toLowerCase() === "wipe") {
+        if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
+          return textResult2("GI_CLEAR_REFUSED: action=wipe requires GI_OMP_ALLOW_CLEAR=1 in the environment", { ok: false, error: "GI_CLEAR_REFUSED" });
+        }
         try {
           clearGiRegistry();
           return textResult2("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
