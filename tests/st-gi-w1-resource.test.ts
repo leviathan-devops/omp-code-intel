@@ -109,12 +109,21 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     process.env.GO_POOL_DB = path.join(dir, "pool.sqlite");
     process.env.GO_KEYS_JSON = "[]"; // env source: zero
     process.env.GI_KEYS_FILE = path.join(dir, "absent-keys.json"); // file source: absent
-    reloadGoKeys();
-    expect(GO_KEYS.length).toBe(0);
-    // OLD: throws GO_POOL_EMPTY out of decideGoFallback via routeGoError.
-    // NEW: named action — an empty pool has nothing to advance to → fall-to-openrouter.
-    const action = routeGoError(0, "HTTP 429 rate limited", Date.now());
-    expect(action).toBe("fall-to-openrouter");
+    // Neutralize source 3 (the single-key env fallback) for THIS test only:
+    const savedGo = process.env.OPENCODE_GO_API_KEY;
+    const savedApi = process.env.OPENCODE_API_KEY;
+    delete process.env.OPENCODE_GO_API_KEY;
+    delete process.env.OPENCODE_API_KEY;
+    try {
+      reloadGoKeys();
+      expect(GO_KEYS.length).toBe(0);
+      // OLD: throws GO_POOL_EMPTY out of decideGoFallback via routeGoError.
+      // NEW: named action — an empty pool has nothing to advance to.
+      expect(routeGoError(0, "HTTP 429 rate limited", Date.now())).toBe("fall-to-openrouter");
+    } finally {
+      if (savedGo !== undefined) process.env.OPENCODE_GO_API_KEY = savedGo;
+      if (savedApi !== undefined) process.env.OPENCODE_API_KEY = savedApi;
+    }
   });
 
   // ---------- T5 (P1.1.5) ----------

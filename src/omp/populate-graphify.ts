@@ -10,6 +10,7 @@
 // invoked (the script path) or when profile.graph.substrate === 'graphify'.
 // Zero behavior change for existing sessions.
 
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Database } from "bun:sqlite";
@@ -144,8 +145,9 @@ export function isGraphifyCheckoutFreshFor(
 /** L2 content-hash: deterministic hash of all indexed source files.
  *  Sorted by relative path, hashing path+size+first4KB per file. */
 function computeSourceHash(root: string, scope: string[], excludes: string[]): string {
-  const crypto = require("crypto") as typeof import("crypto");
-  const hash = crypto.createHash("sha256");
+  // P1.1.5 (W1 gi-resource): createHash is a top-level ESM import now — the
+  // per-call CJS crypto loader was unsafe in strict ESM contexts.
+  const hash = createHash("sha256");
   const budget = { n: 500 };
   const walk = (dir: string, prefix: string): void => {
     if (budget.n <= 0) return;

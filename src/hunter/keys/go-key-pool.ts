@@ -437,7 +437,15 @@ export function routeGoError(idx: number, err: string, now: number = Date.now(),
   if (cls === 'server') return 'advance-no-mark';
   if (cls === 'quota' || cls === 'rejected') {
     markGoKeyDead(idx, err, now, sessionId);
-    const next = decideGoFallback(now, sessionId);
+    // P1.1.6 (W1 gi-resource): an EMPTY pool makes decideGoFallback throw
+    // GO_POOL_EMPTY — routeGoError must answer a NAMED action, never throw:
+    // with zero keys there is nothing to advance to → fall-to-openrouter.
+    let next: GoFallbackDecision;
+    try {
+      next = decideGoFallback(now, sessionId);
+    } catch {
+      return 'fall-to-openrouter';
+    }
     return next.rung === 'go' ? 'advance-same-rung' : 'fall-to-openrouter';
   }
   return 'advance-no-mark';
