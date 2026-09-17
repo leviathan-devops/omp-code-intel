@@ -38,6 +38,27 @@ battery converged on the same defects independently:
 - **Stale test arithmetic:** T9 (unwired) initially passed with `line: 0` — lineless
   is NULL, not 0. Fixture corrected; the red became real.
 
+## SCAN-FROZEN (measured 2026-09-18, direct ocr runs, provider opencode-go-union)
+
+**First frozen pass (dist 57d89ccf5cd0b086):** 7/7 success — 2 critical / 22 high / 29 medium / 6 low.
+
+**Critical remediation (commit `fix(w7-criticals)`):**
+1. `extension` graph-probe `wipe` — env-gated AT the tool layer
+   (`GI_OMP_ALLOW_CLEAR` → `GI_CLEAR_REFUSED`; the deep gate inside
+   `clearGiRegistry` was invisible to the scanner — defense-in-depth now
+   matches the tool description's promise). House test
+   "graph-probe action=wipe is GI_CLEAR_REFUSED without env" green.
+2. `graphify-adapter` `resolveGraphifyLine` — honest `number | null`
+   contract (the old signature declared `number` while returning null);
+   `tryResolveGraphifyLine` maps null→undefined (dead catch removed);
+   `whoCalls` null-tolerant skip.
+
+**Verify pass (dist 988743bf4c0513c1, battery 166/0/1595):**
+`extension` 0c/2h/6m/3l (was 1c/3h) · `graphify-adapter` 0c/4h/4m (was 1c/5h)
+→ **CRITICAL TIER: 0. High tier: 20** (next triage pile; per the convergence
+law each wave exposes the next layer — the loop continues until 0h).
+
+
 ## BLOCKED (resume condition attached)
 - **Rig TUI live legs (G1/G4/probe):** gi-omp-port is Up but every omp process inside
   is a zombie (since Sep 16). The dist IS deployed in-rig
