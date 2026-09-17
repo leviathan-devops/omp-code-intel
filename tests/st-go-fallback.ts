@@ -157,3 +157,27 @@ test("(C5) keyids are hashed fingerprints, distinct per key", async () => {
     expect(ids[i]).toMatch(/^[0-9a-f]{16}$/);
   }
 });
+
+// C7 RED (qwen d5d5c883 [7]): goEarliestDeadIdx must resolve keyid-first —
+// after a reorder the earliest-expiry hint must name the KEY's current slot,
+// not the stale positional row.
+test("(C7) earliest-expiry follows the key across a reorder", async () => {
+  const mod = await import("../src/hunter/keys/go-key-pool.ts");
+  const now = Date.now();
+  process.env.GO_KEYS_JSON = JSON.stringify(["C7-key-alpha", "C7-key-beta"]);
+  mod.reloadGoKeys();
+  const { Database } = await import("bun:sqlite");
+  const db = new Database(process.env.GO_POOL_DB!);
+  try { db.run("DELETE FROM go_key_pool"); } catch { /* fresh */ }
+  db.close();
+  // exile ALPHA while it sits at slot 0
+  mod.markGoKeyDead(0, "429 rate limit test", now);
+  // reorder: BETA first, ALPHA second
+  process.env.GO_KEYS_JSON = JSON.stringify(["C7-key-beta", "C7-key-alpha"]);
+  mod.reloadGoKeys();
+  const r = mod.goEarliestDeadIdx(undefined, now);
+  expect(r.expiryKnown).toBe(true);
+  expect(r.idx).toBe(1);
+  delete process.env.GO_KEYS_JSON;
+  mod.reloadGoKeys();
+});

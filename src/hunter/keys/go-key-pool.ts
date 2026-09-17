@@ -341,20 +341,31 @@ export function classifyGoError(err: string): GoErrorClass {
 // ═══ THE EARLIEST-EXPIRY RESOLVER + INDEX RESOLVER (mirrored from the canon
 // 2026-09-13 — consumers must import these, never re-declare the SELECT) ═══
 export function goEarliestDeadIdx(sessionId?: string, now: number = Date.now()): { idx: number; expiryKnown: boolean; dropped: number } {
+  // C7 (qwen d5d5c883 [7]): KEYID-first — the same resolution readDeadUntil
+  // uses. A row names its key (keyid); the returned idx is the key's CURRENT
+  // slot in GO_KEYS, never the stale positional row. Legacy rows (no keyid,
+  // or a pre-C5 plaintext prefix) fall back to the positional slot.
   try {
-    const rows = db(sessionId).query('SELECT idx, dead_until FROM go_key_pool').all() as Array<{ idx: number; dead_until: number }>;
+    const rows = db(sessionId).query('SELECT idx, keyid, dead_until FROM go_key_pool').all() as Array<{ idx: number; keyid: string | null; dead_until: number }>;
+    const slotOf = new Map<string, number>();
+    GO_KEYS.forEach((k, i) => slotOf.set(createHash('sha256').update(k).digest('hex').slice(0, 16), i));
     let dropped = 0;
     let best = -1;
     let bestUntil = Number.MAX_SAFE_INTEGER;
     let seen = 0;
     for (const r of rows) {
-      if (typeof r.idx !== 'number' || typeof r.dead_until !== 'number' || !Number.isFinite(r.dead_until)) { dropped++; continue; }
-      if (!Number.isInteger(r.idx) || r.idx < 0 || r.idx >= GO_KEYS.length) { dropped++; continue; }
+      if (typeof r.dead_until !== 'number' || !Number.isFinite(r.dead_until)) { dropped++; continue; }
       // V21 cleanup: an EXPIRED mark (dead_until <= now) means the key is
       // alive again — it does not compete for earliest-expiry.
       if (r.dead_until <= now) continue;
+      let slot: number | undefined;
+      if (typeof r.keyid === 'string' && r.keyid.length > 0 && slotOf.has(r.keyid)) {
+        slot = slotOf.get(r.keyid);
+      } else if (Number.isInteger(r.idx) && (r.idx as number) >= 0 && (r.idx as number) < GO_KEYS.length) {
+        slot = r.idx as number;
+      } else { dropped++; continue; }
       seen++;
-      if (r.dead_until < bestUntil) { bestUntil = r.dead_until; best = r.idx; }
+      if (r.dead_until < bestUntil) { bestUntil = r.dead_until; best = slot as number; }
     }
     return { idx: best, expiryKnown: seen > 0, dropped };
   } catch {
