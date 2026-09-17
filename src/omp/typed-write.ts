@@ -331,12 +331,16 @@ function ph(n: number): string {
 // + src/hunter/graph/store-map.ts:73-95 corbellEdgeToPredicate (method_call->calls + flow_step->traces-to).
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // Flow 'traces-to' callers have NULL file — they are still callers (file="" line=0, honest not silent).
-// P1.1.2 (W1 gi-resource): the handle-injected core — callers that ALREADY
-// hold an open store connection (safeDelete) never open a second one.
 export function whoCallsInDb(db: Database, name: string): { rows: number; names: string[]; callers: WhoCallsRow[] } {
   // V21 W1: dst resolved to canonical_ids FIRST — the join never matches by
   // label, so same-label identities stay distinct; each row names its target.
-  const ids = resolveLiveIds(db, name);
+  // W8 (frozen-scan HIGH): an unbounded IN(...) hits the SQLite variable
+  // limit on mega-labels — cap at 500 + WARN (named, never silent truncation).
+  let ids = resolveLiveIds(db, name);
+  if (ids.length > 500) {
+    console.warn(`[gi-omp] whoCalls: '${name}' resolves to ${ids.length} live ids — capping at 500 (SQLite variable limit)`);
+    ids = ids.slice(0, 500);
+  }
   if (ids.length === 0) return { rows: 0, names: [], callers: [] };
   const rows = db.query(
     `SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
@@ -382,7 +386,7 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
     if (ids.length === 0) return { root: symbol, depth: 0, nodes: [] };
     const rows = db.query(
       `WITH RECURSIVE blast(cid, depth) AS (
-         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)})
+         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)}) AND superseded_run IS NULL
          UNION
          SELECT src.canonical_id, blast.depth + 1
          FROM blast

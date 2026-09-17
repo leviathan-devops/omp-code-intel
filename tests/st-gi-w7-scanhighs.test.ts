@@ -3,11 +3,25 @@
 //       a stale duplicate row can no longer win the earliest-expiry hint
 //   T2  markGoKeyDead deletes sibling rows carrying the same keyid (no
 //       duplicate-row class after reorders)
-import { describe, expect, test } from "bun:test";
+//
+// HERMETIC STATE LAW: every env this file touches is snapshotted at module
+// load and RESTORED in the module afterEach — the go-key-pool singleton is
+// shared process-wide, and a leak here poisons st-go-fallback's default-pool
+// assertions (the W7/W8 ordering flake, root-caused 2026-09-18).
+import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Database } from "bun:sqlite";
+
+// Snapshot BEFORE any override, so afterEach can restore the machine default.
+const SAVED_ENV = {
+  GO_POOL_DB: process.env.GO_POOL_DB ?? null,
+  GI_KEYS_FILE: process.env.GI_KEYS_FILE ?? null,
+  GO_KEYS_JSON: process.env.GO_KEYS_JSON ?? null,
+  OPENCODE_GO_API_KEY: process.env.OPENCODE_GO_API_KEY ?? null,
+  OPENCODE_API_KEY: process.env.OPENCODE_API_KEY ?? null,
+};
 
 process.env.GO_POOL_DB = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "gi-w7s-")), "pool.sqlite");
 process.env.GI_KEYS_FILE = path.join(os.tmpdir(), `gi-w7s-absent-${Date.now()}`, "keys.json"); // no provision file
@@ -16,14 +30,34 @@ process.env.OPENCODE_GO_API_KEY = "";
 process.env.OPENCODE_API_KEY = "";
 
 import { createHash } from "node:crypto";
-import { GO_KEYS, goEarliestDeadIdx, keyidFor, markGoKeyDead } from "../src/hunter/keys/go-key-pool.ts";
+import { GO_KEYS, goEarliestDeadIdx, keyidFor, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 
 const kid = (k: string): string => createHash("sha256").update(k).digest("hex").slice(0, 16);
+
+// The hermetic pool path — re-pinned per test (afterEach restores the saved env).
+const W7_POOL = process.env.GO_POOL_DB!;
+
+afterEach(() => {
+  // Restore the EXACT pre-file env (null = delete) + reload the pool from
+  // the machine default sources — the next test file must see the natural
+  // singleton state, never this file's hermetic overrides.
+  const restore = (k: string, v: string | null): void => {
+    if (v === null) delete process.env[k];
+    else process.env[k] = v;
+  };
+  restore("GO_POOL_DB", SAVED_ENV.GO_POOL_DB);
+  restore("GI_KEYS_FILE", SAVED_ENV.GI_KEYS_FILE);
+  restore("GO_KEYS_JSON", SAVED_ENV.GO_KEYS_JSON);
+  restore("OPENCODE_GO_API_KEY", SAVED_ENV.OPENCODE_GO_API_KEY);
+  restore("OPENCODE_API_KEY", SAVED_ENV.OPENCODE_API_KEY);
+  reloadGoKeys();
+});
 
 describe("st-gi-w7-scanhighs: pool keyid-merge unification", () => {
   test("test_w7_earliest_expiry_uses_merged_keyid_view", () => {
     const now = Date.now();
-    const dbFile = process.env.GO_POOL_DB!;
+    const dbFile = W7_POOL;
+    process.env.GO_POOL_DB = W7_POOL; // afterEach deleted the env — re-pin
     const raw = new Database(dbFile);
     raw.exec(`CREATE TABLE IF NOT EXISTS go_key_pool (idx INTEGER PRIMARY KEY, dead_until INTEGER NOT NULL DEFAULT 0, reason TEXT, marked_at INTEGER)`);
     try { raw.exec(`ALTER TABLE go_key_pool ADD COLUMN keyid TEXT`); } catch { /* exists */ }
@@ -44,7 +78,8 @@ describe("st-gi-w7-scanhighs: pool keyid-merge unification", () => {
 
   test("test_w7_mark_dead_removes_keyid_sibling_rows", () => {
     const now = Date.now();
-    const dbFile = process.env.GO_POOL_DB!;
+    const dbFile = W7_POOL;
+    process.env.GO_POOL_DB = W7_POOL; // afterEach deleted the env — re-pin
     const raw = new Database(dbFile);
     // Simulate a post-reorder duplicate: key 0's keyid also sits at idx 9.
     raw.run("INSERT OR REPLACE INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (9, ?, ?, 'ghost', ?)", [keyidFor(0), now + 9_000, now]);
