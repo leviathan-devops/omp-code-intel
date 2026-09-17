@@ -402,6 +402,10 @@ function nodeFile(targetRoot: string, node: { file: string; data?: Record<string
   return "";
 }
 
+// P1.2.2 (W2 gi-containment): test-seam export — the containment law of this
+// helper is pinned by tests/st-gi-w2-containment.test.ts (T3).
+export const nodeFileForTest = nodeFile;
+
 function sourceLineQuote(targetRoot: string, relFile: string, line: number): string {
   try {
     const abs = path.resolve(targetRoot, relFile);
