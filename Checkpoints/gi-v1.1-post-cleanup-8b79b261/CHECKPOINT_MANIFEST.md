@@ -27,3 +27,14 @@ Date: 2026-09-17. Branch jarvis/gi-main @ 62d84ee. Follows gi-v21-seal-pre-clean
 
 ## Next
 - Run scan when ANY provider recovers → triage → v1.1 production-grade stamp
+
+## Save verification
+- SHAs: GI MATCH + trident MATCH (zero drift); rig exec-verified on same bytes
+- src 80/80 .ts; tests 20/20; dist both copies; canon single-doc; ship docs 5/5
+- Secret scan: full-tree sk-pattern grep → clean
+- Recovery: ship docs → SLOP bible → rebuild spec → TESTING_LOG → this manifest → dist SHAs
+- MODE B mutable — the scan completion lands on this lineage
+## Deploy
+- `bash scripts/scan-panel.sh` when any provider recovers
+- `./DEPLOY.sh [rig]` for rig deployment
+- The old kernel (v1.0) preserved at gi-v21-seal-pre-cleanup-3ee605dd
