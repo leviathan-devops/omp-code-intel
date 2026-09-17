@@ -297,15 +297,21 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
   const until = now + parseGoWindowMs(msg);
   try {
     const conn = db(sessionId);
-    // W7 (frozen-scan HIGH fixed): a post-reorder ghost row (same keyid at a
-    // stale positional idx) would leave TWO rows naming one key — delete the
-    // siblings before the upsert so a key owns exactly one row.
-    conn.run('DELETE FROM go_key_pool WHERE keyid = ? AND idx != ?', [keyidFor(idx), idx]);
-    conn.run(
-      `INSERT INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
-      [idx, keyidFor(idx), until, redactKeyMaterial(msg).slice(0, 300), now],
-    );
+    // W7/W8 (frozen-scan HIGH): DELETE-siblings + UPSERT ride ONE transaction —
+    // two autocommit statements left a window where the key owned zero rows.
+    conn.exec('BEGIN IMMEDIATE;');
+    try {
+      conn.run('DELETE FROM go_key_pool WHERE keyid = ? AND idx != ?', [keyidFor(idx), idx]);
+      conn.run(
+        `INSERT INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
+        [idx, keyidFor(idx), until, redactKeyMaterial(msg).slice(0, 300), now],
+      );
+      conn.exec('COMMIT;');
+    } catch (inner) {
+      try { conn.exec('ROLLBACK;'); } catch { /* already rolled back */ }
+      throw inner;
+    }
   } catch (e) {
     // V21 cleanup: a failed write returns 0 — the caller knows NO exile was
     // persisted (the old return `until` falsely signalled an exile that the

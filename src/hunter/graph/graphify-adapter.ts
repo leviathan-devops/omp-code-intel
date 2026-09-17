@@ -676,7 +676,11 @@ export class GraphifyAdapter implements GraphAdapter {
       if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const graph = normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
+    // W8 (frozen-scan HIGH fixed): containment judges against the PROFILE's
+    // resolved root — dirname(dirname(graphPath)) broke for explicit/ENV
+    // graphifyOut overrides (anchors misjudged against a base the profile
+    // never declared).
+    const graph = normalizeGraphifyGraph(raw, { root: path.resolve(profile.project.root) });
     // P1.6 (W4, frozen-scan HIGH fixed): the scope filter is wired HERE — every
     // consumer (script, session populate, CLI) inherits it; the session
     // populate used to bypass the script-side filter and leak Checkpoints rows.

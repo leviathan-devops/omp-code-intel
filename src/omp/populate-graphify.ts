@@ -165,20 +165,25 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
     let fd: number | null = null;
     try {
       fd = fs.openSync(abs, "r");
+      // W8 (frozen-scan HIGH): readSync's return is CHECKED — a short read
+      // (truncation race, EOF, signal) hashes what ARRIVED plus a marker, so
+      // a truncated read can never collide with the complete file's digest.
+      let read = 0;
       if (size <= GRAPH_HASH_WHOLE_FILE_MAX) {
         const buf = Buffer.alloc(size);
-        fs.readSync(fd, buf, 0, size, 0);
-        hash.update(`${anchor}\0${size}\0`);
-        hash.update(buf);
+        read = fs.readSync(fd, buf, 0, size, 0);
+        hash.update(`${anchor}\0${read}\0`);
+        hash.update(buf.subarray(0, read));
       } else {
         const head = Buffer.alloc(4096);
         const tail = Buffer.alloc(4096);
-        fs.readSync(fd, head, 0, 4096, 0);
-        fs.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
+        read += fs.readSync(fd, head, 0, 4096, 0);
+        read += fs.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
         hash.update(`${anchor}\0${size}\0`);
         hash.update(head);
         hash.update(tail);
       }
+      if (read < Math.min(size, GRAPH_HASH_WHOLE_FILE_MAX)) hash.update("short-read\n");
     } finally {
       if (fd !== null) fs.closeSync(fd); // P1.1.3 (W1): the fd closes on every path
     }
@@ -208,8 +213,14 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
       }
     }
   };
+  // W8 (frozen-scan HIGH): the SCOPE is part of the fingerprint — without it,
+  // two different scopes over the same tree collide on one digest.
+  hash.update(`scope=${scope.join(",")}\n`);
   for (const rel of scope) {
     const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    // W8: file-scoped entries respect excludes (parity with the dir walk).
+    const base = path.basename(target);
+    if (excludes.includes(base)) continue;
     try {
       const st = fs.statSync(target);
       if (st.isFile()) hashFile(target, rel, st.size);

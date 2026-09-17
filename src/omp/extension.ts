@@ -270,6 +270,11 @@ pi.registerTool({
     if (!verbs.includes(verb)) {
       return textResult("QUERY_INVALID: " + verb, { ok: false, error: "QUERY_INVALID" });
     }
+    // W8 (frozen-scan HIGH): twin verbs require a non-empty target — an empty
+    // one resolved to garbage or a full-table scan in the dispatcher below.
+    if (["who-calls", "impact", "safe-delete", "gate"].includes(verb) && String(p.target ?? "").trim() === "") {
+      return textResult(`QUERY_INVALID: verb '${verb}' requires a non-empty target`, { ok: false, error: "QUERY_INVALID" });
+    }
     let callerId = "omp-default-session";
     if (ctx && typeof ctx === "object" && "sessionID" in ctx && typeof (ctx as { sessionID?: unknown }).sessionID === "string" && String((ctx as { sessionID: string }).sessionID).length > 0) {
       callerId = String((ctx as { sessionID: string }).sessionID);

@@ -147,8 +147,40 @@ export function applyTypedDdl(db: Database): void {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (stmt.includes("CREATE UNIQUE INDEX") && /UNIQUE constraint failed/i.test(msg)) {
-        console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${msg.slice(0, 120)}`);
-        continue;
+        // W8 (frozen-scan HIGH fixed): deferral no longer leaves the store
+        // permanently unconstrained — dedup the legacy live duplicates
+        // (tombstone all but the newest row per duplicate group), then RETRY
+        // the index once. The store regains its invariant on first open.
+        try {
+          // Parse the index's table + column list, tombstone every live row
+          // that is NOT the oldest row of its unique-key group, then retry.
+          const on = /ON\s+([\w_]+)\s*\(([^)]+)\)/i.exec(stmt);
+          if (on) {
+            const table = on[1]!;
+            const cols = on[2]!.split(",").map((c) => c.trim()).filter((c) => c.length > 0);
+            const groupBy = cols.join(", ");
+            db.run(
+              `UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
+                 SELECT rowid FROM ${table} t
+                 WHERE t.superseded_run IS NULL
+                   AND t.rowid NOT IN (
+                     SELECT MIN(rowid) FROM ${table}
+                     WHERE superseded_run IS NULL
+                     GROUP BY ${groupBy}
+                   )
+               )`,
+            );
+          }
+        } catch { /* dedup best-effort — the retry below decides */ }
+        try {
+          db.run(stmt);
+          console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup — ${stmt.slice(0, 80)}`);
+          continue;
+        } catch (retryErr) {
+          const rmsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${rmsg.slice(0, 120)}`);
+          continue;
+        }
       }
       throw e;
     }
