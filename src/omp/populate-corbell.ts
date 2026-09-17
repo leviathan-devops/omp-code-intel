@@ -172,7 +172,11 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1.0,
     run: runTag,
   }));
-  let db: ReturnType<typeof openTypedStore>;
+  // P1.1.1 (W1 gi-resource): db is undefined until the open succeeds — the
+  // finally MUST NOT call close on it when openTypedStore threw (the old
+  // unguarded db.close() logged "Cannot read properties of undefined" noise
+  // on every open failure, masking the real CORBELL_WRITE_FAILED reason).
+  let db: Database | undefined;
   try {
     db = openTypedStore(storePath);
     // Caller owns close (the helper never closes a caller-owned connection).
@@ -186,7 +190,9 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `CORBELL_WRITE_FAILED:${msg.slice(0, 120)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   } finally {
-    try { db.close(); } catch (closeErr) { console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`); }
+    if (db !== undefined) {
+      try { db.close(); } catch (closeErr) { console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`); }
+    }
   }
   return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped };
 }
