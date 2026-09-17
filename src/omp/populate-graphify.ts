@@ -231,7 +231,11 @@ export async function populateFromGraphifyCheckout(
   const checkoutPath = graphifyCheckoutPath(resolvedRoot);
   // H05 (qwen 33d64eca): the probe walks the PROFILE's scope — a custom-scope
   // profile must be checked against ITS file set, never the ["src"] default.
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
+  // V1.1 fix: skip freshness on FIRST RUN (no store yet — nothing to be stale)
+  const storeExists = fs.existsSync(storePath);
+  const freshness = storeExists
+    ? isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? [])
+    : { fresh: true, reason: "first-run" };
   if (!freshness.fresh) {
     return { ok: false, reason: `GRAPHIFY_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }

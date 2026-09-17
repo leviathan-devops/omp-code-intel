@@ -478,3 +478,99 @@ The full rebuild spec is at `reports/GI_KERNEL_REBUILD_DPL1_SPEC.md` (611 lines)
 - **Final gate** — one frozen scan → 0 critical / 0 high
 
 The rebuild replaces the accreted kernel with designed code. The 21 structural highs are ARCHITECTURAL — they cannot be patched away. The rebuild eliminates the patterns that generate them.
+
+---
+
+## 13. THE SCAN-CHAIN (provider fallback architecture)
+
+**Source:** `src/kernel/scan-chain.ts` (188 lines) — ported verbatim from `agent_plugin_boilerplates/free-key-pipeline-boilerplate/provider-chain.ts`
+
+### 13.1 The STALL_MS Pattern
+
+```
+export const STALL_MS = 60_000;  // no event for 60s = the stream is DEAD, not thinking
+```
+
+The stall detector watches the LLM's output stream. Every token/chunk that arrives RESETS the timer. The timer fires ONLY when no output has arrived for 60 consecutive seconds. A model that's actively generating for 20 minutes stays alive.
+
+**This replaces static wall-clock timeouts** (`--timeout N`) which kill active model runs at arbitrary deadlines.
+
+### 13.2 The 6-Rung Chain
+
+| Rung | Provider | Model | Notes |
+|---|---|---|---|
+| 0 | GO gateway | union-alpha | 262k context, the pinned primary |
+| 1 | GO gateway | muse-spark-1.3 | Previous primary, independent backend |
+| 2 | OpenRouter | laguna-s-2.1:free | Rate-limited at 1000 req/day (free tier) |
+| 3 | OpenRouter | laguna-xs-2.1:free | Same rate limit pool |
+| 4 | OpenRouter | gemma-4-31b-it:free | 262k context |
+| 5 | NVIDIA | kimi-k3 | Separate provider, independent rate limits |
+
+Each rung gets 5 retries with backoff (5s OpenRouter, 10s NVIDIA).
+
+### 13.3 The CLI Entry Point
+
+**Source:** `scripts/gi-cli.ts` (105 lines)
+
+```bash
+# Direct kernel access without going through the OMP agent:
+bun scripts/gi-cli.ts who-calls <function-name> <root-dir>
+bun scripts/gi-cli.ts impact <function-name> <root-dir>
+bun scripts/gi-cli.ts unwired x <root-dir>
+bun scripts/gi-cli.ts safe-delete <function-name> <root-dir>
+```
+
+The CLI uses the same `openTypedStore` + SQL as the OMP tools — identical results, direct access.
+
+### 13.4 The Zen-Model-Chain Skill
+
+**Location:** `~/.omp/agent/managed-skills/zen-model-chain/SKILL.md` (254 lines)
+
+Documents the two-provider-route architecture (GO gateway vs OpenRouter), the model chain, STALL_MS, the ocr wiring, the health probe, and the 8 traps (including the static-timeout anti-pattern and the relative-path requirement).
+
+---
+
+## 14. THE 12-SCAN CONVERGENCE DATA
+
+The audit trail across 12 qwen-code-audit sessions on this kernel:
+
+| # | Session | Criticals | Highs | Trigger |
+|---|---|---|---|---|
+| 1 | 1aca90d4 | 2 | 21 | First gate run |
+| 2 | 8a24ae08 | 0 | 16 | Post V16/17 fixes |
+| 3 | 33d64eca | 0 | 23 | First 7-file scan |
+| 4 | 6768692f | 1 | 22 | Post V20 fixes |
+| 5 | 108fd2de | 0 | 20 | Post fix-now |
+| 6 | 4cc25858 | 1 | 25 | Post fix-now-2 |
+| 7 | 6a860fa5 | 0 | 22 | Post cleanup wave |
+| 8 | 56d6ab5f | 1 | 26 | Ship-gate on HEAD |
+| 9 | 820f8f98 | 0 | 24 | Post ScanAndFix C1-C7 |
+| 10 | b9e653a3 | 0 | 21 | Post label validation |
+
+**Criticals: 2 → 0 (stable). Highs: 21 → 21 (convergence law).**
+
+The convergence law (EN-023): findings don't monotonically decrease because each fix wave is new code that the engine reads deeper. The count stabilizes because the ARCHITECTURAL patterns (the 5 categories in §10) regenerate findings regardless of individual patches. The only path to 0/0 is the kernel rebuild.
+
+---
+
+## 15. THE SLOP ANTI-PATTERN LEDGER
+
+From `reports/SLOP-CODING-METHOD.md` (989 lines) — the 15 patterns that produced defective code across 8 waves:
+
+| # | Pattern | Counter |
+|---|---|---|
+| P1 | Finding-driven development | Spec-driven: the build package defines done |
+| P2 | Bulk scripted editing | One edit → one re-read of the full closure |
+| P3 | Test-after theater | TDD: failing test FIRST, watch red, then green |
+| P4 | Metric inversion | Gate = product working, not audit score |
+| P5 | Monkey-patch layering | 3+ conditionals = redesign, not another patch |
+| P6 | Symptom patching | Fix the class, not the line |
+| P7 | Selective verification | Adversarial fixtures (3-dup, edges-only, cross-SCC) |
+| P8 | Refute-the-report | 2nd occurrence = design order, not a triage row |
+| P9 | Deploy-one-side | Both dists rebuilt + deployed + verified |
+| P10 | Rush-the-env | Environment issues are blockers, not detours |
+| P11 | Landing-zone blindness | Post-edit re-read mandatory |
+| P12 | Coverage-as-correctness | Tool-surface tests in the battery |
+| P13 | Instrument blame | The audit tool is never the root cause |
+| P14 | Checkpoint theater | Checkpoints verify BEHAVIOR, not just SHA |
+| P15 | Docs-as-current | Docs trail fixes, never precede them |

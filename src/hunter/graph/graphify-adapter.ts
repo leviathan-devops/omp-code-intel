@@ -459,7 +459,10 @@ export function resolveGraphifyLine(
     const n = parseLineValue(c);
     if (n !== undefined) return n;
   }
-  throw new Error(`LINELESS_NODE: no line for ${context || "graphify node"} (checked line/line_start/line_end/source_location)`);
+  // V1.1: RETURN NULL instead of throwing — the caller (populate) counts
+  // lineless nodes and skips them. Throwing aborted the entire populate
+  // on real projects with module/external references (graphify:node_fs etc).
+  return null;
 }
 
 /** Silent probe for build() passthrough: number or undefined, never throws. */
