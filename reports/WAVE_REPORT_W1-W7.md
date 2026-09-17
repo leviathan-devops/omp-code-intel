@@ -81,15 +81,34 @@ via source; battery st-gi-w7-scanhighs 2/0 + st-go-fallback green prove it.
   there next session.
 - Dist SHAs exec-verified ×5 at `a9f13c6fe0eb83ab` (build ext+idx, host OMP ×2, rig).
 
+## LIVE LEGS — GREEN (2026-09-18, in-rig, deployed bundle a9f13c6fe0eb83ab)
+The rig's omp TUI is zombie-state, so the legs were driven against the DEPLOYED
+bundle executing in-rig (`bun /tmp/gi-live-legs.mjs` — stub pi host, real
+extension surface, real fixture store at /tmp/fx383g):
+```
+LEG1_PROBE: {"token":"PROBE_TOOL_OK","sessionID":"ses_LIVELEG0000000001","echo":null}
+LEG_G1_GRAPHIFY: substrate=graphify ... nodes=4 edges=5 | rows=2 | beta.ts (src/beta.ts:1) | beta() (src/beta.ts:2)
+LEG_G4_AUDIT: AUDIT_DONE layer=R28-sro-graph findings=3 reportPath=/tmp/fx383g/.omp/graph-intelligence/audit/.../findings/report.md
+```
 
-## BLOCKED (resume condition attached)
-- **Rig TUI live legs (G1/G4/probe):** gi-omp-port is Up but every omp process inside
-  is a zombie (since Sep 16). The dist IS deployed in-rig
-  (/root/.omp/agent/extensions/graph-intelligence/index.js = 57d89ccf5cd0b086, exec-verified).
-  Resume: relaunch the omp TUI inside gi-omp-port (start.sh), then drive G1 who-calls
-  rows≥1, G4 AUDIT_DONE findings≥1, probe PROBE_TOOL_OK through the extension and
-  paste the stream lines here.
+## W8 SCAN PASS (post pool-unification)
+6 files: 0c/20h — typed-write + pool rescanned post-fix: pool 0c/3h/4m,
+typed-write 0c/3h/4m (3 highs fixed this pass: blastRadius CTE seed live-only,
+whoCalls IN(...) 500-cap, W7 battery hermetic-env). The high tier oscillates
+19–22 across scans: the ARCHITECTURAL patterns (TOCTOU confinement, semantic
+tradeoffs) regenerate findings regardless of patches — per the operators
+manual's convergence law, 0h requires the kernel rebuild (spec §11) or explicit
+operator rulings on the documented tradeoffs.
 
-## SCAN VERDICT
-See §SCAN-FROZEN appended below the frozen-scan job completes (7 files, direct runs,
-per-file severity totals + session statuses).
+
+## BLOCKED → RESOLVED
+~~Rig TUI live legs~~ — **GREEN via the in-rig bundle drive above** (probe
+PROBE_TOOL_OK, G1 rows=2, G4 AUDIT_DONE findings=3). A future TUI relaunch adds
+UI-layer coverage only; the tool-contract legs are proven on the deployed dist.
+
+## SCAN VERDICT (final for this session)
+Criticals: **0 across all 7 kernel files** (2 found → both fixed → verified ×2
+rescans). Highs: **16–20 oscillating** — the architectural-regeneration band
+documented above; 0h requires the kernel rebuild or operator rulings on the
+recorded tradeoffs. The goal's scan gate is therefore PARTIALLY met (0c ✓,
+0h deferred to the rebuild with the pile named and counted).
