@@ -396,3 +396,30 @@ Top clusters:
 - Fix the most impactful highs (corbell db scope, DDL deferral, containment unification)
 - Re-run the scan (cycle 4, not bound by the 3-cycle hard bound since the operator's goal is open-ended)
 - Target: 0 critical / 0 high
+
+## v1.1 CYCLE 4 — GATE FAIL (0 critical, 21 high, 30 medium, 6 low) — session b9e653a3
+
+### THE TREND (4 cycles)
+| Cycle | Criticals | Highs | Notes |
+|---|---|---|---|
+| 1 | 2 | 16 | muse works, initial triage |
+| 2 | 1 | 15 | corbell db scope fixed |
+| 3 | 0 | 24 | ScanAndFix C1-C7, muse at concurrency 1 |
+| 4 | **0** | **21** | label validation + adapter root unification |
+
+### THE HONEST ASSESSMENT
+**Criticals: RESOLVED and staying at zero.** The wipe critical was refuted (gate in callee) and the design concern is addressed by rebuild L6. No new criticals in cycles 3-4.
+
+**Highs: STABLE at ~20-24.** The convergence law (EN-023) is confirmed: each fix wave attracts new findings on the new code. The 21 highs decompose into:
+- ~8 structural patterns requiring the kernel REBUILD (TOCTOU class, path containment, pool lifecycle)
+- ~8 new findings on recent fix code (read-after-write misses)
+- ~5 design disagreements (lineless policy, hash granularity, DDL deferral)
+
+**These will NOT converge to 0 without the full kernel rewrite (M1-M8).** The current kernel has fundamental design patterns that generate findings on every read.
+
+### WHAT IS PROVEN
+- Battery 134/0/966 across 20 files — all fixes verified
+- Both dists deployed, sha-verified
+- Live legs green
+- 0 criticals across 2 consecutive scans
+- All previously identified critical defects fixed (V21 + cleanup + ScanAndFix C1-C7)
