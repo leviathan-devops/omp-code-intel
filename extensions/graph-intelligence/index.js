@@ -8759,10 +8759,12 @@ function nodeLine(node) {
 function nodeFile(targetRoot, node) {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
   let rel = raw.replace(/^\.\//, "");
+  if (rel.length > 0)
+    rel = path25.normalize(rel);
   if (rel && !path25.isAbsolute(rel)) {
     if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path25.sep}`))
       return "";
-    return rel;
+    return rel.split(path25.sep).join("/");
   }
   if (rel) {
     const r = path25.relative(path25.resolve(targetRoot), rel);
@@ -9105,6 +9107,20 @@ function assertGraphShape(graph) {
     throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing a nodes[] array");
   if (!Array.isArray(g.edges))
     throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing an edges[] array");
+  for (const n of g.nodes.slice(0, 32)) {
+    const row = n;
+    if (typeof row["id"] !== "string" || row["id"].length === 0) {
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string id");
+    }
+  }
+  for (const e of g.edges.slice(0, 32)) {
+    const row = e;
+    const src = row["source"] ?? row["src"];
+    const dst = row["target"] ?? row["dst"];
+    if (typeof src !== "string" || src.length === 0 || typeof dst !== "string" || dst.length === 0) {
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json edges[] element missing source/target string endpoints");
+    }
+  }
   return { nodes: g.nodes, edges: g.edges };
 }
 async function runTemplateAudit(args) {
@@ -9513,8 +9529,32 @@ function applyTypedDdl(db) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (stmt.includes("CREATE UNIQUE INDEX") && /UNIQUE constraint failed/i.test(msg)) {
-        console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) \u2014 ${msg.slice(0, 120)}`);
-        continue;
+        try {
+          const on = /ON\s+([\w_]+)\s*\(([^)]+)\)/i.exec(stmt);
+          if (on) {
+            const table = on[1];
+            const cols = on[2].split(",").map((c) => c.trim()).filter((c) => c.length > 0);
+            const groupBy = cols.join(", ");
+            db.run(`UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
+                 SELECT rowid FROM ${table} t
+                 WHERE t.superseded_run IS NULL
+                   AND t.rowid NOT IN (
+                     SELECT MIN(rowid) FROM ${table}
+                     WHERE superseded_run IS NULL
+                     GROUP BY ${groupBy}
+                   )
+               )`);
+          }
+        } catch {}
+        try {
+          db.run(stmt);
+          console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup \u2014 ${stmt.slice(0, 80)}`);
+          continue;
+        } catch (retryErr) {
+          const rmsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) \u2014 ${rmsg.slice(0, 120)}`);
+          continue;
+        }
       }
       throw e;
     }
@@ -9555,7 +9595,11 @@ function ph(n) {
   return Array.from({ length: n }, () => "?").join(", ");
 }
 function whoCallsInDb(db, name) {
-  const ids = resolveLiveIds(db, name);
+  let ids = resolveLiveIds(db, name);
+  if (ids.length > 500) {
+    console.warn(`[gi-omp] whoCalls: '${name}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit)`);
+    ids = ids.slice(0, 500);
+  }
   if (ids.length === 0)
     return { rows: 0, names: [], callers: [] };
   const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
@@ -9590,7 +9634,7 @@ function blastRadius(storePath, symbol, depth = 8) {
     if (ids.length === 0)
       return { root: symbol, depth: 0, nodes: [] };
     const rows = db.query(`WITH RECURSIVE blast(cid, depth) AS (
-         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)})
+         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)}) AND superseded_run IS NULL
          UNION
          SELECT src.canonical_id, blast.depth + 1
          FROM blast
@@ -10138,12 +10182,18 @@ import path7 from "path";
 import { execSync } from "child_process";
 import { Database as Database3 } from "bun:sqlite";
 function resolveCorbell(profile, env = process.env) {
+  const safe = (p) => {
+    if (/[^A-Za-z0-9_@%+=:,./\\-]/.test(p)) {
+      throw new Error(`CORBELL_BIN_UNSAFE: resolved binary path contains shell metacharacters: ${p.slice(0, 120)}`);
+    }
+    return p;
+  };
   const fromProfile = profile?.graph?.binaryPath;
   if (fromProfile && fromProfile.length > 0 && fs6.existsSync(fromProfile))
-    return fromProfile;
+    return safe(fromProfile);
   const fromEnv = env.CORBELL_BIN;
   if (fromEnv && fromEnv.length > 0 && fs6.existsSync(fromEnv))
-    return fromEnv;
+    return safe(fromEnv);
   const VENV_SITES = [path7.join("/home", "leviathan", "corbell-venv", "bin", "corbell"), path7.join("/", "opt", "corbell-venv", "bin", "corbell")];
   for (const candidate of VENV_SITES) {
     if (fs6.existsSync(candidate))
@@ -10937,6 +10987,22 @@ function normalizeGraphifyGraph(raw, opts) {
   }
   return { nodes, edges, communities, godNodes };
 }
+function scopeBuildToProfile(nodes, edges, root, scopeDirs) {
+  const norm = (s) => s.replace(/\/+$/, "");
+  const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  const inScope = (f) => {
+    if (f === undefined || f.length === 0)
+      return false;
+    const rel = path8.isAbsolute(f) ? path8.relative(root, f) : f.replace(/^\.\//, "");
+    if (rel.length === 0 || rel.startsWith(".."))
+      return false;
+    return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
+  };
+  const nodesIn = nodes.filter((n) => inScope(n.file));
+  const idSet = new Set(nodesIn.map((n) => n.id));
+  const edgesIn = edges.filter((e) => idSet.has(e.sourceId) && idSet.has(e.targetId));
+  return { nodes: nodesIn, edges: edgesIn, dropped: nodes.length - nodesIn.length };
+}
 var KNOWN_NODE_KINDS2 = ["class", "function", "method", "module", "stage", "rule", "file"];
 function graphifyKindToNodeKind(rawType, node) {
   const key = String(rawType ?? "").toLowerCase().trim();
@@ -11254,25 +11320,28 @@ class GraphifyAdapter {
         throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const graph = normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
-    if (graph.nodes.length === 0) {
-      throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
+    const graph = normalizeGraphifyGraph(raw, { root: path8.resolve(profile.project.root) });
+    const scopeDirs = profile.graph?.scope ?? ["src"];
+    const projected = projectGraphifyGraph(graph, root);
+    const filtered = scopeBuildToProfile(projected.nodes, projected.edges, root, scopeDirs);
+    if (filtered.dropped > 0) {
+      tridentLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
     }
-    const { nodes, edges } = projectGraphifyGraph(graph, root);
-    if (nodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero nodes (graph.json at ${graphPath} carries no nodes; keys=${Object.keys(raw).slice(0, 8).join(",")})`);
+    const { nodes: scopedNodes, edges: scopedEdges } = filtered;
+    if (scopedNodes.length === 0) {
+      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${scopeDirs.join(",")})`);
     }
-    this.cachedNodes = nodes;
-    this.cachedEdges = edges;
+    this.cachedNodes = scopedNodes;
+    this.cachedEdges = scopedEdges;
     this.cachedRaw = graph;
     this.built = true;
     this.reindex();
     return {
-      nodes,
-      edges,
+      nodes: scopedNodes,
+      edges: scopedEdges,
       durationMs: Date.now() - t0,
       adapter: "graphify",
-      lineage: countLineage2(nodes, edges),
+      lineage: countLineage2(scopedNodes, scopedEdges),
       command: "graphify extract --code-only --no-cluster"
     };
   }
@@ -11332,14 +11401,18 @@ class GraphifyAdapter {
     if (graph.nodes.length === 0) {
       throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
     }
-    const { nodes, edges } = projectGraphifyGraph(graph, root);
+    const raw = projectGraphifyGraph(graph, root);
+    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, this.profile.graph?.scope ?? ["src"]);
+    if (filtered.dropped > 0) {
+      tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
+    }
     this.lastGraphPath = graphPath;
-    this.cachedNodes = nodes;
-    this.cachedEdges = edges;
+    this.cachedNodes = filtered.nodes;
+    this.cachedEdges = filtered.edges;
     this.cachedRaw = graph;
     this.built = true;
     this.reindex();
-    return { nodes, edges, graph };
+    return { nodes: filtered.nodes, edges: filtered.edges, graph };
   }
   chain(id) {
     this.ensureBuilt();
@@ -11558,20 +11631,24 @@ function hashSourceTree(root, scope, excludes, budgetN) {
     let fd = null;
     try {
       fd = fs8.openSync(abs, "r");
+      let read = 0;
       if (size <= GRAPH_HASH_WHOLE_FILE_MAX) {
         const buf = Buffer.alloc(size);
-        fs8.readSync(fd, buf, 0, size, 0);
-        hash.update(`${anchor}\x00${size}\x00`);
-        hash.update(buf);
+        read = fs8.readSync(fd, buf, 0, size, 0);
+        hash.update(`${anchor}\x00${read}\x00`);
+        hash.update(buf.subarray(0, read));
       } else {
         const head = Buffer.alloc(4096);
         const tail = Buffer.alloc(4096);
-        fs8.readSync(fd, head, 0, 4096, 0);
-        fs8.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
+        read += fs8.readSync(fd, head, 0, 4096, 0);
+        read += fs8.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
         hash.update(`${anchor}\x00${size}\x00`);
         hash.update(head);
         hash.update(tail);
       }
+      if (read < Math.min(size, GRAPH_HASH_WHOLE_FILE_MAX))
+        hash.update(`short-read
+`);
     } finally {
       if (fd !== null)
         fs8.closeSync(fd);
@@ -11605,12 +11682,20 @@ function hashSourceTree(root, scope, excludes, budgetN) {
         try {
           const stat = fs8.statSync(path9.join(dir, entry.name));
           hashFile(path9.join(dir, entry.name), `${prefix}${entry.name}`, stat.size);
-        } catch {}
+        } catch {
+          hash.update(`skip:${prefix}${entry.name}
+`);
+        }
       }
     }
   };
+  hash.update(`scope=${scope.join(",")}
+`);
   for (const rel of scope) {
     const target = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    const base = path9.basename(target);
+    if (excludes.includes(base))
+      continue;
     try {
       const st = fs8.statSync(target);
       if (st.isFile())
@@ -11773,8 +11858,10 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
     return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  const materializeRows = validRows.length > MAX_WARM_ROWS ? validRows.slice(0, MAX_WARM_ROWS) : validRows;
-  const materializeSkipped = skippedInvalid + (validRows.length - materializeRows.length);
+  const sortedValid = [...validRows].sort((a, b) => a.canonical_id.localeCompare(b.canonical_id));
+  const materializeRows = sortedValid.length > MAX_WARM_ROWS ? sortedValid.slice(0, MAX_WARM_ROWS) : sortedValid;
+  const materializeSkipped = skippedInvalid + (sortedValid.length - materializeRows.length);
+  const keptIds = new Set(materializeRows.map((r) => r.canonical_id));
   const nodeRows = materializeRows.map((r) => ({
     canonicalId: r.canonical_id,
     kind: r.kind,
@@ -11785,7 +11872,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   }));
   let edgeSkipped = 0;
   const validEdges = edges.filter((e) => {
-    const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0 && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0 && ["calls", "traces-to", "imports"].includes(e.predicate);
+    const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0 && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0 && ["calls", "traces-to", "imports"].includes(e.predicate) && keptIds.has(e.src_canonical) && keptIds.has(e.dst_canonical);
     if (!ok)
       edgeSkipped += 1;
     return ok;
@@ -16546,8 +16633,12 @@ function registerGiOmpTools(pi, cwdOf) {
           clearGiRegistry();
           return textResult2("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
         } catch (e) {
-          const err = e;
-          const code = "code" in err ? String(err.code) : "GI_CLEAR_REFUSED";
+          let code = "GI_CLEAR_REFUSED";
+          if (e !== null && typeof e === "object" && "code" in e) {
+            const c = e.code;
+            if (typeof c === "string" && c.length > 0)
+              code = c;
+          }
           return textResult2(`${code}: ${String(e)}`, { ok: false, error: code });
         }
       }
@@ -16577,6 +16668,9 @@ function registerGiOmpTools(pi, cwdOf) {
       const verbs = ["who-calls", "blast-radius", "would-break", "unwired", "chain", "impact", "safe-delete", "gate", "verify", "must-implement", "rule", "violations", "consistency"];
       if (!verbs.includes(verb)) {
         return textResult2("QUERY_INVALID: " + verb, { ok: false, error: "QUERY_INVALID" });
+      }
+      if (["who-calls", "impact", "safe-delete", "gate"].includes(verb) && String(p.target ?? "").trim() === "") {
+        return textResult2(`QUERY_INVALID: verb '${verb}' requires a non-empty target`, { ok: false, error: "QUERY_INVALID" });
       }
       let callerId = "omp-default-session";
       if (ctx && typeof ctx === "object" && "sessionID" in ctx && typeof ctx.sessionID === "string" && String(ctx.sessionID).length > 0) {
@@ -16672,12 +16766,11 @@ function registerGiOmpTools(pi, cwdOf) {
       const template = templateByLayerId(layerId);
       if (!template) {
         return textResult2(`GI_AUDIT_NOT_WIRED: HUNTER_TEMPLATE_INVALID: unknown template '${layerId}' | ripwire: engine-binding=auditor template=invalid`, {
-          ok: false,
           error: "GI_AUDIT_NOT_WIRED",
           cause: "HUNTER_TEMPLATE_INVALID"
         });
       }
-      const ledgerDir = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit", `${layerId}-${Date.now()}`);
+      const ledgerDir = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit", `${layerId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {
