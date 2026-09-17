@@ -192,15 +192,10 @@ function readDeadUntil(sessionId?: string): number[] {
     // positional slot, across reloads/reorders. Legacy rows (keyid NULL, or a
     // pre-C5 12-char plaintext prefix that can never equal a 16-hex
     // fingerprint) still match by idx.
-    // C6b: on duplicate keyid rows keep MAX(dead_until) explicitly (never
-    // last-write-wins), so a collision can only over-exile, never under-exile.
-    const byKeyid = new Map<string, number>();
-    for (const r of rows) {
-      if (!r.keyid) continue;
-      const prev = byKeyid.get(r.keyid);
-      if (prev === undefined || r.dead_until > prev) byKeyid.set(r.keyid, r.dead_until);
-    }
-    const byIdx = new Map(rows.map((r) => [r.idx, r.dead_until]));
+    // C6b + W7: the ONE keyid-MAX merge (shared helper below) — readDeadUntil
+    // AND goEarliestDeadIdx both consume it, so the earliest-expiry hint can
+    // never disagree with the per-key dead-state.
+    const { byKeyid, byIdx } = mergedDeadViews(rows);
     return GO_KEYS.map((k, i) => {
       const kid = createHash('sha256').update(k).digest('hex').slice(0, 16);
       if (byKeyid.has(kid)) return byKeyid.get(kid) as number;
@@ -211,6 +206,30 @@ function readDeadUntil(sessionId?: string): number[] {
     console.error('[go-key-pool] read degraded to all-alive:', e instanceof Error ? e.message : String(e));
     return GO_KEYS.map(() => 0);
   }
+}
+
+// W7 (frozen-scan HIGH fixed): the ONE keyid-MAX merge — readDeadUntil AND
+// goEarliestDeadIdx both consume this view, so the earliest-expiry hint can
+// never disagree with the per-key dead-state (the old raw-row MIN in
+// goEarliestDeadIdx let a stale duplicate row win the hint).
+function mergedDeadViews(rows: Array<{ idx: number; keyid: string | null; dead_until: number }>): { byKeyid: Map<string, number>; byIdx: Map<number, number> } {
+  const byKeyid = new Map<string, number>();
+  for (const r of rows) {
+    if (typeof r.keyid !== 'string' || r.keyid.length === 0) continue;
+    const prev = byKeyid.get(r.keyid);
+    if (prev === undefined || r.dead_until > prev) byKeyid.set(r.keyid, r.dead_until);
+  }
+  const byIdx = new Map<number, number>();
+  for (const r of rows) {
+    if (typeof r.idx !== 'number') continue;
+    // A KEYED row never feeds the positional view — the legacy fallback is
+    // only for keyid-less rows (a keyed row at a stale idx belongs to its
+    // key, not to whoever now sits at that position).
+    if (typeof r.keyid === 'string' && r.keyid.length > 0) continue;
+    const prev = byIdx.get(r.idx);
+    if (prev === undefined || r.dead_until > prev) byIdx.set(r.idx, r.dead_until);
+  }
+  return { byKeyid, byIdx };
 }
 
 // THE ONLY DECISION: is this key's timeout still running?
@@ -277,7 +296,12 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
   const msg = String(err ?? '');
   const until = now + parseGoWindowMs(msg);
   try {
-    db(sessionId).run(
+    const conn = db(sessionId);
+    // W7 (frozen-scan HIGH fixed): a post-reorder ghost row (same keyid at a
+    // stale positional idx) would leave TWO rows naming one key — delete the
+    // siblings before the upsert so a key owns exactly one row.
+    conn.run('DELETE FROM go_key_pool WHERE keyid = ? AND idx != ?', [keyidFor(idx), idx]);
+    conn.run(
       `INSERT INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
       [idx, keyidFor(idx), until, redactKeyMaterial(msg).slice(0, 300), now],
@@ -291,9 +315,6 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
   }
   return until;
 }
-
-// A stray success clears a stale timeout (trust the observation over the
-// estimate). Returns true only if a row actually transitioned dead→alive.
 export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?: string): boolean {
   if (!Number.isInteger(idx) || idx < 0 || idx >= GO_KEYS.length) return false;
   try {
@@ -347,32 +368,26 @@ export function classifyGoError(err: string): GoErrorClass {
 // ═══ THE EARLIEST-EXPIRY RESOLVER + INDEX RESOLVER (mirrored from the canon
 // 2026-09-13 — consumers must import these, never re-declare the SELECT) ═══
 export function goEarliestDeadIdx(sessionId?: string, now: number = Date.now()): { idx: number; expiryKnown: boolean; dropped: number } {
-  // C7 (qwen d5d5c883 [7]): KEYID-first — the same resolution readDeadUntil
-  // uses. A row names its key (keyid); the returned idx is the key's CURRENT
-  // slot in GO_KEYS, never the stale positional row. Legacy rows (no keyid,
-  // or a pre-C5 plaintext prefix) fall back to the positional slot.
+  // C7 + W7 (frozen-scan HIGH fixed): the hint consumes the SAME keyid-MAX
+  // merge as readDeadUntil — a stale duplicate row can no longer win the
+  // earliest-expiry slot with a window the merged view has already superseded.
   try {
     const rows = db(sessionId).query('SELECT idx, keyid, dead_until FROM go_key_pool').all() as Array<{ idx: number; keyid: string | null; dead_until: number }>;
-    const slotOf = new Map<string, number>();
-    GO_KEYS.forEach((k, i) => slotOf.set(createHash('sha256').update(k).digest('hex').slice(0, 16), i));
+    const { byKeyid, byIdx } = mergedDeadViews(rows);
     let dropped = 0;
     let best = -1;
     let bestUntil = Number.MAX_SAFE_INTEGER;
     let seen = 0;
-    for (const r of rows) {
-      if (typeof r.dead_until !== 'number' || !Number.isFinite(r.dead_until)) { dropped++; continue; }
-      // V21 cleanup: an EXPIRED mark (dead_until <= now) means the key is
-      // alive again — it does not compete for earliest-expiry.
-      if (r.dead_until <= now) continue;
-      let slot: number | undefined;
-      if (typeof r.keyid === 'string' && r.keyid.length > 0 && slotOf.has(r.keyid)) {
-        slot = slotOf.get(r.keyid);
-      } else if (Number.isInteger(r.idx) && (r.idx as number) >= 0 && (r.idx as number) < GO_KEYS.length) {
-        slot = r.idx as number;
-      } else { dropped++; continue; }
+    GO_KEYS.forEach((k, i) => {
+      const kid = createHash('sha256').update(k).digest('hex').slice(0, 16);
+      const merged = byKeyid.get(kid) ?? byIdx.get(i);
+      if (typeof merged !== 'number' || !Number.isFinite(merged)) return;
+      // An EXPIRED mark (dead_until <= now) means the key is alive again —
+      // it does not compete for earliest-expiry.
+      if (merged <= now) return;
       seen++;
-      if (r.dead_until < bestUntil) { bestUntil = r.dead_until; best = slot as number; }
-    }
+      if (merged < bestUntil) { bestUntil = merged; best = i; }
+    });
     return { idx: best, expiryKnown: seen > 0, dropped };
   } catch {
     return { idx: -1, expiryKnown: false, dropped: 0 };
@@ -387,8 +402,6 @@ export function resolveGoKeyIndex(now: number = Date.now(), sessionId?: string):
   const r = goEarliestDeadIdx(sessionId, now);
   return { idx: r.idx, alive: false, expiryKnown: r.expiryKnown };
 }
-//
-// ═══ §FALLBACK — OPENROUTER-ONLY FALLBACK CHAIN (operator order 2026-09-15) ═══
 // LAW (verbatim operator constraint): ONLY OPENROUTER. DO NOT WIRE INFERX OR
 // NVIDIA IN THE CHAIN. Mechanics = the ORIGINAL fallback chain mechanics from
 // the free-key-pipeline boilerplate (KNOWLEDGE_LIBRARY/
