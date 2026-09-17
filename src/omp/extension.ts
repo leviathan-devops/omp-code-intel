@@ -230,8 +230,13 @@ pi.registerTool({
         clearGiRegistry();
         return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
       } catch (e) {
-        const err = e as GiClearError;
-        const code = "code" in err ? String(err.code) : "GI_CLEAR_REFUSED";
+        // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
+        // narrow with in/typeof instead (checked surface kept small).
+        let code = "GI_CLEAR_REFUSED";
+        if (err !== null && typeof err === "object" && "code" in err) {
+          const c: unknown = err.code;
+          if (typeof c === "string" && c.length > 0) code = c;
+        }
         return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
       }
     }
@@ -398,12 +403,13 @@ createBugHuntTool(pi, { cwdOf });
       const template = templateByLayerId(layerId);
       if (!template) {
         return textResult(`GI_AUDIT_NOT_WIRED: HUNTER_TEMPLATE_INVALID: unknown template '${layerId}' | ripwire: engine-binding=auditor template=invalid`, {
-          ok: false,
           error: "GI_AUDIT_NOT_WIRED",
           cause: "HUNTER_TEMPLATE_INVALID",
         });
       }
-      const ledgerDir = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit", `${layerId}-${Date.now()}`);
+      // frozen-scan HIGH: Date.now() alone collides on concurrent audits —
+      // add an entropy suffix.
+      const ledgerDir = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit", `${layerId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {

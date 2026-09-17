@@ -199,7 +199,12 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
         try {
           const stat = fs.statSync(path.join(dir, entry.name));
           hashFile(path.join(dir, entry.name), `${prefix}${entry.name}`, stat.size);
-        } catch { /* unreadable — skip */ }
+        } catch {
+          // frozen-scan HIGH: an unreadable file is NOT silently omitted — the
+          // skip is folded into the digest so two trees differing only in
+          // unreadable files can never hash equal (fail-open digest fixed).
+          hash.update(`skip:${prefix}${entry.name}\n`);
+        }
       }
     }
   };

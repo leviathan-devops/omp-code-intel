@@ -145,8 +145,14 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
     return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
-  const materializeRows = validRows.length > MAX_WARM_ROWS ? validRows.slice(0, MAX_WARM_ROWS) : validRows;
-  const materializeSkipped = skippedInvalid + (validRows.length - materializeRows.length);
+  // W3-scan highs fixed: (a) the cap is DETERMINISTIC (sorted by canonical_id
+  // before slicing — the old arbitrary slice biased by SQLite row order);
+  // (b) edges keep referential integrity — an edge whose endpoint was
+  // dropped/invalid is skipped, never a dangling row in the store.
+  const sortedValid = [...validRows].sort((a, b) => a.canonical_id.localeCompare(b.canonical_id));
+  const materializeRows = sortedValid.length > MAX_WARM_ROWS ? sortedValid.slice(0, MAX_WARM_ROWS) : sortedValid;
+  const materializeSkipped = skippedInvalid + (sortedValid.length - materializeRows.length);
+  const keptIds = new Set(materializeRows.map((r) => r.canonical_id));
 
     // Write into the session store, superseding the previous run's rows.
   // H02+H03 (qwen 33d64eca): supersede + insert + meta ride ONE transaction
@@ -172,7 +178,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   const validEdges = edges.filter((e) => {
     const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0
       && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0
-      && ["calls", "traces-to", "imports"].includes(e.predicate);
+      && ["calls", "traces-to", "imports"].includes(e.predicate)
+      && keptIds.has(e.src_canonical) && keptIds.has(e.dst_canonical); // both endpoints survived the node pass
     if (!ok) edgeSkipped += 1;
     return ok;
   });

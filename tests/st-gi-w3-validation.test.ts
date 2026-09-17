@@ -89,7 +89,9 @@ describe("st-gi-w3-validation: P1.3/P1.4/P1.5 fixes + pins", () => {
     const mod = require("../src/hydra/auditor.ts") as { validateGraphShapeForTest?: (g: unknown) => void };
     expect(typeof mod.validateGraphShapeForTest).toBe("function");
     expect(() => mod.validateGraphShapeForTest!({ nodes: [{ id: "x", label: "x" }], edges: [{ source: "x", target: "y" }] })).not.toThrow();
-    expect(() => mod.validateGraphShapeForTest!({ nodes: [{ id: "" }], edges: [{ source: "x" }] })).toThrow(/shape/i);
+    // The prod gate now carries the element checks — its named rejection is
+    // GRAPHIFY_EXTRACT_FAILED with the missing-field detail.
+    expect(() => mod.validateGraphShapeForTest!({ nodes: [{ id: "" }], edges: [{ source: "x" }] })).toThrow(/missing non-empty string id/i);
   });
 
   test("test_w3_ddl_deferral_precise_rethrows_other_errors", async () => {

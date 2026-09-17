@@ -781,6 +781,24 @@ function assertGraphShape(graph: unknown): { nodes: unknown[]; edges: unknown[] 
   const g = graph as { nodes?: unknown; edges?: unknown };
   if (!Array.isArray(g.nodes)) throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing a nodes[] array");
   if (!Array.isArray(g.edges)) throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json missing an edges[] array");
+  // P1.3.3 wiring (W3 + frozen-scan HIGH): the PROD gate spot-checks ELEMENTS
+  // too (first 32 rows: id / source+target) — array-level checks alone let
+  // garbage rows TypeError mid-sweep. Same contract as the
+  // validateGraphShapeForTest seam.
+  for (const n of (g.nodes as unknown[]).slice(0, 32)) {
+    const row = n as Record<string, unknown>;
+    if (typeof row["id"] !== "string" || (row["id"] as string).length === 0) {
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string id");
+    }
+  }
+  for (const e of (g.edges as unknown[]).slice(0, 32)) {
+    const row = e as Record<string, unknown>;
+    const src = row["source"] ?? row["src"];
+    const dst = row["target"] ?? row["dst"];
+    if (typeof src !== "string" || src.length === 0 || typeof dst !== "string" || dst.length === 0) {
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json edges[] element missing source/target string endpoints");
+    }
+  }
   return { nodes: g.nodes, edges: g.edges };
 }
 

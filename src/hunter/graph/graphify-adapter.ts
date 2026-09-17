@@ -677,27 +677,30 @@ export class GraphifyAdapter implements GraphAdapter {
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
     const graph = normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
-    if (graph.nodes.length === 0) {
-      throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
+    // P1.6 (W4, frozen-scan HIGH fixed): the scope filter is wired HERE — every
+    // consumer (script, session populate, CLI) inherits it; the session
+    // populate used to bypass the script-side filter and leak Checkpoints rows.
+    const scopeDirs = profile.graph?.scope ?? ["src"];
+    const projected = projectGraphifyGraph(graph, root);
+    const filtered = scopeBuildToProfile(projected.nodes, projected.edges, root, scopeDirs);
+    if (filtered.dropped > 0) {
+      tridentLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
     }
-    // Project onto GraphNode/GraphEdge via the shared helper. LINES STAY
-    // PASSTHROUGH: a node with no line anywhere keeps line undefined (the
-    // hunter map-branch owns LINELESS_NODE).
-    const { nodes, edges } = projectGraphifyGraph(graph, root);
-    if (nodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero nodes (graph.json at ${graphPath} carries no nodes; keys=${Object.keys(raw).slice(0, 8).join(",")})`);
+    const { nodes: scopedNodes, edges: scopedEdges } = filtered;
+    if (scopedNodes.length === 0) {
+      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${scopeDirs.join(",")})`);
     }
-    this.cachedNodes = nodes;
-    this.cachedEdges = edges;
+    this.cachedNodes = scopedNodes;
+    this.cachedEdges = scopedEdges;
     this.cachedRaw = graph;
     this.built = true;
     this.reindex();
     return {
-      nodes,
-      edges,
+      nodes: scopedNodes,
+      edges: scopedEdges,
       durationMs: Date.now() - t0,
       adapter: "graphify",
-      lineage: countLineage(nodes, edges),
+      lineage: countLineage(scopedNodes, scopedEdges),
       command: "graphify extract --code-only --no-cluster",
     };
   }
@@ -764,14 +767,19 @@ export class GraphifyAdapter implements GraphAdapter {
     if (graph.nodes.length === 0) {
       throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
     }
-    const { nodes, edges } = projectGraphifyGraph(graph, root);
+    // P1.6: the sync path inherits the scope filter (parity with build()).
+    const raw = projectGraphifyGraph(graph, root);
+    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, this.profile.graph?.scope ?? ["src"]);
+    if (filtered.dropped > 0) {
+      tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
+    }
     this.lastGraphPath = graphPath;
-    this.cachedNodes = nodes;
-    this.cachedEdges = edges;
+    this.cachedNodes = filtered.nodes;
+    this.cachedEdges = filtered.edges;
     this.cachedRaw = graph;
     this.built = true;
     this.reindex();
-    return { nodes, edges, graph };
+    return { nodes: filtered.nodes, edges: filtered.edges, graph };
   }
 
   chain(id: string): ChainStep[] {
@@ -784,6 +792,7 @@ export class GraphifyAdapter implements GraphAdapter {
       arr.push(e);
       bySource.set(e.sourceId, arr);
     }
+
     const steps: ChainStep[] = [];
     const seen = new Set<string>([start]);
     const queue = [start];
