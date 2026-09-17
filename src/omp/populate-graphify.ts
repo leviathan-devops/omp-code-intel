@@ -162,12 +162,19 @@ function computeSourceHash(root: string, scope: string[], excludes: string[]): s
         budget.n--;
         try {
           const stat = fs.statSync(path.join(dir, entry.name));
-          const fd = fs.openSync(path.join(dir, entry.name), "r");
-          const buf = Buffer.alloc(Math.min(4096, stat.size));
-          fs.readSync(fd, buf, 0, buf.length, 0);
-          fs.closeSync(fd);
-          hash.update(`${prefix}${entry.name}\0${stat.size}\0`);
-          hash.update(buf);
+          // P1.1.3 (W1 gi-resource): the fd is open between openSync and the
+          // read — a read fault (EIO) used to leak it: the swallow-catch below
+          // skipped closeSync. try/finally owns the close on every path.
+          let fd: number | null = null;
+          try {
+            fd = fs.openSync(path.join(dir, entry.name), "r");
+            const buf = Buffer.alloc(Math.min(4096, stat.size));
+            fs.readSync(fd, buf, 0, buf.length, 0);
+            hash.update(`${prefix}${entry.name}\0${stat.size}\0`);
+            hash.update(buf);
+          } finally {
+            if (fd !== null) fs.closeSync(fd);
+          }
         } catch { /* unreadable — skip */ }
       }
     }
