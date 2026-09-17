@@ -21,7 +21,7 @@ GI-OMP is an OMP plugin that provides structural code intelligence. It reads sou
 +------------------------------------------------------------------+
 |  SOURCE CODE (TypeScript files on disk)                           |
 |     |                                                             |
-|     |  EXTRACT (AST parse or regex scan)                          |
+|     | EXTRACT (external parse engines; regex = fallback only)       |
 |     v                                                             |
 |  WARM GRAPH (graph.json — 11.8MB for this project)                |
 |     |                                                             |
@@ -43,20 +43,23 @@ There are three independent paths for populating the graph store. Each has diffe
 
 ### 2.1 CORBELL — the PRIMARY and DEFAULT substrate
 
-**What it is:** the parse-grade indexer. It reads a pre-built SQLite checkout that was created by `scripts/corbell-build.ts`.
+**What it is:** a thin TypeScript adapter over the REAL external Corbell engine — the `corbell` Python CLI (pip package `corbell`, source github.com/Corbell-AI/Corbell), which builds a parse-grade method graph with tree-sitter. NOT a regex scanner. The regex scanner is the FALLBACK (§2.3).
 
-**How it works:**
-1. `scripts/corbell-build.ts` runs the corbell indexer (regex-based export/import scanner)
-2. The indexer writes a warm checkout to `<root>/.omp/graph-intelligence/corbell-checkout/store.sqlite`
-3. At query time, `populateFromCorbellCheckout()` reads the warm checkout and populates the session store
+**How it works (the full chain, blast-audit-verified 2026-09-18):**
+1. `resolveCorbell()` (`src/hunter/graph/corbell-adapter.ts`) resolves the binary: `profile.graph.binaryPath` → `CORBELL_BIN` env → `~/corbell-venv/bin/corbell` → `/opt/corbell-venv/bin/corbell` → PATH walk, every candidate `existsSync`-gated, with a `CORBELL_BIN_UNSAFE` metacharacter refusal, else named `CORBELL_NOT_FOUND`
+2. `CorbellAdapter.build()` execs `corbell graph build --methods` in the target tree; the binary (tree-sitter method-graph extraction) writes its own SQLite store at `corbell-data/.corbell/workspace.db` (`graph_nodes` / `graph_edges`)
+3. `scripts/corbell-build.ts` shells the adapter, reads `workspace.db` (`readCorbellNodeTypes`) and projects the rows through `store-map.ts` (pure mapping, zero regex) into the warm checkout `<root>/.omp/graph-intelligence/corbell-checkout/store.sqlite`
+4. At query time, `populateFromCorbellCheckout()` copies the warm checkout rows into the session store (freshness-gated, mtime + TOCTOU baseline)
 
-**Source:** `src/omp/populate-corbell.ts:1-8` — "The parse-grade corbell checkout is the PRIMARY populate"
+**Provenance:** real parse-grade output — the fork-v143 checkout carries 2,086 live nodes / 9,386 edges (kinds: service/method/flow/class) projected from the real workspace.db; port proof: fixture nodes=3 edges=1, big-tree build durationMs=19672, 6/6 PASS (`OmpCorbellPort` checkpoint session).
 
 **Characteristics:**
-- Speed: FAST (reads a pre-built SQLite file)
-- Quality: MEDIUM (regex-based, catches exports and imports but not full call graphs)
-- Dependencies: NONE (pure TypeScript, no external binary)
-- When it fires: ALWAYS (it is the DEFAULT substrate)
+- Speed: INSTANT at query time (warm checkout read); the binary build itself is minutes-long (15–25 min on 562 files) — which is why the index is built EXPLICITLY via `scripts/corbell-build.ts` and queries only ever READ it
+- Quality: HIGH (parse-grade — method signatures, method_call call edges, flow_step traces, git coupling; NOT a regex export/import scan)
+- Dependencies: the external `corbell` binary (corbell-venv / `CORBELL_BIN` / PATH); missing binary → named `CORBELL_NOT_FOUND`
+- When it fires: ALWAYS first (the DEFAULT substrate); absent/stale/zero-rows → named `CORBELL_NOT_WARM:{absent|stale|zero-rows|…}` and the substrate demotes to §2.3
+
+**VERIFIED 2026-09-18 (blast audit, 4 independent streams):** git forensics (79-commit history — the wiring shelled the real binary from the origin commit `c3db9659`, exec target never changed), exec census (no stubs), row provenance (real workspace.db), and the live binary interface (`corbell graph build --help` matches the adapter call). The BLAST_REPORT refuted the "corbell is a regex stub" allegation on this evidence.
 
 ### 2.2 GRAPHIFY — the explicit substrate
 
@@ -64,7 +67,7 @@ There are three independent paths for populating the graph store. Each has diffe
 
 **How it works:**
 1. `scripts/graphify-build.ts` runs `graphify extract <root> --code-only --no-cluster`
-2. The graphify tool parses the TypeScript AST and produces `graphify-out/graph.json`
+2. The graphify tool parses the target tree's ASTs (multi-language) and produces `graphify-out/graph.json`
 3. At query time, `populateFromGraphifyCheckout()` reads graph.json through the GraphifyAdapter and populates the session store
 
 **Source:** `src/omp/populate-graphify.ts:1-10` — "Reads the warm graph.json through GraphifyAdapter"
@@ -118,31 +121,35 @@ populate.ts: ensureGraphPopulated()
 ### 3.1 The Schema
 
 ```sql
-CREATE TABLE nodes (
-  id            INTEGER PRIMARY KEY,
-  canonical_id  TEXT NOT NULL,        -- {filepath}:{line}:{name}
-  kind          TEXT NOT NULL,        -- Function | Class | File | Module
-  label         TEXT NOT NULL,        -- display name (NEVER used as join key)
-  file          TEXT,                 -- root-relative path
-  line          INTEGER,              -- NULL is legal (lineless nodes counted)
-  created_run   TEXT NOT NULL,
+CREATE TABLE typed_nodes (
+  id             INTEGER PRIMARY KEY,
+  canonical_id   TEXT NOT NULL,        -- the REAL identity (see §4)
+  kind           TEXT NOT NULL,        -- function | class | file | module | …
+  label          TEXT NOT NULL,        -- display name (NEVER used as join key)
+  file           TEXT,                 -- root-relative path (NULL legal for flow rows)
+  line           INTEGER,              -- NULL legal (lineless rows are counted, never invented)
+  created_run    TEXT NOT NULL,
   superseded_run TEXT                 -- NULL = live
 );
 
-CREATE TABLE edges (
-  id            INTEGER PRIMARY KEY,
-  src_canonical TEXT NOT NULL,        -- the FROM node
-  dst_canonical TEXT NOT NULL,        -- the TO node
-  predicate     TEXT NOT NULL,        -- calls | imports | traces-to (closed set)
-  evidence      TEXT NOT NULL DEFAULT '',
-  confidence    REAL NOT NULL DEFAULT 1.0,
-  created_run   TEXT NOT NULL,
+CREATE TABLE typed_edges (
+  id             INTEGER PRIMARY KEY,
+  src_canonical  TEXT NOT NULL,        -- the FROM node (canonical_id)
+  dst_canonical  TEXT NOT NULL,        -- the TO node (canonical_id)
+  predicate      TEXT NOT NULL,        -- calls | imports | traces-to (closed set)
+  evidence_quote TEXT NOT NULL DEFAULT '',
+  confidence     REAL NOT NULL DEFAULT 1.0,
+  created_run    TEXT NOT NULL,
   superseded_run TEXT
 );
 
--- Partial UNIQUE indexes (only on live rows):
-CREATE UNIQUE INDEX uq_nodes_live ON nodes(canonical_id) WHERE superseded_run IS NULL;
-CREATE UNIQUE INDEX uq_edges_live ON edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL;
+-- Partial UNIQUE indexes (only on live rows) — names match typed-write.ts:
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tn_live_canonical ON typed_nodes(canonical_id) WHERE superseded_run IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL;
+
+-- The substrate ledger (which engine populated this store):
+CREATE TABLE gi_meta (key TEXT PRIMARY KEY, value TEXT);
+-- key='substrate' ∈ {corbell, graphify, indexer-fallback} — the masquerade guard.
 ```
 
 ### 3.2 The Tombstone Discipline
@@ -152,22 +159,27 @@ CREATE UNIQUE INDEX uq_edges_live ON edges(src_canonical, dst_canonical, predica
 ```
 BEFORE: node {canonical_id: "src:42:myFunc", created_run: "run-1", superseded_run: NULL}
 REPOPULATE with run-2:
-  UPDATE nodes SET superseded_run = 'run-2' WHERE canonical_id = "src:42:myFunc" AND superseded_run IS NULL
-  INSERT INTO nodes VALUES (new_id, "src:42:myFunc", ..., 'run-2', NULL)
+  UPDATE typed_nodes SET superseded_run = 'run-2' WHERE canonical_id = "src:42:myFunc" AND superseded_run IS NULL
+  INSERT INTO typed_nodes VALUES (new_id, "src:42:myFunc", ..., 'run-2', NULL)
 
 AFTER:  row 1: {canonical_id: "src:42:myFunc", created_run: "run-1", superseded_run: "run-2"}  ← tombstoned
         row 2: {canonical_id: "src:42:myFunc", created_run: "run-2", superseded_run: NULL}     ← live
-```
 
 **Why:** you can always answer "what did this node look like before the last change?" by querying tombstoned rows. History is never destroyed.
 
 ### 3.3 The supersedeThenInsert Helper
 
-All writes go through `supersedeThenInsert()` in `populate-graphify.ts`. This function:
-1. Refuses to run outside a transaction (fail-closed `GI_TXN_REQUIRED`)
+The session-store writer is `supersedeThenInsert()` in `populate-graphify.ts`. This function:
+1. Refuses to run inside an existing transaction (fail-closed `GI_TXN_REQUIRED`)
 2. Per-table tombstone guard (nodes-only batch doesn't wipe live edges)
-3. Inserts new rows inside the same transaction
+3. Inserts new rows inside the same BEGIN IMMEDIATE/COMMIT transaction
 4. Caller owns the connection close
+
+**Every writer rides the same one-transaction discipline (blast-audit verified):**
+- `supersedeThenInsert()` — populate-graphify.ts (session + checkout writes)
+- `writeCorbellCheckout()` — store-map.ts (corbell leg; the BLAST-audit critical fixed its split supersede/insert)
+- `applyTypedDdl()` deferral — typed-write.ts: on legacy duplicates it tombstones all but the oldest row per unique-key group and RETRIES the index (the store regains its invariant on first open)
+- `writeGraphifyCheckout()` — populate-graphify.ts (the inspection-checkout writer)
 
 ---
 
@@ -218,29 +230,31 @@ This is the ONLY place `label` is used as a query key. It returns ALL live nodes
 | **WARM** | Graph built, matches source | Content hash check passes |
 | **STALE** | Graph built, source changed | Content hash mismatch → GRAPHIFY_NOT_WARM |
 
-### 5.2 The Content-Hash Freshness Check
+### 5.2 The Content-Hash Freshness Check (graphify leg)
 
-At graph-build time:
-1. Walk all source files in the scope
-2. For each file: hash the path + size + first 4KB of content
-3. Combine all hashes into a single SHA-256
-4. Write to a `.graph_hash` sidecar file next to graph.json
+At graph-build time (W8 spec — `hashSourceTree()` in `populate-graphify.ts`):
+1. The SCOPE is part of the fingerprint (`scope=src\n` anchors the digest)
+2. Files ≤64KB hash WHOLE (path + size + full content) — first-4KB-only missed tail edits
+3. Files >64KB hash head 4KB + tail 4KB + size
+4. Short reads hash what arrived + a `short-read` marker — a truncated read can never collide with the complete digest
+5. Unreadable files fold a `skip:` mark into the digest (fail-open digest fixed)
+6. Budget exhaustion (500 files) folds a `budget-exhausted` marker — a truncated walk can never equal a complete one
+7. The hex digest is written to the `.graph_hash` sidecar (path derived by `graphHashSidecarPath()` — never aliasing the graph file itself)
 
-At query time:
-1. Recompute the hash by walking the same files
-2. Compare with the stored hash
-3. Match → WARM (serve queries)
-4. Mismatch → STALE (refuse with named error + rebuild command)
+At query time: recompute → compare with the sidecar → match = fresh, differ = STALE, sidecar absent = NOT fresh (fail-closed, never a silent pass).
 
-**Source:** `src/omp/populate-graphify.ts` — `computeSourceHash()` and `isGraphifyCheckoutFreshFor()`
+**Source:** `src/omp/populate-graphify.ts` — `computeSourceHash()` / `isGraphifyCheckoutFreshFor()`; seams `computeSourceHashForTest` / `computeSourceHashWithBudget` (tests/st-gi-w3-validation.test.ts T5/T6)
 
-### 5.3 The mtime Fallback
+### 5.3 mtime Freshness — the CORBELL leg only
 
-When no `.graph_hash` sidecar exists (legacy stores), the system falls back to comparing file modification times:
-- Newest source file mtime ≤ graph mtime → fresh
-- Any source file newer than graph → stale
+The corbell checkout probe (`isCorbellCheckoutFreshFor`, populate-corbell.ts) is the mtime-based system:
+- Any indexed-class source file newer than the warm store → stale
+- Any unreadable directory → `stale-read-failed` (loud, since V21)
+- Budget exhaustion (500 entries) → `stale-budget` (loud — H01)
 
-**This is the system the 21 structural findings flag** — it has granularity issues (same-second edits) and TOCTOU windows (stat-then-read races). The rebuild replaces it with pure content-hash.
+The graphify leg does NOT fall back to mtime: no sidecar = not fresh, fail-closed.
+
+**These are the systems the structural findings flag** — same-second granularity and TOCTOU windows (stat-then-read) are inherent to mtime probing; the content-hash system (§5.2) replaced it on the graphify leg.
 
 ---
 
@@ -377,40 +391,37 @@ When ALL 6 keys are dead: fall to OpenRouter (free tier). The fallback model is 
 
 ---
 
-## 9. THE GRAPHIFY SCOPING ISSUE (known defect)
+## 9. THE GRAPHIFY SCOPING (FIXED in W4)
 
-**The bug:** `scripts/graphify-build.ts` passes the ENTIRE project root to `graphify extract`, which scans EVERYTHING — including `Checkpoints/`, `Ship_Packages/`, `reports/`, `tests/`, and even `graphify-out/` itself. This pollutes the graph with duplicate nodes from checkpoint copies.
+**The former bug:** `graphify extract` has no exclude mechanism and scans the ENTIRE target root — Checkpoints/, Ship_Packages/, reports/, tests/ rows used to flow into the typed store (duplicate-label pollution from checkpoint copies).
 
-**Why it happens:** The external graphify tool (v0.9.51) has no directory exclude mechanism. It scans whatever path you give it.
+**The fix (W4):** `scopeBuildToProfile()` (`src/hunter/graph/graphify-adapter.ts`) filters at the store boundary — it is wired into `GraphifyAdapter.build()`, `buildSync()`, AND `scripts/graphify-build.ts`, so EVERY consumer inherits it:
+- nodes whose file anchor is outside every profile scope dir are dropped (counted, WARN-logged)
+- edges survive only when BOTH endpoints survive
+- verification: `tests/st-gi-w4-scoping.test.ts` (test_w4_scoped_no_checkpoints_in_store, test_w4_edges_kept_only_when_both_endpoints_scoped)
 
-**The fix:** Scope the extraction to only the source directories (src/, or whatever the profile specifies). This requires either:
-- Extracting each scoped directory separately, or
-- Creating a temp directory with symlinks to only the scoped dirs
+Proof contract: `SELECT COUNT(*) FROM typed_nodes WHERE file LIKE '%Checkpoints%'` → 0.
 
-**Status:** NOT FIXED. This is a Phase 1 cleanup item.
+Note: the raw `graphify extract` still scans the whole root (the external CLI has no exclude flag — operator-confirmed); the filter is the store-boundary fix, not an extract-time fix.
 
 ---
 
-## 10. THE 21 STRUCTURAL FINDINGS (what the audit keeps flagging)
+## 10. THE STRUCTURAL FINDINGS — FIX STATUS (W1–W8, 2026-09-18)
 
-These are architectural design patterns in the 4,911-line kernel that generate audit findings every time the code is read. They are not individual bugs — they are CATEGORIES.
+The original 21 highs (2 criticals later) were fixed across waves W1–W3 + the blast-audit loop. All 22 spec fixes LANDED with named red→green tests; the scan loop then converged the residual pile:
 
-### Category 1: RESOURCE LIFECYCLE (6 findings)
-The kernel opens SQLite connections, file handles, and subprocesses without a single ownership model.
+| Category | Original count | Fix status |
+|---|---|---|
+| RESOURCE LIFECYCLE | 6 | FIXED (W1): corbell db scope, safeDelete single-conn (whoCallsInDb/impactInDb), fd try/finally, pool 0600, ESM import, routeGoError empty-pool |
+| PATH CONTAINMENT | 5 | FIXED (W2/W8): projection fail-closed + relative-posix anchors, nodeFile escape drop + normalize-first, extension roots canonicalized, chain containment backstop |
+| VALIDATION GAPS | 4 | FIXED (W3): corbell edge validation, shape-gate element spot-checks (prod path), applyTypedDdl dedup+retry (invariant recovered), label/edge checks |
+| FRESHNESS/HASH | 3 | FIXED (W3): whole-file/tail hash + budget marker + sidecar helper (2 scan CRITICALs killed) |
+| POLICY INCONSISTENCY | 3 | FIXED (W3): lineless skip+count unified across chain/imports/awaits/unwired/whoCalls (null OR undefined) |
+| SCOPING | 1 | FIXED (W4): scopeBuildToProfile at the store boundary, wired in script + adapter |
 
-### Category 2: PATH CONTAINMENT (5 findings)
-Three different path resolution strategies across three files. Symlinks, `../`, and absolute paths handled inconsistently.
+**The residual band (16–20 oscillating highs per scan)** is the ARCHITECTURAL remainder — TOCTOU classes, first-run mtime semantics, cycle-enumeration precision, default-allowlist breadth — each named with root cause in reports/WAVE_REPORT_W1-W7.md and BLAST_REPORT_2026-09-18.md. Per the convergence law these require the kernel rebuild (§12) or operator rulings; patch waves demonstrably cannot reach 0h (three passes of evidence).
 
-### Category 3: VALIDATION GAPS (4 findings)
-Nodes validated but edges not. Some fields checked, others not. DDL UNIQUE deferral too broad.
-
-### Category 4: FRESHNESS/HASH (3 findings)
-The content-hash system has its own edge cases (4KB truncation, 500-file budget, sidecar aliasing).
-
-### Category 5: POLICY INCONSISTENCY (3 findings)
-LINELESS rows handled differently across verbs: skip in whoCalls, throw in unwired, silently drop in safeDelete.
-
-**Full details:** `reports/V1.1_STRUCTURAL_FINDINGS.md` (163 lines, every finding with file:line and severity)
+**Full details:** `reports/V1.1_STRUCTURAL_FINDINGS.md` (163 lines, every finding with file:line and severity) + `reports/WAVE_REPORT_W1-W7.md` + `reports/BLAST_REPORT_2026-09-18.md`
 
 ---
 
