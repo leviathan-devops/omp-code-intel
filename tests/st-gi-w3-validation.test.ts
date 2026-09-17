@@ -174,10 +174,10 @@ describe("st-gi-w3-validation: P1.3/P1.4/P1.5 fixes + pins", () => {
     fs.mkdirSync(path.join(root, "graphify-out"), { recursive: true });
     const graphJson = {
       nodes: [
-        { id: "a", label: "a", type: "function", file: "src/a.ts", data: { line: 1 } },
-        { id: "b", label: "b", type: "function", file: "src/b.ts", data: { line: 2 } },
-        { id: "c", label: "c", type: "function", file: "src/c.ts", data: {} }, // LINELESS
-        { id: "d", label: "d", type: "function", file: "src/d.ts", data: { line: 4 } },
+        { id: "a", label: "a", type: "function", file: "src/a.ts", line: 1 },
+        { id: "b", label: "b", type: "function", file: "src/b.ts", line: 2 },
+        { id: "c", label: "c", type: "function", file: "src/c.ts" }, // LINELESS
+        { id: "d", label: "d", type: "function", file: "src/d.ts", line: 4 },
       ],
       edges: [
         { source: "a", target: "b", relation: "calls" },
@@ -232,10 +232,12 @@ describe("st-gi-w3-validation: P1.3/P1.4/P1.5 fixes + pins", () => {
       { canonicalId: "t", kind: "function", label: "target", file: "src/t.ts", line: 1, run: "w3" },
       { canonicalId: "u1", kind: "function", label: "caller1", file: "src/c1.ts", line: 5, run: "w3" },
       { canonicalId: "u2", kind: "function", label: "caller2", file: "src/c2.ts", line: 6, run: "w3" },
+      { canonicalId: "tn", kind: "function", label: "t-null", file: "src/tn.ts", line: null as unknown as number, run: "w3" }, // LINELESS USE TARGET
     ];
     const edges: ForkEdge[] = [
       { srcCanonical: "u1", dstCanonical: "t", predicate: "calls", evidence: "u1->t", run: "w3" },
-      { srcCanonical: "u2", dstCanonical: "t", predicate: "traces-to", evidence: "flow edge", run: "w3" }, // lineless edge
+      { srcCanonical: "u2", dstCanonical: "t", predicate: "traces-to", evidence: "flow edge", run: "w3" },
+      { srcCanonical: "t", dstCanonical: "tn", predicate: "calls", evidence: "t->tn", run: "w3" }, // target USES the lineless tn
     ];
     db.exec("BEGIN IMMEDIATE;");
     require("../src/omp/typed-write.ts").insertForkNodesBatch(db, nodes);

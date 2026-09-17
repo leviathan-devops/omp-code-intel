@@ -125,7 +125,7 @@ export function isGraphifyCheckoutFreshFor(
   // after a successful build. If it's missing → not fresh (first run or wipe).
   // If it differs from the recomputed hash → sources changed → stale.
   // No mtime involved — this is deterministic and granularity-independent.
-  const hashPath = graphPath.replace(/\.json$/, ".graph_hash");
+  const hashPath = graphHashSidecarPath(graphPath); // P1.4.3: never aliases the graph file
   let storedHash: string | null = null;
   try {
     storedHash = fs.readFileSync(hashPath, "utf8").trim() || null;
@@ -142,20 +142,54 @@ export function isGraphifyCheckoutFreshFor(
   if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000)) return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
+/** P1.4.3 (W3 gi-validation): the sidecar path NEVER aliases the graph file —
+ *  a non-.json output used to derive hashPath === graphPath and the write
+ *  clobbered the warm graph with the hash. Exported for the read+write sites
+ *  and pinned by tests/st-gi-w3-validation.test.ts (T7). */
+export function graphHashSidecarPath(graphPath: string): string {
+  return /\.json$/.test(graphPath) ? graphPath.replace(/\.json$/, ".graph_hash") : `${graphPath}.graph_hash`;
+}
+
 /** L2 content-hash: deterministic hash of all indexed source files.
- *  Sorted by relative path, hashing path+size+first4KB per file. */
-function computeSourceHash(root: string, scope: string[], excludes: string[]): string {
-  // P1.1.5 (W1 gi-resource): createHash is a top-level ESM import now — the
-  // per-call CJS crypto loader was unsafe in strict ESM contexts.
+ *  Sorted by relative path. P1.4.1 (W3): files ≤64KB hash WHOLE (first-4KB-only
+ *  missed tail edits); larger files hash head 4KB + tail 4KB + size.
+ *  P1.4.2 (W3): budget exhaustion MARKS the digest — a truncated walk can
+ *  never collide with a complete one. */
+const GRAPH_HASH_WHOLE_FILE_MAX = 65_536;
+function hashSourceTree(root: string, scope: string[], excludes: string[], budgetN: number): string {
+  // P1.1.5 (W1 gi-resource): createHash is a top-level ESM import.
   const hash = createHash("sha256");
-  const budget = { n: 500 };
+  const budget = { n: budgetN };
+  let exhausted = false;
+  const hashFile = (abs: string, anchor: string, size: number): void => {
+    let fd: number | null = null;
+    try {
+      fd = fs.openSync(abs, "r");
+      if (size <= GRAPH_HASH_WHOLE_FILE_MAX) {
+        const buf = Buffer.alloc(size);
+        fs.readSync(fd, buf, 0, size, 0);
+        hash.update(`${anchor}\0${size}\0`);
+        hash.update(buf);
+      } else {
+        const head = Buffer.alloc(4096);
+        const tail = Buffer.alloc(4096);
+        fs.readSync(fd, head, 0, 4096, 0);
+        fs.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
+        hash.update(`${anchor}\0${size}\0`);
+        hash.update(head);
+        hash.update(tail);
+      }
+    } finally {
+      if (fd !== null) fs.closeSync(fd); // P1.1.3 (W1): the fd closes on every path
+    }
+  };
   const walk = (dir: string, prefix: string): void => {
-    if (budget.n <= 0) return;
+    if (budget.n <= 0) { exhausted = true; return; }
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     entries.sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
-      if (budget.n <= 0) return;
+      if (budget.n <= 0) { exhausted = true; return; }
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name)) continue;
         if (excludes.includes(entry.name)) continue;
@@ -164,19 +198,7 @@ function computeSourceHash(root: string, scope: string[], excludes: string[]): s
         budget.n--;
         try {
           const stat = fs.statSync(path.join(dir, entry.name));
-          // P1.1.3 (W1 gi-resource): the fd is open between openSync and the
-          // read — a read fault (EIO) used to leak it: the swallow-catch below
-          // skipped closeSync. try/finally owns the close on every path.
-          let fd: number | null = null;
-          try {
-            fd = fs.openSync(path.join(dir, entry.name), "r");
-            const buf = Buffer.alloc(Math.min(4096, stat.size));
-            fs.readSync(fd, buf, 0, buf.length, 0);
-            hash.update(`${prefix}${entry.name}\0${stat.size}\0`);
-            hash.update(buf);
-          } finally {
-            if (fd !== null) fs.closeSync(fd);
-          }
+          hashFile(path.join(dir, entry.name), `${prefix}${entry.name}`, stat.size);
         } catch { /* unreadable — skip */ }
       }
     }
@@ -185,11 +207,20 @@ function computeSourceHash(root: string, scope: string[], excludes: string[]): s
     const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
     try {
       const st = fs.statSync(target);
-      if (st.isFile()) { hash.update(`${rel}\0${st.size}\0`); continue; }
-      if (st.isDirectory()) walk(target, "");
+      if (st.isFile()) hashFile(target, rel, st.size);
+      else if (st.isDirectory()) walk(target, "");
     } catch { /* skip missing scope entries */ }
   }
+  if (exhausted) hash.update("gi-graph-hash:budget-exhausted\n");
   return hash.digest("hex");
+}
+function computeSourceHash(root: string, scope: string[], excludes: string[]): string {
+  return hashSourceTree(root, scope, excludes, 500);
+}
+/** Test seam (module-loading exception documented in the W3 battery). */
+export const computeSourceHashForTest = computeSourceHash;
+export function computeSourceHashWithBudget(root: string, scope: string[], excludes: string[], budgetN: number): string {
+  return hashSourceTree(root, scope, excludes, budgetN);
 }
 function minimalGraphifyProfile(root: string): ProjectProfile {
   const resolved = path.resolve(root);
@@ -290,7 +321,7 @@ export async function populateFromGraphifyCheckout(
       ["populated_at", new Date().toISOString()],
     ]);
     // L2: write the content-hash sidecar so the freshness probe can compare
-    const hashPath = graphPath.replace(/\.json$/, ".graph_hash");
+    const hashPath = graphHashSidecarPath(graphPath); // P1.4.3: never clobbers the graph
     try {
       const hash = computeSourceHash(path.resolve(root), pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
       fs.writeFileSync(hashPath, hash, "utf8");

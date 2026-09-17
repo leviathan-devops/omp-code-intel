@@ -42,7 +42,13 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
     .split(/[:|]/).map((r) => r.trim()).filter((r) => r.length > 0);
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
-    const rel = path.relative(path.resolve(root), real);
+    // P1.2.3 (W2/W3): the allowlist ROOT is canonicalized before the compare —
+    // a symlinked GI_TARGET_ROOTS entry (or symlinked cwd) vs the realpath'd
+    // target compared against a resolve-only base was a false-allow/deny class.
+    let rootReal: string | null = null;
+    try { rootReal = fs.realpathSync(root); } catch { rootReal = null; }
+    if (rootReal === null) return false; // unresolvable root proves nothing — fail closed
+    const rel = path.relative(rootReal, real);
     return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
   });
   if (!within) {

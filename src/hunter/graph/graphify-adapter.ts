@@ -759,13 +759,17 @@ export class GraphifyAdapter implements GraphAdapter {
     const steps: ChainStep[] = [];
     const seen = new Set<string>([start]);
     const queue = [start];
+    let linelessSkipped = 0;
     while (queue.length > 0) {
       const from = queue.shift()!;
       for (const e of bySource.get(from) ?? []) {
         const caller = this.nodeById(e.sourceId);
         const callee = this.nodeById(e.targetId);
         const line = e.line ?? callee?.line;
-        if (line === undefined) throw new Error(`LINELESS_NODE: no line for chain edge ${e.sourceId}->${e.targetId} (edge + callee both lineless)`);
+        // P1.5.1 (W3): ONE lineless policy across the verbs — skip + count,
+        // never throw (null OR undefined both count as lineless — the
+        // resolveGraphifyLine contract returns null for missing lines).
+        if (line === undefined || line === null) { linelessSkipped += 1; continue; }
         steps.push({
           from: caller?.name ?? e.sourceId,
           to: callee?.name ?? e.targetId,
@@ -779,50 +783,57 @@ export class GraphifyAdapter implements GraphAdapter {
         }
       }
     }
+    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `chain: skipped ${linelessSkipped} lineless step(s) (counted, never silent)`);
     return steps;
   }
 
   imports(module: string): ImportEdge[] {
     this.ensureBuilt();
     const start = this.resolveNodeId(module);
-    return this.cachedEdges
-      .filter((e) => e.kind === "imports" && e.sourceId === start)
-      .map((e) => {
-        const src = this.nodeById(e.sourceId);
-        const dst = this.nodeById(e.targetId);
-        const line = e.line ?? src?.line;
-        if (line === undefined) throw new Error(`LINELESS_NODE: no line for imports edge ${e.sourceId} (edge + source both lineless)`);
-        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line };
-      });
+    const out: ImportEdge[] = [];
+    let linelessSkipped = 0;
+    for (const e of this.cachedEdges) {
+      if (e.kind !== "imports" || e.sourceId !== start) continue;
+      const src = this.nodeById(e.sourceId);
+      const dst = this.nodeById(e.targetId);
+      const line = e.line ?? src?.line;
+      if (line === undefined || line === null) { linelessSkipped += 1; continue; } // P1.5.1
+      out.push({ from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line });
+    }
+    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `imports: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
+    return out;
   }
 
   awaits(symbol: string): AwaitEdge[] {
     this.ensureBuilt();
     const start = this.resolveNodeId(symbol);
-    return this.cachedEdges
-      .filter((e) => e.kind === "awaits" && e.sourceId === start)
-      .map((e) => {
-        const src = this.nodeById(e.sourceId);
-        const dst = this.nodeById(e.targetId);
-        const aline = e.line ?? src?.line;
-        if (aline === undefined) throw new Error(`LINELESS_NODE: no line for awaits edge ${e.sourceId} (edge + source both lineless)`);
-        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline };
-      });
+    const out: AwaitEdge[] = [];
+    let linelessSkipped = 0;
+    for (const e of this.cachedEdges) {
+      if (e.kind !== "awaits" || e.sourceId !== start) continue;
+      const src = this.nodeById(e.sourceId);
+      const dst = this.nodeById(e.targetId);
+      const aline = e.line ?? src?.line;
+      if (aline === undefined || aline === null) { linelessSkipped += 1; continue; } // P1.5.1
+      out.push({ from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline });
+    }
+    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `awaits: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
+    return out;
   }
 
   unwired(): DeadNode[] {
     this.ensureBuilt();
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
-    return this.cachedNodes
-      .filter((n) => (n.kind === "function" || n.kind === "class") && !callTargets.has(n.id))
-      .map((n) => {
-        // V21 W9: DeadNode.line is `number` — a lineless row is a NAMED defect
-        // (LINELESS parity with awaits), never a null leak into the contract.
-        if (n.line === undefined || n.line === null) {
-          throw new Error(`LINELESS_NODE: unwired row ${n.id} has no line (run graphify extract with source mapping, or drop the row)`);
-        }
-        return { id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line };
-      });
+    const out: DeadNode[] = [];
+    let linelessSkipped = 0;
+    for (const n of this.cachedNodes) {
+      if (!((n.kind === "function" || n.kind === "class") && !callTargets.has(n.id))) continue;
+      // P1.5.1: skip + count (null OR undefined), never throw.
+      if (n.line === undefined || n.line === null) { linelessSkipped += 1; continue; }
+      out.push({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line });
+    }
+    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
+    return out;
   }
 
   nodes(kind?: GraphNodeKind): GraphNode[] {

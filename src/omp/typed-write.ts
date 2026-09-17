@@ -131,23 +131,28 @@ export function openTypedStore(storePath: string): Database {
   }
   const db = new Database(storePath, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
-  // H08/M14 (qwen 33d64eca): per-statement replay — a legacy store holding
-  // duplicate live rows cannot host the new UNIQUE index; that ONE statement
-  // fails loudly in stderr and the rest of the DDL lands (the store keeps
-  // working; new stores get the constraint from birth).
+  db.exec("PRAGMA busy_timeout = 5000;"); // scan triage: raw BEGIN IMMEDIATE needs contention tolerance
+  applyTypedDdl(db);
+  return db;
+}
+
+// P1.3.4 (W3 gi-validation): the deferral is PRECISE — only a real unique-
+// constraint failure on a CREATE UNIQUE INDEX statement defers (legacy dup
+// rows). Any other failure (the old catch deferred anything CONTAINING the
+// word "UNIQUE") rethrows. Exported for the contract test.
+export function applyTypedDdl(db: Database): void {
   for (const stmt of TYPED_STORE_DDL) {
     try {
       db.run(stmt);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("UNIQUE")) {
+      if (stmt.includes("CREATE UNIQUE INDEX") && /UNIQUE constraint failed/i.test(msg)) {
         console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${msg.slice(0, 120)}`);
         continue;
       }
       throw e;
     }
   }
-  return db;
 }
 
 // Legacy writer kept for ST compat (isolate/refuse insert canonical+name+file).
@@ -454,7 +459,7 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
     // V21 W4: visited marked on ENQUEUE — the dequeue-mark variant pushed the
     // same id once per inbound edge (exponential churn on dense graphs).
     const visited = new Set<string>(starts.map((s) => s.canonical_id));
-    const queue: Array<{ id: string; steps: ChainStep[] }> = starts.map((s) => ({ id: s.canonical_id, steps: [] }));
+    const queue: Array<{ id: string; label: string; steps: ChainStep[] }> = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
     let head = 0;
     while (head < queue.length && queue[head].steps.length < maxDepth) {
       const cur = queue[head++];
@@ -468,7 +473,10 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
       ).all(cur.id) as { dst_id: string; dst_label: string; dst_file: string; dst_line: number; predicate: string }[];
       for (const e of out) {
         const step: ChainStep = {
-          from: cur.id,
+          // W3 (scan triage): identity-joinable steps — from AND to carry the
+          // display label (prev.to === next.from held; the old mix of
+          // from=canonical_id with to=label could never join into a path).
+          from: cur.label,
           to: e.dst_label,
           kind: e.predicate,
           file: e.dst_file ?? "",
@@ -479,7 +487,7 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
         }
         if (!visited.has(e.dst_id)) {
           visited.add(e.dst_id);
-          queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+          queue.push({ id: e.dst_id, label: e.dst_label, steps: [...cur.steps, step] });
         }
       }
     }
@@ -519,13 +527,18 @@ export function unwiredNodes(storePath: string): UnwiredRow[] {
              AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
          )`,
     ).all() as { name: string; file: string; line: number | null; kind: string }[];
-    return rows.map((r) => {
-      // V21 W9: no invented anchors — a lineless unwired row is a named defect.
-      if (r.line === null || r.line === undefined) {
-        throw new Error(`LINELESS_NODE: unwired row ${r.name} (${r.file ?? "?"}) has no line`);
-      }
-      return { name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED" as const, kind: r.kind ?? "" };
-    });
+    // P1.5.2 (W3): the lineless row is SKIPPED + counted (WARN log) — the old
+    // throw aborted the whole listing on ONE data defect (N-1 good rows lost).
+    const out: UnwiredRow[] = [];
+    let linelessSkipped = 0;
+    for (const r of rows) {
+      if (r.line === null || r.line === undefined) { linelessSkipped += 1; continue; }
+      out.push({ name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED" as const, kind: r.kind ?? "" });
+    }
+    if (linelessSkipped > 0) {
+      console.warn(`[gi-omp] unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
+    }
+    return out;
   } finally {
     db.close();
   }
@@ -597,6 +610,16 @@ export function impact(storePath: string, symbol: string, depth = 8): ImpactResu
 // ONE result: direct callers (NAMED file:line) + transitive reaches (callers-of-callers
 // count via impact) + uses (symbols this symbol calls) + test-reach (callers/uses whose
 // file matches test/spec/mock/fixture paths). Empty sets are honest empties, never throws.
+export interface SafeDeleteResult {
+  symbol: string;
+  callers: WhoCallsRow[];
+  reaches: number;
+  uses: Array<{ symbol: string; file: string; line: number }>;
+  testReach: Array<{ symbol: string; file: string; line: number }>;
+  /** P1.5.3 (W3): lineless uses dropped from `uses` — counted, never silent. */
+  usesLinelessDropped?: number;
+}
+
 export function safeDelete(storePath: string, symbol: string): SafeDeleteResult {
   const db = openTypedStore(storePath);
   try {
@@ -608,6 +631,7 @@ export function safeDelete(storePath: string, symbol: string): SafeDeleteResult 
     // same-label identities — the exact W1 defect class).
     const srcIds = resolveLiveIds(db, symbol);
     let mappedUses: Array<{ symbol: string; file: string; line: number }> = [];
+    let usesLinelessDropped = 0;
     if (srcIds.length > 0) {
       const uses = db.query(
         `SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
@@ -617,16 +641,19 @@ export function safeDelete(storePath: string, symbol: string): SafeDeleteResult 
            AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
            AND dst.superseded_run IS NULL`,
       ).all(...srcIds) as Array<{ symbol: string; file: string | null; line: number | null }>;
-      mappedUses = uses
-        .filter((u) => u.line !== null && u.line !== undefined)
-        .map((u) => ({ symbol: u.symbol, file: u.file ?? "", line: u.line as number }));
+      // P1.5.3 (W3): the lineless USE is COUNTED in the result — the old filter
+      // vanished it silently (a caller with no line could never be cited).
+      for (const u of uses) {
+        if (u.line === null || u.line === undefined) { usesLinelessDropped += 1; continue; }
+        mappedUses.push({ symbol: u.symbol, file: u.file ?? "", line: u.line as number });
+      }
     }
     const isTestPath = (f: string): boolean => /(test|spec|mock|fixture)/i.test(f);
     const testReach = [
       ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
       ...mappedUses.filter((u) => isTestPath(u.file)),
     ];
-    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach };
+    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach, usesLinelessDropped };
   } finally {
     db.close();
   }
@@ -658,7 +685,9 @@ export function gateAdvisory(
   try {
     const callers: GateAdvisoryResult["callers"] = [];
     for (const symbol of symbols) {
-      const q = whoCalls(storePath, symbol);
+      // W3 (scan triage): the Db-variant rides the OUTER connection — the old
+      // loop opened a fresh store handle per symbol (N+1 connections).
+      const q = whoCallsInDb(db, symbol);
       for (const c of q.callers) {
         callers.push({ symbol, caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" });
       }

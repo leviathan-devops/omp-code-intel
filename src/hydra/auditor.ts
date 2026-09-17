@@ -400,7 +400,7 @@ function nodeFile(targetRoot: string, node: { file: string; data?: Record<string
   // P1.2.2 (W2 gi-containment): a relative anchor that escapes the root is
   // DROPPED (""), never returned verbatim — "../x" used to flow into findings.
   if (rel && !path.isAbsolute(rel)) {
-    if (rel === ".." || rel.startsWith(`..${path.sep}`)) return "";
+    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path.sep}`)) return ""; // P1.3.3: both separator spellings
     return rel;
   }
   if (rel) {
@@ -412,6 +412,28 @@ function nodeFile(targetRoot: string, node: { file: string; data?: Record<string
   }
   return "";
 }
+/** P1.3.3 (W3): the shape gate SPOT-CHECKS ELEMENTS — array-level checks alone
+ *  let garbage rows flow into the sweep and TypeError mid-walk. First 32 rows
+ *  of each array must carry the contract fields (id/label; source+target). */
+export function validateGraphShapeForTest(graph: unknown): void {
+  assertGraphShape(graph);
+  const g = graph as { nodes: unknown[]; edges: unknown[] };
+  for (const n of g.nodes.slice(0, 32)) {
+    const row = n as Record<string, unknown>;
+    if (typeof row["id"] !== "string" || row["id"].length === 0) {
+      throw new Error("GRAPH_SHAPE_INVALID: nodes[] element missing non-empty string id");
+    }
+  }
+  for (const e of g.edges.slice(0, 32)) {
+    const row = e as Record<string, unknown>;
+    const src = row["source"] ?? row["src"];
+    const dst = row["target"] ?? row["dst"];
+    if (typeof src !== "string" || src.length === 0 || typeof dst !== "string" || dst.length === 0) {
+      throw new Error("GRAPH_SHAPE_INVALID: edges[] element missing source/target string endpoints");
+    }
+  }
+}
+
 
 // P1.2.2 (W2 gi-containment): test-seam export — the containment law of this
 // helper is pinned by tests/st-gi-w2-containment.test.ts (T3).

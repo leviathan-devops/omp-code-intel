@@ -23,6 +23,8 @@ export interface CorbellPopulateResult {
   nodes: number;
   edges: number;
   checkoutPath: string;
+  /** P1.3.2 (W3): invalid/over-cap node AND edge rows skipped+counted. */
+  skipped?: number;
 }
 
 export function corbellCheckoutPath(root: string): string {
@@ -163,7 +165,19 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     line: r.line,
     run: runTag,
   }));
-  const cappedEdges = edges.length > MAX_WARM_ROWS * 3 ? edges.slice(0, MAX_WARM_ROWS * 3) : edges;
+  // P1.3.2 (W3 gi-validation): edges are validated like nodes — empty
+  // src/dst or a predicate outside the corbell vocabulary is skipped AND
+  // counted (the old path wrote malformed rows straight into the store).
+  let edgeSkipped = 0;
+  const validEdges = edges.filter((e) => {
+    const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0
+      && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0
+      && ["calls", "traces-to", "imports"].includes(e.predicate);
+    if (!ok) edgeSkipped += 1;
+    return ok;
+  });
+  const cappedEdges = validEdges.length > MAX_WARM_ROWS * 3 ? validEdges.slice(0, MAX_WARM_ROWS * 3) : validEdges;
+  edgeSkipped += validEdges.length - cappedEdges.length;
   const edgeRows: ForkEdge[] = cappedEdges.map((e) => ({
     srcCanonical: e.src_canonical,
     dstCanonical: e.dst_canonical,
@@ -194,5 +208,5 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
       try { db.close(); } catch (closeErr) { console.error(`[gi-omp] store close warning: ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`); }
     }
   }
-  return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped };
+  return { ok: true, nodes: materializeRows.length, edges: cappedEdges.length, checkoutPath: warmPath, skipped: materializeSkipped + edgeSkipped };
 }
