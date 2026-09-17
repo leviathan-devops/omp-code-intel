@@ -136,3 +136,24 @@ describe("st-go-fallback: 6-key pool + openrouter-only fallback (shared-DB contr
     expect(goPoolSnapshot()).not.toContain('sk-');
   });
 });
+
+// C6 RED (qwen d5d5c883 [6]): `Resets in 30 seconds` must parse as 30s,
+// clamped to the 60s floor — never fall through to the 1h unknown default.
+test("(C6) window parser matches the seconds plural", async () => {
+  const { parseGoWindowMs } = await import("../src/hunter/keys/go-key-pool.ts");
+  expect(parseGoWindowMs("Resets in 30 seconds")).toBe(60_000);
+  expect(parseGoWindowMs("Resets in 5 minutes")).toBe(5 * 60_000);
+});
+
+// C5 RED (qwen d5d5c883 [5]+[6b]): keyids are one-way fingerprints — distinct
+// keys never share an id, and a leaked keyid reveals no key material.
+test("(C5) keyids are hashed fingerprints, distinct per key", async () => {
+  const { keyidFor, GO_KEYS } = await import("../src/hunter/keys/go-key-pool.ts");
+  expect(GO_KEYS.length).toBeGreaterThanOrEqual(2);
+  const ids = GO_KEYS.map((_: string, i: number) => keyidFor(i));
+  expect(new Set(ids).size).toBe(ids.length);
+  for (let i = 0; i < GO_KEYS.length; i++) {
+    expect(GO_KEYS[i]).not.toContain(ids[i]);
+    expect(ids[i]).toMatch(/^[0-9a-f]{16}$/);
+  }
+});

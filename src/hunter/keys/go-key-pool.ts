@@ -31,6 +31,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { Database } from 'bun:sqlite';
 
 // ═══ CONFIG — the three names you rebrand when plugging in ═══
@@ -139,16 +140,19 @@ function db(sessionId?: string): Database {
     reason TEXT,
     marked_at INTEGER
   )`);
-  // V21 cleanup: stable key identity — a KEYID (fingerprint prefix) column so
+  // V21 cleanup: stable key identity — a KEYID (one-way fingerprint) column so
   // a reload/reorder can never misattribute a deadUntil row to the wrong key.
   // Legacy idx-keyed rows migrate by position on first open (best effort).
+  // C5 (qwen d5d5c883 [5]): keyid is sha256(key).slice(0,16) — the old
+  // reversible slice(0,12) prefix contradicted the AP-4 never-keys contract
+  // (world-readable tmp sqlite) AND collapsed every `sk-ant-…` key to one id.
   try {
     fresh.run(`ALTER TABLE go_key_pool ADD COLUMN keyid TEXT`);
   } catch (_dup) { /* column exists */ }
   try {
     const goKeysNow = GO_KEYS;
     for (let i = 0; i < goKeysNow.length; i++) {
-      const kid = goKeysNow[i]!.slice(0, 12);
+      const kid = keyidFor(i);
       fresh.run(`UPDATE go_key_pool SET keyid = ? WHERE idx = ? AND (keyid IS NULL OR keyid = '')`, [kid, i]);
     }
   } catch (_mig) { /* fresh DB — nothing to migrate */ }
@@ -166,23 +170,33 @@ export function goKeyLabel(idx: number): string {
   return POOL_PREFIX.toLowerCase() + '-' + (idx + 1);
 }
 
-// THE STATE READER — GRACE LAW: a DB hiccup degrades to ALL-ALIVE, logged,
-// never thrown. The cycler keeps cycling; the pool re-arms on the first 429.
-function keyidFor(idx: number): string {
+// C5: one-way fingerprint — a leaked keyid no longer reveals key material,
+// and distinct keys no longer share one id (the `sk-ant-…` collapse class).
+// Legacy rows carrying a 12-char plaintext prefix can never equal a 16-hex
+// fingerprint, so they fall through to the idx match (same as keyid NULL).
+export function keyidFor(idx: number): string {
   const k = GO_KEYS[idx];
-  return k ? k.slice(0, 12) : '';
+  return k ? createHash('sha256').update(k).digest('hex').slice(0, 16) : '';
 }
 
 function readDeadUntil(sessionId?: string): number[] {
   try {
     const rows = db(sessionId).query('SELECT idx, keyid, dead_until FROM go_key_pool').all() as Array<{ idx: number; keyid: string | null; dead_until: number }>;
     // V21 cleanup: KEYID-first resolution — marks follow the KEY, not the
-    // positional slot, across reloads/reorders. Legacy rows (keyid NULL)
-    // still match by idx.
-    const byKeyid = new Map(rows.filter((r) => r.keyid).map((r) => [r.keyid as string, r.dead_until]));
+    // positional slot, across reloads/reorders. Legacy rows (keyid NULL, or a
+    // pre-C5 12-char plaintext prefix that can never equal a 16-hex
+    // fingerprint) still match by idx.
+    // C6b: on duplicate keyid rows keep MAX(dead_until) explicitly (never
+    // last-write-wins), so a collision can only over-exile, never under-exile.
+    const byKeyid = new Map<string, number>();
+    for (const r of rows) {
+      if (!r.keyid) continue;
+      const prev = byKeyid.get(r.keyid);
+      if (prev === undefined || r.dead_until > prev) byKeyid.set(r.keyid, r.dead_until);
+    }
     const byIdx = new Map(rows.map((r) => [r.idx, r.dead_until]));
     return GO_KEYS.map((k, i) => {
-      const kid = k.slice(0, 12);
+      const kid = createHash('sha256').update(k).digest('hex').slice(0, 16);
       if (byKeyid.has(kid)) return byKeyid.get(kid) as number;
       const legacy = byIdx.get(i);
       return typeof legacy === 'number' ? legacy : 0;
@@ -217,7 +231,11 @@ export function parseGoWindowMs(err: string): number {
   if (resetHrMin) return clamp((Number(resetHrMin[1]) * 60 + Number(resetHrMin[2] ?? '0')) * 60_000);
   const resetMin = err.match(/resets? in\s*(\d+)\s*min(?!\s*hour)/i);
   if (resetMin) return clamp(Number(resetMin[1]) * 60_000);
-  const resetSec = err.match(/resets? in\s*(\d+)\s*(?:sec|secs|second|s)\b/i);
+  // C6 (qwen d5d5c883 [6]): `seconds?` first — the old `(?:sec|secs|second|s)\b`
+  // never matched the `seconds` plural (`second`+`s` has no boundary after
+  // `second`; `sec`+`onds` has none either), so `Resets in 30 seconds` fell
+  // through to the 1h unknown default.
+  const resetSec = err.match(/resets? in\s*(\d+)\s*(?:seconds?|secs?|s)\b/i);
   if (resetSec) return clamp(Number(resetSec[1]) * 1000);
   const resetDays = err.match(/resets? in\s*(\d+)\s*days?/i);
   if (resetDays) return clamp(Number(resetDays[1]) * 24 * 3_600_000);
