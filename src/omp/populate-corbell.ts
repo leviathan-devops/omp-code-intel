@@ -126,7 +126,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     const validId = typeof r.canonical_id === "string" && r.canonical_id.length > 0;
     const validKind = typeof r.kind === "string" && r.kind.length > 0;
     const validLine = r.line === null || (Number.isInteger(r.line) && r.line >= 0);
-    if (!validId || !validKind || !validLine) {
+    const validLabel = typeof r.label === "string" && r.label.length > 0;
+    if (!validId || !validKind || !validLabel || !validLine) {
       skippedInvalid += 1;
       return false;
     }

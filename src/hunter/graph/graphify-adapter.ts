@@ -183,6 +183,8 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
 
 /** Fork graph-mapper.ts:40-87 normalizeGraph (links|edges tolerant). */
 export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { root?: string }): GraphifyGraph {
+  // V1.1-c3: unified root — normalize uses realpathSync like projection
+  const safeRoot = opts?.root ? (() => { try { return fs.realpathSync(opts.root); } catch { return undefined; } })() : undefined;
   const rawNodes = (Array.isArray(raw["nodes"]) ? raw["nodes"] as unknown[] : []);
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] as unknown[] : (Array.isArray(raw["edges"]) ? raw["edges"] as unknown[] : []);
   const rawLinks = rawLinkSrc as Record<string, unknown>[];
