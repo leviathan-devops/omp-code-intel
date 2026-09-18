@@ -220,12 +220,29 @@ export interface ForkNode {
   run: string;
 }
 
+// W13 (frozen-scan HIGH): BEGIN IMMEDIATE can throw SQLITE_BUSY under
+// contention — retry with a short backoff instead of failing the write.
+function beginImmediateWithRetry(db: Database, attempts = 3): void {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      db.exec("BEGIN IMMEDIATE;");
+      return;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!/busy|locked/i.test(msg) || i === attempts - 1) throw e;
+      const wait = 50 * (i + 1);
+      const until = Date.now() + wait;
+      while (Date.now() < until) { /* tight backoff — bounded */ }
+    }
+  }
+}
+
 export function insertForkNode(storePath: string, node: ForkNode): void {
   const db = openTypedStore(storePath);
   try {
     // V21 fix-now F3: tombstone + insert are ONE transaction — an INSERT
     // failure must roll back the tombstone (never zero live rows).
-    db.exec("BEGIN IMMEDIATE;");
+    beginImmediateWithRetry(db);
     try {
       db.run(
         "UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL",
@@ -260,7 +277,7 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
   const db = openTypedStore(storePath);
   try {
     // V21 fix-now F3: same single-txn law as insertForkNode.
-    db.exec("BEGIN IMMEDIATE;");
+    beginImmediateWithRetry(db);
     try {
       db.run(
         "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
@@ -359,8 +376,10 @@ export interface WhoCallsRow { caller: string; file: string; line: number; kind?
  *  DIFFERENT identities and must never conflate in whoCalls/impact/chain/blast. */
 function resolveLiveIds(db: { query: (sql: string) => { all: (v?: unknown) => unknown[] } }, label: string): string[] {
   const rows = db.query(
-    "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+    "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id",
   ).all(label) as Array<{ canonical_id: string }>;
+  // W13 (frozen-scan HIGH): ORDER BY makes the 500-cap truncation
+  // DETERMINISTIC — the same label always truncates to the same subset.
   return rows.map((r) => r.canonical_id);
 }
 
@@ -510,10 +529,11 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
   const db = openTypedStore(storePath);
   try {
     const starts = db.query(
-      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id",
     ).all(from) as { canonical_id: string }[];
+    if (starts.length > 500) starts.length = 500; // W13: uniform variable-limit cap (deterministic via ORDER BY)
     const targets = db.query(
-      "SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+      "SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500",
     ).all(to) as { canonical_id: string }[];
     const toSet = new Set(targets.map((r) => r.canonical_id));
     // V21 W4: visited marked on ENQUEUE — the dequeue-mark variant pushed the

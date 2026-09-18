@@ -270,6 +270,9 @@ export function buildAuditorTools(ledgerDir: string, targetRoot: string, layerId
   if (!targetRoot || typeof targetRoot !== "string" || targetRoot.trim() === "") {
     throw new Error("AUDITOR_TOOLS_INVALID: targetRoot required");
   }
+  // W13 note: the per-layer ledgerDir ALREADY isolates concurrent layers —
+  // layering the filename too double-scoped the path and broke the pinned
+  // write_findings contract (hunter may only write the pinned findings path).
   const reportPath = path.join(path.resolve(ledgerDir), "findings", "report.md");
   const read = makeCappedReadTool(targetRoot);
   const grep = makeCappedGrepTool(targetRoot);

@@ -136,12 +136,23 @@ function db(sessionId?: string): Database {
       poolDbByPath.delete(want);
     }
   }
-  // W12 (frozen-scan HIGH): pre-create 0600 BEFORE sqlite opens the file —
-  // new Database(create) makes it under the process umask (0644 tmp), leaving
-  // a window where another uid can open/read the brand-new pool. 'a' creates
-  // without truncating and never follows a pre-planted symlink write-through
-  // (the chmod below still fires).
-  try { fs.closeSync(fs.openSync(want, "a", 0o600)); } catch { /* exists */ }
+  // W12+13 (frozen-scan HIGH): pre-create 0600 with O_EXCL|O_NOFOLLOW —
+  // atomic first-create that (a) never inherits the umask window, (b) REFUSES
+  // a pre-planted symlink (ELOOP) instead of following it, (c) races cleanly
+  // (EEXIST = another opener won; open r+w and chmod for our handle).
+  const openFlags = fs.constants.O_CREAT | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW;
+  try {
+    fs.closeSync(fs.openSync(want, openFlags, 0o600));
+  } catch (e) {
+    const c = e as NodeJS.ErrnoException;
+    if (c.code === "EEXIST" || c.code === "ELOOP") {
+      // Existing file (ours or a plant): open WITHOUT following symlinks is
+      // not expressible for the r+w reopen — chmod hardens what we can verify.
+      try { fs.chmodSync(want, 0o600); } catch { /* not ours */ }
+    } else {
+      throw e;
+    }
+  }
   const fresh = new Database(want, { create: true });
   try { fs.chmodSync(want, 0o600); } catch (_umask) { /* fs may already restrict */ }
   try {
@@ -236,10 +247,12 @@ function mergedDeadViews(rows: Array<{ idx: number; keyid: string | null; dead_u
   const byIdx = new Map<number, number>();
   for (const r of rows) {
     if (typeof r.idx !== 'number') continue;
-    // A KEYED row never feeds the positional view — the legacy fallback is
-    // only for keyid-less rows (a keyed row at a stale idx belongs to its
-    // key, not to whoever now sits at that position).
-    if (typeof r.keyid === 'string' && r.keyid.length > 0) continue;
+    // The positional view serves LEGACY rows only: keyid-NULL OR the pre-C5
+    // 12-char plaintext prefix (never a 16-hex fingerprint — those are keyed
+    // rows and belong to their key, not to whoever now sits at that idx).
+    // W13 (frozen-scan HIGH): pre-C5 rows were invisible to BOTH views before
+    // this — readDeadUntil's comment promised idx-match they never got.
+    if (typeof r.keyid === 'string' && (r.keyid.length === 16 && /^[0-9a-f]{16}$/.test(r.keyid))) continue;
     const prev = byIdx.get(r.idx);
     if (prev === undefined || r.dead_until > prev) byIdx.set(r.idx, r.dead_until);
   }
@@ -434,6 +447,9 @@ export function goEarliestDeadIdx(sessionId?: string, now: number = Date.now()):
 }
 
 export function resolveGoKeyIndex(now: number = Date.now(), sessionId?: string): { idx: number; alive: boolean; expiryKnown: boolean } {
+  // W13 (frozen-scan HIGH): the low-level API fails LOUD on an empty pool —
+  // the old idx:-1 fallthrough made callers believe in a nonexistent key.
+  if (GO_KEYS.length === 0) throw new Error('GO_POOL_EMPTY: no Go keys configured (provision ~/.gi-keys.json or set GO_KEYS_JSON)');
   const untils = readDeadUntil(sessionId);
   for (let i = 0; i < GO_KEYS.length; i++) {
     if ((untils[i] ?? 0) <= now) return { idx: i, alive: true, expiryKnown: true };

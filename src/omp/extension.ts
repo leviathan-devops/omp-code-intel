@@ -239,13 +239,23 @@ pi.registerTool({
         clearGiRegistry();
         // W11 (frozen-scan HIGH): the wipe leaves an audit trail (who/when) —
         // an unlogged global wipe from a session-scoped tool was unauditable.
-        try {
-          const { setMeta } = await import("./typed-write.ts");
-          const wipeWho = ctx?.sessionID ?? "unknown-session";
-          const wipeCwd = cwdOf(ctx);
-          setMeta(path.join(path.resolve(wipeCwd), ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${wipeWho}@${new Date().toISOString()}`);
-        } catch { /* registry absent post-wipe — the refusal path above is the record */ }
-        return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
+        // W13 (frozen-scan HIGH): the audit write is CONFINED (raw cwdOf no
+        // longer derives the registry path) and its failure is LOUD in the
+        // response — a silently-dropped audit line was unauditable.
+        const wipeCwd = cwdOf(ctx);
+        const wipeConfined = confineTargetPath(path.normalize(wipeCwd), wipeCwd);
+        let auditNote = "";
+        if (wipeConfined.ok) {
+          try {
+            const { setMeta } = await import("./typed-write.ts");
+            setMeta(path.join(wipeConfined.real, ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+          } catch (auditErr) {
+            auditNote = `\nWIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`;
+          }
+        } else {
+          auditNote = `\nWIPE_AUDIT_FAILED: ${wipeConfined.error}`;
+        }
+        return textResult("GI_CLEARED" + auditNote, { ok: true, token: "GI_CLEARED" });
       } catch (e) {
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
         // narrow with in/typeof instead (checked surface kept small).
