@@ -605,9 +605,10 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
     ).all(...ids, depth) as BlastNode[];
     const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
     const maxDepth = nodes.reduce((m, n) => (n.depth > m ? n.depth : m), 0);
-    // W45/F34 (frozen-scan HIGH): the 500-id cap SURFACES as truncated (whoCalls
-    // parity) — programmatic callers can see the under-report, not just stderr.
-    return { root: symbol, depth: maxDepth, nodes, truncated: idsTruncated };
+    // W45/F34: BOTH caps surface — the 500-id cap (idsTruncated) and the
+    // 5000-row result cap (rowsTruncated) — whoCalls parity.
+    const truncated = idsTruncated || rows.length >= 5000 || undefined;
+    return { root: symbol, depth: maxDepth, nodes, truncated };
   } finally {
     db.close();
   }
