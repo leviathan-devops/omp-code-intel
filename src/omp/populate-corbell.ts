@@ -139,9 +139,13 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     rows = src.query(
       "SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT ?",
     ).all(MAX_WARM_ROWS + 1) as typeof rows;
+    // W45/F26 (frozen-scan HIGH): the read was UNBOUNDED and, with the
+    // downstream slice, INSERTION-ORDER dependent — which edges survived a
+    // cap changed with the warm store's row layout. Bounded read in
+    // canonical order: deterministic survivors, overflow counted.
     edges = src.query(
-      "SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL",
-    ).all() as typeof edges;
+      "SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL ORDER BY src_canonical, dst_canonical, predicate LIMIT ?",
+    ).all(MAX_WARM_ROWS * 3 + 1) as typeof edges;
   } catch (e) {
     return { ok: false, reason: `CORBELL_NOT_WARM:unreadable:${e instanceof Error ? e.message.slice(0, 60) : String(e)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   } finally {

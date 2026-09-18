@@ -445,7 +445,7 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     fs.symlinkSync(victim, plant);
     expect(() => writeBriefPinned(plant, "evil")).toThrow();
     expect(fs.readFileSync(victim, "utf-8")).toBe("victim-bytes");
-});
+  });
   // ---------- F24 (extension: wipe audit success-when-skipped) ----------
   test("test_w44_wipe_skipped_audit_not_reported_true", async () => {
     const prev = process.env.GI_OMP_ALLOW_CLEAR;
@@ -459,5 +459,56 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     } finally {
       if (prev === undefined) delete process.env.GI_OMP_ALLOW_CLEAR; else process.env.GI_OMP_ALLOW_CLEAR = prev;
     }
+  });
+
+  // ---------- F26 (populate-corbell: unbounded edges read / nondeterministic cap) ----------
+  test("test_w44_corbell_edge_cap_deterministic_across_insertion_orders", () => {
+    const mkWarm = (insertionOrder: "asc" | "desc"): string => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-edgedet-"));
+      const warmDir = path.join(root, ".omp", "graph-intelligence", "corbell-checkout");
+      fs.mkdirSync(warmDir, { recursive: true });
+      const warm = new Database(path.join(warmDir, "store.sqlite"));
+      warm.exec(`CREATE TABLE typed_nodes (canonical_id TEXT, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
+CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);`);
+      // 50,000 nodes (at the node cap) + 200,000 DISTINCT triples (over the 150k
+      // edge cap), inserted in the chosen order.
+      const NODES_N = 50_000;
+      const EDGES_N = 200_000;
+      const pad = (i: number) => `c-n${String(i).padStart(8, "0")}`;
+      warm.exec("BEGIN");
+      const insN = warm.prepare("INSERT INTO typed_nodes VALUES (?, 'function', ?, 'src/n.ts', 1, 'warm', NULL)");
+      for (let i = 0; i < NODES_N; i++) insN.run(pad(i), `n${i}`);
+      const insE = warm.prepare("INSERT INTO typed_edges VALUES (?, ?, 'calls', ?, 1.0, 'warm', NULL)");
+      const order = (i: number) => insertionOrder === "asc" ? i : EDGES_N - 1 - i;
+      for (let i = 0; i < EDGES_N; i++) {
+        const k = order(i);
+        const s = k % NODES_N;
+        const d = (s * 31 + (Math.floor(k / NODES_N) + 1)) % NODES_N;
+        if (s === d) continue;
+        insE.run(pad(s), pad(d), `ev-${String(k).padStart(7, "0")}`);
+      }
+      warm.exec("COMMIT");
+      warm.close();
+      return root;
+    };
+    const survivors = (root: string): string[] => {
+      const tag = root.slice(-6).toUpperCase().replace(/[^A-Z0-9]/g, "0");
+      const storePath = path.join(root, "sessions", `sesDET${tag}000000`.slice(0, 24).padEnd(24, "0"), "store.sqlite");
+      fs.mkdirSync(path.dirname(storePath), { recursive: true });
+      const r = populateFromCorbellCheckout(storePath, root, "w44det");
+      expect(r.ok).toBe(true);
+      const db = new Database(storePath, { readonly: true });
+      try {
+        return (db.query("SELECT src_canonical || '>' || dst_canonical AS pair FROM typed_edges WHERE superseded_run IS NULL").all() as Array<{ pair: string }>).map((x) => x.pair).sort();
+      } finally {
+        db.close();
+      }
+    };
+    const a = survivors(mkWarm("asc"));
+    const b = survivors(mkWarm("desc"));
+    expect(a.length).toBe(150_000); // cap binds
+    // THE FIX: survivors are the lexicographically-first cap edges — identical
+    // across insertion orders (the old row-order slice kept arbitrary rows).
+    expect(a).toEqual(b);
   });
 });
