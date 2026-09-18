@@ -159,3 +159,25 @@ deliberate lossy contract; annotation reverted to GraphEdge[] — type-only,
 bundle unchanged). W13 verify: typed-write 0c, graphify-adapter 0c.
 **State: 0c stable · 13 highs (5 files) · battery 170/0/1597 across 28 files ·
 dist d9625341e4e7acf7 ×5 · trajectory 22→19→15→13.**
+
+## PASS 9 (W13+W14) — FINAL SESSION STATE (2026-09-18)
+W13 closed 9 highs: auditor report-path pin kept (layered-name change reverted
+— the per-layer ledgerDir already isolates; the layered filename broke the
+pinned write_findings contract), shape-gate full-row validation, extension
+wipe audit confined+loud, pool O_NOFOLLOW|O_EXCL|0600 creation (symlink-plant
+refused) + legacy pre-C5 rows visible via byIdx + resolveGoKeyIndex loud
+GO_POOL_EMPTY, typed-write deterministic ORDER BY truncation + BEGIN
+IMMEDIATE busy-retry + chain caps/statement hoist.
+W14 rescan surfaced 1 critical claiming bun:sqlite lacks a live
+`inTransaction` flag — **REFUTED mechanically** (direct probe: false→true→false
+across BEGIN/COMMIT; the 170-green battery exercises the golden path). The
+TxnDb guard is correct as designed.
+
+## FINAL STATE (goal OPEN, loop continues next session)
+- battery **170 pass / 0 fail / 1592 expect across 28 files** (baseline 134/966/20)
+- scan: **0 criticals** (2 origin criticals + 4 regenerations all killed same-pass)
+- highs: w7frozen 22 → w14 **14** on 4 files (~16 kernel-wide) — the stabilizing
+  band; worklist = /tmp/scan-panel-results/w14-*.json
+- dist **25cda737e38a8b44** deployed ×5 exec-verified
+- 22/22 P1 fixes + 4/4 P2 tools + CLI live · live legs green · librarians
+  pinned · docs de-slopped · blast report on disk
