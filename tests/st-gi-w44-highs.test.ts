@@ -636,4 +636,38 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
       reloadGoKeys();
     }
   });
+
+  // ---------- F36 (populate-corbell: M05 confidence contradiction) ----------
+  test("test_w44_corbell_invalid_confidence_defaults_conservative", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-conf-"));
+    const warmDir = path.join(root, ".omp", "graph-intelligence", "corbell-checkout");
+    fs.mkdirSync(warmDir, { recursive: true });
+    const warm = new Database(path.join(warmDir, "store.sqlite"));
+    warm.exec(`CREATE TABLE typed_nodes (canonical_id TEXT, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
+CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);
+INSERT INTO typed_nodes VALUES ('c-a','function','a','src/a.ts',1,'warm',NULL);
+INSERT INTO typed_nodes VALUES ('c-b','function','b','src/b.ts',2,'warm',NULL);
+INSERT INTO typed_edges VALUES ('c-a','c-b','calls','q',0.7,'warm',NULL);
+INSERT INTO typed_edges VALUES ('c-a','c-b','traces-to','q',NULL,'warm',NULL);
+INSERT INTO typed_edges VALUES ('c-a','c-b','imports','q',99.0,'warm',NULL);`);
+    warm.close();
+    const storePath = path.join(root, "sessions", "sesW44CONF0000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const r = populateFromCorbellCheckout(storePath, root, "w44conf");
+    expect(r.ok).toBe(true);
+    expect(r.edges).toBe(3);
+    const db = new Database(storePath, { readonly: true });
+    try {
+      const rows = db.query("SELECT predicate, confidence FROM typed_edges WHERE superseded_run IS NULL ORDER BY predicate").all() as Array<{ predicate: string; confidence: number }>;
+      const byPred = new Map(rows.map((x) => [x.predicate, x.confidence]));
+      expect(byPred.get("calls")).toBe(0.7); // valid confidence SURVIVES (M05)
+      // THE FIX: missing/invalid confidence defaults CONSERVATIVELY (0.5),
+      // never 1.0 — an absent source value must not read as certainty.
+      expect(byPred.get("traces-to")).toBe(0.5);
+      // Out-of-range confidence (99.0 > 1.0) also clamps to the conservative default.
+      expect(byPred.get("imports")).toBe(0.5);
+    } finally {
+      db.close();
+    }
+  });
 });

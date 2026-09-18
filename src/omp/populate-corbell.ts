@@ -218,7 +218,10 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     dstCanonical: e.dst_canonical,
     predicate: e.predicate,
     evidence: e.evidence_quote,
-    confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1.0,
+    // W45/F36 (frozen-scan HIGH): invalid/missing/out-of-range confidence
+    // defaults CONSERVATIVELY to 0.5 — M05 promises the warm value survives,
+    // and 1.0 would read an absent source value as certainty.
+    confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) && e.confidence >= 0 && e.confidence <= 1 ? e.confidence : 0.5,
     run: runTag,
   }));
   // P1.1.1 (W1 gi-resource): db is undefined until the open succeeds — the
