@@ -458,10 +458,13 @@ export function validateGraphShapeForTest(graph: unknown): void {
   }
   for (const e of g.edges) {
     const row = e as Record<string, unknown>;
-    const src = row["source"] ?? row["src"];
-    const dst = row["target"] ?? row["dst"];
+    // W26: the seam matches the PROD contract exactly — src/dst only. The old
+    // source/target alias fallback diverged from assertGraphShape (a graph
+    // passing the seam failed prod, and vice versa).
+    const src = row["src"];
+    const dst = row["dst"];
     if (typeof src !== "string" || src.length === 0 || typeof dst !== "string" || dst.length === 0) {
-      throw new Error("GRAPH_SHAPE_INVALID: edges[] element missing source/target string endpoints");
+      throw new Error("GRAPH_SHAPE_INVALID: edges[] element missing src/dst string endpoints");
     }
   }
 }
