@@ -218,3 +218,16 @@ mtime semantics, default-allowlist breadth, cycle-precision).
 rulings). The loop's next pass resumes from /tmp/scan-panel-results/w16-*.json
 with the identical discipline — but the operator should know the band is
 stable and the remaining work is composition churn around a hardened core.**
+
+## PASS 12 (W17+W18) — 13 → 9 HIGHS ON THE HOT FILES, 1 SELF-INDUCED CRITICAL KILLED (2026-09-18)
+W17 closed: extension (audit-path containment BEFORE creation, empty/stale
+check inside the populate lane, wipe-audit failure surfaced machine-readably),
+pool (legacy 12-char revive documented, redactKeyMaterial EXACT key match for
+any alphabet), typed-write (corruption gate ENOENT-safe open + short-read +
+non-file checks, chain maxDepth clamp 1-16, per-node edge query LIMIT 500).
+The W17 rescan then caught a TDZ ReferenceError in my own ENOENT-race fix
+(return db before the const declaration) — fixed same-pass with a
+treatAsFresh flag. W18 verify: 0 criticals, 9 highs on the 3 hot files
+(extension 2, pool 3, typed-write 4), dist 266e7b0cd01886b1 ×5.
+**Trajectory: 22 → 19 → 15 → 14 → 7 → (hot-file churn) → 9. Battery
+170/0/1597 across 28 files, re-run green every pass.**
