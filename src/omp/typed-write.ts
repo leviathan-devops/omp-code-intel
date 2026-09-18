@@ -679,7 +679,7 @@ export interface UnwiredRow {
 // Function/Class/File/Module for fallback stores) with zero inbound 'calls' + 'traces-to'
 // (+ 'imports') edges. Flow/service nodes carry NULL file so the file-anchored surface
 // skips them honestly (n.file IS NOT NULL) — method/class nodes with files are the dead machinery.
-export function unwiredNodes(storePath: string): UnwiredRow[] {
+export function unwiredNodes(storePath: string): UnwiredRow[] & { truncated?: boolean } {
   const db = openTypedStore(storePath);
   try {
     const rows = db.query(
@@ -691,8 +691,11 @@ export function unwiredNodes(storePath: string): UnwiredRow[] {
            SELECT 1 FROM typed_edges e
            WHERE e.dst_canonical = n.canonical_id
              AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         )`,
+         )
+       ORDER BY n.label LIMIT 5001`,
     ).all() as { name: string; file: string; line: number | null; kind: string }[];
+    // W33 (frozen-scan HIGH): the LAST uncapped materialization is bounded —
+    // LIMIT 5001 in SQL (5000 + 1 to detect truncation deterministically).
     // P1.5.2 (W3): the lineless row is SKIPPED + counted (WARN log) — the old
     // throw aborted the whole listing on ONE data defect (N-1 good rows lost).
     const out: UnwiredRow[] = [];
@@ -704,6 +707,9 @@ export function unwiredNodes(storePath: string): UnwiredRow[] {
     if (linelessSkipped > 0) {
       console.warn(`[gi-omp] unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
     }
+    const truncated = rows.length > 5000 ? true : undefined;
+    if (truncated) console.warn(`[gi-omp] unwired: truncated at 5000 rows (deterministic order)`);
+    (out as { truncated?: boolean }).truncated = truncated;
     return out;
   } finally {
     db.close();

@@ -203,6 +203,11 @@ function makeForceBoundWriteTool(pinnedPath: string, ledgerDir: string): Mission
       try {
         fs.mkdirSync(path.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
+        // W33 (frozen-scan HIGH): write cap parity with the 8MiB read cap —
+        // an unbounded content could fill the disk through the pinned write.
+        if (content.length > 8 * 1024 * 1024) {
+          return JSON.stringify({ error: "WRITE_TOO_LARGE: content exceeds the 8MiB write cap", recorded: true });
+        }
         // W21 (frozen-scan HIGH): fd-pinned write — O_NOFOLLOW|O_TRUNC so a
         // symlink swap between containment and write cannot redirect the bytes.
         const wfd = fs.openSync(pinnedReal, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o644);
@@ -942,7 +947,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
     `- graphPath: ${path.resolve(args.graphPath)}`,
-    `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${graph.godNodes ?? [].slice(0, 5).join(", ")}]`,
+    `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${(graph.godNodes ?? []).slice(0, 5).join(", ")}]`,
     `- graphQueries: ${(template.graphQueries ?? []).join(" | ")}`,
     `- inputData: ${args.inputData ?? ""}`,
     "",
