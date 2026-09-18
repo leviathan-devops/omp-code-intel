@@ -530,4 +530,22 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     db.exec("ROLLBACK");
     db.close();
   });
+
+  // ---------- F28 (populate-graphify: double freshness walks) ----------
+  test("test_w44_graphify_sidecar_short_circuits_mtime_walk", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-walk-"));
+    const srcDir = path.join(root, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    for (let i = 0; i < 600; i++) fs.writeFileSync(path.join(srcDir, `f${i}.ts`), `export const v${i} = ${i};\n`);
+    const graphPath = path.join(root, "graph.json");
+    fs.writeFileSync(graphPath, "{}\n");
+    // A VALID sidecar (the exact content hash) — the strong deterministic check.
+    fs.writeFileSync(path.join(root, "graph.graph_hash"), computeSourceHashWithBudget(root, ["src"], [], 500));
+    // 600 files exceed the 500 freshness budget: the mtime walk exhausts.
+    // THE FIX: the sidecar check runs FIRST and proves freshness — the walk's
+    // stale-budget never overrides the deterministic content verdict.
+    const v = isGraphifyCheckoutFreshFor(root, graphPath, ["src"], []);
+    expect(v.fresh).toBe(true);
+    expect(v.reason).toBe("fresh");
+  });
 });

@@ -71,6 +71,25 @@ export function isGraphifyCheckoutFreshFor(
     return { fresh: false, reason: "absent" };
   }
   const warmMtime = st.mtimeMs;
+  // W45/F28 (frozen-scan HIGH): the sidecar content hash is the STRONGER,
+  // deterministic check — read it FIRST and short-circuit. The old order ran
+  // the full mtime walk first and then DISCARDED `newest` on the sidecar path
+  // (double walk), and a budget-exhausted walk forced stale-budget even when
+  // the content hash proved freshness. The marked-hash discipline keeps every
+  // sidecar verdict fail-closed (a truncated walk can never match a complete
+  // stored hash).
+  const hashPath0 = graphHashSidecarPath(graphPath);
+  let sidecarHash: string | null = null;
+  try {
+    sidecarHash = fs.readFileSync(hashPath0, "utf8").trim() || null;
+  } catch {
+    sidecarHash = null; // no sidecar → legacy mtime fallback below
+  }
+  if (sidecarHash) {
+    const currentHash = computeSourceHash(root, scope, excludes);
+    if (currentHash !== sidecarHash) return { fresh: false, reason: "stale-content" };
+    return { fresh: true, reason: "fresh" };
+  }
   let newest = 0;
   let filesSeen = 0;
   let exhausted = false;
@@ -125,19 +144,6 @@ export function isGraphifyCheckoutFreshFor(
   // after a successful build. If it's missing → not fresh (first run or wipe).
   // If it differs from the recomputed hash → sources changed → stale.
   // No mtime involved — this is deterministic and granularity-independent.
-  const hashPath = graphHashSidecarPath(graphPath); // P1.4.3: never aliases the graph file
-  let storedHash: string | null = null;
-  try {
-    storedHash = fs.readFileSync(hashPath, "utf8").trim() || null;
-  } catch (readErr) {
-    // sidecar missing or unreadable → not fresh (no baseline to compare)
-    console.log(`[gi-omp] freshness: no hash sidecar at ${hashPath} (${readErr instanceof Error ? readErr.message.slice(0, 40) : "read error"})`);
-  }
-  if (storedHash) {
-    const currentHash = computeSourceHash(root, scope, excludes);
-    if (currentHash !== storedHash) return { fresh: false, reason: "stale-content" };
-    return { fresh: true, reason: "fresh" };
-  }
   // No stored hash → fall through to mtime fallback (legacy compat)
   // W44 (qwen scan HIGH): the /1000 floor compared at SECOND granularity — an
   // edit up to 999ms after the warm build read "fresh" and silently served a
