@@ -232,3 +232,10 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE FLAKE:** test_w44_corbell_edge_cap_deterministic_across_insertion_orders failed once under adjacent-heavy-test load (50k-node/200k-edge builds, raw test Database without busy_timeout) and passed in isolation + in the commit battery. Note: set busy_timeout on test DBs if it recurs.
 - **THE VERIFICATION:** battery 211/0/1735 across 30 files (HEAD 34c4c73).
 - **THE LESSON:** the gate loop works — laguna (operator's lane) caught 2 real regressions in my OWN W44 fixes within minutes of the lane coming alive. Review lanes catch author blindness; budget triage time, not just fix time.
+
+## EN-030 — re-scan round 1: CRITICAL q0 fixed + W45 wave state (2026-09-18)
+
+- **THE FINDING:** The gate re-scan (muse-free adapter lane) round 1: auditor completed (13 comments: 1 CRITICAL + 4 HIGH + 7 med/low), the other 6 files failed mid-batch when the adapter port dropped (process lifetime — restart now persists via nohup). The CRITICAL was REAL and was MY OWN: the graph-slice `q0` variable never existed in the ported runner — ReferenceError on every audit, silently masked as GRAPH_SLICE_FAILED, so slice evidence was never collected in ANY prior G4 leg. Fixed fda0d02 (q0 = template.graphQueries[0], empty-query guard), G4 leg re-verified AUDIT_DONE findings=1.
+- **REMAINING OPEN (4 highs from the auditor re-scan + 6 re-scans):** (1) capped read does full 8MiB I/O before slicing — performance, not correctness; (2) bounded-enumeration per-seed localVisited dead check; (3) writeBriefPinned lacks isWithinRoot containment pinning; (4) layerId interpolation not covered by the sanitizer (report-block forgery). Plus 6 re-scan runs queued.
+- **THE VERIFICATION:** battery 211/0/1735 ×30 before the q0 fix; G4 AUDIT_DONE findings=1 after it; slice 29/0 on w44+w7.
+- **THE LESSON:** the re-scan caught a CRITICAL in code every prior G4 "green" leg had exercised — the legs proved the happy path, the scan proved the error path. Green legs and adversarial scans are complementary instruments; neither substitutes for the other.
