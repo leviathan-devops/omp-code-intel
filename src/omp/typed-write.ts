@@ -422,6 +422,12 @@ export function whoCalls(storePath: string, name: string): { rows: number; names
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // File-level walk: flow 'traces-to' sources have NULL file so they terminate the file
 // chain honestly (surfaced by whoCalls/impact instead — never silently dropped).
+/** One blast-radius row: a reachable FILE and its minimum depth. The
+ *  GROUP BY n.file collapses same-file identities DELIBERATELY (per-identity
+ *  rows would duplicate the caller's report; per-file is the unit of edit).
+ *  Documented lossy — canonical-level nodes are a rebuild-tier change. */
+export interface BlastNode { file: string; depth: number }
+
 export function blastRadius(storePath: string, symbol: string, depth = 8): { root: string; depth: number; nodes: BlastNode[] } {
   const db = openTypedStore(storePath);
   try {

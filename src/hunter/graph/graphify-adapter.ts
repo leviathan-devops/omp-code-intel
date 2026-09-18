@@ -540,7 +540,7 @@ function graphifyEvidence(predicate: string, src: string, dst: string, file: str
  *  deep INFERRED is out of W1 scope and documented, not silently relabeled). */
 export function mapGraphifyToTyped(
   nodes: GraphNode[],
-  edges: GraphifyEdge[], // W12 (frozen-scan HIGH): RAW shape {src,dst,relation,confidence} — the old GraphEdge[] annotation was a type lie (e.src/e.dst don't exist on GraphEdge)
+  edges: GraphEdge[],
   runTag: string,
 ): { nodeRows: ForkNode[]; edgeRows: ForkEdge[] } {
   const nodeRows: ForkNode[] = nodes.map((n) => {
