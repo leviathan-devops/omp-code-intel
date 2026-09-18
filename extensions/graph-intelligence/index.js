@@ -9539,7 +9539,7 @@ function applyTypedDdl(db) {
                  SELECT rowid FROM ${table} t
                  WHERE t.superseded_run IS NULL
                    AND t.rowid NOT IN (
-                     SELECT MIN(rowid) FROM ${table}
+                     SELECT MAX(rowid) FROM ${table}
                      WHERE superseded_run IS NULL
                      GROUP BY ${groupBy}
                    )
@@ -9553,6 +9553,9 @@ function applyTypedDdl(db) {
         } catch (retryErr) {
           const rmsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
           console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) \u2014 ${rmsg.slice(0, 120)}`);
+          try {
+            db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES ('unique_index_deferred', ?)", [stmt.slice(0, 200)]);
+          } catch {}
           continue;
         }
       }
@@ -9596,12 +9599,14 @@ function ph(n) {
 }
 function whoCallsInDb(db, name) {
   let ids = resolveLiveIds(db, name);
+  let truncated;
   if (ids.length > 500) {
     console.warn(`[gi-omp] whoCalls: '${name}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit)`);
     ids = ids.slice(0, 500);
+    truncated = true;
   }
   if (ids.length === 0)
-    return { rows: 0, names: [], callers: [] };
+    return { rows: 0, names: [], callers: [], truncated };
   const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
             e.predicate AS predicate, e.dst_canonical AS target_canonical
      FROM typed_edges e
@@ -9617,7 +9622,7 @@ function whoCallsInDb(db, name) {
     predicate: r.predicate ?? "",
     target_canonical: r.target_canonical
   }));
-  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
+  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped, truncated };
 }
 function whoCalls(storePath, name) {
   const db = openTypedStore(storePath);
@@ -9748,7 +9753,9 @@ function unwiredNodes(storePath) {
 function impactInDb(db, symbol, depth = 8) {
   const ledger = [];
   const seen = new Set;
-  const startIds = resolveLiveIds(db, symbol);
+  let startIds = resolveLiveIds(db, symbol);
+  if (startIds.length > 500)
+    startIds = startIds.slice(0, 500);
   if (startIds.length === 0)
     return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
   for (const id of startIds)
@@ -11175,14 +11182,17 @@ function graphifyEvidence(predicate, src, dst, file, line) {
   return `explicit: ${predicate} in source ${src}->${dst} @ ${anchor}`;
 }
 function mapGraphifyToTyped(nodes, edges, runTag) {
-  const nodeRows = nodes.map((n) => ({
-    canonicalId: n.id,
-    kind: graphifyKindToTyped(n.kind),
-    label: n.name,
-    file: typeof n.file === "string" ? n.file : null,
-    line: resolveGraphifyLine({ line: n.line ?? undefined, data: n.data ?? {} }, null, n.id),
-    run: runTag
-  }));
+  const nodeRows = nodes.map((n) => {
+    const line = resolveGraphifyLine({ line: n.line ?? undefined, data: n.data ?? {} }, null, n.id);
+    return {
+      canonicalId: n.id,
+      kind: graphifyKindToTyped(n.kind),
+      label: n.name,
+      file: typeof n.file === "string" ? n.file : null,
+      line,
+      run: runTag
+    };
+  });
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const edgeRows = edges.map((e) => {
     const src = nodesById.get(e.sourceId);
@@ -16532,7 +16542,7 @@ ripwire: ${rw.summary}`, { ok: true, rows: b.nodes.length, root: b.root, depth: 
     const w = wouldBreak(storePath, sym, String(p.proposed ?? ""));
     const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
     return textResult2(`callers=${w.callers} argsUnknown=${w.argsUnknown}
-ripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: true });
+ripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: w.ok !== false });
   }
   if (verb === "unwired") {
     const u = unwiredNodes(storePath);
@@ -16573,14 +16583,14 @@ ripwire: ${rw.summary}`, { ok: true, rows: im.reaches, impact_reaches: im.reache
     const rw = safeRipwire(() => ripwireSafeDelete(scopeRoot, sym));
     return textResult2(`${popNote}safe_delete: ${sym} callers=${sd.callers.length} reaches=${sd.reaches} uses=${sd.uses.length} testReach=${sd.testReach.length}
 ${head}
-ripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: true });
+ripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: sd.ok !== false });
   }
   if (verb === "gate") {
     const dialRaw = String(p.dial ?? "STEER").toUpperCase();
     const sym = String(p.target ?? p.symbol ?? "");
     const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
     const ga = gateAdvisory(storePath, [sym], dialRaw === "FULL" ? "FULL" : "STEER", { ok: rw.ok, summary: rw.summary });
-    return textResult2(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: true });
+    return textResult2(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: ga.ok !== false });
   }
   if (verb === "verify") {
     const claim = String(p.target ?? p.symbol ?? "");

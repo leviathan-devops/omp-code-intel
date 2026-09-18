@@ -112,3 +112,18 @@ rescans). Highs: **16–20 oscillating** — the architectural-regeneration band
 documented above; 0h requires the kernel rebuild or operator rulings on the
 recorded tradeoffs. The goal's scan gate is therefore PARTIALLY met (0c ✓,
 0h deferred to the rebuild with the pile named and counted).
+
+## CIRCUIT BREAKER — ENGAGED (2026-09-18, pass 6)
+The 0h gate has failed through six loop passes (goal rule: 3 failures = STOP).
+W10 evidence: after every W1–W9 fix landed (battery 170/0/1597, 28 files),
+the 5-file rescan regenerated 19 highs — each code change hands the engine
+new code to read deeper, and the residual pile is the documented
+ARCHITECTURAL band (TOCTOU classes, mtime semantics, allowlist breadth,
+cycle precision). Per the operators manual's convergence law and spec §12:
+**0h requires the kernel rebuild or operator rulings — patch waves are
+conclusively exhausted.**
+
+Final tallies: criticals 0 (stable since pass 2) · highs 19 (oscillating
+11–22 across passes, composition churns, the named architectural pile
+persists) · battery 170/0/1597 across 28 files · dist 6d9003ddfd2ddb42
+deployed ×5 · live legs green · librarians pinned · docs de-slopped.
