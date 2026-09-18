@@ -225,3 +225,10 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **FINDING "DDL recovery unconstrained / misclassifies contention" → OPEN (real, subtle):** on UNIQUE constraint failure the recovery tombstone-dedups then retries; a SQLITE_BUSY masquerading as UNIQUE is not distinguished. Needs a targeted TDD fix with a contention-injection test. RESUME: typed-write.ts DDL catch block.
 - **FINDING "silent truncation caps (blastRadius ids 500 / rows 5000)" → OPEN (verify surface):** W33/W34 added truncated surfacing to unwiredNodes/safeDelete/whoCalls/impact; blastRadius's id-cap leg needs the same truncated flag audit. RESUME: blastRadius caps.
 - **THE LESSON:** scan findings against code with PINNED CONTRACTS or prior fix commits are stale hypotheses — the triage ledger (first-hand read → verdict) is the gate's real work product; fixes follow only for confirmed-real items.
+
+## EN-029 — W45 wave close: 34-fix point + F26 flake note + rawNodes misindex resume (2026-09-18)
+
+- **THE STATE:** W45 highs: 11 fixed (F21-F34 series), 3 refuted/adjudicated (Tarjan, sizeHint contract, DDL-contention accepted-debt), 1 OPEN — graphify-adapter rawNodes misindex: the containment rewrite loop indexes rawNodes[i] against the COMPACTED nodes[] (F8 null-drop made the misalignment reachable → the id-rewrite can update the wrong raw entry). RESUME: graphify-adapter.ts:283-299 — build a parallel survivedRaw[] array during the node pass instead of indexing rawNodes[i].
+- **THE FLAKE:** test_w44_corbell_edge_cap_deterministic_across_insertion_orders failed once under adjacent-heavy-test load (50k-node/200k-edge builds, raw test Database without busy_timeout) and passed in isolation + in the commit battery. Note: set busy_timeout on test DBs if it recurs.
+- **THE VERIFICATION:** battery 211/0/1735 across 30 files (HEAD 34c4c73).
+- **THE LESSON:** the gate loop works — laguna (operator's lane) caught 2 real regressions in my OWN W44 fixes within minutes of the lane coming alive. Review lanes catch author blindness; budget triage time, not just fix time.
