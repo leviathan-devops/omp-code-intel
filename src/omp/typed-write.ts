@@ -210,6 +210,14 @@ export function applyTypedDdl(db: Database): void {
         // the newest write carries the freshest label/file/line), then retry.
         try {
           const on = /ON\s+([\w_]+)\s*\(([^)]+)\)/i.exec(stmt);
+          if (!on) {
+            // W35 (frozen-scan HIGH): a regex miss (quoted ident, expression
+            // index) used to fall to `continue` and DISCARD the constraint
+            // error — log + record instead of a silent unconstrained store.
+            console.error(`[gi-omp] DDL note: unique index regex miss (recording deferral) — ${stmt.slice(0, 80)}`);
+            try { db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash('sha256').update(stmt).digest('hex').slice(0, 12)}`, stmt.slice(0, 200)]); } catch { /* gi_meta may predate this table */ }
+            continue;
+          }
           if (on) {
             const table = on[1]!;
             const cols = on[2]!.split(",").map((c) => c.trim()).filter((c) => c.length > 0);

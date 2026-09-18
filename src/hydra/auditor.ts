@@ -460,6 +460,11 @@ export function validateGraphShapeForTest(graph: unknown): void {
     if (typeof row["id"] !== "string" || row["id"].length === 0) {
       throw new Error("GRAPH_SHAPE_INVALID: nodes[] element missing non-empty string id");
     }
+    // W35 (frozen-scan HIGH): label is required downstream (the dead-code leg
+    // regex-escapes it unconditionally) — a label-less node fails HERE, named.
+    if (typeof row["label"] !== "string" || row["label"].length === 0) {
+      throw new Error("GRAPH_SHAPE_INVALID: nodes[] element missing non-empty string label");
+    }
   }
   for (const e of g.edges) {
     const row = e as Record<string, unknown>;
