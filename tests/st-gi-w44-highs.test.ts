@@ -12,6 +12,7 @@ import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
+import { goKeyDead, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 import { setMeta } from "../src/omp/typed-write.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
@@ -295,5 +296,33 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     // Leg C: fallback substrate + warm corbell → upgrade repopulate fires.
     setMeta(storePath, "substrate", "indexer-fallback");
     expect(substrateNeedsPopulate(storePath, root)).toBe(true);
+  });
+
+  // ---------- F20 (pool:340 reorder exile loss) ----------
+  test("test_w44_pool_reorder_preserves_displaced_key_exile", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-pool-"));
+    const prevPool = process.env.GO_POOL_DB;
+    const prevKeys = process.env.GO_KEYS_JSON;
+    process.env.GO_POOL_DB = path.join(dir, "pool.sqlite");
+    process.env.GO_KEYS_JSON = JSON.stringify(["key-aaa", "key-bbb"]);
+    reloadGoKeys();
+    try {
+      const now = Date.now();
+      // B (idx 1) is exiled.
+      markGoKeyDead(1, "429 rate limit window", now);
+      expect(goKeyDead(1, now + 60_000)).toBe(true);
+      // REORDER: B moves to idx 0, A moves to idx 1.
+      process.env.GO_KEYS_JSON = JSON.stringify(["key-bbb", "key-aaa"]);
+      reloadGoKeys();
+      // A (now idx 1) gets exiled — its upsert must NOT destroy B's exile row.
+      markGoKeyDead(1, "429 rate limit window", now);
+      // THE FIX: B's exile survives the reorder (keyid re-homing).
+      expect(goKeyDead(0, now + 60_000)).toBe(true);
+      expect(goKeyDead(1, now + 60_000)).toBe(true);
+    } finally {
+      if (prevPool === undefined) delete process.env.GO_POOL_DB; else process.env.GO_POOL_DB = prevPool;
+      if (prevKeys === undefined) delete process.env.GO_KEYS_JSON; else process.env.GO_KEYS_JSON = prevKeys;
+      reloadGoKeys();
+    }
   });
 });

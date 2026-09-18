@@ -337,7 +337,21 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
     // two autocommit statements left a window where the key owned zero rows.
     conn.exec('BEGIN IMMEDIATE;');
     try {
-      conn.run('DELETE FROM go_key_pool WHERE keyid = ? AND idx != ?', [keyidFor(idx), idx]);
+      // W44 (qwen scan HIGH): RE-HOME, never destroy — a reorder puts a
+      // DIFFERENT key at this idx; the old ON CONFLICT(idx) upsert overwrote
+      // the displaced key's exile row (its rate-limit state was LOST and the
+      // still-limited key got hammered). The displaced row moves to its
+      // key's CURRENT position; a legacy/unknown keyid row drops (nothing
+      // to attribute it to).
+      const displaced = conn.query('SELECT keyid, dead_until FROM go_key_pool WHERE idx = ? AND (keyid IS NULL OR keyid != ?)').get(idx, keyidFor(idx)) as { keyid: string | null; dead_until: number } | null;
+      if (displaced && typeof displaced.keyid === 'string' && displaced.keyid.length > 0) {
+        const home = GO_KEYS.findIndex((k) => createHash('sha256').update(k).digest('hex').slice(0, 16) === displaced.keyid);
+        if (home >= 0 && home !== idx) {
+          conn.run('UPDATE go_key_pool SET idx = ? WHERE keyid = ? AND idx = ?', [home, displaced.keyid, idx]);
+        } else {
+          conn.run('DELETE FROM go_key_pool WHERE idx = ? AND keyid = ?', [idx, displaced.keyid]);
+        }
+      }
       conn.run(
         `INSERT INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
