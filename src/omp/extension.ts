@@ -243,7 +243,7 @@ pi.registerTool({
           const { setMeta } = await import("./typed-write.ts");
           const wipeWho = ctx?.sessionID ?? "unknown-session";
           const wipeCwd = cwdOf(ctx);
-          setMeta(join(resolve(wipeCwd), ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${wipeWho}@${new Date().toISOString()}`);
+          setMeta(path.join(path.resolve(wipeCwd), ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${wipeWho}@${new Date().toISOString()}`);
         } catch { /* registry absent post-wipe — the refusal path above is the record */ }
         return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
       } catch (e) {
@@ -289,7 +289,7 @@ pi.registerTool({
     }
     // W8 (frozen-scan HIGH): twin verbs require a non-empty target — an empty
     // one resolved to garbage or a full-table scan in the dispatcher below.
-    if (["who-calls", "impact", "safe-delete", "gate"].includes(verb) && String(p.target ?? p.symbol ?? "").trim() === "") {
+    if (["who-calls", "impact", "safe-delete", "gate", "blast-radius", "would-break"].includes(verb) && String(p.target ?? p.symbol ?? "").trim() === "") {
       return textResult(`QUERY_INVALID: verb '${verb}' requires a non-empty target`, { ok: false, error: "QUERY_INVALID" });
     }
     let callerId = "omp-default-session";
@@ -313,6 +313,12 @@ pi.registerTool({
         return textResult(confined.error, { ok: false, error: "GI_PATH_DENIED" });
       }
       scopeRoot = confined.real;
+    } else {
+      const defaultConfined = confineTargetPath(cwdOf(ctx), cwdOf(ctx));
+      if (!defaultConfined.ok) {
+        return textResult(defaultConfined.error, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      scopeRoot = defaultConfined.real;
     }
     try {
       const opened = openSessionStore({ sessionId, scopeRoot, callerSessionId: callerId });
@@ -431,10 +437,13 @@ createBugHuntTool(pi, { cwdOf });
       }
       // frozen-scan HIGH: Date.now() alone collides on concurrent audits —
       // add an entropy suffix.
-      const ledgerDir = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit", `${layerId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-      // W11 (frozen-scan HIGH): confine AFTER mkdir — a planted symlink at the
-      // predictable prefix must not redirect append writes outside the root.
-      fs.mkdirSync(ledgerDir, { recursive: true });
+      // W12 (frozen-scan HIGH): mkdtemp creates the dir ATOMICALLY (unique +
+      // 0700, O_EXCL semantics) — the old mkdirSync(recursive) on a
+      // predictable prefix followed a pre-planted symlink and created
+      // directories outside the root before the confine check ran.
+      const auditRoot = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit");
+      fs.mkdirSync(auditRoot, { recursive: true });
+      const ledgerDir = fs.mkdtempSync(join(auditRoot, `${layerId}-`));
       const ledgerReal = fs.realpathSync(ledgerDir);
       if (!ledgerReal.startsWith(resolve(targetRoot) + path.sep)) {
         return textResult("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });

@@ -311,14 +311,10 @@ export function scopeBuildToProfile(
 ): { nodes: GraphNode[]; edges: GraphEdge[]; dropped: number } {
   const norm = (s: string): string => s.replace(/\/+$/, "");
   const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
-  // W11 (frozen-scan HIGH): canonicalize the root EXACTLY like the projection
-  // (realpathSync, not the caller's resolve) + normalize the rel — the old
-  // non-canonical base and single-./-strip diverged from projectGraphifyGraph.
-  const rootCanon = (() => { try { return fs.realpathSync(root); } catch { return path.resolve(root); } })();
   const inScope = (f: string | undefined): boolean => {
     if (f === undefined || f.length === 0) return false;
-    const rel = path.isAbsolute(f) ? path.relative(rootCanon, f) : path.normalize(f.replace(/^\.\//, ""));
-    if (rel.length === 0 || rel.split(/[\\/]/).includes("..")) return false;
+    const rel = containedRel(root, f);
+    if (rel.length === 0) return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
   };
   const nodesIn = nodes.filter((n) => inScope(n.file));
@@ -511,6 +507,20 @@ export function tryResolveGraphifyLine(
   return n === null ? undefined : n;
 }
 
+// W12 (frozen-scan HIGH): THE ONE CONTAINMENT LAW — realpath the root,
+// normalize the candidate, judge on `..` SEGMENTS. normalize/project/
+// scopeBuild all call this; three divergent implementations were the finding.
+function containedRel(root: string, f: string): string {
+  let rootCanon: string;
+  try { rootCanon = fs.realpathSync(root); } catch { rootCanon = path.resolve(root); }
+  const abs = path.isAbsolute(f) ? f : path.resolve(rootCanon, f);
+  let real = abs;
+  try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
+  const rel = path.relative(rootCanon, real).split(path.sep).join("/");
+  if (rel.length === 0 || rel.split("/").includes("..")) return "";
+  return rel;
+}
+
 // Typed projection (pure — no I/O). W9 CONTRACT: node rows may carry
 // line = null (lineless is schema-legal; the VERBS skip + count them per
 // the W3 policy) — only the EDGE branch fails loud (LINELESS_NODE) when an
@@ -530,7 +540,7 @@ function graphifyEvidence(predicate: string, src: string, dst: string, file: str
  *  deep INFERRED is out of W1 scope and documented, not silently relabeled). */
 export function mapGraphifyToTyped(
   nodes: GraphNode[],
-  edges: GraphEdge[],
+  edges: GraphifyEdge[], // W12 (frozen-scan HIGH): RAW shape {src,dst,relation,confidence} — the old GraphEdge[] annotation was a type lie (e.src/e.dst don't exist on GraphEdge)
   runTag: string,
 ): { nodeRows: ForkNode[]; edgeRows: ForkEdge[] } {
   const nodeRows: ForkNode[] = nodes.map((n) => {

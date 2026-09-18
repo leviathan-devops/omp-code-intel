@@ -52,6 +52,14 @@ export async function parseGraphJsonGuardedAsync(contents: string, sizeHint = 0)
 // superseded_run on nodes and src_canonical/dst_canonical/predicate on edges.
 // OMP baseline had typed_nodes(canonical,name,file) only — no edges table.
 export const TYPED_STORE_DDL: readonly string[] = [
+  // W12 (frozen-scan HIGH): gi_meta is created FIRST — the applyTypedDdl
+  // deferral marker (unique_index_deferred) is written MID-LOOP when a legacy
+  // UNIQUE index defers, and must have its table at that moment. Creating it
+  // last silently lost every deferral record.
+  `CREATE TABLE IF NOT EXISTS gi_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS typed_nodes (
     id INTEGER PRIMARY KEY,
     canonical_id TEXT NOT NULL,
@@ -80,14 +88,6 @@ export const TYPED_STORE_DDL: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`,
-  // W1 substrate ledger: records which substrate populated this store
-  // ('corbell' | 'indexer-fallback') so queries can SURFACE it always and
-  // reconcile on upgrade - a regex-populated store must never silently
-  // masquerade once the parse-grade substrate is warm.
-  `CREATE TABLE IF NOT EXISTS gi_meta (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )`,
 ];
 
 const SQLITE_MAGIC = Buffer.from("SQLite format 3");
@@ -154,9 +154,10 @@ export function applyTypedDdl(db: Database): void {
         // permanently unconstrained — dedup the legacy live duplicates
         // (tombstone all but the newest row per duplicate group), then RETRY
         // the index once. The store regains its invariant on first open.
+        // Parse the index's table + column list, tombstone every live row
+        // that is NOT the NEWEST row of its unique-key group (MAX rowid:
+        // the newest write carries the freshest label/file/line), then retry.
         try {
-          // Parse the index's table + column list, tombstone every live row
-          // that is NOT the oldest row of its unique-key group, then retry.
           const on = /ON\s+([\w_]+)\s*\(([^)]+)\)/i.exec(stmt);
           if (on) {
             const table = on[1]!;
@@ -427,7 +428,11 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
     // V21 W1+W5: the recursion walks CANONICAL IDS (identity-true), not files —
     // the old per-file CROSS JOIN (nodes-by-file x all edges) was an O(V*E)
     // fan-out AND conflated every same-label node sharing a file.
-    const ids = resolveLiveIds(db, symbol);
+    let ids = resolveLiveIds(db, symbol);
+    if (ids.length > 500) {
+      console.warn(`[gi-omp] blastRadius: '${symbol}' resolves to ${ids.length} live ids — capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
+      ids = ids.slice(0, 500);
+    }
     if (ids.length === 0) return { root: symbol, depth: 0, nodes: [] };
     const rows = db.query(
       `WITH RECURSIVE blast(cid, depth) AS (
@@ -502,9 +507,9 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
       "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
     ).all(from) as { canonical_id: string }[];
     const targets = db.query(
-      "SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
-    ).all(to) as { label: string }[];
-    const toSet = new Set(targets.map((r) => r.label));
+      "SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+    ).all(to) as { canonical_id: string }[];
+    const toSet = new Set(targets.map((r) => r.canonical_id));
     // V21 W4: visited marked on ENQUEUE — the dequeue-mark variant pushed the
     // same id once per inbound edge (exponential churn on dense graphs).
     const visited = new Set<string>(starts.map((s) => s.canonical_id));
@@ -531,7 +536,7 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
           file: e.dst_file ?? "",
           line: e.dst_line ?? 0,
         };
-        if (toSet.has(e.dst_label) && !(from === to && cur.steps.length === 0)) {
+        if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
           return [...cur.steps, step];
         }
         if (!visited.has(e.dst_id)) {

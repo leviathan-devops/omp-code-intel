@@ -136,6 +136,12 @@ function db(sessionId?: string): Database {
       poolDbByPath.delete(want);
     }
   }
+  // W12 (frozen-scan HIGH): pre-create 0600 BEFORE sqlite opens the file —
+  // new Database(create) makes it under the process umask (0644 tmp), leaving
+  // a window where another uid can open/read the brand-new pool. 'a' creates
+  // without truncating and never follows a pre-planted symlink write-through
+  // (the chmod below still fires).
+  try { fs.closeSync(fs.openSync(want, "a", 0o600)); } catch { /* exists */ }
   const fresh = new Database(want, { create: true });
   try { fs.chmodSync(want, 0o600); } catch (_umask) { /* fs may already restrict */ }
   try {
@@ -345,9 +351,12 @@ export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?
     // W9 (frozen-scan HIGH): clear by KEYID (keyid-first parity with the
     // dead-mark/reads) — the positional clear hit the WRONG key after a
     // reload/reorder, resurrecting a dead sibling instead.
+    // W12 (frozen-scan HIGH): the OR-idx arm revives LEGACY keyid-NULL rows
+    // — the keyid-only UPDATE never matched them, so readDeadUntil (byIdx
+    // fallback) kept reporting a dead key that markGoKeyAlive could not clear.
     const r = db(sessionId).run(
-      'UPDATE go_key_pool SET dead_until = 0 WHERE keyid = ? AND dead_until > ?',
-      [keyidFor(idx), now],
+      'UPDATE go_key_pool SET dead_until = 0 WHERE dead_until > ? AND (keyid = ? OR (keyid IS NULL AND idx = ?))',
+      [now, keyidFor(idx), idx],
     );
     return r.changes > 0;
   } catch (e) {
