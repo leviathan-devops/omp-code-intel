@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import { assertSessionStorePath } from "../scoping/index.ts";
+import { createHash } from "node:crypto";
 
 export class GiStoreCorruptError extends Error {
   readonly code = "GI_STORE_CORRUPT";
