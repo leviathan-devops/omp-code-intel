@@ -538,7 +538,8 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
        FROM blast
        JOIN typed_nodes n ON n.canonical_id = blast.cid
        WHERE blast.depth > 0 AND n.file IS NOT NULL
-       GROUP BY n.file`,
+       GROUP BY n.file
+       LIMIT 5000`,
     ).all(...ids, depth) as BlastNode[];
     const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
     const maxDepth = nodes.reduce((m, n) => (n.depth > m ? n.depth : m), 0);

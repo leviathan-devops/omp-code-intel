@@ -438,7 +438,7 @@ function nodeFile(targetRoot: string, node: { file: string; data?: Record<string
   if (rel) {
     // Absolute anchor: contained-only, emitted as root-relative posix (the
     // same format as the graphify normalize/projection containment).
-    const r = path.relative(path.resolve(targetRoot), rel);
+    const r = path.relative(realResolve(path.resolve(targetRoot)), realResolve(rel));
     if (r === "" || r === ".." || r.startsWith(`..${path.sep}`) || path.isAbsolute(r)) return "";
     return r.split(path.sep).join("/");
   }

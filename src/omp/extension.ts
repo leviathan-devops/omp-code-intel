@@ -479,7 +479,13 @@ createBugHuntTool(pi, { cwdOf });
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {
-        const reportPath = join(settlement.ledgerDir, "findings", "report.md");
+        // W28 (frozen-scan HIGH): re-confine the auditor-returned ledgerDir —
+        // a divergent/compromised return must not point reads outside the root.
+        const reportConfined = confineTargetPath(settlement.ledgerDir, cwdOf(ctx));
+        if (!reportConfined.ok) {
+          return textResult(`GI_LEDGER_DENIED: settlement ledger escaped the root (${reportConfined.error})`, { ok: false, error: "GI_LEDGER_DENIED" });
+        }
+        const reportPath = join(reportConfined.real, "findings", "report.md");
         return textResult(`AUDIT_DONE layer=${layerId} findings=${(settlement.findings as { candidates?: unknown[] }).candidates?.length ?? "?"} reportPath=${reportPath}`, {
           ok: true,
           findings: settlement.findings,
