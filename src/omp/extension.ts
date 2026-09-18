@@ -3,6 +3,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { Database } from "bun:sqlite";
 import { blastRadius, chainCalls, countTypedNodes, gateAdvisory, getMeta, impact, safeDelete, unwiredNodes, whoCalls, wouldBreak } from "./typed-write.ts";
 import { GiScopeError, openSessionStore } from "./store-open.ts";
 import { GiPathError } from "../scoping/index.ts";
@@ -79,7 +80,6 @@ export function settlementLedgerConfined(ledgerPath: string, targetReal: string)
 // unauditable global wipe). The trail writes through a registry-shaped
 // store of its own (same gi_meta schema, no session-shape law).
 export function writeWipeAudit(giDir: string, note: string): void {
-  const { Database } = require("bun:sqlite") as { Database: new (p: string, o?: { readonly?: boolean }) => { exec: (s: string) => void; run: (s: string, ...v: unknown[]) => void; close: () => void } };
   fs.mkdirSync(giDir, { recursive: true });
   const regPath = path.join(giDir, "registry.sqlite");
   const db = new Database(regPath);
