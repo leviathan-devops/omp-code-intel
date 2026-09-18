@@ -101,7 +101,11 @@ export function goPoolDbFile(sessionId?: string): string {
   void sessionId;
   if (process.env.GO_POOL_DB) return process.env.GO_POOL_DB;
   if (process.env.BUN_TEST) return path.join(os.tmpdir(), 'go-key-pool-test.sqlite');
-  return path.join(os.tmpdir(), '.go-key-pool.sqlite');
+  // W26 (frozen-scan HIGH): the default leaves the world-writable tmpdir —
+  // the pool now lives in a user-private directory (created 0700 on demand).
+  const privateDir = path.join(os.homedir(), '.gi-omp');
+  try { fs.mkdirSync(privateDir, { recursive: true, mode: 0o700 }); } catch { /* exists */ }
+  return path.join(privateDir, 'go-key-pool.sqlite');
 }
 
 // THE CACHED SINGLETON (the source's getWaveDb pattern, wave-db.ts:105-118):
@@ -324,7 +328,7 @@ export function redactKeyMaterial(err: string): string {
 // THE DEAD-MARK — persists the window + the REASON (the 300-char error slice)
 // + marked_at: the audit trail (who died, why, when) rides in the row.
 export function markGoKeyDead(idx: number, err: string, now: number = Date.now(), sessionId?: string): number {
-  if (!Number.isInteger(idx) || idx < 0 || idx >= GO_KEYS.length) return now;
+  if (!Number.isInteger(idx) || idx < 0 || idx >= GO_KEYS.length) return 0; // W26: contract consistency — nothing was persisted
   const msg = String(err ?? '');
   const until = now + parseGoWindowMs(msg);
   try {
