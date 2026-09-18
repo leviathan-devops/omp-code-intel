@@ -15,7 +15,7 @@ import { type ForkEdge, type ForkNode, insertForkEdgesBatch, insertForkNodesBatc
 import { supersedeThenInsert } from "./populate-graphify.ts";
 
 export const CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
-export const CORBELL_FRESHNESS_BUDGET = 500;
+export const CORBELL_FRESHNESS_BUDGET = 2000;
 
 export interface CorbellPopulateResult {
   ok: boolean;
@@ -109,7 +109,7 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     // store maps to CORBELL_NOT_WARM:unreadable, never an escaping throw.
     src = new Database(warmPath, { readonly: true });
     rows = src.query(
-      "SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL",
+      "SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT 20001",
     ).all() as typeof rows;
     edges = src.query(
       "SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL",
