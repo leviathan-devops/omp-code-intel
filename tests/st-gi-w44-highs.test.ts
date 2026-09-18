@@ -10,7 +10,9 @@ import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, writeWipeAudit } from "../src/omp/extension.ts";
+import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
+import { populateSessionStore } from "../src/omp/populate.ts";
+import { setMeta } from "../src/omp/typed-write.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -269,5 +271,29 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(escaped.ok).toBe(false);
     // Missing ledger path → loud denial, never a throw.
     expect(settlementLedgerConfined(path.join(real, "nope"), real).ok).toBe(false);
+  });
+
+  // ---------- F16 (extension:371 populate-lane recheck) ----------
+  test("test_w44_substrate_needs_populate_decision_seam", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-lane-"));
+    const storePath = path.join(root, "sessions", "sesW44LANE0000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    // Leg A: empty store → populate needed.
+    expect(substrateNeedsPopulate(storePath, root)).toBe(true);
+    // Warm corbell checkout (root holds ONLY .omp → freshness passes).
+    const warmDir = path.join(root, ".omp", "graph-intelligence", "corbell-checkout");
+    fs.mkdirSync(warmDir, { recursive: true });
+    const warm = new Database(path.join(warmDir, "store.sqlite"));
+    warm.exec(`CREATE TABLE typed_nodes (canonical_id TEXT, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
+CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);
+INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL);`);
+    warm.close();
+    populateSessionStore(storePath, root);
+    // Leg B: populated from corbell + warm → NO repopulate (the skip the
+    // lane-queued concurrent query must take).
+    expect(substrateNeedsPopulate(storePath, root)).toBe(false);
+    // Leg C: fallback substrate + warm corbell → upgrade repopulate fires.
+    setMeta(storePath, "substrate", "indexer-fallback");
+    expect(substrateNeedsPopulate(storePath, root)).toBe(true);
   });
 });

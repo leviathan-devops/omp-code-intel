@@ -44,6 +44,16 @@ export function ledgerDirConfined(ledgerReal: string, targetReal: string): boole
   const rel = path.relative(targetReal, ledgerReal);
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
+// W44 (extension:371): the populate DECISION as one seam — empty store, or a
+// warm corbell checkout with the store NOT on corbell (fallback or pre-ledger),
+// means repopulate. Evaluated INSIDE the populate lane so a queued concurrent
+// query that already populated skips cleanly (no double repopulate).
+export function substrateNeedsPopulate(storePath: string, scopeRoot: string): boolean {
+  if (countTypedNodes(storePath) === 0) return true;
+  const stored = getMeta(storePath, "substrate");
+  const warm = isCorbellCheckoutFreshFor(scopeRoot, corbellCheckoutPath(scopeRoot));
+  return warm.fresh && stored !== "corbell";
+}
 // W44 (qwen scan HIGH): the settlement re-confine rode the GENERAL allowlist
 // (confineTargetPath with targetRoot as callerCwd). With GI_TARGET_ROOTS
 // unset the default roots were [targetRoot, /tmp] — so a compromised auditor
@@ -412,22 +422,22 @@ pi.registerTool({
       // exists and the store was populated by the fallback (or predates the
       // ledger), repopulate from corbell so the upgrade takes effect.
       let popNote = "";
-      // W17+W19: the emptiness/stale reads below are the FAST PATH; the
-      // authoritative emptiness re-check runs INSIDE the populate lane
-      // callback (a concurrent query that populated first makes this one
-      // skip cleanly — no duplicate repopulates).
-      const stored = getMeta(opened.storePath, "substrate");
-      const empty = countTypedNodes(opened.storePath) === 0;
-      const warmPath = corbellCheckoutPath(scopeRoot);
-      const warm = empty ? { fresh: false } : isCorbellCheckoutFreshFor(scopeRoot, warmPath);
-      if (empty || (warm.fresh && stored !== "corbell")) {
-        const pop = await withPopulateLane(() => populateSessionStore(opened.storePath, scopeRoot));
-        popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}\n`;
-        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
-      } else {
-        popNote = `substrate=${stored ?? "indexer-fallback"}\n`;
-        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, stored ?? "indexer-fallback");
+      // W44 (extension:371): the DECISION moves INSIDE the lane callback —
+      // the W19 comment claimed an in-callback recheck but the check sat
+      // BEFORE lane acquisition, so two queued queries both saw empty/stale
+      // and double-populated. substrateNeedsPopulate is the authoritative
+      // verdict, evaluated AFTER acquiring the lane.
+      const pop = await withPopulateLane(() => {
+        if (!substrateNeedsPopulate(opened.storePath, scopeRoot)) return null;
+        return populateSessionStore(opened.storePath, scopeRoot);
+      });
+      if (pop === null) {
+        const storedNow = getMeta(opened.storePath, "substrate") ?? "indexer-fallback";
+        popNote = `substrate=${storedNow}\n`;
+        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, storedNow);
       }
+      popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}\n`;
+      return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
     } catch (e) {
       const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code: unknown }).code) : "GI_QUERY_FAIL";
       return textResult(`${code}: ${String(e instanceof Error ? e.message : e)}`, { ok: false, error: code });
