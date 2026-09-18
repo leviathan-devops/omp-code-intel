@@ -363,6 +363,9 @@ function applyTypedDdl(db) {
           if (dm.includes("DDL_DEDUP_INVALID_IDENT"))
             throw dedupErr;
           console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
+          try {
+            db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
+          } catch {}
         }
         continue;
       }
@@ -640,7 +643,8 @@ function safeDelete(storePath, symbol) {
          JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
          WHERE e.src_canonical IN (${ph(srcIds.length)})
            AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-           AND dst.superseded_run IS NULL`).all(...srcIds);
+           AND dst.superseded_run IS NULL
+         LIMIT 500`).all(...srcIds);
       for (const u of uses) {
         if (u.line === null || u.line === undefined) {
           usesLinelessDropped += 1;
@@ -9312,8 +9316,13 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
       };
       const splicePath = path25.join(path25.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
       fs22.mkdirSync(path25.dirname(splicePath), { recursive: true });
-      fs22.appendFileSync(splicePath, JSON.stringify(row) + `
+      const sfd = fs22.openSync(splicePath, fs22.constants.O_WRONLY | fs22.constants.O_CREAT | fs22.constants.O_APPEND | fs22.constants.O_NOFOLLOW, 420);
+      try {
+        fs22.writeFileSync(sfd, JSON.stringify(row) + `
 `, "utf-8");
+      } finally {
+        fs22.closeSync(sfd);
+      }
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
     }
   };
@@ -9937,14 +9946,15 @@ async function runTemplateAudit(args) {
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_SWEEP_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
+  const sanitize = (v) => String(v ?? "").replace(/[\r\n]+/g, " ").replace(/^##\s*/g, "").replace(/\s*##\s*/g, " ");
   const blocks = swept.map((c) => [
-    `## FINDING: ${c.subject}`,
+    `## FINDING: ${sanitize(c.subject)}`,
     `- layer: ${layerId}`,
-    `- predicate: ${c.predicate}`,
+    `- predicate: ${sanitize(c.predicate)}`,
     `- object: Contract`,
-    `- file: ${c.file}:${c.line}`,
-    `- evidence: "${c.evidence.replace(/"/g, "'")}"`,
-    `- spec: ${c.spec}`,
+    `- file: ${sanitize(c.file)}:${c.line}`,
+    `- evidence: "${sanitize(c.evidence)}"`,
+    `- spec: ${sanitize(c.spec)}`,
     `- severity: ${c.severity}`,
     `- confidence: ${c.confidence}`
   ].join(`
@@ -11197,6 +11207,11 @@ function normalizeGraphifyGraph(raw, opts) {
 function scopeBuildToProfile(nodes, edges, root, scopeDirs) {
   const norm = (s) => s.replace(/\/+$/, "");
   const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  try {
+    fs7.realpathSync(root);
+  } catch {
+    return { nodes: [], edges: [], dropped: nodes.length };
+  }
   const inScope = (f) => {
     if (f === undefined || f.length === 0)
       return false;
@@ -11382,7 +11397,7 @@ function containedRel(root, f) {
   try {
     rootCanon = fs7.realpathSync(root);
   } catch {
-    rootCanon = path8.resolve(root);
+    throw new Error(`CONTAINMENT_ROOT_UNRESOLVABLE: ${root} cannot be canonicalized \u2014 refusing all anchors`);
   }
   const abs = path8.isAbsolute(f) ? f : path8.resolve(rootCanon, f);
   let real = abs;
@@ -11985,7 +12000,7 @@ function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
 
 // src/omp/populate-corbell.ts
 var CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
-var CORBELL_FRESHNESS_BUDGET = 500;
+var CORBELL_FRESHNESS_BUDGET = 2000;
 function corbellCheckoutPath(root) {
   return path10.join(root, CORBELL_CHECKOUT_REL);
 }
@@ -12064,7 +12079,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   let src = null;
   try {
     src = new Database4(warmPath, { readonly: true });
-    rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL").all();
+    rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT 20001").all();
     edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL").all();
   } catch (e) {
     return { ok: false, reason: `CORBELL_NOT_WARM:unreadable:${e instanceof Error ? e.message.slice(0, 60) : String(e)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
@@ -17062,7 +17077,7 @@ WIPE_AUDIT_FAILED: ${wipeConfined.error}`;
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {
-        const reportConfined = confineTargetPath(settlement.ledgerDir, cwdOf(ctx));
+        const reportConfined = confineTargetPath(settlement.ledgerDir, targetRoot);
         if (!reportConfined.ok) {
           return textResult2(`GI_LEDGER_DENIED: settlement ledger escaped the root (${reportConfined.error})`, { ok: false, error: "GI_LEDGER_DENIED" });
         }
