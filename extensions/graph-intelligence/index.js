@@ -9844,6 +9844,9 @@ function assertGraphShape(graph) {
     if (typeof row["id"] !== "string" || row["id"].length === 0) {
       throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string id");
     }
+    if (typeof row["label"] !== "string" || row["label"].length === 0) {
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string label");
+    }
   }
   for (const e of g.edges) {
     const row = e;
