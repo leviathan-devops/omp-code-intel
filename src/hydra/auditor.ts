@@ -265,7 +265,14 @@ function makeGraphTagTool(ledgerDir: string, layerId: string, defaultPredicate: 
       };
       const splicePath = path.join(path.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
       fs.mkdirSync(path.dirname(splicePath), { recursive: true });
-      fs.appendFileSync(splicePath, JSON.stringify(row) + "\n", "utf-8");
+      // W40 (frozen-scan HIGH): fd-pinned O_APPEND|O_NOFOLLOW — a symlink
+      // swap at the splice path cannot redirect the appended bytes.
+      const sfd = fs.openSync(splicePath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_APPEND | fs.constants.O_NOFOLLOW, 0o644);
+      try {
+        fs.writeFileSync(sfd, JSON.stringify(row) + "\n", "utf-8");
+      } finally {
+        fs.closeSync(sfd);
+      }
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
     },
   };
@@ -1009,14 +1016,17 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   }
 
   // Report via the force-bound tool (fork systemPrompt law: ONLY write_findings produces it).
+  // W40 (frozen-scan HIGH): grammar-injection guard — newlines and '## '
+  // prefixes in label/evidence/spec fields could forge FINDING blocks.
+  const sanitize = (v: string): string => String(v ?? "").replace(/[\r\n]+/g, " ").replace(/^##\s*/g, "").replace(/\s*##\s*/g, " ");
   const blocks = swept.map((c) => [
-    `## FINDING: ${c.subject}`,
+    `## FINDING: ${sanitize(c.subject)}`,
     `- layer: ${layerId}`,
-    `- predicate: ${c.predicate}`,
+    `- predicate: ${sanitize(c.predicate)}`,
     `- object: Contract`,
-    `- file: ${c.file}:${c.line}`,
-    `- evidence: "${c.evidence.replace(/"/g, "'")}"`,
-    `- spec: ${c.spec}`,
+    `- file: ${sanitize(c.file)}:${c.line}`,
+    `- evidence: "${sanitize(c.evidence)}"`,
+    `- spec: ${sanitize(c.spec)}`,
     `- severity: ${c.severity}`,
     `- confidence: ${c.confidence}`,
   ].join("\n")).join("\n\n");

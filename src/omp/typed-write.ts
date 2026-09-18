@@ -261,6 +261,7 @@ export function applyTypedDdl(db: Database): void {
           const dm = dedupErr instanceof Error ? dedupErr.message : String(dedupErr);
           if (dm.includes("DDL_DEDUP_INVALID_IDENT")) throw dedupErr;
           console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
+          try { db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash('sha256').update(stmt).digest('hex').slice(0, 12)}`, stmt.slice(0, 200)]); } catch { /* gi_meta may predate this table */ }
         }
         // W34: the in-txn dedup+retry above owns the recovery — the old
         // out-of-txn second run double-counted the recovery log on success
@@ -836,7 +837,8 @@ export function safeDelete(storePath: string, symbol: string): SafeDeleteResult 
          JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
          WHERE e.src_canonical IN (${ph(srcIds.length)})
            AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-           AND dst.superseded_run IS NULL`,
+           AND dst.superseded_run IS NULL
+         LIMIT 500`,
       ).all(...srcIds) as Array<{ symbol: string; file: string | null; line: number | null }>;
       // P1.5.3 (W3): the lineless USE is COUNTED in the result — the old filter
       // vanished it silently (a caller with no line could never be cited).

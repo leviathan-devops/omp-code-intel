@@ -482,7 +482,9 @@ createBugHuntTool(pi, { cwdOf });
       if (settlement.status === "fulfilled") {
         // W28 (frozen-scan HIGH): re-confine the auditor-returned ledgerDir —
         // a divergent/compromised return must not point reads outside the root.
-        const reportConfined = confineTargetPath(settlement.ledgerDir, cwdOf(ctx));
+        // W40: allowlist base = the AUDIT TARGET root (a settlement ledger
+        // under a different root than the query target is the escape case).
+        const reportConfined = confineTargetPath(settlement.ledgerDir, targetRoot);
         if (!reportConfined.ok) {
           return textResult(`GI_LEDGER_DENIED: settlement ledger escaped the root (${reportConfined.error})`, { ok: false, error: "GI_LEDGER_DENIED" });
         }
