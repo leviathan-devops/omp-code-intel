@@ -241,3 +241,14 @@ restored. W19 rescan (dist 10d7fe48e371fbf6 ×5): extension 2h, pool 2h,
 typed-write 4h = 8 highs on the hot files, 0 criticals. Battery 170/0/1597.
 **Band stable at 9-14 across passes 9-13 while every pass lands real fixes —
 the kernel is at its patch-wave floor; 0h needs the §12 rebuild or rulings.**
+
+## PASS 14 (W20) — BAND CONFIRMED AT 13 (2026-09-18)
+Closed 5: pool ELOOP symlink-plant refusal (never chmod/open through a plant)
++ markGoKeyAlive NULL-arm bound to idx (reviving one key no longer zeroed
+every legacy NULL row); extension GI_TARGET_ROOTS Windows-drive-aware split;
+typed-write stat filter ENOENT-only (EACCES/EPERM surface) + bounded sync
+backoff. W20 rescan (dist d32181f702f07449 ×5): 13 highs on 3 files, 0
+criticals, battery 170/0/1597 across 28 files.
+**The band is confirmed stable at 13-14 across passes 12-14. The goal
+remains OPEN on the 0h gate; the operator owns the §12-rebuild vs
+rulings decision. Next pass resumes from w20-*.json.**
