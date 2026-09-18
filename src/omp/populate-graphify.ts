@@ -54,6 +54,23 @@ export function graphifyOutPath(root: string, profile?: ProjectProfile): string 
 /** Freshness probe (populate-corbell.ts:32-65 shape, budgeted): stale when any
  *  indexed-class source file is NEWER than the warm graph.json — the query
  *  must then fall back LOUDLY, never silently serve a stale graph. */
+// W45/F29 (frozen-scan HIGH): scope entries are CONTAINED to the project root —
+// a caller-controlled profile with `scope: ['/etc']` used to walk outside the
+// root (the isAbsolute ? rel : join(root) branch). An absolute entry that
+// resolves INSIDE the root is kept (legitimate subdirectory scoping); anything
+// escaping it, or unresolvable, returns null (caller skips, fail-closed).
+export function containedScopeTarget(root: string, rel: string): string | null {
+  const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+  try {
+    const real = fs.realpathSync(target);
+    const r = path.relative(root, real);
+    if (r === "" || (!r.split(path.sep).includes("..") && !path.isAbsolute(r))) return target;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function isGraphifyCheckoutFreshFor(
   root: string,
   graphPath: string,
@@ -120,7 +137,8 @@ export function isGraphifyCheckoutFreshFor(
     }
   };
     for (const rel of scope) {
-    const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    const target = containedScopeTarget(root, rel);
+    if (target === null) continue;
     // V21 cleanup fix-now: a scope entry may be a FILE — stat it directly
     // (walk() on a file throws ENOTDIR and silently counted nothing).
     let stTarget: fs.Stats | null = null;
@@ -239,7 +257,8 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
   // two different scopes over the same tree collide on one digest.
   hash.update(`scope=${scope.join(",")}\n`);
   for (const rel of scope) {
-    const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+    const target = containedScopeTarget(root, rel);
+    if (target === null) continue;
     // W8: file-scoped entries respect excludes (parity with the dir walk).
     const base = path.basename(target);
     if (excludes.includes(base)) continue;

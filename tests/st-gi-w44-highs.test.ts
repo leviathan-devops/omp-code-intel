@@ -548,4 +548,28 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     expect(v.fresh).toBe(true);
     expect(v.reason).toBe("fresh");
   });
+
+  // ---------- F30 (populate-graphify: absolute scope escape) ----------
+  test("test_w44_absolute_scope_entry_contained_to_root", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-scope-"));
+    const graphPath = path.join(root, "graph.json");
+    fs.writeFileSync(graphPath, "{}\n");
+    // An OUT-OF-ROOT absolute scope entry: the walk must refuse it (filesSeen
+    // stays 0 → fail-closed stale-unscooped), never walk /tmp/LEAK.
+    const leakDir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-LEAK-"));
+    fs.writeFileSync(path.join(leakDir, "leak.ts"), "export const leak = 1;\n");
+    const escaped = isGraphifyCheckoutFreshFor(root, graphPath, [leakDir], []);
+    expect(escaped.fresh).toBe(false);
+    expect(escaped.reason).toBe("stale-unscooped");
+    // Positive control: an absolute entry INSIDE the root is legitimate.
+    // (Graph file touched LAST — mtime-granularity deterministic.)
+    const srcDir = path.join(root, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, "a.ts"), "export const a = 1;\n");
+    const future = new Date(Date.now() + 5_000);
+    fs.utimesSync(graphPath, future, future);
+    const inner = isGraphifyCheckoutFreshFor(root, graphPath, [srcDir], []);
+    expect(inner.fresh).toBe(true);
+    expect(inner.reason).toBe("fresh");
+  });
 });
