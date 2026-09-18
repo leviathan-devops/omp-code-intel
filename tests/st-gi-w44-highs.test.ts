@@ -10,7 +10,7 @@ import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-import { ledgerDirConfined } from "../src/omp/extension.ts";
+import { ledgerDirConfined, writeWipeAudit } from "../src/omp/extension.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -216,5 +216,31 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(ledgerDirConfined("/tmp/gi-audit", "/tmp/gi-audit")).toBe(false); // empty rel = the root itself
     // root "/" accepts any absolute child, denies nothing below itself
     expect(ledgerDirConfined("/tmp/ledger", "/")).toBe(true);
+  });
+
+  // ---------- F13 (extension:245 wipe audit path) ----------
+  test("test_w44_wipe_audit_lands_in_registry_store", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-wipe-"));
+    const giDir = path.join(root, ".omp", "graph-intelligence");
+    // THE FIX: the audit write goes through a registry-shaped store — the old
+    // setMeta(registry.sqlite) always threw (session-shape law) so the trail
+    // NEVER landed and every wipe reported WIPE_AUDIT_FAILED.
+    expect(() => writeWipeAudit(giDir, "sess-a@2026-09-18T00:00:00Z")).not.toThrow();
+    const db = new Database(path.join(giDir, "registry.sqlite"), { readonly: true });
+    try {
+      const row = db.query("SELECT value FROM gi_meta WHERE key = 'last_wipe'").get() as { value: string };
+      expect(row.value).toBe("sess-a@2026-09-18T00:00:00Z");
+    } finally {
+      db.close();
+    }
+    // second write upserts (audit trail keeps the LATEST wipe)
+    expect(() => writeWipeAudit(giDir, "sess-b@2026-09-18T01:00:00Z")).not.toThrow();
+    const db2 = new Database(path.join(giDir, "registry.sqlite"), { readonly: true });
+    try {
+      const row2 = db2.query("SELECT value FROM gi_meta WHERE key = 'last_wipe'").get() as { value: string };
+      expect(row2.value).toBe("sess-b@2026-09-18T01:00:00Z");
+    } finally {
+      db2.close();
+    }
   });
 });

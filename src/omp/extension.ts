@@ -44,6 +44,24 @@ export function ledgerDirConfined(ledgerReal: string, targetReal: string): boole
   const rel = path.relative(targetReal, ledgerReal);
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
+// W44 (qwen scan HIGH): the wipe audit line rode setMeta(registry.sqlite) —
+// but setMeta routes through openTypedStore, which ENFORCES the
+// sessions/{id}/store.sqlite shape. A registry path can never satisfy it, so
+// the audit write threw on EVERY wipe (WIPE_AUDIT_FAILED forever — an
+// unauditable global wipe). The trail writes through a registry-shaped
+// store of its own (same gi_meta schema, no session-shape law).
+export function writeWipeAudit(giDir: string, note: string): void {
+  const { Database } = require("bun:sqlite") as { Database: new (p: string, o?: { readonly?: boolean }) => { exec: (s: string) => void; run: (s: string, ...v: unknown[]) => void; close: () => void } };
+  fs.mkdirSync(giDir, { recursive: true });
+  const regPath = path.join(giDir, "registry.sqlite");
+  const db = new Database(regPath);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
+    db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", note);
+  } finally {
+    db.close();
+  }
+}
 const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {
   let real = normalized;
   try { real = fs.realpathSync(normalized); } catch {
@@ -256,13 +274,10 @@ pi.registerTool({
         let auditNote = "";
         if (wipeConfined.ok) {
           try {
-            const { setMeta } = await import("./typed-write.ts");
-            setMeta(path.join(wipeConfined.real, ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+            writeWipeAudit(path.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
           } catch (auditErr) {
             auditNote = `\nWIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`;
           }
-        } else {
-          auditNote = `\nWIPE_AUDIT_FAILED: ${wipeConfined.error}`;
         }
         if (auditNote) {
           // W17: machine-readable — details.ok stays true (the wipe happened)
