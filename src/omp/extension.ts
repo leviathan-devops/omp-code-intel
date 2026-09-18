@@ -90,6 +90,27 @@ export function writeWipeAudit(giDir: string, note: string): void {
     db.close();
   }
 }
+// W45/F24 (frozen-scan HIGH): the wipe's audit outcome as one seam — a skipped
+// audit (confine failed, write threw) is reported audited:false WITH the
+// reason; only a landed registry row is audited:true. The old flow left
+// auditNote empty on confinement failure and claimed wipeAudited:true.
+// cwdOf is injected (it is a registerGiOmpTools parameter, not module scope).
+export function graphProbeWipeAudited(
+  ctx: { cwd?: string; sessionID?: string } | undefined,
+  cwdOf: (ctx?: { cwd?: string; sessionID?: string }) => string,
+): { audited: boolean; text: string } {
+  const wipeCwd = cwdOf(ctx);
+  const wipeConfined = confineTargetPath(path.normalize(wipeCwd), wipeCwd);
+  if (!wipeConfined.ok) {
+    return { audited: false, text: `WIPE_AUDIT_FAILED: ${wipeConfined.error}` };
+  }
+  try {
+    writeWipeAudit(path.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+    return { audited: true, text: "" };
+  } catch (auditErr) {
+    return { audited: false, text: `WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}` };
+  }
+}
 // W44 (qwen scan HIGH): GI_TARGET_ROOTS split on '|' AND ':' — the ':' split
 // corrupted legal colon-bearing Linux paths (~/my:project) AND allowlisted
 // their truncated prefix as a phantom root. '|' is the documented universal
@@ -297,36 +318,20 @@ pi.registerTool({
         return textResult("GI_CLEAR_REFUSED: action=wipe requires GI_OMP_ALLOW_CLEAR=1 in the environment", { ok: false, error: "GI_CLEAR_REFUSED" });
       }
       try {
-        clearGiRegistry();
-        // W11 (frozen-scan HIGH): the wipe leaves an audit trail (who/when) —
-        // an unlogged global wipe from a session-scoped tool was unauditable.
-        // W13 (frozen-scan HIGH): the audit write is CONFINED (raw cwdOf no
-        // longer derives the registry path) and its failure is LOUD in the
-        // response — a silently-dropped audit line was unauditable.
-        const wipeCwd = cwdOf(ctx);
-        const wipeConfined = confineTargetPath(path.normalize(wipeCwd), wipeCwd);
-        let auditNote = "";
-        if (wipeConfined.ok) {
-          try {
-            writeWipeAudit(path.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
-          } catch (auditErr) {
-            auditNote = `\nWIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`;
-          }
-        }
-        if (auditNote) {
-          // W17: machine-readable — details.ok stays true (the wipe happened)
-          // but wipeAudited=false lets programmatic callers detect the gap.
-          return textResult("GI_CLEARED" + auditNote, { ok: true, token: "GI_CLEARED", wipeAudited: false });
+        const wipeAudit = graphProbeWipeAudited(ctx, cwdOf);
+        // W11/W13 (frozen-scan HIGH) + W45/F24: the audit outcome comes from
+        // the graphProbeWipeAudited seam — a skipped audit (confine failed)
+        // is reported audited:false with the reason, never as success.
+        if (!wipeAudit.audited) {
+          return textResult("GI_CLEARED\n" + wipeAudit.text, { ok: true, token: "GI_CLEARED", wipeAudited: false });
         }
         return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
       } catch (e) {
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
         // narrow with in/typeof instead (checked surface kept small).
         let code = "GI_CLEAR_REFUSED";
-        if (e !== null && typeof e === "object" && "code" in e) {
-          const c: unknown = e.code;
-          if (typeof c === "string" && c.length > 0) code = c;
-        }
+        const c = (e as { code?: unknown })?.code;
+        if (typeof c === "string" && c.length > 0) code = c;
         return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
       }
     }

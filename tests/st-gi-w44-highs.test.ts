@@ -13,7 +13,9 @@ import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
 import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
+import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
+import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { setMeta } from "../src/omp/typed-write.ts";
 import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
@@ -443,5 +445,19 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     fs.symlinkSync(victim, plant);
     expect(() => writeBriefPinned(plant, "evil")).toThrow();
     expect(fs.readFileSync(victim, "utf-8")).toBe("victim-bytes");
+});
+  // ---------- F24 (extension: wipe audit success-when-skipped) ----------
+  test("test_w44_wipe_skipped_audit_not_reported_true", async () => {
+    const prev = process.env.GI_OMP_ALLOW_CLEAR;
+      const out = await graphProbeWipeAudited({ cwd: path.join("/nonexistent", String(Date.now())) }, (c) => c?.cwd ?? process.cwd());
+    try {
+      // THE FIX: a SKIPPED audit is reported as not-audited with the reason —
+      // the old flow left auditNote empty on confinement failure and claimed
+      // wipeAudited:true.
+      expect(out.audited).toBe(false);
+      expect(out.text).toContain("WIPE_AUDIT_FAILED");
+    } finally {
+      if (prev === undefined) delete process.env.GI_OMP_ALLOW_CLEAR; else process.env.GI_OMP_ALLOW_CLEAR = prev;
+    }
   });
 });
