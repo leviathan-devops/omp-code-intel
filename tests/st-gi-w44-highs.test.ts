@@ -13,6 +13,7 @@ import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
 import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
+import { supersedeThenInsert } from "../src/omp/populate-graphify.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
@@ -510,5 +511,23 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     // THE FIX: survivors are the lexicographically-first cap edges — identical
     // across insertion orders (the old row-order slice kept arbitrary rows).
     expect(a).toEqual(b);
+  });
+
+  // ---------- F27 (populate-graphify: duplicate txn guards) ----------
+  test("test_w44_supersede_nested_txn_throws_single_named_code", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-txn-"));
+    const storePath = path.join(root, "sessions", "sesW44TXN000000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const db = new Database(storePath);
+    db.exec("CREATE TABLE typed_nodes (canonical_id TEXT, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT)");
+    db.exec("CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT)");
+    db.exec("BEGIN IMMEDIATE");
+    // THE FIX: ONE named code (GI_TXN_NESTED) — the old pair threw the
+    // misleading GI_TXN_REQUIRED from a duplicate first guard.
+    expect(() =>
+      supersedeThenInsert(db, "w44txn", [{ canonicalId: "c-a", kind: "function", label: "a", file: "src/a.ts", line: 1, run: "w44txn" }], [], []),
+    ).toThrow(/GI_TXN_NESTED/);
+    db.exec("ROLLBACK");
+    db.close();
   });
 });

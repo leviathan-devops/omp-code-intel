@@ -390,11 +390,10 @@ export function supersedeThenInsert(
   edgeRows: ForkEdge[],
   meta: Array<[string, string]>,
 ): void {
-  // V21 cleanup fix-now: BEGIN fails inside an open transaction — enforce the
-  // documented precondition loudly instead of letting sqlite throw opaque.
-  if (db.inTransaction === true) {
-    throw new Error("GI_TXN_REQUIRED: supersedeThenInsert called inside an existing transaction (the helper owns BEGIN/COMMIT)");
-  }
+  // W45/F27 (frozen-scan HIGH): the duplicate guard is GONE — two checks on
+  // the same condition threw CONFLICTING codes (GI_TXN_REQUIRED vs
+  // GI_TXN_NESTED). The accurate single verdict (GI_TXN_NESTED) lives at the
+  // guard below, before BEGIN.
   // H07 + re-run-V: PER-TABLE empty guard — a nodes-only batch must not
   // supersede live edges into void (and vice versa). Zero rows in BOTH is
   // the only full refusal.
