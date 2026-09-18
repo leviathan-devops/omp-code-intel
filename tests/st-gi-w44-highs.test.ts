@@ -14,6 +14,7 @@ import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrat
 import { populateSessionStore } from "../src/omp/populate.ts";
 import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 import { supersedeThenInsert } from "../src/omp/populate-graphify.ts";
+import { GraphifyAdapter } from "../src/hunter/graph/graphify-adapter.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
@@ -571,5 +572,22 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     const inner = isGraphifyCheckoutFreshFor(root, graphPath, [srcDir], []);
     expect(inner.fresh).toBe(true);
     expect(inner.reason).toBe("fresh");
+  });
+
+  // ---------- F32 (graphify-adapter: buildSync zero-in-scope guard) ----------
+  test("test_w44_buildsync_zero_in_scope_throws_graphempty", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-bsync-"));
+    fs.mkdirSync(path.join(root, "out"), { recursive: true });
+    fs.writeFileSync(path.join(root, "out", "a.ts"), "export const a = 1;\n");
+    // graph.json whose ONLY node is OUT OF SCOPE (scope=src, node in out/).
+    const graphPath = path.join(root, "graph.json");
+    fs.writeFileSync(graphPath, JSON.stringify({
+      nodes: [{ id: "n1", label: "a", type: "function", file: "out/a.ts" }],
+      links: [],
+    }));
+    const adapter = new GraphifyAdapter({ project: { root }, graph: { scope: ["src"] } } as never);
+    // THE FIX: buildSync carries build()'s zero-in-scope graphEmpty — the old
+    // variant silently cached zero nodes and produced an empty store.
+    expect(() => adapter.buildSync(graphPath)).toThrow(/zero in-scope|graph produced zero/i);
   });
 });

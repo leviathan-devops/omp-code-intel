@@ -844,6 +844,13 @@ export class GraphifyAdapter implements GraphAdapter {
     if (filtered.dropped > 0) {
       tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
     }
+    // W45/F32 (frozen-scan HIGH): buildSync carries build()'s zero-in-scope
+    // graphEmpty — the async variant threw when the scope filter emptied the
+    // node set, the sync bridge silently cached zero nodes and produced an
+    // empty store.
+    if (filtered.nodes.length === 0) {
+      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${(this.profile.graph?.scope ?? ["src"]).join(",")})`);
+    }
     this.lastGraphPath = graphPath;
     this.cachedNodes = filtered.nodes;
     this.cachedEdges = filtered.edges;
