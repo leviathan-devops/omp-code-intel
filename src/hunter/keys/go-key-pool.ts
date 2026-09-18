@@ -391,6 +391,7 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
       // umask on later checkpoints — re-chmod the trio after every write,
       // not only on fresh opens (the cache-hit chmod only runs at db() entry).
       try {
+        const poolPath = goPoolDbFile(sessionId);
         // W44/F21 (laguna scan HIGH): the write-path re-chmod goes through the
         // same O_NOFOLLOW+fchmod discipline — a swapped pool/sidecar symlink
         // throws here (caught best-effort below) instead of chmodding a victim.

@@ -611,4 +611,29 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     // the old return shape hid the under-report from programmatic callers.
     expect(b.truncated).toBe(true);
   });
+
+  // ---------- F35 (laguna CRITICAL: write-path re-chmod silently no-op) ----------
+  test("test_w44_pool_write_path_rechmod_actually_runs", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-rech-"));
+    const prevDb = process.env.GO_POOL_DB;
+    const prevKeys = process.env.GO_KEYS_JSON;
+    process.env.GO_POOL_DB = path.join(dir, "pool.sqlite");
+    process.env.GO_KEYS_JSON = JSON.stringify(["key-aaa", "key-bbb"]);
+    reloadGoKeys();
+    try {
+      const now = Date.now();
+      markGoKeyDead(0, "429 rate limit window", now); // creates the pool file
+      const poolFile = process.env.GO_POOL_DB!;
+      // Simulate the umask-recreation class: the pool file left world-readable.
+      fs.chmodSync(poolFile, 0o644);
+      // A write (markGoKeyDead) must re-harden it to 0600 — the F21-era edit
+      // silently no-opped here (poolPath undeclared, swallowed best-effort).
+      markGoKeyDead(1, "429 rate limit window", now);
+      expect(fs.statSync(poolFile).mode & 0o777).toBe(0o600);
+    } finally {
+      if (prevDb === undefined) delete process.env.GO_POOL_DB; else process.env.GO_POOL_DB = prevDb;
+      if (prevKeys === undefined) delete process.env.GO_KEYS_JSON; else process.env.GO_KEYS_JSON = prevKeys;
+      reloadGoKeys();
+    }
+  });
 });
