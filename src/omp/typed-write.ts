@@ -118,9 +118,16 @@ export function openTypedStore(storePath: string): Database {
   // H10 (qwen 33d64eca): path.dirname (slashless-safe) + UNCONDITIONAL recursive
   // mkdir — no exists/stat TOCTOU, no bogus dir when storePath has no "/".
   fs.mkdirSync(path.dirname(storePath), { recursive: true });
-  if (!fs.existsSync(storePath) || fs.statSync(storePath).size === 0) {
-    // fresh store path — DDL below creates the schema
-  } else {
+  // W16 (frozen-scan HIGH): ONE stat in try — the existsSync||statSync pair
+  // raced a concurrent delete (ENOENT crash) and could TOCTOU past the magic
+  // check. A vanished-or-empty store at this instant is simply the fresh path.
+  let st: fs.Stats | null = null;
+  try {
+    st = fs.statSync(storePath);
+  } catch {
+    st = null; // ENOENT — fresh store path, DDL below creates the schema
+  }
+  if (st !== null && st.size > 0) {
     const head = Buffer.alloc(16);
     const fd = fs.openSync(storePath, "r");
     try {
@@ -533,10 +540,11 @@ export interface ChainStep {
 export function chainCalls(storePath: string, from: string, to: string, maxDepth = 64): ChainStep[] {
   const db = openTypedStore(storePath);
   try {
+    // W16 (frozen-scan HIGH): LIMIT in the SQL — the in-memory truncation
+    // materialized every matching row before slicing (OOM on a mega-label).
     const starts = db.query(
-      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id",
+      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500",
     ).all(from) as { canonical_id: string }[];
-    if (starts.length > 500) starts.length = 500; // W13: uniform variable-limit cap (deterministic via ORDER BY)
     const targets = db.query(
       "SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500",
     ).all(to) as { canonical_id: string }[];

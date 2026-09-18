@@ -116,7 +116,9 @@ function makeCappedReadTool(targetRoot: string): MissionTool {
         // W11 (frozen-scan TOCTOU HIGH): open ONCE post-containment — fstat +
         // read ride the pinned fd, so a symlink swap after the check reads the
         // checked inode, not the redirect target.
-        const fd = fs.openSync(realFile, "r");
+        // W16: O_NOFOLLOW — a swap to a symlink between containment and open
+        // refuses (ELOOP) instead of pinning the redirected inode.
+        const fd = fs.openSync(realFile, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
         try {
         const size = fs.fstatSync(fd).size;
         if (size > 8 * 1024 * 1024) return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
@@ -465,7 +467,7 @@ function sourceLineQuote(targetRoot: string, relFile: string, line: number): str
     const rootReal = realResolve(path.resolve(targetRoot));
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal) return "";
-    const fd = fs.openSync(realFile, "r");
+    const fd = fs.openSync(realFile, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
       const size = fs.fstatSync(fd).size;
       if (size > 8 * 1024 * 1024) return "";
@@ -827,10 +829,14 @@ function assertGraphShape(graph: unknown): { nodes: unknown[]; edges: unknown[] 
   }
   for (const e of g.edges as unknown[]) {
     const row = e as Record<string, unknown>;
-    const src = row["source"] ?? row["src"];
-    const dst = row["target"] ?? row["dst"];
+    // W16 (frozen-scan HIGH): the sweep reads e.src/e.dst — accepting the
+    // source/target ALIAS here let a raw-shaped graph pass validation then
+    // yield undefined keys mid-sweep (empty adjacency, false confirmed-empty).
+    // Post-normalize rows are src/dst; anything else is a named refusal.
+    const src = row["src"];
+    const dst = row["dst"];
     if (typeof src !== "string" || src.length === 0 || typeof dst !== "string" || dst.length === 0) {
-      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json edges[] element missing source/target string endpoints");
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json edges[] element missing src/dst string endpoints");
     }
   }
   return { nodes: g.nodes, edges: g.edges };

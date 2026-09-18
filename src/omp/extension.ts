@@ -455,8 +455,12 @@ createBugHuntTool(pi, { cwdOf });
       fs.mkdirSync(auditRoot, { recursive: true });
       // W15 (frozen-scan HIGH): refuse a pre-planted symlink BEFORE mkdtemp —
       // once realpath diverges from the planted path, writes land outside.
+      // W16 (frozen-scan HIGH): path-component containment — the old
+      // string-prefix check broke for targetRoot="/" ("//" prefix) and any
+      // sibling dir sharing a prefix ("//root2" vs "//root").
       const auditRootReal = fs.realpathSync(auditRoot);
-      if (!auditRootReal.startsWith(resolve(targetRoot) + path.sep)) {
+      const ledgerRel = path.relative(resolve(targetRoot), auditRootReal);
+      if (ledgerRel === "" || ledgerRel.startsWith("..") || path.isAbsolute(ledgerRel)) {
         return textResult("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
       const ledgerDir = fs.mkdtempSync(join(auditRoot, `${layerId}-`));

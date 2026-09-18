@@ -145,13 +145,17 @@ function db(sessionId?: string): Database {
     fs.closeSync(fs.openSync(want, openFlags, 0o600));
   } catch (e) {
     const c = e as NodeJS.ErrnoException;
-    if (c.code === "EEXIST" || c.code === "ELOOP") {
-      // Existing file (ours or a plant): open WITHOUT following symlinks is
-      // not expressible for the r+w reopen — chmod hardens what we can verify.
-      try { fs.chmodSync(want, 0o600); } catch { /* not ours */ }
-    } else {
-      throw e;
+    if (c.code === "ELOOP") {
+      // W16 (frozen-scan HIGH): ELOOP = pre-planted SYMLINK — refuse loudly.
+      // The old branch chmod+opened THROUGH the plant (redirect target).
+      throw new Error(`GO_POOL_SYMLINK: ${want} is a symlink plant — refusing (remove it or set GO_POOL_DB)`);
     }
+    if (c.code !== "EEXIST") throw e;
+    // EEXIST = a real file already exists: verify it is not a symlink
+    // (lstat does not follow) and harden its mode for our handle.
+    const lst = fs.lstatSync(want);
+    if (lst.isSymbolicLink()) throw new Error(`GO_POOL_SYMLINK: ${want} is a symlink plant — refusing`);
+    try { fs.chmodSync(want, 0o600); } catch { /* not ours */ }
   }
   const fresh = new Database(want, { create: true });
   try { fs.chmodSync(want, 0o600); } catch (_umask) { /* fs may already restrict */ }
