@@ -128,12 +128,30 @@ export function openTypedStore(storePath: string): Database {
     st = null; // ENOENT — fresh store path, DDL below creates the schema
   }
   if (st !== null && st.size > 0) {
-    const head = Buffer.alloc(16);
-    const fd = fs.openSync(storePath, "r");
+    if (!st.isFile()) throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
+    let head: Buffer;
     try {
-      fs.readSync(fd, head, 0, 16, 0);
-    } finally {
-      fs.closeSync(fd);
+      const fd = fs.openSync(storePath, "r");
+      try {
+        head = Buffer.alloc(16);
+        // W17 (frozen-scan HIGH): the header read is ENOENT/short-read safe —
+        // a concurrent delete takes the fresh path; a short read (< 16 bytes)
+        // is a corrupt candidate, not a half-magic accident.
+        let total = 0;
+        while (total < 16) {
+          const n = fs.readSync(fd, head, total, 16 - total, total);
+          if (n <= 0) break;
+          total += n;
+        }
+        if (total < 16) throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} shorter than the 16-byte magic`);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (e) {
+      if (e instanceof GiStoreCorruptError) throw e;
+      const c = e as NodeJS.ErrnoException;
+      if (c.code === "ENOENT") return db; // raced to deletion → fresh path
+      throw e;
     }
     if (!head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
       throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath}`);
@@ -549,6 +567,9 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
       "SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500",
     ).all(to) as { canonical_id: string }[];
     const toSet = new Set(targets.map((r) => r.canonical_id));
+  // W17 (frozen-scan HIGH): maxDepth is CLAMPED — a huge depth value used to
+  // materialize unbounded rows per level before any bound applied.
+  maxDepth = Math.min(Math.max(1, Math.floor(maxDepth) || 1), 16);
     // V21 W4: visited marked on ENQUEUE — the dequeue-mark variant pushed the
     // same id once per inbound edge (exponential churn on dense graphs).
     const visited = new Set<string>(starts.map((s) => s.canonical_id));
@@ -562,7 +583,7 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
          FROM typed_edges e
          JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
          WHERE e.src_canonical = ? AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-           AND dst.superseded_run IS NULL`,
+           AND dst.superseded_run IS NULL LIMIT 500`,
       ).all(cur.id) as { dst_id: string; dst_label: string; dst_file: string; dst_line: number; predicate: string }[];
       for (const e of out) {
         const step: ChainStep = {

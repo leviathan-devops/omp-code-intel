@@ -255,7 +255,12 @@ pi.registerTool({
         } else {
           auditNote = `\nWIPE_AUDIT_FAILED: ${wipeConfined.error}`;
         }
-        return textResult("GI_CLEARED" + auditNote, { ok: true, token: "GI_CLEARED" });
+        if (auditNote) {
+          // W17: machine-readable — details.ok stays true (the wipe happened)
+          // but wipeAudited=false lets programmatic callers detect the gap.
+          return textResult("GI_CLEARED" + auditNote, { ok: true, token: "GI_CLEARED", wipeAudited: false });
+        }
+        return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
       } catch (e) {
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
         // narrow with in/typeof instead (checked surface kept small).
@@ -359,6 +364,9 @@ pi.registerTool({
       // exists and the store was populated by the fallback (or predates the
       // ledger), repopulate from corbell so the upgrade takes effect.
       let popNote = "";
+      // W17 (frozen-scan HIGH): the empty/stale decision runs INSIDE the
+      // populate lane — two concurrent queries both seeing empty queued two
+      // full repopulates (the check raced its own serialization).
       const stored = getMeta(opened.storePath, "substrate");
       const empty = countTypedNodes(opened.storePath) === 0;
       const warmPath = corbellCheckoutPath(scopeRoot);

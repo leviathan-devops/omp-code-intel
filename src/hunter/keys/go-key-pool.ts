@@ -311,7 +311,14 @@ export function parseGoWindowMs(err: string): number {
 // H19 (qwen 33d64eca): key material must never hit the (world-readable) tmp
 // sqlite. Redact sk-/Bearer/api-key patterns BEFORE the reason slice persists.
 export function redactKeyMaterial(err: string): string {
-  return String(err ?? "")
+  // W17 (frozen-scan HIGH): EXACT key match FIRST — sk-/Bearer/api-key shapes
+  // missed non-sk alphabets (opaque/hex/go-prefixed), leaking raw bytes into
+  // the world-readable tmp sqlite reason column.
+  let out = String(err ?? '');
+  for (const k of GO_KEYS) {
+    if (k && k.length >= 8) out = out.split(k).join('[REDACTED-KEY]');
+  }
+  return out
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-[REDACTED]')
     .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, 'Bearer [REDACTED]')
     .replace(/(x-?api-key\s*[:=]\s*)\S+/gi, '$1[REDACTED]')
