@@ -310,7 +310,7 @@ export function scopeBuildToProfile(
   scopeDirs: string[],
 ): { nodes: GraphNode[]; edges: GraphEdge[]; dropped: number } {
   const norm = (s: string): string => s.replace(/\/+$/, "");
-  const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  const scopes = scopeDirs.map(norm).map((s) => s.toLowerCase()).filter((s) => s.length > 0);
   // Base-existence gate (W42+): a raw single-sentence anchor is meaningless
   // without a canonicalizable base — fail CLOSED with zero rows + full drop
   // here, before containedRel's named throw can abort the pass mid-list.
@@ -319,7 +319,10 @@ export function scopeBuildToProfile(
   }
   const inScope = (f: string | undefined): boolean => {
     if (f === undefined || f.length === 0) return false;
-    const rel = containedRel(root, f);
+    // W43: case-insensitive drop — on Linux the extract emits "Checkpoints/"
+    // (capital C) for checkpoint trees; the scope check below compares
+    // lowercased forms so case can never smuggle a row back in.
+    const rel = containedRel(root, f).toLowerCase();
     if (rel.length === 0) return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
   };

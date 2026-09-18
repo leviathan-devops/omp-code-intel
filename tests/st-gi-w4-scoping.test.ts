@@ -35,8 +35,9 @@ describe("st-gi-w4-scoping: P1.6 store-scope filter", () => {
     const { nodes: kept, dropped } = scopeBuildToProfile(nodes, [], FIXROOT, ["src"]);
     expect(kept.map((n) => n.file).sort()).toEqual([path.join(FIXROOT, "src", "a.ts"), path.join(FIXROOT, "src", "deep", "b.ts")]);
     expect(dropped).toBe(4);
-    // THE WAVE GATE, expressed on the filter output:
-    expect(kept.some((n) => (n.file ?? "").includes("Checkpoints"))).toBe(false);
+    // THE WAVE GATE, expressed on the filter output (case-insensitive: the
+    // legacy "Checkpoints" spelling must not slip through on Linux):
+    expect(kept.some((n) => (n.file ?? "").toLowerCase().includes("checkpoints"))).toBe(false);
   });
 
   test("test_w4_edges_kept_only_when_both_endpoints_scoped", () => {
