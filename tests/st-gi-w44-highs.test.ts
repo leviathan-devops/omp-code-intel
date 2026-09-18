@@ -4,7 +4,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
+import { isCorbellCheckoutFreshFor, populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
 
@@ -58,5 +58,27 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     expect(st).not.toBeNull();
     expect(st!.size).toBe(64);
     expect(warmStoreStat(path.join(root, "absent.sqlite"))).toBeNull();
+  });
+
+  // ---------- F3 (populate-corbell:54 freshness budget 2000) ----------
+  test("test_w44_corbell_freshness_budget_scales_past_2000_files", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-budget-"));
+    const warmDir = path.join(root, ".omp", "graph-intelligence", "corbell-checkout");
+    fs.mkdirSync(warmDir, { recursive: true });
+    const warmPath = path.join(warmDir, "store.sqlite");
+    // 2,100 indexed-class files — ABOVE the old hardcoded budget of 2000.
+    const flat = path.join(root, "flat");
+    fs.mkdirSync(flat, { recursive: true });
+    for (let i = 0; i < 2_100; i++) {
+      fs.writeFileSync(path.join(flat, `f${i}.ts`), "export const x = 1;\n");
+    }
+    fs.writeFileSync(warmPath, "not-a-real-db-but-nonempty\n");
+    // Warm store touched AFTER the sources → the correct verdict is FRESH.
+    const future = new Date(Date.now() + 5_000);
+    fs.utimesSync(warmPath, future, future);
+    const fresh = isCorbellCheckoutFreshFor(root, warmPath);
+    // THE FIX: budget no longer exhausts on a 2,100-file tree (stale-budget).
+    expect(fresh.fresh).toBe(true);
+    expect(fresh.reason).toBe("fresh");
   });
 });

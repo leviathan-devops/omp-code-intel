@@ -15,7 +15,7 @@ import { type ForkEdge, type ForkNode, insertForkEdgesBatch, insertForkNodesBatc
 import { supersedeThenInsert } from "./populate-graphify.ts";
 
 export const CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
-export const CORBELL_FRESHNESS_BUDGET = 2000;
+export const CORBELL_FRESHNESS_BUDGET = 50_000;
 
 export interface CorbellPopulateResult {
   ok: boolean;
@@ -80,11 +80,13 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
       walkFailed = true; // ANY unreadable dir — not just root
       return;
     }
+    // W44 (qwen scan HIGH): the budget bounds FILE stats (the staleness
+    // signals), not traversal nodes — directories are readdir hits only, and
+    // the ceiling is 50k so real workspaces never trip stale-budget.
     for (const entry of entries) {
       if (budget.n <= 0) { exhausted = true; return; }
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name)) continue;
-        budget.n--;
         walk(path.join(dir, entry.name));
       // H01/M06 (qwen 33d64eca/6768692f): the SAME indexed-class suffix set
       // graphify watches — .js/.py/etc. edits must count as staleness here.
