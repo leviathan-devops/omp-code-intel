@@ -4,9 +4,9 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-import { populateFromCorbellCheckout } from "../src/omp/populate-corbell.ts";
 
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
@@ -37,5 +37,26 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     // THE FIX: nothing silently dropped by a SQL LIMIT smaller than the cap.
     expect(r.nodes).toBe(20_100);
     expect(r.skipped ?? 0).toBe(0);
+  });
+
+  // ---------- F2 (populate-corbell:143 mtime equality) ----------
+  test("test_w44_corbell_mid_read_check_catches_same_mtime_swap", () => {
+    // preserved-mtime swap (same mtimeMs, different size) must read as CHANGED
+    expect(warmStoreUnchanged({ mtimeMs: 100, size: 10, ino: 1 }, { mtimeMs: 100, size: 99, ino: 1 })).toBe(false);
+    // same mtime+size on a REPLACED inode (same-stat copy trick) must read as CHANGED
+    expect(warmStoreUnchanged({ mtimeMs: 100, size: 10, ino: 1 }, { mtimeMs: 100, size: 10, ino: 2 })).toBe(false);
+    // vanished mid-read (either leg missing) must read as CHANGED
+    expect(warmStoreUnchanged({ mtimeMs: 100, size: 10, ino: 1 }, null)).toBe(false);
+    expect(warmStoreUnchanged(null, { mtimeMs: 100, size: 10, ino: 1 })).toBe(false);
+    // identical stat snapshot → unchanged
+    expect(warmStoreUnchanged({ mtimeMs: 100, size: 10, ino: 1 }, { mtimeMs: 100, size: 10, ino: 1 })).toBe(true);
+    // warmStoreStat returns the full snapshot for a real file, null when absent
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-stat-"));
+    const p = path.join(root, "store.sqlite");
+    fs.writeFileSync(p, Buffer.alloc(64, 7));
+    const st = warmStoreStat(p);
+    expect(st).not.toBeNull();
+    expect(st!.size).toBe(64);
+    expect(warmStoreStat(path.join(root, "absent.sqlite"))).toBeNull();
   });
 });

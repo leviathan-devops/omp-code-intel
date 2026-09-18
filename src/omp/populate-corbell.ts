@@ -31,6 +31,23 @@ export function corbellCheckoutPath(root: string): string {
   return path.join(root, CORBELL_CHECKOUT_REL);
 }
 
+// W44 (qwen scan HIGH): the changed-mid-read gate compared ONLY mtimeMs — a
+// swap that preserves the timestamp (cp -p / touch -r) slipped through. The
+// gate now compares the full (mtimeMs, size, ino) snapshot; a vanished file
+// is a change, never a pass.
+export interface WarmStoreStat { mtimeMs: number; size: number; ino: number }
+export function warmStoreStat(p: string): WarmStoreStat | null {
+  try {
+    const st = fs.statSync(p);
+    return { mtimeMs: st.mtimeMs, size: st.size, ino: st.ino };
+  } catch {
+    return null;
+  }
+}
+export function warmStoreUnchanged(before: WarmStoreStat | null, after: WarmStoreStat | null): boolean {
+  if (!before || !after) return false;
+  return before.mtimeMs === after.mtimeMs && before.size === after.size && before.ino === after.ino;
+}
 // The freshness probe (fork project-scope.ts isStale shape, budgeted): stale when
 // any indexed-class source file is NEWER than the warm store — the query must
 // then fall back LOUDLY, never silently serve a stale graph.
@@ -102,7 +119,7 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   // an optional confidence; insertForkEdgesBatch honors it (typed-write).
 
   // V21 cleanup fix-now: the TOCTOU baseline is captured BEFORE the reads.
-  const stBefore = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -1; } })();
+  const stBefore = warmStoreStat(warmPath);
   // W44 (qwen scan HIGH): the SQL LIMIT must DERIVE from the cap constant —
   // the old hardcoded 20001 silently cut rows the 50k cap claimed to allow,
   // and rows dropped by SQL never reached the skipped counter. LIMIT is
@@ -142,10 +159,6 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   // V21 W11 + cleanup fix-now: the AFTER stat compares against the BEFORE
   // baseline captured above the reads.
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
-  const mtimeAfter = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -2; } })();
-  if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
-    return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
-  }
   // W3-scan highs fixed: (a) the cap is DETERMINISTIC (sorted by canonical_id
   // before slicing — the old arbitrary slice biased by SQLite row order);
   // (b) edges keep referential integrity — an edge whose endpoint was
@@ -153,9 +166,13 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   const sortedValid = [...validRows].sort((a, b) => a.canonical_id.localeCompare(b.canonical_id));
   const materializeRows = sortedValid.length > MAX_WARM_ROWS ? sortedValid.slice(0, MAX_WARM_ROWS) : sortedValid;
   const materializeSkipped = skippedInvalid + (sortedValid.length - materializeRows.length);
+  const stAfter = warmStoreStat(warmPath);
+  if (!freshnessAfter.fresh || !warmStoreUnchanged(stBefore, stAfter)) {
+    return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
+  }
   const keptIds = new Set(materializeRows.map((r) => r.canonical_id));
 
-    // Write into the session store, superseding the previous run's rows.
+  // Write into the session store, superseding the previous run's rows.
   // H02+H03 (qwen 33d64eca): supersede + insert + meta ride ONE transaction
   // with ROLLBACK (the V-16 helper discipline, corbell parity). Before: the
   // two UPDATEs ran in AUTOCOMMIT before BEGIN — a mid-insert throw left the
