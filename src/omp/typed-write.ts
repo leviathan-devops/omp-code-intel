@@ -318,7 +318,8 @@ export function insertForkNode(storePath: string, node: ForkNode): void {
   try {
     // V21 fix-now F3: tombstone + insert are ONE transaction — an INSERT
     // failure must roll back the tombstone (never zero live rows).
-    beginImmediateWithRetry(db);
+    // W31: busy_timeout=5000 (set on open) owns SQLITE_BUSY — no spin.
+    db.exec("BEGIN IMMEDIATE;");
     try {
       db.run(
         "UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL",
@@ -353,7 +354,8 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
   const db = openTypedStore(storePath);
   try {
     // V21 fix-now F3: same single-txn law as insertForkNode.
-    beginImmediateWithRetry(db);
+    // W31: busy_timeout=5000 (set on open) owns SQLITE_BUSY — no spin.
+    db.exec("BEGIN IMMEDIATE;");
     try {
       db.run(
         "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
@@ -738,6 +740,9 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
     startIds = startIds.slice(0, 500);
   }
   if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
+  // W31: the ledger is CAPPED at 5000 rows (blast-parity) — a mega-store
+  // no longer materializes unbounded reachability before returning.
+  const LEDGER_CAP = 5000;
   for (const id of startIds) seen.add(id);
   let frontier: string[] = startIds;
   for (let d = 1; d <= depth && frontier.length > 0; d++) {
@@ -758,7 +763,9 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
         // on dense/cyclic graphs).
         if (seen.has(c.id)) continue;
         seen.add(c.id);
-        ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        if (ledger.length < LEDGER_CAP) {
+          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        }
         next.push(c.id);
       }
     }

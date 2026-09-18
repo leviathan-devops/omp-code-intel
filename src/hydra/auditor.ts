@@ -501,6 +501,22 @@ function sourceLineQuote(targetRoot: string, relFile: string, line: number): str
   }
 }
 
+function sweepIncomplete(anchor: string, layerId: string, measured: string, fallbackFile: string): SweptCandidate {
+  // W31 (frozen-scan HIGH): a FAILED sweep is not a verified empty — the
+  // distinct predicate/severity make the infrastructure failure
+  // machine-detectable downstream instead of grammar-valid clean.
+  return {
+    subject: `sweep incomplete — ${anchor}: ${measured}`,
+    predicate: `${anchor}.sweep-incomplete`,
+    file: fallbackFile,
+    line: 1,
+    evidence: `measured: ${measured}; sweep INCOMPLETE — no verdict possible from a failed sweep`,
+    spec: `${layerId} audit — sweep infrastructure failure`,
+    severity: "HIGH",
+    confidence: 1.0,
+  };
+}
+
 function confirmedEmpty(anchor: string, layerId: string, measured: string, fallbackFile: string): SweptCandidate {
   return {
     subject: `confirmed-empty — no ${anchor} findings measured`,
@@ -720,7 +736,7 @@ async function sweep(
     if (out.length === 0 && probeFailures > 0) {
       // Every skipped probe means the sweep is INCOMPLETE — a clean-empty here
       // would be a silent-degrade lie. Name the infrastructure failure instead.
-      return [confirmedEmpty(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason}) — no dead-code verdict possible from a failed sweep`, firstNodeFile)];
+      return [sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`)];
     }
     return out.length > 0 ? out : [confirmedEmpty(anchor, template.layerId, `in-degree/out-degree scan over ${graph.nodes.length} nodes + grep two-leg verification found no dead declarations`, firstNodeFile)];
   }
@@ -821,7 +837,7 @@ async function sweep(
   // V21 cleanup AUD-C2: infrastructure failure is LOUD here too — the generic
   // leg never reports a clean-empty that a failed probe produced.
   if (hit.startsWith("SEARCH_FAILED") || hit.startsWith("GREP_INVALID")) {
-    return [confirmedEmpty(anchor, template.layerId, `probe INCOMPLETE: ${hit.slice(0, 140)} — no verdict possible from a failed probe`, firstNodeFile)];
+    return [sweepIncomplete(anchor, template.layerId, `probe INCOMPLETE: ${hit.slice(0, 140)} — no verdict possible from a failed probe`)];
   }
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }
