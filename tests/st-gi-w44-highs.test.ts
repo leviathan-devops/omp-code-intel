@@ -12,7 +12,7 @@ import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
-import { goKeyDead, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
+import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 import { setMeta } from "../src/omp/typed-write.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
@@ -341,5 +341,25 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     const fresh = path.join(dir, "nested", ".gi-omp");
     hardenPrivateDir(fresh);
     expect(fs.statSync(fresh).mode & 0o777).toBe(0o700);
+  });
+
+  // ---------- F18+F19 (pool:131 cache-hit chmod TOCTOU / pool:167 symlink refusal bypass) ----------
+  test("test_w44_pool_harden_nofollow_never_chmods_victim", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-harden-"));
+    // Real file: harden 0644 -> 0600.
+    const real = path.join(dir, "pool.sqlite");
+    fs.writeFileSync(real, "x");
+    fs.chmodSync(real, 0o644);
+    hardenPoolFile(real);
+    expect(fs.statSync(real).mode & 0o777).toBe(0o600);
+    // Symlink plant: the call THROWS and the VICTIM keeps its mode — the old
+    // lstat-then-chmodSync window chmodded the victim through the link.
+    const victim = path.join(dir, "victim.sqlite");
+    fs.writeFileSync(victim, "x");
+    fs.chmodSync(victim, 0o644);
+    const plant = path.join(dir, "plant.sqlite");
+    fs.symlinkSync(victim, plant);
+    expect(() => hardenPoolFile(plant)).toThrow();
+    expect(fs.statSync(victim).mode & 0o777).toBe(0o644);
   });
 });

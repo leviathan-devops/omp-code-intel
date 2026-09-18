@@ -116,6 +116,18 @@ export function goPoolDbFile(sessionId?: string): string {
   return path.join(privateDir, 'go-key-pool.sqlite');
 }
 
+// W44 (pool:131+167): the cache-hit and EEXIST hardening did lstat-then-
+// chmodSync(want) — a file swapped for a symlink INSIDE that window made the
+// chmod harden the VICTIM through the link. The verdict opens O_NOFOLLOW and
+// fchmods the FD: a symlink plant throws (ELOOP) and the victim is untouched.
+export function hardenPoolFile(p: string): void {
+  const fd = fs.openSync(p, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  try {
+    fs.fchmodSync(fd, 0o600);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 // THE CACHED SINGLETON (the source's getWaveDb pattern, wave-db.ts:105-118):
 // one connection per PROCESS per resolved path — a SELECT-1 health check on
 // the cached handle, close-on-sick + reopen, WAL + busy_timeout=5000 on every
@@ -132,15 +144,13 @@ function db(sessionId?: string): Database {
   if (hit) {
     try {
       hit.query('SELECT 1').get();
-      // W9+W26 (frozen-scan HIGH): re-chmod on every cached hit, but LSTAT
-      // first — if `want` was swapped for a symlink plant after the handle
-      // was cached, drop the handle (a clean re-open happens below) instead
-      // of chmodding the victim file through the link.
-      const lst = fs.lstatSync(want);
-      if (lst.isSymbolicLink()) throw new Error('symlink plant detected');
-      fs.chmodSync(want, 0o600);
+      // W9+W26 (frozen-scan HIGH) + W44: the re-hardening is O_NOFOLLOW+
+      // fchmod — a swap-to-symlink inside the window throws ELOOP and lands
+      // in the catch below (handle dropped, fresh safe open) instead of
+      // chmodding the victim through the link.
+      hardenPoolFile(want);
       for (const side of [want + '-wal', want + '-shm']) {
-        if (fs.existsSync(side)) fs.chmodSync(side, 0o600);
+        try { hardenPoolFile(side); } catch { /* sidecar absent — best-effort */ }
       }
       return hit;
     } catch (swapErr) {
@@ -167,17 +177,26 @@ function db(sessionId?: string): Database {
     }
     if (c.code !== 'EEXIST') throw e;
     // EEXIST = a real file already exists: verify it is not a symlink
-    // (lstat does not follow) and harden its mode for our handle.
-    const lst = fs.lstatSync(want);
-    if (lst.isSymbolicLink()) throw new Error(`GO_POOL_SYMLINK: ${want} is a symlink plant — refusing`);
-    try { fs.chmodSync(want, 0o600); } catch { /* not ours */ }
+    // EEXIST = a real file already exists: W44 hardens via O_NOFOLLOW+fchmod —
+    // a symlink plant throws (ELOOP) instead of the old lstat-then-chmodSync
+    // pair that could harden the VICTIM through a swap inside the window.
+    hardenPoolFile(want);
   }
   const fresh = new Database(want, { create: true });
-  try { fs.chmodSync(want, 0o600); } catch (_umask) { /* fs may already restrict */ }
+  try { hardenPoolFile(want); } catch { /* fs may already restrict */ }
+  // W44 (pool:167): post-open refusal — if the path became a symlink during
+  // the open race, the handle is refused (closed) instead of silently used.
+  try {
+    const post = fs.lstatSync(want);
+    if (post.isSymbolicLink()) throw new Error(`GO_POOL_SYMLINK: ${want} became a symlink during open — refusing`);
+  } catch (e) {
+    try { fresh.close(); } catch { /* already closed */ }
+    throw e;
+  }
   try {
     fresh.exec('PRAGMA journal_mode = WAL;');
     fresh.exec('PRAGMA busy_timeout = 5000;');
-  } catch (_nonfatal) { /* an in-memory/tmp db may refuse WAL — non-fatal */ }
+  } catch { /* an in-memory/tmp db may refuse WAL — non-fatal */ }
   // P1.1.4 (W1 gi-resource): the -wal/-shm sidecars exist from the WAL pragma
   // onward — chmod them explicitly (they usually inherit the main file's mode,
   // but the contract is 0600-unconditional, not inheritance-luck).
