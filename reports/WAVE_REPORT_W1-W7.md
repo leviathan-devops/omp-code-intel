@@ -231,3 +231,13 @@ treatAsFresh flag. W18 verify: 0 criticals, 9 highs on the 3 hot files
 (extension 2, pool 3, typed-write 4), dist 266e7b0cd01886b1 ×5.
 **Trajectory: 22 → 19 → 15 → 14 → 7 → (hot-file churn) → 9. Battery
 170/0/1597 across 28 files, re-run green every pass.**
+
+## PASS 13 (W19) — STABLE AT THE BAND (2026-09-18)
+Fixed: populate double-checked locking (emptiness re-checked INSIDE the lane —
+concurrent queries no longer queue duplicate repopulates); safeDelete 500-cap
+RESTORED (a silent str.replace no-op had dropped it — lesson: python patches
+must assert replacement counts); pool markGoKeyAlive legacy length-arm
+restored. W19 rescan (dist 10d7fe48e371fbf6 ×5): extension 2h, pool 2h,
+typed-write 4h = 8 highs on the hot files, 0 criticals. Battery 170/0/1597.
+**Band stable at 9-14 across passes 9-13 while every pass lands real fixes —
+the kernel is at its patch-wave floor; 0h needs the §12 rebuild or rulings.**
