@@ -323,3 +323,14 @@ Bun-only-global ReferenceError hazard) and the impact ledger is capped at
 2h, typed-write 4h/6m. Battery 170/0/1597 across 28 files.
 **Twenty passes. The loop continues on the same discipline — every fix
 surfaced 1-2 new reads, but each is smaller and more specific than the last.**
+
+## PASS 20 (W32) — HOT-FILE HIGHS 6 → 4 (2026-09-18)
+Closed: auditor sweepIncomplete arity (fallbackFile passed at both sites —
+without it SweptCandidate.file was undefined and the report emitted
+"file: undefined:1", a grammar-accepted lie) + impactInDb ledger-cap
+truncation surfaced as a machine-readable flag. W32 rescan (dist
+589abb3da1c09bdd ×5): auditor 3h, typed-write 1h — the churn continues
+(auditor +1 new read, typed-write down to 1). Battery 170/0/1597 across 28
+files, re-run green.
+**Twenty passes. Trajectory on the hot files: 22 → … → 6 → 4. All other
+gates hold. The loop continues next session from w32-*.json.**
