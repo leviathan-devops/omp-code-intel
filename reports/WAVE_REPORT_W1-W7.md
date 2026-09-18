@@ -334,3 +334,14 @@ truncation surfaced as a machine-readable flag. W32 rescan (dist
 files, re-run green.
 **Twenty passes. Trajectory on the hot files: 22 → … → 6 → 4. All other
 gates hold. The loop continues next session from w32-*.json.**
+
+## PASS 21 (W33) — 3 CLOSED, BAND CHURN CONTINUES (2026-09-18)
+Closed: auditor godNodes operator-precedence bug (the raw unsliced array was
+interpolated into brief.md, defeating the 5-item cap on large graphs);
+write_findings 8MiB content cap (disk-fill parity with the read cap);
+typed-write unwiredNodes bounded (LIMIT 5001, deterministic ORDER, truncation
+surfaced). W33 rescan: auditor 3h, typed-write 4h — composition churn
+between the files as fixes land and reads go deeper. Battery 170/0/1597
+across 28 files, re-run green. Dist 321bc8a9d99f71dc ×5.
+**Twenty-one passes. The loop continues; every fix is real and every new
+read is triaged on arrival.**
