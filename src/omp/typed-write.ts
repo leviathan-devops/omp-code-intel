@@ -126,6 +126,11 @@ export function openTypedStore(storePath: string): Database {
   // check. A vanished-or-empty store at this instant is simply the fresh path.
   let st: fs.Stats | null = null;
   try {
+    // W24 (frozen-scan CRITICAL): lstat REFUSES symlinks — statSync followed
+    // them, so a storePath symlinked to another session's SQLite passed the
+    // isFile+magic gates and opened cross-session data.
+    const lst = fs.lstatSync(storePath);
+    if (lst.isSymbolicLink()) throw new GiStoreCorruptError(`GI_STORE_SYMLINK: ${storePath} is a symlink — refusing (session-store header contract)`);
     st = fs.statSync(storePath);
   } catch (e) {
     // W20 (frozen-scan HIGH): ONLY ENOENT takes the fresh path — EACCES/
@@ -228,9 +233,12 @@ export function applyTypedDdl(db: Database): void {
             );
           }
         } catch (dedupErr) {
-          // W15 (frozen-scan HIGH): a failed dedup is LOGGED, not swallowed —
-          // the retry below decides the outcome, but the failure is on record.
-          console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dedupErr instanceof Error ? dedupErr.message : String(dedupErr)}`);
+          // W20+W24: a failed dedup is LOGGED, not swallowed — but an IDENT
+          // allowlist refusal is a FORMAT-DRIFT refusal and rethrows loudly
+          // (a silently unconstrained store is the worse failure).
+          const dm = dedupErr instanceof Error ? dedupErr.message : String(dedupErr);
+          if (dm.includes("DDL_DEDUP_INVALID_IDENT")) throw dedupErr;
+          console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
         }
         try {
           db.run(stmt);

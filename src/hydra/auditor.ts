@@ -152,7 +152,10 @@ function makeCappedGrepTool(targetRoot: string): MissionTool {
     invoke: async (params) => {
       const pattern = String(params.pattern ?? "");
       if (pattern.trim() === "") return "GREP_INVALID: empty pattern";
-      const maxResults = Math.min(typeof params.maxResults === "number" ? params.maxResults : GREP_CAP, GREP_CAP);
+      // W24 (frozen-scan HIGH): clamp to a positive integer — negative/float/
+      // NaN/Infinity turned a normal probe into SEARCH_FAILED (loud infra lie).
+      const rawMax = typeof params.maxResults === "number" && Number.isFinite(params.maxResults) ? Math.floor(params.maxResults) : GREP_CAP;
+      const maxResults = Math.min(Math.max(1, rawMax), GREP_CAP);
       const run = (cmd: string, args: string[]): Promise<string> =>
         new Promise((resolve) => {
           execFile(cmd, args, { timeout: 10_000, maxBuffer: 2_000_000 }, (err, stdout) => {
@@ -795,7 +798,9 @@ async function sweep(
         if (contained) hitPath = realHit;
       } catch { contained = false; }
     }
-    const rel = flm && contained ? path.relative(targetRoot, hitPath) || hitPath : firstNodeFile;
+    // W24: relativize against the RESOLVED root — the unresolved targetRoot
+    // (symlink) made rel ../-escape or absolute, landing verbatim in findings.
+    const rel = flm && contained ? (path.relative(realResolve(path.resolve(targetRoot)), hitPath) || hitPath) : firstNodeFile;
     return [{
       subject: `${anchor} signal — "${probe}" present at ${rel}`,
       predicate: `${anchor}.signal`,
