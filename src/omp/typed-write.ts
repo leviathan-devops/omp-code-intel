@@ -21,7 +21,10 @@ export class GiStoreCorruptError extends Error {
 export const GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
 export const GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
 
-/** sizeHint is IGNORED (V21 H11 fix): the budget checks actual bytes. Kept for API compat. */
+/** sizeHint stays NON-AUTHORITATIVE by pinned contract (st-gi-omp-corrupt:
+ *  "a spoofed-huge hint on tiny contents parses fine") — the stat-layer
+ *  enforcement lives at the LOAD SITES (graphify-adapter stats before
+ *  readFileSync); the byteLen check here is the authoritative post-read gate. */
 export function parseGraphJsonGuarded(contents: string, sizeHint = 0): Record<string, unknown> {
   // H11 (qwen 33d64eca): size is a HINT only — the budget checks the ACTUAL bytes
   // (a spoofed/TOCTOU small size can no longer bypass the 128MiB load budget).
@@ -164,7 +167,7 @@ export function applyTypedDdl(db: Database): void {
                  SELECT rowid FROM ${table} t
                  WHERE t.superseded_run IS NULL
                    AND t.rowid NOT IN (
-                     SELECT MIN(rowid) FROM ${table}
+                     SELECT MAX(rowid) FROM ${table}
                      WHERE superseded_run IS NULL
                      GROUP BY ${groupBy}
                    )
@@ -179,6 +182,7 @@ export function applyTypedDdl(db: Database): void {
         } catch (retryErr) {
           const rmsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
           console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${rmsg.slice(0, 120)}`);
+          try { db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES ('unique_index_deferred', ?)", [stmt.slice(0, 200)]); } catch { /* gi_meta may predate this table */ }
           continue;
         }
       }
@@ -363,17 +367,19 @@ function ph(n: number): string {
 // + src/hunter/graph/store-map.ts:73-95 corbellEdgeToPredicate (method_call->calls + flow_step->traces-to).
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // Flow 'traces-to' callers have NULL file — they are still callers (file="" line=0, honest not silent).
-export function whoCallsInDb(db: Database, name: string): { rows: number; names: string[]; callers: WhoCallsRow[] } {
+export function whoCallsInDb(db: Database, name: string): { rows: number; names: string[]; callers: WhoCallsRow[]; truncated?: boolean } {
   // V21 W1: dst resolved to canonical_ids FIRST — the join never matches by
   // label, so same-label identities stay distinct; each row names its target.
   // W8 (frozen-scan HIGH): an unbounded IN(...) hits the SQLite variable
   // limit on mega-labels — cap at 500 + WARN (named, never silent truncation).
   let ids = resolveLiveIds(db, name);
+  let truncated: boolean | undefined;
   if (ids.length > 500) {
     console.warn(`[gi-omp] whoCalls: '${name}' resolves to ${ids.length} live ids — capping at 500 (SQLite variable limit)`);
     ids = ids.slice(0, 500);
+    truncated = true;
   }
-  if (ids.length === 0) return { rows: 0, names: [], callers: [] };
+  if (ids.length === 0) return { rows: 0, names: [], callers: [], truncated };
   const rows = db.query(
     `SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
             e.predicate AS predicate, e.dst_canonical AS target_canonical
@@ -391,10 +397,10 @@ export function whoCallsInDb(db: Database, name: string): { rows: number; names:
     predicate: r.predicate ?? "",
     target_canonical: r.target_canonical,
   }));
-  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped };
+  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped, truncated };
 }
 
-export function whoCalls(storePath: string, name: string): { rows: number; names: string[]; callers: WhoCallsRow[] } {
+export function whoCalls(storePath: string, name: string): { rows: number; names: string[]; callers: WhoCallsRow[]; truncated?: boolean } {
   const db = openTypedStore(storePath);
   try {
     return whoCallsInDb(db, name);
@@ -603,7 +609,8 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
   // V21 W1: the frontier carries CANONICAL IDS, never labels — same-label
   // functions are distinct identities. Start ids are seeded BEFORE the loop
   // (a cycle can never ledger the start as its own caller).
-  const startIds = resolveLiveIds(db, symbol);
+  let startIds = resolveLiveIds(db, symbol);
+  if (startIds.length > 500) startIds = startIds.slice(0, 500); // W9: uniform SQLite variable-limit cap
   if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
   for (const id of startIds) seen.add(id);
   let frontier: string[] = startIds;

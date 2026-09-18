@@ -507,8 +507,10 @@ export function tryResolveGraphifyLine(
   return n === null ? undefined : n;
 }
 
-// ---------------------------------------------------------------------------
-// Typed projection (pure — no I/O; throws LINELESS_NODE on a line-less row)
+// Typed projection (pure — no I/O). W9 CONTRACT: node rows may carry
+// line = null (lineless is schema-legal; the VERBS skip + count them per
+// the W3 policy) — only the EDGE branch fails loud (LINELESS_NODE) when an
+// edge AND its source are both lineless (an unanchorable step).
 // ---------------------------------------------------------------------------
 
 function graphifyEvidence(predicate: string, src: string, dst: string, file: string | null, line: number): string {
@@ -516,24 +518,34 @@ function graphifyEvidence(predicate: string, src: string, dst: string, file: str
   return `explicit: ${predicate} in source ${src}->${dst} @ ${anchor}`;
 }
 
-/** Project adapter rows onto the typed-store row shapes (pure). Every node
- *  row carries a finite line — a line-less row FAILS here (LINELESS_NODE),
- *  never downstream-defaulted. Evidence quotes always start with explicit:
- *  (code-only extraction is always EXTRACTED; --mode deep INFERRED is out of
- *  W1 scope and documented, not silently relabeled). */
+/** Project adapter rows onto the typed-store row shapes (pure). Node rows
+ *  carry line = number | null — null is LINELESS and legal here; the verbs
+ *  skip + count it downstream (W3). Edge rows REQUIRE an anchorable line
+ *  (edge + source both lineless → LINELESS_NODE). Evidence quotes always
+ *  start with explicit: (code-only extraction is always EXTRACTED; --mode
+ *  deep INFERRED is out of W1 scope and documented, not silently relabeled). */
 export function mapGraphifyToTyped(
   nodes: GraphNode[],
   edges: GraphEdge[],
   runTag: string,
 ): { nodeRows: ForkNode[]; edgeRows: ForkEdge[] } {
-  const nodeRows: ForkNode[] = nodes.map((n) => ({
-    canonicalId: n.id,
-    kind: graphifyKindToTyped(n.kind),
-    label: n.name,
-    file: typeof n.file === "string" ? n.file : null,
-    line: resolveGraphifyLine({ line: n.line ?? undefined, data: n.data ?? {} }, null, n.id),
-    run: runTag,
-  }));
+  const nodeRows: ForkNode[] = nodes.map((n) => {
+    // W9 (frozen-scan HIGH resolved by CONTRACT FIX, not a throw): the old
+    // header promised every node row a finite line — false. Real graphify
+    // extracts DO carry lineless nodes, ForkNode.line is `number | null` by
+    // schema, and the VERBS own the lineless policy (W3: skip + count —
+    // graphify-adapter.ts chain/imports/awaits/unwired). Storing the null is
+    // legal and honest; throwing here broke every real extract.
+    const line = resolveGraphifyLine({ line: n.line ?? undefined, data: n.data ?? {} }, null, n.id);
+    return {
+      canonicalId: n.id,
+      kind: graphifyKindToTyped(n.kind),
+      label: n.name,
+      file: typeof n.file === "string" ? n.file : null,
+      line, // null = lineless — VERBS skip + count it; the store keeps the row
+      run: runTag,
+    };
+  });
   const nodesById = new Map(nodes.map((n) => [n.id, n] as const));
   const edgeRows: ForkEdge[] = edges.map((e) => {
     const src = nodesById.get(e.sourceId);

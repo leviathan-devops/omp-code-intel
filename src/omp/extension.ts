@@ -129,7 +129,7 @@ if (verb === "would-break") {
   const sym = String(p.target ?? p.symbol ?? "");
   const w = wouldBreak(storePath, sym, String(p.proposed ?? ""));
   const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
-  return textResult(`callers=${w.callers} argsUnknown=${w.argsUnknown}\nripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: true });
+  return textResult(`callers=${w.callers} argsUnknown=${w.argsUnknown}\nripwire: ${rw.summary}`, { ...w, ripwire: rw, ok: (w as { ok?: boolean }).ok !== false });
 }
 if (verb === "unwired") {
   const u = unwiredNodes(storePath);
@@ -157,7 +157,7 @@ if (verb === "safe-delete") {
   const sd = safeDelete(storePath, sym);
   const head = sd.callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join("\n");
   const rw = safeRipwire(() => ripwireSafeDelete(scopeRoot, sym));
-  return textResult(`${popNote}safe_delete: ${sym} callers=${sd.callers.length} reaches=${sd.reaches} uses=${sd.uses.length} testReach=${sd.testReach.length}\n${head}\nripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: true });
+  return textResult(`${popNote}safe_delete: ${sym} callers=${sd.callers.length} reaches=${sd.reaches} uses=${sd.uses.length} testReach=${sd.testReach.length}\n${head}\nripwire: ${rw.summary}`, { ...sd, ripwire: rw, ok: (sd as { ok?: boolean }).ok !== false });
 }
 if (verb === "gate") {
   const dialRaw = String((p as Record<string, unknown>).dial ?? "STEER").toUpperCase();
@@ -166,7 +166,7 @@ if (verb === "gate") {
   // "did SYM's contract change, and which callers no longer fit".
   const rw = safeRipwire(() => ripwireEditCheck(scopeRoot, sym));
   const ga = gateAdvisory(storePath, [sym], dialRaw === "FULL" ? "FULL" : "STEER", { ok: rw.ok, summary: rw.summary });
-  return textResult(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: true });
+  return textResult(`${popNote}${ga.advisory}`, { ...ga, ripwire: rw, ok: (ga as { ok?: boolean }).ok !== false });
 }
 if (verb === "verify") {
   // RIPWIRE CLAIM VERIFY (new verb): the claim language is CLOSED —

@@ -41,13 +41,14 @@ describe("st-gi-w8b-defrag: UNIQUE recovery + enforcement", () => {
       console.error = spy;
     }
     // The invariant is BACK: exactly one live row per canonical_id —
-    // 'second' (newer rowid) tombstoned as ddl-dedup, 'first' (oldest) live.
+    // NEWEST kept (MAX rowid: freshest label/file/line wins), oldest
+    // tombstoned as ddl-dedup (the W9 ruling: never resurrect stale rows).
     const rows = db.query(
       "SELECT label, superseded_run FROM typed_nodes WHERE canonical_id = 'dup' ORDER BY rowid",
     ).all() as Array<{ label: string; superseded_run: string | null }>;
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.superseded_run).toBeNull();
-    expect(rows[1]!.superseded_run).toBe("ddl-dedup");
+    expect(rows[0]!.superseded_run).toBe("ddl-dedup");
+    expect(rows[1]!.superseded_run).toBeNull();
   });
 
   test("test_w8_recovered_index_enforces_uniqueness", () => {

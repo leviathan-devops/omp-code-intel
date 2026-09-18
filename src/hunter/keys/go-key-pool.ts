@@ -156,20 +156,20 @@ function db(sessionId?: string): Database {
   )`);
   // V21 cleanup: stable key identity — a KEYID (one-way fingerprint) column so
   // a reload/reorder can never misattribute a deadUntil row to the wrong key.
-  // Legacy idx-keyed rows migrate by position on first open (best effort).
   // C5 (qwen d5d5c883 [5]): keyid is sha256(key).slice(0,16) — the old
   // reversible slice(0,12) prefix contradicted the AP-4 never-keys contract
   // (world-readable tmp sqlite) AND collapsed every `sk-ant-…` key to one id.
+  // W9: legacy rows are NOT positionally backfilled (see the comment below
+  // the ALTER) — keyid-less rows stay readable via byIdx only.
   try {
     fresh.run(`ALTER TABLE go_key_pool ADD COLUMN keyid TEXT`);
   } catch (_dup) { /* column exists */ }
-  try {
-    const goKeysNow = GO_KEYS;
-    for (let i = 0; i < goKeysNow.length; i++) {
-      const kid = keyidFor(i);
-      fresh.run(`UPDATE go_key_pool SET keyid = ? WHERE idx = ? AND (keyid IS NULL OR keyid = '')`, [kid, i]);
-    }
-  } catch (_mig) { /* fresh DB — nothing to migrate */ }
+  // W9 (frozen-scan HIGH fixed): NO positional keyid backfill. A legacy
+  // keyid-NULL row's idx says nothing about WHICH key died after any
+  // reload/reorder — backfilling by position permanently misattributes the
+  // exile. Legacy rows stay keyid-NULL and remain readable through the
+  // byIdx fallback in mergedDeadViews(); the next markGoKeyDead for a slot
+  // writes a correctly-keyed row that supersedes them.
   poolDbByPath.set(want, fresh);
   while (poolDbByPath.size > POOL_DB_LRU_MAX) {
     const oldest = poolDbByPath.keys().next();
@@ -316,6 +316,16 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
         [idx, keyidFor(idx), until, redactKeyMaterial(msg).slice(0, 300), now],
       );
       conn.exec('COMMIT;');
+      // W9 (frozen-scan HIGH): SQLite can recreate -wal/-shm at the process
+      // umask on later checkpoints — re-chmod the trio after every write,
+      // not only on fresh opens (the cache-hit chmod only runs at db() entry).
+      try {
+        const poolPath = goPoolDbFile(sessionId);
+        fs.chmodSync(poolPath, 0o600);
+        for (const side of [poolPath + '-wal', poolPath + '-shm']) {
+          if (fs.existsSync(side)) fs.chmodSync(side, 0o600);
+        }
+      } catch { /* best-effort */ }
     } catch (inner) {
       try { conn.exec('ROLLBACK;'); } catch { /* already rolled back */ }
       throw inner;
