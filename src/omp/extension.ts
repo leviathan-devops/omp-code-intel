@@ -62,6 +62,13 @@ export function writeWipeAudit(giDir: string, note: string): void {
     db.close();
   }
 }
+// W44 (qwen scan HIGH): GI_TARGET_ROOTS split on '|' AND ':' — the ':' split
+// corrupted legal colon-bearing Linux paths (~/my:project) AND allowlisted
+// their truncated prefix as a phantom root. '|' is the documented universal
+// separator; ':' now survives whole (a bare Windows drive root included).
+export function parseTargetRoots(raw: string): string[] {
+  return raw.split("|").map((r) => r.trim()).filter((r) => r.length > 0);
+}
 const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {
   let real = normalized;
   try { real = fs.realpathSync(normalized); } catch {
@@ -72,10 +79,9 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
   if (!st || !st.isDirectory()) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
   }
-  // V21 cleanup: separator ':' on this Linux host; '|' also accepted so
-  // Windows-style drive-letter roots can be listed unsplit (documented escape).
-  const allowRoots = (process.env.GI_TARGET_ROOTS ?? "")
-    .split('|').flatMap((p2) => /^[A-Za-z]:$/.test(p2.trim()) ? [p2.trim()] : p2.split(':')).map((r) => r.trim()).filter((r) => r.length > 0);
+  // W44 (supersedes the V21 ':' note): the split lives in parseTargetRoots
+  // ('|' only — never ':').
+  const allowRoots = parseTargetRoots(process.env.GI_TARGET_ROOTS ?? "");
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
     // P1.2.3 (W2/W3): the allowlist ROOT is canonicalized before the compare —

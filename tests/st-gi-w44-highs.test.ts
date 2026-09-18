@@ -10,7 +10,7 @@ import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-import { ledgerDirConfined, writeWipeAudit } from "../src/omp/extension.ts";
+import { ledgerDirConfined, parseTargetRoots, writeWipeAudit } from "../src/omp/extension.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -242,5 +242,15 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     } finally {
       db2.close();
     }
+  });
+
+  // ---------- F15 (extension:50 GI_TARGET_ROOTS split) ----------
+  test("test_w44_target_roots_split_keeps_colon_paths_whole", () => {
+    // THE FIX: entries split on '|' ONLY — the old extra ':' split corrupted
+    // legal colon-bearing Linux paths AND allowlisted their truncated prefix.
+    expect(parseTargetRoots(" /a | /b ", "/w")).toEqual(["/a", "/b"]); // whitespace + empties dropped
+    expect(parseTargetRoots("/a::/b", "/w")).toEqual(["/a::/b"]); // colons survive whole
+    expect(parseTargetRoots("", "/w")).toEqual([]); // caller falls back to [cwd, /tmp]
+    expect(parseTargetRoots("C:", "/w")).toEqual(["C:"]); // drive-letter root preserved whole
   });
 });
