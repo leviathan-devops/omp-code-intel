@@ -139,7 +139,10 @@ export function isGraphifyCheckoutFreshFor(
     return { fresh: true, reason: "fresh" };
   }
   // No stored hash → fall through to mtime fallback (legacy compat)
-  if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000)) return { fresh: true, reason: "fresh" };
+  // W44 (qwen scan HIGH): the /1000 floor compared at SECOND granularity — an
+  // edit up to 999ms after the warm build read "fresh" and silently served a
+  // stale graph. mtimeMs already carries ms precision: compare it directly.
+  if (newest <= warmMtime) return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
 /** P1.4.3 (W3 gi-validation): the sidecar path NEVER aliases the graph file —

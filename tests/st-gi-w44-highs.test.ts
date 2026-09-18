@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { CORBELL_PREDICATES, isCorbellCheckoutFreshFor, populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
+import { isGraphifyCheckoutFreshFor } from "../src/omp/populate-graphify.ts";
 import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
@@ -110,5 +111,27 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     const snap = captureSnapshot(storePath);
     expect(snap.edgePredicates["calls"]).toBe(1);
     expect(snap.edgePredicates["drift-probe"]).toBeUndefined();
+  });
+
+  // ---------- F5 (populate-graphify:142 mtime fallback second-granularity) ----------
+  test("test_w44_graphify_mtime_fallback_detects_same_second_edit", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-mtime-"));
+    const srcDir = path.join(root, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    const srcFile = path.join(srcDir, "a.ts");
+    fs.writeFileSync(srcFile, "export const a = 1;\n");
+    // Warm graph 400ms OLDER than the source edit — SAME epoch second.
+    const graphPath = path.join(root, "graph.json");
+    fs.writeFileSync(graphPath, "{}\n");
+    const nowSec = Math.floor(Date.now() / 1000);
+    const srcM = (nowSec + 1) * 1000 + 400;
+    const graphM = (nowSec + 1) * 1000;
+    fs.utimesSync(srcFile, new Date(srcM), new Date(srcM));
+    fs.utimesSync(graphPath, new Date(graphM), new Date(graphM));
+    // No sidecar → legacy mtime fallback path.
+    const v = isGraphifyCheckoutFreshFor(root, graphPath, ["src"], []);
+    // THE FIX: full ms precision — the sub-second edit must read STALE.
+    expect(v.fresh).toBe(false);
+    expect(v.reason).toBe("stale");
   });
 });
