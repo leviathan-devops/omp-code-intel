@@ -286,3 +286,15 @@ markGoKeyDead out-of-range now returns 0 (sentinel contract consistency
 with routeGoError's ===0 fall-to-openrouter check). W27 rescan: pool
 2 highs (from 4), 0 criticals. Battery 170/0/1597 across 28 files.
 Dist 231a255832431095 ×5 (bundle unchanged — type-level fixes).
+
+## PASS 17 (W28+W29) — 11 → 7 HIGHS ON THE HOT FILES (2026-09-18)
+Closed: auditor nodeFile judges absolute anchors against the RESOLVED root
+(symlinked-targetRoot divergence between the nodeFile and grep legs closed);
+extension re-confines the auditor-returned settlement.ledgerDir before any
+report read; blast CTE result bounded at 5000 rows (fan-out materialization
+bound). Refuted: the Tarjan lowlink-ordering finding (the onStack guard IS
+the textbook iterative form) and the GO_POOL_EMPTY catch (the catch returns
+the NAMED fall-to-openrouter action — that is the loud contract, not silence).
+**W29 rescan (dist e44da81d53564d4e ×5): auditor 2h, extension 3h,
+typed-write 2h = 7 highs, 0 criticals. Battery 170/0/1597 across 28 files.
+Trajectory on the hot files: 22 → 11 → 7.**
