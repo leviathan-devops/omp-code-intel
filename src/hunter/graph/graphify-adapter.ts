@@ -197,6 +197,10 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   let dropped = 0;
   const nodes: GraphifyNode[] = [];
   for (const n of rawNodes) {
+    // W44 (qwen scan HIGH): the bare `as` cast THREW on null/non-object rows
+    // (graphify emits nulls for unparseable entries) — one bad row killed the
+    // whole extract. Null-ish rows drop into the same counted bucket.
+    if (n === null || typeof n !== "object" || Array.isArray(n)) { dropped++; continue; }
     const r = n as Record<string, unknown>;
     let id = String(r["id"] ?? r["label"] ?? "");
     const label = String(r["label"] ?? r["id"] ?? "");
@@ -221,7 +225,12 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     });
   }
   if (dropped > 0) tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
-  const edges: GraphEdge[] = rawLinks.map((e) => {
+  let edgeDropped = 0;
+  const edges: GraphEdge[] = rawLinks.filter((e) => {
+    // W44: same null-row discipline for links — drop+count, never throw.
+    if (e === null || typeof e !== "object" || Array.isArray(e)) { edgeDropped++; return false; }
+    return true;
+  }).map((e) => {
     const src = String(e["source"] ?? e["src"] ?? "");
     const dst = String(e["target"] ?? e["dst"] ?? "");
     // W44 (qwen scan HIGH): an undeclared relation defaulted to "references" —
@@ -236,6 +245,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   // project each through the same normalize pass result (the nodes[] ids).
   const communityMap = new Map<number, unknown[]>();
   for (const n of rawNodes) {
+    // W44: same null-row discipline as the node pass — communities can only
+    // resolve for real object rows.
+    if (n === null || typeof n !== "object" || Array.isArray(n)) continue;
     const r = n as Record<string, unknown>;
     const cid = r["community"];
     if (typeof cid === "number") {

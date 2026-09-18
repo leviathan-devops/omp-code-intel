@@ -165,4 +165,17 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(g.edges.length).toBe(1);
     expect(g.edges[0]!.relation).toBe("unknown");
   });
+
+  // ---------- F8 (graphify-adapter:199 null row guard) ----------
+  test("test_w44_adapter_null_rows_dropped_not_thrown", () => {
+    const raw = {
+      nodes: [null, { id: "n1", label: "a", type: "function", file: "src/a.ts" }, 42, { id: "n2", label: "b", type: "function", file: "src/b.ts" }],
+      links: [null, { source: "n1", target: "n2", relation: "calls" }],
+    };
+    // THE FIX: null / non-object rows are DROPPED (counted), never a TypeError.
+    const g = normalizeGraphifyGraph(raw);
+    expect(g.nodes.length).toBe(2);
+    expect(g.edges.length).toBe(1);
+    expect(g.edges[0]!.relation).toBe("calls");
+  });
 });
