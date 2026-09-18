@@ -886,7 +886,12 @@ function assertGraphShape(graph: unknown): { nodes: unknown[]; edges: unknown[] 
     if (typeof row["id"] !== "string" || (row["id"] as string).length === 0) {
       throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string id");
     }
-  }
+    // W36: label required — the dead-code leg regex-escapes it unconditionally
+    // (prod/seam parity with the W35 label gate).
+    if (typeof row["label"] !== "string" || (row["label"] as string).length === 0) {
+      throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string label");
+    }
+   }
   for (const e of g.edges as unknown[]) {
     const row = e as Record<string, unknown>;
     // W16 (frozen-scan HIGH): the sweep reads e.src/e.dst — accepting the
