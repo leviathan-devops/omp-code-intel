@@ -254,16 +254,10 @@ export function applyTypedDdl(db: Database): void {
           if (dm.includes("DDL_DEDUP_INVALID_IDENT")) throw dedupErr;
           console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
         }
-        try {
-          db.run(stmt);
-          console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup — ${stmt.slice(0, 80)}`);
-          continue;
-        } catch (retryErr) {
-          const rmsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-          console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${rmsg.slice(0, 120)}`);
-          try { db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash('sha256').update(stmt).digest('hex').slice(0, 12)}`, stmt.slice(0, 200)]); } catch { /* gi_meta may predate this table */ }
-          continue;
-        }
+        // W34: the in-txn dedup+retry above owns the recovery — the old
+        // out-of-txn second run double-counted the recovery log on success
+        // and masked the txn outcome on failure.
+        continue;
       }
       throw e;
     }
@@ -804,6 +798,8 @@ export interface SafeDeleteResult {
   testReach: Array<{ symbol: string; file: string; line: number }>;
   /** P1.5.3 (W3): lineless uses dropped from `uses` — counted, never silent. */
   usesLinelessDropped?: number;
+  /** W34 (frozen-scan HIGH): whoCalls/impact caps fired — under-report flag. */
+  truncated?: boolean;
 }
 
 export function safeDelete(storePath: string, symbol: string): SafeDeleteResult {
@@ -846,7 +842,9 @@ export function safeDelete(storePath: string, symbol: string): SafeDeleteResult 
       ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
       ...mappedUses.filter((u) => isTestPath(u.file)),
     ];
-    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach, usesLinelessDropped };
+    // W34 (frozen-scan HIGH): the caps' truncation flags are SURFACED —
+    // mega-label under-reports in callers/reaches are machine-detectable.
+    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach, usesLinelessDropped, truncated: q.truncated === true || (imp as { truncated?: boolean }).truncated === true };
   } finally {
     db.close();
   }

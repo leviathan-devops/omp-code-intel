@@ -680,6 +680,22 @@ async function sweep(
       }
     }
     const truncated = sccs.length > 0 && cycles.length >= CYCLE_CAP;
+    // W34 (frozen-scan HIGH): SCCs detected but bounded enumeration produced
+    // zero concrete cycles — emit a per-SCC group finding instead of an empty
+    // array (a zero-FINDING report violates the grammar and reads as a clean
+    // sweep while cycles provably exist).
+    if (cycles.length === 0) {
+      return sccs.slice(0, CYCLE_CAP).map((comp) => ({
+        subject: `dependency cycle group — ${comp.length} strongly-connected members`,
+        predicate: "cycles.import",
+        file: firstNodeFile,
+        line: 1,
+        evidence: `Tarjan SCC [${comp.join(", ")}] verified in the graph edge set — per-edge enumeration unavailable (bounded); members are mutually recursive`,
+        spec: `${template.layerId} audit — circular dependency (structural audit, no external spec clause)`,
+        severity: "HIGH" as const,
+        confidence: 0.85,
+      }));
+    }
     return cycles.slice(0, CYCLE_CAP).map((c) => {
       const head = graph.nodes.find((n) => n.id === c[0]);
       const rel = head ? nodeFile(targetRoot, head) : "";
