@@ -90,7 +90,9 @@ export const TYPED_STORE_DDL: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`,
 ];
 
-const SQLITE_MAGIC = Buffer.from("SQLite format 3");
+// W21 (frozen-scan HIGH): the TRUE magic is 16 bytes INCLUDING the trailing NUL —
+// the 15-char form passed files with a corrupted 16th byte into bun:sqlite.
+const SQLITE_MAGIC = Buffer.from("SQLite format 3\0");
 
 /** Read a gi_meta value (null when absent). */
 export function getMeta(storePath: string, key: string): string | null {
@@ -131,8 +133,12 @@ export function openTypedStore(storePath: string): Database {
     if (c.code === "ENOENT") st = null;
     else throw e;
   }
-  if (st !== null && st.size > 0) {
+  if (st !== null) {
+    // W21 (frozen-scan HIGH): isFile FIRST — a 0-byte directory/FIFO used to
+    // skip validation entirely and fall into bun:sqlite with a confusing error.
     if (!st.isFile()) throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
+  }
+  if (st !== null && st.size > 0) {
     // W17 CRITICAL fix: the ENOENT race sets treatAsFresh (flow continues to
     // the fresh-store creation below) — the old `return db` referenced the
     // const declared LATER in this function: a TDZ ReferenceError crash.
@@ -168,6 +174,12 @@ export function openTypedStore(storePath: string): Database {
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA busy_timeout = 5000;"); // scan triage: raw BEGIN IMMEDIATE needs contention tolerance
   applyTypedDdl(db);
+  // W21 (frozen-scan HIGH): a persisted deferral is SURFACED on every open —
+  // the marker existed but nothing read it, so the unconstrained store was silent.
+  try {
+    const deferred = db.query("SELECT value FROM gi_meta WHERE key LIKE 'unique_index_deferred%'").all() as Array<{ value: string }>;
+    if (deferred.length > 0) console.error(`[gi-omp] STORE OPENED WITH DEFERRED UNIQUE INDEX (${deferred.length} marker(s)) — legacy duplicate rows are unconstrained until dedup`);
+  } catch { /* gi_meta absent on legacy stores */ }
   return db;
 }
 
@@ -226,7 +238,7 @@ export function applyTypedDdl(db: Database): void {
         } catch (retryErr) {
           const rmsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
           console.error(`[gi-omp] DDL note: UNIQUE index deferred (legacy duplicate rows) — ${rmsg.slice(0, 120)}`);
-          try { db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES ('unique_index_deferred', ?)", [stmt.slice(0, 200)]); } catch { /* gi_meta may predate this table */ }
+          try { db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash('sha256').update(stmt).digest('hex').slice(0, 12)}`, stmt.slice(0, 200)]); } catch { /* gi_meta may predate this table */ }
           continue;
         }
       }
@@ -414,7 +426,7 @@ export interface WhoCallsRow { caller: string; file: string; line: number; kind?
  *  DIFFERENT identities and must never conflate in whoCalls/impact/chain/blast. */
 function resolveLiveIds(db: { query: (sql: string) => { all: (v?: unknown) => unknown[] } }, label: string): string[] {
   const rows = db.query(
-    "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id",
+    "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501",
   ).all(label) as Array<{ canonical_id: string }>;
   // W13 (frozen-scan HIGH): ORDER BY makes the 500-cap truncation
   // DETERMINISTIC — the same label always truncates to the same subset.
@@ -486,6 +498,9 @@ export function whoCalls(storePath: string, name: string): { rows: number; names
 export interface BlastNode { file: string; depth: number }
 
 export function blastRadius(storePath: string, symbol: string, depth = 8): { root: string; depth: number; nodes: BlastNode[] } {
+  // W21 (frozen-scan HIGH): depth CLAMPED — negative/fractional/NaN/1e9 drove
+  // the recursive CTE unboundedly.
+  depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16);
   const db = openTypedStore(storePath);
   try {
     // V21 W1+W5: the recursion walks CANONICAL IDS (identity-true), not files —
@@ -684,6 +699,7 @@ export interface ImpactResult {
 // BFS over callers-of-callers with a depth ledger; hint names the follow-up (next=chain).
 // P1.1.2 (W1 gi-resource): handle-injected core (see whoCallsInDb).
 export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResult {
+  depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16); // W21: clamped
   const ledger: ImpactLedgerRow[] = [];
   const seen = new Set<string>();
   // V21 W1: the frontier carries CANONICAL IDS, never labels — same-label

@@ -200,7 +200,14 @@ function makeForceBoundWriteTool(pinnedPath: string, ledgerDir: string): Mission
       try {
         fs.mkdirSync(path.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
-        fs.writeFileSync(pinnedReal, content, "utf-8");
+        // W21 (frozen-scan HIGH): fd-pinned write — O_NOFOLLOW|O_TRUNC so a
+        // symlink swap between containment and write cannot redirect the bytes.
+        const wfd = fs.openSync(pinnedReal, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o644);
+        try {
+          fs.writeFileSync(wfd, content, "utf-8");
+        } finally {
+          fs.closeSync(wfd);
+        }
         return JSON.stringify({ path: pinnedReal, bytes: Buffer.byteLength(content, "utf-8") });
       } catch (e) {
         return `WRITE_FAILED: ${String((e as Error).message).slice(0, 300)}`;
