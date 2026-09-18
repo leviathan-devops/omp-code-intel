@@ -345,3 +345,13 @@ between the files as fixes land and reads go deeper. Battery 170/0/1597
 across 28 files, re-run green. Dist 321bc8a9d99f71dc ×5.
 **Twenty-one passes. The loop continues; every fix is real and every new
 read is triaged on arrival.**
+
+## PASS 22 (W34) — HOT-PAIR HIGHS 6 → 2, LOWEST OF THE LOOP (2026-09-18)
+Closed: typed-write openTypedStore CLOSES the handle on PRAGMA/DDL failure
+(fd + WAL-lock leak); redundant out-of-txn retry removed (double-counted
+recovery); safeDelete surfaces whoCalls/impact truncation flags; auditor
+per-SCC group fallback when bounded enumeration yields zero concrete cycles
+(zero-FINDING grammar violation closed). W34 verify (dist 37919c9f413dba3e
+×5): auditor 1h, typed-write 1h. Battery 170/0/1597 across 28 files.
+**Twenty-two passes. Hot-pair highs: 6 → 2 — the loop is converging on the
+final tail. Kernel-wide ~10 highs across 5 files.**
