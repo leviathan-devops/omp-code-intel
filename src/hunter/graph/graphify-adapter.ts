@@ -224,7 +224,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   const edges: GraphEdge[] = rawLinks.map((e) => {
     const src = String(e["source"] ?? e["src"] ?? "");
     const dst = String(e["target"] ?? e["dst"] ?? "");
-    const relation = String(e["relation"] ?? "references");
+    // W44 (qwen scan HIGH): an undeclared relation defaulted to "references" —
+    // an edge TYPE LIE that typed queries then trusted. Honest placeholder.
+    const relation = String(e["relation"] ?? "unknown");
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };
   });

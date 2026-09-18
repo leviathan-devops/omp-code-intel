@@ -5,11 +5,11 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { CORBELL_PREDICATES, isCorbellCheckoutFreshFor, populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
-import { isGraphifyCheckoutFreshFor } from "../src/omp/populate-graphify.ts";
+import { computeSourceHashWithBudget, isGraphifyCheckoutFreshFor } from "../src/omp/populate-graphify.ts";
 import { captureSnapshot } from "../src/kernel/graph-diff.ts";
+import { normalizeGraphifyGraph } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-import { computeSourceHashWithBudget } from "../src/omp/populate-graphify.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -151,5 +151,18 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     const hashB = mk("B");
     // THE FIX: identical head+tail+size with a DIFFERENT middle must not collide.
     expect(hashA).not.toBe(hashB);
+  });
+
+  // ---------- F7 (graphify-adapter:224 edge type lie) ----------
+  test("test_w44_adapter_missing_relation_is_not_fabricated", () => {
+    const raw = {
+      nodes: [{ id: "n1", label: "a", type: "function", file: "src/a.ts" }, { id: "n2", label: "b", type: "function", file: "src/b.ts" }],
+      links: [{ source: "n1", target: "n2" }], // NO relation declared
+    };
+    const g = normalizeGraphifyGraph(raw);
+    // THE FIX: an undeclared relation must read "unknown" — never a fabricated
+    // real relation name ("references") that typed queries then trust.
+    expect(g.edges.length).toBe(1);
+    expect(g.edges[0]!.relation).toBe("unknown");
   });
 });
