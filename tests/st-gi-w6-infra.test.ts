@@ -77,4 +77,42 @@ describe("st-gi-w6-infra: pre-flight + test targeting", () => {
     expect(getTestTargets(store, "target", 2)).toHaveLength(2);
     expect(getTestTargets(store, "target", 1)).toHaveLength(1);
   });
+
+  // ---- Spec W6 battery completion (4 pre-flight + 3 test-target named) ----
+  test("test_w6_preflight_isolated_target_single_commit", () => {
+    // x sits in an isolated pair (x←y only): minimal blast radius, single-commit
+    // strategy.
+    const store = w6Store(NODES, EDGES);
+    const pf = preFlight(store, "x");
+    expect(pf.commitStrategy).toBe("single");
+    expect(pf.blastRadius.reaches).toBeLessThanOrEqual(2);
+    expect(pf.target).toBe("x");
+  });
+
+  test("test_w6_preflight_direct_callers_carry_anchors", () => {
+    // Every direct-caller anchor is usable for navigation: caller + file + via
+    // populated (file:line is what the agent follows to the call site).
+    const store = w6Store(NODES, EDGES);
+    const pf = preFlight(store, "target");
+    expect(pf.directCallers.length).toBeGreaterThanOrEqual(3);
+    for (const c of pf.directCallers) {
+      expect(c.caller.length).toBeGreaterThan(0);
+      expect(c.file.length).toBeGreaterThan(0);
+      expect(c.via.length).toBeGreaterThan(0);
+    }
+    expect(pf.warnings).toEqual([]);
+  });
+
+  test("test_w6_test_targets_exclude_unrelated_nodes", () => {
+    // Test targets for `target` come from its caller/upstream set only — the
+    // isolated pair (x, y) and target itself never appear.
+    const store = w6Store(NODES, EDGES);
+    const targets = getTestTargets(store, "target", 10);
+    const labels = targets.map((t) => t.label);
+    expect(labels).not.toContain("target");
+    expect(labels).not.toContain("x");
+    expect(labels).not.toContain("y");
+    expect(labels.length).toBeGreaterThan(0);
+    for (const t of targets) expect(t.depth).toBeGreaterThanOrEqual(1);
+  });
 });
