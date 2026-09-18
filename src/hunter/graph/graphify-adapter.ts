@@ -183,8 +183,10 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
 
 /** Fork graph-mapper.ts:40-87 normalizeGraph (links|edges tolerant). */
 export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { root?: string }): GraphifyGraph {
-  // V1.1-c3: unified root — normalize uses realpathSync like projection
-  const safeRoot = opts?.root ? (() => { try { return fs.realpathSync(opts.root); } catch { return undefined; } })() : undefined;
+  // W44 (qwen scan HIGH): the dead fail-open `safeRoot` computation was
+  // removed — the sync containment base canonicalizes ONCE inside
+  // scopeBuildToProfile (fail-closed), and the anchor pass below derives its
+  // own rootReal with the C2 fail-closed discipline.
   const rawNodes = (Array.isArray(raw["nodes"]) ? raw["nodes"] as unknown[] : []);
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] as unknown[] : (Array.isArray(raw["edges"]) ? raw["edges"] as unknown[] : []);
   const rawLinks = rawLinkSrc as Record<string, unknown>[];
@@ -325,10 +327,14 @@ export function scopeBuildToProfile(
 ): { nodes: GraphNode[]; edges: GraphEdge[]; dropped: number } {
   const norm = (s: string): string => s.replace(/\/+$/, "");
   const scopes = scopeDirs.map(norm).map((s) => s.toLowerCase()).filter((s) => s.length > 0);
-  // Base-existence gate (W42+): a raw single-sentence anchor is meaningless
-  // without a canonicalizable base — fail CLOSED with zero rows + full drop
-  // here, before containedRel's named throw can abort the pass mid-list.
-  try { fs.realpathSync(root); } catch {
+  // W44 (qwen scan HIGH): THE SYNC CONTAINMENT BASE is canonicalized ONCE and
+  // threaded through — the old gate real realpathSync'd the root then threw
+  // the result away, so every row re-derived the base and a root swapped
+  // unresolvable mid-pass aborted the whole filter on containedRel's named
+  // throw. Fail-closed stays: unresolvable base = zero rows, full drop.
+  let rootCanon: string | null = null;
+  try { rootCanon = fs.realpathSync(root); } catch { rootCanon = null; }
+  if (rootCanon === null) {
     return { nodes: [], edges: [], dropped: nodes.length };
   }
   const inScope = (f: string | undefined): boolean => {
@@ -336,7 +342,8 @@ export function scopeBuildToProfile(
     // W43: case-insensitive drop — on Linux the extract emits "Checkpoints/"
     // (capital C) for checkpoint trees; the scope check below compares
     // lowercased forms so case can never smuggle a row back in.
-    const rel = containedRel(root, f).toLowerCase();
+    let rel = "";
+    try { rel = containedRel(rootCanon, f).toLowerCase(); } catch { rel = ""; }
     if (rel.length === 0) return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
   };

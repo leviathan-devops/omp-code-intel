@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { CORBELL_PREDICATES, isCorbellCheckoutFreshFor, populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
 import { computeSourceHashWithBudget, isGraphifyCheckoutFreshFor } from "../src/omp/populate-graphify.ts";
 import { captureSnapshot } from "../src/kernel/graph-diff.ts";
-import { normalizeGraphifyGraph } from "../src/hunter/graph/graphify-adapter.ts";
+import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
@@ -177,5 +177,30 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(g.nodes.length).toBe(2);
     expect(g.edges.length).toBe(1);
     expect(g.edges[0]!.relation).toBe("calls");
+  });
+
+  // ---------- F9 (graphify-adapter:181 sync containment base) ----------
+  test("test_w44_scope_sync_base_canonical_failclosed", () => {
+    const mkNode = (id: string, file: string): { id: string; label: string; type: string; file: string } => ({ id, label: id, type: "function", file });
+    const nodes = [mkNode("n1", "src/a.ts"), mkNode("n2", "docs/b.md"), mkNode("n3", "src/c.ts")];
+    const edges = [
+      { sourceId: "n1", targetId: "n3", relation: "calls", confidence: "EXTRACTED" as const },
+      { sourceId: "n1", targetId: "n2", relation: "calls", confidence: "EXTRACTED" as const },
+    ];
+    // Leg 1: unresolvable base = fail CLOSED (zero rows, full drop).
+    const dead = scopeBuildToProfile(nodes, edges, path.join("/nonexistent", String(Date.now())), ["src"]);
+    expect(dead.nodes.length).toBe(0);
+    expect(dead.dropped).toBe(3);
+    // Leg 2: SYMLINKED base canonicalizes once — scoped rows survive, out-of-scope
+    // rows drop, and the edge whose endpoint dropped is pruned with them.
+    const real = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-base-real-"));
+    fs.mkdirSync(path.join(real, "src"), { recursive: true });
+    fs.mkdirSync(path.join(real, "docs"), { recursive: true });
+    const linkRoot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-base-link-")), "link");
+    fs.symlinkSync(real, linkRoot);
+    const r = scopeBuildToProfile(nodes, edges, linkRoot, ["src"]);
+    expect(r.nodes.map((n) => n.id).sort()).toEqual(["n1", "n3"]);
+    expect(r.edges.length).toBe(1);
+    expect(r.edges[0]!.targetId).toBe("n3");
   });
 });
