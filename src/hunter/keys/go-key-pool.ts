@@ -97,6 +97,14 @@ export function sanitizeSessionScope(sessionId: string): string {
 // shard is GONE. The header contract ("a key a sibling proved rate-limited is
 // skipped by everyone") is now true by construction; sessionId args remain in
 // signatures for compatibility but no longer change the store location.
+// W44 (qwen scan HIGH): mkdir mode applies ONLY on CREATE — a pre-existing
+// lax private dir (0755 from a sloppy setup) stayed lax with the key pool
+// inside. Harden to 0700 on EVERY resolution (idempotent; best-effort so a
+// read-only home never crashes key resolution).
+export function hardenPrivateDir(dir: string): void {
+  try { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { /* exists */ }
+  try { fs.chmodSync(dir, 0o700); } catch { /* best-effort */ }
+}
 export function goPoolDbFile(sessionId?: string): string {
   void sessionId;
   if (process.env.GO_POOL_DB) return process.env.GO_POOL_DB;
@@ -104,7 +112,7 @@ export function goPoolDbFile(sessionId?: string): string {
   // W26 (frozen-scan HIGH): the default leaves the world-writable tmpdir —
   // the pool now lives in a user-private directory (created 0700 on demand).
   const privateDir = path.join(os.homedir(), '.gi-omp');
-  try { fs.mkdirSync(privateDir, { recursive: true, mode: 0o700 }); } catch { /* exists */ }
+  hardenPrivateDir(privateDir);
   return path.join(privateDir, 'go-key-pool.sqlite');
 }
 

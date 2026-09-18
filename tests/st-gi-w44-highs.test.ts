@@ -12,7 +12,7 @@ import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
-import { goKeyDead, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
+import { goKeyDead, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 import { setMeta } from "../src/omp/typed-write.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
@@ -324,5 +324,22 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
       if (prevKeys === undefined) delete process.env.GO_KEYS_JSON; else process.env.GO_KEYS_JSON = prevKeys;
       reloadGoKeys();
     }
+  });
+
+  // ---------- F17 (pool:106 private dir existing perms) ----------
+  test("test_w44_pool_private_dir_hardened_even_when_preexisting", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-dir-"));
+    const privateDir = path.join(dir, ".gi-omp");
+    // An attacker (or sloppy setup) pre-creates the dir WORLD-READABLE.
+    fs.mkdirSync(privateDir, { mode: 0o755 });
+    // THE FIX: hardenPrivateDir tightens a PRE-EXISTING lax dir (the old
+    // mkdir mode only applied on CREATE — 0755 stayed with the pool inside).
+    hardenPrivateDir(privateDir);
+    const mode = fs.statSync(privateDir).mode & 0o777;
+    expect(mode).toBe(0o700);
+    // Idempotent + creates on demand.
+    const fresh = path.join(dir, "nested", ".gi-omp");
+    hardenPrivateDir(fresh);
+    expect(fs.statSync(fresh).mode & 0o777).toBe(0o700);
   });
 });
