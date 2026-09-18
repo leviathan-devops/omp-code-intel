@@ -355,3 +355,15 @@ per-SCC group fallback when bounded enumeration yields zero concrete cycles
 ×5): auditor 1h, typed-write 1h. Battery 170/0/1597 across 28 files.
 **Twenty-two passes. Hot-pair highs: 6 → 2 — the loop is converging on the
 final tail. Kernel-wide ~10 highs across 5 files.**
+
+## PASS 23 (W35) — 2 CLOSED, HOT PAIR AT 4 (2026-09-18)
+Closed: auditor shape gate requires non-empty label (the dead-code leg's
+unconditional label.replace threw TypeError mid-sweep on label-less nodes —
+surfacing as HUNTER_SWEEP_FAILED instead of the named gate); typed-write
+null-`on` regex miss now LOGS + RECORDS the deferral in gi_meta (the
+original constraint error was silently discarded, leaving the store
+unconstrained with no record). W35 verify (dist 3f59f17e51737e22 ×4):
+auditor 2h, typed-write 2h — fresh reads of the W35 changes themselves.
+Battery 170/0/1597 across 28 files, re-run green.
+**Twenty-three passes. The hot pair holds at 4 highs; every pass lands
+real hardening and surfaces 1-2 new deeper reads. The loop continues.**
