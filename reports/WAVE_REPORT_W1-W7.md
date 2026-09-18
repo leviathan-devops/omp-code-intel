@@ -127,3 +127,18 @@ Final tallies: criticals 0 (stable since pass 2) · highs 19 (oscillating
 11–22 across passes, composition churns, the named architectural pile
 persists) · battery 170/0/1597 across 28 files · dist 6d9003ddfd2ddb42
 deployed ×5 · live legs green · librarians pinned · docs de-slopped.
+
+## PASS 7 (W11) — LOOP PRODUCTIVITY RESTORED (2026-09-18)
+The pass-6 circuit-breaker framing was too pessimistic: the w10 findings were
+individually triaged and 16 of 19 were CONCRETE fixes (not architecture):
+extension confinement segment-check + symbol/from guard parity + populate
+serialization lane + wipe audit trail + ledgerDir confine-after-mkdir;
+auditor fd-pinned TOCTOU-immune reads + full-row shape gate; pool
+no-positional-backfill + per-write re-chmod + keyid-alive legacy fallback;
+graphify scope canonical-root parity + edge-branch skip+count consistency;
+typed-write nested-txn guards + COMMIT-fail rollbacks + identifier allowlist +
+impact warn + whoCalls truncated flag.
+**W11 rescan (dist bf6610bb8fd4a840 ×5): 19 → 15 highs (auditor 4→1, pool
+3→2, extension 6→4). Battery 170/0/1597 across 28 files, re-run green.**
+Trajectory: 22 → 19 → 11(churn) → 19 → 15 — the loop converges when findings
+are worked individually. Next pass continues on the 15.
