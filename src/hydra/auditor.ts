@@ -736,7 +736,7 @@ async function sweep(
     if (out.length === 0 && probeFailures > 0) {
       // Every skipped probe means the sweep is INCOMPLETE — a clean-empty here
       // would be a silent-degrade lie. Name the infrastructure failure instead.
-      return [sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`)];
+      return [sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`, firstNodeFile)];
     }
     return out.length > 0 ? out : [confirmedEmpty(anchor, template.layerId, `in-degree/out-degree scan over ${graph.nodes.length} nodes + grep two-leg verification found no dead declarations`, firstNodeFile)];
   }
@@ -837,7 +837,7 @@ async function sweep(
   // V21 cleanup AUD-C2: infrastructure failure is LOUD here too — the generic
   // leg never reports a clean-empty that a failed probe produced.
   if (hit.startsWith("SEARCH_FAILED") || hit.startsWith("GREP_INVALID")) {
-    return [sweepIncomplete(anchor, template.layerId, `probe INCOMPLETE: ${hit.slice(0, 140)} — no verdict possible from a failed probe`)];
+    return [sweepIncomplete(anchor, template.layerId, `probe INCOMPLETE: ${hit.slice(0, 140)} — no verdict possible from a failed probe`, firstNodeFile)];
   }
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }

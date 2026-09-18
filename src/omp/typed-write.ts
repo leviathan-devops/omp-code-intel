@@ -727,7 +727,7 @@ export interface ImpactResult {
 // CORBELL VOCABULARY: predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // BFS over callers-of-callers with a depth ledger; hint names the follow-up (next=chain).
 // P1.1.2 (W1 gi-resource): handle-injected core (see whoCallsInDb).
-export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResult {
+export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResult & { truncated?: boolean } {
   depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16); // W21: clamped
   const ledger: ImpactLedgerRow[] = [];
   const seen = new Set<string>();
@@ -740,9 +740,11 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
     startIds = startIds.slice(0, 500);
   }
   if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
-  // W31: the ledger is CAPPED at 5000 rows (blast-parity) — a mega-store
-  // no longer materializes unbounded reachability before returning.
+  // W31+W32: the ledger is CAPPED at 5000 rows (blast-parity) — a mega-store
+  // no longer materializes unbounded reachability before returning; the
+  // truncation is SURFACED in the result (never a silent under-report).
   const LEDGER_CAP = 5000;
+  let ledgerTruncated = false;
   for (const id of startIds) seen.add(id);
   let frontier: string[] = startIds;
   for (let d = 1; d <= depth && frontier.length > 0; d++) {
@@ -765,13 +767,15 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
         seen.add(c.id);
         if (ledger.length < LEDGER_CAP) {
           ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        } else {
+          ledgerTruncated = true;
         }
         next.push(c.id);
       }
     }
     frontier = next;
   }
-  return { symbol, reaches: ledger.length, ledger, hint: `next=chain from=${symbol}` };
+  return { symbol, reaches: ledger.length, ledger, truncated: ledgerTruncated, hint: `next=chain from=${symbol}` };
 }
 
 export function impact(storePath: string, symbol: string, depth = 8): ImpactResult {
