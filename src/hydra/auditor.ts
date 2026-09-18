@@ -1014,17 +1014,23 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
 
   // Graph-slice evidence: run the template's first query through the reader (MCP-first,
   // local-fallback inside) so the report's graphRefs are consumed, not asserted.
+  // W45-rescan CRITICAL fix: q0 was NEVER defined in this ported block —
+  // reader.query(graph, q0) threw ReferenceError on every audit, silently
+  // masked as GRAPH_SLICE_FAILED (slice evidence was never collected). The
+  // template's FIRST graphQuery is the intended slice query.
   const reader = new GraphifyMapReader(args.client ?? null);
   let sliceNote = "";
-  try {
-    writeBriefPinned(path.join(ledgerDir, "brief.md"), brief);
-    const slice = await reader.query(graph, q0);
-    calls.count += 1;
-    calls.names.push("graph-query");
-    sliceNote = `graphSlice query "${q0}" → ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
-  } catch (e) {
-    errors.push("GRAPH_SLICE_FAILED: " + String((e as Error).message).slice(0, 200));
-    sliceNote = "graphSlice unavailable (see errors)";
+  const q0 = (template.graphQueries ?? [])[0] ?? "";
+  if (q0 !== "") {
+    try {
+      const slice = await reader.query(graph, q0);
+      calls.count += 1;
+      calls.names.push("graph-query");
+      sliceNote = `graphSlice query "${q0}" → ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
+    } catch (e) {
+      errors.push("GRAPH_SLICE_FAILED: " + String((e as Error).message).slice(0, 200));
+      sliceNote = "graphSlice unavailable (see errors)";
+    }
   }
 
   let swept: SweptCandidate[];
