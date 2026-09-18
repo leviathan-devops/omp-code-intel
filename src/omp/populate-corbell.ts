@@ -16,7 +16,11 @@ import { supersedeThenInsert } from "./populate-graphify.ts";
 
 export const CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
 export const CORBELL_FRESHNESS_BUDGET = 50_000;
-
+// W44 (qwen scan HIGH): the corbell edge vocabulary was a DRIFTING inline
+// literal (duplicated in graph-diff's SQL) — one mutation here and not there
+// silently changed what survives populate vs what graph-diff counts. This
+// constant is the single source; every consumer derives from it.
+export const CORBELL_PREDICATES: readonly string[] = ["calls", "traces-to", "imports"];
 export interface CorbellPopulateResult {
   ok: boolean;
   reason?: string;
@@ -198,7 +202,7 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   const validEdges = edges.filter((e) => {
     const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0
       && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0
-      && ["calls", "traces-to", "imports"].includes(e.predicate)
+      && CORBELL_PREDICATES.includes(e.predicate)
       && keptIds.has(e.src_canonical) && keptIds.has(e.dst_canonical); // both endpoints survived the node pass
     if (!ok) edgeSkipped += 1;
     return ok;

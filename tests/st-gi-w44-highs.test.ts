@@ -4,7 +4,8 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { isCorbellCheckoutFreshFor, populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
+import { CORBELL_PREDICATES, isCorbellCheckoutFreshFor, populateFromCorbellCheckout, warmStoreStat, warmStoreUnchanged } from "../src/omp/populate-corbell.ts";
+import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
 
@@ -80,5 +81,34 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     // THE FIX: budget no longer exhausts on a 2,100-file tree (stale-budget).
     expect(fresh.fresh).toBe(true);
     expect(fresh.reason).toBe("fresh");
+  });
+
+  // ---------- F4 (populate-corbell:181 predicate allowlist single source) ----------
+  test("test_w44_corbell_predicate_allowlist_single_source_shared_with_diff", () => {
+    // The vocabulary is ONE exported contract, not drifting inline literals.
+    expect([...CORBELL_PREDICATES]).toEqual(["calls", "traces-to", "imports"]);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-pred-"));
+    const warmDir = path.join(root, ".omp", "graph-intelligence", "corbell-checkout");
+    fs.mkdirSync(warmDir, { recursive: true });
+    const warmPath = path.join(warmDir, "store.sqlite");
+    const warm = new Database(warmPath);
+    warm.exec(`CREATE TABLE typed_nodes (canonical_id TEXT, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
+CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);
+INSERT INTO typed_nodes VALUES ('c-a','function','a','src/a.ts',1,'warm',NULL);
+INSERT INTO typed_nodes VALUES ('c-b','function','b','src/b.ts',2,'warm',NULL);
+INSERT INTO typed_edges VALUES ('c-a','c-b','calls','q',1.0,'warm',NULL);
+INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`);
+    warm.close();
+    const storePath = path.join(root, "sessions", "sesW44PRED0000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const r = populateFromCorbellCheckout(storePath, root, "w44pred");
+    expect(r.ok).toBe(true);
+    // corbell gate: out-of-vocabulary predicate skipped AND counted
+    expect(r.edges).toBe(1);
+    expect(r.skipped).toBe(1);
+    // graph-diff speaks the SAME vocabulary (drift-probe edge is not "known")
+    const snap = captureSnapshot(storePath);
+    expect(snap.edgePredicates["calls"]).toBe(1);
+    expect(snap.edgePredicates["drift-probe"]).toBeUndefined();
   });
 });

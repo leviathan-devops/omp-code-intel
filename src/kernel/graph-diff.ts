@@ -5,6 +5,7 @@
 // WARN, everything else PASS with deltas named.
 import * as path from "node:path";
 import { openTypedStore } from "../omp/typed-write.ts";
+import { CORBELL_PREDICATES } from "../omp/populate-corbell.ts";
 
 export interface GraphSnapshot {
   nodes: number;
@@ -26,7 +27,8 @@ export interface GraphDiffResult {
   details: string[];
 }
 
-const PREDICATES = ["calls", "traces-to", "imports"];
+// W44: derives from the corbell allowlist — the vocabulary has ONE source.
+const PREDICATES: readonly string[] = CORBELL_PREDICATES;
 
 /** Capture the structural fingerprint of a typed store. Reads LIVE rows only
  *  (superseded_run IS NULL). Tarjan-iterative SCC count for cycles. */
@@ -38,7 +40,7 @@ export function captureSnapshot(storePath: string): GraphSnapshot {
     ).all() as Array<{ canonical_id: string; label: string; kind: string | null }>;
     const edges = db.query(
       `SELECT src_canonical, dst_canonical, predicate FROM typed_edges
-       WHERE superseded_run IS NULL AND predicate IN ('calls', 'traces-to', 'imports')`,
+       WHERE superseded_run IS NULL AND predicate IN (${[...PREDICATES].map((p) => `'${p}'`).join(", ")})`,
     ).all() as Array<{ src_canonical: string; dst_canonical: string; predicate: string }>;
 
     const nodeKinds: Record<string, number> = {};
