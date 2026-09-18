@@ -178,15 +178,28 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
         hash.update(`${anchor}\0${read}\0`);
         hash.update(buf.subarray(0, read));
       } else {
-        const head = Buffer.alloc(4096);
-        const tail = Buffer.alloc(4096);
-        read += fs.readSync(fd, head, 0, 4096, 0);
-        read += fs.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
+        // W44 (qwen scan HIGH): head+tail 4KB sampling COLLIDED on mid-file
+        // edits — two files with identical head/tail/size hashed the same,
+        // so a real edit read "fresh" and silently served a stale graph.
+        // Stream the WHOLE file in 64KB chunks; past the 8MB cap the cap
+        // marker keeps truncated hashing deterministic (never colliding
+        // with a complete digest — the W8 discipline).
+        const CHUNK = 65_536;
+        const MAX_HASH_BYTES = 8 * 1024 * 1024;
         hash.update(`${anchor}\0${size}\0`);
-        hash.update(head);
-        hash.update(tail);
+        let offset = 0;
+        const chunk = Buffer.alloc(CHUNK);
+        while (offset < size && offset < MAX_HASH_BYTES) {
+          const want = Math.min(CHUNK, size - offset, MAX_HASH_BYTES - offset);
+          const n = fs.readSync(fd, chunk, 0, want, offset);
+          if (n <= 0) break;
+          hash.update(chunk.subarray(0, n));
+          offset += n;
+        }
+        read = offset;
+        if (offset < size) hash.update(`capped@${offset}\n`);
       }
-      if (read < Math.min(size, GRAPH_HASH_WHOLE_FILE_MAX)) hash.update("short-read\n");
+      if (read < Math.min(size, GRAPH_HASH_WHOLE_FILE_MAX) && size <= GRAPH_HASH_WHOLE_FILE_MAX) hash.update("short-read\n");
     } finally {
       if (fd !== null) fs.closeSync(fd); // P1.1.3 (W1): the fd closes on every path
     }

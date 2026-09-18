@@ -9,7 +9,7 @@ import { isGraphifyCheckoutFreshFor } from "../src/omp/populate-graphify.ts";
 import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-
+import { computeSourceHashWithBudget } from "../src/omp/populate-graphify.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -133,5 +133,23 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     // THE FIX: full ms precision — the sub-second edit must read STALE.
     expect(v.fresh).toBe(false);
     expect(v.reason).toBe("stale");
+  });
+
+  // ---------- F6 (populate-graphify:178 large-file fingerprint) ----------
+  test("test_w44_graphify_large_file_hash_distinguishes_mid_file_edits", () => {
+    const mk = (middleByte: string): string => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-big-"));
+      const srcDir = path.join(root, "src");
+      fs.mkdirSync(srcDir, { recursive: true });
+      const head = Buffer.alloc(4096, 0x48); // 'H'
+      const mid = Buffer.alloc(90_112, middleByte.charCodeAt(0));
+      const tail = Buffer.alloc(4096, 0x54); // 'T'
+      fs.writeFileSync(path.join(srcDir, "big.ts"), Buffer.concat([head, mid, tail]));
+      return computeSourceHashWithBudget(root, ["src"], [], 10_000);
+    };
+    const hashA = mk("A");
+    const hashB = mk("B");
+    // THE FIX: identical head+tail+size with a DIFFERENT middle must not collide.
+    expect(hashA).not.toBe(hashB);
   });
 });
