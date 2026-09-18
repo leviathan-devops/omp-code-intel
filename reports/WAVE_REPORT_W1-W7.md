@@ -181,3 +181,16 @@ TxnDb guard is correct as designed.
 - dist **25cda737e38a8b44** deployed ×5 exec-verified
 - 22/22 P1 fixes + 4/4 P2 tools + CLI live · live legs green · librarians
   pinned · docs de-slopped · blast report on disk
+
+## PASS 10 (W15) — HIGHS HALVED: 14 → 7 (2026-09-18)
+Closed: auditor graph_tag now receives the MEASURED predicate (ontology-valid
+only; off-ontology measured names fall back to the layer default — the naive
+wiring threw per-tag and silently voided every splice); extension auditRoot
+symlink pre-check BEFORE mkdtemp; pool O_EXCL in the creation flags
+(EEXIST raced cleanly instead of dead code) + markGoKeyAlive revives legacy
+12-char prefix rows; typed-write safeDelete joins the 500-cap contract,
+Bun.sleepSync replaces the BEGIN-retry busy-spin (starvation class), dedup
+failure logged not swallowed.
+**W15 rescan (dist 5381d6ad8aa642f4 ×5): auditor 2h · extension 1h · pool 1h ·
+typed-write 3h = 7 highs, 0 criticals. Battery 170/0/1597 across 28 files.**
+Trajectory: 22 → 19 → 15 → 14 → 7. Next pass works the final 7.
