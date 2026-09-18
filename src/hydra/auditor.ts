@@ -883,6 +883,19 @@ export async function sweep(
 
 // ── Runner (fork runLayerHunter :86-226, AetherAgent replaced by sweep) ──
 
+// W45 (frozen-scan HIGH): the brief write was a bare writeFileSync — a planted
+// brief.md symlink made the write follow the link and land in the target file.
+// The findings path has been fd-pinned since W21; the brief gets the same
+// discipline: O_NOFOLLOW|O_CREAT|O_TRUNC, write via fd.
+export function writeBriefPinned(briefPath: string, content: string): void {
+  const fd = fs.openSync(briefPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o644);
+  try {
+    fs.writeFileSync(fd, content, "utf-8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /** V21 cleanup AUD-C3: the loaded graph is shape-validated BEFORE the sweep —
  *  a malformed graph.json is a named rejection, never a TypeError mid-sweep. */
 function assertGraphShape(graph: unknown): { nodes: unknown[]; edges: unknown[] } {
@@ -994,7 +1007,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
     "",
   ].join("\n");
   try {
-    fs.writeFileSync(path.join(ledgerDir, "brief.md"), brief, "utf-8");
+    writeBriefPinned(path.join(ledgerDir, "brief.md"), brief);
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_BRIEF_WRITE_FAILED: " + String((e as Error).message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -1004,7 +1017,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   const reader = new GraphifyMapReader(args.client ?? null);
   let sliceNote = "";
   try {
-    const q0 = (template.graphQueries ?? [])[0] ?? template.anchorPredicate;
+    writeBriefPinned(path.join(ledgerDir, "brief.md"), brief);
     const slice = await reader.query(graph, q0);
     calls.count += 1;
     calls.names.push("graph-query");

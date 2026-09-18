@@ -13,7 +13,7 @@ import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
 import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
-import { sweep } from "../src/hydra/auditor.ts";
+import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
 import { setMeta } from "../src/omp/typed-write.ts";
 import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
@@ -425,5 +425,23 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     // (out.length === 0) dropped the marker whenever any finding existed.
     expect(found.length).toBe(2);
     expect(marked.length).toBe(1);
+  });
+
+  // ---------- F23 (auditor: brief write not fd-pinned) ----------
+  test("test_w44_brief_write_pinned_never_follows_symlink", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-brief-"));
+    // Real file: the pinned write lands and truncates.
+    const briefPath = path.join(dir, "brief.md");
+    fs.writeFileSync(briefPath, "OLD-CONTENT-MUCH-LONGER");
+    writeBriefPinned(briefPath, "# BRIEF\n");
+    expect(fs.readFileSync(briefPath, "utf-8")).toBe("# BRIEF\n");
+    // Planted symlink: the write THROWS and the VICTIM is untouched —
+    // the old writeFileSync followed the link and clobbered the target.
+    const victim = path.join(dir, "victim.md");
+    fs.writeFileSync(victim, "victim-bytes");
+    const plant = path.join(dir, "planted-brief.md");
+    fs.symlinkSync(victim, plant);
+    expect(() => writeBriefPinned(plant, "evil")).toThrow();
+    expect(fs.readFileSync(victim, "utf-8")).toBe("victim-bytes");
   });
 });
