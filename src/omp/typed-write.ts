@@ -129,6 +129,10 @@ export function openTypedStore(storePath: string): Database {
   }
   if (st !== null && st.size > 0) {
     if (!st.isFile()) throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
+    // W17 CRITICAL fix: the ENOENT race sets treatAsFresh (flow continues to
+    // the fresh-store creation below) — the old `return db` referenced the
+    // const declared LATER in this function: a TDZ ReferenceError crash.
+    let treatAsFresh = false;
     let head: Buffer;
     try {
       const fd = fs.openSync(storePath, "r");
@@ -150,10 +154,9 @@ export function openTypedStore(storePath: string): Database {
     } catch (e) {
       if (e instanceof GiStoreCorruptError) throw e;
       const c = e as NodeJS.ErrnoException;
-      if (c.code === "ENOENT") return db; // raced to deletion → fresh path
-      throw e;
+      if (c.code === "ENOENT") { treatAsFresh = true; } else { throw e; }
     }
-    if (!head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
+    if (!treatAsFresh && !head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
       throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath}`);
     }
   }
