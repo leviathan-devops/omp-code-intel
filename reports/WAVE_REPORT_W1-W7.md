@@ -311,3 +311,15 @@ churn between the two files as fixes land and reads go deeper. Battery
 combined; the kernel-wide band holds at ~13 with per-pass composition churn.
 The loop continues; every remaining finding stays named, on disk, and
 individually workable.**
+
+## PASS 19 (W31) — 5 HIGHS CLOSED, SWEEP-INCOMPLETE DISTINGUISHED (2026-09-18)
+Closed: auditor INCOMPLETE sweeps (probe-failure dead-code leg + generic
+SEARCH_FAILED/GREP_INVALID leg) now emit the DISTINCT sweep-incomplete
+predicate/severity — a failed sweep can no longer masquerade as a
+grammar-valid verified-empty block; typed-write BEGIN-retry spin removed
+(busy_timeout=5000 set on open owns SQLITE_BUSY — also closes the
+Bun-only-global ReferenceError hazard) and the impact ledger is capped at
+5000 rows (blast-parity). W31 rescan (dist e3fd103392667805 ×5): auditor
+2h, typed-write 4h/6m. Battery 170/0/1597 across 28 files.
+**Twenty passes. The loop continues on the same discipline — every fix
+surfaced 1-2 new reads, but each is smaller and more specific than the last.**
