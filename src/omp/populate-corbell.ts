@@ -103,14 +103,19 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
 
   // V21 cleanup fix-now: the TOCTOU baseline is captured BEFORE the reads.
   const stBefore = (() => { try { return fs.statSync(warmPath).mtimeMs; } catch { return -1; } })();
+  // W44 (qwen scan HIGH): the SQL LIMIT must DERIVE from the cap constant —
+  // the old hardcoded 20001 silently cut rows the 50k cap claimed to allow,
+  // and rows dropped by SQL never reached the skipped counter. LIMIT is
+  // cap+1 so an over-cap store still surfaces its overflow in `skipped`.
+  const MAX_WARM_ROWS = 50_000;
   let src: Database | null = null;
   try {
     // H04 (qwen 33d64eca): the open is INSIDE the try — a corrupt/locked warm
     // store maps to CORBELL_NOT_WARM:unreadable, never an escaping throw.
     src = new Database(warmPath, { readonly: true });
     rows = src.query(
-      "SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT 20001",
-    ).all() as typeof rows;
+      "SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT ?",
+    ).all(MAX_WARM_ROWS + 1) as typeof rows;
     edges = src.query(
       "SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL",
     ).all() as typeof edges;
@@ -119,10 +124,6 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   } finally {
     try { src?.close(); } catch { /* already closed */ }
   }
-  // H05 + M109: validate each warm row, then cap at 50k.
-  // canonical_id non-empty, kind non-empty, line null or integer>=0.
-  // Invalid rows skipped + counted. Over-cap rows skipped + counted separately.
-  const MAX_WARM_ROWS = 50_000;
   let skippedInvalid = 0;
   const validRows = rows.filter((r) => {
     const validId = typeof r.canonical_id === "string" && r.canonical_id.length > 0;
