@@ -627,8 +627,11 @@ async function sweep(
       const compSet = new Set(comp);
       const compAdj = new Map<string, string[]>();
       for (const n of comp) compAdj.set(n, (adj.get(n) ?? []).filter((d) => compSet.has(d)));
-      const localVisited = new Set<string>();
+      // W30: FRESH visited per seed — a shared set pruned cycles passing
+      // through nodes visited by an earlier seed (the alias of the
+      // global-visited defect this branch documents for the outer DFS).
       for (const seedOfComp of comp) {
+        const localVisited = new Set<string>();
         if (cycles.length >= CYCLE_CAP) break;
         if (localVisited.has(seedOfComp)) continue;
         const stack: Array<{ id: string; it: number }> = [{ id: seedOfComp, it: 0 }];

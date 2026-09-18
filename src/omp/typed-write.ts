@@ -194,6 +194,7 @@ export function openTypedStore(storePath: string): Database {
 // rows). Any other failure (the old catch deferred anything CONTAINING the
 // word "UNIQUE") rethrows. Exported for the contract test.
 export function applyTypedDdl(db: Database): void {
+  let dedupRecovered = 0;
   for (const stmt of TYPED_STORE_DDL) {
     try {
       db.run(stmt);
@@ -220,17 +221,30 @@ export function applyTypedDdl(db: Database): void {
               throw new Error(`DDL_DEDUP_INVALID_IDENT: parsed table/columns failed the identifier allowlist (${table}, ${cols.join(",")})`);
             }
             const groupBy = cols.join(", ");
-            db.run(
-              `UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
-                 SELECT rowid FROM ${table} t
-                 WHERE t.superseded_run IS NULL
-                   AND t.rowid NOT IN (
-                     SELECT MAX(rowid) FROM ${table}
-                     WHERE superseded_run IS NULL
-                     GROUP BY ${groupBy}
-                   )
-               )`,
-            );
+            // W30: the dedup tombstone and the index retry ride ONE
+            // transaction — a crash between them used to leave a
+            // partially-tombstoned table with the index still unconstrained.
+            db.exec("BEGIN IMMEDIATE;");
+            try {
+              db.run(
+                `UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
+                   SELECT rowid FROM ${table} t
+                   WHERE t.superseded_run IS NULL
+                     AND t.rowid NOT IN (
+                       SELECT MAX(rowid) FROM ${table}
+                       WHERE superseded_run IS NULL
+                       GROUP BY ${groupBy}
+                     )
+                 )`,
+              );
+              db.run(stmt);
+              db.exec("COMMIT;");
+              console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup — ${stmt.slice(0, 80)}`);
+              dedupRecovered += 1;
+            } catch (inner2) {
+              try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+              throw inner2;
+            }
           }
         } catch (dedupErr) {
           // W20+W24: a failed dedup is LOGGED, not swallowed — but an IDENT
@@ -253,6 +267,9 @@ export function applyTypedDdl(db: Database): void {
       }
       throw e;
     }
+  }
+  if (dedupRecovered > 0) {
+    console.error(`[gi-omp] DDL: ${dedupRecovered} legacy-duplicate dedup(s) recovered — UNIQUE invariant restored`);
   }
 }
 
