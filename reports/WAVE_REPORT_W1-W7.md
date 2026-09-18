@@ -390,3 +390,15 @@ warm rows/edges pushed into SQL (ORDER BY canonical_id/rowid + LIMIT
 170/0/1597 across 28 files, re-run green. Dist 96bc0057dbf98491 ×5.
 **Twenty-three passes. 0 criticals stable. The two hot files hold 4-6
 highs; the secondary legs hold low single digits. The loop continues.**
+
+## PASS 24 (W43) — CASE-INSENSITIVE SCOPE FILTER (2026-09-18)
+Diagnosis (first-hand SQL on the live build artifacts): the graphify-out
+checkout and session stores carry 6,191 live Checkpoints/ rows while the W4
+unit battery was green — root cause: `scopeBuildToProfile.inScope` compared a
+capital-C `Checkpoints/...` rel against a lowercase `src` scope; the path
+anchor came only from `source_file` so lowercasing is containment-safe (the
+anchor is emitted unchanged — only the matches fold). Fix: both sides
+normalized before the prefix test. W4 fixtures rewritten to absolute tmp-dir
+paths (the fail-CLOSED root gate rightly refused the fictional /tmp target).
+W43 verify: adapter 3h, corbell 3h. Battery 170/0/1597 across 28 files.
+Dist b95089be1d264f21 ×4 (marker verified in the committed bundle).
