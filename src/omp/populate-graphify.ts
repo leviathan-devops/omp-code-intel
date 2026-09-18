@@ -385,6 +385,7 @@ export function supersedeThenInsert(
   if (nodeRows.length === 0 && edgeRows.length === 0) {
     throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
   }
+  if (db.inTransaction) throw new Error("GI_TXN_NESTED: supersedeThenInsert entered with an open transaction (caller owns it) — refusing to double-commit");
   db.exec("BEGIN IMMEDIATE;");
   try {
     // Per-table guard: only supersede a table we are about to re-populate.
@@ -399,7 +400,12 @@ export function supersedeThenInsert(
     for (const [k, v] of meta) {
       db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
     }
+    try {
     db.exec("COMMIT;");
+  } catch (commitErr) {
+    try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+    throw commitErr;
+  }
   } catch (e) {
     try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back */ }
     throw e;
@@ -434,7 +440,12 @@ export function writeGraphifyCheckout(
       if (taggedEdges.length > 0) db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
       insertForkNodesBatch(db, taggedNodes);
       insertForkEdgesBatch(db, taggedEdges);
-      db.exec("COMMIT;");
+      try {
+    db.exec("COMMIT;");
+  } catch (commitErr) {
+    try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+    throw commitErr;
+  }
     } catch (e) {
       try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back — close still runs */ }
       throw e;

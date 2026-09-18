@@ -113,13 +113,29 @@ function makeCappedReadTool(targetRoot: string): MissionTool {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
-        const size = fs.statSync(realFile).size;
+        // W11 (frozen-scan TOCTOU HIGH): open ONCE post-containment — fstat +
+        // read ride the pinned fd, so a symlink swap after the check reads the
+        // checked inode, not the redirect target.
+        const fd = fs.openSync(realFile, "r");
+        try {
+        const size = fs.fstatSync(fd).size;
         if (size > 8 * 1024 * 1024) return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
-        const lines = fs.readFileSync(realFile, "utf-8").split("\n");
+        const buf = Buffer.alloc(size);
+        let total = 0;
+        while (total < size) {
+          const n = fs.readSync(fd, buf, total, size - total, total);
+          if (n <= 0) break;
+          total += n;
+        }
+        const lines = buf.subarray(0, total).toString("utf-8").split("\n");
         const start = Math.max(0, offset);
         const slice = lines.slice(start, Math.min(lines.length, start + limit));
         const truncated = start + limit < lines.length;
-        return slice.join("\n") + (truncated ? "\n[TRUNCATED]" : "");
+        const out = slice.join("\n") + (truncated ? "\n[TRUNCATED]" : "");
+        return out;
+        } finally {
+          fs.closeSync(fd);
+        }
       } catch (e) {
         return `READ_FAILED: ${String((e as Error).message).slice(0, 300)}`;
       }
@@ -419,13 +435,13 @@ function nodeFile(targetRoot: string, node: { file: string; data?: Record<string
 export function validateGraphShapeForTest(graph: unknown): void {
   assertGraphShape(graph);
   const g = graph as { nodes: unknown[]; edges: unknown[] };
-  for (const n of g.nodes.slice(0, 32)) {
+  for (const n of g.nodes) {
     const row = n as Record<string, unknown>;
     if (typeof row["id"] !== "string" || row["id"].length === 0) {
       throw new Error("GRAPH_SHAPE_INVALID: nodes[] element missing non-empty string id");
     }
   }
-  for (const e of g.edges.slice(0, 32)) {
+  for (const e of g.edges) {
     const row = e as Record<string, unknown>;
     const src = row["source"] ?? row["src"];
     const dst = row["target"] ?? row["dst"];
@@ -446,8 +462,22 @@ function sourceLineQuote(targetRoot: string, relFile: string, line: number): str
     const rootReal = realResolve(path.resolve(targetRoot));
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal) return "";
-    const lines = fs.readFileSync(realFile, "utf-8").split("\n");
-    return (lines[line - 1] ?? "").trim().slice(0, 300);
+    const fd = fs.openSync(realFile, "r");
+    try {
+      const size = fs.fstatSync(fd).size;
+      if (size > 8 * 1024 * 1024) return "";
+      const buf = Buffer.alloc(size);
+      let total = 0;
+      while (total < size) {
+        const n = fs.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        if (n <= 0) break;
+        total += n;
+      }
+      const lines = buf.subarray(0, total).toString("utf-8").split("\n");
+      return (lines[line - 1] ?? "").trim().slice(0, 300);
+    } finally {
+      fs.closeSync(fd);
+    }
   } catch {
     return "";
   }
@@ -786,13 +816,13 @@ function assertGraphShape(graph: unknown): { nodes: unknown[]; edges: unknown[] 
   // too (first 32 rows: id / source+target) — array-level checks alone let
   // garbage rows TypeError mid-sweep. Same contract as the
   // validateGraphShapeForTest seam.
-  for (const n of (g.nodes as unknown[]).slice(0, 32)) {
+  for (const n of g.nodes as unknown[]) {
     const row = n as Record<string, unknown>;
     if (typeof row["id"] !== "string" || (row["id"] as string).length === 0) {
       throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json nodes[] element missing non-empty string id");
     }
   }
-  for (const e of (g.edges as unknown[]).slice(0, 32)) {
+  for (const e of g.edges as unknown[]) {
     const row = e as Record<string, unknown>;
     const src = row["source"] ?? row["src"];
     const dst = row["target"] ?? row["dst"];

@@ -26,6 +26,15 @@ export const GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" }
 // the LOGIC lives in confineTargetPath (single implementation).
 // realpath,
 // isDirectory, and the GI_TARGET_ROOTS/cwd+/tmp allowlist.
+// W11 (frozen-scan HIGH): populate serialization — concurrent graph-query
+// calls raced countTypedNodes + repopulate on the same store (double-repop,
+// interleaved supersede). One in-process lane; queries await their turn.
+let populateLane: Promise<void> = Promise.resolve();
+const withPopulateLane = async <T>(fn: () => Promise<T>): Promise<T> => {
+  const run = populateLane.then(fn, fn);
+  populateLane = run.then(() => undefined, () => undefined);
+  return run;
+};
 const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {
   let real = normalized;
   try { real = fs.realpathSync(normalized); } catch {
@@ -49,7 +58,7 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
     try { rootReal = fs.realpathSync(root); } catch { rootReal = null; }
     if (rootReal === null) return false; // unresolvable root proves nothing — fail closed
     const rel = path.relative(rootReal, real);
-    return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    return rel === "" || (!rel.split(/[\\/]/).includes("..") && !path.isAbsolute(rel));
   });
   if (!within) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
@@ -228,6 +237,14 @@ pi.registerTool({
       }
       try {
         clearGiRegistry();
+        // W11 (frozen-scan HIGH): the wipe leaves an audit trail (who/when) —
+        // an unlogged global wipe from a session-scoped tool was unauditable.
+        try {
+          const { setMeta } = await import("./typed-write.ts");
+          const wipeWho = ctx?.sessionID ?? "unknown-session";
+          const wipeCwd = cwdOf(ctx);
+          setMeta(join(resolve(wipeCwd), ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${wipeWho}@${new Date().toISOString()}`);
+        } catch { /* registry absent post-wipe — the refusal path above is the record */ }
         return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED" });
       } catch (e) {
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
@@ -272,7 +289,7 @@ pi.registerTool({
     }
     // W8 (frozen-scan HIGH): twin verbs require a non-empty target — an empty
     // one resolved to garbage or a full-table scan in the dispatcher below.
-    if (["who-calls", "impact", "safe-delete", "gate"].includes(verb) && String(p.target ?? "").trim() === "") {
+    if (["who-calls", "impact", "safe-delete", "gate"].includes(verb) && String(p.target ?? p.symbol ?? "").trim() === "") {
       return textResult(`QUERY_INVALID: verb '${verb}' requires a non-empty target`, { ok: false, error: "QUERY_INVALID" });
     }
     let callerId = "omp-default-session";
@@ -312,7 +329,7 @@ pi.registerTool({
           const reason = `GRAPHIFY_NOT_WARM:${fresh.reason}`;
           return textResult(`${reason}: no warm graphify graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
         }
-        const pop = populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" });
+        const pop = await withPopulateLane(() => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
         if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
           const reason = pop.fallbackReason ?? "GRAPHIFY_NOT_WARM:miss";
           return textResult(`${reason}: graphify populate missed (graph=${graphPath}; rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
@@ -331,7 +348,7 @@ pi.registerTool({
       const warmPath = corbellCheckoutPath(scopeRoot);
       const warm = empty ? { fresh: false } : isCorbellCheckoutFreshFor(scopeRoot, warmPath);
       if (empty || (warm.fresh && stored !== "corbell")) {
-        const pop = populateSessionStore(opened.storePath, scopeRoot);
+        const pop = await withPopulateLane(() => populateSessionStore(opened.storePath, scopeRoot));
         popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}\n`;
         return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
       } else {
@@ -415,6 +432,13 @@ createBugHuntTool(pi, { cwdOf });
       // frozen-scan HIGH: Date.now() alone collides on concurrent audits —
       // add an entropy suffix.
       const ledgerDir = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit", `${layerId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+      // W11 (frozen-scan HIGH): confine AFTER mkdir — a planted symlink at the
+      // predictable prefix must not redirect append writes outside the root.
+      fs.mkdirSync(ledgerDir, { recursive: true });
+      const ledgerReal = fs.realpathSync(ledgerDir);
+      if (!ledgerReal.startsWith(resolve(targetRoot) + path.sep)) {
+        return textResult("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
+      }
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {

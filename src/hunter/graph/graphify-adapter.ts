@@ -311,10 +311,14 @@ export function scopeBuildToProfile(
 ): { nodes: GraphNode[]; edges: GraphEdge[]; dropped: number } {
   const norm = (s: string): string => s.replace(/\/+$/, "");
   const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  // W11 (frozen-scan HIGH): canonicalize the root EXACTLY like the projection
+  // (realpathSync, not the caller's resolve) + normalize the rel — the old
+  // non-canonical base and single-./-strip diverged from projectGraphifyGraph.
+  const rootCanon = (() => { try { return fs.realpathSync(root); } catch { return path.resolve(root); } })();
   const inScope = (f: string | undefined): boolean => {
     if (f === undefined || f.length === 0) return false;
-    const rel = path.isAbsolute(f) ? path.relative(root, f) : f.replace(/^\.\//, "");
-    if (rel.length === 0 || rel.startsWith("..")) return false;
+    const rel = path.isAbsolute(f) ? path.relative(rootCanon, f) : path.normalize(f.replace(/^\.\//, ""));
+    if (rel.length === 0 || rel.split(/[\\/]/).includes("..")) return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
   };
   const nodesIn = nodes.filter((n) => inScope(n.file));
@@ -547,10 +551,16 @@ export function mapGraphifyToTyped(
     };
   });
   const nodesById = new Map(nodes.map((n) => [n.id, n] as const));
-  const edgeRows: ForkEdge[] = edges.map((e) => {
+  let linelessEdgesDropped = 0;
+  const edgeRows: ForkEdge[] = edges.flatMap((e) => {
     const src = nodesById.get(e.sourceId);
     const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {} });
-    if (line === undefined) throw new Error(`LINELESS_NODE: no line for edge ${e.sourceId}->${e.targetId} (edge + source both lineless)`);
+    // W9 CONTRACT RESOLUTION (pipeline contradiction): projectGraphifyGraph
+    // DELIBERATELY keeps lineless edges (danglingNoLine count) — the map
+    // branch now SKIPS + counts them (W3 policy) instead of throwing, so the
+    // two stages no longer disagree. An unanchorable edge is dropped, the
+    // count is WARN-logged by the caller-facing summary below.
+    if (line === undefined) { linelessEdgesDropped++; return []; }
     return {
       srcCanonical: e.sourceId,
       dstCanonical: e.targetId,
@@ -559,6 +569,7 @@ export function mapGraphifyToTyped(
       run: runTag,
     };
   });
+  if (linelessEdgesDropped > 0) console.warn(`[gi-omp] mapGraphifyToTyped: dropped ${linelessEdgesDropped} lineless edge(s) (counted, never silent)`);
   return { nodeRows, edgeRows };
 }
 

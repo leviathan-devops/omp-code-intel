@@ -161,6 +161,13 @@ export function applyTypedDdl(db: Database): void {
           if (on) {
             const table = on[1]!;
             const cols = on[2]!.split(",").map((c) => c.trim()).filter((c) => c.length > 0);
+            // W9 (frozen-scan HIGH): regex-parsed identifiers are ALLOWLISTED
+            // before interpolation — a TYPED_STORE_DDL format drift (quoted
+            // ident, schema prefix, expression) is a named refusal, not SQL.
+            const identOk = (x: string): boolean => /^[A-Za-z_][A-Za-z0-9_]*$/.test(x);
+            if (!identOk(table) || cols.some((c) => !identOk(c))) {
+              throw new Error(`DDL_DEDUP_INVALID_IDENT: parsed table/columns failed the identifier allowlist (${table}, ${cols.join(",")})`);
+            }
             const groupBy = cols.join(", ");
             db.run(
               `UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
@@ -610,7 +617,10 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
   // functions are distinct identities. Start ids are seeded BEFORE the loop
   // (a cycle can never ledger the start as its own caller).
   let startIds = resolveLiveIds(db, symbol);
-  if (startIds.length > 500) startIds = startIds.slice(0, 500); // W9: uniform SQLite variable-limit cap
+  if (startIds.length > 500) {
+    console.warn(`[gi-omp] impact: '${symbol}' resolves to ${startIds.length} live ids — capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
+    startIds = startIds.slice(0, 500);
+  }
   if (startIds.length === 0) return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
   for (const id of startIds) seen.add(id);
   let frontier: string[] = startIds;
