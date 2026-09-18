@@ -35,6 +35,15 @@ const withPopulateLane = async <T>(fn: () => Promise<T>): Promise<T> => {
   populateLane = run.then(() => undefined, () => undefined);
   return run;
 };
+// W44 (qwen scan HIGH): the audit-ledger containment judged the mkdtemp dir
+// with a raw `ledgerReal.startsWith(resolve(targetRoot) + path.sep)` — a
+// string PREFIX check (the exact W16 class: breaks for targetRoot "/" which
+// builds "//", and for any sibling sharing the prefix when sep is dropped).
+// The verdict is component-based, one exported seam, tested.
+export function ledgerDirConfined(ledgerReal: string, targetReal: string): boolean {
+  const rel = path.relative(targetReal, ledgerReal);
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
 const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {
   let real = normalized;
   try { real = fs.realpathSync(normalized); } catch {
@@ -460,21 +469,22 @@ createBugHuntTool(pi, { cwdOf });
       // 0700, O_EXCL semantics) — the old mkdirSync(recursive) on a
       // predictable prefix followed a pre-planted symlink and created
       // directories outside the root before the confine check ran.
-      const auditRoot = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit");
+      // W44: ONE canonical base for every ledger verdict below (the old code
+      // re-resolved targetRoot per check).
+      const targetReal = resolve(targetRoot);
+      const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
       fs.mkdirSync(auditRoot, { recursive: true });
-      // W15 (frozen-scan HIGH): refuse a pre-planted symlink BEFORE mkdtemp —
-      // once realpath diverges from the planted path, writes land outside.
-      // W16 (frozen-scan HIGH): path-component containment — the old
-      // string-prefix check broke for targetRoot="/" ("//" prefix) and any
-      // sibling dir sharing a prefix ("//root2" vs "//root").
+      // W15/W16 (frozen-scan HIGH): component containment on the AUDIT ROOT —
+      // refuse a pre-planted symlink BEFORE mkdtemp (path.relative verdict,
+      // never a string prefix).
       const auditRootReal = fs.realpathSync(auditRoot);
-      const ledgerRel = path.relative(resolve(targetRoot), auditRootReal);
+      const ledgerRel = path.relative(targetReal, auditRootReal);
       if (ledgerRel === "" || ledgerRel.startsWith("..") || path.isAbsolute(ledgerRel)) {
         return textResult("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
       const ledgerDir = fs.mkdtempSync(join(auditRoot, `${layerId}-`));
       const ledgerReal = fs.realpathSync(ledgerDir);
-      if (!ledgerReal.startsWith(resolve(targetRoot) + path.sep)) {
+      if (!ledgerDirConfined(ledgerReal, targetReal)) {
         return textResult("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
       }
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");

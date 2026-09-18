@@ -10,6 +10,7 @@ import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
+import { ledgerDirConfined } from "../src/omp/extension.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -202,5 +203,18 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(r.nodes.map((n) => n.id).sort()).toEqual(["n1", "n3"]);
     expect(r.edges.length).toBe(1);
     expect(r.edges[0]!.targetId).toBe("n3");
+  });
+
+  // ---------- F10 (extension:463 audit ledger TOCTOU / prefix check) ----------
+  test("test_w44_ledger_containment_component_check_accepts_root_child", () => {
+    // THE FIX: component-based containment (the W16 discipline) replaces the
+    // string startsWith — a "/" target must ACCEPT its children (the old
+    // resolve(root)+sep built "//" and false-denied), siblings stay denied.
+    expect(ledgerDirConfined("/tmp/gi-audit/ledger-x", "/tmp/gi-audit")).toBe(true);
+    expect(ledgerDirConfined("/tmp/gi-audit-x/ledger", "/tmp/gi-audit")).toBe(false);
+    expect(ledgerDirConfined("/etc/passwd-dir", "/tmp/gi-audit")).toBe(false);
+    expect(ledgerDirConfined("/tmp/gi-audit", "/tmp/gi-audit")).toBe(false); // empty rel = the root itself
+    // root "/" accepts any absolute child, denies nothing below itself
+    expect(ledgerDirConfined("/tmp/ledger", "/")).toBe(true);
   });
 });
