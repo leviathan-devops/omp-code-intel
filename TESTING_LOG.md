@@ -423,3 +423,12 @@ Top clusters:
 - Live legs green
 - 0 criticals across 2 consecutive scans
 - All previously identified critical defects fixed (V21 + cleanup + ScanAndFix C1-C7)
+
+## TEST RESULT — 2026-09-18 — FROZEN SCAN (fallback lane: muse-free via gate-injecting de-stream adapter :4098; control + poolside-laguna-s direct for 2 files)
+
+### SCRIPT (LLM code-review gate, per-file `ocr scan`)
+- **The run:** 7 kernel files, one session per file. Sessions: auditor `ffba8ebb` (9) · go-key-pool `b74f2114` (7, poolside-laguna-s direct) · populate-corbell `62539373` (7) · populate-graphify `f3e567a4` (7) · typed-write `b14f796b` (6) · extension `66af7d4a` (8) · graphify-adapter `db43efc4` (9).
+- **The raw tally:** 53 findings — 18 high / 29 medium / 8 low (recount after adapter re-run of graphify-adapter; 2 go-key-pool highs ALREADY FIXED in 061a14f post-scan → 16 open highs).
+- **HIGH roster (open, first-hand triage pending):** auditor: Tarjan lowlink bleed order, probe-failure suppression when dead-code rows exist, brief write not fd-pinned · extension: wipe-audit success-when-skipped, require() in ESM context · populate-corbell: unbounded/non-deterministic edges read · populate-graphify: duplicate txn guards w/ conflicting codes, double freshness tree walks, absolute scope escape · typed-write: validation→open TOCTOU residue, DDL recovery unconstrained, byte-budget post-materialization, silent truncation caps (blastRadius/whoCalls/unwired) · graphify-adapter: rawNodes misindex in containment rewrite, buildSync missing zero-in-scope guard, edges element-type mismatch.
+- **The verdict:** GATE: FAIL (0 critical, 18 high→16 after F21) — fix wave W45 opened; each high gets first-hand read + TDD fix + one commit.
+- **The artifacts:** /tmp/w44-scan/*.json (+ .err per file); lane proofs: muse-free control 4m4s (auditor), poolside control 5m56s (go-key-pool).
