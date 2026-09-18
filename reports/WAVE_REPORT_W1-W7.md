@@ -142,3 +142,20 @@ impact warn + whoCalls truncated flag.
 3→2, extension 6→4). Battery 170/0/1597 across 28 files, re-run green.**
 Trajectory: 22 → 19 → 11(churn) → 19 → 15 — the loop converges when findings
 are worked individually. Next pass continues on the 15.
+
+## PASS 8 (W12+W13) — 15 → 13 HIGHS, 2 SELF-INDUCED CRITICALS CAUGHT AND KILLED (2026-09-18)
+W12 fixed the remaining 15 w11 findings: extension (wipe audit path.join
+ReferenceError fix, blast-radius/would-break empty-target guard, DEFAULT
+scopeRoot confinement, ledgerDir mkdtemp atomic-create), pool (0600 pre-create
+closes the creation TOCTOU window, markGoKeyAlive revives legacy keyid-NULL
+rows), graphify (containedRel — ONE containment law unifying three divergent
+implementations), typed-write (gi_meta created FIRST in DDL so deferral
+markers persist, dedup keeps NEWEST row, chain `to` matched by canonical id,
+impact under-report warn, DDL identifier allowlist).
+The W12 rescan then caught 2 CRITICALS IN MY OWN PASS CODE: an undeclared
+BlastNode (compile break) and a backwards GraphifyEdge annotation — both
+fixed same pass (BlastNode declared with the file-collapse documented as the
+deliberate lossy contract; annotation reverted to GraphEdge[] — type-only,
+bundle unchanged). W13 verify: typed-write 0c, graphify-adapter 0c.
+**State: 0c stable · 13 highs (5 files) · battery 170/0/1597 across 28 files ·
+dist d9625341e4e7acf7 ×5 · trajectory 22→19→15→13.**
