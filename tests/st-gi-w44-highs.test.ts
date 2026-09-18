@@ -13,7 +13,9 @@ import { describe, test, expect } from "bun:test";
 import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, substrateNeedsPopulate, writeWipeAudit } from "../src/omp/extension.ts";
 import { populateSessionStore } from "../src/omp/populate.ts";
 import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
+import { sweep } from "../src/hydra/auditor.ts";
 import { setMeta } from "../src/omp/typed-write.ts";
+import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -389,5 +391,39 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
       if (prevKeys === undefined) delete process.env.GO_KEYS_JSON; else process.env.GO_KEYS_JSON = prevKeys;
       reloadGoKeys();
     }
+  });
+  // ---------- F22 (auditor: probe failures dropped when findings exist) ----------
+  test("test_w44_deadcode_sweep_marks_incomplete_alongside_findings", async () => {
+    const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-sweep-"));
+    const srcDir = path.join(targetRoot, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    for (const n of ["n1", "n2", "n3", "n4"]) fs.writeFileSync(path.join(srcDir, `${n}.ts`), `export const ${n} = 1;\n`);
+    const graph = {
+      nodes: [
+        { id: "n1", label: "n1", type: "function", file: "src/n1.ts", data: {} },
+        { id: "n2", label: "n2", type: "function", file: "src/n2.ts", data: {} },
+        { id: "n3", label: "n3", type: "function", file: "src/n3.ts", data: {} },
+        { id: "n4", label: "n4", type: "function", file: "src/n4.ts", data: {} },
+        { id: "p1", label: "p1", type: "function", file: "src/p1.ts", data: {} },
+        { id: "p2", label: "p2", type: "function", file: "src/p2.ts", data: {} },
+      ],
+      edges: [{ src: "p1", dst: "p2", relation: "calls", confidence: "EXTRACTED" }],
+    };
+    let calls = 0;
+    const invoke = async ({ pattern }: { pattern: string }) => {
+      calls += 1;
+      // n1/n2 probe clean (no consumers); n3/n4 probes FAIL (infra).
+      return pattern.startsWith("n1") || pattern.startsWith("n2") ? "(no matches)" : "SEARCH_FAILED: boom";
+    };
+    const belt = { grep: { invoke }, read: { invoke }, writeFindings: { invoke }, graphTag: { invoke }, tools: [] };
+    const template = { anchorPredicate: "dead-code", layerId: "R28-sro-graph" };
+    const callCounter = { count: 0, names: [] as string[] };
+    const results = await sweep(template as never, graph as never, targetRoot, belt as never, callCounter);
+    const found = results.filter((r) => String(r.subject).includes("dead code"));
+    const marked = results.filter((r) => String(r.subject).includes("INCOMPLETE") || String(r.predicate).includes("incomplete"));
+    // 2 dead-code rows ride WITH the incompleteness marker — the old gate
+    // (out.length === 0) dropped the marker whenever any finding existed.
+    expect(found.length).toBe(2);
+    expect(marked.length).toBe(1);
   });
 });

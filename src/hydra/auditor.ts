@@ -547,7 +547,7 @@ function confirmedEmpty(anchor: string, layerId: string, measured: string, fallb
   };
 }
 
-async function sweep(
+export async function sweep(
   template: AuditorTemplate,
   graph: GraphifyGraph,
   targetRoot: string,
@@ -770,6 +770,12 @@ async function sweep(
       // Every skipped probe means the sweep is INCOMPLETE — a clean-empty here
       // would be a silent-degrade lie. Name the infrastructure failure instead.
       return [sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`, firstNodeFile)];
+    }
+    // W45/F22 (EN-027): findings and the INCOMPLETE marker ride TOGETHER — the
+    // old gate emitted the marker only on clean-empty, so a sweep with ≥1
+    // dead-code row silently hid its failed probes.
+    if (probeFailures > 0) {
+      out.push(sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`, firstNodeFile));
     }
     return out.length > 0 ? out : [confirmedEmpty(anchor, template.layerId, `in-degree/out-degree scan over ${graph.nodes.length} nodes + grep two-leg verification found no dead declarations`, firstNodeFile)];
   }
