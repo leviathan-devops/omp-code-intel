@@ -311,6 +311,12 @@ export function scopeBuildToProfile(
 ): { nodes: GraphNode[]; edges: GraphEdge[]; dropped: number } {
   const norm = (s: string): string => s.replace(/\/+$/, "");
   const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  // Base-existence gate (W42+): a raw single-sentence anchor is meaningless
+  // without a canonicalizable base — fail CLOSED with zero rows + full drop
+  // here, before containedRel's named throw can abort the pass mid-list.
+  try { fs.realpathSync(root); } catch {
+    return { nodes: [], edges: [], dropped: nodes.length };
+  }
   const inScope = (f: string | undefined): boolean => {
     if (f === undefined || f.length === 0) return false;
     const rel = containedRel(root, f);
@@ -507,12 +513,16 @@ export function tryResolveGraphifyLine(
   return n === null ? undefined : n;
 }
 
-// W12 (frozen-scan HIGH): THE ONE CONTAINMENT LAW — realpath the root,
-// normalize the candidate, judge on `..` SEGMENTS. normalize/project/
-// scopeBuild all call this; three divergent implementations were the finding.
+// W12+W42 (frozen-scan HIGH): THE ONE CONTAINMENT LAW — realpath the root
+// (fail-CLOSED: an unresolvable root throws, never a non-canonical fallback),
+// normalize the candidate, judge on `..` segments. normalize/project/
+// scopeBuild all call this function; three divergent implementations was
+// the original finding, the fail-open fallback was the W42 refinement.
 function containedRel(root: string, f: string): string {
   let rootCanon: string;
-  try { rootCanon = fs.realpathSync(root); } catch { rootCanon = path.resolve(root); }
+  try { rootCanon = fs.realpathSync(root); } catch {
+    throw new Error(`CONTAINMENT_ROOT_UNRESOLVABLE: ${root} cannot be canonicalized — refusing all anchors`);
+  }
   const abs = path.isAbsolute(f) ? f : path.resolve(rootCanon, f);
   let real = abs;
   try { real = fs.realpathSync(abs); } catch { /* keep abs */ }

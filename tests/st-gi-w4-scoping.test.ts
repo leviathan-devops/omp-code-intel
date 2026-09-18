@@ -7,7 +7,14 @@ import * as path from "node:path";
 
 import { scopeBuildToProfile, type GraphNode, type GraphEdge } from "../src/hunter/graph/graphify-adapter.ts";
 
-const ROOT = "/tmp/gi-w4-target";
+// Real-directory root: scopeBuildToProfile is fail-CLOSED on unresolvable
+// roots (CONTAINMENT_ROOT_UNRESOLVABLE gate) — the fixture root must exist,
+// so it anchors at the test's own temp tree.
+import * as fs from "node:fs";
+import * as os from "node:os";
+const FIXROOT = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w4-"));
+fs.mkdirSync(path.join(FIXROOT, "src"), { recursive: true });
+
 function node(id: string, file: string): GraphNode {
   return { id: `graphify:${id}`, kind: "function", name: id, file, line: 1, lineage: "CODE_DERIVED", source: `${file}:1`, data: {} } as GraphNode;
 }
@@ -18,24 +25,24 @@ function edge(s: string, t: string): GraphEdge {
 describe("st-gi-w4-scoping: P1.6 store-scope filter", () => {
   test("test_w4_scoped_no_checkpoints_in_store", () => {
     const nodes = [
-      node("live", "src/a.ts"),
-      node("ckpt", "Checkpoints/wave1/store-copy/a.ts"),
-      node("ship", "Ship_Packages/v1/a.ts"),
-      node("report", "reports/x.md"),
-      node("test", "tests/a.test.ts"),
-      node("nested", "src/deep/b.ts"),
+      node("live", path.join(FIXROOT, "src", "a.ts")),
+      node("ckpt", path.join(FIXROOT, "Checkpoints", "wave1", "a.ts")),
+      node("ship", path.join(FIXROOT, "Ship_Packages", "v1", "a.ts")),
+      node("report", path.join(FIXROOT, "reports", "x.md")),
+      node("test", path.join(FIXROOT, "tests", "a.test.ts")),
+      node("nested", path.join(FIXROOT, "src", "deep", "b.ts")),
     ];
-    const { nodes: kept, dropped } = scopeBuildToProfile(nodes, [], ROOT, ["src"]);
-    expect(kept.map((n) => n.file).sort()).toEqual(["src/a.ts", "src/deep/b.ts"]);
+    const { nodes: kept, dropped } = scopeBuildToProfile(nodes, [], FIXROOT, ["src"]);
+    expect(kept.map((n) => n.file).sort()).toEqual([path.join(FIXROOT, "src", "a.ts"), path.join(FIXROOT, "src", "deep", "b.ts")]);
     expect(dropped).toBe(4);
     // THE WAVE GATE, expressed on the filter output:
     expect(kept.some((n) => (n.file ?? "").includes("Checkpoints"))).toBe(false);
   });
 
   test("test_w4_edges_kept_only_when_both_endpoints_scoped", () => {
-    const nodes = [node("live", "src/a.ts"), node("ckpt", "Checkpoints/a.ts")];
+    const nodes = [node("live", path.join(FIXROOT, "src", "a.ts")), node("ckpt", path.join(FIXROOT, "Checkpoints", "a.ts"))];
     const edges = [edge("live", "live"), edge("live", "ckpt"), edge("ckpt", "live")];
-    const { nodes: kept, edges: keptEdges } = scopeBuildToProfile(nodes, edges, ROOT, ["src"]);
+    const { nodes: kept, edges: keptEdges } = scopeBuildToProfile(nodes, edges, FIXROOT, ["src"]);
     expect(kept).toHaveLength(1);
     expect(keptEdges).toHaveLength(1);
     expect(keptEdges[0]!.sourceId).toBe("graphify:live");
