@@ -11206,7 +11206,7 @@ function normalizeGraphifyGraph(raw, opts) {
 }
 function scopeBuildToProfile(nodes, edges, root, scopeDirs) {
   const norm = (s) => s.replace(/\/+$/, "");
-  const scopes = scopeDirs.map(norm).filter((s) => s.length > 0);
+  const scopes = scopeDirs.map(norm).map((s) => s.toLowerCase()).filter((s) => s.length > 0);
   try {
     fs7.realpathSync(root);
   } catch {
@@ -11215,7 +11215,7 @@ function scopeBuildToProfile(nodes, edges, root, scopeDirs) {
   const inScope = (f) => {
     if (f === undefined || f.length === 0)
       return false;
-    const rel = containedRel(root, f);
+    const rel = containedRel(root, f).toLowerCase();
     if (rel.length === 0)
       return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
