@@ -298,3 +298,16 @@ the NAMED fall-to-openrouter action — that is the loud contract, not silence).
 **W29 rescan (dist e44da81d53564d4e ×5): auditor 2h, extension 3h,
 typed-write 2h = 7 highs, 0 criticals. Battery 170/0/1597 across 28 files.
 Trajectory on the hot files: 22 → 11 → 7.**
+
+## PASS 18 (W30) — 3 MORE CLOSED, DIST 4ed402dd8b5e4206 (2026-09-18)
+Closed: auditor per-SCC enumeration FRESH localVisited per seed (the shared
+set pruned cycles through earlier-seed nodes); typed-write dedup tombstone +
+index retry ride ONE transaction (partial-tombstone window closed) with a
+recovered-count summary log; the stale W17 lane comment aligned to the
+double-checked reality. W30 rescan: auditor 3h, typed-write 2h — composition
+churn between the two files as fixes land and reads go deeper. Battery
+170/0/1597 across 28 files, re-run green.
+**Eighteen passes. 0 criticals stable. Highs: the two hot files hold 5
+combined; the kernel-wide band holds at ~13 with per-pass composition churn.
+The loop continues; every remaining finding stays named, on disk, and
+individually workable.**
