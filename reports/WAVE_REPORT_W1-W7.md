@@ -276,3 +276,13 @@ typed-write 4 — composition churn, new reads of changed code). Battery
 **Fifteen passes complete. 0 criticals stable. The high count oscillates
 4-6 per file pair as fixes land and the engine reads deeper — the loop
 continues next session from w24-*.json.**
+
+## PASS 16 (W26) — POOL HARDENED (2026-09-18)
+Closed: the default pool path leaves the world-writable tmpdir for a
+user-private `~/.gi-omp/` directory (0700, created on demand) — the
+predictable-shared-path class (cross-user pre-create, symlink plant,
+content injection) is structurally closed for the default configuration;
+markGoKeyDead out-of-range now returns 0 (sentinel contract consistency
+with routeGoError's ===0 fall-to-openrouter check). W27 rescan: pool
+2 highs (from 4), 0 criticals. Battery 170/0/1597 across 28 files.
+Dist 231a255832431095 ×5 (bundle unchanged — type-level fixes).
