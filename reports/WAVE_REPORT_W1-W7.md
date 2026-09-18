@@ -263,3 +263,16 @@ The W21 rescan then caught a createHash ReferenceError in my own deferral-key
 change — fixed (import added), verified 8/0 targeted. W22 verify: typed-write
 0c/2h, auditor 0c/3h. **Trajectory: 22 → 19 → 15 → 14 → 7 → (band churn) → 5
 on the hot pair. Dist 0a8878d820cd110f ×5. Battery 170/0/1597 across 28 files.**
+
+## PASS 15 (W24) — 5 MORE CLOSED, DIST 231a255832431095 (2026-09-18)
+Closed: auditor maxResults integer-clamped (negative/float/NaN turned probes
+into SEARCH_FAILED lies), realHit relativized against the RESOLVED root
+(symlinked targetRoot escaped ../ into findings verbatim), DDL ident
+allowlist refusal RETHROWN (format drift fails loud instead of silently
+deferring), typed-write lstat symlink refusal before stat (cross-session
+store escape closed). W24 verify: 6 highs on the 2 files (auditor 2,
+typed-write 4 — composition churn, new reads of changed code). Battery
+170/0/1597 across 28 files, re-run green.
+**Fifteen passes complete. 0 criticals stable. The high count oscillates
+4-6 per file pair as fixes land and the engine reads deeper — the loop
+continues next session from w24-*.json.**
