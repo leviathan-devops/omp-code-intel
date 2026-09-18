@@ -124,8 +124,12 @@ export function openTypedStore(storePath: string): Database {
   let st: fs.Stats | null = null;
   try {
     st = fs.statSync(storePath);
-  } catch {
-    st = null; // ENOENT — fresh store path, DDL below creates the schema
+  } catch (e) {
+    // W20 (frozen-scan HIGH): ONLY ENOENT takes the fresh path — EACCES/
+    // EPERM/ENOTDIR/ELOOP are real failures, not "no store yet".
+    const c = e as NodeJS.ErrnoException;
+    if (c.code === "ENOENT") st = null;
+    else throw e;
   }
   if (st !== null && st.size > 0) {
     if (!st.isFile()) throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
@@ -262,10 +266,11 @@ function beginImmediateWithRetry(db: Database, attempts = 3): void {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (!/busy|locked/i.test(msg) || i === attempts - 1) throw e;
-      // W15 (frozen-scan HIGH): a tight Date.now() spin burned CPU AND could
-      // starve the very lock holder this thread waits for — Bun.sleepSync
-      // yields without the spin.
-      Bun.sleepSync(50 * (i + 1));
+      // W15+W20: sync backoff that works under Bun AND Node runners (the
+      // Bun-only global threw ReferenceError under node-compatible runners).
+      // Deliberately SYNC: the caller is mid-retry on a sync sqlite handle.
+      const spinUntil = Date.now() + 50 * (i + 1);
+      while (Date.now() < spinUntil) { /* bounded sync backoff */ }
     }
   }
 }

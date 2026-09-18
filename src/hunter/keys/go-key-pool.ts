@@ -378,8 +378,8 @@ export function markGoKeyAlive(idx: number, now: number = Date.now(), sessionId?
     // were never clearable by a keyid-only match while readDeadUntil still
     // reported them dead via byIdx.
     const r = db(sessionId).run(
-      'UPDATE go_key_pool SET dead_until = 0 WHERE dead_until > ? AND (keyid = ? OR keyid IS NULL OR (keyid IS NOT NULL AND length(keyid) <> 16 AND idx = ?))',
-      [now, keyidFor(idx), idx],
+      'UPDATE go_key_pool SET dead_until = 0 WHERE dead_until > ? AND (keyid = ? OR (keyid IS NULL AND idx = ?) OR (keyid IS NOT NULL AND length(keyid) <> 16 AND idx = ?))',
+      [now, keyidFor(idx), idx, idx],
     );
     return r.changes > 0;
   } catch (e) {

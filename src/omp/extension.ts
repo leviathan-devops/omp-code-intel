@@ -48,7 +48,7 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
   // V21 cleanup: separator ':' on this Linux host; '|' also accepted so
   // Windows-style drive-letter roots can be listed unsplit (documented escape).
   const allowRoots = (process.env.GI_TARGET_ROOTS ?? "")
-    .split(/[:|]/).map((r) => r.trim()).filter((r) => r.length > 0);
+    .split('|').flatMap((p2) => /^[A-Za-z]:$/.test(p2.trim()) ? [p2.trim()] : p2.split(':')).map((r) => r.trim()).filter((r) => r.length > 0);
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
     // P1.2.3 (W2/W3): the allowlist ROOT is canonicalized before the compare —
