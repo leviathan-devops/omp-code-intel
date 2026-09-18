@@ -44,6 +44,24 @@ export function ledgerDirConfined(ledgerReal: string, targetReal: string): boole
   const rel = path.relative(targetReal, ledgerReal);
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
+// W44 (qwen scan HIGH): the settlement re-confine rode the GENERAL allowlist
+// (confineTargetPath with targetRoot as callerCwd). With GI_TARGET_ROOTS
+// unset the default roots were [targetRoot, /tmp] — so a compromised auditor
+// returning ANY /tmp ledger passed the W28/W40 check without ever being
+// under the audit target. The verdict is the component check against the
+// AUDIT TARGET root, nothing else.
+export function settlementLedgerConfined(ledgerPath: string, targetReal: string): { ok: true; real: string } | { ok: false; error: string } {
+  let real = ledgerPath;
+  try {
+    real = fs.realpathSync(ledgerPath);
+  } catch {
+    return { ok: false, error: "GI_PATH_DENIED: settlement ledger does not exist" };
+  }
+  if (!ledgerDirConfined(real, targetReal)) {
+    return { ok: false, error: "GI_LEDGER_DENIED: settlement ledger outside the audit target root" };
+  }
+  return { ok: true, real };
+}
 // W44 (qwen scan HIGH): the wipe audit line rode setMeta(registry.sqlite) —
 // but setMeta routes through openTypedStore, which ENFORCES the
 // sessions/{id}/store.sqlite shape. A registry path can never satisfy it, so
@@ -511,11 +529,10 @@ createBugHuntTool(pi, { cwdOf });
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {
-        // W28 (frozen-scan HIGH): re-confine the auditor-returned ledgerDir —
-        // a divergent/compromised return must not point reads outside the root.
-        // W40: allowlist base = the AUDIT TARGET root (a settlement ledger
-        // under a different root than the query target is the escape case).
-        const reportConfined = confineTargetPath(settlement.ledgerDir, targetRoot);
+        // W28/W40 (frozen-scan HIGH) + W44: the re-confine verdict is the
+        // AUDIT TARGET root component check — never the general allowlist
+        // (whose /tmp default accepted an outside-ledger escape).
+        const reportConfined = settlementLedgerConfined(settlement.ledgerDir, targetReal);
         if (!reportConfined.ok) {
           return textResult(`GI_LEDGER_DENIED: settlement ledger escaped the root (${reportConfined.error})`, { ok: false, error: "GI_LEDGER_DENIED" });
         }

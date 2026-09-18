@@ -10,7 +10,7 @@ import { captureSnapshot } from "../src/kernel/graph-diff.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { Database } from "bun:sqlite";
 import { describe, test, expect } from "bun:test";
-import { ledgerDirConfined, parseTargetRoots, writeWipeAudit } from "../src/omp/extension.ts";
+import { ledgerDirConfined, parseTargetRoots, settlementLedgerConfined, writeWipeAudit } from "../src/omp/extension.ts";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -252,5 +252,22 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(parseTargetRoots("/a::/b", "/w")).toEqual(["/a::/b"]); // colons survive whole
     expect(parseTargetRoots("", "/w")).toEqual([]); // caller falls back to [cwd, /tmp]
     expect(parseTargetRoots("C:", "/w")).toEqual(["C:"]); // drive-letter root preserved whole
+  });
+
+  // ---------- F14 (extension:485 settlement reconfine base) ----------
+  test("test_w44_settlement_reconfine_checks_target_root_not_general_allowlist", () => {
+    const real = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-tgt-"));
+    fs.mkdirSync(path.join(real, "ledger", "findings"), { recursive: true });
+    // Under the audit target → accepted, real path returned.
+    const ok = settlementLedgerConfined(path.join(real, "ledger"), real);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.real).toBe(fs.realpathSync(path.join(real, "ledger")));
+    // Under /tmp but OUTSIDE the audit target: the old general-allowlist
+    // reconfine (default roots [target, /tmp]) ACCEPTED this escape.
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-elsewhere-"));
+    const escaped = settlementLedgerConfined(elsewhere, real);
+    expect(escaped.ok).toBe(false);
+    // Missing ledger path → loud denial, never a throw.
+    expect(settlementLedgerConfined(path.join(real, "nope"), real).ok).toBe(false);
   });
 });
