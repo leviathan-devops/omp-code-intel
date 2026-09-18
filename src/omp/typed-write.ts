@@ -750,7 +750,14 @@ export function safeDelete(storePath: string, symbol: string): SafeDeleteResult 
     const imp = impactInDb(db, symbol);
     // V21 cleanup: uses resolved through canonical ids (label join conflated
     // same-label identities — the exact W1 defect class).
-    const srcIds = resolveLiveIds(db, symbol);
+    // W15+W19: the 500-cap contract — whoCalls/impact/blastRadius cap, so
+    // safeDelete's IN(...) must too (a mega-label hit the SQLite variable
+    // limit here after the other three were capped).
+    let srcIds = resolveLiveIds(db, symbol);
+    if (srcIds.length > 500) {
+      console.warn(`[gi-omp] safeDelete: '${symbol}' resolves to ${srcIds.length} live ids — capping at 500 (SQLite variable limit)`);
+      srcIds = srcIds.slice(0, 500);
+    }
     let mappedUses: Array<{ symbol: string; file: string; line: number }> = [];
     let usesLinelessDropped = 0;
     if (srcIds.length > 0) {
