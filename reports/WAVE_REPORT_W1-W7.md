@@ -252,3 +252,14 @@ criticals, battery 170/0/1597 across 28 files.
 **The band is confirmed stable at 13-14 across passes 12-14. The goal
 remains OPEN on the 0h gate; the operator owns the §12-rebuild vs
 rulings decision. Next pass resumes from w20-*.json.**
+
+## PASS 15 (W21+W22) — 13 → 5 HIGHS ON THE HOT PAIR (2026-09-18)
+W21 closed: typed-write TRUE 16-byte SQLite magic (the 15-byte form passed
+corrupted 16th bytes into bun:sqlite), isFile outside the size gate (0-byte
+dir/FIFO bypass), resolveLiveIds LIMIT 501 (materialization bound),
+blastRadius/impact depth clamps, per-statement deferral keys, open-time
+deferral surfacing; auditor write_findings fd-pinned (O_NOFOLLOW|O_TRUNC).
+The W21 rescan then caught a createHash ReferenceError in my own deferral-key
+change — fixed (import added), verified 8/0 targeted. W22 verify: typed-write
+0c/2h, auditor 0c/3h. **Trajectory: 22 → 19 → 15 → 14 → 7 → (band churn) → 5
+on the hot pair. Dist 0a8878d820cd110f ×5. Battery 170/0/1597 across 28 files.**
