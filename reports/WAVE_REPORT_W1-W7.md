@@ -367,3 +367,16 @@ auditor 2h, typed-write 2h — fresh reads of the W35 changes themselves.
 Battery 170/0/1597 across 28 files, re-run green.
 **Twenty-three passes. The hot pair holds at 4 highs; every pass lands
 real hardening and surfaces 1-2 new deeper reads. The loop continues.**
+
+## PASS 21 (W40+W41) — 4 HIGHS CLOSED, AUDITOR DROPS TO 0H 0M (2026-09-18)
+Closed: auditor report grammar-injection guard (newline/## prefix
+sanitization on subject/predicate/file/evidence/spec — a forged FINDING
+block is no longer injectable through graph labels) + graph_tag splice
+fd-pinned O_APPEND|O_NOFOLLOW (symlink redirect closed); typed-write
+safeDelete uses-query LIMIT 500 (uncapped IN-list) + dedup-fail path now
+records the gi_meta deferral marker (the marker was silently lost on this
+path). W41 verify: **auditor 0c/0h/0m** (the first ZERO-finding file of the
+campaign), typed-write 4h remaining. Battery 170/0/1597 across 28 files,
+re-run green. Dist d028502053fe8285 deployed ×5.
+**Twenty-two passes. The auditor file has reached 0c/0h/0m — the first
+fully clean file. The loop continues on the remaining 6 files.**
