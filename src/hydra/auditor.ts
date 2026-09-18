@@ -974,6 +974,10 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
         findingLine: c.line,
         evidence: c.evidence,
         severity: c.severity,
+        // W15: the MEASURED predicate when it is ontology-valid — off-ontology
+        // measured names (dead-code.module) fall back to the layer default
+        // inside the tool instead of throwing per-tag.
+        predicate: isPredicate(c.predicate) ? c.predicate : undefined,
       });
       calls.count += 1;
       calls.names.push("graph_tag");

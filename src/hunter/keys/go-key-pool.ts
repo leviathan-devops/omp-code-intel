@@ -140,7 +140,7 @@ function db(sessionId?: string): Database {
   // atomic first-create that (a) never inherits the umask window, (b) REFUSES
   // a pre-planted symlink (ELOOP) instead of following it, (c) races cleanly
   // (EEXIST = another opener won; open r+w and chmod for our handle).
-  const openFlags = fs.constants.O_CREAT | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW;
+  const openFlags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW;
   try {
     fs.closeSync(fs.openSync(want, openFlags, 0o600));
   } catch (e) {
@@ -495,6 +495,8 @@ export function decideGoFallback(now: number = Date.now(), sessionId?: string): 
   const r = resolveGoKeyIndex(now, sessionId);
   if (r.alive) return { rung: 'go', goIndex: r.idx, goAlive: true, reason: 'go-' + (r.idx + 1) + '-alive' };
   const lbl = r.idx >= 0 ? 'go-' + (r.idx + 1) : 'go-unknown';
+  // W13 note: goIndex === -1 on the openrouter rung is a DOCUMENTED marker
+  // (no go key exists to name) — consumers branch on rung, never on goIndex.
   return { rung: 'openrouter', goIndex: r.idx, goAlive: false, reason: 'all-go-dead→openrouter (earliest-expiry ' + lbl + ')' };
 }
 //

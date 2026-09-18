@@ -182,7 +182,11 @@ export function applyTypedDdl(db: Database): void {
                )`,
             );
           }
-        } catch { /* dedup best-effort — the retry below decides */ }
+        } catch (dedupErr) {
+          // W15 (frozen-scan HIGH): a failed dedup is LOGGED, not swallowed —
+          // the retry below decides the outcome, but the failure is on record.
+          console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dedupErr instanceof Error ? dedupErr.message : String(dedupErr)}`);
+        }
         try {
           db.run(stmt);
           console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup — ${stmt.slice(0, 80)}`);
@@ -230,9 +234,10 @@ function beginImmediateWithRetry(db: Database, attempts = 3): void {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (!/busy|locked/i.test(msg) || i === attempts - 1) throw e;
-      const wait = 50 * (i + 1);
-      const until = Date.now() + wait;
-      while (Date.now() < until) { /* tight backoff — bounded */ }
+      // W15 (frozen-scan HIGH): a tight Date.now() spin burned CPU AND could
+      // starve the very lock holder this thread waits for — Bun.sleepSync
+      // yields without the spin.
+      Bun.sleepSync(50 * (i + 1));
     }
   }
 }

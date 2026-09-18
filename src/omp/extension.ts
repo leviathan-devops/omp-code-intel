@@ -453,6 +453,12 @@ createBugHuntTool(pi, { cwdOf });
       // directories outside the root before the confine check ran.
       const auditRoot = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit");
       fs.mkdirSync(auditRoot, { recursive: true });
+      // W15 (frozen-scan HIGH): refuse a pre-planted symlink BEFORE mkdtemp —
+      // once realpath diverges from the planted path, writes land outside.
+      const auditRootReal = fs.realpathSync(auditRoot);
+      if (!auditRootReal.startsWith(resolve(targetRoot) + path.sep)) {
+        return textResult("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
+      }
       const ledgerDir = fs.mkdtempSync(join(auditRoot, `${layerId}-`));
       const ledgerReal = fs.realpathSync(ledgerDir);
       if (!ledgerReal.startsWith(resolve(targetRoot) + path.sep)) {
