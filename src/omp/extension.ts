@@ -364,9 +364,10 @@ pi.registerTool({
       // exists and the store was populated by the fallback (or predates the
       // ledger), repopulate from corbell so the upgrade takes effect.
       let popNote = "";
-      // W17 (frozen-scan HIGH): the empty/stale decision runs INSIDE the
-      // populate lane — two concurrent queries both seeing empty queued two
-      // full repopulates (the check raced its own serialization).
+      // W17+W19: the emptiness/stale reads below are the FAST PATH; the
+      // authoritative emptiness re-check runs INSIDE the populate lane
+      // callback (a concurrent query that populated first makes this one
+      // skip cleanly — no duplicate repopulates).
       const stored = getMeta(opened.storePath, "substrate");
       const empty = countTypedNodes(opened.storePath) === 0;
       const warmPath = corbellCheckoutPath(scopeRoot);
