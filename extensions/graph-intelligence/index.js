@@ -56,679 +56,7 @@ var __esm = (fn, res, err) => () => {
     throw err[0];
   return res;
 };
-
-// src/scoping/scope-binding.ts
-var init_scope_binding = () => {};
-
-// src/scoping/scope-resolver.ts
-var init_scope_resolver = () => {};
-
-// src/scoping/db-path.ts
-import * as os from "os";
-import * as path from "path";
-function makeDbPath(spec) {
-  return function dbPath() {
-    for (const env of spec.envVars) {
-      const v = process.env[env];
-      if (v && v.trim().length > 0)
-        return path.join(v.trim(), spec.fileName);
-    }
-    if (process.env.BUN_TEST === "1" && spec.testFile) {
-      return spec.testFile.startsWith("/") ? spec.testFile : path.join(os.tmpdir(), spec.testFile);
-    }
-    let dir = spec.defaultDir;
-    if (dir.startsWith("~/")) {
-      dir = path.join(process.env.HOME ?? process.env.USERPROFILE ?? ".", dir.slice(2));
-    }
-    return path.join(dir, spec.fileName);
-  };
-}
-var init_db_path = () => {};
-
-// src/scoping/scoped-store.ts
-import * as fs from "fs";
-import * as path2 from "path";
-import { Database } from "bun:sqlite";
-function getStoreDb(opts) {
-  if (!opts && storeDb)
-    return storeDb;
-  const want = opts?.dbPath ?? storeDbPath;
-  if (!want)
-    throw new Error("[scoped-store] no dbPath: pass opts.dbPath on the first call");
-  if (storeDb && storeDbPath === want) {
-    try {
-      storeDb.query("SELECT 1").get();
-      return storeDb;
-    } catch (_sick) {
-      try {
-        storeDb.close();
-      } catch (_c) {}
-      storeDb = null;
-    }
-  }
-  if (storeDb) {
-    try {
-      storeDb.close();
-    } catch (_c) {}
-    storeDb = null;
-  }
-  fs.mkdirSync(path2.dirname(want), { recursive: true });
-  const fresh = new Database(want, { create: true });
-  try {
-    fresh.exec("PRAGMA journal_mode = WAL;");
-    fresh.exec("PRAGMA busy_timeout = 5000;");
-  } catch (_nonfatal) {}
-  if (opts?.schema?.length) {
-    for (let attempt = 0;attempt < 3; attempt++) {
-      try {
-        for (const stmt of opts.schema)
-          fresh.run(stmt);
-        break;
-      } catch (e) {
-        if (attempt === 2) {
-          console.error(`[scoped-store${opts.id ? " " + opts.id : ""}] schema setup failed after 3 attempts:`, e instanceof Error ? e.message : String(e));
-          break;
-        }
-        try {
-          fresh.exec("PRAGMA busy_timeout = 5000;");
-        } catch {}
-      }
-    }
-  }
-  storeDb = fresh;
-  storeDbPath = want;
-  return storeDb;
-}
-function upsertRow(table, pkColumn, pk, dataJson, extra) {
-  const cols = extra ? Object.keys(extra) : [];
-  const placeholders = ["?", "?", ...cols.map(() => "?")];
-  const updates = ["data = excluded.data", ...cols.map((c) => `${c} = excluded.${c}`)];
-  const sql = `INSERT INTO ${table} (${pkColumn}, data${cols.length ? ", " + cols.join(", ") : ""}) VALUES (${placeholders.join(", ")})
-    ON CONFLICT(${pkColumn}) DO UPDATE SET ${updates.join(", ")}`;
-  getStoreDb().run(sql, [pk, dataJson, ...cols.map((c) => extra[c])]);
-}
-var storeDb = null, storeDbPath = null;
-var init_scoped_store = () => {};
-
-// src/scoping/session-state.ts
-function sessionKey(sessionId) {
-  return sessionId.slice(-24);
-}
-var init_session_state = () => {};
-
-// src/scoping/gi-session-path.ts
-import * as os2 from "os";
-import * as path3 from "path";
-function sessionStorePath(scopeRoot, sessionId) {
-  if (!scopeRoot || !path3.isAbsolute(scopeRoot)) {
-    throw new GiPathError("GI_PATH_DENIED", "GI_PATH_DENIED: scopeRoot must be absolute");
-  }
-  let sid = sessionKey(sessionId);
-  if (!sid) {
-    throw new GiPathError("GI_PATH_DENIED", "GI_PATH_DENIED: sessionKey empty");
-  }
-  if (sid.length < 8)
-    sid = (sid + "xxxxxxxx").slice(0, 8);
-  const p = path3.join(scopeRoot, GI_STATE_DIR, "sessions", sid, "store.sqlite");
-  assertSessionStorePath(p);
-  return p;
-}
-function assertSessionStorePath(p) {
-  const norm = p.replace(/\\/g, "/");
-  if (isGlobalHomeGraph(norm)) {
-    throw new GiPathError("GI_GLOBAL_HOME_GRAPH", `GI_GLOBAL_HOME_GRAPH: session store must not be ${norm}`);
-  }
-  if (!SESSION_STORE_RE.test(norm)) {
-    throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: path must include /sessions/{sid24}/store.sqlite, got ${p}`);
-  }
-}
-function isGlobalHomeGraph(norm) {
-  const home = (process.env.HOME ?? os2.homedir()).replace(/\\/g, "/");
-  const banned = path3.posix.join(home, ".omp/graph-intelligence/store.sqlite");
-  return norm === banned;
-}
-var GI_STATE_DIR = ".omp/graph-intelligence", GiPathError, SESSION_STORE_RE;
-var init_gi_session_path = __esm(() => {
-  init_session_state();
-  GiPathError = class GiPathError extends Error {
-    code;
-    constructor(code, message) {
-      super(message);
-      this.name = "GiPathError";
-      this.code = code;
-    }
-  };
-  SESSION_STORE_RE = /\/sessions\/[A-Za-z0-9_-]{8,24}\/store\.sqlite$/;
-});
-
-// src/scoping/gi-ecosystem.ts
-var init_gi_ecosystem = __esm(() => {
-  init_scope_binding();
-  init_gi_session_path();
-});
-
-// src/scoping/index.ts
-var init_scoping = __esm(() => {
-  init_scope_binding();
-  init_scope_resolver();
-  init_db_path();
-  init_scoped_store();
-  init_session_state();
-  init_gi_session_path();
-  init_gi_ecosystem();
-});
-
-// src/omp/typed-write.ts
-import * as fs2 from "fs";
-import * as path4 from "path";
-import { Database as Database2 } from "bun:sqlite";
-import { createHash } from "crypto";
-function parseGraphJsonGuarded(contents, sizeHint = 0) {
-  const byteLen = Buffer.byteLength(contents, "utf-8");
-  if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
-    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
-  }
-  return JSON.parse(contents);
-}
-function getMeta(storePath, key) {
-  const db = openTypedStore(storePath);
-  try {
-    const row = db.query("SELECT value FROM gi_meta WHERE key = ?").get(key);
-    return row?.value ?? null;
-  } finally {
-    db.close();
-  }
-}
-function setMeta(storePath, key, value) {
-  const db = openTypedStore(storePath);
-  try {
-    db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value]);
-  } finally {
-    db.close();
-  }
-}
-function openTypedStore(storePath) {
-  assertSessionStorePath(storePath);
-  fs2.mkdirSync(path4.dirname(storePath), { recursive: true });
-  let st = null;
-  try {
-    const lst = fs2.lstatSync(storePath);
-    if (lst.isSymbolicLink())
-      throw new GiStoreCorruptError(`GI_STORE_SYMLINK: ${storePath} is a symlink \u2014 refusing (session-store header contract)`);
-    st = fs2.statSync(storePath);
-  } catch (e) {
-    const c = e;
-    if (c.code === "ENOENT")
-      st = null;
-    else
-      throw e;
-  }
-  if (st !== null) {
-    if (!st.isFile())
-      throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
-  }
-  if (st !== null && st.size > 0) {
-    let treatAsFresh = false;
-    let head;
-    try {
-      const fd = fs2.openSync(storePath, "r");
-      try {
-        head = Buffer.alloc(16);
-        let total = 0;
-        while (total < 16) {
-          const n = fs2.readSync(fd, head, total, 16 - total, total);
-          if (n <= 0)
-            break;
-          total += n;
-        }
-        if (total < 16)
-          throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} shorter than the 16-byte magic`);
-      } finally {
-        fs2.closeSync(fd);
-      }
-    } catch (e) {
-      if (e instanceof GiStoreCorruptError)
-        throw e;
-      const c = e;
-      if (c.code === "ENOENT") {
-        treatAsFresh = true;
-      } else {
-        throw e;
-      }
-    }
-    if (!treatAsFresh && !head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
-      throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath}`);
-    }
-  }
-  const db = new Database2(storePath, { create: true });
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec("PRAGMA busy_timeout = 5000;");
-  applyTypedDdl(db);
-  try {
-    const deferred = db.query("SELECT value FROM gi_meta WHERE key LIKE 'unique_index_deferred%'").all();
-    if (deferred.length > 0)
-      console.error(`[gi-omp] STORE OPENED WITH DEFERRED UNIQUE INDEX (${deferred.length} marker(s)) \u2014 legacy duplicate rows are unconstrained until dedup`);
-  } catch {}
-  return db;
-}
-function applyTypedDdl(db) {
-  let dedupRecovered = 0;
-  for (const stmt of TYPED_STORE_DDL) {
-    try {
-      db.run(stmt);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (stmt.includes("CREATE UNIQUE INDEX") && /UNIQUE constraint failed/i.test(msg)) {
-        try {
-          const on = /ON\s+([\w_]+)\s*\(([^)]+)\)/i.exec(stmt);
-          if (!on) {
-            console.error(`[gi-omp] DDL note: unique index regex miss (recording deferral) \u2014 ${stmt.slice(0, 80)}`);
-            try {
-              db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
-            } catch {}
-            continue;
-          }
-          if (on) {
-            const table = on[1];
-            const cols = on[2].split(",").map((c) => c.trim()).filter((c) => c.length > 0);
-            const identOk = (x) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(x);
-            if (!identOk(table) || cols.some((c) => !identOk(c))) {
-              throw new Error(`DDL_DEDUP_INVALID_IDENT: parsed table/columns failed the identifier allowlist (${table}, ${cols.join(",")})`);
-            }
-            const groupBy = cols.join(", ");
-            db.exec("BEGIN IMMEDIATE;");
-            try {
-              db.run(`UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
-                   SELECT rowid FROM ${table} t
-                   WHERE t.superseded_run IS NULL
-                     AND t.rowid NOT IN (
-                       SELECT MAX(rowid) FROM ${table}
-                       WHERE superseded_run IS NULL
-                       GROUP BY ${groupBy}
-                     )
-                 )`);
-              db.run(stmt);
-              db.exec("COMMIT;");
-              console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup \u2014 ${stmt.slice(0, 80)}`);
-              dedupRecovered += 1;
-            } catch (inner2) {
-              try {
-                db.exec("ROLLBACK;");
-              } catch {}
-              throw inner2;
-            }
-          }
-        } catch (dedupErr) {
-          const dm = dedupErr instanceof Error ? dedupErr.message : String(dedupErr);
-          if (dm.includes("DDL_DEDUP_INVALID_IDENT"))
-            throw dedupErr;
-          console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
-          try {
-            db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
-          } catch {}
-        }
-        continue;
-      }
-      throw e;
-    }
-  }
-  if (dedupRecovered > 0) {
-    console.error(`[gi-omp] DDL: ${dedupRecovered} legacy-duplicate dedup(s) recovered \u2014 UNIQUE invariant restored`);
-  }
-}
-function insertForkNodesBatch(db, nodes) {
-  if (db.inTransaction !== true) {
-    throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
-  }
-  for (const node of nodes) {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL", [node.run, node.canonicalId]);
-    db.run("INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [node.canonicalId, node.kind, node.label, node.file, node.line, node.run]);
-  }
-}
-function insertForkEdgesBatch(db, edges) {
-  if (db.inTransaction !== true) {
-    throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
-  }
-  for (const edge of edges) {
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL", [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate]);
-    db.run("INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
-  }
-}
-function countTypedNodes(storePath) {
-  const db = openTypedStore(storePath);
-  try {
-    const row = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get();
-    return Number(row.n);
-  } finally {
-    db.close();
-  }
-}
-function resolveLiveIds(db, label) {
-  const rows = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501").all(label);
-  return rows.map((r) => r.canonical_id);
-}
-function ph(n) {
-  return Array.from({ length: n }, () => "?").join(", ");
-}
-function whoCallsInDb(db, name) {
-  let ids = resolveLiveIds(db, name);
-  let truncated;
-  if (ids.length > 500) {
-    console.warn(`[gi-omp] whoCalls: '${name}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit)`);
-    ids = ids.slice(0, 500);
-    truncated = true;
-  }
-  if (ids.length === 0)
-    return { rows: 0, names: [], callers: [], truncated };
-  const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
-            e.predicate AS predicate, e.dst_canonical AS target_canonical
-     FROM typed_edges e
-     JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-     WHERE e.dst_canonical IN (${ph(ids.length)})
-       AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-       AND src.superseded_run IS NULL`).all(...ids);
-  const mapped = rows.map((r) => ({
-    caller: r.caller,
-    file: r.file ?? "",
-    line: r.line ?? 0,
-    kind: r.kind ?? "",
-    predicate: r.predicate ?? "",
-    target_canonical: r.target_canonical
-  }));
-  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped, truncated };
-}
-function whoCalls(storePath, name) {
-  const db = openTypedStore(storePath);
-  try {
-    return whoCallsInDb(db, name);
-  } finally {
-    db.close();
-  }
-}
-function blastRadius(storePath, symbol, depth = 8) {
-  depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16);
-  const db = openTypedStore(storePath);
-  try {
-    let ids = resolveLiveIds(db, symbol);
-    if (ids.length > 500) {
-      console.warn(`[gi-omp] blastRadius: '${symbol}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
-      ids = ids.slice(0, 500);
-    }
-    if (ids.length === 0)
-      return { root: symbol, depth: 0, nodes: [] };
-    const rows = db.query(`WITH RECURSIVE blast(cid, depth) AS (
-         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)}) AND superseded_run IS NULL
-         UNION
-         SELECT src.canonical_id, blast.depth + 1
-         FROM blast
-         JOIN typed_edges e ON e.dst_canonical = blast.cid
-         JOIN typed_nodes src ON src.canonical_id = e.src_canonical
-         WHERE e.predicate IN ('calls', 'traces-to', 'imports')
-           AND e.superseded_run IS NULL
-           AND src.superseded_run IS NULL
-           AND blast.depth < ?
-       )
-       SELECT n.file AS file, MIN(blast.depth) AS depth
-       FROM blast
-       JOIN typed_nodes n ON n.canonical_id = blast.cid
-       WHERE blast.depth > 0 AND n.file IS NOT NULL
-       GROUP BY n.file
-       LIMIT 5000`).all(...ids, depth);
-    const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
-    const maxDepth = nodes.reduce((m, n) => n.depth > m ? n.depth : m, 0);
-    return { root: symbol, depth: maxDepth, nodes };
-  } finally {
-    db.close();
-  }
-}
-function wouldBreak(storePath, symbol, proposed = "") {
-  const q = whoCalls(storePath, symbol);
-  let proposedCount = 0;
-  if (proposed.trim()) {
-    const m = /\(([^)]*)\)/.exec(proposed);
-    const inside = m ? m[1].trim() : "";
-    if (inside)
-      proposedCount = inside.split(",").map((s) => s.trim()).filter(Boolean).length;
-  }
-  return {
-    symbol,
-    proposed,
-    callers: q.rows,
-    breaking: q.callers.map((c) => ({
-      importer: `${c.caller} (${c.file}:${c.line})`,
-      reason: `signature change unverified \u2014 ${proposedCount > 0 ? `proposed arity ${proposedCount}` : "no proposed signature"}; manual verification required (no per-call signature metadata)`
-    })),
-    argsUnknown: true
-  };
-}
-function chainCalls(storePath, from, to, maxDepth = 64) {
-  const db = openTypedStore(storePath);
-  try {
-    const starts = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500").all(from);
-    const targets = db.query("SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500").all(to);
-    const toSet = new Set(targets.map((r) => r.canonical_id));
-    maxDepth = Math.min(Math.max(1, Math.floor(maxDepth) || 1), 16);
-    const visited = new Set(starts.map((s) => s.canonical_id));
-    const queue = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
-    let head = 0;
-    while (head < queue.length && queue[head].steps.length < maxDepth) {
-      const cur = queue[head++];
-      const out = db.query(`SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
-                dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
-         FROM typed_edges e
-         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
-         WHERE e.src_canonical = ? AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-           AND dst.superseded_run IS NULL LIMIT 500`).all(cur.id);
-      for (const e of out) {
-        const step = {
-          from: cur.label,
-          to: e.dst_label,
-          kind: e.predicate,
-          file: e.dst_file ?? "",
-          line: e.dst_line ?? 0
-        };
-        if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
-          return [...cur.steps, step];
-        }
-        if (!visited.has(e.dst_id)) {
-          visited.add(e.dst_id);
-          queue.push({ id: e.dst_id, label: e.dst_label, steps: [...cur.steps, step] });
-        }
-      }
-    }
-    return [];
-  } finally {
-    db.close();
-  }
-}
-function unwiredNodes(storePath) {
-  const db = openTypedStore(storePath);
-  try {
-    const rows = db.query(`SELECT n.label AS name, n.file AS file, n.line AS line, n.kind AS kind
-       FROM typed_nodes n
-       WHERE n.kind IN ('method', 'flow', 'service', 'class', 'function', 'file', 'module', 'Function', 'Class', 'File', 'Module') AND n.superseded_run IS NULL
-         AND n.file IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1 FROM typed_edges e
-           WHERE e.dst_canonical = n.canonical_id
-             AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-         )
-       ORDER BY n.label LIMIT 5001`).all();
-    const out = [];
-    let linelessSkipped = 0;
-    for (const r of rows) {
-      if (r.line === null || r.line === undefined) {
-        linelessSkipped += 1;
-        continue;
-      }
-      out.push({ name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED", kind: r.kind ?? "" });
-    }
-    if (linelessSkipped > 0) {
-      console.warn(`[gi-omp] unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
-    }
-    const truncated = rows.length > 5000 ? true : undefined;
-    if (truncated)
-      console.warn(`[gi-omp] unwired: truncated at 5000 rows (deterministic order)`);
-    out.truncated = truncated;
-    return out;
-  } finally {
-    db.close();
-  }
-}
-function impactInDb(db, symbol, depth = 8) {
-  depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16);
-  const ledger = [];
-  const seen = new Set;
-  let startIds = resolveLiveIds(db, symbol);
-  if (startIds.length > 500) {
-    console.warn(`[gi-omp] impact: '${symbol}' resolves to ${startIds.length} live ids \u2014 capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
-    startIds = startIds.slice(0, 500);
-  }
-  if (startIds.length === 0)
-    return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
-  const LEDGER_CAP = 5000;
-  let ledgerTruncated = false;
-  for (const id of startIds)
-    seen.add(id);
-  let frontier = startIds;
-  for (let d = 1;d <= depth && frontier.length > 0; d++) {
-    const next = [];
-    for (let i = 0;i < frontier.length; i += 64) {
-      const chunk = frontier.slice(i, i + 64);
-      const callers = db.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
-         FROM typed_edges e
-         JOIN typed_nodes src ON e.src_canonical = src.canonical_id
-         WHERE e.dst_canonical IN (${ph(chunk.length)})
-           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-           AND src.superseded_run IS NULL`).all(...chunk);
-      for (const c of callers) {
-        if (seen.has(c.id))
-          continue;
-        seen.add(c.id);
-        if (ledger.length < LEDGER_CAP) {
-          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
-        } else {
-          ledgerTruncated = true;
-        }
-        next.push(c.id);
-      }
-    }
-    frontier = next;
-  }
-  return { symbol, reaches: ledger.length, ledger, truncated: ledgerTruncated, hint: `next=chain from=${symbol}` };
-}
-function impact(storePath, symbol, depth = 8) {
-  const db = openTypedStore(storePath);
-  try {
-    return impactInDb(db, symbol, depth);
-  } finally {
-    db.close();
-  }
-}
-function safeDelete(storePath, symbol) {
-  const db = openTypedStore(storePath);
-  try {
-    const q = whoCallsInDb(db, symbol);
-    const imp = impactInDb(db, symbol);
-    let srcIds = resolveLiveIds(db, symbol);
-    if (srcIds.length > 500) {
-      console.warn(`[gi-omp] safeDelete: '${symbol}' resolves to ${srcIds.length} live ids \u2014 capping at 500 (SQLite variable limit)`);
-      srcIds = srcIds.slice(0, 500);
-    }
-    let mappedUses = [];
-    let usesLinelessDropped = 0;
-    if (srcIds.length > 0) {
-      const uses = db.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
-         FROM typed_edges e
-         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
-         WHERE e.src_canonical IN (${ph(srcIds.length)})
-           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
-           AND dst.superseded_run IS NULL
-         LIMIT 500`).all(...srcIds);
-      for (const u of uses) {
-        if (u.line === null || u.line === undefined) {
-          usesLinelessDropped += 1;
-          continue;
-        }
-        mappedUses.push({ symbol: u.symbol, file: u.file ?? "", line: u.line });
-      }
-    }
-    const isTestPath = (f) => /(test|spec|mock|fixture)/i.test(f);
-    const testReach = [
-      ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
-      ...mappedUses.filter((u) => isTestPath(u.file))
-    ];
-    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach, usesLinelessDropped, truncated: q.truncated === true || imp.truncated === true };
-  } finally {
-    db.close();
-  }
-}
-function gateAdvisory(storePath, symbols, dial = "STEER", ripwire) {
-  const db = openTypedStore(storePath);
-  try {
-    const callers = [];
-    for (const symbol of symbols) {
-      const q = whoCallsInDb(db, symbol);
-      for (const c of q.callers) {
-        callers.push({ symbol, caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" });
-      }
-    }
-    const named = callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join(", ");
-    const ripwireNote = ripwire === undefined ? "(store-derived; ripwire not consulted)" : ripwire.ok ? `(store-derived + ripwire ${ripwire.summary})` : `(store-derived; ripwire ${ripwire.summary})`;
-    const advisory = dial === "FULL" ? `GRAPH_GATE_SIGNATURE_BREAK symbols=${symbols.join(",")} callers=${callers.length}${named ? ` no-longer-fit: ${named}` : ""} ${ripwireNote}` : `[GATE STEER] symbols=${symbols.join(",")} callers=${callers.length}${named ? ` review: ${named}` : ""} ${ripwireNote}`;
-    return { dial, symbols, callers, advisory };
-  } finally {
-    db.close();
-  }
-}
-var GiStoreCorruptError, GRAPH_LOAD_BUDGET_BYTES, GRAPH_PARSE_YIELD_BYTES, TYPED_STORE_DDL, SQLITE_MAGIC;
-var init_typed_write = __esm(() => {
-  init_scoping();
-  GiStoreCorruptError = class GiStoreCorruptError extends Error {
-    code = "GI_STORE_CORRUPT";
-    constructor(message) {
-      super(message);
-      this.name = "GiStoreCorruptError";
-    }
-  };
-  GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
-  GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
-  TYPED_STORE_DDL = [
-    `CREATE TABLE IF NOT EXISTS gi_meta (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )`,
-    `CREATE TABLE IF NOT EXISTS typed_nodes (
-    id INTEGER PRIMARY KEY,
-    canonical_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    label TEXT NOT NULL,
-    file TEXT,
-    line INTEGER,
-    created_run TEXT NOT NULL,
-    superseded_run TEXT
-  )`,
-    `CREATE TABLE IF NOT EXISTS typed_edges (
-    id INTEGER PRIMARY KEY,
-    src_canonical TEXT NOT NULL,
-    dst_canonical TEXT NOT NULL,
-    predicate TEXT NOT NULL,
-    evidence_quote TEXT NOT NULL,
-    confidence REAL NOT NULL DEFAULT 1.0,
-    created_run TEXT NOT NULL,
-    superseded_run TEXT
-  )`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS uq_tn_live_canonical ON typed_nodes(canonical_id) WHERE superseded_run IS NULL`,
-    `CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_tn_label ON typed_nodes(label)`,
-    `CREATE INDEX IF NOT EXISTS idx_tn_file ON typed_nodes(file)`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL`,
-    `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
-    `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
-    `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`
-  ];
-  SQLITE_MAGIC = Buffer.from("SQLite format 3\x00");
-});
+var __require = import.meta.require;
 
 // ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-dev.development.cjs.js
 var require_xstate_dev_development_cjs = __commonJS(function(exports) {
@@ -10042,17 +9370,694 @@ var init_auditor = __esm(() => {
 });
 
 // src/omp/extension.ts
-init_typed_write();
 import * as fs23 from "fs";
 import * as path26 from "path";
 
+// src/omp/typed-write.ts
+import * as fs2 from "fs";
+import * as path4 from "path";
+import { Database as Database2 } from "bun:sqlite";
+// src/scoping/db-path.ts
+import * as os from "os";
+import * as path from "path";
+function makeDbPath(spec) {
+  return function dbPath() {
+    for (const env of spec.envVars) {
+      const v = process.env[env];
+      if (v && v.trim().length > 0)
+        return path.join(v.trim(), spec.fileName);
+    }
+    if (process.env.BUN_TEST === "1" && spec.testFile) {
+      return spec.testFile.startsWith("/") ? spec.testFile : path.join(os.tmpdir(), spec.testFile);
+    }
+    let dir = spec.defaultDir;
+    if (dir.startsWith("~/")) {
+      dir = path.join(process.env.HOME ?? process.env.USERPROFILE ?? ".", dir.slice(2));
+    }
+    return path.join(dir, spec.fileName);
+  };
+}
+// src/scoping/scoped-store.ts
+import * as fs from "fs";
+import * as path2 from "path";
+import { Database } from "bun:sqlite";
+var storeDb = null;
+var storeDbPath = null;
+function getStoreDb(opts) {
+  if (!opts && storeDb)
+    return storeDb;
+  const want = opts?.dbPath ?? storeDbPath;
+  if (!want)
+    throw new Error("[scoped-store] no dbPath: pass opts.dbPath on the first call");
+  if (storeDb && storeDbPath === want) {
+    try {
+      storeDb.query("SELECT 1").get();
+      return storeDb;
+    } catch (_sick) {
+      try {
+        storeDb.close();
+      } catch (_c) {}
+      storeDb = null;
+    }
+  }
+  if (storeDb) {
+    try {
+      storeDb.close();
+    } catch (_c) {}
+    storeDb = null;
+  }
+  fs.mkdirSync(path2.dirname(want), { recursive: true });
+  const fresh = new Database(want, { create: true });
+  try {
+    fresh.exec("PRAGMA journal_mode = WAL;");
+    fresh.exec("PRAGMA busy_timeout = 5000;");
+  } catch (_nonfatal) {}
+  if (opts?.schema?.length) {
+    for (let attempt = 0;attempt < 3; attempt++) {
+      try {
+        for (const stmt of opts.schema)
+          fresh.run(stmt);
+        break;
+      } catch (e) {
+        if (attempt === 2) {
+          console.error(`[scoped-store${opts.id ? " " + opts.id : ""}] schema setup failed after 3 attempts:`, e instanceof Error ? e.message : String(e));
+          break;
+        }
+        try {
+          fresh.exec("PRAGMA busy_timeout = 5000;");
+        } catch {}
+      }
+    }
+  }
+  storeDb = fresh;
+  storeDbPath = want;
+  return storeDb;
+}
+function upsertRow(table, pkColumn, pk, dataJson, extra) {
+  const cols = extra ? Object.keys(extra) : [];
+  const placeholders = ["?", "?", ...cols.map(() => "?")];
+  const updates = ["data = excluded.data", ...cols.map((c) => `${c} = excluded.${c}`)];
+  const sql = `INSERT INTO ${table} (${pkColumn}, data${cols.length ? ", " + cols.join(", ") : ""}) VALUES (${placeholders.join(", ")})
+    ON CONFLICT(${pkColumn}) DO UPDATE SET ${updates.join(", ")}`;
+  getStoreDb().run(sql, [pk, dataJson, ...cols.map((c) => extra[c])]);
+}
+// src/scoping/session-state.ts
+function sessionKey(sessionId) {
+  return sessionId.slice(-24);
+}
+// src/scoping/gi-session-path.ts
+import * as os2 from "os";
+import * as path3 from "path";
+var GI_STATE_DIR = ".omp/graph-intelligence";
+class GiPathError extends Error {
+  code;
+  constructor(code, message) {
+    super(message);
+    this.name = "GiPathError";
+    this.code = code;
+  }
+}
+var SESSION_STORE_RE = /\/sessions\/[A-Za-z0-9_-]{8,24}\/store\.sqlite$/;
+function sessionStorePath(scopeRoot, sessionId) {
+  if (!scopeRoot || !path3.isAbsolute(scopeRoot)) {
+    throw new GiPathError("GI_PATH_DENIED", "GI_PATH_DENIED: scopeRoot must be absolute");
+  }
+  let sid = sessionKey(sessionId);
+  if (!sid) {
+    throw new GiPathError("GI_PATH_DENIED", "GI_PATH_DENIED: sessionKey empty");
+  }
+  if (sid.length < 8)
+    sid = (sid + "xxxxxxxx").slice(0, 8);
+  const p = path3.join(scopeRoot, GI_STATE_DIR, "sessions", sid, "store.sqlite");
+  assertSessionStorePath(p);
+  return p;
+}
+function assertSessionStorePath(p) {
+  const norm = p.replace(/\\/g, "/");
+  if (isGlobalHomeGraph(norm)) {
+    throw new GiPathError("GI_GLOBAL_HOME_GRAPH", `GI_GLOBAL_HOME_GRAPH: session store must not be ${norm}`);
+  }
+  if (!SESSION_STORE_RE.test(norm)) {
+    throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: path must include /sessions/{sid24}/store.sqlite, got ${p}`);
+  }
+}
+function isGlobalHomeGraph(norm) {
+  const home = (process.env.HOME ?? os2.homedir()).replace(/\\/g, "/");
+  const banned = path3.posix.join(home, ".omp/graph-intelligence/store.sqlite");
+  return norm === banned;
+}
+// src/omp/typed-write.ts
+import { createHash } from "crypto";
+
+class GiStoreCorruptError extends Error {
+  code = "GI_STORE_CORRUPT";
+  constructor(message) {
+    super(message);
+    this.name = "GiStoreCorruptError";
+  }
+}
+var GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
+var GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
+function parseGraphJsonGuarded(contents, sizeHint = 0) {
+  const byteLen = Buffer.byteLength(contents, "utf-8");
+  if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
+  }
+  return JSON.parse(contents);
+}
+var TYPED_STORE_DDL = [
+  `CREATE TABLE IF NOT EXISTS gi_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS typed_nodes (
+    id INTEGER PRIMARY KEY,
+    canonical_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    label TEXT NOT NULL,
+    file TEXT,
+    line INTEGER,
+    created_run TEXT NOT NULL,
+    superseded_run TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS typed_edges (
+    id INTEGER PRIMARY KEY,
+    src_canonical TEXT NOT NULL,
+    dst_canonical TEXT NOT NULL,
+    predicate TEXT NOT NULL,
+    evidence_quote TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    created_run TEXT NOT NULL,
+    superseded_run TEXT
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_tn_live_canonical ON typed_nodes(canonical_id) WHERE superseded_run IS NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_tn_label ON typed_nodes(label)`,
+  `CREATE INDEX IF NOT EXISTS idx_tn_file ON typed_nodes(file)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
+  `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
+  `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`
+];
+var SQLITE_MAGIC = Buffer.from("SQLite format 3\x00");
+function getMeta(storePath, key) {
+  const db = openTypedStore(storePath);
+  try {
+    const row = db.query("SELECT value FROM gi_meta WHERE key = ?").get(key);
+    return row?.value ?? null;
+  } finally {
+    db.close();
+  }
+}
+function setMeta(storePath, key, value) {
+  const db = openTypedStore(storePath);
+  try {
+    db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value]);
+  } finally {
+    db.close();
+  }
+}
+function verifyOpenedStoreFile(storePath) {
+  const lst = fs2.lstatSync(storePath);
+  if (lst.isSymbolicLink())
+    throw new GiStoreCorruptError(`GI_STORE_SYMLINK: ${storePath} is a symlink \u2014 refusing (post-open re-verify)`);
+  const fd = fs2.openSync(storePath, "r");
+  try {
+    const head = Buffer.alloc(16);
+    let total = 0;
+    while (total < 16) {
+      const n = fs2.readSync(fd, head, total, 16 - total, total);
+      if (n <= 0)
+        break;
+      total += n;
+    }
+    if (total < 16 || !head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
+      throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} failed post-open re-verify`);
+    }
+  } finally {
+    fs2.closeSync(fd);
+  }
+}
+function openTypedStore(storePath) {
+  assertSessionStorePath(storePath);
+  fs2.mkdirSync(path4.dirname(storePath), { recursive: true });
+  let st = null;
+  try {
+    const lst = fs2.lstatSync(storePath);
+    if (lst.isSymbolicLink())
+      throw new GiStoreCorruptError(`GI_STORE_SYMLINK: ${storePath} is a symlink \u2014 refusing (session-store header contract)`);
+    st = fs2.statSync(storePath);
+  } catch (e) {
+    const c = e;
+    if (c.code === "ENOENT")
+      st = null;
+    else
+      throw e;
+  }
+  if (st !== null) {
+    if (!st.isFile())
+      throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
+  }
+  let postOpenVerify = false;
+  if (st !== null && st.size > 0) {
+    let treatAsFresh = false;
+    let head;
+    try {
+      const fd = fs2.openSync(storePath, "r");
+      try {
+        head = Buffer.alloc(16);
+        let total = 0;
+        while (total < 16) {
+          const n = fs2.readSync(fd, head, total, 16 - total, total);
+          if (n <= 0)
+            break;
+          total += n;
+        }
+        if (total < 16)
+          throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} shorter than the 16-byte magic`);
+      } finally {
+        fs2.closeSync(fd);
+      }
+    } catch (e) {
+      if (e instanceof GiStoreCorruptError)
+        throw e;
+      const c = e;
+      if (c.code === "ENOENT") {
+        treatAsFresh = true;
+      } else {
+        throw e;
+      }
+    }
+    if (!treatAsFresh && !head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
+      throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath}`);
+    }
+    postOpenVerify = !treatAsFresh;
+  }
+  const db = new Database2(storePath, { create: true });
+  try {
+    db.exec("PRAGMA journal_mode = WAL;");
+    db.exec("PRAGMA busy_timeout = 5000;");
+    if (postOpenVerify)
+      verifyOpenedStoreFile(storePath);
+    applyTypedDdl(db);
+    try {
+      const deferred = db.query("SELECT value FROM gi_meta WHERE key LIKE 'unique_index_deferred%'").all();
+      if (deferred.length > 0)
+        console.error(`[gi-omp] STORE OPENED WITH DEFERRED UNIQUE INDEX (${deferred.length} marker(s)) \u2014 legacy duplicate rows are unconstrained until dedup`);
+    } catch {}
+  } catch (e) {
+    try {
+      db.close();
+    } catch {}
+    throw e;
+  }
+  return db;
+}
+function applyTypedDdl(db) {
+  let dedupRecovered = 0;
+  for (const stmt of TYPED_STORE_DDL) {
+    try {
+      db.run(stmt);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (stmt.includes("CREATE UNIQUE INDEX") && /UNIQUE constraint failed/i.test(msg)) {
+        try {
+          const on = /ON\s+([\w_]+)\s*\(([^)]+)\)/i.exec(stmt);
+          if (!on) {
+            console.error(`[gi-omp] DDL note: unique index regex miss (recording deferral) \u2014 ${stmt.slice(0, 80)}`);
+            try {
+              db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
+            } catch {}
+            continue;
+          }
+          if (on) {
+            const table = on[1];
+            const cols = on[2].split(",").map((c) => c.trim()).filter((c) => c.length > 0);
+            const identOk = (x) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(x);
+            if (!identOk(table) || cols.some((c) => !identOk(c))) {
+              throw new Error(`DDL_DEDUP_INVALID_IDENT: parsed table/columns failed the identifier allowlist (${table}, ${cols.join(",")})`);
+            }
+            const groupBy = cols.join(", ");
+            db.exec("BEGIN IMMEDIATE;");
+            try {
+              db.run(`UPDATE ${table} SET superseded_run = 'ddl-dedup' WHERE rowid IN (
+                   SELECT rowid FROM ${table} t
+                   WHERE t.superseded_run IS NULL
+                     AND t.rowid NOT IN (
+                       SELECT MAX(rowid) FROM ${table}
+                       WHERE superseded_run IS NULL
+                       GROUP BY ${groupBy}
+                     )
+                 )`);
+              db.run(stmt);
+              db.exec("COMMIT;");
+              console.error(`[gi-omp] DDL note: UNIQUE index recovered after legacy-duplicate dedup \u2014 ${stmt.slice(0, 80)}`);
+              dedupRecovered += 1;
+            } catch (inner2) {
+              try {
+                db.exec("ROLLBACK;");
+              } catch {}
+              throw inner2;
+            }
+          }
+        } catch (dedupErr) {
+          const dm = dedupErr instanceof Error ? dedupErr.message : String(dedupErr);
+          if (dm.includes("DDL_DEDUP_INVALID_IDENT"))
+            throw dedupErr;
+          console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
+          try {
+            db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
+          } catch {}
+        }
+        continue;
+      }
+      throw e;
+    }
+  }
+  if (dedupRecovered > 0) {
+    console.error(`[gi-omp] DDL: ${dedupRecovered} legacy-duplicate dedup(s) recovered \u2014 UNIQUE invariant restored`);
+  }
+}
+function insertForkNodesBatch(db, nodes) {
+  if (db.inTransaction !== true) {
+    throw new Error("GI_TXN_REQUIRED: insertForkNodesBatch outside a transaction (mid-batch failure would leave a half-store)");
+  }
+  for (const node of nodes) {
+    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL", [node.run, node.canonicalId]);
+    db.run("INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [node.canonicalId, node.kind, node.label, node.file, node.line, node.run]);
+  }
+}
+function insertForkEdgesBatch(db, edges) {
+  if (db.inTransaction !== true) {
+    throw new Error("GI_TXN_REQUIRED: insertForkEdgesBatch outside a transaction (mid-batch failure would leave a half-store)");
+  }
+  for (const edge of edges) {
+    db.run("UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL", [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate]);
+    db.run("INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)", [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1, edge.run]);
+  }
+}
+function countTypedNodes(storePath) {
+  const db = openTypedStore(storePath);
+  try {
+    const row = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get();
+    return Number(row.n);
+  } finally {
+    db.close();
+  }
+}
+function resolveLiveIds(db, label) {
+  const rows = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501").all(label);
+  return rows.map((r) => r.canonical_id);
+}
+function ph(n) {
+  return Array.from({ length: n }, () => "?").join(", ");
+}
+function whoCallsInDb(db, name) {
+  let ids = resolveLiveIds(db, name);
+  let truncated;
+  if (ids.length > 500) {
+    console.warn(`[gi-omp] whoCalls: '${name}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit)`);
+    ids = ids.slice(0, 500);
+    truncated = true;
+  }
+  if (ids.length === 0)
+    return { rows: 0, names: [], callers: [], truncated };
+  const rows = db.query(`SELECT DISTINCT src.label AS caller, src.kind AS kind, src.file AS file, src.line AS line,
+            e.predicate AS predicate, e.dst_canonical AS target_canonical
+     FROM typed_edges e
+     JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+     WHERE e.dst_canonical IN (${ph(ids.length)})
+       AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+       AND src.superseded_run IS NULL`).all(...ids);
+  const mapped = rows.map((r) => ({
+    caller: r.caller,
+    file: r.file ?? "",
+    line: r.line ?? 0,
+    kind: r.kind ?? "",
+    predicate: r.predicate ?? "",
+    target_canonical: r.target_canonical
+  }));
+  return { rows: mapped.length, names: mapped.map((r) => r.caller), callers: mapped, truncated };
+}
+function whoCalls(storePath, name) {
+  const db = openTypedStore(storePath);
+  try {
+    return whoCallsInDb(db, name);
+  } finally {
+    db.close();
+  }
+}
+function blastRadius(storePath, symbol, depth = 8) {
+  depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16);
+  const db = openTypedStore(storePath);
+  try {
+    let ids = resolveLiveIds(db, symbol);
+    if (ids.length > 500) {
+      console.warn(`[gi-omp] blastRadius: '${symbol}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
+      ids = ids.slice(0, 500);
+    }
+    if (ids.length === 0)
+      return { root: symbol, depth: 0, nodes: [] };
+    const rows = db.query(`WITH RECURSIVE blast(cid, depth) AS (
+         SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)}) AND superseded_run IS NULL
+         UNION
+         SELECT src.canonical_id, blast.depth + 1
+         FROM blast
+         JOIN typed_edges e ON e.dst_canonical = blast.cid
+         JOIN typed_nodes src ON src.canonical_id = e.src_canonical
+         WHERE e.predicate IN ('calls', 'traces-to', 'imports')
+           AND e.superseded_run IS NULL
+           AND src.superseded_run IS NULL
+           AND blast.depth < ?
+       )
+       SELECT n.file AS file, MIN(blast.depth) AS depth
+       FROM blast
+       JOIN typed_nodes n ON n.canonical_id = blast.cid
+       WHERE blast.depth > 0 AND n.file IS NOT NULL
+       GROUP BY n.file
+       LIMIT 5000`).all(...ids, depth);
+    const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
+    const maxDepth = nodes.reduce((m, n) => n.depth > m ? n.depth : m, 0);
+    return { root: symbol, depth: maxDepth, nodes };
+  } finally {
+    db.close();
+  }
+}
+function wouldBreak(storePath, symbol, proposed = "") {
+  const q = whoCalls(storePath, symbol);
+  let proposedCount = 0;
+  if (proposed.trim()) {
+    const m = /\(([^)]*)\)/.exec(proposed);
+    const inside = m ? m[1].trim() : "";
+    if (inside)
+      proposedCount = inside.split(",").map((s) => s.trim()).filter(Boolean).length;
+  }
+  return {
+    symbol,
+    proposed,
+    callers: q.rows,
+    breaking: q.callers.map((c) => ({
+      importer: `${c.caller} (${c.file}:${c.line})`,
+      reason: `signature change unverified \u2014 ${proposedCount > 0 ? `proposed arity ${proposedCount}` : "no proposed signature"}; manual verification required (no per-call signature metadata)`
+    })),
+    argsUnknown: true
+  };
+}
+function chainCalls(storePath, from, to, maxDepth = 64, visitCap = 20000) {
+  const db = openTypedStore(storePath);
+  try {
+    const starts = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500").all(from);
+    const targets = db.query("SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500").all(to);
+    const toSet = new Set(targets.map((r) => r.canonical_id));
+    maxDepth = Math.min(Math.max(1, Math.floor(maxDepth) || 1), 16);
+    const cap = Math.max(1, Math.floor(visitCap) || 20000);
+    let truncated = false;
+    const visited = new Set(starts.map((s) => s.canonical_id));
+    const queue = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
+    let head = 0;
+    while (head < queue.length && queue[head].steps.length < maxDepth) {
+      if (visited.size >= cap) {
+        truncated = true;
+        break;
+      }
+      const cur = queue[head++];
+      const out = db.query(`SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
+                dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
+         FROM typed_edges e
+         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+         WHERE e.src_canonical = ? AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND dst.superseded_run IS NULL LIMIT 500`).all(cur.id);
+      for (const e of out) {
+        const step = {
+          from: cur.label,
+          to: e.dst_label,
+          kind: e.predicate,
+          file: e.dst_file ?? "",
+          line: e.dst_line ?? 0
+        };
+        if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
+          return [...cur.steps, step];
+        }
+        if (!visited.has(e.dst_id)) {
+          visited.add(e.dst_id);
+          queue.push({ id: e.dst_id, label: e.dst_label, steps: [...cur.steps, step] });
+        }
+      }
+    }
+    const out = [];
+    if (truncated)
+      out.truncated = true;
+    return out;
+  } finally {
+    db.close();
+  }
+}
+function unwiredNodes(storePath) {
+  const db = openTypedStore(storePath);
+  try {
+    const rows = db.query(`SELECT n.label AS name, n.file AS file, n.line AS line, n.kind AS kind
+       FROM typed_nodes n
+       WHERE n.kind IN ('method', 'flow', 'service', 'class', 'function', 'file', 'module', 'Function', 'Class', 'File', 'Module') AND n.superseded_run IS NULL
+         AND n.file IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM typed_edges e
+           WHERE e.dst_canonical = n.canonical_id
+             AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+         )
+       ORDER BY n.label LIMIT 5001`).all();
+    const out = [];
+    let linelessSkipped = 0;
+    for (const r of rows) {
+      if (r.line === null || r.line === undefined) {
+        linelessSkipped += 1;
+        continue;
+      }
+      out.push({ name: r.name, file: r.file ?? "", line: r.line, status: "UNWIRED", kind: r.kind ?? "" });
+    }
+    if (linelessSkipped > 0) {
+      console.warn(`[gi-omp] unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
+    }
+    const truncated = rows.length > 5000 ? true : undefined;
+    if (truncated)
+      console.warn(`[gi-omp] unwired: truncated at 5000 rows (deterministic order)`);
+    out.truncated = truncated;
+    return out;
+  } finally {
+    db.close();
+  }
+}
+function impactInDb(db, symbol, depth = 8) {
+  depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16);
+  const ledger = [];
+  const seen = new Set;
+  let startIds = resolveLiveIds(db, symbol);
+  if (startIds.length > 500) {
+    console.warn(`[gi-omp] impact: '${symbol}' resolves to ${startIds.length} live ids \u2014 capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
+    startIds = startIds.slice(0, 500);
+  }
+  if (startIds.length === 0)
+    return { symbol, reaches: 0, ledger, hint: `next=chain from=${symbol}` };
+  const LEDGER_CAP = 5000;
+  let ledgerTruncated = false;
+  for (const id of startIds)
+    seen.add(id);
+  let frontier = startIds;
+  for (let d = 1;d <= depth && frontier.length > 0; d++) {
+    const next = [];
+    for (let i = 0;i < frontier.length; i += 64) {
+      const chunk = frontier.slice(i, i + 64);
+      const callers = db.query(`SELECT DISTINCT src.canonical_id AS id, src.label AS caller, src.file AS file, src.line AS line, e.predicate AS predicate
+         FROM typed_edges e
+         JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+         WHERE e.dst_canonical IN (${ph(chunk.length)})
+           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND src.superseded_run IS NULL`).all(...chunk);
+      for (const c of callers) {
+        if (seen.has(c.id))
+          continue;
+        seen.add(c.id);
+        if (ledger.length < LEDGER_CAP) {
+          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        } else {
+          ledgerTruncated = true;
+        }
+        next.push(c.id);
+      }
+    }
+    frontier = next;
+  }
+  return { symbol, reaches: ledger.length, ledger, truncated: ledgerTruncated, hint: `next=chain from=${symbol}` };
+}
+function impact(storePath, symbol, depth = 8) {
+  const db = openTypedStore(storePath);
+  try {
+    return impactInDb(db, symbol, depth);
+  } finally {
+    db.close();
+  }
+}
+function safeDelete(storePath, symbol) {
+  const db = openTypedStore(storePath);
+  try {
+    const q = whoCallsInDb(db, symbol);
+    const imp = impactInDb(db, symbol);
+    let srcIds = resolveLiveIds(db, symbol);
+    if (srcIds.length > 500) {
+      console.warn(`[gi-omp] safeDelete: '${symbol}' resolves to ${srcIds.length} live ids \u2014 capping at 500 (SQLite variable limit)`);
+      srcIds = srcIds.slice(0, 500);
+    }
+    let mappedUses = [];
+    let usesLinelessDropped = 0;
+    if (srcIds.length > 0) {
+      const uses = db.query(`SELECT DISTINCT dst.label AS symbol, dst.file AS file, dst.line AS line
+         FROM typed_edges e
+         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+         WHERE e.src_canonical IN (${ph(srcIds.length)})
+           AND e.predicate IN ('calls', 'traces-to', 'imports') AND e.superseded_run IS NULL
+           AND dst.superseded_run IS NULL
+         LIMIT 500`).all(...srcIds);
+      for (const u of uses) {
+        if (u.line === null || u.line === undefined) {
+          usesLinelessDropped += 1;
+          continue;
+        }
+        mappedUses.push({ symbol: u.symbol, file: u.file ?? "", line: u.line });
+      }
+    }
+    const isTestPath = (f) => /(test|spec|mock|fixture)/i.test(f);
+    const testReach = [
+      ...q.callers.filter((c) => isTestPath(c.file)).map((c) => ({ symbol: c.caller, file: c.file, line: c.line })),
+      ...mappedUses.filter((u) => isTestPath(u.file))
+    ];
+    return { symbol, callers: q.callers, reaches: imp.reaches, uses: mappedUses, testReach, usesLinelessDropped, truncated: q.truncated === true || imp.truncated === true };
+  } finally {
+    db.close();
+  }
+}
+function gateAdvisory(storePath, symbols, dial = "STEER", ripwire) {
+  const db = openTypedStore(storePath);
+  try {
+    const callers = [];
+    for (const symbol of symbols) {
+      const q = whoCallsInDb(db, symbol);
+      for (const c of q.callers) {
+        callers.push({ symbol, caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" });
+      }
+    }
+    const named = callers.slice(0, 20).map((c) => `${c.caller} (${c.file}:${c.line})`).join(", ");
+    const ripwireNote = ripwire === undefined ? "(store-derived; ripwire not consulted)" : ripwire.ok ? `(store-derived + ripwire ${ripwire.summary})` : `(store-derived; ripwire ${ripwire.summary})`;
+    const advisory = dial === "FULL" ? `GRAPH_GATE_SIGNATURE_BREAK symbols=${symbols.join(",")} callers=${callers.length}${named ? ` no-longer-fit: ${named}` : ""} ${ripwireNote}` : `[GATE STEER] symbols=${symbols.join(",")} callers=${callers.length}${named ? ` review: ${named}` : ""} ${ripwireNote}`;
+    return { dial, symbols, callers, advisory };
+  } finally {
+    db.close();
+  }
+}
+
 // src/omp/store-open.ts
-init_scoping();
 import * as fs3 from "fs";
 import * as path6 from "path";
 
 // src/omp/gi-registry.ts
-init_scoping();
 import * as os3 from "os";
 import * as path5 from "path";
 var GI_REGISTRY_SCHEMA = [
@@ -10368,10 +10373,8 @@ function attachGiGraphGate(pi) {
 // src/omp/populate.ts
 import * as fs10 from "fs";
 import * as path11 from "path";
-init_typed_write();
 
 // src/omp/populate-corbell.ts
-init_typed_write();
 import * as fs9 from "fs";
 import * as path10 from "path";
 import { Database as Database4 } from "bun:sqlite";
@@ -10389,9 +10392,6 @@ import * as path8 from "path";
 function tridentLog(level, ns, msg) {
   console.error(`[${level} ${ns}] ${msg}`);
 }
-
-// src/hunter/graph/graphify-adapter.ts
-init_typed_write();
 
 // src/hunter/graph/corbell-adapter.ts
 import fs6 from "fs";
@@ -11099,13 +11099,6 @@ function loadGraphifyFileSync(graphPath) {
   return normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
 }
 function normalizeGraphifyGraph(raw, opts) {
-  const safeRoot = opts?.root ? (() => {
-    try {
-      return fs7.realpathSync(opts.root);
-    } catch {
-      return;
-    }
-  })() : undefined;
   const rawNodes = Array.isArray(raw["nodes"]) ? raw["nodes"] : [];
   const rawLinkSrc = Array.isArray(raw["links"]) ? raw["links"] : Array.isArray(raw["edges"]) ? raw["edges"] : [];
   const rawLinks = rawLinkSrc;
@@ -11114,6 +11107,10 @@ function normalizeGraphifyGraph(raw, opts) {
   let dropped = 0;
   const nodes = [];
   for (const n of rawNodes) {
+    if (n === null || typeof n !== "object" || Array.isArray(n)) {
+      dropped++;
+      continue;
+    }
     const r = n;
     let id = String(r["id"] ?? r["label"] ?? "");
     const label = String(r["label"] ?? r["id"] ?? "");
@@ -11140,15 +11137,24 @@ function normalizeGraphifyGraph(raw, opts) {
   }
   if (dropped > 0)
     tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
-  const edges = rawLinks.map((e) => {
+  let edgeDropped = 0;
+  const edges = rawLinks.filter((e) => {
+    if (e === null || typeof e !== "object" || Array.isArray(e)) {
+      edgeDropped++;
+      return false;
+    }
+    return true;
+  }).map((e) => {
     const src = String(e["source"] ?? e["src"] ?? "");
     const dst = String(e["target"] ?? e["dst"] ?? "");
-    const relation = String(e["relation"] ?? "references");
+    const relation = String(e["relation"] ?? "unknown");
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return { src, dst, relation, confidence: rawConf === "INFERRED" ? "INFERRED" : "EXTRACTED" };
   });
   const communityMap = new Map;
   for (const n of rawNodes) {
+    if (n === null || typeof n !== "object" || Array.isArray(n))
+      continue;
     const r = n;
     const cid = r["community"];
     if (typeof cid === "number") {
@@ -11207,15 +11213,24 @@ function normalizeGraphifyGraph(raw, opts) {
 function scopeBuildToProfile(nodes, edges, root, scopeDirs) {
   const norm = (s) => s.replace(/\/+$/, "");
   const scopes = scopeDirs.map(norm).map((s) => s.toLowerCase()).filter((s) => s.length > 0);
+  let rootCanon = null;
   try {
-    fs7.realpathSync(root);
+    rootCanon = fs7.realpathSync(root);
   } catch {
+    rootCanon = null;
+  }
+  if (rootCanon === null) {
     return { nodes: [], edges: [], dropped: nodes.length };
   }
   const inScope = (f) => {
     if (f === undefined || f.length === 0)
       return false;
-    const rel = containedRel(root, f).toLowerCase();
+    let rel = "";
+    try {
+      rel = containedRel(rootCanon, f).toLowerCase();
+    } catch {
+      rel = "";
+    }
     if (rel.length === 0)
       return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
@@ -11770,7 +11785,6 @@ class GraphifyAdapter {
 }
 
 // src/omp/populate-graphify.ts
-init_typed_write();
 var GRAPHIFY_FRESHNESS_BUDGET = 500;
 function graphifyOutPath(root, profile) {
   if (profile)
@@ -11863,7 +11877,7 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
       return { fresh: false, reason: "stale-content" };
     return { fresh: true, reason: "fresh" };
   }
-  if (Math.floor(newest / 1000) <= Math.floor(warmMtime / 1000))
+  if (newest <= warmMtime)
     return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
 }
@@ -11886,15 +11900,25 @@ function hashSourceTree(root, scope, excludes, budgetN) {
         hash.update(`${anchor}\x00${read}\x00`);
         hash.update(buf.subarray(0, read));
       } else {
-        const head = Buffer.alloc(4096);
-        const tail = Buffer.alloc(4096);
-        read += fs8.readSync(fd, head, 0, 4096, 0);
-        read += fs8.readSync(fd, tail, 0, 4096, Math.max(0, size - 4096));
+        const CHUNK = 65536;
+        const MAX_HASH_BYTES = 8 * 1024 * 1024;
         hash.update(`${anchor}\x00${size}\x00`);
-        hash.update(head);
-        hash.update(tail);
+        let offset = 0;
+        const chunk = Buffer.alloc(CHUNK);
+        while (offset < size && offset < MAX_HASH_BYTES) {
+          const want = Math.min(CHUNK, size - offset, MAX_HASH_BYTES - offset);
+          const n = fs8.readSync(fd, chunk, 0, want, offset);
+          if (n <= 0)
+            break;
+          hash.update(chunk.subarray(0, n));
+          offset += n;
+        }
+        read = offset;
+        if (offset < size)
+          hash.update(`capped@${offset}
+`);
       }
-      if (read < Math.min(size, GRAPH_HASH_WHOLE_FILE_MAX))
+      if (read < Math.min(size, GRAPH_HASH_WHOLE_FILE_MAX) && size <= GRAPH_HASH_WHOLE_FILE_MAX)
         hash.update(`short-read
 `);
     } finally {
@@ -12000,9 +12024,23 @@ function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
 
 // src/omp/populate-corbell.ts
 var CORBELL_CHECKOUT_REL = ".omp/graph-intelligence/corbell-checkout/store.sqlite";
-var CORBELL_FRESHNESS_BUDGET = 2000;
+var CORBELL_FRESHNESS_BUDGET = 50000;
+var CORBELL_PREDICATES = ["calls", "traces-to", "imports"];
 function corbellCheckoutPath(root) {
   return path10.join(root, CORBELL_CHECKOUT_REL);
+}
+function warmStoreStat(p) {
+  try {
+    const st = fs9.statSync(p);
+    return { mtimeMs: st.mtimeMs, size: st.size, ino: st.ino };
+  } catch {
+    return null;
+  }
+}
+function warmStoreUnchanged(before, after) {
+  if (!before || !after)
+    return false;
+  return before.mtimeMs === after.mtimeMs && before.size === after.size && before.ino === after.ino;
 }
 function isCorbellCheckoutFreshFor(root, warmPath) {
   if (!fs9.existsSync(warmPath))
@@ -12040,7 +12078,6 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name))
           continue;
-        budget.n--;
         walk(path10.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
@@ -12069,17 +12106,12 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   }
   let rows = [];
   let edges = [];
-  const stBefore = (() => {
-    try {
-      return fs9.statSync(warmPath).mtimeMs;
-    } catch {
-      return -1;
-    }
-  })();
+  const stBefore = warmStoreStat(warmPath);
+  const MAX_WARM_ROWS = 50000;
   let src = null;
   try {
     src = new Database4(warmPath, { readonly: true });
-    rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT 20001").all();
+    rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT ?").all(MAX_WARM_ROWS + 1);
     edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL").all();
   } catch (e) {
     return { ok: false, reason: `CORBELL_NOT_WARM:unreadable:${e instanceof Error ? e.message.slice(0, 60) : String(e)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
@@ -12088,7 +12120,6 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
       src?.close();
     } catch {}
   }
-  const MAX_WARM_ROWS = 50000;
   let skippedInvalid = 0;
   const validRows = rows.filter((r) => {
     const validId = typeof r.canonical_id === "string" && r.canonical_id.length > 0;
@@ -12105,19 +12136,13 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     return { ok: false, reason: "CORBELL_NOT_WARM:zero-rows", nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
-  const mtimeAfter = (() => {
-    try {
-      return fs9.statSync(warmPath).mtimeMs;
-    } catch {
-      return -2;
-    }
-  })();
-  if (!freshnessAfter.fresh || mtimeAfter !== stBefore) {
-    return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
-  }
   const sortedValid = [...validRows].sort((a, b) => a.canonical_id.localeCompare(b.canonical_id));
   const materializeRows = sortedValid.length > MAX_WARM_ROWS ? sortedValid.slice(0, MAX_WARM_ROWS) : sortedValid;
   const materializeSkipped = skippedInvalid + (sortedValid.length - materializeRows.length);
+  const stAfter = warmStoreStat(warmPath);
+  if (!freshnessAfter.fresh || !warmStoreUnchanged(stBefore, stAfter)) {
+    return { ok: false, reason: "CORBELL_NOT_WARM:changed-mid-read", nodes: 0, edges: 0, checkoutPath: warmPath };
+  }
   const keptIds = new Set(materializeRows.map((r) => r.canonical_id));
   const nodeRows = materializeRows.map((r) => ({
     canonicalId: r.canonical_id,
@@ -12129,7 +12154,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   }));
   let edgeSkipped = 0;
   const validEdges = edges.filter((e) => {
-    const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0 && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0 && ["calls", "traces-to", "imports"].includes(e.predicate) && keptIds.has(e.src_canonical) && keptIds.has(e.dst_canonical);
+    const ok = typeof e.src_canonical === "string" && e.src_canonical.length > 0 && typeof e.dst_canonical === "string" && e.dst_canonical.length > 0 && CORBELL_PREDICATES.includes(e.predicate) && keptIds.has(e.src_canonical) && keptIds.has(e.dst_canonical);
     if (!ok)
       edgeSkipped += 1;
     return ok;
@@ -16240,7 +16265,6 @@ function machineTypes() {
 }
 
 // src/hunter/tools/bug-hunt.ts
-init_typed_write();
 async function spawnBugHunterLoop(args) {
   acquireHuntLock(args.targetPath);
   try {
@@ -16722,6 +16746,44 @@ var withPopulateLane = async (fn) => {
   });
   return run;
 };
+function ledgerDirConfined(ledgerReal, targetReal) {
+  const rel = path26.relative(targetReal, ledgerReal);
+  return rel !== "" && !rel.startsWith("..") && !path26.isAbsolute(rel);
+}
+function substrateNeedsPopulate(storePath, scopeRoot) {
+  if (countTypedNodes(storePath) === 0)
+    return true;
+  const stored = getMeta(storePath, "substrate");
+  const warm = isCorbellCheckoutFreshFor(scopeRoot, corbellCheckoutPath(scopeRoot));
+  return warm.fresh && stored !== "corbell";
+}
+function settlementLedgerConfined(ledgerPath, targetReal) {
+  let real = ledgerPath;
+  try {
+    real = fs23.realpathSync(ledgerPath);
+  } catch {
+    return { ok: false, error: "GI_PATH_DENIED: settlement ledger does not exist" };
+  }
+  if (!ledgerDirConfined(real, targetReal)) {
+    return { ok: false, error: "GI_LEDGER_DENIED: settlement ledger outside the audit target root" };
+  }
+  return { ok: true, real };
+}
+function writeWipeAudit(giDir, note) {
+  const { Database } = __require("bun:sqlite");
+  fs23.mkdirSync(giDir, { recursive: true });
+  const regPath = path26.join(giDir, "registry.sqlite");
+  const db = new Database(regPath);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
+    db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", note);
+  } finally {
+    db.close();
+  }
+}
+function parseTargetRoots(raw) {
+  return raw.split("|").map((r) => r.trim()).filter((r) => r.length > 0);
+}
 var confineTargetPath = (normalized, callerCwd) => {
   let real = normalized;
   try {
@@ -16738,7 +16800,7 @@ var confineTargetPath = (normalized, callerCwd) => {
   if (!st || !st.isDirectory()) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
   }
-  const allowRoots = (process.env.GI_TARGET_ROOTS ?? "").split("|").flatMap((p2) => /^[A-Za-z]:$/.test(p2.trim()) ? [p2.trim()] : p2.split(":")).map((r) => r.trim()).filter((r) => r.length > 0);
+  const allowRoots = parseTargetRoots(process.env.GI_TARGET_ROOTS ?? "");
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
     let rootReal = null;
@@ -16904,15 +16966,11 @@ function registerGiOmpTools(pi, cwdOf) {
           let auditNote = "";
           if (wipeConfined.ok) {
             try {
-              await Promise.resolve().then(() => init_typed_write());
-              setMeta(path26.join(wipeConfined.real, ".omp", "graph-intelligence", "registry.sqlite"), "last_wipe", `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+              writeWipeAudit(path26.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
             } catch (auditErr) {
               auditNote = `
 WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`;
             }
-          } else {
-            auditNote = `
-WIPE_AUDIT_FAILED: ${wipeConfined.error}`;
           }
           if (auditNote) {
             return textResult2("GI_CLEARED" + auditNote, { ok: true, token: "GI_CLEARED", wipeAudited: false });
@@ -17002,20 +17060,20 @@ WIPE_AUDIT_FAILED: ${wipeConfined.error}`;
           return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, "graphify");
         }
         let popNote = "";
-        const stored = getMeta(opened.storePath, "substrate");
-        const empty = countTypedNodes(opened.storePath) === 0;
-        const warmPath = corbellCheckoutPath(scopeRoot);
-        const warm = empty ? { fresh: false } : isCorbellCheckoutFreshFor(scopeRoot, warmPath);
-        if (empty || warm.fresh && stored !== "corbell") {
-          const pop = await withPopulateLane(() => populateSessionStore(opened.storePath, scopeRoot));
-          popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}
+        const pop = await withPopulateLane(() => {
+          if (!substrateNeedsPopulate(opened.storePath, scopeRoot))
+            return null;
+          return populateSessionStore(opened.storePath, scopeRoot);
+        });
+        if (pop === null) {
+          const storedNow = getMeta(opened.storePath, "substrate") ?? "indexer-fallback";
+          popNote = `substrate=${storedNow}
 `;
-          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
-        } else {
-          popNote = `substrate=${stored ?? "indexer-fallback"}
-`;
-          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, stored ?? "indexer-fallback");
+          return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, storedNow);
         }
+        popNote = `substrate=${pop.substrate}${pop.fallbackReason ? ` reason=${pop.fallbackReason}` : ""}
+`;
+        return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, pop.substrate);
       } catch (e) {
         const code = typeof e === "object" && e !== null && "code" in e ? String(e.code) : "GI_QUERY_FAIL";
         return textResult2(`${code}: ${String(e instanceof Error ? e.message : e)}`, { ok: false, error: code });
@@ -17062,22 +17120,23 @@ WIPE_AUDIT_FAILED: ${wipeConfined.error}`;
           cause: "HUNTER_TEMPLATE_INVALID"
         });
       }
-      const auditRoot = join(resolve(targetRoot), ".omp", "graph-intelligence", "audit");
+      const targetReal = resolve(targetRoot);
+      const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
       fs23.mkdirSync(auditRoot, { recursive: true });
       const auditRootReal = fs23.realpathSync(auditRoot);
-      const ledgerRel = path26.relative(resolve(targetRoot), auditRootReal);
+      const ledgerRel = path26.relative(targetReal, auditRootReal);
       if (ledgerRel === "" || ledgerRel.startsWith("..") || path26.isAbsolute(ledgerRel)) {
         return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
       const ledgerDir = fs23.mkdtempSync(join(auditRoot, `${layerId}-`));
       const ledgerReal = fs23.realpathSync(ledgerDir);
-      if (!ledgerReal.startsWith(resolve(targetRoot) + path26.sep)) {
+      if (!ledgerDirConfined(ledgerReal, targetReal)) {
         return textResult2("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
       }
       const graphPath = join(resolve(targetRoot), "graphify-out", "graph.json");
       const settlement = await runTemplateAudit({ template, ledgerDir, targetRoot, graphPath });
       if (settlement.status === "fulfilled") {
-        const reportConfined = confineTargetPath(settlement.ledgerDir, targetRoot);
+        const reportConfined = settlementLedgerConfined(settlement.ledgerDir, targetReal);
         if (!reportConfined.ok) {
           return textResult2(`GI_LEDGER_DENIED: settlement ledger escaped the root (${reportConfined.error})`, { ok: false, error: "GI_LEDGER_DENIED" });
         }
@@ -17128,5 +17187,10 @@ export {
   GI_TOOL_NAMES,
   GI_TOOL_NAMES_ALIASES,
   giOmpExtension as default,
-  registerGiOmpTools
+  ledgerDirConfined,
+  parseTargetRoots,
+  registerGiOmpTools,
+  settlementLedgerConfined,
+  substrateNeedsPopulate,
+  writeWipeAudit
 };
