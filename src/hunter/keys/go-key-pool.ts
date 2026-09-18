@@ -120,20 +120,23 @@ function db(sessionId?: string): Database {
   if (hit) {
     try {
       hit.query('SELECT 1').get();
-      // W9 (frozen-scan HIGH): SQLite can RECREATE -wal/-shm on later
-      // checkpoints with the process umask — re-chmod on every cached hit.
-      try {
-        fs.chmodSync(want, 0o600);
-        for (const side of [want + '-wal', want + '-shm']) {
-          if (fs.existsSync(side)) fs.chmodSync(side, 0o600);
-        }
-      } catch { /* best-effort */ }
-      poolDbByPath.delete(want);
-      poolDbByPath.set(want, hit);
+      // W9+W26 (frozen-scan HIGH): re-chmod on every cached hit, but LSTAT
+      // first — if `want` was swapped for a symlink plant after the handle
+      // was cached, drop the handle (a clean re-open happens below) instead
+      // of chmodding the victim file through the link.
+      const lst = fs.lstatSync(want);
+      if (lst.isSymbolicLink()) throw new Error('symlink plant detected');
+      fs.chmodSync(want, 0o600);
+      for (const side of [want + '-wal', want + '-shm']) {
+        if (fs.existsSync(side)) fs.chmodSync(side, 0o600);
+      }
       return hit;
-    } catch (_sick) {
+    } catch (swapErr) {
+      // The cached handle's file was swapped/vanished — drop it and fall
+      // through to the create path (fresh safe open on the next miss).
       try { hit.close(); } catch { /* already closed */ }
       poolDbByPath.delete(want);
+      console.error(`[go-key-pool] cached pool invalid (dropping handle): ${swapErr instanceof Error ? swapErr.message : String(swapErr)}`);
     }
   }
   // W12+13 (frozen-scan HIGH): pre-create 0600 with O_EXCL|O_NOFOLLOW —
@@ -145,12 +148,12 @@ function db(sessionId?: string): Database {
     fs.closeSync(fs.openSync(want, openFlags, 0o600));
   } catch (e) {
     const c = e as NodeJS.ErrnoException;
-    if (c.code === "ELOOP") {
-      // W16 (frozen-scan HIGH): ELOOP = pre-planted SYMLINK — refuse loudly.
-      // The old branch chmod+opened THROUGH the plant (redirect target).
+    if (c.code === 'ELOOP') {
+      // W20: ELOOP = pre-planted SYMLINK — refuse loudly, never chmod/open
+      // through it (the old branch hardened the PLANT's target).
       throw new Error(`GO_POOL_SYMLINK: ${want} is a symlink plant — refusing (remove it or set GO_POOL_DB)`);
     }
-    if (c.code !== "EEXIST") throw e;
+    if (c.code !== 'EEXIST') throw e;
     // EEXIST = a real file already exists: verify it is not a symlink
     // (lstat does not follow) and harden its mode for our handle.
     const lst = fs.lstatSync(want);
@@ -175,27 +178,18 @@ function db(sessionId?: string): Database {
     reason TEXT,
     marked_at INTEGER
   )`);
-  // V21 cleanup: stable key identity — a KEYID (one-way fingerprint) column so
-  // a reload/reorder can never misattribute a deadUntil row to the wrong key.
-  // C5 (qwen d5d5c883 [5]): keyid is sha256(key).slice(0,16) — the old
-  // reversible slice(0,12) prefix contradicted the AP-4 never-keys contract
-  // (world-readable tmp sqlite) AND collapsed every `sk-ant-…` key to one id.
-  // W9: legacy rows are NOT positionally backfilled (see the comment below
-  // the ALTER) — keyid-less rows stay readable via byIdx only.
+  // C5: stable key identity — a KEYID (one-way fingerprint) column so a
+  // reload/reorder can never misattribute a deadUntil row to the wrong key.
+  // W9: legacy rows are NOT positionally backfilled — keyid-less rows stay
+  // readable via byIdx only.
   try {
     fresh.run(`ALTER TABLE go_key_pool ADD COLUMN keyid TEXT`);
   } catch (_dup) { /* column exists */ }
-  // W9 (frozen-scan HIGH fixed): NO positional keyid backfill. A legacy
-  // keyid-NULL row's idx says nothing about WHICH key died after any
-  // reload/reorder — backfilling by position permanently misattributes the
-  // exile. Legacy rows stay keyid-NULL and remain readable through the
-  // byIdx fallback in mergedDeadViews(); the next markGoKeyDead for a slot
-  // writes a correctly-keyed row that supersedes them.
   poolDbByPath.set(want, fresh);
   while (poolDbByPath.size > POOL_DB_LRU_MAX) {
     const oldest = poolDbByPath.keys().next();
     if (oldest.done) break;
-    try { poolDbByPath.get(oldest.value)?.close(); } catch (_c) { /* already closed */ }
+    try { poolDbByPath.get(oldest.value)?.close(); } catch { /* already closed */ }
     poolDbByPath.delete(oldest.value);
   }
   return fresh;
