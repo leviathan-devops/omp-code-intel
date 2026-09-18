@@ -116,6 +116,32 @@ export function setMeta(storePath: string, key: string, value: string): void {
   }
 }
 
+// W36 (frozen-scan HIGH): post-open re-verify — narrows the validation→open
+// TOCTOU window the pre-open lstat+magic check leaves. A symlink planted
+// after validation is refused here (lstat, no follow); garbage swapped in
+// after validation fails the magic re-read here. Empty/missing here means
+// the file vanished mid-flight: fail closed (the fresh path was already
+// decided pre-open; silently opening other data is worse).
+export function verifyOpenedStoreFile(storePath: string): void {
+  const lst = fs.lstatSync(storePath);
+  if (lst.isSymbolicLink()) throw new GiStoreCorruptError(`GI_STORE_SYMLINK: ${storePath} is a symlink — refusing (post-open re-verify)`);
+  const fd = fs.openSync(storePath, "r");
+  try {
+    const head = Buffer.alloc(16);
+    let total = 0;
+    while (total < 16) {
+      const n = fs.readSync(fd, head, total, 16 - total, total);
+      if (n <= 0) break;
+      total += n;
+    }
+    if (total < 16 || !head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
+      throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} failed post-open re-verify`);
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 export function openTypedStore(storePath: string): Database {
   assertSessionStorePath(storePath);
   // H10 (qwen 33d64eca): path.dirname (slashless-safe) + UNCONDITIONAL recursive
@@ -144,6 +170,8 @@ export function openTypedStore(storePath: string): Database {
     // skip validation entirely and fall into bun:sqlite with a confusing error.
     if (!st.isFile()) throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath} is not a regular file`);
   }
+
+  let postOpenVerify = false;
   if (st !== null && st.size > 0) {
     // W17 CRITICAL fix: the ENOENT race sets treatAsFresh (flow continues to
     // the fresh-store creation below) — the old `return db` referenced the
@@ -175,17 +203,27 @@ export function openTypedStore(storePath: string): Database {
     if (!treatAsFresh && !head.subarray(0, SQLITE_MAGIC.length).equals(SQLITE_MAGIC)) {
       throw new GiStoreCorruptError(`GI_STORE_CORRUPT: ${storePath}`);
     }
+    postOpenVerify = !treatAsFresh;
   }
   const db = new Database(storePath, { create: true });
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec("PRAGMA busy_timeout = 5000;"); // scan triage: raw BEGIN IMMEDIATE needs contention tolerance
-  applyTypedDdl(db);
-  // W21 (frozen-scan HIGH): a persisted deferral is SURFACED on every open —
-  // the marker existed but nothing read it, so the unconstrained store was silent.
   try {
-    const deferred = db.query("SELECT value FROM gi_meta WHERE key LIKE 'unique_index_deferred%'").all() as Array<{ value: string }>;
-    if (deferred.length > 0) console.error(`[gi-omp] STORE OPENED WITH DEFERRED UNIQUE INDEX (${deferred.length} marker(s)) — legacy duplicate rows are unconstrained until dedup`);
-  } catch { /* gi_meta absent on legacy stores */ }
+    db.exec("PRAGMA journal_mode = WAL;");
+    db.exec("PRAGMA busy_timeout = 5000;"); // scan triage: raw BEGIN IMMEDIATE needs contention tolerance
+    // W36 (frozen-scan HIGH): post-open re-verify narrows the residual
+    // validation→open window — a symlink planted, or garbage swapped in,
+    // after the pre-open checks is refused here instead of opened.
+    if (postOpenVerify) verifyOpenedStoreFile(storePath);
+    applyTypedDdl(db);
+    // W21 (frozen-scan HIGH): a persisted deferral is SURFACED on every open —
+    // the marker existed but nothing read it, so the unconstrained store was silent.
+    try {
+      const deferred = db.query("SELECT value FROM gi_meta WHERE key LIKE 'unique_index_deferred%'").all() as Array<{ value: string }>;
+      if (deferred.length > 0) console.error(`[gi-omp] STORE OPENED WITH DEFERRED UNIQUE INDEX (${deferred.length} marker(s)) — legacy duplicate rows are unconstrained until dedup`);
+    } catch { /* gi_meta absent on legacy stores */ }
+  } catch (e) {
+    try { db.close(); } catch { /* already closed */ }
+    throw e;
+  }
   return db;
 }
 
@@ -610,7 +648,7 @@ export interface ChainStep {
 // PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:201-244
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores)
 // so flow_step 'traces-to' paths (flow -> method) are traversable, not half-invisible.
-export function chainCalls(storePath: string, from: string, to: string, maxDepth = 64): ChainStep[] {
+export function chainCalls(storePath: string, from: string, to: string, maxDepth = 64, visitCap = 20000): ChainStep[] & { truncated?: boolean } {
   const db = openTypedStore(storePath);
   try {
     // W16 (frozen-scan HIGH): LIMIT in the SQL — the in-memory truncation
@@ -627,10 +665,17 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
   maxDepth = Math.min(Math.max(1, Math.floor(maxDepth) || 1), 16);
     // V21 W4: visited marked on ENQUEUE — the dequeue-mark variant pushed the
     // same id once per inbound edge (exponential churn on dense graphs).
+    // W36 (frozen-scan HIGH): global VISIT CAP — per-edge LIMIT 500 bounds
+    // fan-out per level, but BFS over a mega-store could still enqueue the
+    // whole reachable set with O(depth) path clones per node. The cap stops
+    // expansion; `truncated` surfaces it (never a silent cut).
+    const cap = Math.max(1, Math.floor(visitCap) || 20000);
+    let truncated = false;
     const visited = new Set<string>(starts.map((s) => s.canonical_id));
     const queue: Array<{ id: string; label: string; steps: ChainStep[] }> = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
     let head = 0;
     while (head < queue.length && queue[head].steps.length < maxDepth) {
+      if (visited.size >= cap) { truncated = true; break; }
       const cur = queue[head++];
       const out = db.query(
         `SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
@@ -660,7 +705,9 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
         }
       }
     }
-    return [];
+    const out: ChainStep[] & { truncated?: boolean } = [];
+    if (truncated) out.truncated = true;
+    return out;
   } finally {
     db.close();
   }
