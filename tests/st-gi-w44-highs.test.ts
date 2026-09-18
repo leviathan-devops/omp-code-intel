@@ -362,4 +362,32 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     expect(() => hardenPoolFile(plant)).toThrow();
     expect(fs.statSync(victim).mode & 0o777).toBe(0o644);
   });
+
+  // ---------- F21 (laguna scan HIGH: write-path chmod still follows symlinks) ----------
+  test("test_w44_pool_write_path_sidecar_hardening_nofollow", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-wal-"));
+    const prevDb = process.env.GO_POOL_DB;
+    const prevKeys = process.env.GO_KEYS_JSON;
+    process.env.GO_POOL_DB = path.join(dir, "pool.sqlite");
+    process.env.GO_KEYS_JSON = JSON.stringify(["key-aaa", "key-bbb"]);
+    reloadGoKeys();
+    try {
+      const now = Date.now();
+      markGoKeyDead(0, "429 rate limit window", now); // creates db + -wal
+      // Plant: -wal swapped for a symlink to a VICTIM file.
+      const victim = path.join(dir, "victim.sqlite");
+      fs.writeFileSync(victim, "x");
+      fs.chmodSync(victim, 0o644);
+      const wal = process.env.GO_POOL_DB + "-wal";
+      fs.rmSync(wal, { force: true });
+      fs.symlinkSync(victim, wal);
+      // Write-path re-chmod must go through O_NOFOLLOW — the victim keeps 644.
+      markGoKeyDead(1, "429 rate limit window", now);
+      expect(fs.statSync(victim).mode & 0o777).toBe(0o644);
+    } finally {
+      if (prevDb === undefined) delete process.env.GO_POOL_DB; else process.env.GO_POOL_DB = prevDb;
+      if (prevKeys === undefined) delete process.env.GO_KEYS_JSON; else process.env.GO_KEYS_JSON = prevKeys;
+      reloadGoKeys();
+    }
+  });
 });

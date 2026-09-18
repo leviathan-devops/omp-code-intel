@@ -201,7 +201,9 @@ function db(sessionId?: string): Database {
   // onward — chmod them explicitly (they usually inherit the main file's mode,
   // but the contract is 0600-unconditional, not inheritance-luck).
   for (const side of [want + '-wal', want + '-shm']) {
-    try { if (fs.existsSync(side)) fs.chmodSync(side, 0o600); } catch { /* best-effort */ }
+    // W44/F21: same no-follow discipline as the main file — a swapped sidecar
+    // symlink must hit ELOOP here, never get chmodded through to a victim.
+    try { hardenPoolFile(side); } catch { /* sidecar absent or plant — best-effort */ }
   }
   fresh.run(`CREATE TABLE IF NOT EXISTS go_key_pool (
     idx INTEGER PRIMARY KEY,
@@ -389,10 +391,12 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
       // umask on later checkpoints — re-chmod the trio after every write,
       // not only on fresh opens (the cache-hit chmod only runs at db() entry).
       try {
-        const poolPath = goPoolDbFile(sessionId);
-        fs.chmodSync(poolPath, 0o600);
+        // W44/F21 (laguna scan HIGH): the write-path re-chmod goes through the
+        // same O_NOFOLLOW+fchmod discipline — a swapped pool/sidecar symlink
+        // throws here (caught best-effort below) instead of chmodding a victim.
+        hardenPoolFile(poolPath);
         for (const side of [poolPath + '-wal', poolPath + '-shm']) {
-          if (fs.existsSync(side)) fs.chmodSync(side, 0o600);
+          try { hardenPoolFile(side); } catch { /* sidecar absent or plant */ }
         }
       } catch { /* best-effort */ }
     } catch (inner) {
