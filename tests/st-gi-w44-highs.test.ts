@@ -18,7 +18,7 @@ import { GraphifyAdapter } from "../src/hunter/graph/graphify-adapter.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
-import { setMeta } from "../src/omp/typed-write.ts";
+import { blastRadius, setMeta } from "../src/omp/typed-write.ts";
 import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
@@ -589,5 +589,26 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     // THE FIX: buildSync carries build()'s zero-in-scope graphEmpty — the old
     // variant silently cached zero nodes and produced an empty store.
     expect(() => adapter.buildSync(graphPath)).toThrow(/zero in-scope|graph produced zero/i);
+  });
+
+  // ---------- F34 (typed-write: blastRadius silent truncation cap) ----------
+  test("test_w44_blast_radius_surfaces_truncated_flag", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-br-"));
+    const storePath = path.join(root, "sessions", "sesW44BRAD0000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const db = new Database(storePath);
+    db.exec(`CREATE TABLE typed_nodes (canonical_id TEXT PRIMARY KEY, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
+CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);`);
+    db.exec("BEGIN");
+    const insN = db.prepare("INSERT INTO typed_nodes VALUES (?, 'function', 'big', 'src/big.ts', 1, 't', NULL)");
+    for (let i = 0; i < 501; i++) insN.run(`c-big${String(i).padStart(5, "0")}`);
+    const insE = db.prepare("INSERT INTO typed_edges VALUES (?, ?, 'calls', 'q', 1.0, 't', NULL)");
+    for (let i = 0; i < 501; i++) insE.run(`c-root${String(i).padStart(5, "0")}`, `c-big${String(i).padStart(5, "0")}`);
+    db.exec("COMMIT");
+    db.close();
+    const b = blastRadius(storePath, "big");
+    // THE FIX: the 500-id cap SURFACES as truncated:true (whoCalls parity) —
+    // the old return shape hid the under-report from programmatic callers.
+    expect(b.truncated).toBe(true);
   });
 });

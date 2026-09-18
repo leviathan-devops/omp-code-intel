@@ -566,7 +566,7 @@ export function whoCalls(storePath: string, name: string): { rows: number; names
  *  Documented lossy — canonical-level nodes are a rebuild-tier change. */
 export interface BlastNode { file: string; depth: number }
 
-export function blastRadius(storePath: string, symbol: string, depth = 8): { root: string; depth: number; nodes: BlastNode[] } {
+export function blastRadius(storePath: string, symbol: string, depth = 8): { root: string; depth: number; nodes: BlastNode[]; truncated?: boolean } {
   // W21 (frozen-scan HIGH): depth CLAMPED — negative/fractional/NaN/1e9 drove
   // the recursive CTE unboundedly.
   depth = Math.min(Math.max(1, Math.floor(depth) || 1), 16);
@@ -576,11 +576,13 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
     // the old per-file CROSS JOIN (nodes-by-file x all edges) was an O(V*E)
     // fan-out AND conflated every same-label node sharing a file.
     let ids = resolveLiveIds(db, symbol);
+    let idsTruncated = false;
     if (ids.length > 500) {
       console.warn(`[gi-omp] blastRadius: '${symbol}' resolves to ${ids.length} live ids — capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
+      idsTruncated = true;
       ids = ids.slice(0, 500);
     }
-    if (ids.length === 0) return { root: symbol, depth: 0, nodes: [] };
+    if (ids.length === 0) return { root: symbol, depth: 0, nodes: [], truncated: false };
     const rows = db.query(
       `WITH RECURSIVE blast(cid, depth) AS (
          SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)}) AND superseded_run IS NULL
@@ -603,7 +605,9 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
     ).all(...ids, depth) as BlastNode[];
     const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
     const maxDepth = nodes.reduce((m, n) => (n.depth > m ? n.depth : m), 0);
-    return { root: symbol, depth: maxDepth, nodes };
+    // W45/F34 (frozen-scan HIGH): the 500-id cap SURFACES as truncated (whoCalls
+    // parity) — programmatic callers can see the under-report, not just stderr.
+    return { root: symbol, depth: maxDepth, nodes, truncated: idsTruncated };
   } finally {
     db.close();
   }
