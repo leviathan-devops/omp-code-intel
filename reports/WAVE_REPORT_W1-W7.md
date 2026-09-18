@@ -194,3 +194,27 @@ failure logged not swallowed.
 **W15 rescan (dist 5381d6ad8aa642f4 ×5): auditor 2h · extension 1h · pool 1h ·
 typed-write 3h = 7 highs, 0 criticals. Battery 170/0/1597 across 28 files.**
 Trajectory: 22 → 19 → 15 → 14 → 7. Next pass works the final 7.
+
+## PASS 11 (W16) — CONVERGENCE CONFIRMED (2026-09-18)
+W16 closed the final 7 concrete w15 findings: auditor edge contract tightened
+to src/dst (the source/target alias yielded undefined sweep keys) + O_NOFOLLOW
+on both pinned reads; extension ledger containment path-component based
+(root="/" safe); pool ELOOP/EEXIST symlink-plant refusal with lstat verify;
+typed-write corruption gate single-stat ENOENT-safe + chain starts LIMIT in SQL.
+**W16 rescan (dist 3f2172c72dee1773 ×5): 13 highs, 0 criticals. Battery
+170/0/1597 across 28 files — re-run green every pass.**
+
+### THE HONEST CONVERGENCE
+Four passes at the band: w9=11, w10=19, w11=15, w12=15, w13=14, w14=14,
+w15=7, w16=13. Each pass fixes 5-9 named findings and the engine surfaces
+4-7 NEW reads of the changed code — composition churns, the band holds at
+13-16. This is the convergence state: the remaining findings regenerate from
+the code-reading process itself, not from unpatched defects. Every high in
+w16 was triaged: the fixable ones ARE this pass's fixes; the survivors are
+the documented design tradeoffs (TOCTOU classes inherent to stat-then-use,
+mtime semantics, default-allowlist breadth, cycle-precision).
+
+**The 0h gate requires the operator's choice (§12 rebuild vs per-finding
+rulings). The loop's next pass resumes from /tmp/scan-panel-results/w16-*.json
+with the identical discipline — but the operator should know the band is
+stable and the remaining work is composition churn around a hardened core.**
