@@ -380,3 +380,13 @@ campaign), typed-write 4h remaining. Battery 170/0/1597 across 28 files,
 re-run green. Dist d028502053fe8285 deployed ×5.
 **Twenty-two passes. The auditor file has reached 0c/0h/0m — the first
 fully clean file. The loop continues on the remaining 6 files.**
+
+## PASS 23 (W42) — 5 HIGHS CLOSED ON THE SECONDARY LEGS (2026-09-18)
+Closed: containedRel fails CLOSED on unresolvable root (containment parity
+across normalize/project/scopeBuild — the fail-open fallback is gone);
+corbell freshness budget 500->2000 (real trees exceed 500 files/dirs);
+warm rows/edges pushed into SQL (ORDER BY canonical_id/rowid + LIMIT
+20001/150001). W42 verify: corbell 3h, graphify-adapter 2h. Battery
+170/0/1597 across 28 files, re-run green. Dist 96bc0057dbf98491 ×5.
+**Twenty-three passes. 0 criticals stable. The two hot files hold 4-6
+highs; the secondary legs hold low single digits. The loop continues.**
