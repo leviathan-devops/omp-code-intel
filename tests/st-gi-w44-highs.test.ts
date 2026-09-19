@@ -18,7 +18,7 @@ import { GraphifyAdapter } from "../src/hunter/graph/graphify-adapter.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
-import { blastRadius, setMeta } from "../src/omp/typed-write.ts";
+import { blastRadius, chainCalls, setMeta } from "../src/omp/typed-write.ts";
 import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
@@ -669,5 +669,27 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','imports','q',99.0,'warm',NULL);`);
     } finally {
       db.close();
     }
+  });
+
+  // ---------- F37 (typed-write: visitCap Infinity clamp) ----------
+  test("test_w44_chain_calls_infinity_cap_terminates", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-inf-"));
+    const storePath = path.join(root, "sessions", "sesW44INF00000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const db = new Database(storePath);
+    db.exec(`CREATE TABLE typed_nodes (canonical_id TEXT PRIMARY KEY, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
+CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);`);
+    db.exec("BEGIN");
+    const insN = db.prepare("INSERT INTO typed_nodes VALUES (?, 'function', ?, 'src/f.ts', 1, 't', NULL)");
+    const insE = db.prepare("INSERT INTO typed_edges VALUES (?, ?, 'calls', 'q', 1.0, 't', NULL)");
+    for (let i = 0; i < 40; i++) insN.run(`c-f${String(i).padStart(3, "0")}`, `f${i}`);
+    for (let i = 0; i < 39; i++) insE.run(`c-f${String(i).padStart(3, "0")}`, `c-f${String(i + 1).padStart(3, "0")}`);
+    db.exec("COMMIT");
+    db.close();
+    // THE FIX: visitCap=Infinity is clamped to the finite ceiling — the walk
+    // terminates with the full chain (no hang, no unbounded enqueue).
+    const steps = chainCalls(storePath, "f0", "NO-SUCH-TARGET", 64, Number.POSITIVE_INFINITY);
+    expect(steps.truncated).toBeFalsy(); // 40 < 100000: untruncated traversal
+    expect(steps.length).toBeLessThanOrEqual(40);
   });
 });

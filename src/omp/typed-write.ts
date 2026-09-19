@@ -674,7 +674,10 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
     // fan-out per level, but BFS over a mega-store could still enqueue the
     // whole reachable set with O(depth) path clones per node. The cap stops
     // expansion; `truncated` surfaces it (never a silent cut).
-    const cap = Math.max(1, Math.floor(visitCap) || 20000);
+    // W46 (frozen-scan HIGH): visitCap CLAMPED to a finite ceiling — Infinity
+    // survives Math.floor (truthy), so the cap never fired and BFS could
+    // enqueue the whole reachable set with O(depth) path clones per node.
+    const cap = Math.min(Math.max(1, Math.floor(visitCap) || 20000), 100_000);
     let truncated = false;
     const visited = new Set<string>(starts.map((s) => s.canonical_id));
     const queue: Array<{ id: string; label: string; steps: ChainStep[] }> = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
