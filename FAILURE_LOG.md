@@ -248,3 +248,10 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
   0d44011 + d1f7422. `grep -rn indexer-fallback src/` returns only two
   HISTORICAL comment lines documenting the removal.
 - **Disposition:** FIXED+PROVEN.
+
+### F-48 FOLLOW-UP — indexer-fallback deletion execution log (2026-09-19)
+
+- **What happened:** Goal executed end-to-end (6 waves). `src/omp/populate.ts` rewritten from 337 lines to 108 (the regex indexer leg — collectTsFiles + parseExports + EXPORT_STAR/BARE_CALL scans — fully deleted). Substrate union narrowed to corbell|graphify. Extension defaults hard-fail (GI_SUBSTRATE_UNKNOWN). Operator manual Section 2.3 replaced with the hard-dependency law. All tests updated to assert GI_POPULATE_FAILED.
+- **Verification:** full battery 218 pass / 0 fail / 1759 expect across 30 files. New loud-fail test green. Container import EXEC-OK. Ship package Graph_Intel_v1.2.1 minted with PACKAGE_AUDIT PASS.
+- **Residual references:** the only remaining `indexer-fallback` strings are (1) two HISTORICAL comments documenting the removal, (2) one NEGATIVE test assertion (`not.toBe("indexer-fallback")`). Zero live code paths.
+- **Disposition:** FIXED+PROVEN.
