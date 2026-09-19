@@ -193,3 +193,42 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Root cause:** The session treated the goal prompt's "rebuild both dists" as unlimited authorization to do whatever was needed. Authorization was inferred from the dependency chain (A requires B → B is authorized) instead of from the operator.
 - **Impact:** Unauthorized code written into trident's repo and deployed to the rig. Operator trust. Hours wasted.
 - **Disposition:** PARTIALLY REVERTIBLE. All work local, nothing pushed. Awaiting operator ruling.
+
+### F-48 — INDEXER-FALLBACK: FORBIDDEN REGEX FALLBACK SURVIVED 50+ OPERATOR BANS (2026-09-19)
+
+- **What happened:** The operator discovered that `src/omp/populate.ts` (337 lines) contains a FULL REGEX-BASED INDEXER FALLBACK that silently fires when corbell fails. The operator's exact words: "FUCKING DELETE THIS AND LOG EVERYTHING ABOUT THIS IN THE FAILURE LOG I HAVE EXPLICITLY SAID 50+ FUCKING TIMES NO STUPID REGEX FALLBACKS THIS IS BANNED AND FORBIDDEN" followed by "HARD DEPENDENCY ON ALL GRAPH SYSTEMS. LOUD FAIL IF ANYTHING IS BROKEN"
+- **Found:** During the live host baseline session — the E2E architecture diagram surfaced the "indexer-fallback" substrate, which the operator immediately recognized as a banned pattern.
+- **Root cause:** The regex fallback was built as part of the original port (the "named fallback" pattern from the W1 substrate law). It survived because:
+  1. It was documented as a FEATURE ("NAMED fallback, never silent") rather than a VIOLATION
+  2. The operator manual (v1.0) documented it as "Section 2.3: INDEXER-FALLBACK — the named fallback"
+  3. Every prior session treated it as a legitimate substrate because the code comments described it as one
+  4. The "never silent" framing made it SOUND safe (it returns a named token) but the operator's ruling is that NO REGEX FALLBACK SHOULD EXIST AT ALL — a named wrong answer is still a wrong answer
+  5. The operator's prior bans (50+ times across sessions) were recorded in OTHER failure logs and other projects' ship docs — the GI kernel's failure log has ZERO entries about this ban until now
+- **Impact:** The regex fallback has been silently degrading graph quality every time corbell fails. Instead of a loud error that would have immediately surfaced the broken dependency, the system silently produced a REGEX-BASED FAKE GRAPH (regex-scanned exports/imports masquerading as a parse-grade typed store). Every query against this fallback store returns regex-shaped data that LOOKS like a real graph but has no AST fidelity. The operator could have been using degraded results without knowing.
+- **What the fallback actually does (the code, verbatim from populate.ts):**
+  - Line 30: `BINDINGS_RE` — a regex that scans for import statements
+  - Line 33: `collectTsFiles()` — a file walk that collects .ts files
+  - Line 110: calls `parseExports(content)` — a REGEX scan for `export function X`
+  - Line 143: calls `parseExports(tcontent)` again for edge resolution
+  - Line 198: calls `parseExportSites(content)` — another regex for export positions
+  - Line 270: "bare-call scan" — regex-scans for function invocations
+  - Line 286: writes `setMeta(storePath, "substrate", "indexer-fallback")`
+  - Line 295: returns `substrate: "indexer-fallback"` — the named token that made it LOOK safe
+- **The regex functions live in:** `src/omp/gate-middleware.ts:16` (`parseExports`) and `src/omp/gate-middleware.ts` (`parseExportSites`). The gate middleware ALSO uses these for signature-break detection (the gate's use is legitimate — it checks for `export function` removal during edits; the POPULATE use is the banned one).
+- **Disposition:** OPEN — demolition plan produced (7 steps, blast radius: 3 files, 1 externally-used function, ~250 lines to delete). NOT YET EXECUTED.
+
+### F-49 — OPERATOR MANUAL DOCUMENTED THE BANNED PATTERN AS A FEATURE (2026-09-19)
+
+- **What happened:** `reports/GRAPH_INTELLIGENCE_OPERATORS_MANUAL.md` (587 lines, v1.0, 2026-09-17) Section 2.3 describes the indexer-fallback as "the named fallback" — presenting a FORBIDDEN architectural pattern as a legitimate design choice. The manual actively teaches future agents to USE the banned pattern.
+- **Found:** When the operator asked "where is the operator manual for the full GI kernel tools."
+- **Root cause:** The manual was written by a session that inherited the populate.ts code comments at face value. The comments said "NAMED fallback, never silent" and the manual repeated this framing without cross-checking the operator's 50+ prior bans on regex fallbacks across all projects.
+- **Impact:** Any future agent reading the manual would believe the indexer-fallback is a legitimate substrate. The manual is the SOURCE OF TRUTH for operators — a banned pattern documented as a feature is a CRITICAL documentation failure.
+- **Disposition:** OPEN — manual needs full update (remove Section 2.3, document the hard-dependency + loud-fail law as the replacement).
+
+### F-50 — "NAMED FALLBACK" FRAMING MASKED A WRONG-ANSWER ARCHITECTURE (2026-09-19)
+
+- **What happened:** The entire GI kernel was designed with a "never silent" principle that conflates "loud" with "correct." The indexer-fallback IS loud (it returns `substrate: "indexer-fallback"` as a named token) but it is still WRONG — it produces a regex-scanned fake graph that lacks AST fidelity. The "never silent" principle became a Trojan horse for the banned pattern: "it's not silent, so it's safe."
+- **Found:** The operator's reaction made the distinction explicit: a NAMED wrong answer is still a wrong answer. Loud ≠ correct.
+- **Root cause:** The port inherited the "named fallback" pattern from the original trident-bug-hunter codebase (provenance: `PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/`). The original codebase had legitimate fallbacks (LLM provider chains where a slower model is better than no model). The port carried the pattern into a context where it is FORBIDDEN (graph substrates where a regex fake graph is NEVER better than a loud error).
+- **Impact:** The "named fallback" pattern may exist in OTHER parts of the kernel (the scan-chain has a provider fallback; the go-key-pool has an exile-and-advance pattern). Each needs individual adjudication: is this specific fallback a legitimate degraded-mode (LLM provider: yes) or a banned regex substitute (graph substrate: absolutely not)?
+- **Disposition:** OPEN — the hard-dependency law ("HARD DEPENDENCY ON ALL GRAPH SYSTEMS. LOUD FAIL IF ANYTHING IS BROKEN") applies to ALL graph substrates. The scan-chain and go-key-pool fallbacks serve a different domain (LLM providers, not graph parsers) and are NOT banned.
