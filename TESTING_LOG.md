@@ -449,3 +449,25 @@ Top clusters:
 - **The raw output:** `217 pass / 0 fail / 1749 expect() calls / Ran 217 tests across 30 files. [15.67s]`
 - **The verdict:** PASS — zero regressions. Every prior test (211 from W46 close) plus 6 new tests from W45/W46 fixes (F35 poolPath re-chmod contract, F36 conservative confidence, F37 Infinity clamp termination, F38 symlinked-root scope survival, F41 first-run stale-graph fail-closed, F42 sidecar vetted-hash) all green.
 - **The artifacts:** tests/st-gi-w44-highs.test.ts (22 named tests covering 17 findings), kernel suites st-gi-w5-infra.test.ts (10 tests) + st-gi-w6-infra.test.ts (7 tests) — both at or above spec counts.
+
+## TEST RESULT — 2026-09-19 — LIVE HOST BASELINE (fresh session, deployed dist 1b073d07)
+
+### HOST (direct tool execution on the deployed bundle + gi-cli)
+- **The run:** fresh warm graph (graphify 0.9.51 extract: 9814 nodes / 24757 edges) → stale sidecar dropped (fail-closed working) → populate ok:true 1266 nodes / 2714 edges → sidecar rewritten → every verb exercised against session `gi-baseline000000000000`.
+- **The raw output:**
+  - who-calls supersedeThenInsert(): 3 callers with file:line anchors — PASS
+  - impact populateFromCorbellCheckout(): 10 nodes reached with depth anchors — PASS
+  - safe-delete supersedeThenInsert(): 3 callers, 2 uses — PASS
+  - snapshot: 1266 nodes / 1417 live edges (dedup collapse by design) — PASS
+  - diff self-diff: verdict PASS, no structural change — PASS
+  - gate micro on self-diff: PASS — PASS
+  - preflight: strategy + reaches + callers package — PASS
+  - test-targets: 3 ranked targets with inbound + rationale — PASS
+  - graph-probe (bundle): PROBE_TOOL_OK + sessionID — PASS
+  - graph-query blast-radius (bundle): rows=7 — PASS
+  - graph-query would-break (bundle): callers=3 — PASS
+  - bug-hunt (bundle): state=done findingsCount=605 fixOrderCount=20 — PASS
+  - aether-code-audit (bundle): AUDIT_DONE findings=1 + report.md on disk — PASS
+  - unwired: returned 0, store holds 26 Function isolates — FAIL (case-sensitive kind filter)
+- **The verdict:** 14/15 PASS. The 1 failure (unwired kind case) fixed same-session: kind filter now matches kernel convention (commit c466940), re-verified 26 nodes surfaced.
+- **The artifacts:** session store `.omp/graph-intelligence/sessions/gi-baseline000000000000/store.sqlite`; audit reports under `.omp/graph-intelligence/audit/`
