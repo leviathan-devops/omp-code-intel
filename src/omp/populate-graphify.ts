@@ -205,10 +205,16 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
   const hash = createHash("sha256");
   const budget = { n: budgetN };
   let exhausted = false;
-  const hashFile = (abs: string, anchor: string, size: number): void => {
+  const hashFile = (abs: string, anchor: string, statSize: number): void => {
+    let size = statSize;
     let fd: number | null = null;
     try {
       fd = fs.openSync(abs, "r");
+      // W46 (frozen-scan HIGH): the size is taken from FSTAT on the OPEN fd —
+      // the walk's pre-open stat raced replacements (small→1GB grew the alloc,
+      // large→small truncated the view). fstat is authoritative for the file
+      // this handle actually reads.
+      size = fs.fstatSync(fd).size;
       // W8 (frozen-scan HIGH): readSync's return is CHECKED — a short read
       // (truncation race, EOF, signal) hashes what ARRIVED plus a marker, so
       // a truncated read can never collide with the complete file's digest.
