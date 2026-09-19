@@ -112,7 +112,15 @@ export function isGraphifyCheckoutFreshFor(
     sidecarHash = null; // no sidecar → legacy mtime fallback below
   }
   if (sidecarHash) {
-    const currentHash = computeSourceHash(root, scope, excludes);
+    // W46 (frozen-scan HIGH): a recompute throw (EMFILE/EACCES class escaping
+    // the guarded walk) must fail CLOSED as a named verdict — never escape the
+    // probe and crash the caller's populate/query path.
+    let currentHash: string;
+    try {
+      currentHash = computeSourceHash(root, scope, excludes);
+    } catch (hashErr) {
+      return { fresh: false, reason: `stale-hash-error: ${hashErr instanceof Error ? hashErr.message.slice(0, 80) : String(hashErr).slice(0, 80)}` };
+    }
     if (currentHash !== sidecarHash) return { fresh: false, reason: "stale-content" };
     return { fresh: true, reason: "fresh" };
   }
