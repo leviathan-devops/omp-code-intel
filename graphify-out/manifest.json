@@ -1,0 +1,4424 @@
+{
+  ".omp/BASELINE-2026-09-14.json": {
+    "mtime": 1789409572.3939533,
+    "seen": 1789665866.7430415,
+    "ast_hash": "57337814a8d19f43343d7cd87008f941",
+    "semantic_hash": "57337814a8d19f43343d7cd87008f941"
+  },
+  ".omp/ct-results-graphify.json": {
+    "mtime": 1789462668.331273,
+    "seen": 1789665866.7430434,
+    "ast_hash": "8de2a37f04c45b7d6334a584e3aa2b07",
+    "semantic_hash": "8de2a37f04c45b7d6334a584e3aa2b07"
+  },
+  ".omp/ct-results-port.json": {
+    "mtime": 1789425885.5480447,
+    "seen": 1789665866.7430441,
+    "ast_hash": "195339afd845e7db96fdf78aa02182ed",
+    "semantic_hash": "195339afd845e7db96fdf78aa02182ed"
+  },
+  ".omp/ct-results.json": {
+    "mtime": 1789355996.9324777,
+    "seen": 1789665866.7430446,
+    "ast_hash": "e2089b80ad0cf71742346da11f2f4eb8",
+    "semantic_hash": "e2089b80ad0cf71742346da11f2f4eb8"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/artifacts/ct-results-graphify.json": {
+    "mtime": 1789489816.0105917,
+    "seen": 1789665866.7430453,
+    "ast_hash": "8de2a37f04c45b7d6334a584e3aa2b07",
+    "semantic_hash": "8de2a37f04c45b7d6334a584e3aa2b07"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789489815.8578982,
+    "seen": 1789665866.743046,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789489815.857677,
+    "seen": 1789665866.743047,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789489815.857448,
+    "seen": 1789665866.7430537,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789489815.8580377,
+    "seen": 1789665866.7430549,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789489815.8570685,
+    "seen": 1789665866.7430558,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789489815.858537,
+    "seen": 1789665866.743056,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789489815.8580728,
+    "seen": 1789665866.7430565,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/firewall/readonly.ts": {
+    "mtime": 1789489815.8582027,
+    "seen": 1789665866.7430575,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789489815.8585677,
+    "seen": 1789665866.7430577,
+    "ast_hash": "895f134881fd9c46247b3aa4c45463a2",
+    "semantic_hash": "895f134881fd9c46247b3aa4c45463a2"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789489815.8595808,
+    "seen": 1789665866.7430582,
+    "ast_hash": "7babb977aba3409d7d11c08ca9513f3a",
+    "semantic_hash": "7babb977aba3409d7d11c08ca9513f3a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/interface.ts": {
+    "mtime": 1789489815.8588505,
+    "seen": 1789665866.7430587,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/mechanical.ts": {
+    "mtime": 1789489815.8589823,
+    "seen": 1789665866.7430592,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/merge.ts": {
+    "mtime": 1789489815.859039,
+    "seen": 1789665866.7430594,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/resolver.ts": {
+    "mtime": 1789489815.8591745,
+    "seen": 1789665866.74306,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/graph/store-map.ts": {
+    "mtime": 1789489815.8593485,
+    "seen": 1789665866.7430606,
+    "ast_hash": "7499cab18d5ddd44d48e132282c6ab4a",
+    "semantic_hash": "7499cab18d5ddd44d48e132282c6ab4a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789489815.860101,
+    "seen": 1789665866.743061,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/map.ts": {
+    "mtime": 1789489815.860358,
+    "seen": 1789665866.7430615,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789489815.8609772,
+    "seen": 1789665866.743062,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/recon.ts": {
+    "mtime": 1789489815.8602288,
+    "seen": 1789665866.7430625,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/report.ts": {
+    "mtime": 1789489815.8607697,
+    "seen": 1789665866.7430627,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/scan.ts": {
+    "mtime": 1789489815.860498,
+    "seen": 1789665866.7430632,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/strike.ts": {
+    "mtime": 1789489815.86058,
+    "seen": 1789665866.7430634,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/trace.ts": {
+    "mtime": 1789489815.859613,
+    "seen": 1789665866.7430642,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/harness/types.ts": {
+    "mtime": 1789489815.86001,
+    "seen": 1789665866.7430644,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789489815.8610039,
+    "seen": 1789665866.7430649,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/identity/warhead.ts": {
+    "mtime": 1789489815.861215,
+    "seen": 1789665866.7430654,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789489815.8613527,
+    "seen": 1789665866.7430658,
+    "ast_hash": "5dc1632d3970c830f4e9d370401c8de8",
+    "semantic_hash": "5dc1632d3970c830f4e9d370401c8de8"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789489815.862169,
+    "seen": 1789665866.7430663,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789489815.862032,
+    "seen": 1789665866.7430668,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789489815.861623,
+    "seen": 1789665866.743067,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/lexicon/templates.ts": {
+    "mtime": 1789489815.8618226,
+    "seen": 1789665866.7430677,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/log.ts": {
+    "mtime": 1789489815.8568418,
+    "seen": 1789665866.7430682,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/profile/loader.ts": {
+    "mtime": 1789489815.8623986,
+    "seen": 1789665866.7430685,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789489815.862657,
+    "seen": 1789665866.7430687,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/profile/schema.ts": {
+    "mtime": 1789489815.8621938,
+    "seen": 1789665866.7430692,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/db-canon.ts": {
+    "mtime": 1789489815.8634539,
+    "seen": 1789665866.7430696,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/db.ts": {
+    "mtime": 1789489815.8636432,
+    "seen": 1789665866.74307,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789489815.8631415,
+    "seen": 1789665866.7430704,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789489815.8626795,
+    "seen": 1789665866.743074,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/migrations.ts": {
+    "mtime": 1789489815.8633614,
+    "seen": 1789665866.7430747,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/ontology.ts": {
+    "mtime": 1789489815.8629704,
+    "seen": 1789665866.7430751,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789489815.8638475,
+    "seen": 1789665866.7430756,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/shared/query-engine.ts": {
+    "mtime": 1789489815.8639781,
+    "seen": 1789665866.743076,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789489815.8643093,
+    "seen": 1789665866.7430763,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/surface/query-tool.ts": {
+    "mtime": 1789489815.8640306,
+    "seen": 1789665866.7430768,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789489815.86443,
+    "seen": 1789665866.743077,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789489815.8646042,
+    "seen": 1789665866.7430775,
+    "ast_hash": "6947fd60e7f2f9ff67890da9c9338678",
+    "semantic_hash": "6947fd60e7f2f9ff67890da9c9338678"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/tools/query-registration.ts": {
+    "mtime": 1789489815.865013,
+    "seen": 1789665866.743078,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789489815.865201,
+    "seen": 1789665866.7430785,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hunter/triad.ts": {
+    "mtime": 1789489815.8565936,
+    "seen": 1789665866.743079,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789489815.866346,
+    "seen": 1789665866.7430792,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789489815.8664427,
+    "seen": 1789665866.7430797,
+    "ast_hash": "9592b78fdb45572d7ac1081630815c64",
+    "semantic_hash": "9592b78fdb45572d7ac1081630815c64"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789489815.8660402,
+    "seen": 1789665866.74308,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/auditor.ts": {
+    "mtime": 1789489815.8676622,
+    "seen": 1789665866.7430804,
+    "ast_hash": "2124695378e4e0323ed052f540cf4485",
+    "semantic_hash": "2124695378e4e0323ed052f540cf4485"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/client-reader.ts": {
+    "mtime": 1789489815.865275,
+    "seen": 1789665866.7430809,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/map-reader.ts": {
+    "mtime": 1789489815.865707,
+    "seen": 1789665866.7430813,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/pipeline.ts": {
+    "mtime": 1789489815.8659806,
+    "seen": 1789665866.7430818,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/templates/index.ts": {
+    "mtime": 1789489815.8674128,
+    "seen": 1789665866.7430823,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/templates/lasme.ts": {
+    "mtime": 1789489815.867104,
+    "seen": 1789665866.7430828,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/templates/mpse.ts": {
+    "mtime": 1789489815.8668797,
+    "seen": 1789665866.743083,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/templates/sro.ts": {
+    "mtime": 1789489815.8672514,
+    "seen": 1789665866.7430835,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/hydra/templates/types.ts": {
+    "mtime": 1789489815.8665214,
+    "seen": 1789665866.743084,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/extension.ts": {
+    "mtime": 1789489815.8697922,
+    "seen": 1789665866.7430842,
+    "ast_hash": "bca4193ab069e4a92d506fbdd91e2020",
+    "semantic_hash": "bca4193ab069e4a92d506fbdd91e2020"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/gate-hook.ts": {
+    "mtime": 1789489815.868743,
+    "seen": 1789665866.743085,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/gate-middleware.ts": {
+    "mtime": 1789489815.8681455,
+    "seen": 1789665866.7430851,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/gi-registry.ts": {
+    "mtime": 1789489815.8682961,
+    "seen": 1789665866.7430854,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/populate-corbell.ts": {
+    "mtime": 1789489815.8691695,
+    "seen": 1789665866.7430859,
+    "ast_hash": "ba064b5c3358da9425d70325b1540776",
+    "semantic_hash": "ba064b5c3358da9425d70325b1540776"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/populate-graphify.ts": {
+    "mtime": 1789489815.8695955,
+    "seen": 1789665866.7430863,
+    "ast_hash": "266573e999fd78ca59f5952a588bab7a",
+    "semantic_hash": "266573e999fd78ca59f5952a588bab7a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/populate.ts": {
+    "mtime": 1789489815.8689454,
+    "seen": 1789665866.7430866,
+    "ast_hash": "5b60e9729357a326901d00b982d7005a",
+    "semantic_hash": "5b60e9729357a326901d00b982d7005a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/ripwire-bridge.ts": {
+    "mtime": 1789489815.8693676,
+    "seen": 1789665866.7430868,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/store-open.ts": {
+    "mtime": 1789489815.8684406,
+    "seen": 1789665866.7430873,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/omp/typed-write.ts": {
+    "mtime": 1789489815.867752,
+    "seen": 1789665866.7430875,
+    "ast_hash": "10f5756ce9d101535019802fb63916d2",
+    "semantic_hash": "10f5756ce9d101535019802fb63916d2"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/db-path.ts": {
+    "mtime": 1789489815.870261,
+    "seen": 1789665866.7430878,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789489815.870648,
+    "seen": 1789665866.7430885,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/gi-session-path.ts": {
+    "mtime": 1789489815.8705404,
+    "seen": 1789665866.743089,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/index.ts": {
+    "mtime": 1789489815.8707767,
+    "seen": 1789665866.7430892,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/scope-binding.ts": {
+    "mtime": 1789489815.8698661,
+    "seen": 1789665866.74309,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/scope-resolver.ts": {
+    "mtime": 1789489815.8701138,
+    "seen": 1789665866.7430904,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/scoped-store.ts": {
+    "mtime": 1789489815.870337,
+    "seen": 1789665866.7430906,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/src/scoping/session-state.ts": {
+    "mtime": 1789489815.870406,
+    "seen": 1789665866.743091,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/pipeline-battery.test.ts": {
+    "mtime": 1789489815.9787195,
+    "seen": 1789665866.7430918,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/reader-battery.test.ts": {
+    "mtime": 1789489815.978745,
+    "seen": 1789665866.743093,
+    "ast_hash": "9592b78fdb45572d7ac1081630815c64",
+    "semantic_hash": "9592b78fdb45572d7ac1081630815c64"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/settle-battery.test.ts": {
+    "mtime": 1789489815.978769,
+    "seen": 1789665866.7430935,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-corbell-port.ts": {
+    "mtime": 1789489815.9759448,
+    "seen": 1789665866.743094,
+    "ast_hash": "afc1b2931bd44e0a4b4f968046e96264",
+    "semantic_hash": "afc1b2931bd44e0a4b4f968046e96264"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-corrupt.ts": {
+    "mtime": 1789489815.9761498,
+    "seen": 1789665866.7430942,
+    "ast_hash": "f3e265c9adfe8507f5969baf67232618",
+    "semantic_hash": "f3e265c9adfe8507f5969baf67232618"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-gate.ts": {
+    "mtime": 1789489815.9763746,
+    "seen": 1789665866.7430947,
+    "ast_hash": "acf846c866e8786d09455b6734b0f1f7",
+    "semantic_hash": "acf846c866e8786d09455b6734b0f1f7"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-isolate.ts": {
+    "mtime": 1789489815.9765337,
+    "seen": 1789665866.7430954,
+    "ast_hash": "03b11b9d58efa492ebb730a540741636",
+    "semantic_hash": "03b11b9d58efa492ebb730a540741636"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-populate.ts": {
+    "mtime": 1789489815.9767582,
+    "seen": 1789665866.7430959,
+    "ast_hash": "332c04b186ab24f4be3e08c529acb543",
+    "semantic_hash": "332c04b186ab24f4be3e08c529acb543"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-refuse.ts": {
+    "mtime": 1789489815.9769895,
+    "seen": 1789665866.743096,
+    "ast_hash": "e9f91e95fcda7f058e4618118c044d7e",
+    "semantic_hash": "e9f91e95fcda7f058e4618118c044d7e"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-scope.ts": {
+    "mtime": 1789489815.9770916,
+    "seen": 1789665866.7430966,
+    "ast_hash": "92b220ac2184873cbac9bd0a9d5dbbe0",
+    "semantic_hash": "92b220ac2184873cbac9bd0a9d5dbbe0"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-tools.ts": {
+    "mtime": 1789489815.977233,
+    "seen": 1789665866.743097,
+    "ast_hash": "1c90a3ada55a34cda640c9fea642a6cc",
+    "semantic_hash": "1c90a3ada55a34cda640c9fea642a6cc"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-gi-omp-wipe.ts": {
+    "mtime": 1789489815.977373,
+    "seen": 1789665866.7430973,
+    "ast_hash": "9a6a748fa11b7effe32771ba07593c47",
+    "semantic_hash": "9a6a748fa11b7effe32771ba07593c47"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-go-fallback.ts": {
+    "mtime": 1789489815.977614,
+    "seen": 1789665866.7430978,
+    "ast_hash": "8f96b91c12f9ac0a352bb90aecd2735f",
+    "semantic_hash": "8f96b91c12f9ac0a352bb90aecd2735f"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-graphify-port.ts": {
+    "mtime": 1789489815.9777997,
+    "seen": 1789665866.743098,
+    "ast_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c",
+    "semantic_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-hunter-live.ts": {
+    "mtime": 1789489815.9780304,
+    "seen": 1789665866.7430987,
+    "ast_hash": "cede3ff8d8b788800b45a2ac9a432308",
+    "semantic_hash": "cede3ff8d8b788800b45a2ac9a432308"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-hunter-port.ts": {
+    "mtime": 1789489815.9781933,
+    "seen": 1789665866.7430992,
+    "ast_hash": "97e322ea7038c2d16a0e946de9e29ddc",
+    "semantic_hash": "97e322ea7038c2d16a0e946de9e29ddc"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-populate-substrate.ts": {
+    "mtime": 1789489815.9784193,
+    "seen": 1789665866.7430995,
+    "ast_hash": "2651e076dc164df0821d31139aba72c8",
+    "semantic_hash": "2651e076dc164df0821d31139aba72c8"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-ripwire-bridge.ts": {
+    "mtime": 1789489815.9785435,
+    "seen": 1789665866.7430997,
+    "ast_hash": "20a728631260ef81772f40feb8e78914",
+    "semantic_hash": "20a728631260ef81772f40feb8e78914"
+  },
+  "Checkpoints/gi-gatefail-pre-V20-ee122880/tests/st-verbs-parse.ts": {
+    "mtime": 1789489815.9786909,
+    "seen": 1789665866.7431002,
+    "ast_hash": "a3e21e55d7f5a993f0e286a0fe56b40d",
+    "semantic_hash": "a3e21e55d7f5a993f0e286a0fe56b40d"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/ct-results-graphify.json": {
+    "mtime": 1789473392.256564,
+    "seen": 1789665866.7431006,
+    "ast_hash": "8de2a37f04c45b7d6334a584e3aa2b07",
+    "semantic_hash": "8de2a37f04c45b7d6334a584e3aa2b07"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/ct-results-port.json": {
+    "mtime": 1789473392.256804,
+    "seen": 1789665866.743101,
+    "ast_hash": "195339afd845e7db96fdf78aa02182ed",
+    "semantic_hash": "195339afd845e7db96fdf78aa02182ed"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789473392.0388193,
+    "seen": 1789665866.7431014,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789473392.0382447,
+    "seen": 1789665866.7431018,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789473392.0381036,
+    "seen": 1789665866.7431026,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789473392.0392697,
+    "seen": 1789665866.7431028,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789473392.03773,
+    "seen": 1789665866.743103,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789473392.0398867,
+    "seen": 1789665866.7431035,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789473392.0393293,
+    "seen": 1789665866.7431037,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/firewall/readonly.ts": {
+    "mtime": 1789473392.039647,
+    "seen": 1789665866.7431042,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789473392.0399163,
+    "seen": 1789665866.7431045,
+    "ast_hash": "895f134881fd9c46247b3aa4c45463a2",
+    "semantic_hash": "895f134881fd9c46247b3aa4c45463a2"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789473392.0412447,
+    "seen": 1789665866.743105,
+    "ast_hash": "944688b6b27dc4113e5953bad9d2130a",
+    "semantic_hash": "944688b6b27dc4113e5953bad9d2130a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/interface.ts": {
+    "mtime": 1789473392.0402446,
+    "seen": 1789665866.7431056,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/mechanical.ts": {
+    "mtime": 1789473392.0404627,
+    "seen": 1789665866.7431061,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/merge.ts": {
+    "mtime": 1789473392.0406482,
+    "seen": 1789665866.7431068,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/resolver.ts": {
+    "mtime": 1789473392.0407403,
+    "seen": 1789665866.7431073,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/graph/store-map.ts": {
+    "mtime": 1789473392.041,
+    "seen": 1789665866.7431076,
+    "ast_hash": "7499cab18d5ddd44d48e132282c6ab4a",
+    "semantic_hash": "7499cab18d5ddd44d48e132282c6ab4a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789473392.0421028,
+    "seen": 1789665866.743108,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/map.ts": {
+    "mtime": 1789473392.0425446,
+    "seen": 1789665866.7431085,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789473392.0439155,
+    "seen": 1789665866.7431092,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/recon.ts": {
+    "mtime": 1789473392.0422542,
+    "seen": 1789665866.7431097,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/report.ts": {
+    "mtime": 1789473392.043247,
+    "seen": 1789665866.7431102,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/scan.ts": {
+    "mtime": 1789473392.0427592,
+    "seen": 1789665866.7431107,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/strike.ts": {
+    "mtime": 1789473392.0429053,
+    "seen": 1789665866.743111,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/trace.ts": {
+    "mtime": 1789473392.0414674,
+    "seen": 1789665866.7431114,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/harness/types.ts": {
+    "mtime": 1789473392.041931,
+    "seen": 1789665866.7431118,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789473392.0439913,
+    "seen": 1789665866.7431126,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/identity/warhead.ts": {
+    "mtime": 1789473392.0442739,
+    "seen": 1789665866.7431128,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789473392.0444906,
+    "seen": 1789665866.7431133,
+    "ast_hash": "b7bce50d547eeceb43b1becd296ada3c",
+    "semantic_hash": "b7bce50d547eeceb43b1becd296ada3c"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789473392.046007,
+    "seen": 1789665866.7431135,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789473392.0458353,
+    "seen": 1789665866.743114,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789473392.0448754,
+    "seen": 1789665866.7431142,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/lexicon/templates.ts": {
+    "mtime": 1789473392.0452447,
+    "seen": 1789665866.7431147,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/log.ts": {
+    "mtime": 1789473392.0376966,
+    "seen": 1789665866.7431152,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/profile/loader.ts": {
+    "mtime": 1789473392.046661,
+    "seen": 1789665866.7431154,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789473392.0468748,
+    "seen": 1789665866.7431157,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/profile/schema.ts": {
+    "mtime": 1789473392.0462449,
+    "seen": 1789665866.7431164,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/db-canon.ts": {
+    "mtime": 1789473392.0485246,
+    "seen": 1789665866.7431166,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/db.ts": {
+    "mtime": 1789473392.0487669,
+    "seen": 1789665866.743117,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789473392.0480485,
+    "seen": 1789665866.7431173,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789473392.0469346,
+    "seen": 1789665866.7431178,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/migrations.ts": {
+    "mtime": 1789473392.048272,
+    "seen": 1789665866.743118,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/ontology.ts": {
+    "mtime": 1789473392.0478349,
+    "seen": 1789665866.7431185,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789473392.0489585,
+    "seen": 1789665866.7431188,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/shared/query-engine.ts": {
+    "mtime": 1789473392.0491207,
+    "seen": 1789665866.7431195,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789473392.04954,
+    "seen": 1789665866.7431197,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/surface/query-tool.ts": {
+    "mtime": 1789473392.0492449,
+    "seen": 1789665866.7431202,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789473392.0497336,
+    "seen": 1789665866.7431207,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789473392.0499136,
+    "seen": 1789665866.743121,
+    "ast_hash": "6947fd60e7f2f9ff67890da9c9338678",
+    "semantic_hash": "6947fd60e7f2f9ff67890da9c9338678"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/tools/query-registration.ts": {
+    "mtime": 1789473392.0502448,
+    "seen": 1789665866.7431214,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789473392.0507925,
+    "seen": 1789665866.7431216,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hunter/triad.ts": {
+    "mtime": 1789473392.0369506,
+    "seen": 1789665866.743122,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789473392.052041,
+    "seen": 1789665866.7431226,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789473392.0521417,
+    "seen": 1789665866.743123,
+    "ast_hash": "9592b78fdb45572d7ac1081630815c64",
+    "semantic_hash": "9592b78fdb45572d7ac1081630815c64"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789473392.0516074,
+    "seen": 1789665866.7431233,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/auditor.ts": {
+    "mtime": 1789473392.051245,
+    "seen": 1789665866.7431238,
+    "ast_hash": "8c93068f0295e9213022a290e360770b",
+    "semantic_hash": "8c93068f0295e9213022a290e360770b"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/client-reader.ts": {
+    "mtime": 1789473392.0508337,
+    "seen": 1789665866.7431242,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/map-reader.ts": {
+    "mtime": 1789473392.0512187,
+    "seen": 1789665866.7431247,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/pipeline.ts": {
+    "mtime": 1789473392.051572,
+    "seen": 1789665866.743125,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/templates/index.ts": {
+    "mtime": 1789473392.0532591,
+    "seen": 1789665866.7431257,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/templates/lasme.ts": {
+    "mtime": 1789473392.052917,
+    "seen": 1789665866.7431262,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/templates/mpse.ts": {
+    "mtime": 1789473392.0526998,
+    "seen": 1789665866.7431266,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/templates/sro.ts": {
+    "mtime": 1789473392.053136,
+    "seen": 1789665866.7431269,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/hydra/templates/types.ts": {
+    "mtime": 1789473392.052245,
+    "seen": 1789665866.7431273,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/extension.ts": {
+    "mtime": 1789473392.054245,
+    "seen": 1789665866.7431276,
+    "ast_hash": "b95e733dcb4c9e5ddc24601f0afcd082",
+    "semantic_hash": "b95e733dcb4c9e5ddc24601f0afcd082"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/gate-hook.ts": {
+    "mtime": 1789473392.0549,
+    "seen": 1789665866.7431278,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/gate-middleware.ts": {
+    "mtime": 1789473392.053992,
+    "seen": 1789665866.7431283,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/gi-registry.ts": {
+    "mtime": 1789473392.0544677,
+    "seen": 1789665866.7431293,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/populate-corbell.ts": {
+    "mtime": 1789473392.055245,
+    "seen": 1789665866.7431295,
+    "ast_hash": "02403598316a4cadb4cb488f98ea5c07",
+    "semantic_hash": "02403598316a4cadb4cb488f98ea5c07"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/populate-graphify.ts": {
+    "mtime": 1789473392.055719,
+    "seen": 1789665866.7431302,
+    "ast_hash": "52cb4496ed2f8c28258c9838add00c29",
+    "semantic_hash": "52cb4496ed2f8c28258c9838add00c29"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/populate.ts": {
+    "mtime": 1789473392.0550976,
+    "seen": 1789665866.7431304,
+    "ast_hash": "5b60e9729357a326901d00b982d7005a",
+    "semantic_hash": "5b60e9729357a326901d00b982d7005a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/ripwire-bridge.ts": {
+    "mtime": 1789473392.0555034,
+    "seen": 1789665866.743131,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/store-open.ts": {
+    "mtime": 1789473392.0546396,
+    "seen": 1789665866.7431312,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/omp/typed-write.ts": {
+    "mtime": 1789473392.0532992,
+    "seen": 1789665866.7431316,
+    "ast_hash": "13b2a09cb98abe07dcf0e2bcd5840bfd",
+    "semantic_hash": "13b2a09cb98abe07dcf0e2bcd5840bfd"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/db-path.ts": {
+    "mtime": 1789473392.056198,
+    "seen": 1789665866.7431319,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789473392.056779,
+    "seen": 1789665866.7431324,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/gi-session-path.ts": {
+    "mtime": 1789473392.0565784,
+    "seen": 1789665866.7431326,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/index.ts": {
+    "mtime": 1789473392.056902,
+    "seen": 1789665866.743133,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/scope-binding.ts": {
+    "mtime": 1789473392.0557668,
+    "seen": 1789665866.7431335,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/scope-resolver.ts": {
+    "mtime": 1789473392.0560613,
+    "seen": 1789665866.7431338,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/scoped-store.ts": {
+    "mtime": 1789473392.0562449,
+    "seen": 1789665866.7431343,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/src/scoping/session-state.ts": {
+    "mtime": 1789473392.0564299,
+    "seen": 1789665866.7431345,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "Checkpoints/gi-rescope-shipped-34ba3ffe/st-go-fallback.ts": {
+    "mtime": 1789473392.2788677,
+    "seen": 1789665866.7431347,
+    "ast_hash": "8f96b91c12f9ac0a352bb90aecd2735f",
+    "semantic_hash": "8f96b91c12f9ac0a352bb90aecd2735f"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/artifacts/ct-results-graphify.json": {
+    "mtime": 1789608152.193171,
+    "seen": 1789665866.7431352,
+    "ast_hash": "8de2a37f04c45b7d6334a584e3aa2b07",
+    "semantic_hash": "8de2a37f04c45b7d6334a584e3aa2b07"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/scan-panel.sh": {
+    "mtime": 1789608152.1652732,
+    "seen": 1789665866.7431357,
+    "ast_hash": "399dc5a7eda92d9d352e229eff693e3f",
+    "semantic_hash": "399dc5a7eda92d9d352e229eff693e3f"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789608151.950394,
+    "seen": 1789665866.743136,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789608151.9503791,
+    "seen": 1789665866.7431364,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789608151.9503682,
+    "seen": 1789665866.743137,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789608151.9508295,
+    "seen": 1789665866.7431374,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789608151.950352,
+    "seen": 1789665866.7431376,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789608151.9523308,
+    "seen": 1789665866.743138,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789608151.9520128,
+    "seen": 1789665866.7431383,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/firewall/readonly.ts": {
+    "mtime": 1789608151.9522147,
+    "seen": 1789665866.7431388,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789608151.9523542,
+    "seen": 1789665866.743139,
+    "ast_hash": "895f134881fd9c46247b3aa4c45463a2",
+    "semantic_hash": "895f134881fd9c46247b3aa4c45463a2"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789608151.952776,
+    "seen": 1789665866.7431395,
+    "ast_hash": "7625be0d2c514ec6e2392a21f2dac38f",
+    "semantic_hash": "7625be0d2c514ec6e2392a21f2dac38f"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/interface.ts": {
+    "mtime": 1789608151.9523757,
+    "seen": 1789665866.7431397,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/mechanical.ts": {
+    "mtime": 1789608151.952562,
+    "seen": 1789665866.7431405,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/merge.ts": {
+    "mtime": 1789608151.952656,
+    "seen": 1789665866.7431407,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/resolver.ts": {
+    "mtime": 1789608151.952753,
+    "seen": 1789665866.7431412,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/graph/store-map.ts": {
+    "mtime": 1789608151.9527655,
+    "seen": 1789665866.7431414,
+    "ast_hash": "7499cab18d5ddd44d48e132282c6ab4a",
+    "semantic_hash": "7499cab18d5ddd44d48e132282c6ab4a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789608151.953012,
+    "seen": 1789665866.743142,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/map.ts": {
+    "mtime": 1789608151.9530292,
+    "seen": 1789665866.7431424,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789608151.953066,
+    "seen": 1789665866.7431426,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/recon.ts": {
+    "mtime": 1789608151.9530206,
+    "seen": 1789665866.743143,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/report.ts": {
+    "mtime": 1789608151.9530556,
+    "seen": 1789665866.7431433,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/scan.ts": {
+    "mtime": 1789608151.9530392,
+    "seen": 1789665866.743144,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/strike.ts": {
+    "mtime": 1789608151.953048,
+    "seen": 1789665866.7431443,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/trace.ts": {
+    "mtime": 1789608151.9528027,
+    "seen": 1789665866.7431448,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/harness/types.ts": {
+    "mtime": 1789608151.9530044,
+    "seen": 1789665866.7431452,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789608151.9530878,
+    "seen": 1789665866.7431457,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/identity/warhead.ts": {
+    "mtime": 1789608151.9532626,
+    "seen": 1789665866.743146,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789608151.9535692,
+    "seen": 1789665866.7431464,
+    "ast_hash": "e7e52c6fd6dde64ad1c193f0df988d84",
+    "semantic_hash": "e7e52c6fd6dde64ad1c193f0df988d84"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789608151.9536304,
+    "seen": 1789665866.743147,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789608151.9536211,
+    "seen": 1789665866.7431474,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789608151.9535933,
+    "seen": 1789665866.7431479,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/lexicon/templates.ts": {
+    "mtime": 1789608151.9536078,
+    "seen": 1789665866.743148,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/log.ts": {
+    "mtime": 1789608151.9503295,
+    "seen": 1789665866.7431486,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/profile/loader.ts": {
+    "mtime": 1789608151.9536586,
+    "seen": 1789665866.7431488,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789608151.9537847,
+    "seen": 1789665866.7431493,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/profile/schema.ts": {
+    "mtime": 1789608151.9536479,
+    "seen": 1789665866.7431495,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/db-canon.ts": {
+    "mtime": 1789608151.95384,
+    "seen": 1789665866.74315,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/db.ts": {
+    "mtime": 1789608151.9538496,
+    "seen": 1789665866.7431502,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789608151.9538255,
+    "seen": 1789665866.743151,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789608151.9538076,
+    "seen": 1789665866.7431512,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/migrations.ts": {
+    "mtime": 1789608151.9538329,
+    "seen": 1789665866.7431517,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/ontology.ts": {
+    "mtime": 1789608151.9538171,
+    "seen": 1789665866.743152,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789608151.954054,
+    "seen": 1789665866.7431521,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/shared/query-engine.ts": {
+    "mtime": 1789608151.9541476,
+    "seen": 1789665866.7431526,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789608151.9543443,
+    "seen": 1789665866.743153,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/surface/query-tool.ts": {
+    "mtime": 1789608151.9541683,
+    "seen": 1789665866.7431536,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789608151.9543705,
+    "seen": 1789665866.7431538,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789608151.9545448,
+    "seen": 1789665866.7431545,
+    "ast_hash": "15badcebd110c7380cecd50bc30045cc",
+    "semantic_hash": "15badcebd110c7380cecd50bc30045cc"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/tools/query-registration.ts": {
+    "mtime": 1789608151.9545572,
+    "seen": 1789665866.7431548,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789608151.9546928,
+    "seen": 1789665866.7431552,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hunter/triad.ts": {
+    "mtime": 1789608151.9503062,
+    "seen": 1789665866.7431555,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789608151.9547737,
+    "seen": 1789665866.743156,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789608151.9547827,
+    "seen": 1789665866.7431562,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789608151.9547615,
+    "seen": 1789665866.7431567,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/auditor.ts": {
+    "mtime": 1789608151.9548593,
+    "seen": 1789665866.743157,
+    "ast_hash": "d9b800a821828988093638e2ff335ecb",
+    "semantic_hash": "d9b800a821828988093638e2ff335ecb"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/client-reader.ts": {
+    "mtime": 1789608151.9547193,
+    "seen": 1789665866.7431574,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/map-reader.ts": {
+    "mtime": 1789608151.9547315,
+    "seen": 1789665866.7431579,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/pipeline.ts": {
+    "mtime": 1789608151.9547422,
+    "seen": 1789665866.743158,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/templates/index.ts": {
+    "mtime": 1789608151.954848,
+    "seen": 1789665866.7431586,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/templates/lasme.ts": {
+    "mtime": 1789608151.9548278,
+    "seen": 1789665866.743159,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/templates/mpse.ts": {
+    "mtime": 1789608151.9548137,
+    "seen": 1789665866.7431593,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/templates/sro.ts": {
+    "mtime": 1789608151.9548378,
+    "seen": 1789665866.7431598,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/hydra/templates/types.ts": {
+    "mtime": 1789608151.954803,
+    "seen": 1789665866.74316,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/extension.ts": {
+    "mtime": 1789608151.9549868,
+    "seen": 1789665866.7431605,
+    "ast_hash": "7b02c6fde057caa2de71609f1a5b229a",
+    "semantic_hash": "7b02c6fde057caa2de71609f1a5b229a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/gate-hook.ts": {
+    "mtime": 1789608151.9549327,
+    "seen": 1789665866.7431612,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/gate-middleware.ts": {
+    "mtime": 1789608151.9549081,
+    "seen": 1789665866.7431614,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/gi-registry.ts": {
+    "mtime": 1789608151.9549172,
+    "seen": 1789665866.743162,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/populate-corbell.ts": {
+    "mtime": 1789608151.9549768,
+    "seen": 1789665866.7431624,
+    "ast_hash": "198266c39b93737c7051327930bcee58",
+    "semantic_hash": "198266c39b93737c7051327930bcee58"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/populate-graphify.ts": {
+    "mtime": 1789608151.9549656,
+    "seen": 1789665866.7431626,
+    "ast_hash": "6562a771f9906a25eaf319877e1486f5",
+    "semantic_hash": "6562a771f9906a25eaf319877e1486f5"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/populate.ts": {
+    "mtime": 1789608151.9549432,
+    "seen": 1789665866.743163,
+    "ast_hash": "f3002eb6a0b6b16dc5b2b5a30460c481",
+    "semantic_hash": "f3002eb6a0b6b16dc5b2b5a30460c481"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/ripwire-bridge.ts": {
+    "mtime": 1789608151.9549546,
+    "seen": 1789665866.7431633,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/store-open.ts": {
+    "mtime": 1789608151.9549248,
+    "seen": 1789665866.7431638,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/omp/typed-write.ts": {
+    "mtime": 1789608151.95489,
+    "seen": 1789665866.743164,
+    "ast_hash": "71757cc007ff53f3e838a601be0e47ca",
+    "semantic_hash": "71757cc007ff53f3e838a601be0e47ca"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/db-path.ts": {
+    "mtime": 1789608151.9550333,
+    "seen": 1789665866.7431648,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789608151.9550662,
+    "seen": 1789665866.7431653,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/gi-session-path.ts": {
+    "mtime": 1789608151.9550579,
+    "seen": 1789665866.7431655,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/index.ts": {
+    "mtime": 1789608151.9550738,
+    "seen": 1789665866.743166,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/scope-binding.ts": {
+    "mtime": 1789608151.9550123,
+    "seen": 1789665866.7431662,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/scope-resolver.ts": {
+    "mtime": 1789608151.9550245,
+    "seen": 1789665866.7431667,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/scoped-store.ts": {
+    "mtime": 1789608151.9550412,
+    "seen": 1789665866.743167,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/src/scoping/session-state.ts": {
+    "mtime": 1789608151.9550498,
+    "seen": 1789665866.7431674,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/pipeline-battery.test.ts": {
+    "mtime": 1789608152.0924425,
+    "seen": 1789665866.743168,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/reader-battery.test.ts": {
+    "mtime": 1789608152.0924528,
+    "seen": 1789665866.7431684,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/settle-battery.test.ts": {
+    "mtime": 1789608152.0924635,
+    "seen": 1789665866.7431688,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-corbell-port.ts": {
+    "mtime": 1789608152.092229,
+    "seen": 1789665866.743169,
+    "ast_hash": "afc1b2931bd44e0a4b4f968046e96264",
+    "semantic_hash": "afc1b2931bd44e0a4b4f968046e96264"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-corrupt.ts": {
+    "mtime": 1789608152.0922506,
+    "seen": 1789665866.7431695,
+    "ast_hash": "6b0becde061963b4a4432b80245e02cf",
+    "semantic_hash": "6b0becde061963b4a4432b80245e02cf"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-gate.ts": {
+    "mtime": 1789608152.09226,
+    "seen": 1789665866.74317,
+    "ast_hash": "acf846c866e8786d09455b6734b0f1f7",
+    "semantic_hash": "acf846c866e8786d09455b6734b0f1f7"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-isolate.ts": {
+    "mtime": 1789608152.092269,
+    "seen": 1789665866.7431705,
+    "ast_hash": "03b11b9d58efa492ebb730a540741636",
+    "semantic_hash": "03b11b9d58efa492ebb730a540741636"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-populate.ts": {
+    "mtime": 1789608152.0922794,
+    "seen": 1789665866.7431707,
+    "ast_hash": "332c04b186ab24f4be3e08c529acb543",
+    "semantic_hash": "332c04b186ab24f4be3e08c529acb543"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-refuse.ts": {
+    "mtime": 1789608152.0922902,
+    "seen": 1789665866.7431712,
+    "ast_hash": "e9f91e95fcda7f058e4618118c044d7e",
+    "semantic_hash": "e9f91e95fcda7f058e4618118c044d7e"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-scope.ts": {
+    "mtime": 1789608152.0922985,
+    "seen": 1789665866.7431717,
+    "ast_hash": "92b220ac2184873cbac9bd0a9d5dbbe0",
+    "semantic_hash": "92b220ac2184873cbac9bd0a9d5dbbe0"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-tools.ts": {
+    "mtime": 1789608152.0923076,
+    "seen": 1789665866.7431722,
+    "ast_hash": "1c90a3ada55a34cda640c9fea642a6cc",
+    "semantic_hash": "1c90a3ada55a34cda640c9fea642a6cc"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-gi-omp-wipe.ts": {
+    "mtime": 1789608152.0923164,
+    "seen": 1789665866.7431726,
+    "ast_hash": "9a6a748fa11b7effe32771ba07593c47",
+    "semantic_hash": "9a6a748fa11b7effe32771ba07593c47"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-go-fallback.ts": {
+    "mtime": 1789608152.0923302,
+    "seen": 1789665866.743173,
+    "ast_hash": "72479abbf5296e0ea20e23c6db62117b",
+    "semantic_hash": "72479abbf5296e0ea20e23c6db62117b"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-graphify-port.ts": {
+    "mtime": 1789608152.0923414,
+    "seen": 1789665866.7431736,
+    "ast_hash": "1214aa76353aa276dfd639d7b7a06a2c",
+    "semantic_hash": "1214aa76353aa276dfd639d7b7a06a2c"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-hunter-live.ts": {
+    "mtime": 1789608152.0923567,
+    "seen": 1789665866.7431738,
+    "ast_hash": "cede3ff8d8b788800b45a2ac9a432308",
+    "semantic_hash": "cede3ff8d8b788800b45a2ac9a432308"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-hunter-port.ts": {
+    "mtime": 1789608152.0923688,
+    "seen": 1789665866.7431743,
+    "ast_hash": "97e322ea7038c2d16a0e946de9e29ddc",
+    "semantic_hash": "97e322ea7038c2d16a0e946de9e29ddc"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-populate-substrate.ts": {
+    "mtime": 1789608152.0923805,
+    "seen": 1789665866.743175,
+    "ast_hash": "2651e076dc164df0821d31139aba72c8",
+    "semantic_hash": "2651e076dc164df0821d31139aba72c8"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-ripwire-bridge.ts": {
+    "mtime": 1789608152.0923915,
+    "seen": 1789665866.7431753,
+    "ast_hash": "20a728631260ef81772f40feb8e78914",
+    "semantic_hash": "20a728631260ef81772f40feb8e78914"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-v21-identity.ts": {
+    "mtime": 1789608152.0924027,
+    "seen": 1789665866.7431757,
+    "ast_hash": "77d01502ee71d4d9c7d83d5ea8397069",
+    "semantic_hash": "77d01502ee71d4d9c7d83d5ea8397069"
+  },
+  "Checkpoints/gi-v1.1-post-cleanup-8b79b261/tests/st-verbs-parse.ts": {
+    "mtime": 1789608152.092413,
+    "seen": 1789665866.743176,
+    "ast_hash": "e69f7f528ba8d80d717c87e2b4a6726b",
+    "semantic_hash": "e69f7f528ba8d80d717c87e2b4a6726b"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/artifacts/ct-results-graphify.json": {
+    "mtime": 1789550306.47143,
+    "seen": 1789665866.7431774,
+    "ast_hash": "8de2a37f04c45b7d6334a584e3aa2b07",
+    "semantic_hash": "8de2a37f04c45b7d6334a584e3aa2b07"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789550306.3559422,
+    "seen": 1789665866.743178,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789550306.3557224,
+    "seen": 1789665866.7431781,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789550306.3554845,
+    "seen": 1789665866.7431788,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789550306.3561406,
+    "seen": 1789665866.7431793,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789550306.355114,
+    "seen": 1789665866.7431796,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789550306.3564851,
+    "seen": 1789665866.7431798,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789550306.3561685,
+    "seen": 1789665866.7431803,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/firewall/readonly.ts": {
+    "mtime": 1789550306.3564234,
+    "seen": 1789665866.7431805,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789550306.3565078,
+    "seen": 1789665866.743181,
+    "ast_hash": "895f134881fd9c46247b3aa4c45463a2",
+    "semantic_hash": "895f134881fd9c46247b3aa4c45463a2"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789550306.3576107,
+    "seen": 1789665866.7431815,
+    "ast_hash": "d62993ff0cc2dc188fc90454c5cf0656",
+    "semantic_hash": "d62993ff0cc2dc188fc90454c5cf0656"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/interface.ts": {
+    "mtime": 1789550306.356877,
+    "seen": 1789665866.7431817,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/mechanical.ts": {
+    "mtime": 1789550306.3570094,
+    "seen": 1789665866.7431824,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/merge.ts": {
+    "mtime": 1789550306.3570957,
+    "seen": 1789665866.7431827,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/resolver.ts": {
+    "mtime": 1789550306.357185,
+    "seen": 1789665866.7431831,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/graph/store-map.ts": {
+    "mtime": 1789550306.3573918,
+    "seen": 1789665866.7431834,
+    "ast_hash": "7499cab18d5ddd44d48e132282c6ab4a",
+    "semantic_hash": "7499cab18d5ddd44d48e132282c6ab4a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789550306.3581345,
+    "seen": 1789665866.7431839,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/map.ts": {
+    "mtime": 1789550306.3584616,
+    "seen": 1789665866.743184,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789550306.3591316,
+    "seen": 1789665866.7431846,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/recon.ts": {
+    "mtime": 1789550306.35826,
+    "seen": 1789665866.7431848,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/report.ts": {
+    "mtime": 1789550306.358917,
+    "seen": 1789665866.7431855,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/scan.ts": {
+    "mtime": 1789550306.3585896,
+    "seen": 1789665866.7431858,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/strike.ts": {
+    "mtime": 1789550306.3587155,
+    "seen": 1789665866.7431862,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/trace.ts": {
+    "mtime": 1789550306.3576374,
+    "seen": 1789665866.7431865,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/harness/types.ts": {
+    "mtime": 1789550306.3580418,
+    "seen": 1789665866.743187,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789550306.3591573,
+    "seen": 1789665866.7431872,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/identity/warhead.ts": {
+    "mtime": 1789550306.3593667,
+    "seen": 1789665866.7431874,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789550306.3594668,
+    "seen": 1789665866.743188,
+    "ast_hash": "258887d6cb08f26582017b2b6e47af44",
+    "semantic_hash": "258887d6cb08f26582017b2b6e47af44"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789550306.3600726,
+    "seen": 1789665866.7431881,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789550306.359953,
+    "seen": 1789665866.7431886,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789550306.3596494,
+    "seen": 1789665866.743189,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/lexicon/templates.ts": {
+    "mtime": 1789550306.359747,
+    "seen": 1789665866.7431896,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/log.ts": {
+    "mtime": 1789550306.35509,
+    "seen": 1789665866.7431898,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/profile/loader.ts": {
+    "mtime": 1789550306.3603396,
+    "seen": 1789665866.7431903,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789550306.3604314,
+    "seen": 1789665866.7431905,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/profile/schema.ts": {
+    "mtime": 1789550306.3600948,
+    "seen": 1789665866.7431908,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/db-canon.ts": {
+    "mtime": 1789550306.361166,
+    "seen": 1789665866.7431912,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/db.ts": {
+    "mtime": 1789550306.3613174,
+    "seen": 1789665866.7431915,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789550306.360797,
+    "seen": 1789665866.743192,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789550306.3604515,
+    "seen": 1789665866.7431924,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/migrations.ts": {
+    "mtime": 1789550306.3610709,
+    "seen": 1789665866.743193,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/ontology.ts": {
+    "mtime": 1789550306.3606946,
+    "seen": 1789665866.7431931,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789550306.3615222,
+    "seen": 1789665866.7431936,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/shared/query-engine.ts": {
+    "mtime": 1789550306.3616116,
+    "seen": 1789665866.7431939,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789550306.361899,
+    "seen": 1789665866.743194,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/surface/query-tool.ts": {
+    "mtime": 1789550306.361635,
+    "seen": 1789665866.7431946,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789550306.3619246,
+    "seen": 1789665866.743195,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789550306.3620224,
+    "seen": 1789665866.7431953,
+    "ast_hash": "15badcebd110c7380cecd50bc30045cc",
+    "semantic_hash": "15badcebd110c7380cecd50bc30045cc"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/tools/query-registration.ts": {
+    "mtime": 1789550306.3624017,
+    "seen": 1789665866.743196,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789550306.3626063,
+    "seen": 1789665866.7431962,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hunter/triad.ts": {
+    "mtime": 1789550306.3547142,
+    "seen": 1789665866.7431967,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789550306.3634276,
+    "seen": 1789665866.743197,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789550306.36363,
+    "seen": 1789665866.7431974,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789550306.3632486,
+    "seen": 1789665866.7431989,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/auditor.ts": {
+    "mtime": 1789550306.3647172,
+    "seen": 1789665866.7431996,
+    "ast_hash": "03b04dae5e4f6441d0243451d860c32a",
+    "semantic_hash": "03b04dae5e4f6441d0243451d860c32a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/client-reader.ts": {
+    "mtime": 1789550306.362633,
+    "seen": 1789665866.7431998,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/map-reader.ts": {
+    "mtime": 1789550306.3630288,
+    "seen": 1789665866.7432003,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/pipeline.ts": {
+    "mtime": 1789550306.3632307,
+    "seen": 1789665866.7432005,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/templates/index.ts": {
+    "mtime": 1789550306.364497,
+    "seen": 1789665866.743201,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/templates/lasme.ts": {
+    "mtime": 1789550306.364175,
+    "seen": 1789665866.7432013,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/templates/mpse.ts": {
+    "mtime": 1789550306.3639727,
+    "seen": 1789665866.7432015,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/templates/sro.ts": {
+    "mtime": 1789550306.3643684,
+    "seen": 1789665866.743202,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/hydra/templates/types.ts": {
+    "mtime": 1789550306.3636506,
+    "seen": 1789665866.7432022,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/extension.ts": {
+    "mtime": 1789550306.3665826,
+    "seen": 1789665866.7432024,
+    "ast_hash": "0c76ad8c55da297f39189a69e561b5eb",
+    "semantic_hash": "0c76ad8c55da297f39189a69e561b5eb"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/gate-hook.ts": {
+    "mtime": 1789550306.365573,
+    "seen": 1789665866.7432032,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/gate-middleware.ts": {
+    "mtime": 1789550306.3651547,
+    "seen": 1789665866.7432034,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/gi-registry.ts": {
+    "mtime": 1789550306.3652828,
+    "seen": 1789665866.7432036,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/populate-corbell.ts": {
+    "mtime": 1789550306.3659885,
+    "seen": 1789665866.743204,
+    "ast_hash": "0c04fda2c51ef96c22fed729ab517703",
+    "semantic_hash": "0c04fda2c51ef96c22fed729ab517703"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/populate-graphify.ts": {
+    "mtime": 1789550306.3663657,
+    "seen": 1789665866.7432044,
+    "ast_hash": "2ecec4a335aae6f2de37743631035279",
+    "semantic_hash": "2ecec4a335aae6f2de37743631035279"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/populate.ts": {
+    "mtime": 1789550306.3657837,
+    "seen": 1789665866.7432048,
+    "ast_hash": "f3002eb6a0b6b16dc5b2b5a30460c481",
+    "semantic_hash": "f3002eb6a0b6b16dc5b2b5a30460c481"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/ripwire-bridge.ts": {
+    "mtime": 1789550306.366197,
+    "seen": 1789665866.743205,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/store-open.ts": {
+    "mtime": 1789550306.365371,
+    "seen": 1789665866.7432055,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/omp/typed-write.ts": {
+    "mtime": 1789550306.364748,
+    "seen": 1789665866.7432058,
+    "ast_hash": "e893c087f2e8d8a65502191e8f42bd96",
+    "semantic_hash": "e893c087f2e8d8a65502191e8f42bd96"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/db-path.ts": {
+    "mtime": 1789550306.3670168,
+    "seen": 1789665866.7432065,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789550306.3674278,
+    "seen": 1789665866.7432067,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/gi-session-path.ts": {
+    "mtime": 1789550306.3672404,
+    "seen": 1789665866.7432072,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/index.ts": {
+    "mtime": 1789550306.36754,
+    "seen": 1789665866.7432075,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/scope-binding.ts": {
+    "mtime": 1789550306.366666,
+    "seen": 1789665866.7432077,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/scope-resolver.ts": {
+    "mtime": 1789550306.366889,
+    "seen": 1789665866.7432082,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/scoped-store.ts": {
+    "mtime": 1789550306.3670716,
+    "seen": 1789665866.7432084,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/src/scoping/session-state.ts": {
+    "mtime": 1789550306.3671367,
+    "seen": 1789665866.743209,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/pipeline-battery.test.ts": {
+    "mtime": 1789550306.4461286,
+    "seen": 1789665866.7432091,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/reader-battery.test.ts": {
+    "mtime": 1789550306.446141,
+    "seen": 1789665866.7432098,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/settle-battery.test.ts": {
+    "mtime": 1789550306.4461527,
+    "seen": 1789665866.74321,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-corbell-port.ts": {
+    "mtime": 1789550306.4433556,
+    "seen": 1789665866.7432103,
+    "ast_hash": "afc1b2931bd44e0a4b4f968046e96264",
+    "semantic_hash": "afc1b2931bd44e0a4b4f968046e96264"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-corrupt.ts": {
+    "mtime": 1789550306.4435692,
+    "seen": 1789665866.7432108,
+    "ast_hash": "6b0becde061963b4a4432b80245e02cf",
+    "semantic_hash": "6b0becde061963b4a4432b80245e02cf"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-gate.ts": {
+    "mtime": 1789550306.443774,
+    "seen": 1789665866.743211,
+    "ast_hash": "acf846c866e8786d09455b6734b0f1f7",
+    "semantic_hash": "acf846c866e8786d09455b6734b0f1f7"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-isolate.ts": {
+    "mtime": 1789550306.443913,
+    "seen": 1789665866.7432115,
+    "ast_hash": "03b11b9d58efa492ebb730a540741636",
+    "semantic_hash": "03b11b9d58efa492ebb730a540741636"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-populate.ts": {
+    "mtime": 1789550306.4441452,
+    "seen": 1789665866.7432117,
+    "ast_hash": "332c04b186ab24f4be3e08c529acb543",
+    "semantic_hash": "332c04b186ab24f4be3e08c529acb543"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-refuse.ts": {
+    "mtime": 1789550306.4443455,
+    "seen": 1789665866.7432122,
+    "ast_hash": "e9f91e95fcda7f058e4618118c044d7e",
+    "semantic_hash": "e9f91e95fcda7f058e4618118c044d7e"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-scope.ts": {
+    "mtime": 1789550306.4444354,
+    "seen": 1789665866.7432127,
+    "ast_hash": "92b220ac2184873cbac9bd0a9d5dbbe0",
+    "semantic_hash": "92b220ac2184873cbac9bd0a9d5dbbe0"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-tools.ts": {
+    "mtime": 1789550306.444563,
+    "seen": 1789665866.743213,
+    "ast_hash": "1c90a3ada55a34cda640c9fea642a6cc",
+    "semantic_hash": "1c90a3ada55a34cda640c9fea642a6cc"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-gi-omp-wipe.ts": {
+    "mtime": 1789550306.4446871,
+    "seen": 1789665866.7432134,
+    "ast_hash": "9a6a748fa11b7effe32771ba07593c47",
+    "semantic_hash": "9a6a748fa11b7effe32771ba07593c47"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-go-fallback.ts": {
+    "mtime": 1789550306.444891,
+    "seen": 1789665866.743214,
+    "ast_hash": "72479abbf5296e0ea20e23c6db62117b",
+    "semantic_hash": "72479abbf5296e0ea20e23c6db62117b"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-graphify-port.ts": {
+    "mtime": 1789550306.4451036,
+    "seen": 1789665866.7432144,
+    "ast_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c",
+    "semantic_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-hunter-live.ts": {
+    "mtime": 1789550306.445282,
+    "seen": 1789665866.7432146,
+    "ast_hash": "cede3ff8d8b788800b45a2ac9a432308",
+    "semantic_hash": "cede3ff8d8b788800b45a2ac9a432308"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-hunter-port.ts": {
+    "mtime": 1789550306.4454281,
+    "seen": 1789665866.743215,
+    "ast_hash": "97e322ea7038c2d16a0e946de9e29ddc",
+    "semantic_hash": "97e322ea7038c2d16a0e946de9e29ddc"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-populate-substrate.ts": {
+    "mtime": 1789550306.4456356,
+    "seen": 1789665866.7432153,
+    "ast_hash": "2651e076dc164df0821d31139aba72c8",
+    "semantic_hash": "2651e076dc164df0821d31139aba72c8"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-ripwire-bridge.ts": {
+    "mtime": 1789550306.4457743,
+    "seen": 1789665866.7432156,
+    "ast_hash": "20a728631260ef81772f40feb8e78914",
+    "semantic_hash": "20a728631260ef81772f40feb8e78914"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-v21-identity.ts": {
+    "mtime": 1789550306.445975,
+    "seen": 1789665866.743216,
+    "ast_hash": "77d01502ee71d4d9c7d83d5ea8397069",
+    "semantic_hash": "77d01502ee71d4d9c7d83d5ea8397069"
+  },
+  "Checkpoints/gi-v21-seal-pre-cleanup-3ee605dd/tests/st-verbs-parse.ts": {
+    "mtime": 1789550306.446115,
+    "seen": 1789665866.7432168,
+    "ast_hash": "e69f7f528ba8d80d717c87e2b4a6726b",
+    "semantic_hash": "e69f7f528ba8d80d717c87e2b4a6726b"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/artifacts/ct-results-graphify.json": {
+    "mtime": 1789483232.8360064,
+    "seen": 1789665866.743217,
+    "ast_hash": "8de2a37f04c45b7d6334a584e3aa2b07",
+    "semantic_hash": "8de2a37f04c45b7d6334a584e3aa2b07"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/artifacts/ct-results-port.json": {
+    "mtime": 1789483232.8362339,
+    "seen": 1789665866.7432175,
+    "ast_hash": "195339afd845e7db96fdf78aa02182ed",
+    "semantic_hash": "195339afd845e7db96fdf78aa02182ed"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789482219.3644562,
+    "seen": 1789665866.7432177,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789482219.364212,
+    "seen": 1789665866.7432182,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789482219.3640482,
+    "seen": 1789665866.7432184,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789482219.364624,
+    "seen": 1789665866.743219,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789482219.3636274,
+    "seen": 1789665866.7432191,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789482219.3651972,
+    "seen": 1789665866.7432194,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789482219.3646867,
+    "seen": 1789665866.7432199,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/firewall/readonly.ts": {
+    "mtime": 1789482219.3650467,
+    "seen": 1789665866.7432203,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789482219.365252,
+    "seen": 1789665866.7432208,
+    "ast_hash": "895f134881fd9c46247b3aa4c45463a2",
+    "semantic_hash": "895f134881fd9c46247b3aa4c45463a2"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789482219.3662164,
+    "seen": 1789665866.743221,
+    "ast_hash": "7babb977aba3409d7d11c08ca9513f3a",
+    "semantic_hash": "7babb977aba3409d7d11c08ca9513f3a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/interface.ts": {
+    "mtime": 1789482219.365591,
+    "seen": 1789665866.7432215,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/mechanical.ts": {
+    "mtime": 1789482219.365747,
+    "seen": 1789665866.7432218,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/merge.ts": {
+    "mtime": 1789482219.3658233,
+    "seen": 1789665866.743222,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/resolver.ts": {
+    "mtime": 1789482219.365981,
+    "seen": 1789665866.7432225,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/graph/store-map.ts": {
+    "mtime": 1789482219.3662016,
+    "seen": 1789665866.7432227,
+    "ast_hash": "7499cab18d5ddd44d48e132282c6ab4a",
+    "semantic_hash": "7499cab18d5ddd44d48e132282c6ab4a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789482219.3667598,
+    "seen": 1789665866.743223,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/map.ts": {
+    "mtime": 1789482219.3670173,
+    "seen": 1789665866.7432237,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789482219.3675568,
+    "seen": 1789665866.743224,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/recon.ts": {
+    "mtime": 1789482219.366888,
+    "seen": 1789665866.7432241,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/report.ts": {
+    "mtime": 1789482219.3674073,
+    "seen": 1789665866.7432244,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/scan.ts": {
+    "mtime": 1789482219.3671443,
+    "seen": 1789665866.7432249,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/strike.ts": {
+    "mtime": 1789482219.3672388,
+    "seen": 1789665866.743225,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/trace.ts": {
+    "mtime": 1789482219.3662682,
+    "seen": 1789665866.7432256,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/harness/types.ts": {
+    "mtime": 1789482219.3666666,
+    "seen": 1789665866.7432258,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789482219.3675892,
+    "seen": 1789665866.7432263,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/identity/warhead.ts": {
+    "mtime": 1789482219.367803,
+    "seen": 1789665866.7432265,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789482219.367942,
+    "seen": 1789665866.7432272,
+    "ast_hash": "5dc1632d3970c830f4e9d370401c8de8",
+    "semantic_hash": "5dc1632d3970c830f4e9d370401c8de8"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789482219.3685215,
+    "seen": 1789665866.7432275,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789482219.3683841,
+    "seen": 1789665866.7432277,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789482219.3679707,
+    "seen": 1789665866.7432282,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/lexicon/templates.ts": {
+    "mtime": 1789482219.368164,
+    "seen": 1789665866.7432287,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/log.ts": {
+    "mtime": 1789482219.3635721,
+    "seen": 1789665866.743229,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/profile/loader.ts": {
+    "mtime": 1789482219.3688755,
+    "seen": 1789665866.7432294,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789482219.369003,
+    "seen": 1789665866.7432296,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/profile/schema.ts": {
+    "mtime": 1789482219.368549,
+    "seen": 1789665866.7432299,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/db-canon.ts": {
+    "mtime": 1789482219.3697145,
+    "seen": 1789665866.7432306,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/db.ts": {
+    "mtime": 1789482219.3699057,
+    "seen": 1789665866.7432308,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789482219.3694804,
+    "seen": 1789665866.7432313,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789482219.369027,
+    "seen": 1789665866.7432315,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/migrations.ts": {
+    "mtime": 1789482219.3696175,
+    "seen": 1789665866.7432318,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/ontology.ts": {
+    "mtime": 1789482219.369354,
+    "seen": 1789665866.7432323,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789482219.3701127,
+    "seen": 1789665866.7432325,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/shared/query-engine.ts": {
+    "mtime": 1789482219.3702435,
+    "seen": 1789665866.743233,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789482219.370545,
+    "seen": 1789665866.7432334,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/surface/query-tool.ts": {
+    "mtime": 1789482219.3702781,
+    "seen": 1789665866.7432337,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789482219.3705747,
+    "seen": 1789665866.7432344,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789482219.370712,
+    "seen": 1789665866.7432349,
+    "ast_hash": "6947fd60e7f2f9ff67890da9c9338678",
+    "semantic_hash": "6947fd60e7f2f9ff67890da9c9338678"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/tools/query-registration.ts": {
+    "mtime": 1789482219.3710697,
+    "seen": 1789665866.743235,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789482219.3712788,
+    "seen": 1789665866.7432353,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hunter/triad.ts": {
+    "mtime": 1789482219.363308,
+    "seen": 1789665866.7432358,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789482219.372345,
+    "seen": 1789665866.743236,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789482219.3724384,
+    "seen": 1789665866.7432365,
+    "ast_hash": "9592b78fdb45572d7ac1081630815c64",
+    "semantic_hash": "9592b78fdb45572d7ac1081630815c64"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789482219.3720543,
+    "seen": 1789665866.7432368,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/auditor.ts": {
+    "mtime": 1789482219.3733435,
+    "seen": 1789665866.7432373,
+    "ast_hash": "2124695378e4e0323ed052f540cf4485",
+    "semantic_hash": "2124695378e4e0323ed052f540cf4485"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/client-reader.ts": {
+    "mtime": 1789482219.3713138,
+    "seen": 1789665866.7432377,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/map-reader.ts": {
+    "mtime": 1789482219.371518,
+    "seen": 1789665866.7432382,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/pipeline.ts": {
+    "mtime": 1789482219.3720279,
+    "seen": 1789665866.7432384,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/templates/index.ts": {
+    "mtime": 1789482219.373321,
+    "seen": 1789665866.7432387,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/templates/lasme.ts": {
+    "mtime": 1789482219.373037,
+    "seen": 1789665866.7432392,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/templates/mpse.ts": {
+    "mtime": 1789482219.37279,
+    "seen": 1789665866.7432396,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/templates/sro.ts": {
+    "mtime": 1789482219.3731844,
+    "seen": 1789665866.7432399,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/hydra/templates/types.ts": {
+    "mtime": 1789482219.3724666,
+    "seen": 1789665866.74324,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/extension.ts": {
+    "mtime": 1789482219.3745964,
+    "seen": 1789665866.7432406,
+    "ast_hash": "bca4193ab069e4a92d506fbdd91e2020",
+    "semantic_hash": "bca4193ab069e4a92d506fbdd91e2020"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/gate-hook.ts": {
+    "mtime": 1789482219.374149,
+    "seen": 1789665866.7432413,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/gate-middleware.ts": {
+    "mtime": 1789482219.373613,
+    "seen": 1789665866.7432415,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/gi-registry.ts": {
+    "mtime": 1789482219.3737388,
+    "seen": 1789665866.7432418,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/populate-corbell.ts": {
+    "mtime": 1789482219.37434,
+    "seen": 1789665866.7432423,
+    "ast_hash": "ba064b5c3358da9425d70325b1540776",
+    "semantic_hash": "ba064b5c3358da9425d70325b1540776"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/populate-graphify.ts": {
+    "mtime": 1789482219.374583,
+    "seen": 1789665866.7432427,
+    "ast_hash": "266573e999fd78ca59f5952a588bab7a",
+    "semantic_hash": "266573e999fd78ca59f5952a588bab7a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/populate.ts": {
+    "mtime": 1789482219.3743265,
+    "seen": 1789665866.7432432,
+    "ast_hash": "5b60e9729357a326901d00b982d7005a",
+    "semantic_hash": "5b60e9729357a326901d00b982d7005a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/ripwire-bridge.ts": {
+    "mtime": 1789482219.374567,
+    "seen": 1789665866.7432437,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/store-open.ts": {
+    "mtime": 1789482219.373868,
+    "seen": 1789665866.743244,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/omp/typed-write.ts": {
+    "mtime": 1789482219.3734226,
+    "seen": 1789665866.7432446,
+    "ast_hash": "10f5756ce9d101535019802fb63916d2",
+    "semantic_hash": "10f5756ce9d101535019802fb63916d2"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/db-path.ts": {
+    "mtime": 1789482219.3749864,
+    "seen": 1789665866.7432451,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789482219.3754013,
+    "seen": 1789665866.7432456,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/gi-session-path.ts": {
+    "mtime": 1789482219.3753052,
+    "seen": 1789665866.743246,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/index.ts": {
+    "mtime": 1789482219.3755066,
+    "seen": 1789665866.7432466,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/scope-binding.ts": {
+    "mtime": 1789482219.374636,
+    "seen": 1789665866.743247,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/scope-resolver.ts": {
+    "mtime": 1789482219.3748047,
+    "seen": 1789665866.7432475,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/scoped-store.ts": {
+    "mtime": 1789482219.375043,
+    "seen": 1789665866.743248,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/src/scoping/session-state.ts": {
+    "mtime": 1789482219.375173,
+    "seen": 1789665866.7432485,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/st-go-fallback.ts": {
+    "mtime": 1789482219.4020712,
+    "seen": 1789665866.7432487,
+    "ast_hash": "8f96b91c12f9ac0a352bb90aecd2735f",
+    "semantic_hash": "8f96b91c12f9ac0a352bb90aecd2735f"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/st-graphify-port.ts": {
+    "mtime": 1789482219.401795,
+    "seen": 1789665866.7432492,
+    "ast_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c",
+    "semantic_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/pipeline-battery.test.ts": {
+    "mtime": 1789483232.8156946,
+    "seen": 1789665866.7432494,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/reader-battery.test.ts": {
+    "mtime": 1789483232.8158286,
+    "seen": 1789665866.7432497,
+    "ast_hash": "9592b78fdb45572d7ac1081630815c64",
+    "semantic_hash": "9592b78fdb45572d7ac1081630815c64"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/settle-battery.test.ts": {
+    "mtime": 1789483232.8159137,
+    "seen": 1789665866.7432501,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-corbell-port.ts": {
+    "mtime": 1789483232.78565,
+    "seen": 1789665866.7432504,
+    "ast_hash": "afc1b2931bd44e0a4b4f968046e96264",
+    "semantic_hash": "afc1b2931bd44e0a4b4f968046e96264"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-corrupt.ts": {
+    "mtime": 1789483232.7857604,
+    "seen": 1789665866.7432506,
+    "ast_hash": "f3e265c9adfe8507f5969baf67232618",
+    "semantic_hash": "f3e265c9adfe8507f5969baf67232618"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-gate.ts": {
+    "mtime": 1789483232.7859652,
+    "seen": 1789665866.743251,
+    "ast_hash": "acf846c866e8786d09455b6734b0f1f7",
+    "semantic_hash": "acf846c866e8786d09455b6734b0f1f7"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-isolate.ts": {
+    "mtime": 1789483232.7861094,
+    "seen": 1789665866.7432516,
+    "ast_hash": "03b11b9d58efa492ebb730a540741636",
+    "semantic_hash": "03b11b9d58efa492ebb730a540741636"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-populate.ts": {
+    "mtime": 1789483232.7863193,
+    "seen": 1789665866.7432518,
+    "ast_hash": "332c04b186ab24f4be3e08c529acb543",
+    "semantic_hash": "332c04b186ab24f4be3e08c529acb543"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-refuse.ts": {
+    "mtime": 1789483232.7865243,
+    "seen": 1789665866.7432523,
+    "ast_hash": "e9f91e95fcda7f058e4618118c044d7e",
+    "semantic_hash": "e9f91e95fcda7f058e4618118c044d7e"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-scope.ts": {
+    "mtime": 1789483232.786616,
+    "seen": 1789665866.7432528,
+    "ast_hash": "92b220ac2184873cbac9bd0a9d5dbbe0",
+    "semantic_hash": "92b220ac2184873cbac9bd0a9d5dbbe0"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-tools.ts": {
+    "mtime": 1789483232.7867486,
+    "seen": 1789665866.743253,
+    "ast_hash": "1c90a3ada55a34cda640c9fea642a6cc",
+    "semantic_hash": "1c90a3ada55a34cda640c9fea642a6cc"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-gi-omp-wipe.ts": {
+    "mtime": 1789483232.7868803,
+    "seen": 1789665866.7432535,
+    "ast_hash": "9a6a748fa11b7effe32771ba07593c47",
+    "semantic_hash": "9a6a748fa11b7effe32771ba07593c47"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-go-fallback.ts": {
+    "mtime": 1789483232.787084,
+    "seen": 1789665866.7432537,
+    "ast_hash": "8f96b91c12f9ac0a352bb90aecd2735f",
+    "semantic_hash": "8f96b91c12f9ac0a352bb90aecd2735f"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-graphify-port.ts": {
+    "mtime": 1789483232.7872653,
+    "seen": 1789665866.7432542,
+    "ast_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c",
+    "semantic_hash": "ad90f2535a6c3513fba2bcfbb9b69a0c"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-hunter-live.ts": {
+    "mtime": 1789483232.7874491,
+    "seen": 1789665866.7432544,
+    "ast_hash": "cede3ff8d8b788800b45a2ac9a432308",
+    "semantic_hash": "cede3ff8d8b788800b45a2ac9a432308"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-hunter-port.ts": {
+    "mtime": 1789483232.7876582,
+    "seen": 1789665866.7432551,
+    "ast_hash": "97e322ea7038c2d16a0e946de9e29ddc",
+    "semantic_hash": "97e322ea7038c2d16a0e946de9e29ddc"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-populate-substrate.ts": {
+    "mtime": 1789483232.7878692,
+    "seen": 1789665866.7432556,
+    "ast_hash": "2651e076dc164df0821d31139aba72c8",
+    "semantic_hash": "2651e076dc164df0821d31139aba72c8"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-ripwire-bridge.ts": {
+    "mtime": 1789483232.7880397,
+    "seen": 1789665866.7432559,
+    "ast_hash": "20a728631260ef81772f40feb8e78914",
+    "semantic_hash": "20a728631260ef81772f40feb8e78914"
+  },
+  "Checkpoints/gi-warmwins-seal-ee122880/tests/st-verbs-parse.ts": {
+    "mtime": 1789483232.7881699,
+    "seen": 1789665866.7432563,
+    "ast_hash": "a3e21e55d7f5a993f0e286a0fe56b40d",
+    "semantic_hash": "a3e21e55d7f5a993f0e286a0fe56b40d"
+  },
+  "extensions/graph-intelligence/index.js": {
+    "mtime": 1789754522.55314,
+    "seen": 1789821029.999334,
+    "ast_hash": "c7471aa863891da9e3c6ab7c7db7e921",
+    "semantic_hash": "c7471aa863891da9e3c6ab7c7db7e921"
+  },
+  "package.json": {
+    "mtime": 1789410900.7819686,
+    "seen": 1789665866.743257,
+    "ast_hash": "816c6ad613a95296447d4832a04b3ba6",
+    "semantic_hash": "816c6ad613a95296447d4832a04b3ba6"
+  },
+  "scripts/corbell-build.ts": {
+    "mtime": 1789409218.5322578,
+    "seen": 1789665866.7432573,
+    "ast_hash": "1a8bd01a1027cdc1ff6fabbb75482feb",
+    "semantic_hash": "1a8bd01a1027cdc1ff6fabbb75482feb"
+  },
+  "scripts/gi-cli.ts": {
+    "mtime": 1789676790.8398147,
+    "seen": 1789821029.999373,
+    "ast_hash": "6fccc678a845b575b5ad262e0f380944",
+    "semantic_hash": "6fccc678a845b575b5ad262e0f380944"
+  },
+  "scripts/graphify-build.ts": {
+    "mtime": 1789676115.263248,
+    "seen": 1789821029.9993737,
+    "ast_hash": "ab1e9f35e6f512a9d5bce1bc94cf8bf7",
+    "semantic_hash": "ab1e9f35e6f512a9d5bce1bc94cf8bf7"
+  },
+  "scripts/scan-panel.sh": {
+    "mtime": 1789600724.744703,
+    "seen": 1789665866.7432585,
+    "ast_hash": "399dc5a7eda92d9d352e229eff693e3f",
+    "semantic_hash": "399dc5a7eda92d9d352e229eff693e3f"
+  },
+  "src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789408427.5808923,
+    "seen": 1789665866.743259,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789408200.106129,
+    "seen": 1789665866.7432592,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789408138.0875957,
+    "seen": 1789665866.7432597,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789408427.5814795,
+    "seen": 1789665866.74326,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789408206.6375215,
+    "seen": 1789665866.7432601,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789408444.1408472,
+    "seen": 1789665866.7432606,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789408068.8869383,
+    "seen": 1789665866.743261,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "src/hunter/firewall/readonly.ts": {
+    "mtime": 1789408444.1404612,
+    "seen": 1789665866.7432613,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789686148.3715096,
+    "seen": 1789821029.999537,
+    "ast_hash": "8f92d55b1d10f4c15fccee5899d236da",
+    "semantic_hash": "8f92d55b1d10f4c15fccee5899d236da"
+  },
+  "src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789780762.3960438,
+    "seen": 1789821029.9995377,
+    "ast_hash": "cc6dccaa146f7409d58a510e4dcf1aae",
+    "semantic_hash": "cc6dccaa146f7409d58a510e4dcf1aae"
+  },
+  "src/hunter/graph/interface.ts": {
+    "mtime": 1789452999.7374167,
+    "seen": 1789665866.7432625,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "src/hunter/graph/mechanical.ts": {
+    "mtime": 1789408466.2272105,
+    "seen": 1789665866.743263,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "src/hunter/graph/merge.ts": {
+    "mtime": 1789408466.2273889,
+    "seen": 1789665866.7432632,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "src/hunter/graph/resolver.ts": {
+    "mtime": 1789408466.2275057,
+    "seen": 1789665866.7432637,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "src/hunter/graph/store-map.ts": {
+    "mtime": 1789685993.622,
+    "seen": 1789821029.999614,
+    "ast_hash": "358ab7efa1d305cc4aac697838b00fa1",
+    "semantic_hash": "358ab7efa1d305cc4aac697838b00fa1"
+  },
+  "src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789408477.6990893,
+    "seen": 1789665866.7432644,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "src/hunter/harness/map.ts": {
+    "mtime": 1789453035.48012,
+    "seen": 1789665866.7432647,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789408924.5067945,
+    "seen": 1789665866.7432654,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "src/hunter/harness/recon.ts": {
+    "mtime": 1789408616.1300411,
+    "seen": 1789665866.7432656,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "src/hunter/harness/report.ts": {
+    "mtime": 1789408768.2769415,
+    "seen": 1789665866.743266,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "src/hunter/harness/scan.ts": {
+    "mtime": 1789424992.6652298,
+    "seen": 1789665866.7432666,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "src/hunter/harness/strike.ts": {
+    "mtime": 1789408755.5146155,
+    "seen": 1789665866.743267,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "src/hunter/harness/trace.ts": {
+    "mtime": 1789408667.7124398,
+    "seen": 1789665866.7432673,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "src/hunter/harness/types.ts": {
+    "mtime": 1789408607.9628055,
+    "seen": 1789665866.7432678,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789408454.8980458,
+    "seen": 1789665866.7432683,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "src/hunter/identity/warhead.ts": {
+    "mtime": 1789408068.8870327,
+    "seen": 1789665866.7432685,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789773533.13871,
+    "seen": 1789821029.9998226,
+    "ast_hash": "a74187d1a0ec17ddbe41d2e7287fd394",
+    "semantic_hash": "a74187d1a0ec17ddbe41d2e7287fd394"
+  },
+  "src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789408164.814146,
+    "seen": 1789665866.74327,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789408164.8139877,
+    "seen": 1789665866.7432704,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789408138.0880723,
+    "seen": 1789665866.7432709,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "src/hunter/lexicon/templates.ts": {
+    "mtime": 1789408138.0884027,
+    "seen": 1789665866.7432714,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "src/hunter/log.ts": {
+    "mtime": 1789408401.542424,
+    "seen": 1789665866.7432716,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "src/hunter/profile/loader.ts": {
+    "mtime": 1789452304.853074,
+    "seen": 1789665866.7432723,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789408409.2749507,
+    "seen": 1789665866.7432725,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "src/hunter/profile/schema.ts": {
+    "mtime": 1789452299.660978,
+    "seen": 1789665866.743273,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "src/hunter/shared/db-canon.ts": {
+    "mtime": 1789408189.9232557,
+    "seen": 1789665866.7432733,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "src/hunter/shared/db.ts": {
+    "mtime": 1789408189.857502,
+    "seen": 1789665866.7432737,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789408068.8867154,
+    "seen": 1789665866.743274,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789452995.3808632,
+    "seen": 1789665866.7432745,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "src/hunter/shared/migrations.ts": {
+    "mtime": 1789408087.2669394,
+    "seen": 1789665866.743275,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "src/hunter/shared/ontology.ts": {
+    "mtime": 1789408068.886564,
+    "seen": 1789665866.7432752,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789408189.8579729,
+    "seen": 1789665866.743276,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "src/hunter/shared/query-engine.ts": {
+    "mtime": 1789408466.2276652,
+    "seen": 1789665866.7432764,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789408505.623169,
+    "seen": 1789665866.7432766,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "src/hunter/surface/query-tool.ts": {
+    "mtime": 1789408454.8984022,
+    "seen": 1789665866.7432768,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789408068.8870971,
+    "seen": 1789665866.7432773,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789541296.0683756,
+    "seen": 1789665866.7432775,
+    "ast_hash": "15badcebd110c7380cecd50bc30045cc",
+    "semantic_hash": "15badcebd110c7380cecd50bc30045cc"
+  },
+  "src/hunter/tools/query-registration.ts": {
+    "mtime": 1789412805.2971132,
+    "seen": 1789665866.743278,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789412958.993144,
+    "seen": 1789665866.7432783,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "src/hunter/triad.ts": {
+    "mtime": 1789408068.886815,
+    "seen": 1789665866.7432787,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789452048.5258312,
+    "seen": 1789665866.7432792,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789545846.361894,
+    "seen": 1789665866.7432797,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789452048.5257251,
+    "seen": 1789665866.74328,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "src/hydra/auditor.ts": {
+    "mtime": 1789772227.3367133,
+    "seen": 1789821030.00031,
+    "ast_hash": "480ebebe3431d366af79064d68cd40c4",
+    "semantic_hash": "480ebebe3431d366af79064d68cd40c4"
+  },
+  "src/hydra/client-reader.ts": {
+    "mtime": 1789451761.4216988,
+    "seen": 1789665866.7432806,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "src/hydra/map-reader.ts": {
+    "mtime": 1789451777.329873,
+    "seen": 1789665866.7432811,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "src/hydra/pipeline.ts": {
+    "mtime": 1789452013.226843,
+    "seen": 1789665866.7432814,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "src/hydra/templates/index.ts": {
+    "mtime": 1789451869.184912,
+    "seen": 1789665866.7432818,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "src/hydra/templates/lasme.ts": {
+    "mtime": 1789451859.3592567,
+    "seen": 1789665866.743282,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "src/hydra/templates/mpse.ts": {
+    "mtime": 1789451852.5341458,
+    "seen": 1789665866.7432828,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "src/hydra/templates/sro.ts": {
+    "mtime": 1789451866.3961992,
+    "seen": 1789665866.743283,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "src/hydra/templates/types.ts": {
+    "mtime": 1789451843.471999,
+    "seen": 1789665866.7432835,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "src/kernel/scan-chain.ts": {
+    "mtime": 1789589838.6561625,
+    "seen": 1789665866.7432837,
+    "ast_hash": "3670c482f44a23da32ab69f9f4dcdc8b",
+    "semantic_hash": "3670c482f44a23da32ab69f9f4dcdc8b"
+  },
+  "src/omp/extension.ts": {
+    "mtime": 1789768487.4792953,
+    "seen": 1789821030.0004778,
+    "ast_hash": "96d5de36159c38e7028138a4a63a743b",
+    "semantic_hash": "96d5de36159c38e7028138a4a63a743b"
+  },
+  "src/omp/gate-hook.ts": {
+    "mtime": 1789355405.5226393,
+    "seen": 1789665866.7432847,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "src/omp/gate-middleware.ts": {
+    "mtime": 1789396579.19472,
+    "seen": 1789665866.743285,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "src/omp/gi-registry.ts": {
+    "mtime": 1789353314.1373086,
+    "seen": 1789665866.7432854,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "src/omp/populate-corbell.ts": {
+    "mtime": 1789773843.133983,
+    "seen": 1789821030.0005322,
+    "ast_hash": "19325c03a53de0626f6636492aaf0713",
+    "semantic_hash": "19325c03a53de0626f6636492aaf0713"
+  },
+  "src/omp/populate-graphify.ts": {
+    "mtime": 1789780246.3515155,
+    "seen": 1789821030.0005326,
+    "ast_hash": "2e076db12671ebf09c6e90527485553b",
+    "semantic_hash": "2e076db12671ebf09c6e90527485553b"
+  },
+  "src/omp/populate.ts": {
+    "mtime": 1789490451.6583195,
+    "seen": 1789665866.7432866,
+    "ast_hash": "f3002eb6a0b6b16dc5b2b5a30460c481",
+    "semantic_hash": "f3002eb6a0b6b16dc5b2b5a30460c481"
+  },
+  "src/omp/ripwire-bridge.ts": {
+    "mtime": 1789430070.2252166,
+    "seen": 1789665866.743287,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "src/omp/store-open.ts": {
+    "mtime": 1789353230.9828062,
+    "seen": 1789665866.7432873,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "src/omp/typed-write.ts": {
+    "mtime": 1789777615.2899134,
+    "seen": 1789821030.0005867,
+    "ast_hash": "6554a32910d0692bb3bfaa20842d21f8",
+    "semantic_hash": "6554a32910d0692bb3bfaa20842d21f8"
+  },
+  "src/scoping/db-path.ts": {
+    "mtime": 1789232049.1367712,
+    "seen": 1789665866.743288,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789353106.3976038,
+    "seen": 1789665866.7432885,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "src/scoping/gi-session-path.ts": {
+    "mtime": 1789354614.6769125,
+    "seen": 1789665866.7432888,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "src/scoping/index.ts": {
+    "mtime": 1789353106.3995576,
+    "seen": 1789665866.7432892,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "src/scoping/scope-binding.ts": {
+    "mtime": 1789232049.1370273,
+    "seen": 1789665866.7432897,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "src/scoping/scope-resolver.ts": {
+    "mtime": 1789232049.1375132,
+    "seen": 1789665866.74329,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "src/scoping/scoped-store.ts": {
+    "mtime": 1789232049.1372721,
+    "seen": 1789665866.7432904,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "src/scoping/session-state.ts": {
+    "mtime": 1789232049.1377122,
+    "seen": 1789665866.7432907,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "tests/st-corbell-port.ts": {
+    "mtime": 1789575345.3869007,
+    "seen": 1789665866.743291,
+    "ast_hash": "afc1b2931bd44e0a4b4f968046e96264",
+    "semantic_hash": "afc1b2931bd44e0a4b4f968046e96264"
+  },
+  "tests/st-gi-omp-corrupt.ts": {
+    "mtime": 1789490881.0558212,
+    "seen": 1789665866.7432914,
+    "ast_hash": "6b0becde061963b4a4432b80245e02cf",
+    "semantic_hash": "6b0becde061963b4a4432b80245e02cf"
+  },
+  "tests/st-gi-omp-gate.ts": {
+    "mtime": 1789353403.8769312,
+    "seen": 1789665866.7432919,
+    "ast_hash": "acf846c866e8786d09455b6734b0f1f7",
+    "semantic_hash": "acf846c866e8786d09455b6734b0f1f7"
+  },
+  "tests/st-gi-omp-isolate.ts": {
+    "mtime": 1789353403.870931,
+    "seen": 1789665866.743292,
+    "ast_hash": "03b11b9d58efa492ebb730a540741636",
+    "semantic_hash": "03b11b9d58efa492ebb730a540741636"
+  },
+  "tests/st-gi-omp-populate.ts": {
+    "mtime": 1789473094.02812,
+    "seen": 1789665866.7432926,
+    "ast_hash": "332c04b186ab24f4be3e08c529acb543",
+    "semantic_hash": "332c04b186ab24f4be3e08c529acb543"
+  },
+  "tests/st-gi-omp-refuse.ts": {
+    "mtime": 1789353264.8071492,
+    "seen": 1789665866.743293,
+    "ast_hash": "e9f91e95fcda7f058e4618118c044d7e",
+    "semantic_hash": "e9f91e95fcda7f058e4618118c044d7e"
+  },
+  "tests/st-gi-omp-scope.ts": {
+    "mtime": 1789353133.1810405,
+    "seen": 1789665866.7432935,
+    "ast_hash": "92b220ac2184873cbac9bd0a9d5dbbe0",
+    "semantic_hash": "92b220ac2184873cbac9bd0a9d5dbbe0"
+  },
+  "tests/st-gi-omp-tools.ts": {
+    "mtime": 1789473094.0288765,
+    "seen": 1789665866.7432938,
+    "ast_hash": "1c90a3ada55a34cda640c9fea642a6cc",
+    "semantic_hash": "1c90a3ada55a34cda640c9fea642a6cc"
+  },
+  "tests/st-gi-omp-wipe.ts": {
+    "mtime": 1789353264.8104172,
+    "seen": 1789665866.743294,
+    "ast_hash": "9a6a748fa11b7effe32771ba07593c47",
+    "semantic_hash": "9a6a748fa11b7effe32771ba07593c47"
+  },
+  "tests/st-go-fallback.ts": {
+    "mtime": 1789614227.0910013,
+    "seen": 1789665866.7432945,
+    "ast_hash": "3188a5e44468052715911207f228d495",
+    "semantic_hash": "3188a5e44468052715911207f228d495"
+  },
+  "tests/st-graphify-port.ts": {
+    "mtime": 1789614566.4894016,
+    "seen": 1789665866.743295,
+    "ast_hash": "a50bc081d203bf5e8f2c8fe560f96c34",
+    "semantic_hash": "a50bc081d203bf5e8f2c8fe560f96c34"
+  },
+  "tests/st-hunter-live.ts": {
+    "mtime": 1789453252.6978698,
+    "seen": 1789665866.7432952,
+    "ast_hash": "cede3ff8d8b788800b45a2ac9a432308",
+    "semantic_hash": "cede3ff8d8b788800b45a2ac9a432308"
+  },
+  "tests/st-hunter-port.ts": {
+    "mtime": 1789409037.7029061,
+    "seen": 1789665866.7432957,
+    "ast_hash": "97e322ea7038c2d16a0e946de9e29ddc",
+    "semantic_hash": "97e322ea7038c2d16a0e946de9e29ddc"
+  },
+  "tests/st-populate-substrate.ts": {
+    "mtime": 1789409978.6945658,
+    "seen": 1789665866.743296,
+    "ast_hash": "2651e076dc164df0821d31139aba72c8",
+    "semantic_hash": "2651e076dc164df0821d31139aba72c8"
+  },
+  "tests/st-ripwire-bridge.ts": {
+    "mtime": 1789473094.0250084,
+    "seen": 1789665866.7432966,
+    "ast_hash": "20a728631260ef81772f40feb8e78914",
+    "semantic_hash": "20a728631260ef81772f40feb8e78914"
+  },
+  "tests/st-v21-identity.ts": {
+    "mtime": 1789540612.2318196,
+    "seen": 1789665866.7432969,
+    "ast_hash": "77d01502ee71d4d9c7d83d5ea8397069",
+    "semantic_hash": "77d01502ee71d4d9c7d83d5ea8397069"
+  },
+  "tests/st-verbs-parse.ts": {
+    "mtime": 1789770333.948385,
+    "seen": 1789821030.001035,
+    "ast_hash": "db73befa7fca791e9837092cbfab4748",
+    "semantic_hash": "db73befa7fca791e9837092cbfab4748"
+  },
+  "tsconfig.json": {
+    "mtime": 1789353106.4089136,
+    "seen": 1789665866.7432976,
+    "ast_hash": "4a05456f45e3afb50b1c1f53cdde2fef",
+    "semantic_hash": "4a05456f45e3afb50b1c1f53cdde2fef"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789781901.1924045,
+    "seen": 1789821029.9992685,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/__tests__/reader-battery.test.ts": {
+    "mtime": 1789781901.1924202,
+    "seen": 1789821029.9992697,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/__tests__/settle-battery.test.ts": {
+    "mtime": 1789781901.1923752,
+    "seen": 1789821029.9992702,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/diagnostics/calibration.ts": {
+    "mtime": 1789781901.03555,
+    "seen": 1789821029.9992707,
+    "ast_hash": "ee0dedd434274ca1deefcf99ec3fd5d7",
+    "semantic_hash": "ee0dedd434274ca1deefcf99ec3fd5d7"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/diagnostics/engine.ts": {
+    "mtime": 1789781901.0353055,
+    "seen": 1789821029.9992712,
+    "ast_hash": "c7e62330470a1e0557ba80103296ce51",
+    "semantic_hash": "c7e62330470a1e0557ba80103296ce51"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/diagnostics/findings-store.ts": {
+    "mtime": 1789781901.035075,
+    "seen": 1789821029.9992716,
+    "ast_hash": "b1ef4674631e101500136f74dfb96281",
+    "semantic_hash": "b1ef4674631e101500136f74dfb96281"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/diagnostics/fixture-calibration.ts": {
+    "mtime": 1789781901.0357175,
+    "seen": 1789821029.9992723,
+    "ast_hash": "f788eca02fceb10f12a512305a240fb1",
+    "semantic_hash": "f788eca02fceb10f12a512305a240fb1"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/diagnostics/semantic-predicates.ts": {
+    "mtime": 1789781901.0346246,
+    "seen": 1789821029.999273,
+    "ast_hash": "ebb5e3d491135eb0014ccc378aa1179d",
+    "semantic_hash": "ebb5e3d491135eb0014ccc378aa1179d"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/firewall/artifact-scope.ts": {
+    "mtime": 1789781901.0362303,
+    "seen": 1789821029.9992735,
+    "ast_hash": "83ce8b0602f8f6a04d94680032f74984",
+    "semantic_hash": "83ce8b0602f8f6a04d94680032f74984"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/firewall/lexicon-types.ts": {
+    "mtime": 1789781901.0358033,
+    "seen": 1789821029.999274,
+    "ast_hash": "ec892ef1de9e144912840a3d3ba2173a",
+    "semantic_hash": "ec892ef1de9e144912840a3d3ba2173a"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/firewall/readonly.ts": {
+    "mtime": 1789781901.0361443,
+    "seen": 1789821029.9992745,
+    "ast_hash": "b0c622b7d6bdfaf9225ededb0f820c37",
+    "semantic_hash": "b0c622b7d6bdfaf9225ededb0f820c37"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/corbell-adapter.ts": {
+    "mtime": 1789781901.0362995,
+    "seen": 1789821029.999275,
+    "ast_hash": "8f92d55b1d10f4c15fccee5899d236da",
+    "semantic_hash": "8f92d55b1d10f4c15fccee5899d236da"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/graphify-adapter.ts": {
+    "mtime": 1789781901.0375457,
+    "seen": 1789821029.9992757,
+    "ast_hash": "cc6dccaa146f7409d58a510e4dcf1aae",
+    "semantic_hash": "cc6dccaa146f7409d58a510e4dcf1aae"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/interface.ts": {
+    "mtime": 1789781901.0365367,
+    "seen": 1789821029.9992764,
+    "ast_hash": "4b66a83dcbbdf45707d2a384e0581847",
+    "semantic_hash": "4b66a83dcbbdf45707d2a384e0581847"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/mechanical.ts": {
+    "mtime": 1789781901.0369067,
+    "seen": 1789821029.9992769,
+    "ast_hash": "9d2ea5ac91a6710d6b305696d202e9b5",
+    "semantic_hash": "9d2ea5ac91a6710d6b305696d202e9b5"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/merge.ts": {
+    "mtime": 1789781901.03704,
+    "seen": 1789821029.9992774,
+    "ast_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5",
+    "semantic_hash": "d6c3ebaac94f64c46ff2e1e85e19bbe5"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/resolver.ts": {
+    "mtime": 1789781901.0371714,
+    "seen": 1789821029.9992778,
+    "ast_hash": "788c255dd747673542afcff0706ba38b",
+    "semantic_hash": "788c255dd747673542afcff0706ba38b"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/graph/store-map.ts": {
+    "mtime": 1789781901.0373144,
+    "seen": 1789821029.9992783,
+    "ast_hash": "358ab7efa1d305cc4aac697838b00fa1",
+    "semantic_hash": "358ab7efa1d305cc4aac697838b00fa1"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/hunt-lock.ts": {
+    "mtime": 1789781901.0381474,
+    "seen": 1789821029.9992785,
+    "ast_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e",
+    "semantic_hash": "12da5c32f0aa9d8350e6dc9fe20aeb0e"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/map.ts": {
+    "mtime": 1789781901.038383,
+    "seen": 1789821029.9992793,
+    "ast_hash": "2a421dd942f59e33c5b8f4d3183cc4b3",
+    "semantic_hash": "2a421dd942f59e33c5b8f4d3183cc4b3"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/micro-loop-machine.ts": {
+    "mtime": 1789781901.0390728,
+    "seen": 1789821029.9992795,
+    "ast_hash": "1d1105d94bb56903cf96a4431340fa2a",
+    "semantic_hash": "1d1105d94bb56903cf96a4431340fa2a"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/recon.ts": {
+    "mtime": 1789781901.0382435,
+    "seen": 1789821029.99928,
+    "ast_hash": "030150c671dd0e7213c5c5f8e7b5118d",
+    "semantic_hash": "030150c671dd0e7213c5c5f8e7b5118d"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/report.ts": {
+    "mtime": 1789781901.0387914,
+    "seen": 1789821029.9992805,
+    "ast_hash": "1991e2773f0b67cbd201dd6f145d8d52",
+    "semantic_hash": "1991e2773f0b67cbd201dd6f145d8d52"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/scan.ts": {
+    "mtime": 1789781901.0385141,
+    "seen": 1789821029.9992807,
+    "ast_hash": "b76710a78d88db6a5133976574f12cad",
+    "semantic_hash": "b76710a78d88db6a5133976574f12cad"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/strike.ts": {
+    "mtime": 1789781901.0385368,
+    "seen": 1789821029.9992814,
+    "ast_hash": "cb1795fcd03c9eb34bd8e2081ce7824f",
+    "semantic_hash": "cb1795fcd03c9eb34bd8e2081ce7824f"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/trace.ts": {
+    "mtime": 1789781901.037599,
+    "seen": 1789821029.999282,
+    "ast_hash": "3436f447fa8f4cb02931954f764255a3",
+    "semantic_hash": "3436f447fa8f4cb02931954f764255a3"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/harness/types.ts": {
+    "mtime": 1789781901.0380158,
+    "seen": 1789821029.9992824,
+    "ast_hash": "65116f268d9e89444355791372e3fa22",
+    "semantic_hash": "65116f268d9e89444355791372e3fa22"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/hooks/bus-hook.ts": {
+    "mtime": 1789781901.0395367,
+    "seen": 1789821029.9992828,
+    "ast_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9",
+    "semantic_hash": "a0c4ae03cdc8c1e82806e4d51ae4a9a9"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/identity/warhead.ts": {
+    "mtime": 1789781901.0403728,
+    "seen": 1789821029.9992833,
+    "ast_hash": "e452112cdc0174be6fcd0ad17ebcaae0",
+    "semantic_hash": "e452112cdc0174be6fcd0ad17ebcaae0"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/keys/go-key-pool.ts": {
+    "mtime": 1789781901.040565,
+    "seen": 1789821029.9992838,
+    "ast_hash": "a74187d1a0ec17ddbe41d2e7287fd394",
+    "semantic_hash": "a74187d1a0ec17ddbe41d2e7287fd394"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/lexicon/compiled-store.ts": {
+    "mtime": 1789781901.0415707,
+    "seen": 1789821029.9992843,
+    "ast_hash": "025bb06444310f07384252a0429c15cf",
+    "semantic_hash": "025bb06444310f07384252a0429c15cf"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/lexicon/compiler.ts": {
+    "mtime": 1789781901.0414207,
+    "seen": 1789821029.9992845,
+    "ast_hash": "d7cceef123a7cebfb7c6f8a576cac56d",
+    "semantic_hash": "d7cceef123a7cebfb7c6f8a576cac56d"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/lexicon/rule-card.ts": {
+    "mtime": 1789781901.0408275,
+    "seen": 1789821029.999285,
+    "ast_hash": "055c837f4e65ea754a5c18a3193b1206",
+    "semantic_hash": "055c837f4e65ea754a5c18a3193b1206"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/lexicon/templates.ts": {
+    "mtime": 1789781901.0411258,
+    "seen": 1789821029.9992855,
+    "ast_hash": "f91bdadd68d9d72a6388b87f91108531",
+    "semantic_hash": "f91bdadd68d9d72a6388b87f91108531"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/log.ts": {
+    "mtime": 1789781901.034554,
+    "seen": 1789821029.999286,
+    "ast_hash": "c001af81a08c8d5ae57429e236b3b186",
+    "semantic_hash": "c001af81a08c8d5ae57429e236b3b186"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/profile/loader.ts": {
+    "mtime": 1789781901.042056,
+    "seen": 1789821029.9992864,
+    "ast_hash": "ae4adb29026d2f5bc7a0bbbfde327abc",
+    "semantic_hash": "ae4adb29026d2f5bc7a0bbbfde327abc"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/profile/profile-schema.ts": {
+    "mtime": 1789781901.0422285,
+    "seen": 1789821029.999287,
+    "ast_hash": "3ea87b0a1994c7aedef9eae0dad1094e",
+    "semantic_hash": "3ea87b0a1994c7aedef9eae0dad1094e"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/profile/schema.ts": {
+    "mtime": 1789781901.0416725,
+    "seen": 1789821029.9992874,
+    "ast_hash": "6599cf021ae95176c88d1f38ecc94f5b",
+    "semantic_hash": "6599cf021ae95176c88d1f38ecc94f5b"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/db-canon.ts": {
+    "mtime": 1789781901.043469,
+    "seen": 1789821029.999288,
+    "ast_hash": "4594c175106304bdcfaf9bc632638fc1",
+    "semantic_hash": "4594c175106304bdcfaf9bc632638fc1"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/db.ts": {
+    "mtime": 1789781901.043537,
+    "seen": 1789821029.9992886,
+    "ast_hash": "d58d36e20087fec8d316a69ca7203df6",
+    "semantic_hash": "d58d36e20087fec8d316a69ca7203df6"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/kind-for-layer.ts": {
+    "mtime": 1789781901.0430236,
+    "seen": 1789821029.9992893,
+    "ast_hash": "f1639a4acf4c947b400eb10b5bceca89",
+    "semantic_hash": "f1639a4acf4c947b400eb10b5bceca89"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/line-resolve.ts": {
+    "mtime": 1789781901.0425367,
+    "seen": 1789821029.9992898,
+    "ast_hash": "0afa943fe084a27e789e20b93217dede",
+    "semantic_hash": "0afa943fe084a27e789e20b93217dede"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/migrations.ts": {
+    "mtime": 1789781901.0432808,
+    "seen": 1789821029.9992902,
+    "ast_hash": "8e11efedd4cb7536aa410345a7066fe8",
+    "semantic_hash": "8e11efedd4cb7536aa410345a7066fe8"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/ontology.ts": {
+    "mtime": 1789781901.0428567,
+    "seen": 1789821029.9992907,
+    "ast_hash": "6e7fe9835942092f090cb771bf85fe56",
+    "semantic_hash": "6e7fe9835942092f090cb771bf85fe56"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/profile-schema.ts": {
+    "mtime": 1789781901.043958,
+    "seen": 1789821029.999291,
+    "ast_hash": "a7aa40d9e449755c4e038761de7b1f60",
+    "semantic_hash": "a7aa40d9e449755c4e038761de7b1f60"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/shared/query-engine.ts": {
+    "mtime": 1789781901.0441327,
+    "seen": 1789821029.9992914,
+    "ast_hash": "8ba4dd98bb7c2e14aa45217081916a96",
+    "semantic_hash": "8ba4dd98bb7c2e14aa45217081916a96"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/surface/lsp-injector.ts": {
+    "mtime": 1789781901.0444872,
+    "seen": 1789821029.999292,
+    "ast_hash": "3b254e1a36764744554955cd31429dd2",
+    "semantic_hash": "3b254e1a36764744554955cd31429dd2"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/surface/query-tool.ts": {
+    "mtime": 1789781901.0442286,
+    "seen": 1789821029.9992924,
+    "ast_hash": "bc0ec670180629b3ef84e32c1eefd7ca",
+    "semantic_hash": "bc0ec670180629b3ef84e32c1eefd7ca"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/testing/inconclusive.ts": {
+    "mtime": 1789781901.0445368,
+    "seen": 1789821029.9992929,
+    "ast_hash": "c8ade1fa70ad4160a8e916782359016f",
+    "semantic_hash": "c8ade1fa70ad4160a8e916782359016f"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/tools/bug-hunt.ts": {
+    "mtime": 1789781901.0446622,
+    "seen": 1789821029.999293,
+    "ast_hash": "15badcebd110c7380cecd50bc30045cc",
+    "semantic_hash": "15badcebd110c7380cecd50bc30045cc"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/tools/query-registration.ts": {
+    "mtime": 1789781901.044975,
+    "seen": 1789821029.9992938,
+    "ast_hash": "ee7f46875d15fa5017a3a1a61c232b1a",
+    "semantic_hash": "ee7f46875d15fa5017a3a1a61c232b1a"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/tools/report-writer-local.ts": {
+    "mtime": 1789781901.0451787,
+    "seen": 1789821029.9992943,
+    "ast_hash": "1500bb9ff750cf50d1a7560fd58245c6",
+    "semantic_hash": "1500bb9ff750cf50d1a7560fd58245c6"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hunter/triad.ts": {
+    "mtime": 1789781901.0340648,
+    "seen": 1789821029.9992948,
+    "ast_hash": "41d759912b1513080e964dd479a46320",
+    "semantic_hash": "41d759912b1513080e964dd479a46320"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/__tests__/pipeline-battery.test.ts": {
+    "mtime": 1789781901.0839744,
+    "seen": 1789821029.9992952,
+    "ast_hash": "a6f556a8d17fb885e97418950ecedeb2",
+    "semantic_hash": "a6f556a8d17fb885e97418950ecedeb2"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/__tests__/reader-battery.test.ts": {
+    "mtime": 1789781901.084229,
+    "seen": 1789821029.9992957,
+    "ast_hash": "a1ba982973eb25cc3417b1144875cbf3",
+    "semantic_hash": "a1ba982973eb25cc3417b1144875cbf3"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/__tests__/settle-battery.test.ts": {
+    "mtime": 1789781901.08377,
+    "seen": 1789821029.9992962,
+    "ast_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152",
+    "semantic_hash": "196fce2e4adae8d1a6c0a1fbbd1d9152"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/auditor.ts": {
+    "mtime": 1789781901.0853393,
+    "seen": 1789821029.9992967,
+    "ast_hash": "480ebebe3431d366af79064d68cd40c4",
+    "semantic_hash": "480ebebe3431d366af79064d68cd40c4"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/client-reader.ts": {
+    "mtime": 1789781901.0827682,
+    "seen": 1789821029.9992974,
+    "ast_hash": "c8b46b097eb15060079823771d68099f",
+    "semantic_hash": "c8b46b097eb15060079823771d68099f"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/map-reader.ts": {
+    "mtime": 1789781901.083524,
+    "seen": 1789821029.9992976,
+    "ast_hash": "89e3cea0d0e088c295c8bcd41b094547",
+    "semantic_hash": "89e3cea0d0e088c295c8bcd41b094547"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/pipeline.ts": {
+    "mtime": 1789781901.0835376,
+    "seen": 1789821029.999298,
+    "ast_hash": "08f6e4a3e2f265711de778515f962a17",
+    "semantic_hash": "08f6e4a3e2f265711de778515f962a17"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/templates/index.ts": {
+    "mtime": 1789781901.0849636,
+    "seen": 1789821029.9992986,
+    "ast_hash": "9860cdfb5c5d74cab3ea6dcea21d3801",
+    "semantic_hash": "9860cdfb5c5d74cab3ea6dcea21d3801"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/templates/lasme.ts": {
+    "mtime": 1789781901.0847716,
+    "seen": 1789821029.999299,
+    "ast_hash": "5349ecb888826d9690f99a14b0122c2c",
+    "semantic_hash": "5349ecb888826d9690f99a14b0122c2c"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/templates/mpse.ts": {
+    "mtime": 1789781901.0845835,
+    "seen": 1789821029.9992995,
+    "ast_hash": "adf7e3fecb7c9398e30903ac1cee138c",
+    "semantic_hash": "adf7e3fecb7c9398e30903ac1cee138c"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/templates/sro.ts": {
+    "mtime": 1789781901.084869,
+    "seen": 1789821029.9993,
+    "ast_hash": "8eae6dc4dcad062b0b39e6ec814076e2",
+    "semantic_hash": "8eae6dc4dcad062b0b39e6ec814076e2"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/hydra/templates/types.ts": {
+    "mtime": 1789781901.0842633,
+    "seen": 1789821029.9993007,
+    "ast_hash": "909e2a86228086c6c76cd6e2debf025a",
+    "semantic_hash": "909e2a86228086c6c76cd6e2debf025a"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/kernel/graph-diff.ts": {
+    "mtime": 1789781901.1184208,
+    "seen": 1789821029.9993012,
+    "ast_hash": "91ef9b901b9acebfbd2d3b800556c678",
+    "semantic_hash": "91ef9b901b9acebfbd2d3b800556c678"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/kernel/graph-gate.ts": {
+    "mtime": 1789781901.1182828,
+    "seen": 1789821029.9993017,
+    "ast_hash": "0e2e3f154631eae06b85d5ac35514793",
+    "semantic_hash": "0e2e3f154631eae06b85d5ac35514793"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/kernel/graph-pre-flight.ts": {
+    "mtime": 1789781901.1185381,
+    "seen": 1789821029.9993021,
+    "ast_hash": "a3c214b561a63e0bae4e1b9af21f5889",
+    "semantic_hash": "a3c214b561a63e0bae4e1b9af21f5889"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/kernel/graph-test-target.ts": {
+    "mtime": 1789781901.1188014,
+    "seen": 1789821029.9993026,
+    "ast_hash": "3d03b1c5b33b3231875c5d011d7087a7",
+    "semantic_hash": "3d03b1c5b33b3231875c5d011d7087a7"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/kernel/scan-chain.ts": {
+    "mtime": 1789781901.1177192,
+    "seen": 1789821029.999303,
+    "ast_hash": "3670c482f44a23da32ab69f9f4dcdc8b",
+    "semantic_hash": "3670c482f44a23da32ab69f9f4dcdc8b"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/extension.ts": {
+    "mtime": 1789781900.9859486,
+    "seen": 1789821029.9993036,
+    "ast_hash": "96d5de36159c38e7028138a4a63a743b",
+    "semantic_hash": "96d5de36159c38e7028138a4a63a743b"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/gate-hook.ts": {
+    "mtime": 1789781900.9849153,
+    "seen": 1789821029.9993038,
+    "ast_hash": "8f7b44b58bc5d24ca595a339d59712ae",
+    "semantic_hash": "8f7b44b58bc5d24ca595a339d59712ae"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/gate-middleware.ts": {
+    "mtime": 1789781900.9844217,
+    "seen": 1789821029.9993045,
+    "ast_hash": "c006e9db8244610293324eabd4b367de",
+    "semantic_hash": "c006e9db8244610293324eabd4b367de"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/gi-registry.ts": {
+    "mtime": 1789781900.9845312,
+    "seen": 1789821029.999305,
+    "ast_hash": "cc250a39546a0599aa06e156b306dcf0",
+    "semantic_hash": "cc250a39546a0599aa06e156b306dcf0"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/populate-corbell.ts": {
+    "mtime": 1789781900.9855359,
+    "seen": 1789821029.9993057,
+    "ast_hash": "19325c03a53de0626f6636492aaf0713",
+    "semantic_hash": "19325c03a53de0626f6636492aaf0713"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/populate-graphify.ts": {
+    "mtime": 1789781900.9853668,
+    "seen": 1789821029.9993062,
+    "ast_hash": "2e076db12671ebf09c6e90527485553b",
+    "semantic_hash": "2e076db12671ebf09c6e90527485553b"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/populate.ts": {
+    "mtime": 1789781900.98515,
+    "seen": 1789821029.9993064,
+    "ast_hash": "f3002eb6a0b6b16dc5b2b5a30460c481",
+    "semantic_hash": "f3002eb6a0b6b16dc5b2b5a30460c481"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/ripwire-bridge.ts": {
+    "mtime": 1789781900.985337,
+    "seen": 1789821029.999307,
+    "ast_hash": "2772edd5e2be8db42c24bc4aa1bdb72a",
+    "semantic_hash": "2772edd5e2be8db42c24bc4aa1bdb72a"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/store-open.ts": {
+    "mtime": 1789781900.9845357,
+    "seen": 1789821029.9993072,
+    "ast_hash": "a554a0850a9e36da29f7a61dfe444fa5",
+    "semantic_hash": "a554a0850a9e36da29f7a61dfe444fa5"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/omp/typed-write.ts": {
+    "mtime": 1789781900.9839153,
+    "seen": 1789821029.9993079,
+    "ast_hash": "6554a32910d0692bb3bfaa20842d21f8",
+    "semantic_hash": "6554a32910d0692bb3bfaa20842d21f8"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/db-path.ts": {
+    "mtime": 1789781901.157334,
+    "seen": 1789821029.9993086,
+    "ast_hash": "82edd8b4b2b63e4c4babbc46545cdddf",
+    "semantic_hash": "82edd8b4b2b63e4c4babbc46545cdddf"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/gi-ecosystem.ts": {
+    "mtime": 1789781901.1576505,
+    "seen": 1789821029.999309,
+    "ast_hash": "edc09efe2b1b14dda3b890d4656bd329",
+    "semantic_hash": "edc09efe2b1b14dda3b890d4656bd329"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/gi-session-path.ts": {
+    "mtime": 1789781901.1575716,
+    "seen": 1789821029.9993095,
+    "ast_hash": "4a915a059017db04f40904be4bb84195",
+    "semantic_hash": "4a915a059017db04f40904be4bb84195"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/index.ts": {
+    "mtime": 1789781901.1577513,
+    "seen": 1789821029.9993098,
+    "ast_hash": "5b8db7f34d375dbde9d0c97c8606de4d",
+    "semantic_hash": "5b8db7f34d375dbde9d0c97c8606de4d"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/scope-binding.ts": {
+    "mtime": 1789781901.1565976,
+    "seen": 1789821029.9993103,
+    "ast_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185",
+    "semantic_hash": "1c9cb1b3bf6fbdb8fc5a83aa6953c185"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/scope-resolver.ts": {
+    "mtime": 1789781901.1572068,
+    "seen": 1789821029.9993184,
+    "ast_hash": "f4fd84574efb98a5f9b34892e5d5bfb8",
+    "semantic_hash": "f4fd84574efb98a5f9b34892e5d5bfb8"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/scoped-store.ts": {
+    "mtime": 1789781901.1573884,
+    "seen": 1789821029.9993188,
+    "ast_hash": "b0ba13c3132133b9cbbb27a2c448792c",
+    "semantic_hash": "b0ba13c3132133b9cbbb27a2c448792c"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scoping/session-state.ts": {
+    "mtime": 1789781901.1574423,
+    "seen": 1789821029.9993193,
+    "ast_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db",
+    "semantic_hash": "0cb3d85324e4f464d1b4c1aea4aaa2db"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scripts/corbell-build.ts": {
+    "mtime": 1789781901.2625408,
+    "seen": 1789821029.9993196,
+    "ast_hash": "1a8bd01a1027cdc1ff6fabbb75482feb",
+    "semantic_hash": "1a8bd01a1027cdc1ff6fabbb75482feb"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scripts/gi-cli.ts": {
+    "mtime": 1789781901.2635407,
+    "seen": 1789821029.99932,
+    "ast_hash": "6fccc678a845b575b5ad262e0f380944",
+    "semantic_hash": "6fccc678a845b575b5ad262e0f380944"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scripts/graphify-build.ts": {
+    "mtime": 1789781901.2630398,
+    "seen": 1789821029.9993205,
+    "ast_hash": "ab1e9f35e6f512a9d5bce1bc94cf8bf7",
+    "semantic_hash": "ab1e9f35e6f512a9d5bce1bc94cf8bf7"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/scripts/scan-panel.sh": {
+    "mtime": 1789781901.263407,
+    "seen": 1789821029.999321,
+    "ast_hash": "399dc5a7eda92d9d352e229eff693e3f",
+    "semantic_hash": "399dc5a7eda92d9d352e229eff693e3f"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-corbell-port.ts": {
+    "mtime": 1789781901.2294638,
+    "seen": 1789821029.9993215,
+    "ast_hash": "afc1b2931bd44e0a4b4f968046e96264",
+    "semantic_hash": "afc1b2931bd44e0a4b4f968046e96264"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-corrupt.ts": {
+    "mtime": 1789781901.2283022,
+    "seen": 1789821029.9993222,
+    "ast_hash": "6b0becde061963b4a4432b80245e02cf",
+    "semantic_hash": "6b0becde061963b4a4432b80245e02cf"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-gate.ts": {
+    "mtime": 1789781901.227889,
+    "seen": 1789821029.9993227,
+    "ast_hash": "acf846c866e8786d09455b6734b0f1f7",
+    "semantic_hash": "acf846c866e8786d09455b6734b0f1f7"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-isolate.ts": {
+    "mtime": 1789781901.2275403,
+    "seen": 1789821029.9993231,
+    "ast_hash": "03b11b9d58efa492ebb730a540741636",
+    "semantic_hash": "03b11b9d58efa492ebb730a540741636"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-populate.ts": {
+    "mtime": 1789781901.2303996,
+    "seen": 1789821029.9993234,
+    "ast_hash": "332c04b186ab24f4be3e08c529acb543",
+    "semantic_hash": "332c04b186ab24f4be3e08c529acb543"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-refuse.ts": {
+    "mtime": 1789781901.2284868,
+    "seen": 1789821029.9993238,
+    "ast_hash": "e9f91e95fcda7f058e4618118c044d7e",
+    "semantic_hash": "e9f91e95fcda7f058e4618118c044d7e"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-scope.ts": {
+    "mtime": 1789781901.228338,
+    "seen": 1789821029.9993243,
+    "ast_hash": "92b220ac2184873cbac9bd0a9d5dbbe0",
+    "semantic_hash": "92b220ac2184873cbac9bd0a9d5dbbe0"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-tools.ts": {
+    "mtime": 1789781901.2305353,
+    "seen": 1789821029.999325,
+    "ast_hash": "1c90a3ada55a34cda640c9fea642a6cc",
+    "semantic_hash": "1c90a3ada55a34cda640c9fea642a6cc"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-omp-wipe.ts": {
+    "mtime": 1789781901.228593,
+    "seen": 1789821029.9993253,
+    "ast_hash": "9a6a748fa11b7effe32771ba07593c47",
+    "semantic_hash": "9a6a748fa11b7effe32771ba07593c47"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w1-resource.test.ts": {
+    "mtime": 1789781901.22954,
+    "seen": 1789821029.9993258,
+    "ast_hash": "f00363da31a50e73cd5e638a223d3971",
+    "semantic_hash": "f00363da31a50e73cd5e638a223d3971"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w2-containment.test.ts": {
+    "mtime": 1789781901.2309175,
+    "seen": 1789821029.9993262,
+    "ast_hash": "16638643a6d97b7fc69258992ad0ae77",
+    "semantic_hash": "16638643a6d97b7fc69258992ad0ae77"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w3-validation.test.ts": {
+    "mtime": 1789781901.231507,
+    "seen": 1789821029.999327,
+    "ast_hash": "5aa618e6967a4f7d6e91be18bc10965c",
+    "semantic_hash": "5aa618e6967a4f7d6e91be18bc10965c"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w4-scoping.test.ts": {
+    "mtime": 1789781901.2305403,
+    "seen": 1789821029.9993274,
+    "ast_hash": "ce575db960cd4aca0e6876ace04b3fdf",
+    "semantic_hash": "ce575db960cd4aca0e6876ace04b3fdf"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w44-highs.test.ts": {
+    "mtime": 1789781901.232234,
+    "seen": 1789821029.9993277,
+    "ast_hash": "5f8be30a19fcce5516a4103d858574ae",
+    "semantic_hash": "5f8be30a19fcce5516a4103d858574ae"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w5-infra.test.ts": {
+    "mtime": 1789781901.231143,
+    "seen": 1789821029.9993284,
+    "ast_hash": "8b3874a07b6491308c27a978433f13ef",
+    "semantic_hash": "8b3874a07b6491308c27a978433f13ef"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w6-infra.test.ts": {
+    "mtime": 1789781901.2313614,
+    "seen": 1789821029.9993289,
+    "ast_hash": "83c22c76758ead74ffc2f8ae4f0f40a8",
+    "semantic_hash": "83c22c76758ead74ffc2f8ae4f0f40a8"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w7-scanhighs.test.ts": {
+    "mtime": 1789781901.2315402,
+    "seen": 1789821029.999329,
+    "ast_hash": "17a42ca36ec613b291d19b506fd5921f",
+    "semantic_hash": "17a42ca36ec613b291d19b506fd5921f"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w8b-defrag.test.ts": {
+    "mtime": 1789781901.2318957,
+    "seen": 1789821029.9993296,
+    "ast_hash": "35e0e4fa1fdbdb988b3359ad92024b06",
+    "semantic_hash": "35e0e4fa1fdbdb988b3359ad92024b06"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-gi-w9-toctou.test.ts": {
+    "mtime": 1789781901.2320843,
+    "seen": 1789821029.99933,
+    "ast_hash": "caa4cc120e37330eff971f91cbc7707f",
+    "semantic_hash": "caa4cc120e37330eff971f91cbc7707f"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-go-fallback.ts": {
+    "mtime": 1789781901.2287493,
+    "seen": 1789821029.9993303,
+    "ast_hash": "3188a5e44468052715911207f228d495",
+    "semantic_hash": "3188a5e44468052715911207f228d495"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-graphify-port.ts": {
+    "mtime": 1789781901.229259,
+    "seen": 1789821029.9993308,
+    "ast_hash": "a50bc081d203bf5e8f2c8fe560f96c34",
+    "semantic_hash": "a50bc081d203bf5e8f2c8fe560f96c34"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-hunter-live.ts": {
+    "mtime": 1789781901.2281203,
+    "seen": 1789821029.9993315,
+    "ast_hash": "cede3ff8d8b788800b45a2ac9a432308",
+    "semantic_hash": "cede3ff8d8b788800b45a2ac9a432308"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-hunter-port.ts": {
+    "mtime": 1789781901.2288768,
+    "seen": 1789821029.999332,
+    "ast_hash": "97e322ea7038c2d16a0e946de9e29ddc",
+    "semantic_hash": "97e322ea7038c2d16a0e946de9e29ddc"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-populate-substrate.ts": {
+    "mtime": 1789781901.229079,
+    "seen": 1789821029.9993324,
+    "ast_hash": "2651e076dc164df0821d31139aba72c8",
+    "semantic_hash": "2651e076dc164df0821d31139aba72c8"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-ripwire-bridge.ts": {
+    "mtime": 1789781901.230091,
+    "seen": 1789821029.999333,
+    "ast_hash": "20a728631260ef81772f40feb8e78914",
+    "semantic_hash": "20a728631260ef81772f40feb8e78914"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-v21-identity.ts": {
+    "mtime": 1789781901.2298841,
+    "seen": 1789821029.9993331,
+    "ast_hash": "77d01502ee71d4d9c7d83d5ea8397069",
+    "semantic_hash": "77d01502ee71d4d9c7d83d5ea8397069"
+  },
+  "Checkpoints/w46-scan-highs-exhausted-battery-217/src/tests/st-verbs-parse.ts": {
+    "mtime": 1789781901.2302172,
+    "seen": 1789821029.9993334,
+    "ast_hash": "db73befa7fca791e9837092cbfab4748",
+    "semantic_hash": "db73befa7fca791e9837092cbfab4748"
+  },
+  "reports/w45-rescan2-verdicts/extension.json": {
+    "mtime": 1789777522.1445935,
+    "seen": 1789821029.999353,
+    "ast_hash": "8e120a5e18406ef8e9e13a46f2dbb7e4",
+    "semantic_hash": "8e120a5e18406ef8e9e13a46f2dbb7e4"
+  },
+  "reports/w45-rescan2-verdicts/go-key-pool.json": {
+    "mtime": 1789777522.142932,
+    "seen": 1789821029.9993534,
+    "ast_hash": "3fd090c1e063c9fe69b7468a18198bd5",
+    "semantic_hash": "3fd090c1e063c9fe69b7468a18198bd5"
+  },
+  "reports/w45-rescan2-verdicts/graphify-adapter.json": {
+    "mtime": 1789777522.144217,
+    "seen": 1789821029.999354,
+    "ast_hash": "fe98e411cb4d56e042c8a15cfc9d2356",
+    "semantic_hash": "fe98e411cb4d56e042c8a15cfc9d2356"
+  },
+  "reports/w45-rescan2-verdicts/populate-corbell.json": {
+    "mtime": 1789777522.1433291,
+    "seen": 1789821029.9993544,
+    "ast_hash": "f5011eda7666db5ed1eda697005ad0ec",
+    "semantic_hash": "f5011eda7666db5ed1eda697005ad0ec"
+  },
+  "reports/w45-rescan2-verdicts/populate-graphify.json": {
+    "mtime": 1789777522.1435952,
+    "seen": 1789821029.9993546,
+    "ast_hash": "3b2ae1d0b705dea71041f04818cc4564",
+    "semantic_hash": "3b2ae1d0b705dea71041f04818cc4564"
+  },
+  "reports/w45-rescan2-verdicts/typed-write.json": {
+    "mtime": 1789777522.1449003,
+    "seen": 1789821029.999355,
+    "ast_hash": "f4b0c8874c8bca76b75af76eebccec03",
+    "semantic_hash": "f4b0c8874c8bca76b75af76eebccec03"
+  },
+  "src/kernel/graph-diff.ts": {
+    "mtime": 1789751884.7591019,
+    "seen": 1789821030.0004573,
+    "ast_hash": "91ef9b901b9acebfbd2d3b800556c678",
+    "semantic_hash": "91ef9b901b9acebfbd2d3b800556c678"
+  },
+  "src/kernel/graph-gate.ts": {
+    "mtime": 1789676260.116978,
+    "seen": 1789821030.0004578,
+    "ast_hash": "0e2e3f154631eae06b85d5ac35514793",
+    "semantic_hash": "0e2e3f154631eae06b85d5ac35514793"
+  },
+  "src/kernel/graph-pre-flight.ts": {
+    "mtime": 1789676462.0997488,
+    "seen": 1789821030.0004582,
+    "ast_hash": "a3c214b561a63e0bae4e1b9af21f5889",
+    "semantic_hash": "a3c214b561a63e0bae4e1b9af21f5889"
+  },
+  "src/kernel/graph-test-target.ts": {
+    "mtime": 1789676477.6741004,
+    "seen": 1789821030.0004587,
+    "ast_hash": "3d03b1c5b33b3231875c5d011d7087a7",
+    "semantic_hash": "3d03b1c5b33b3231875c5d011d7087a7"
+  },
+  "tests/st-gi-w1-resource.test.ts": {
+    "mtime": 1789673583.7464633,
+    "seen": 1789821030.000904,
+    "ast_hash": "f00363da31a50e73cd5e638a223d3971",
+    "semantic_hash": "f00363da31a50e73cd5e638a223d3971"
+  },
+  "tests/st-gi-w2-containment.test.ts": {
+    "mtime": 1789696158.389383,
+    "seen": 1789821030.0009053,
+    "ast_hash": "16638643a6d97b7fc69258992ad0ae77",
+    "semantic_hash": "16638643a6d97b7fc69258992ad0ae77"
+  },
+  "tests/st-gi-w3-validation.test.ts": {
+    "mtime": 1789696314.3484178,
+    "seen": 1789821030.000906,
+    "ast_hash": "5aa618e6967a4f7d6e91be18bc10965c",
+    "semantic_hash": "5aa618e6967a4f7d6e91be18bc10965c"
+  },
+  "tests/st-gi-w4-scoping.test.ts": {
+    "mtime": 1789711290.5958784,
+    "seen": 1789821030.0009065,
+    "ast_hash": "ce575db960cd4aca0e6876ace04b3fdf",
+    "semantic_hash": "ce575db960cd4aca0e6876ace04b3fdf"
+  },
+  "tests/st-gi-w44-highs.test.ts": {
+    "mtime": 1789780551.1310208,
+    "seen": 1789821030.000907,
+    "ast_hash": "5f8be30a19fcce5516a4103d858574ae",
+    "semantic_hash": "5f8be30a19fcce5516a4103d858574ae"
+  },
+  "tests/st-gi-w5-infra.test.ts": {
+    "mtime": 1789764531.6571872,
+    "seen": 1789821030.0009074,
+    "ast_hash": "8b3874a07b6491308c27a978433f13ef",
+    "semantic_hash": "8b3874a07b6491308c27a978433f13ef"
+  },
+  "tests/st-gi-w6-infra.test.ts": {
+    "mtime": 1789764489.7626362,
+    "seen": 1789821030.0009081,
+    "ast_hash": "83c22c76758ead74ffc2f8ae4f0f40a8",
+    "semantic_hash": "83c22c76758ead74ffc2f8ae4f0f40a8"
+  },
+  "tests/st-gi-w7-scanhighs.test.ts": {
+    "mtime": 1789682183.8556836,
+    "seen": 1789821030.0009086,
+    "ast_hash": "17a42ca36ec613b291d19b506fd5921f",
+    "semantic_hash": "17a42ca36ec613b291d19b506fd5921f"
+  },
+  "tests/st-gi-w8b-defrag.test.ts": {
+    "mtime": 1789770624.2498727,
+    "seen": 1789821030.0009089,
+    "ast_hash": "35e0e4fa1fdbdb988b3359ad92024b06",
+    "semantic_hash": "35e0e4fa1fdbdb988b3359ad92024b06"
+  },
+  "tests/st-gi-w9-toctou.test.ts": {
+    "mtime": 1789717547.47729,
+    "seen": 1789821030.0009093,
+    "ast_hash": "caa4cc120e37330eff971f91cbc7707f",
+    "semantic_hash": "caa4cc120e37330eff971f91cbc7707f"
+  }
+}

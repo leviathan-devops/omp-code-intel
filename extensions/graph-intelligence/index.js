@@ -56,9 +56,8 @@ var __esm = (fn, res, err) => () => {
     throw err[0];
   return res;
 };
-var __require = import.meta.require;
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-dev.development.cjs.js
+// node_modules/xstate/dist/xstate-dev.development.cjs.js
 var require_xstate_dev_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   function getGlobal() {
@@ -108,7 +107,7 @@ var require_xstate_dev_development_cjs = __commonJS(function(exports) {
   exports.registerService = registerService;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/raise-6dbf7d60.development.cjs.js
+// node_modules/xstate/dist/raise-6dbf7d60.development.cjs.js
 var require_raise_6dbf7d60_development_cjs = __commonJS(function(exports) {
   var dist_xstateDev = require_xstate_dev_development_cjs();
 
@@ -2441,7 +2440,7 @@ ${err.message}`);
   exports.transitionNode = transitionNode;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-actors.development.cjs.js
+// node_modules/xstate/dist/xstate-actors.development.cjs.js
 var require_xstate_actors_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
@@ -2823,7 +2822,7 @@ var require_xstate_actors_development_cjs = __commonJS(function(exports) {
   exports.fromTransition = fromTransition;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/assign-22c2f2aa.development.cjs.js
+// node_modules/xstate/dist/assign-22c2f2aa.development.cjs.js
 var require_assign_22c2f2aa_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   function createSpawner(actorScope, {
@@ -2923,7 +2922,7 @@ var require_assign_22c2f2aa_development_cjs = __commonJS(function(exports) {
   exports.assign = assign;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/StateMachine-d4a4d688.development.cjs.js
+// node_modules/xstate/dist/StateMachine-d4a4d688.development.cjs.js
 var require_StateMachine_d4a4d688_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   var assign = require_assign_22c2f2aa_development_cjs();
@@ -3406,7 +3405,7 @@ ${err.message}`);
   exports.StateNode = StateNode;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/log-dc444aec.development.cjs.js
+// node_modules/xstate/dist/log-dc444aec.development.cjs.js
 var require_log_dc444aec_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   var assign = require_assign_22c2f2aa_development_cjs();
@@ -3645,7 +3644,7 @@ var require_log_dc444aec_development_cjs = __commonJS(function(exports) {
   exports.sendTo = sendTo;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate.development.cjs.js
+// node_modules/xstate/dist/xstate.development.cjs.js
 var require_xstate_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dist_xstateActors = require_xstate_actors_development_cjs();
@@ -4043,7 +4042,7 @@ var init_ontology = __esm(() => {
   PREDICATE_SET = new Set(ALL_PREDICATES);
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/typescript/package.json
+// node_modules/typescript/package.json
 var require_package = __commonJS(function(exports, module) {
   module.exports = {
     name: "typescript",
@@ -4134,7 +4133,7 @@ var require_package = __commonJS(function(exports, module) {
   };
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/core.js
+// node_modules/zod/v4/core/core.js
 function $constructor(name, initializer, params) {
   function init(inst, def) {
     var _a;
@@ -4203,7 +4202,7 @@ var init_core = __esm(() => {
   globalConfig = {};
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/util.js
+// node_modules/zod/v4/core/util.js
 function getEnumValues(entries) {
   const numericValues = Object.values(entries).filter((v) => typeof v === "number");
   const values = Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
@@ -4589,7 +4588,7 @@ var init_util = __esm(() => {
   };
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/errors.js
+// node_modules/zod/v4/core/errors.js
 function flattenError(error, mapper = (issue) => issue.message) {
   const fieldErrors = {};
   const formErrors = [];
@@ -4662,7 +4661,7 @@ var init_errors = __esm(() => {
   $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/parse.js
+// node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -4734,7 +4733,7 @@ var init_parse = __esm(() => {
   safeParseAsync = /* @__PURE__ */ _safeParseAsync($ZodRealError);
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/regexes.js
+// node_modules/zod/v4/core/regexes.js
 function emoji() {
   return new RegExp(_emoji, "u");
 }
@@ -4790,7 +4789,7 @@ var init_regexes = __esm(() => {
   uppercase = /^[^a-z]*$/;
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/checks.js
+// node_modules/zod/v4/core/checks.js
 var $ZodCheck, numericOriginMap, $ZodCheckLessThan, $ZodCheckGreaterThan, $ZodCheckMultipleOf, $ZodCheckNumberFormat, $ZodCheckMaxLength, $ZodCheckMinLength, $ZodCheckLengthEquals, $ZodCheckStringFormat, $ZodCheckRegex, $ZodCheckLowerCase, $ZodCheckUpperCase, $ZodCheckIncludes, $ZodCheckStartsWith, $ZodCheckEndsWith, $ZodCheckOverwrite;
 var init_checks = __esm(() => {
   init_core();
@@ -5181,7 +5180,7 @@ var init_checks = __esm(() => {
   });
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/doc.js
+// node_modules/zod/v4/core/doc.js
 class Doc {
   constructor(args = []) {
     this.content = [];
@@ -5219,7 +5218,7 @@ class Doc {
   }
 }
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/versions.js
+// node_modules/zod/v4/core/versions.js
 var version2;
 var init_versions = __esm(() => {
   version2 = {
@@ -5229,7 +5228,7 @@ var init_versions = __esm(() => {
   };
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/schemas.js
+// node_modules/zod/v4/core/schemas.js
 function isValidBase64(data) {
   if (data === "")
     return true;
@@ -6541,7 +6540,7 @@ var init_schemas = __esm(() => {
   });
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/locales/en.js
+// node_modules/zod/v4/locales/en.js
 function en_default() {
   return {
     localeError: error()
@@ -6661,10 +6660,10 @@ var init_en = __esm(() => {
   init_util();
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/locales/index.js
+// node_modules/zod/v4/locales/index.js
 var init_locales = () => {};
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/registries.js
+// node_modules/zod/v4/core/registries.js
 class $ZodRegistry {
   constructor() {
     this._map = new WeakMap;
@@ -6718,7 +6717,7 @@ var init_registries = __esm(() => {
   globalRegistry = /* @__PURE__ */ registry();
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/api.js
+// node_modules/zod/v4/core/api.js
 function _string(Class, params) {
   return new Class({
     type: "string",
@@ -7174,13 +7173,13 @@ var init_api = __esm(() => {
   init_util();
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/to-json-schema.js
+// node_modules/zod/v4/core/to-json-schema.js
 var init_to_json_schema = () => {};
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/json-schema.js
+// node_modules/zod/v4/core/json-schema.js
 var init_json_schema = () => {};
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/index.js
+// node_modules/zod/v4/core/index.js
 var init_core2 = __esm(() => {
   init_util();
   init_regexes();
@@ -7197,12 +7196,12 @@ var init_core2 = __esm(() => {
   init_to_json_schema();
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/checks.js
+// node_modules/zod/v4/classic/checks.js
 var init_checks2 = __esm(() => {
   init_core2();
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/iso.js
+// node_modules/zod/v4/classic/iso.js
 function datetime2(params) {
   return _isoDateTime(ZodISODateTime, params);
 }
@@ -7237,7 +7236,7 @@ var init_iso = __esm(() => {
   });
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/errors.js
+// node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -7277,7 +7276,7 @@ var init_errors2 = __esm(() => {
   });
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/parse.js
+// node_modules/zod/v4/classic/parse.js
 var parse3, parseAsync2, safeParse2, safeParseAsync2, encode, decode, encodeAsync, decodeAsync, safeEncode, safeDecode, safeEncodeAsync, safeDecodeAsync;
 var init_parse2 = __esm(() => {
   init_core2();
@@ -7296,7 +7295,7 @@ var init_parse2 = __esm(() => {
   safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 function string2(params) {
   return _string(ZodString, params);
 }
@@ -7891,16 +7890,16 @@ var init_schemas2 = __esm(() => {
   });
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/compat.js
+// node_modules/zod/v4/classic/compat.js
 var ZodFirstPartyTypeKind;
 var init_compat = __esm(() => {
   (function(ZodFirstPartyTypeKind) {})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/coerce.js
+// node_modules/zod/v4/classic/coerce.js
 var init_coerce = () => {};
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/external.js
+// node_modules/zod/v4/classic/external.js
 var init_external = __esm(() => {
   init_core2();
   init_core2();
@@ -7916,7 +7915,7 @@ var init_external = __esm(() => {
   config(en_default());
 });
 
-// ../../OMP/Graph_Intelligence/node_modules/zod/index.js
+// node_modules/zod/index.js
 var init_zod = __esm(() => {
   init_external();
   init_external();
@@ -8224,7 +8223,7 @@ function kindForLayer(layerId) {
 }
 
 // src/hydra/map-reader.ts
-import fs21 from "fs";
+import fs20 from "fs";
 import path24 from "path";
 function parseGraphJson(contents, size) {
   const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
@@ -8282,7 +8281,7 @@ async function readGraphJson(graphPath) {
   const resolved = path24.resolve(graphPath);
   let stat;
   try {
-    stat = fs21.statSync(resolved);
+    stat = fs20.statSync(resolved);
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} \u2014 remedy: run the explicit graphify build for this target, then re-run the audit`);
   }
@@ -8295,7 +8294,7 @@ async function readGraphJson(graphPath) {
   }
   let raw;
   try {
-    raw = parseGraphJson(fs21.readFileSync(resolved, "utf-8"), gSize);
+    raw = parseGraphJson(fs20.readFileSync(resolved, "utf-8"), gSize);
   } catch (err) {
     const msg = String(err.message ?? err);
     if (msg.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
@@ -8465,17 +8464,17 @@ var exports_auditor = {};
 __export(exports_auditor, {
   runTemplateAudit: () => runTemplateAudit
 });
-import fs22 from "fs";
+import fs21 from "fs";
 import path25 from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 function realResolve(p) {
   const resolved = path25.resolve(p);
   try {
-    return fs22.realpathSync(resolved);
+    return fs21.realpathSync(resolved);
   } catch {
     try {
-      return path25.join(fs22.realpathSync(path25.dirname(resolved)), path25.basename(resolved));
+      return path25.join(fs21.realpathSync(path25.dirname(resolved)), path25.basename(resolved));
     } catch {
       return resolved;
     }
@@ -8505,15 +8504,15 @@ function makeCappedReadTool(targetRoot) {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
-        const fd = fs22.openSync(realFile, fs22.constants.O_RDONLY | fs22.constants.O_NOFOLLOW);
+        const fd = fs21.openSync(realFile, fs21.constants.O_RDONLY | fs21.constants.O_NOFOLLOW);
         try {
-          const size = fs22.fstatSync(fd).size;
+          const size = fs21.fstatSync(fd).size;
           if (size > 8 * 1024 * 1024)
             return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
           const buf = Buffer.alloc(size);
           let total = 0;
           while (total < size) {
-            const n = fs22.readSync(fd, buf, total, size - total, total);
+            const n = fs21.readSync(fd, buf, total, size - total, total);
             if (n <= 0)
               break;
             total += n;
@@ -8528,7 +8527,7 @@ function makeCappedReadTool(targetRoot) {
 [TRUNCATED]` : "");
           return out;
         } finally {
-          fs22.closeSync(fd);
+          fs21.closeSync(fd);
         }
       } catch (e) {
         return `READ_FAILED: ${String(e.message).slice(0, 300)}`;
@@ -8590,16 +8589,16 @@ function makeForceBoundWriteTool(pinnedPath, ledgerDir) {
         return JSON.stringify({ error: WRITE_SCOPE_VIOLATION, detail: "pinned target outside ledger", recorded: true });
       }
       try {
-        fs22.mkdirSync(path25.dirname(pinnedReal), { recursive: true });
+        fs21.mkdirSync(path25.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
         if (content.length > 8 * 1024 * 1024) {
           return JSON.stringify({ error: "WRITE_TOO_LARGE: content exceeds the 8MiB write cap", recorded: true });
         }
-        const wfd = fs22.openSync(pinnedReal, fs22.constants.O_WRONLY | fs22.constants.O_CREAT | fs22.constants.O_TRUNC | fs22.constants.O_NOFOLLOW, 420);
+        const wfd = fs21.openSync(pinnedReal, fs21.constants.O_WRONLY | fs21.constants.O_CREAT | fs21.constants.O_TRUNC | fs21.constants.O_NOFOLLOW, 420);
         try {
-          fs22.writeFileSync(wfd, content, "utf-8");
+          fs21.writeFileSync(wfd, content, "utf-8");
         } finally {
-          fs22.closeSync(wfd);
+          fs21.closeSync(wfd);
         }
         return JSON.stringify({ path: pinnedReal, bytes: Buffer.byteLength(content, "utf-8") });
       } catch (e) {
@@ -8643,13 +8642,13 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
         confidence: 1
       };
       const splicePath = path25.join(path25.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
-      fs22.mkdirSync(path25.dirname(splicePath), { recursive: true });
-      const sfd = fs22.openSync(splicePath, fs22.constants.O_WRONLY | fs22.constants.O_CREAT | fs22.constants.O_APPEND | fs22.constants.O_NOFOLLOW, 420);
+      fs21.mkdirSync(path25.dirname(splicePath), { recursive: true });
+      const sfd = fs21.openSync(splicePath, fs21.constants.O_WRONLY | fs21.constants.O_CREAT | fs21.constants.O_APPEND | fs21.constants.O_NOFOLLOW, 420);
       try {
-        fs22.writeFileSync(sfd, JSON.stringify(row) + `
+        fs21.writeFileSync(sfd, JSON.stringify(row) + `
 `, "utf-8");
       } finally {
-        fs22.closeSync(sfd);
+        fs21.closeSync(sfd);
       }
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
     }
@@ -8750,11 +8749,11 @@ async function readFindingsReport(reportPath, schema) {
   }
   let stat;
   try {
-    stat = fs22.statSync(reportPath);
+    stat = fs21.statSync(reportPath);
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
   }
-  const raw = fs22.readFileSync(reportPath, "utf-8");
+  const raw = fs21.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0)
     throw new Error("REPORT_PARSE_FAILED: empty file");
   const { candidates, summary } = parseFindingsMarkdown(raw);
@@ -8810,15 +8809,15 @@ function sourceLineQuote(targetRoot, relFile, line) {
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal)
       return "";
-    const fd = fs22.openSync(realFile, fs22.constants.O_RDONLY | fs22.constants.O_NOFOLLOW);
+    const fd = fs21.openSync(realFile, fs21.constants.O_RDONLY | fs21.constants.O_NOFOLLOW);
     try {
-      const size = fs22.fstatSync(fd).size;
+      const size = fs21.fstatSync(fd).size;
       if (size > 8 * 1024 * 1024)
         return "";
       const buf = Buffer.alloc(size);
       let total = 0;
       while (total < size) {
-        const n = fs22.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        const n = fs21.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
         if (n <= 0)
           break;
         total += n;
@@ -8827,7 +8826,7 @@ function sourceLineQuote(targetRoot, relFile, line) {
 `);
       return (lines[line - 1] ?? "").trim().slice(0, 300);
     } finally {
-      fs22.closeSync(fd);
+      fs21.closeSync(fd);
     }
   } catch {
     return "";
@@ -9072,6 +9071,9 @@ async function sweep(template, graph, targetRoot, belt, calls) {
     if (out.length === 0 && probeFailures > 0) {
       return [sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`, firstNodeFile)];
     }
+    if (probeFailures > 0) {
+      out.push(sweepIncomplete(anchor, template.layerId, `dead-code sweep INCOMPLETE: ${probeFailures} node probe(s) failed (first: ${probeFailureReason})`, firstNodeFile));
+    }
     return out.length > 0 ? out : [confirmedEmpty(anchor, template.layerId, `in-degree/out-degree scan over ${graph.nodes.length} nodes + grep two-leg verification found no dead declarations`, firstNodeFile)];
   }
   if (anchor === "impact-path") {
@@ -9168,6 +9170,14 @@ async function sweep(template, graph, targetRoot, belt, calls) {
   }
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }
+function writeBriefPinned(briefPath, content) {
+  const fd = fs21.openSync(briefPath, fs21.constants.O_WRONLY | fs21.constants.O_CREAT | fs21.constants.O_TRUNC | fs21.constants.O_NOFOLLOW, 420);
+  try {
+    fs21.writeFileSync(fd, content, "utf-8");
+  } finally {
+    fs21.closeSync(fd);
+  }
+}
 function assertGraphShape(graph) {
   if (graph === null || typeof graph !== "object")
     throw new Error("GRAPHIFY_EXTRACT_FAILED: graph.json did not parse to an object");
@@ -9215,7 +9225,7 @@ async function runTemplateAudit(args) {
     return { layerId, status: "rejected", error: "HUNTER_TARGET_INVALID: targetRoot required", ledgerDir, durationMs: Date.now() - t0 };
   }
   const targetRoot = path25.resolve(args.targetRoot);
-  if (!fs22.existsSync(targetRoot)) {
+  if (!fs21.existsSync(targetRoot)) {
     return { layerId, status: "rejected", error: `HUNTER_TARGET_INVALID: targetRoot not found: ${targetRoot}`, ledgerDir, durationMs: Date.now() - t0 };
   }
   let graph;
@@ -9233,7 +9243,7 @@ async function runTemplateAudit(args) {
     return { layerId, status: "rejected", error: "HUNTER_TOOLS_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
   try {
-    fs22.mkdirSync(ledgerDir, { recursive: true });
+    fs21.mkdirSync(ledgerDir, { recursive: true });
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_LEDGER_MKDIR_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -9252,21 +9262,23 @@ async function runTemplateAudit(args) {
   ].join(`
 `);
   try {
-    fs22.writeFileSync(path25.join(ledgerDir, "brief.md"), brief, "utf-8");
+    writeBriefPinned(path25.join(ledgerDir, "brief.md"), brief);
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_BRIEF_WRITE_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
   const reader = new GraphifyMapReader(args.client ?? null);
   let sliceNote = "";
-  try {
-    const q0 = (template.graphQueries ?? [])[0] ?? template.anchorPredicate;
-    const slice = await reader.query(graph, q0);
-    calls.count += 1;
-    calls.names.push("graph-query");
-    sliceNote = `graphSlice query "${q0}" \u2192 ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
-  } catch (e) {
-    errors.push("GRAPH_SLICE_FAILED: " + String(e.message).slice(0, 200));
-    sliceNote = "graphSlice unavailable (see errors)";
+  const q0 = (template.graphQueries ?? [])[0] ?? "";
+  if (q0 !== "") {
+    try {
+      const slice = await reader.query(graph, q0);
+      calls.count += 1;
+      calls.names.push("graph-query");
+      sliceNote = `graphSlice query "${q0}" \u2192 ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
+    } catch (e) {
+      errors.push("GRAPH_SLICE_FAILED: " + String(e.message).slice(0, 200));
+      sliceNote = "graphSlice unavailable (see errors)";
+    }
   }
   let swept;
   try {
@@ -9325,7 +9337,7 @@ ${summary}
   }
   const reportPath = path25.join(ledgerDir, "findings", "report.md");
   try {
-    const st = fs22.statSync(reportPath);
+    const st = fs21.statSync(reportPath);
     const REPORT_MTIME_SLACK_MS = 100;
     if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
@@ -9370,8 +9382,9 @@ var init_auditor = __esm(() => {
 });
 
 // src/omp/extension.ts
-import * as fs23 from "fs";
+import * as fs22 from "fs";
 import * as path26 from "path";
+import { Database as Database6 } from "bun:sqlite";
 
 // src/omp/typed-write.ts
 import * as fs2 from "fs";
@@ -9812,12 +9825,14 @@ function blastRadius(storePath, symbol, depth = 8) {
   const db = openTypedStore(storePath);
   try {
     let ids = resolveLiveIds(db, symbol);
+    let idsTruncated = false;
     if (ids.length > 500) {
       console.warn(`[gi-omp] blastRadius: '${symbol}' resolves to ${ids.length} live ids \u2014 capping at 500 (SQLite variable limit); reachability UNDER-REPORTED`);
+      idsTruncated = true;
       ids = ids.slice(0, 500);
     }
     if (ids.length === 0)
-      return { root: symbol, depth: 0, nodes: [] };
+      return { root: symbol, depth: 0, nodes: [], truncated: false };
     const rows = db.query(`WITH RECURSIVE blast(cid, depth) AS (
          SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph(ids.length)}) AND superseded_run IS NULL
          UNION
@@ -9838,7 +9853,8 @@ function blastRadius(storePath, symbol, depth = 8) {
        LIMIT 5000`).all(...ids, depth);
     const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
     const maxDepth = nodes.reduce((m, n) => n.depth > m ? n.depth : m, 0);
-    return { root: symbol, depth: maxDepth, nodes };
+    const truncated = idsTruncated || rows.length >= 5000 || undefined;
+    return { root: symbol, depth: maxDepth, nodes, truncated };
   } finally {
     db.close();
   }
@@ -9870,7 +9886,7 @@ function chainCalls(storePath, from, to, maxDepth = 64, visitCap = 20000) {
     const targets = db.query("SELECT DISTINCT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 500").all(to);
     const toSet = new Set(targets.map((r) => r.canonical_id));
     maxDepth = Math.min(Math.max(1, Math.floor(maxDepth) || 1), 16);
-    const cap = Math.max(1, Math.floor(visitCap) || 20000);
+    const cap = Math.min(Math.max(1, Math.floor(visitCap) || 20000), 1e5);
     let truncated = false;
     const visited = new Set(starts.map((s) => s.canonical_id));
     const queue = starts.map((s) => ({ id: s.canonical_id, label: from, steps: [] }));
@@ -10105,20 +10121,6 @@ function findGiSessionByStorePath(storePath) {
   const hit = db.query("SELECT session_id, scope_root, store_path FROM gi_sessions WHERE store_path = ?").get(storePath);
   return hit ?? null;
 }
-class GiClearError extends Error {
-  code = "GI_CLEAR_REFUSED";
-  constructor(message) {
-    super(message);
-    this.name = "GiClearError";
-  }
-}
-function clearGiRegistry() {
-  if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
-    throw new GiClearError("GI_CLEAR_REFUSED: set GI_OMP_ALLOW_CLEAR=1 to wipe the registry (never default)");
-  }
-  const db = openGiRegistry();
-  db.run("DELETE FROM gi_sessions");
-}
 
 // src/omp/store-open.ts
 class GiScopeError extends Error {
@@ -10225,44 +10227,6 @@ function runGraphGate(input) {
     };
   }
   return { cancel: false, token: null, advisory: null };
-}
-function parseExportSites(src) {
-  const out = new Map;
-  const lineOf = (off) => {
-    let line = 1;
-    for (let i = 0;i < off; i++)
-      if (src.charCodeAt(i) === 10)
-        line++;
-    return line;
-  };
-  const put = (name, off) => {
-    if (!out.has(name))
-      out.set(name, lineOf(off));
-  };
-  let m;
-  EXPORT_PARSE_RE.lastIndex = 0;
-  while (m = EXPORT_PARSE_RE.exec(src))
-    put(m[1], m.index);
-  EXPORT_BRACES_RE.lastIndex = 0;
-  while (m = EXPORT_BRACES_RE.exec(src)) {
-    for (const spec of m[1].split(",")) {
-      const s = spec.trim();
-      if (!s)
-        continue;
-      const asMatch = /\bas\s+(\w+)\s*$/.exec(s);
-      if (asMatch) {
-        put(asMatch[1], m.index);
-        continue;
-      }
-      const plain = /^(\w+)$/.exec(s);
-      if (plain)
-        put(plain[1], m.index);
-    }
-  }
-  EXPORT_DEFAULT_RE.lastIndex = 0;
-  while (m = EXPORT_DEFAULT_RE.exec(src))
-    put("default", m.index);
-  return [...out.entries()].map(([name, line]) => ({ name, line }));
 }
 
 // src/omp/gate-hook.ts
@@ -10371,7 +10335,6 @@ function attachGiGraphGate(pi) {
 }
 
 // src/omp/populate.ts
-import * as fs10 from "fs";
 import * as path11 from "path";
 
 // src/omp/populate-corbell.ts
@@ -11657,16 +11620,20 @@ class GraphifyAdapter {
     }
     return out;
   }
-  buildSync(graphPath) {
-    const root = path8.resolve(this.profile.project.root);
+  buildSync(graphPath, profileOverride) {
+    const effectiveProfile = profileOverride ?? this.profile;
+    const root = path8.resolve(effectiveProfile.project.root);
     const graph = loadGraphifyFileSync(graphPath);
     if (graph.nodes.length === 0) {
       throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
     }
     const raw = projectGraphifyGraph(graph, root);
-    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, this.profile.graph?.scope ?? ["src"]);
+    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, effectiveProfile.graph?.scope ?? ["src"]);
     if (filtered.dropped > 0) {
       tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
+    }
+    if (filtered.nodes.length === 0) {
+      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${(effectiveProfile.graph?.scope ?? ["src"]).join(",")})`);
     }
     this.lastGraphPath = graphPath;
     this.cachedNodes = filtered.nodes;
@@ -11791,6 +11758,24 @@ function graphifyOutPath(root, profile) {
     return resolveGraphifyOut(profile);
   return resolveGraphifyOut({ project: { root: path9.resolve(root) } });
 }
+function containedScopeTarget(root, rel) {
+  let rootCanon = null;
+  try {
+    rootCanon = fs8.realpathSync(root);
+  } catch {
+    return null;
+  }
+  const target = path9.isAbsolute(rel) ? rel : path9.join(rootCanon, rel);
+  try {
+    const real = fs8.realpathSync(target);
+    const r = path9.relative(rootCanon, real);
+    if (r === "" || !r.split(path9.sep).includes("..") && !path9.isAbsolute(r))
+      return target;
+    return null;
+  } catch {
+    return null;
+  }
+}
 function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes = []) {
   if (scope.length === 0)
     return { fresh: false, reason: "stale-unscooped" };
@@ -11803,6 +11788,24 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     return { fresh: false, reason: "absent" };
   }
   const warmMtime = st.mtimeMs;
+  const hashPath0 = graphHashSidecarPath(graphPath);
+  let sidecarHash = null;
+  try {
+    sidecarHash = fs8.readFileSync(hashPath0, "utf8").trim() || null;
+  } catch {
+    sidecarHash = null;
+  }
+  if (sidecarHash) {
+    let currentHash;
+    try {
+      currentHash = computeSourceHash(root, scope, excludes);
+    } catch (hashErr) {
+      return { fresh: false, reason: `stale-hash-error: ${hashErr instanceof Error ? hashErr.message.slice(0, 80) : String(hashErr).slice(0, 80)}` };
+    }
+    if (currentHash !== sidecarHash)
+      return { fresh: false, reason: "stale-content" };
+    return { fresh: true, reason: "fresh" };
+  }
   let newest = 0;
   let filesSeen = 0;
   let exhausted = false;
@@ -11841,7 +11844,9 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     }
   };
   for (const rel of scope) {
-    const target = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    const target = containedScopeTarget(root, rel);
+    if (target === null)
+      continue;
     let stTarget = null;
     try {
       stTarget = fs8.statSync(target);
@@ -11864,19 +11869,6 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     return { fresh: false, reason: "stale-unscooped" };
   if (exhausted)
     return { fresh: false, reason: "stale-budget" };
-  const hashPath = graphHashSidecarPath(graphPath);
-  let storedHash = null;
-  try {
-    storedHash = fs8.readFileSync(hashPath, "utf8").trim() || null;
-  } catch (readErr) {
-    console.log(`[gi-omp] freshness: no hash sidecar at ${hashPath} (${readErr instanceof Error ? readErr.message.slice(0, 40) : "read error"})`);
-  }
-  if (storedHash) {
-    const currentHash = computeSourceHash(root, scope, excludes);
-    if (currentHash !== storedHash)
-      return { fresh: false, reason: "stale-content" };
-    return { fresh: true, reason: "fresh" };
-  }
   if (newest <= warmMtime)
     return { fresh: true, reason: "fresh" };
   return { fresh: false, reason: "stale" };
@@ -11889,10 +11881,12 @@ function hashSourceTree(root, scope, excludes, budgetN) {
   const hash = createHash2("sha256");
   const budget = { n: budgetN };
   let exhausted = false;
-  const hashFile = (abs, anchor, size) => {
+  const hashFile = (abs, anchor, statSize) => {
+    let size = statSize;
     let fd = null;
     try {
       fd = fs8.openSync(abs, "r");
+      size = fs8.fstatSync(fd).size;
       let read = 0;
       if (size <= GRAPH_HASH_WHOLE_FILE_MAX) {
         const buf = Buffer.alloc(size);
@@ -11964,7 +11958,9 @@ function hashSourceTree(root, scope, excludes, budgetN) {
   hash.update(`scope=${scope.join(",")}
 `);
   for (const rel of scope) {
-    const target = path9.isAbsolute(rel) ? rel : path9.join(root, rel);
+    const target = containedScopeTarget(root, rel);
+    if (target === null)
+      continue;
     const base = path9.basename(target);
     if (excludes.includes(base))
       continue;
@@ -11985,9 +11981,6 @@ function computeSourceHash(root, scope, excludes) {
   return hashSourceTree(root, scope, excludes, 500);
 }
 function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
-  if (db.inTransaction === true) {
-    throw new Error("GI_TXN_REQUIRED: supersedeThenInsert called inside an existing transaction (the helper owns BEGIN/COMMIT)");
-  }
   if (nodeRows.length === 0 && edgeRows.length === 0) {
     throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
   }
@@ -12112,7 +12105,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   try {
     src = new Database4(warmPath, { readonly: true });
     rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT ?").all(MAX_WARM_ROWS + 1);
-    edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL").all();
+    edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL ORDER BY src_canonical, dst_canonical, predicate LIMIT ?").all(MAX_WARM_ROWS * 3 + 1);
   } catch (e) {
     return { ok: false, reason: `CORBELL_NOT_WARM:unreadable:${e instanceof Error ? e.message.slice(0, 60) : String(e)}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   } finally {
@@ -12166,7 +12159,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
     dstCanonical: e.dst_canonical,
     predicate: e.predicate,
     evidence: e.evidence_quote,
-    confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) ? e.confidence : 1,
+    confidence: typeof e.confidence === "number" && Number.isFinite(e.confidence) && e.confidence >= 0 && e.confidence <= 1 ? e.confidence : 0.5,
     run: runTag
   }));
   let db;
@@ -12194,32 +12187,6 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
 }
 
 // src/omp/populate.ts
-var POPULATE_FILE_BUDGET = 1000;
-var EXCLUDED_DIRS = new Set(["node_modules", ".git", ".hg", ".svn", "dist", "build", ".next", "coverage", "__pycache__"]);
-var IMPORT_RE = /^\s*import\s+[^;]*?from\s*['"]([^'"]+)['"]/gm;
-var BINDINGS_RE = /^\s*import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gm;
-function collectTsFiles(root, budget) {
-  const files = [];
-  const walk = (dir, left) => {
-    if (left.n <= 0)
-      return;
-    for (const entry of fs10.readdirSync(dir, { withFileTypes: true })) {
-      if (left.n <= 0)
-        return;
-      if (entry.isDirectory()) {
-        if (EXCLUDED_DIRS.has(entry.name))
-          continue;
-        left.n--;
-        walk(path11.join(dir, entry.name), left);
-      } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
-        left.n--;
-        files.push(path11.join(dir, entry.name));
-      }
-    }
-  };
-  walk(root, { n: budget });
-  return files;
-}
 function populateSessionStore(storePath, root, runTag = "populate-" + Date.now().toString(36), opts) {
   if (opts?.substrate === "graphify") {
     return populateGraphifySessionStore(storePath, root, runTag);
@@ -12240,238 +12207,16 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
       corbellCheckout: corbell.checkoutPath
     };
   }
-  console.error(`[gi-omp] populate falling back to the mechanical indexer: ${corbell.reason} (warm with: bun scripts/corbell-build.ts --target '${root}')`);
-  const files = collectTsFiles(root, POPULATE_FILE_BUDGET);
-  const db = openTypedStore(storePath);
-  try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-  } finally {
-    db.close();
-  }
-  const contents = new Map;
-  const labelIndex = new Map;
-  const EXPORT_STAR_RE = /export\s*\*\s*from\s*['"]([^'"]+)['"]/g;
-  const EXPORT_TYPE_RE = /export\s+type\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]*['"])?/g;
-  for (const abs of files) {
-    const rel = path11.relative(root, abs).split(path11.sep).join("/");
-    let content = "";
-    try {
-      content = fs10.readFileSync(abs, "utf8");
-    } catch {
-      continue;
-    }
-    contents.set(rel, content);
-    const indexName = (name) => {
-      const canon = `Function:${name}:${rel}`;
-      const list = labelIndex.get(name) ?? [];
-      if (!list.includes(canon))
-        list.push(canon);
-      labelIndex.set(name, list);
-    };
-    for (const name of parseExports(content))
-      indexName(name);
-    let tm;
-    EXPORT_TYPE_RE.lastIndex = 0;
-    while ((tm = EXPORT_TYPE_RE.exec(content)) !== null) {
-      for (const spec of tm[1].split(",")) {
-        const s = spec.trim();
-        if (!s)
-          continue;
-        const asMatch = /\bas\s+(\w+)\s*$/.exec(s);
-        const nm = asMatch ? asMatch[1] : /^(\w+)$/.exec(s)?.[1] ?? null;
-        if (nm)
-          indexName(nm);
-      }
-    }
-  }
-  const starMerged = new Map;
-  for (const [rel, content] of contents) {
-    let sm;
-    EXPORT_STAR_RE.lastIndex = 0;
-    while ((sm = EXPORT_STAR_RE.exec(content)) !== null) {
-      const spec = sm[1];
-      if (!spec.startsWith("."))
-        continue;
-      const base = path11.posix.normalize(path11.posix.join(path11.posix.dirname(rel), spec)).replace(/\.(ts|js)x?$/, "");
-      const cands = [`${base}.ts`, base, `${base}.js`, `${base}/index.ts`];
-      let target = null;
-      for (const c of cands) {
-        if (contents.has(c)) {
-          target = c;
-          break;
-        }
-      }
-      if (!target)
-        continue;
-      const tcontent = contents.get(target);
-      for (const name of parseExports(tcontent)) {
-        const canon = `Function:${name}:${rel}`;
-        const list = labelIndex.get(name) ?? [];
-        if (!list.includes(canon))
-          list.push(canon);
-        labelIndex.set(name, list);
-        const per = starMerged.get(rel) ?? [];
-        if (!per.includes(name))
-          per.push(name);
-        starMerged.set(rel, per);
-      }
-    }
-  }
-  const BARE_CALL_RE = /(?<![.\w])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-  const nodeRows = [];
-  const edgeRows = [];
-  const seenN = new Set;
-  const seenE = new Set;
-  for (const abs of files) {
-    const rel = path11.relative(root, abs).split(path11.sep).join("/");
-    const content = contents.get(rel);
-    if (content === undefined)
-      continue;
-    const fileCanon = "File:" + rel;
-    if (!seenN.has(fileCanon)) {
-      seenN.add(fileCanon);
-      nodeRows.push({ canonicalId: fileCanon, kind: "File", label: rel, file: rel, line: null, run: runTag });
-    }
-    const fnSpans = [];
-    const FN_RE = /export\s+(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-    let fm;
-    FN_RE.lastIndex = 0;
-    while ((fm = FN_RE.exec(content)) !== null) {
-      const fname = fm[1];
-      let depth = 0;
-      let end = content.length;
-      let opened = false;
-      for (let i = fm.index + fm[0].length - 1;i < content.length; i++) {
-        const ch = content[i];
-        if (ch === "{") {
-          depth++;
-          opened = true;
-        } else if (ch === "}") {
-          depth--;
-          if (opened && depth === 0) {
-            end = i;
-            break;
-          }
-        }
-      }
-      fnSpans.push({ name: fname, start: fm.index, end });
-    }
-    const enclosingFn = (off) => {
-      let best = null;
-      let bestStart = -1;
-      for (const s of fnSpans) {
-        if (off >= s.start && off <= s.end && s.start > bestStart) {
-          best = s.name;
-          bestStart = s.start;
-        }
-      }
-      return best;
-    };
-    const siteLine = new Map(parseExportSites(content).map((s) => [s.name, s.line]));
-    for (const name of [...parseExports(content), ...starMerged.get(rel) ?? []]) {
-      const canon = `Function:${name}:${rel}`;
-      if (seenN.has(canon))
-        continue;
-      seenN.add(canon);
-      nodeRows.push({ canonicalId: canon, kind: "Function", label: name, file: rel, line: siteLine.get(name) ?? null, run: runTag });
-    }
-    let m;
-    IMPORT_RE.lastIndex = 0;
-    while ((m = IMPORT_RE.exec(content)) !== null) {
-      const spec = m[1];
-      if (!spec.startsWith("."))
-        continue;
-      const resolved = path11.posix.normalize(path11.posix.join(path11.posix.dirname(rel), spec));
-      const dstCanon = "File:" + resolved;
-      if (!seenN.has(dstCanon)) {
-        seenN.add(dstCanon);
-        nodeRows.push({ canonicalId: dstCanon, kind: "File", label: resolved, file: resolved, line: null, run: runTag });
-      }
-      const key = `${fileCanon}->${dstCanon}:imports`;
-      if (seenE.has(key))
-        continue;
-      seenE.add(key);
-      edgeRows.push({ srcCanonical: fileCanon, dstCanonical: dstCanon, predicate: "imports", evidence: `${rel} imports ${spec}`, run: runTag });
-    }
-    BINDINGS_RE.lastIndex = 0;
-    while ((m = BINDINGS_RE.exec(content)) !== null) {
-      const importOff = m.index;
-      const callerFn = enclosingFn(importOff);
-      const srcCanon = callerFn ? `Function:${callerFn}:${rel}` : fileCanon;
-      const rawSpec = m[2];
-      if (!rawSpec.startsWith("."))
-        continue;
-      const base = path11.posix.normalize(path11.posix.join(path11.posix.dirname(rel), rawSpec)).replace(/\.(ts|js)x?$/, "");
-      const cands = [`${base}.ts`, base, `${base}.js`, `${base}/index.ts`];
-      let resolvedFile = null;
-      for (const c of cands) {
-        if (contents.has(c)) {
-          resolvedFile = c;
-          break;
-        }
-      }
-      if (!resolvedFile)
-        continue;
-      const targetContent = contents.get(resolvedFile);
-      for (const raw of m[1].split(",")) {
-        const binding = raw.split(" as ")[0].trim();
-        if (!binding || !/^\w+$/.test(binding))
-          continue;
-        if (targetContent && !new RegExp(`(?:export\\s+(?:async\\s+)?(?:function|const|class|let|var|type|interface|enum)\\s+${binding}\\b|(?:^|\\n)\\s*(?:const|let|var|function|class|interface|type|enum)\\s+${binding}\\b|export\\s*\\{[^}]*\\b${binding}\\b)`).test(targetContent))
-          continue;
-        const dst = `Function:${binding}:${resolvedFile}`;
-        const key = `${srcCanon}->${dst}:calls`;
-        if (seenE.has(key))
-          continue;
-        seenE.add(key);
-        edgeRows.push({ srcCanonical: srcCanon, dstCanonical: dst, predicate: "calls", evidence: `${rel} imports {${binding}} from ${rawSpec}`, run: runTag });
-      }
-    }
-    const seenCall = new Set;
-    BARE_CALL_RE.lastIndex = 0;
-    while ((m = BARE_CALL_RE.exec(content)) !== null) {
-      const name = m[1];
-      const before = content.slice(Math.max(0, m.index - 80), m.index);
-      if (/function\s*$/.test(before))
-        continue;
-      const dsts = labelIndex.get(name);
-      if (!dsts)
-        continue;
-      const callerFn = enclosingFn(m.index);
-      const srcCanon = callerFn ? `Function:${callerFn}:${rel}` : fileCanon;
-      for (const dst of dsts) {
-        if (dst.endsWith(":" + rel))
-          continue;
-        const key = `${srcCanon}->${dst}:calls`;
-        if (seenE.has(key) || seenCall.has(key))
-          continue;
-        seenCall.add(key);
-        seenE.add(key);
-        edgeRows.push({ srcCanonical: srcCanon, dstCanonical: dst, predicate: "calls", evidence: `${rel} calls ${name} (bare-call scan)`, run: runTag });
-      }
-    }
-  }
-  const wdb = openTypedStore(storePath);
-  try {
-    wdb.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(wdb, nodeRows);
-    insertForkEdgesBatch(wdb, edgeRows);
-    wdb.exec("COMMIT;");
-  } finally {
-    wdb.close();
-  }
-  setMeta(storePath, "substrate", "indexer-fallback");
-  setMeta(storePath, "fallback_reason", corbell.reason ?? "");
-  setMeta(storePath, "populated_at", new Date().toISOString());
+  const reason = `GI_POPULATE_FAILED:${corbell.reason ?? "CORBELL_NOT_WARM"}`;
+  console.error(`[gi-omp] populate LOUD FAIL (no regex fallback): ${reason} (warm with: bun scripts/corbell-build.ts --target '${root}')`);
   return {
-    filesIndexed: files.length,
-    nodes: nodeRows.length,
-    edges: edgeRows.length,
+    filesIndexed: 0,
+    nodes: 0,
+    edges: 0,
     runTag,
-    skipped: false,
-    substrate: "indexer-fallback",
-    fallbackReason: corbell.reason,
+    skipped: true,
+    substrate: undefined,
+    fallbackReason: reason,
     corbellCheckout: corbell.checkoutPath
   };
 }
@@ -12513,24 +12258,24 @@ function populateGraphifySessionStore(storePath, root, runTag, scope) {
 
 // src/omp/ripwire-bridge.ts
 import { spawnSync } from "child_process";
-import * as fs11 from "fs";
+import * as fs10 from "fs";
 import * as os4 from "os";
 import * as path12 from "path";
 var RIPWIRE_TIMEOUT_MS = 8000;
 var RIPWIRE_MAX_BUFFER = 32 * 1024 * 1024;
 function resolveRipwire(env = process.env) {
   const fromEnv = env.RIPWIRE_BIN;
-  if (fromEnv && fromEnv.length > 0 && fs11.existsSync(fromEnv))
+  if (fromEnv && fromEnv.length > 0 && fs10.existsSync(fromEnv))
     return fromEnv;
   const home = env.HOME && env.HOME.length > 0 ? env.HOME : os4.homedir();
   const homeBin = path12.join(home, ".local", "bin", "ripwire");
-  if (fs11.existsSync(homeBin))
+  if (fs10.existsSync(homeBin))
     return homeBin;
   for (const dir of (env.PATH ?? "").split(":")) {
     if (!dir)
       continue;
     const cand = path12.join(dir, "ripwire");
-    if (fs11.existsSync(cand))
+    if (fs10.existsSync(cand))
       return cand;
   }
   return null;
@@ -12740,7 +12485,7 @@ function ripwireVerify(root, claim, opts) {
 import path23 from "path";
 
 // src/hunter/harness/hunt-lock.ts
-import fs12 from "fs";
+import fs11 from "fs";
 import os5 from "os";
 import path13 from "path";
 var STALE_LOCK_TTL_MS = 30 * 60 * 1000;
@@ -12775,7 +12520,7 @@ function isStale(payload) {
 }
 function readPayload(lockPath) {
   try {
-    const raw = fs12.readFileSync(lockPath, "utf8");
+    const raw = fs11.readFileSync(lockPath, "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.pid !== "number" || typeof parsed.acquiredAt !== "string")
       return null;
@@ -12787,14 +12532,14 @@ function readPayload(lockPath) {
 }
 function acquireHuntLock(targetPath) {
   const lockPath = lockPathFor(targetPath);
-  fs12.mkdirSync(path13.dirname(lockPath), { recursive: true });
+  fs11.mkdirSync(path13.dirname(lockPath), { recursive: true });
   const payload = {
     pid: process.pid,
     acquiredAt: new Date().toISOString(),
     hostname: os5.hostname()
   };
   try {
-    fs12.writeFileSync(lockPath, JSON.stringify(payload, null, 2), { flag: "wx" });
+    fs11.writeFileSync(lockPath, JSON.stringify(payload, null, 2), { flag: "wx" });
     return payload;
   } catch (e) {
     const code = e !== undefined && e !== null && typeof e === "object" && "code" in e ? e.code : undefined;
@@ -12803,12 +12548,12 @@ function acquireHuntLock(targetPath) {
     const existing = readPayload(lockPath);
     if (existing && isStale(existing)) {
       try {
-        fs12.unlinkSync(lockPath);
+        fs11.unlinkSync(lockPath);
       } catch (err) {
         console.warn(`[hunt-lock] stale unlink failed for ${lockPath}: ${err instanceof Error ? err.message : String(err)}`);
       }
       try {
-        fs12.writeFileSync(lockPath, JSON.stringify(payload, null, 2), { flag: "wx" });
+        fs11.writeFileSync(lockPath, JSON.stringify(payload, null, 2), { flag: "wx" });
         return payload;
       } catch (e2) {
         const code2 = e2 !== undefined && e2 !== null && typeof e2 === "object" && "code" in e2 ? e2.code : undefined;
@@ -12832,20 +12577,20 @@ function releaseHuntLock(targetPath) {
     const existing = readPayload(lockPath);
     if (existing && existing.pid !== process.pid)
       return;
-    fs12.unlinkSync(lockPath);
+    fs11.unlinkSync(lockPath);
   } catch (e) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
-// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate.development.cjs.mjs
+// node_modules/xstate/dist/xstate.development.cjs.mjs
 var import_xstate_development_cjs = __toESM(require_xstate_development_cjs(), 1);
 
 // src/hunter/harness/micro-loop-machine.ts
 import path22 from "path";
 
 // src/hunter/shared/db.ts
-import fs13 from "fs";
+import fs12 from "fs";
 import path14 from "path";
 import { Database as Database5 } from "bun:sqlite";
 
@@ -13176,7 +12921,7 @@ class SharedDb {
     const mirrorPath = path14.join(mirrorDir, "graph.db");
     let mirror;
     try {
-      fs13.mkdirSync(mirrorDir, { recursive: true });
+      fs12.mkdirSync(mirrorDir, { recursive: true });
       mirror = new Database5(mirrorPath);
       applyPragmas(mirror);
       mirror.exec("DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;");
@@ -13211,7 +12956,7 @@ class SharedDb {
 }
 function openStore(dbPath) {
   if (dbPath !== ":memory:") {
-    fs13.mkdirSync(path14.dirname(dbPath), { recursive: true });
+    fs12.mkdirSync(path14.dirname(dbPath), { recursive: true });
   }
   const handle = new Database5(dbPath);
   applyPragmas(handle);
@@ -13233,14 +12978,14 @@ function mirrorToMasterContext(db, profile) {
 }
 
 // src/hunter/diagnostics/engine.ts
-import fs15 from "fs";
+import fs14 from "fs";
 import path16 from "path";
 
-// ../../OMP/Graph_Intelligence/node_modules/typescript/lib/version.cjs
+// node_modules/typescript/lib/version.cjs
 var { version } = require_package();
 
 // src/hunter/profile/loader.ts
-import fs14 from "fs";
+import fs13 from "fs";
 import path15 from "path";
 
 // src/hunter/profile/schema.ts
@@ -13699,12 +13444,12 @@ function extractReceived(input, p) {
   return cur;
 }
 function loadProfile(profilePath) {
-  if (!fs14.existsSync(profilePath)) {
+  if (!fs13.existsSync(profilePath)) {
     throw profileInvalid("profilePath", profilePath, "the profile file must exist");
   }
   let raw;
   try {
-    raw = fs14.readFileSync(profilePath, "utf8");
+    raw = fs13.readFileSync(profilePath, "utf8");
   } catch (e) {
     throw profileInvalid("profilePath", profilePath, `the profile file must be readable: ${String(e)}`);
   }
@@ -13741,20 +13486,20 @@ function loadProfile(profilePath) {
   const profile = result.data;
   let resolvedRoot;
   try {
-    resolvedRoot = fs14.realpathSync(profile.project.root);
+    resolvedRoot = fs13.realpathSync(profile.project.root);
   } catch {
     throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
   }
-  if (!fs14.existsSync(resolvedRoot) || !fs14.statSync(resolvedRoot).isDirectory()) {
+  if (!fs13.existsSync(resolvedRoot) || !fs13.statSync(resolvedRoot).isDirectory()) {
     throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
   }
   for (const entry of profile.rules.corpus) {
-    if (!fs14.existsSync(path15.resolve(resolvedRoot, entry))) {
+    if (!fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
       throw corpusMissing(entry);
     }
   }
   for (const entry of profile.history.failureLogs) {
-    if (!fs14.existsSync(path15.resolve(resolvedRoot, entry))) {
+    if (!fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
       throw historyMissing(entry);
     }
   }
@@ -13790,7 +13535,7 @@ init_zod();
 // src/hunter/lexicon/templates.ts
 init_zod();
 import { createHash as createHash3 } from "crypto";
-import { readFileSync as readFileSync6 } from "fs";
+import { readFileSync as readFileSync5 } from "fs";
 class LexiconError extends Error {
   code;
   constructor(code, message) {
@@ -13935,7 +13680,7 @@ var WIRING_EXPORT_IMPORTER = {
       if (!lines) {
         lines = new Set;
         try {
-          const src = readFileSync6(file, "utf-8").split(`
+          const src = readFileSync5(file, "utf-8").split(`
 `);
           for (let i = 0;i < src.length; i++)
             if (/^\s*export\s/.test(src[i]))
@@ -14660,7 +14405,7 @@ function violationFrequencies(profile, ruleIds) {
     const abs = path16.resolve(profile.project.root, logPath);
     let text;
     try {
-      text = fs15.readFileSync(abs, "utf8");
+      text = fs14.readFileSync(abs, "utf8");
     } catch (e) {
       throw historyLogUnreadable(abs, String(e));
     }
@@ -14692,7 +14437,7 @@ function lockdownReadSource(profile) {
       const abs = path16.resolve(profile.project.root, file);
       let text;
       try {
-        text = fs15.readFileSync(abs, "utf8");
+        text = fs14.readFileSync(abs, "utf8");
       } catch (e) {
         throw sourceReadFailed(abs, String(e));
       }
@@ -14759,7 +14504,7 @@ function assertNoBlindness(checkpoint) {
 }
 
 // src/hunter/harness/recon.ts
-import fs16 from "fs";
+import fs15 from "fs";
 import path17 from "path";
 function awarenessDocMissing(docPath) {
   return new Error(`CORPUS_MISSING: path=${docPath} remedy=the awareness doc must exist (fix the profile's awareness.docs)`);
@@ -14771,7 +14516,7 @@ function countQuotedRules(profile) {
     const abs = path17.isAbsolute(entry) ? entry : path17.resolve(profile.project.root, entry);
     let text;
     try {
-      text = fs16.readFileSync(abs, "utf8");
+      text = fs15.readFileSync(abs, "utf8");
     } catch (e) {
       console.warn(`[recon] corpus file unreadable at ${abs}: ${e instanceof Error ? e.message : String(e)}`);
       continue;
@@ -14788,7 +14533,7 @@ function recon(profilePath) {
   const profile = loadProfile(profilePath);
   for (const doc of profile.awareness.docs) {
     const abs = path17.isAbsolute(doc) ? doc : path17.resolve(profile.project.root, doc);
-    if (!fs16.existsSync(abs)) {
+    if (!fs15.existsSync(abs)) {
       throw awarenessDocMissing(doc);
     }
   }
@@ -14924,10 +14669,10 @@ function assertMappableLines(buildResult) {
 import path20 from "path";
 
 // src/hunter/lexicon/compiler.ts
-import fs18 from "fs";
+import fs17 from "fs";
 
 // src/hunter/lexicon/rule-card.ts
-import fs17 from "fs";
+import fs16 from "fs";
 function corpusUnreadable(corpusPath, detail) {
   return new LexiconError("CORPUS_UNREADABLE", `CORPUS_UNREADABLE: path=${corpusPath} detail=${detail} (a corpus path that cannot be read is a loud named error, never a silent skip)`);
 }
@@ -15063,7 +14808,7 @@ function extractRuleCards(corpusPaths) {
 function readLinesOrThrow(file) {
   let text;
   try {
-    text = fs17.readFileSync(file, "utf8");
+    text = fs16.readFileSync(file, "utf8");
   } catch (e) {
     throw corpusUnreadable(file, String(e));
   }
@@ -15171,7 +14916,7 @@ function batteryVersion(profile) {
   const corpusText = profile.rules.corpus.map((p) => {
     let text;
     try {
-      text = fs18.readFileSync(p, "utf8");
+      text = fs17.readFileSync(p, "utf8");
     } catch (e) {
       throw corpusUnreadable(p, String(e));
     }
@@ -15265,7 +15010,7 @@ function severityFromBinding(v) {
 }
 
 // src/hunter/diagnostics/calibration.ts
-import fs19 from "fs";
+import fs18 from "fs";
 import path19 from "path";
 class CalibrationError extends Error {
   code;
@@ -15507,8 +15252,8 @@ ${p.verbatimQuote}`).join(`
     }
   }
   writeCalibrationRecord(recordPath, data) {
-    fs19.mkdirSync(recordPath, { recursive: true });
-    const existing = fs19.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
+    fs18.mkdirSync(recordPath, { recursive: true });
+    const existing = fs18.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
     const n = existing + 1;
     const file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
     const rows = data.records.map((r) => `| ${r.predicateId} | ${r.verdict} | ${r.failedTest ?? "-"} | ${r.fire.fired ? "FIRED" : "MISS"} | ${r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE"} |`).join(`
@@ -15545,7 +15290,7 @@ ${p.verbatimQuote}`).join(`
       ""
     ].join(`
 `);
-    fs19.writeFileSync(file, body);
+    fs18.writeFileSync(file, body);
   }
 }
 async function runCalibration(profile, fixtures, opts = {}) {
@@ -15716,7 +15461,7 @@ function strike(findings, profile, traces = []) {
 }
 
 // src/hunter/harness/report.ts
-import fs20 from "fs";
+import fs19 from "fs";
 import path21 from "path";
 
 // src/hunter/firewall/lexicon-types.ts
@@ -15758,7 +15503,7 @@ function toWriterSection(s) {
 function resolveMasterContextDir(projectRoot) {
   let entries = [];
   try {
-    entries = fs20.readdirSync(projectRoot);
+    entries = fs19.readdirSync(projectRoot);
   } catch {
     return null;
   }
@@ -15773,7 +15518,7 @@ var REPORT_FILE_RE = /^bug_hunter_report_v(\d+)\.md$/;
 function nextReportVersion(masterContextDir) {
   let names = [];
   try {
-    names = fs20.readdirSync(masterContextDir);
+    names = fs19.readdirSync(masterContextDir);
   } catch {
     return 1;
   }
@@ -15787,7 +15532,7 @@ function nextReportVersion(masterContextDir) {
 }
 async function writeReportDirect(input) {
   const masterContextDir = resolveMasterContextDir(input.projectRoot) ?? path21.join(input.projectRoot, "MASTER_CONTEXT");
-  fs20.mkdirSync(masterContextDir, { recursive: true });
+  fs19.mkdirSync(masterContextDir, { recursive: true });
   const version = nextReportVersion(masterContextDir);
   const reportPath = path21.join(masterContextDir, `bug_hunter_report_v${version}.md`);
   const lines = [
@@ -15824,7 +15569,7 @@ async function writeReportDirect(input) {
   }
   const document = lines.join(`
 `);
-  fs20.writeFileSync(reportPath, document, "utf-8");
+  fs19.writeFileSync(reportPath, document, "utf-8");
   const bytes = Buffer.byteLength(document, "utf-8");
   return {
     reportPath,
@@ -15861,14 +15606,14 @@ async function report(input) {
       }))
     });
     try {
-      const raw = fs20.readFileSync(writerResult.reportPath, "utf-8");
+      const raw = fs19.readFileSync(writerResult.reportPath, "utf-8");
       let stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
       const titleMatch = stripped.match(/^# .*$/m);
       if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
         stripped = stripped.substring(titleMatch.index);
       }
       if (stripped !== raw) {
-        fs20.writeFileSync(writerResult.reportPath, stripped, "utf-8");
+        fs19.writeFileSync(writerResult.reportPath, stripped, "utf-8");
         console.log("[report] thinking-strip applied \u2014 removed", raw.length - stripped.length, "chars of meta-commentary");
       }
     } catch (stripErr) {
@@ -16760,7 +16505,7 @@ function substrateNeedsPopulate(storePath, scopeRoot) {
 function settlementLedgerConfined(ledgerPath, targetReal) {
   let real = ledgerPath;
   try {
-    real = fs23.realpathSync(ledgerPath);
+    real = fs22.realpathSync(ledgerPath);
   } catch {
     return { ok: false, error: "GI_PATH_DENIED: settlement ledger does not exist" };
   }
@@ -16770,15 +16515,27 @@ function settlementLedgerConfined(ledgerPath, targetReal) {
   return { ok: true, real };
 }
 function writeWipeAudit(giDir, note) {
-  const { Database } = __require("bun:sqlite");
-  fs23.mkdirSync(giDir, { recursive: true });
+  fs22.mkdirSync(giDir, { recursive: true });
   const regPath = path26.join(giDir, "registry.sqlite");
-  const db = new Database(regPath);
+  const db = new Database6(regPath);
   try {
     db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
     db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", note);
   } finally {
     db.close();
+  }
+}
+function graphProbeWipeAudited(ctx, cwdOf) {
+  const wipeCwd = cwdOf(ctx);
+  const wipeConfined = confineTargetPath(path26.normalize(wipeCwd), wipeCwd);
+  if (!wipeConfined.ok) {
+    return { audited: false, text: `WIPE_AUDIT_FAILED: ${wipeConfined.error}` };
+  }
+  try {
+    writeWipeAudit(path26.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+    return { audited: true, text: "" };
+  } catch (auditErr) {
+    return { audited: false, text: `WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}` };
   }
 }
 function parseTargetRoots(raw) {
@@ -16787,13 +16544,13 @@ function parseTargetRoots(raw) {
 var confineTargetPath = (normalized, callerCwd) => {
   let real = normalized;
   try {
-    real = fs23.realpathSync(normalized);
+    real = fs22.realpathSync(normalized);
   } catch {
     return { ok: false, error: `GI_PATH_DENIED: targetPath does not exist: '${normalized.slice(0, 120)}'` };
   }
   let st = null;
   try {
-    st = fs23.statSync(real);
+    st = fs22.statSync(real);
   } catch {
     st = null;
   }
@@ -16805,7 +16562,7 @@ var confineTargetPath = (normalized, callerCwd) => {
   const within = roots.some((root) => {
     let rootReal = null;
     try {
-      rootReal = fs23.realpathSync(root);
+      rootReal = fs22.realpathSync(root);
     } catch {
       rootReal = null;
     }
@@ -16849,7 +16606,7 @@ async function runGraphQueryVerbs(verb, p, storePath, scopeRoot, sessionId, popN
     const rw = safeRipwire(() => ripwireCallers(scopeRoot, sym));
     return textResult2(`${popNote}rows=${q.rows}
 ${head}
-ripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate ?? "indexer-fallback", ripwire: rw });
+ripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate && substrate.length > 0 ? substrate : "GI_SUBSTRATE_UNKNOWN", ripwire: rw });
   }
   if (verb === "blast-radius") {
     const b = blastRadius(storePath, String(p.target ?? p.symbol ?? ""));
@@ -16960,29 +16717,17 @@ function registerGiOmpTools(pi, cwdOf) {
           return textResult2("GI_CLEAR_REFUSED: action=wipe requires GI_OMP_ALLOW_CLEAR=1 in the environment", { ok: false, error: "GI_CLEAR_REFUSED" });
         }
         try {
-          clearGiRegistry();
-          const wipeCwd = cwdOf(ctx);
-          const wipeConfined = confineTargetPath(path26.normalize(wipeCwd), wipeCwd);
-          let auditNote = "";
-          if (wipeConfined.ok) {
-            try {
-              writeWipeAudit(path26.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
-            } catch (auditErr) {
-              auditNote = `
-WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}`;
-            }
-          }
-          if (auditNote) {
-            return textResult2("GI_CLEARED" + auditNote, { ok: true, token: "GI_CLEARED", wipeAudited: false });
+          const wipeAudit = graphProbeWipeAudited(ctx, cwdOf);
+          if (!wipeAudit.audited) {
+            return textResult2(`GI_CLEARED
+` + wipeAudit.text, { ok: true, token: "GI_CLEARED", wipeAudited: false });
           }
           return textResult2("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
         } catch (e) {
           let code = "GI_CLEAR_REFUSED";
-          if (e !== null && typeof e === "object" && "code" in e) {
-            const c = e.code;
-            if (typeof c === "string" && c.length > 0)
-              code = c;
-          }
+          const c = e?.code;
+          if (typeof c === "string" && c.length > 0)
+            code = c;
           return textResult2(`${code}: ${String(e)}`, { ok: false, error: code });
         }
       }
@@ -17066,7 +16811,7 @@ WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(audit
           return populateSessionStore(opened.storePath, scopeRoot);
         });
         if (pop === null) {
-          const storedNow = getMeta(opened.storePath, "substrate") ?? "indexer-fallback";
+          const storedNow = getMeta(opened.storePath, "substrate") ?? "GI_SUBSTRATE_UNKNOWN";
           popNote = `substrate=${storedNow}
 `;
           return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, storedNow);
@@ -17122,14 +16867,14 @@ WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(audit
       }
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      fs23.mkdirSync(auditRoot, { recursive: true });
-      const auditRootReal = fs23.realpathSync(auditRoot);
+      fs22.mkdirSync(auditRoot, { recursive: true });
+      const auditRootReal = fs22.realpathSync(auditRoot);
       const ledgerRel = path26.relative(targetReal, auditRootReal);
       if (ledgerRel === "" || ledgerRel.startsWith("..") || path26.isAbsolute(ledgerRel)) {
         return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
-      const ledgerDir = fs23.mkdtempSync(join(auditRoot, `${layerId}-`));
-      const ledgerReal = fs23.realpathSync(ledgerDir);
+      const ledgerDir = fs22.mkdtempSync(join(auditRoot, `${layerId}-`));
+      const ledgerReal = fs22.realpathSync(ledgerDir);
       if (!ledgerDirConfined(ledgerReal, targetReal)) {
         return textResult2("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
       }
@@ -17187,6 +16932,7 @@ export {
   GI_TOOL_NAMES,
   GI_TOOL_NAMES_ALIASES,
   giOmpExtension as default,
+  graphProbeWipeAudited,
   ledgerDirConfined,
   parseTargetRoots,
   registerGiOmpTools,
