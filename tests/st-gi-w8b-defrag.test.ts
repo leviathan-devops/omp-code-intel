@@ -65,4 +65,36 @@ describe("st-gi-w8b-defrag: UNIQUE recovery + enforcement", () => {
       ),
     ).toThrow();
   });
+
+  // ---- W45/F31 (frozen-scan HIGH): contention is transient, never a deferral ----
+  test("test_w45_ddl_contention_rethrows_loud_not_deferred", () => {
+    const { db, p } = legacyStoreWithDuplicates();
+    // Hold the write lock from a second connection: the dedup's
+    // BEGIN IMMEDIATE hits SQLITE_BUSY (contention), which the old outer
+    // catch conflated with a legacy-dup deferral — the store stayed
+    // unconstrained and the caller never learned the write failed.
+    const blocker = new Database(p);
+    blocker.exec("BEGIN EXCLUSIVE;");
+    let threw = "";
+    let deferred = false;
+    try {
+      applyTypedDdl(db);
+    } catch (e) {
+      threw = e instanceof Error ? e.message : String(e);
+    }
+    blocker.exec("ROLLBACK");
+    blocker.close();
+    // THE FIX: contention RETHROWS (fail-closed, loud).
+    expect(threw.length).toBeGreaterThan(0);
+    expect(threw).toMatch(/locked|busy/i);
+    // And NO deferral marker was recorded for mere contention.
+    const meta = db.prepare("SELECT COUNT(*) AS n FROM gi_meta WHERE key LIKE 'unique_index_deferred:%'").get() as { n: number };
+    deferred = meta.n > 0;
+    expect(deferred).toBe(false);
+    // After the lock releases, a retry recovers the index cleanly.
+    applyTypedDdl(db);
+    const idx = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='uq_tn_live_canonical'").get() as { n: number };
+    expect(idx.n).toBe(1);
+    db.close();
+  });
 });
