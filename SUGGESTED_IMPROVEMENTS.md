@@ -335,3 +335,29 @@ Every future build session generates the same raw material: commits, test result
 
 ### What it costs if wrong
 If the classification taxonomy is too narrow, some patterns are missed. If too broad, noise. The taxonomy is extensible (new bug classes are added as they're discovered).
+
+## IMPROVEMENT 8 — GI KERNEL v1.3 INTELLIGENT GRAPH GATE (blueprint complete, build pending)
+
+### The problem this solves
+Agents make structural code edits (export changes, function renames, type modifications) without querying the graph tools, leading to blind edits that break callers. A blind "call the graph before every edit" is equally bad — it interrupts legitimate doc-only work and doesn't scale to chained edits.
+
+### The solution (blueprinted at reports/GRAPH_GATE_MASTER_BLUEPRINT_v1.md)
+A LASME-grade module inside the GI kernel that:
+1. **Lexicon classifies** each edit (doc → NONE, test → LOW, logic → MEDIUM, export → HIGH)
+2. **Temporal drift engine** computes a 0.0-1.0 score based on unverified edit weight over a 5-minute decay window
+3. **State machine** (IDLE → TRACKING → WARNING → GATE_ON → HARD_STOP) escalates proportionally
+4. **Tier ladder** enforces: T0 pass → T1 advise → T2 block → T3 TTSR abort
+5. **Graph-call reset**: querying ripwire/graph-query on any edited symbol resets drift for that symbol
+
+### Why this is a good use of tokens
+The graph gate makes the graph tools habitual without being annoying. It fires ONLY on structural code edits (not docs), escalates gradually (warnings before blocks), rewards graph usage (queries reset drift), and has a hard abort reserved for extreme blindness. This is the LASME pattern (lexicon detects → state machine decides → gate enforces) applied to the edit workflow.
+
+### Implementation
+- `src/omp/graph-gate.ts` (~300 lines) — lexicon + state machine + gate
+- Wired into `extension.ts` via `beforeToolCall`/`afterToolCall` hooks
+- Session state in `graph_gate_state` table
+- Tests in `st-gi-graph-gate.test.ts` (~200 lines)
+- V2 scaffold: `onEditClassified`, `onDriftComputed`, `onGateDecision` extension points for future spec-drift lexicons, blast-radius weighters, and context-graph bridges
+
+### Status
+BLUEPRINT COMPLETE (448 lines, commit 2f604ef). Build pending operator approval.
