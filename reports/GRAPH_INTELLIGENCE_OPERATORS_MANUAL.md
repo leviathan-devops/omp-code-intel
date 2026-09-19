@@ -159,7 +159,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical
 
 -- The substrate ledger (which engine populated this store):
 CREATE TABLE gi_meta (key TEXT PRIMARY KEY, value TEXT);
--- key='substrate' ∈ {corbell, graphify, indexer-fallback} — the masquerade guard.
+-- key='substrate' ∈ {corbell, graphify} — the masquerade guard. Post F-48 there
+-- is NO third substrate: a store claiming any other value is a legacy artifact
+-- from the removed regex indexer and MUST be treated as untrusted.
 ```
 
 ### 3.2 The Tombstone Discipline
