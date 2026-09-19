@@ -232,3 +232,19 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Root cause:** The port inherited the "named fallback" pattern from the original trident-bug-hunter codebase (provenance: `PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/`). The original codebase had legitimate fallbacks (LLM provider chains where a slower model is better than no model). The port carried the pattern into a context where it is FORBIDDEN (graph substrates where a regex fake graph is NEVER better than a loud error).
 - **Impact:** The "named fallback" pattern may exist in OTHER parts of the kernel (the scan-chain has a provider fallback; the go-key-pool has an exile-and-advance pattern). Each needs individual adjudication: is this specific fallback a legitimate degraded-mode (LLM provider: yes) or a banned regex substitute (graph substrate: absolutely not)?
 - **Disposition:** OPEN — the hard-dependency law ("HARD DEPENDENCY ON ALL GRAPH SYSTEMS. LOUD FAIL IF ANYTHING IS BROKEN") applies to ALL graph substrates. The scan-chain and go-key-pool fallbacks serve a different domain (LLM providers, not graph parsers) and are NOT banned.
+
+### F-48 RESOLUTION — indexer-fallback deleted (2026-09-19)
+
+- **What happened:** The banned regex substrate was deleted per the goal:
+  `src/omp/populate.ts` rewritten from 337 lines to 108 (the regex indexer
+  leg — collectTsFiles + parseExports + EXPORT_STAR/BARE_CALL scans — fully
+  removed; populateSessionStore is now a thin router: corbell → graphify →
+  LOUD FAIL). Substrate union narrowed to corbell|graphify. Extension
+  defaults hard-fail (GI_SUBSTRATE_UNKNOWN). Operator manual purged of all
+  indexer-fallback references.
+- **Verification:** full battery 218 pass / 0 fail (1759 expect); the two
+  rewritten substrate tests assert GI_POPULATE_FAILED + skip; the new loud-fail
+  test asserts broken-corbell returns skip with zero regex rows; commits
+  0d44011 + d1f7422. `grep -rn indexer-fallback src/` returns only two
+  HISTORICAL comment lines documenting the removal.
+- **Disposition:** FIXED+PROVEN.
