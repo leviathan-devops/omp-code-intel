@@ -337,6 +337,10 @@ export async function populateFromGraphifyCheckout(
   root: string,
   runTag: string,
   profile?: ProjectProfile,
+  // W46 (frozen-scan HIGH) test/DI seam: the vetted source hash is computed
+  // ONCE at gate-pass time — an edit landing during the build+write is NOT
+  // laundered into the sidecar (the post-commit rehash did exactly that).
+  sourceHashProvider?: () => string,
 ): Promise<GraphifyPopulateResult> {
   const resolvedRoot = path.resolve(root);
   const base = profile ?? minimalGraphifyProfile(resolvedRoot);
@@ -359,6 +363,8 @@ export async function populateFromGraphifyCheckout(
   if (!freshness.fresh) {
     return { ok: false, reason: `GRAPHIFY_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
+  // W46 (frozen-scan HIGH): capture the VETTED source hash at gate-pass time.
+  const vettedHash = sourceHashProvider ? sourceHashProvider() : computeSourceHash(resolvedRoot, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
   let build: BuildResult;
   try {
     build = await new GraphifyAdapter(pinned).build(pinned);
@@ -397,8 +403,9 @@ export async function populateFromGraphifyCheckout(
     // L2: write the content-hash sidecar so the freshness probe can compare
     const hashPath = graphHashSidecarPath(graphPath); // P1.4.3: never clobbers the graph
     try {
-      const hash = computeSourceHash(path.resolve(root), pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
-      fs.writeFileSync(hashPath, hash, "utf8");
+      // W46: write the VETTED hash captured at gate-pass — the post-commit
+      // rehash used to absorb mid-populate edits (stale-wins laundering).
+      fs.writeFileSync(hashPath, vettedHash, "utf8");
     } catch (hashErr) {
       console.log(`[gi-omp] hash sidecar write failed (non-fatal): ${hashErr instanceof Error ? hashErr.message.slice(0, 60) : "?"}`);
     }

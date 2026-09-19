@@ -17,7 +17,7 @@ import { supersedeThenInsert } from "../src/omp/populate-graphify.ts";
 import { GraphifyAdapter } from "../src/hunter/graph/graphify-adapter.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
-import { containedScopeTarget } from "../src/omp/populate-graphify.ts";
+import { containedScopeTarget, populateFromGraphifyCheckout } from "../src/omp/populate-graphify.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { blastRadius, chainCalls, setMeta } from "../src/omp/typed-write.ts";
 import { describe, test, expect } from "bun:test";
@@ -740,5 +740,32 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     // closed (skipped + named fallbackReason), never seeds a new store.
     expect(r.skipped).toBe(true);
     expect(String(r.fallbackReason)).toMatch(/GRAPHIFY_NOT_WARM:stale/);
+  });
+
+  // ---------- F42 (populate-graphify: post-commit sidecar rehash window) ----------
+  test("test_w44_sidecar_writes_vetted_hash_not_post_commit_rehash", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-vet-"));
+    const srcDir = path.join(root, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    const outDir = path.join(root, "graphify-out");
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, "graph.json"), JSON.stringify({
+      nodes: [{ id: "n1", label: "a", type: "function", file: "src/a.ts" }],
+      links: [],
+    }));
+    fs.writeFileSync(path.join(srcDir, "a.ts"), "export const a = 1;\n");
+    // Fresh at gate time; a source edit lands MID-POPULATE.
+    const hashAtGate = computeSourceHashWithBudget(root, ["src"], [], 500);
+    const storePath = path.join(root, "sessions", "sesW44VET00000001", "store.sqlite");
+    await populateFromGraphifyCheckout(storePath, root, "w44vet", undefined, () => {
+      fs.writeFileSync(path.join(srcDir, "a.ts"), "export const a = 2;\n"); // mid-populate edit
+      return hashAtGate; // the vetted tree state is what the sidecar records
+    });
+    // THE FIX: the sidecar records the VETTED gate-time hash — the live tree
+    // (now edited) no longer matches it, so the next check reads STALE and
+    // rebuilds. The old post-commit rehash absorbed the edit (stale-wins).
+    expect(fs.readFileSync(path.join(root, "graphify-out", "graph.graph_hash"), "utf8")).toBe(hashAtGate);
+    const v = isGraphifyCheckoutFreshFor(root, path.join(root, "graphify-out", "graph.json"), ["src"], []);
+    expect(v.fresh).toBe(false);
   });
 });
