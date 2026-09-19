@@ -351,11 +351,11 @@ export async function populateFromGraphifyCheckout(
   const checkoutPath = graphifyCheckoutPath(resolvedRoot);
   // H05 (qwen 33d64eca): the probe walks the PROFILE's scope — a custom-scope
   // profile must be checked against ITS file set, never the ["src"] default.
-  // V1.1 fix: skip freshness on FIRST RUN (no store yet — nothing to be stale)
-  const storeExists = fs.existsSync(storePath);
-  const freshness = storeExists
-    ? isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? [])
-    : { fresh: true, reason: "first-run" };
+  // W45/F41 (frozen-scan HIGH): the gate runs on FIRST RUN too — the old
+  // storeExists bypass seeded a brand-new session store from a STALE warm
+  // graph ("no store yet" ≠ nothing to be stale: the graph-vs-sources relation
+  // is independent of the store).
+  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
   if (!freshness.fresh) {
     return { ok: false, reason: `GRAPHIFY_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
@@ -366,15 +366,9 @@ export async function populateFromGraphifyCheckout(
     const msg = e instanceof Error ? e.message : String(e);
     const named = /GRAPHIFY_NOT_WARM:|GRAPH_EMPTY:|LINELESS_NODE|GRAPHIFY_GRAPH_TOO_LARGE|GRAPHIFY_EXTRACT_FAILED/.test(msg)
       ? msg.slice(0, 200)
-      : `GRAPHIFY_CORRUPT:build-failed (not a warm-miss — investigate, do not rebuild-blindly) ${msg.slice(0, 140)}`;
+      : `GRAPHIFY_BUILD_FAILED: ${msg.slice(0, 140)}`;
     return { ok: false, reason: named, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
-  if (build.nodes.length === 0) {
-    return { ok: false, reason: "GRAPH_EMPTY:graphify graph produced zero nodes", nodes: 0, edges: 0, checkoutPath, graphPath };
-  }
-  // H17 (qwen 6768692f): the typed projection runs INSIDE its own guard —
-  // a LINELESS_NODE (or shape TypeError) is a NAMED data defect result
-  // ({ok:false}), never an escaping promise rejection.
   let nodeRows: ForkNode[];
   let edgeRows: ForkEdge[];
   try {

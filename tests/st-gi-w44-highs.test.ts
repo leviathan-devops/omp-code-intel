@@ -710,4 +710,35 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     const leak = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-base-leak-"));
     expect(containedScopeTarget(linkRoot, path.relative(linkRoot, leak) + "/x.ts")).toBeNull();
   });
+
+  // ---------- F41 (populate-graphify: first-run freshness bypass) ----------
+  test("test_w44_first_run_stale_graph_fails_closed", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-firstrun-"));
+    const srcDir = path.join(root, "src");
+    fs.mkdirSync(srcDir, { recursive: true });
+    const outDir = path.join(root, "graphify-out");
+    fs.mkdirSync(outDir, { recursive: true });
+    // Warm graph written FIRST (older), source touched AFTER (newer) → stale.
+    const graphPath = path.join(outDir, "graph.json");
+    fs.writeFileSync(graphPath, JSON.stringify({
+      nodes: [{ id: "n1", label: "a", type: "function", file: "src/a.ts" }],
+      links: [],
+    }));
+    const srcFile = path.join(srcDir, "a.ts");
+    fs.writeFileSync(srcFile, "export const a = 1;\n");
+    const past = new Date(Date.now() - 60_000);
+    fs.utimesSync(graphPath, past, past);
+    // Source strictly newer (W44 ms-precision compare needs a real delta).
+    const newer = new Date(Date.now() + 5_000);
+    fs.utimesSync(srcFile, newer, newer);
+    // NO session store yet — the first-run path.
+    const storePath = path.join(root, "sessions", "sesW44FRUN0000001", "store.sqlite");
+    const r = populateSessionStore(storePath, root, "w44frun", { substrate: "graphify" });
+    // THE FIX: first-run runs the SAME freshness gate — a stale graph must
+    // fail closed, never seed a new store from stale data.
+    // THE FIX: first-run runs the SAME freshness gate — a stale graph fails
+    // closed (skipped + named fallbackReason), never seeds a new store.
+    expect(r.skipped).toBe(true);
+    expect(String(r.fallbackReason)).toMatch(/GRAPHIFY_NOT_WARM:stale/);
+  });
 });
