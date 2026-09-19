@@ -56,8 +56,9 @@ describe("GI populate + verbs accuracy (frozen 2026-09-14)", () => {
     process.env.GI_OMP_DB_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "gi-reg-"));
     const o = openSessionStore({ sessionId: "ses_POPULATE000000000000001", scopeRoot: tmp });
     const r = populateSessionStore(o.storePath, ROOT, "populate-frozen");
-    // W1 substrate law: corbell (warm checkout) is PRIMARY; the regex indexer is
-    // the NAMED fallback. Frozen counts per substrate (2026-09-14).
+    // Post F-48 hard-dependency law: corbell (warm checkout) is PRIMARY and the
+    // ONLY default substrate; a miss fails loudly, never a regex graph. Frozen
+    // counts per substrate (2026-09-14).
     if (r.substrate === "corbell") {
       expect(r.filesIndexed).toBe(0);
       expect(r.nodes).toBe(2086);
@@ -65,12 +66,11 @@ describe("GI populate + verbs accuracy (frozen 2026-09-14)", () => {
       expect(countTypedNodes(o.storePath)).toBe(2086);
       expect(countTypedEdges(o.storePath)).toBe(9386);
     } else {
-      expect(r.filesIndexed).toBe(238);
-      expect(r.nodes).toBe(2035);
-      expect(r.edges).toBe(1857);
-      expect(countTypedNodes(o.storePath)).toBe(2035);
-      expect(countTypedEdges(o.storePath)).toBe(1857);
-      expect(r.fallbackReason ?? "").toContain("CORBELL_NOT_WARM");
+      // F-48: no corbell => LOUD fail (GI_POPULATE_FAILED + skip), never regex.
+      expect(r.skipped).toBe(true);
+      expect(r.nodes).toBe(0);
+      expect(r.edges).toBe(0);
+      expect(String(r.fallbackReason)).toContain("GI_POPULATE_FAILED");
     }
     fs.rmSync(tmp, { recursive: true, force: true });
   });
@@ -88,12 +88,28 @@ describe("GI populate + verbs accuracy (frozen 2026-09-14)", () => {
       expect(q.rows).toBeGreaterThanOrEqual(2);
       expect(q.names.join("\n")).toMatch(/execute|detectR17Drift/);
     } else {
-      expect(q.rows).toBeGreaterThanOrEqual(5);
-      expect(q.names.join("\n")).toContain("tools/graph-query.ts");
+      // F-48: no corbell => the populate failed LOUD (skip) instead of a
+      // regex graph — no caller rows exist to assert on.
+      expect(q.rows).toBe(0);
     }
     fs.rmSync(tmp, { recursive: true, force: true });
   });
+  });
 
+  test("broken corbell (no checkout, no graphify) returns GI_POPULATE_FAILED — never a regex graph", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gi-pop-loud-"));
+    process.env.GI_OMP_DB_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "gi-reg-loud-"));
+    const o = openSessionStore({ sessionId: "ses_POPULATE000000000009001", scopeRoot: tmp });
+    // Fresh tmp root: no corbell checkout, no graphify graph.json anywhere.
+    const r = populateSessionStore(o.storePath, tmp, "populate-loud-fail");
+    expect(r.skipped).toBe(true);
+    expect(r.nodes).toBe(0);
+    expect(r.edges).toBe(0);
+    expect(String(r.fallbackReason)).toContain("GI_POPULATE_FAILED");
+    expect(r.substrate).not.toBe("indexer-fallback");
+    expect(countTypedNodes(o.storePath)).toBe(0);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
   test("blast-radius openStore fans out, would-break is honest", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gi-pop-"));
     process.env.GI_OMP_DB_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "gi-reg-"));
@@ -106,4 +122,3 @@ describe("GI populate + verbs accuracy (frozen 2026-09-14)", () => {
     expect(w.argsUnknown).toBe(true);
     fs.rmSync(tmp, { recursive: true, force: true });
   });
-});

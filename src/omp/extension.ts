@@ -209,7 +209,7 @@ if (verb === "who-calls") {
   // RIPWIRE CROSS-CHECK (complete delegation): the session-store callers
   // stay primary; the live-tree ripwire leg rides the same result, named.
   const rw = safeRipwire(() => ripwireCallers(scopeRoot, sym));
-  return textResult(`${popNote}rows=${q.rows}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate ?? "indexer-fallback", ripwire: rw });
+  return textResult(`${popNote}rows=${q.rows}\n${head}\nripwire: ${rw.summary}`, { ok: true, rows: q.rows, names: q.names, callers: q.callers, substrate: substrate && substrate.length > 0 ? substrate : "GI_SUBSTRATE_UNKNOWN", ripwire: rw });
 }
 if (verb === "blast-radius") {
   const b = blastRadius(storePath, String(p.target ?? p.symbol ?? ""));
@@ -437,7 +437,7 @@ pi.registerTool({
         return populateSessionStore(opened.storePath, scopeRoot);
       });
       if (pop === null) {
-        const storedNow = getMeta(opened.storePath, "substrate") ?? "indexer-fallback";
+        const storedNow = getMeta(opened.storePath, "substrate") ?? "GI_SUBSTRATE_UNKNOWN";
         popNote = `substrate=${storedNow}\n`;
         return await runGraphQueryVerbs(verb, p, opened.storePath, scopeRoot, sessionId, popNote, storedNow);
       }

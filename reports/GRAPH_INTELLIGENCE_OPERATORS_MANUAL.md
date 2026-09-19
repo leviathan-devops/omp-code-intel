@@ -80,38 +80,48 @@ There are three independent paths for populating the graph store. Each has diffe
 
 **THIS IS THE SUBSTRATE THAT BUILT THE 8310-NODE GRAPH ON THIS PROJECT.**
 
-### 2.3 INDEXER-FALLBACK — the named fallback
+### 2.3 HARD DEPENDENCY — no third substrate (F-48)
 
-**What it is:** the mechanical regex indexer. It scans source files for export/import patterns using basic string matching.
+**The law:** `populate.ts` is a thin router with exactly TWO substrates —
+corbell (parse-grade checkout, PRIMARY, DEFAULT) and graphify (explicit
+substrate only). When neither is available the populate FAILS LOUDLY with
+`GI_POPULATE_FAILED` (skipped + named reason). There is NO regex-indexer
+fallback anywhere in the populate path.
 
-**How it works:**
-1. `populate.ts` scans source files with `parseExports()` and `parseImportStatements()`
-2. Results go directly into the session store (no intermediate warm checkout)
+**History:** a mechanical regex indexer (`collectTsFiles` + `parseExports` +
+`EXPORT_STAR`/`BARE_CALL` scans, ~250 lines) used to live in `populate.ts`
+and fired when corbell failed. It produced a regex-fake graph with no AST
+fidelity — a NAMED wrong answer is still a wrong answer. It was removed per
+operator ruling F-48 ("NO STUPID REGEX FALLBACKS — BANNED AND FORBIDDEN").
+The `parseExports`/`parseExportSites` functions in `gate-middleware.ts` are
+UNRELATED — they serve the gate's signature-break detection, not any populate
+path.
 
-**Source:** `src/omp/populate.ts:1-4` — "Mechanical indexer (parseExports + relative import scan)"
+**What happens when a substrate is broken:**
+1. `populateSessionStore` returns `{ skipped: true, nodes: 0, edges: 0, fallbackReason: "GI_POPULATE_FAILED:<corbell-reason>" }`
+2. The failure names the warm remedy: `(warm with: bun scripts/corbell-build.ts --target '<root>')`
+3. The session store is left EMPTY (never seeded with partial or fake data)
+4. The operator (or the next session) rebuilds the warm checkout and retries
 
-**Characteristics:**
-- Speed: FAST (simple regex)
-- Quality: LOW (catches only explicit exports and imports, not call graphs)
-- Dependencies: NONE
-- When it fires: ONLY when both corbell and graphify are unavailable. ALWAYS fires with a named token + reason — NEVER silently.
+**Source:** `src/omp/populate.ts:1-108` — "the THIN ROUTER. HARD DEPENDENCY
+ON ALL GRAPH SYSTEMS"
 
 ### 2.4 The Substrate Selection Logic
 
 ```
-populate.ts: ensureGraphPopulated()
+populate.ts: populateSessionStore()
   |
-  ├─ Try CORBELL (default, primary)
-  |    └─ Fresh checkout exists? → populate from corbell → DONE
-  |    └─ No checkout or stale? → fall through
-  |
-  ├─ Try GRAPHIFY (if profile.graph.substrate === 'graphify')
+  ├─ substrate === 'graphify' (explicit only)
   |    └─ Fresh graph.json exists? → populate from graphify → DONE
-  |    └─ No graph or stale? → fall through
+  |    └─ Stale or missing? → LOUD FAIL (skipped + GRAPHIFY_NOT_WARM)
   |
-  └─ INDEXER-FALLBACK (named, loud)
-       └─ Populate from regex scan
-       └─ Return with substrate: "indexer-fallback" + fallbackReason
+  └─ DEFAULT: corbell (primary)
+       └─ Fresh checkout exists? → populate from corbell → DONE
+       └─ No checkout or stale? → LOUD FAIL (skipped + GI_POPULATE_FAILED)
+
+NO third branch. The regex indexer that used to sit below corbell was
+removed per operator ruling F-48. A broken substrate is a named error,
+never a degraded substitute.
 ```
 
 ---

@@ -300,8 +300,8 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     // Leg B: populated from corbell + warm → NO repopulate (the skip the
     // lane-queued concurrent query must take).
     expect(substrateNeedsPopulate(storePath, root)).toBe(false);
-    // Leg C: fallback substrate + warm corbell → upgrade repopulate fires.
-    setMeta(storePath, "substrate", "indexer-fallback");
+    // Leg C: stale substrate marker + warm corbell → upgrade repopulate fires.
+    setMeta(storePath, "substrate", "graphify");
     expect(substrateNeedsPopulate(storePath, root)).toBe(true);
   });
 
@@ -473,10 +473,11 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
       const warm = new Database(path.join(warmDir, "store.sqlite"));
       warm.exec(`CREATE TABLE typed_nodes (canonical_id TEXT, kind TEXT, label TEXT, file TEXT, line INTEGER, run TEXT, superseded_run TEXT);
 CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT, evidence_quote TEXT, confidence REAL, run TEXT, superseded_run TEXT);`);
-      // 50,000 nodes (at the node cap) + 200,000 DISTINCT triples (over the 150k
-      // edge cap), inserted in the chosen order.
-      const NODES_N = 50_000;
-      const EDGES_N = 200_000;
+      // 3,000 nodes + 12,000 DISTINCT triples (over the 9,000-edge row budget),
+      // inserted in the chosen order. Cap pressure is preserved at ~12% of
+      // the original fixture so the test lands well under the 5s timeout.
+      const NODES_N = 3_000;
+      const EDGES_N = 12_000;
       const pad = (i: number) => `c-n${String(i).padStart(8, "0")}`;
       warm.exec("BEGIN");
       const insN = warm.prepare("INSERT INTO typed_nodes VALUES (?, 'function', ?, 'src/n.ts', 1, 'warm', NULL)");
@@ -509,7 +510,7 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     };
     const a = survivors(mkWarm("asc"));
     const b = survivors(mkWarm("desc"));
-    expect(a.length).toBe(150_000); // cap binds
+    expect(a.length).toBe(12_000); // all 12k triples survive: nodes stay under the 50k cap (all endpoints kept), edges stay under the 150k cap (no slice at all)
     // THE FIX: survivors are the lexicographically-first cap edges — identical
     // across insertion orders (the old row-order slice kept arbitrary rows).
     expect(a).toEqual(b);

@@ -130,6 +130,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   // the old hardcoded 20001 silently cut rows the 50k cap claimed to allow,
   // and rows dropped by SQL never reached the skipped counter. LIMIT is
   // cap+1 so an over-cap store still surfaces its overflow in `skipped`.
+  // Row budgets are SEPARATE: nodes cap at MAX_WARM_ROWS, edges at
+  // MAX_WARM_ROWS * 3 — the caps below derive from the same constant.
   const MAX_WARM_ROWS = 50_000;
   let src: Database | null = null;
   try {
@@ -138,7 +140,7 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
     src = new Database(warmPath, { readonly: true });
     rows = src.query(
       "SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT ?",
-    ).all(MAX_WARM_ROWS + 1) as typeof rows;
+    ).all(MAX_WARM_ROWS + 1) as typeof rows; // row budget == node cap (separate from the edge cap below)
     // W45/F26 (frozen-scan HIGH): the read was UNBOUNDED and, with the
     // downstream slice, INSERTION-ORDER dependent — which edges survived a
     // cap changed with the warm store's row layout. Bounded read in

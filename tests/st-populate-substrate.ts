@@ -1,8 +1,10 @@
-// ST — the W1 substrate law: corbell is PRIMARY, the regex indexer is the NAMED
-// fallback (never silent). Proves: (a) a warm checkout populates the session
+// ST — the substrate law (post F-48): corbell is PRIMARY and the ONLY default
+// substrate. When corbell is absent or stale there is NO regex fallback —
+// populate FAILS LOUDLY with GI_POPULATE_FAILED (hard dependency, never a
+// wrong-answer substitute). Proves: (a) a warm checkout populates the session
 // store with the parse-grade rows and reports substrate=corbell; (b) an absent
-// checkout falls back WITH the CORBELL_NOT_WARM token + reason; (c) a stale
-// checkout (source newer than the store) also falls back loudly.
+// checkout fails loudly with GI_POPULATE_FAILED + CORBELL_NOT_WARM:absent;
+// (c) a stale checkout also fails loudly with CORBELL_NOT_WARM:stale.
 import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -67,19 +69,21 @@ describe("W1 populate substrate law", () => {
     cleanup();
   });
 
-  test("absent checkout => NAMED fallback with CORBELL_NOT_WARM:absent", () => {
+  test("absent checkout => LOUD FAIL with GI_POPULATE_FAILED + CORBELL_NOT_WARM:absent", () => {
     const { root, cleanup } = mkRoot();
     fs.writeFileSync(path.join(root, "u.ts"), "export const u = 1;\n");
     const o = openSessionStore({ sessionId: "ses_SUBSTRATE000000000002", scopeRoot: root });
     const r = populateSessionStore(o.storePath, root, "run-fallback");
-    expect(r.substrate).toBe("indexer-fallback");
-    expect(r.fallbackReason?.startsWith("CORBELL_NOT_WARM:")).toBe(true);
-    expect(r.fallbackReason).toContain("absent");
-    expect(countTypedNodes(o.storePath)).toBeGreaterThan(0);
+    // F-48 HARD DEPENDENCY LAW: no corbell => LOUD fail, never a regex graph.
+    expect(r.skipped).toBe(true);
+    expect(r.nodes).toBe(0);
+    expect(r.edges).toBe(0);
+    expect(String(r.fallbackReason)).toContain("GI_POPULATE_FAILED");
+    expect(String(r.fallbackReason)).toContain("absent");
     cleanup();
   });
 
-  test("stale checkout => fallback with CORBELL_NOT_WARM:stale", () => {
+  test("stale checkout => LOUD FAIL with GI_POPULATE_FAILED + CORBELL_NOT_WARM:stale", () => {
     const { root, cleanup } = mkRoot();
     plantWarmCheckout(root, [{ canonical: "Function:x:old.ts", kind: "method", label: "x", file: "old.ts" }], []);
     const warmPath = path.join(root, CORBELL_CHECKOUT_REL);
@@ -88,17 +92,20 @@ describe("W1 populate substrate law", () => {
     fs.writeFileSync(path.join(root, "newer.ts"), "export function newer() {}\n");
     const o = openSessionStore({ sessionId: "ses_SUBSTRATE000000000003", scopeRoot: root });
     const r = populateSessionStore(o.storePath, root, "run-stale");
-    expect(r.substrate).toBe("indexer-fallback");
-    expect(r.fallbackReason).toBe("CORBELL_NOT_WARM:stale");
+    // F-48 HARD DEPENDENCY LAW: stale corbell => LOUD fail, never a regex graph.
+    expect(r.skipped).toBe(true);
+    expect(r.nodes).toBe(0);
+    expect(r.edges).toBe(0);
+    expect(String(r.fallbackReason)).toContain("GI_POPULATE_FAILED");
+    expect(String(r.fallbackReason)).toContain("stale");
     cleanup();
-  });
 });
 
-// reconcile proof: an existing fallback-populated store is UPGRADED to corbell
-// when a warm checkout appears (the ledger + reconcile law), and the who-calls
-// response surfaces the substrate on BOTH the fresh and the cached path.
-describe("W1 reconcile - stale regex store upgrades when corbell goes warm", () => {
-  test("who-calls surfaces substrate always; regex store reconciles to corbell", async () => {
+// reconcile proof: a LOUD-FAIL store UPGRADED to corbell when a warm checkout
+// appears (the ledger + reconcile law), and the who-calls response surfaces
+// the substrate on both the refused and the cached path.
+describe("W1 reconcile - loud-fail store upgrades when corbell goes warm", () => {
+  test("who-calls surfaces loud-fail first, then corbell on warm", async () => {
     const { registerGiOmpTools } = await import("../src/omp/extension.ts");
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-reconcile-"));
     fs.mkdirSync(path.join(root, "src"), { recursive: true });
@@ -111,9 +118,9 @@ describe("W1 reconcile - stale regex store upgrades when corbell goes warm", () 
     registerGiOmpTools(pi, () => root);
     const ctx = { sessionID: "ses_RECONCILE0000000000001", cwd: root };
 
-    // PASS 1: no warm checkout -> fallback populated, substrate named in response.
+    // PASS 1: no warm checkout -> populate fails LOUD (fail-closed, named).
     const r1 = await exec["graph-query"]("id", { verb: "who-calls", target: "beta" }, undefined, undefined, ctx);
-    expect(r1.content[0].text).toContain("substrate=indexer-fallback");
+    expect(r1.content[0].text).toContain("GI_POPULATE_FAILED");
 
     // WARM: stage a checkout (fresh) via the real checkout writer.
     const check = corbellCheckoutPath(root);
@@ -124,11 +131,10 @@ describe("W1 reconcile - stale regex store upgrades when corbell goes warm", () 
       { sourceId: "live-tree::src::beta", targetId: "live-tree::src::alpha", kind: "calls", lineage: "CODE_DERIVED" as any },
     ] as any, { runTag: "reconcile-fixture" });
 
-    // PASS 2: same session -> reconciles to corbell (upgrade takes effect).
+    // PASS 2: same session -> populates from corbell (upgrade takes effect).
     const r2 = await exec["graph-query"]("id", { verb: "who-calls", target: "alpha" }, undefined, undefined, ctx);
     expect(r2.content[0].text).toContain("substrate=corbell");
     expect(r2.content[0].text).toContain("rows=1");
-
     // PASS 3: cached path still surfaces the substrate.
     const r3 = await exec["graph-query"]("id", { verb: "who-calls", target: "alpha" }, undefined, undefined, ctx);
     expect(r3.content[0].text).toContain("substrate=corbell");
@@ -136,4 +142,5 @@ describe("W1 reconcile - stale regex store upgrades when corbell goes warm", () 
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(dbDir, { recursive: true, force: true });
   });
+});
 });
