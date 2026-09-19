@@ -441,3 +441,11 @@ Top clusters:
 - **OPEN after triage (~11 high-class):** extension: /tmp default allowlist breadth, audit-ledger TOCTOU residue · graphify-adapter: build vs buildSync profile-source mismatch · populate-graphify: root realpath gap in containedScopeTarget, unguarded computeSourceHash throw, TOCTOU size race, first-run freshness bypass, post-commit sidecar rehash window · typed-write: cross-session open before verify, pre-open lstat-then-path re-resolve, visitCap Infinity bypass, ledger-cap unbounded frontier.
 - **The verdict:** GATE: FAIL (1 critical → 0 after F35 refuted/fixed; 14 high → ~11 open after triage) — W46 wave = the ~11 open items, then the next re-scan.
 - **The artifacts:** reports/w45-rescan2-verdicts/ (7 sessions, mixed muse-free-adapter + poolside-direct lanes, disclosed).
+
+## TEST RESULT — 2026-09-19 — FINAL ANTI-REGRESSION BATTERY (W46 close)
+
+### SCRIPT
+- **The run:** full 30-file battery post-W46: `bun test ./tests/st-gi-*.ts ./tests/st-*.ts ./src/hydra/__tests__/*.test.ts --timeout 120000`
+- **The raw output:** `217 pass / 0 fail / 1749 expect() calls / Ran 217 tests across 30 files. [15.67s]`
+- **The verdict:** PASS — zero regressions. Every prior test (211 from W46 close) plus 6 new tests from W45/W46 fixes (F35 poolPath re-chmod contract, F36 conservative confidence, F37 Infinity clamp termination, F38 symlinked-root scope survival, F41 first-run stale-graph fail-closed, F42 sidecar vetted-hash) all green.
+- **The artifacts:** tests/st-gi-w44-highs.test.ts (22 named tests covering 17 findings), kernel suites st-gi-w5-infra.test.ts (10 tests) + st-gi-w6-infra.test.ts (7 tests) — both at or above spec counts.
