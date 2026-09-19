@@ -106,7 +106,7 @@ switch (verb) {
        FROM typed_nodes n
        WHERE n.superseded_run IS NULL
          AND NOT EXISTS (SELECT 1 FROM typed_edges e WHERE e.dst_canonical = n.canonical_id AND e.superseded_run IS NULL)
-         AND n.kind IN ('function','class','method')`
+         AND n.kind IN ('function','class','method','Function','Class','Method')`
     ).all() as any[];
     console.log(`unwired (zero inbound): ${rows.length} nodes`);
     for (const r of rows.slice(0, 30)) console.log(`  ${r.kind}: ${r.name} (${r.file}:${r.line ?? "?"})`);
