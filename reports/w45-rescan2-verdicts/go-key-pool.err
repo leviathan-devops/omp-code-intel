@@ -1,0 +1,6 @@
+[ocr] full-scan: 1 file(s) discovered, reviewing 1 in /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+[ocr] estimated cost: ~1 file(s), est. 80K input + 5K output ≈ 84K total tokens (rough; actual reported after run)
+[ocr] scan dispatch: 1 batch(es) by by-language strategy
+[ocr] No tool calls parsed for src/hunter/keys/go-key-pool.ts, retrying...
+[ocr]   ▶ code_comment "src/hunter/keys/go-key-pool.ts"
+[ocr]   ✔ code_comment (2.221s)
