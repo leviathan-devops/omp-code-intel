@@ -60,10 +60,19 @@ export function graphifyOutPath(root: string, profile?: ProjectProfile): string 
 // resolves INSIDE the root is kept (legitimate subdirectory scoping); anything
 // escaping it, or unresolvable, returns null (caller skips, fail-closed).
 export function containedScopeTarget(root: string, rel: string): string | null {
-  const target = path.isAbsolute(rel) ? rel : path.join(root, rel);
+  // W46: the BASE is canonicalized first — the raw root compared against a
+  // realpath'd target misjudged every entry when the root sat behind a
+  // symlink (`../real/...` read as an escape). Unresolvable base → null.
+  let rootCanon: string | null = null;
+  try {
+    rootCanon = fs.realpathSync(root);
+  } catch {
+    return null;
+  }
+  const target = path.isAbsolute(rel) ? rel : path.join(rootCanon, rel);
   try {
     const real = fs.realpathSync(target);
-    const r = path.relative(root, real);
+    const r = path.relative(rootCanon, real);
     if (r === "" || (!r.split(path.sep).includes("..") && !path.isAbsolute(r))) return target;
     return null;
   } catch {

@@ -17,6 +17,7 @@ import { supersedeThenInsert } from "../src/omp/populate-graphify.ts";
 import { GraphifyAdapter } from "../src/hunter/graph/graphify-adapter.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
+import { containedScopeTarget } from "../src/omp/populate-graphify.ts";
 import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { blastRadius, chainCalls, setMeta } from "../src/omp/typed-write.ts";
 import { describe, test, expect } from "bun:test";
@@ -691,5 +692,22 @@ CREATE TABLE typed_edges (src_canonical TEXT, dst_canonical TEXT, predicate TEXT
     const steps = chainCalls(storePath, "f0", "NO-SUCH-TARGET", 64, Number.POSITIVE_INFINITY);
     expect(steps.truncated).toBeFalsy(); // 40 < 100000: untruncated traversal
     expect(steps.length).toBeLessThanOrEqual(40);
+  });
+
+  // ---------- F38 (populate-graphify: symlinked root base canonicalized) ----------
+  test("test_w44_scope_target_survives_symlinked_root", () => {
+    const real = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-base-real-"));
+    const realSrc = path.join(real, "src");
+    fs.mkdirSync(realSrc, { recursive: true });
+    fs.writeFileSync(path.join(realSrc, "a.ts"), "export const a = 1;\n");
+    // root reached THROUGH a symlink: the base must canonicalize before the
+    // relative() compare — the raw-root compare read "../real/src" as escape.
+    const linkRoot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-base-link-")), "link");
+    fs.symlinkSync(real, linkRoot);
+    const t = containedScopeTarget(linkRoot, "src/a.ts");
+    expect(t).not.toBeNull();
+    // Out-of-root entry through the same link: still refused.
+    const leak = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-base-leak-"));
+    expect(containedScopeTarget(linkRoot, path.relative(linkRoot, leak) + "/x.ts")).toBeNull();
   });
 });
