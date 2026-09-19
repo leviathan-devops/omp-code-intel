@@ -831,25 +831,29 @@ export class GraphifyAdapter implements GraphAdapter {
     return out;
   }
 
-  /** Sync build from an explicit graph.json path (the populate sync-bridge path). */
-  buildSync(graphPath: string): { nodes: GraphNode[]; edges: GraphEdge[]; graph: GraphifyGraph } {
-    const root = path.resolve(this.profile.project.root);
+  /** Sync build from an explicit graph.json path (the populate sync-bridge path).
+   *  W46 (frozen-scan HIGH): accepts an optional profile override so root/scope
+   *  resolution matches build()'s — the old hardcoded this.profile made the two
+   *  variants disagree when the caller pointed build() at a different profile. */
+  buildSync(graphPath: string, profileOverride?: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[]; graph: GraphifyGraph } {
+    const effectiveProfile = profileOverride ?? this.profile;
+    const root = path.resolve(effectiveProfile.project.root);
     const graph = loadGraphifyFileSync(graphPath);
     if (graph.nodes.length === 0) {
       throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
     }
     // P1.6: the sync path inherits the scope filter (parity with build()).
     const raw = projectGraphifyGraph(graph, root);
-    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, this.profile.graph?.scope ?? ["src"]);
+    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, effectiveProfile.graph?.scope ?? ["src"]);
     if (filtered.dropped > 0) {
       tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
     }
     // W45/F32 (frozen-scan HIGH): buildSync carries build()'s zero-in-scope
-    // graphEmpty — the async variant threw when the scope filter emptied the
-    // node set, the sync bridge silently cached zero nodes and produced an
-    // empty store.
+    // graphEmpty — the sync bridge threw when the scope filter emptied the
+    // node set instead of silently caching zero nodes and producing an empty
+    // store.
     if (filtered.nodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${(this.profile.graph?.scope ?? ["src"]).join(",")})`);
+      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${(effectiveProfile.graph?.scope ?? ["src"]).join(",")})`);
     }
     this.lastGraphPath = graphPath;
     this.cachedNodes = filtered.nodes;
