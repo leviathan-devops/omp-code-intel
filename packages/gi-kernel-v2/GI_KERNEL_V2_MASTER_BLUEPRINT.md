@@ -497,7 +497,7 @@ no new engine. The six layers land last because they serve the 20%.
 
 ---
 
-## §11 THE RSI REFLEX LAYER — THE CHAT-DELIVERED DESIGN (2026-09-21, preserved verbatim per the operator order)
+## 11 · THE RSI REFLEX LAYER — CHAT-DELIVERED DESIGN (2026-09-21, preserved verbatim per the operator order)
 
 ## Q3 · THE RSI LAYER — buildable today, because the substrate exists
 
