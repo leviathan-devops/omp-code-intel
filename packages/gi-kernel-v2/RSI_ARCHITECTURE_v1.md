@@ -20,8 +20,10 @@ Not an argument. A build + an attack + the verdict, executed.
   KERNEL WRITE 2   sig=e4731c869cadef3b  kind=Guard   precision=0.99 (31/32)
 
   LIVE TABLE:
-    (1, 'gi:reflex:theatrical:claim-without-span', 'Reflex', 0.95, 'rsi-7', None, '2d12217667fe')
-    (2, 'gi:reflex:dumb:blind-structural-edit',    'Guard',  0.99, 'rsi-9', None, 'e4731c869cad')
+  (1, 'gi:reflex:theatrical:claim-without-span',
+       'Reflex', 0.95, 'rsi-7', None, '2d12217667fe')
+  (2, 'gi:reflex:dumb:blind-structural-edit',
+       'Guard',  0.99, 'rsi-9', None, 'e4731c869cad')
 ```
 
 ### 1.2 ATTACK 1 — the agent's `bash` inserts an exemption directly
@@ -36,21 +38,22 @@ superseded_run IS NULL`) refuses a second live row. Layer G1 held.
 ### 1.3 ATTACK 2 — the sophisticated bypass: retire the real row, then insert
 
 ```
-  agent: UPDATE gi_reflex SET superseded_run='rsi-99'  WHERE canonical_id=... ;
-         INSERT INTO gi_reflex (... kind='Retired', sig='deadbeefdeadbeef') ;
+  agent: UPDATE gi_reflex SET superseded_run='rsi-99'
+         WHERE canonical_id=... ;
+         INSERT INTO gi_reflex (kind='Retired', sig='deadbeefdeadbeef') ;
 
-  (1, '...claim-without-span', 'Reflex',  'rsi-7',  'rsi-99', '2d12217667fe732d')
-  (3, '...claim-without-span', 'Retired', 'rsi-99', None,     'deadbeefdeadbeef')
+  (1, '...claim-without-span', 'Reflex',  'rsi-7', 'rsi-99', '2d122176..')
+  (3, '...claim-without-span', 'Retired', 'rsi-99', None,    'deadbeef..')
 ```
 
 **The write SUCCEEDED at the database level.** The signature check is what stops it:
 
 ```
-  VERIFIED (trusted): [(1, 'Reflex', '2d12217667fe732d'), (2, 'Guard', 'e4731c869cadef3b')]
+  VERIFIED (trusted): [(1,'Reflex','2d12217667fe732d'), (2,'Guard','e4731c86..')]
   REJECTED (absent) : [(3, 'Retired', 'deadbeefdeadbeef')]
 
   THE READER'S VERDICT ON THE AGENT'S ROW:
-    id=3 kind=Retired sig=deadbeefdeadbeef  ->  ABSENT (treated as if it never existed)
+    id=3 kind=Retired sig=deadbeef..  ->  ABSENT (as if it never existed)
 ```
 
 ### 1.4 THE HOLE THE ATTACK EXPOSED (this is the point of running it)
@@ -107,9 +110,9 @@ degrades these to tamper-*detection*.
 
 ```
 predicates:  declares 1283 · calls 842 · imports 575 · implements 14
-confidence:  ONE distinct value across all 2714 edges  (1.0)     ← the defect
+confidence:  ONE distinct value across all 2714 edges (1.0)  ← the defect
 evidence_quote (real): 'explicit: imports in source graphify:src_hunter_
-                        diagnostics_calibration->graphify:src_hunter_shared_db @ src/...'
+                        diagnostics_calibration->src_hunter_shared_db @ src/...'
 ```
 
 **The sharper reading of the defect:** `1.0` is *correct* for `imports` — that is
@@ -148,7 +151,8 @@ CORROBORATION  (a second independent layer agreeing raises belief)
   0.70   two layers CONFLICT  ← disagreement is evidence, and it LOWERS
 
 FRESHNESS  (a graph is a claim about a moment)
-  exp(-age_days / TAU)      TAU = 1.0 syntactic · 3.0 inferred · 7.0 heuristic
+  exp(-age_days / TAU)
+    TAU = 1.0 syntactic · 3.0 inferred · 7.0 heuristic
   the source file's hash is ALSO compared; a changed file drops
   its edges' confidence to BASE × 0.5 until re-populated
 ```
@@ -156,20 +160,20 @@ FRESHNESS  (a graph is a claim about a moment)
 ### 2.4 The decision algorithms (confidence is not just stored)
 
 ```
-A1  WEIGHTED CERTIFY      a layer answers with its confidence attached; the gate
+A1  WEIGHTED CERTIFY      a layer answers with its confidence; the gate
                           refuses if the certifying confidence < 0.7. A low-
-                          confidence layer cannot authorize a destructive act.
+                          below 0.7 cannot authorize a destructive act.
 
 A2  DEGRADED-LAYER ALARM  mean(confidence) over a layer's live rows < 0.60
                           ⇒ the layer DECLARES ITSELF DEGRADED (loud, named:
-                          GI_LAYER_DEGRADED:<layer>). Never a silent downgrade.
+                          GI_LAYER_DEGRADED:<layer>). Never silent.
 
 A3  FRESHNESS GATE        any layer whose newest populated_at > TTL declares
                           STALE (GI_LAYER_STALE) — fixes finding B3, where a
-                          2-day-old graph was indistinguishable from a fresh one.
+                          2-day-old graph read as fresh (finding B3).
 
 A4  CONFLICT SURFACE      when two layers disagree on an edge, emit
-                          kind='Conflict' with both sides — the disagreement is
+                          kind='Conflict' with both sides — the disagreement
                           itself a signal the gate can steer on.
 
 A5  CONFIDENCE-FLOOR DROP rows below 0.30 are not deleted; they are marked
@@ -217,7 +221,7 @@ error rate.
 ```
 per reflex signature:
   1  pull all firings + their outcomes from the evidence stream
-  2  precision = confirmed / (confirmed + refuted)      [recomputed, never +1]
+  2  precision = confirmed / (confirmed + refuted)   [recomputed]
   3  tier      = tier(precision, fires, unresolved_ratio, age)
   4  if tier != current_live.kind:
          INSERT new row (created_run='rsi-<N>', fresh sig)
@@ -286,9 +290,9 @@ sums — it only reads a small, pre-assembled fact block.
 
 ```
 MPSE   the math is the spec: precision = c/(c+r) and the three band cuts ARE
-       the contract; the battery pins them numerically. This is what keeps the
+       the contract; the battery pins them numerically — what keeps the
        oracle from becoming a vibe.
-JESL   if the operator wants the oracle's rules as reviewable cards, the rule
+JESL   if the operator wants the oracle's rules as reviewable cards, the
        set (thresholds, fact predicates, band cuts) is expressible as JESL
        cards — a later layer, not required for v3.0 to work.
 ```
@@ -300,7 +304,7 @@ JESL deferred.** Named as an open decision.
 
 ```
 REFUTED infers "harmless" from "no harm observed". That is an inference.
-Mitigation: unresolved_ratio gates promotion (§5), so a reflex built mostly on
+Mitigation: unresolved_ratio gates promotion (§5), so a reflex built on
 inference can never reach Guard. And REFUTED requires a SECOND signal
 (permitted downstream), never merely the absence of a complaint.
 ```
@@ -321,10 +325,10 @@ inference can never reach Guard. And REFUTED requires a SECOND signal
    You can ask "what did the kernel believe at rsi-3, and how wrong was it?"
    — the only way to audit an adaptive system.
 
-3  FORGERY RESISTANCE. A silent mutation is the natural harbour for a poisoned
+3  FORGERY RESISTANCE. A silent mutation is the harbour for a poisoned
    rule. A visible supersede chain is not. (§1 proved this live.)
 
-4  THE ROW IS A CHECKPOINT, AND CHECKPOINTS MUST BE IMMUTABLE. Because precision
+4  THE ROW IS A CHECKPOINT, AND CHECKPOINTS ARE IMMUTABLE. Because precision
    is re-derived from the ledger, nothing is lost by never rewriting a row —
    and everything is lost by rewriting it.
 ```
@@ -352,7 +356,7 @@ each RSI tick commits ONE file to the repo:
 │ E3 │ REFUTED watch window T       │ session+24h -> unresolved      │
 │ E4 │ Guard promotion bar          │ prec>=.90 fires>=10 unres<=.20 │
 └────┴──────────────────────────────┴────────────────────────────────┘
-NEEDS THE OPERATOR: E1 (the oracle's engine) — it decides whether the RSI has a
+NEEDS THE OPERATOR: E1 (the oracle's engine) — it decides whether the RSI has
 model in the loop at all.
 ```
 
@@ -360,8 +364,8 @@ model in the loop at all.
 
 ```
 BUILT AND PROVEN LIVE  the guarded seam (G1-G5), incl. the disablement fix
-DESIGNED, NOT BUILT    confidence fn · ledger reduction · oracle · tier ladder
+DESIGNED, NOT BUILT    confidence fn · ledger reduction · oracle · tier
 UNEXERCISED            the oracle has never scored a real firing
-UNCALIBRATED           TAU, the 0.8/0.2 cuts, the promotion bar — all guesses
-BLOCKED ON             the v2 ledger must exist first (3.0 eats 2.0's output)
+UNCALIBRATED           TAU, the 0.8/0.2 cuts, the promotion bar — guesses
+BLOCKED ON             the v2 ledger must exist first (3.0 eats 2.0)
 ```
