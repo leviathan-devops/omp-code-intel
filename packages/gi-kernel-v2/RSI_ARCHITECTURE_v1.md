@@ -344,18 +344,14 @@ each RSI tick commits ONE file to the repo:
 ## §6 · OPEN DECISIONS
 
 ```
-┌────┬──────────────────────────────────────┬────────────────────────────────┐
-│ #  │ FORK                                 │ RECOMMENDED DEFAULT            │
-├────┼──────────────────────────────────────┼────────────────────────────────┤
-│ E1 │ Oracle engine: Jev | MPSE-only | JESL│ JEV for the judgment; MPSE     │
-│    │                                      │ discipline for the numbers     │
-│ E2 │ TAU per derivation class             │ 1d syntactic / 3d inferred /   │
-│    │                                      │ 7d heuristic (uncalibrated)    │
-│ E3 │ REFUTED window T (how long to watch)  │ one session + 24h, then        │
-│    │                                      │ unresolved                     │
-│ E4 │ Guard promotion bar                  │ precision>=0.90 AND fires>=10  │
-│    │                                      │ AND unresolved_ratio<=0.20     │
-└────┴──────────────────────────────────────┴────────────────────────────────┘
+┌────┬──────────────────────────────┬────────────────────────────────┐
+│ #  │ FORK                         │ DEFAULT                        │
+├────┼──────────────────────────────┼────────────────────────────────┤
+│ E1 │ Oracle engine: Jev/MPSE/JESL │ JEV + MPSE numbers             │
+│ E2 │ TAU per derivation class     │ 1d/3d/7d (uncalibrated)        │
+│ E3 │ REFUTED watch window T       │ session+24h -> unresolved      │
+│ E4 │ Guard promotion bar          │ prec>=.90 fires>=10 unres<=.20 │
+└────┴──────────────────────────────┴────────────────────────────────┘
 NEEDS THE OPERATOR: E1 (the oracle's engine) — it decides whether the RSI has a
 model in the loop at all.
 ```
