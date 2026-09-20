@@ -15,3 +15,6 @@ Checkpoints/*
 !Checkpoints/gi-v1.1-post-cleanup-8b79b261/
 ct-image/stage/
 extensions/graph-intelligence/extension.js
+
+# cloned external repos for the v2.0 layer study — never vendored into GI
+research/graph-infra-repos/

@@ -255,3 +255,11 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The built:** canonical package at `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.3/` — dist/index.js (sha16=83eb7bba9c5e76db), src/ (4 files), tests/ (12/12), scripts/ (6-angle harness), reports/ (DPL1 279L + blueprint 448L + waves 61L + mission + discovery), 5 ship docs (251/301/257/70/528L), manifests + DEPLOY script + README + MASTER_INDEX + PACKAGE_AUDIT.
 **The evidence:** blocks staged ≥800 chars from docs (never memory); dist SHA parity repo↔host↔package; secret scan clean (src/ RC=1; DEBUG_LOG sk- hits are truncated quotes); battery 230/0/1786; container ALL-6-PASS.
 **The honest notes:** tetris tuning deferred; T3 live-fire unproven; session-id fallback documented.
+
+## [2026-09-20 23:47] v1.3 ENGINEERING REPORT + SHIP-PACKAGE INTEGRATION
+
+**The built:** `reports/GI_Graph_Gate_Engineering_Report_v1.md` — 1142 lines, 12 diagram blocks (all ≤76 cols, ruler-verified), 22 code blocks, 24 table rows, 7 named gaps. Contents: one-paragraph summary, lifecycle map, 4 per-module diagrams + anchors, the 5-part runtime trace, the warhead lineage (minted→ported→parked→re-quarried), the bug ledger with 3 detail boxes, the testing ledger, the spec-mandate map, the numbers box, the file manifest, operator asks, honest gaps, self-check.
+**The integration:** copied into `SHIP_PACKAGES/Graph_Intel_v1.3/` at BOTH root and `reports/` (sha16 86058d33ecfe4101, repo == package). MASTER_INDEX, SHIP_MANIFEST, PACKAGE_AUDIT, README all updated to reference it.
+**The self-containment proof:** ran the packaged tests + harness FROM INSIDE the package — 12 pass / 0 fail / 30 expect [16.00ms] and ALL-6-PASS [EXIT=0]. Packaged src is byte-identical to repo (5/5 sha16 MATCH).
+**The defects the in-package run caught (both fixed):** P-1 `src/omp/gate-middleware.ts` was MISSING from the package (a dependency of gate-hook.ts) — the package would have failed on first run while looking complete; P-2 src/ laid out flat so `../src/omp/...` imports could not resolve.
+**The honest notes:** tsc EXIT=1 (191 errors, 0 in gate modules); B-3 (the extension.ts:597 cast type error) reported and NOT fixed pending the v1.3.1 rebuild decision.
