@@ -1,8 +1,9 @@
-// GI graph-gate on OMP write/edit. Does NOT re-enable Trident runBefore
-// (disabled 2026-09-14). Separate tool_call listener; throw cancels FULL.
+// GI graph-gate on OMP write/edit. Separate tool_call listener; the handler
+// throw cancels FULL.
 
 import * as fs from "node:fs";
 import { resolveDial, runGraphGate, type GiDial } from "./gate-middleware.ts";
+import { classifyEdit, computeDrift, createEmptyState, gateDecision, recordEdit, recordGraphQuery, type GraphGateSessionState } from "./graph-gate.ts";
 
 export interface GiToolCallEvent {
   toolName: string;
@@ -109,7 +110,53 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
 // per-edit middleware (severity via runGraphGate); registerGraphGate adds the
 // session drift layer (graph-gate.ts) around it: T1 advisories append to the
 // tool result, T2 blocks the call, T3 names the TTSR abort. Graph queries
-// reset drift per symbol (reward, never punishment).
+// reset drift per symbol (reward, never punishment). Session state is
+// in-memory per handler registration (the tool_call/tool_result ctx carries
+// no session id); graph_gate_state persistence via save/loadGateState is the
+// production surface bound in the integration tests.
 export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => void }): void {
   attachGiGraphGate(pi);
+  // Drift layer (graph-gate.ts): process-local session state, keyed by an
+  // explicit session id when the ctx carries one, else the shared default.
+  const states = new Map<string, GraphGateSessionState>();
+  pi.on("tool_call", (event: Record<string, unknown>) => {
+    const name = String(event.toolName ?? "").toLowerCase();
+    const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
+    const isQuery = name === "graph-query" || name === "ripwire" || String(event.toolName ?? "") === "graph-query";
+    const sid = fieldStr(event, "sessionId") || fieldStr(event, "sessionID") || "default";
+    let st = states.get(sid);
+    if (!st) {
+      st = createEmptyState();
+      states.set(sid, st);
+    }
+    if (isQuery) {
+      const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
+      if (target) recordGraphQuery({ tool: name, target }, st);
+      return undefined;
+    }
+    if (!isEdit) return undefined;
+    const rec = reconstruct(name, eventInput(event));
+    const c = classifyEdit(name, { file: rec.file, oldString: rec.oldText, newString: rec.newText });
+    recordEdit(c, st);
+    const d = computeDrift(st);
+    const g = gateDecision(d, st);
+    if (g.tier === "T3") {
+      throw new Error(`${g.blockReason ?? "GRAPH_GATE_ABORT"} (rule: graph-before-structural-edit)`);
+    }
+    if (g.tier === "T2") {
+      throw new Error(g.blockReason ?? "GRAPH_GATE_DRIFT_HIGH");
+    }
+    return undefined;
+  });
+}
+
+function eventInput(event: Record<string, unknown>): Record<string, unknown> {
+  const input = event.input;
+  return typeof input === "object" && input !== null ? input as Record<string, unknown> : {};
+}
+
+function fieldStr(record: Record<string, unknown>, key: string): string {
+  if (!(key in record)) return "";
+  const value = record[key];
+  return typeof value === "string" ? value : "";
 }

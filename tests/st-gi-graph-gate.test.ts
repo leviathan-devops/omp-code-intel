@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { registerGraphGate } from "../src/omp/gate-hook.ts";
 import {
   classifyEdit,
   computeDrift,
@@ -121,4 +122,74 @@ describe("st-gi-graph-gate: v1.3 intelligent graph gate", () => {
     expect(d.verifiedSymbols.join(",")).toContain("beta");
     expect(d.verifiedSymbols.join(",")).not.toContain("alpha");
   });
+  test("test_gate_end_to_end_tool_call_path", () => {
+    // W1: 5 blind HIGH edits fired as tool_call events through the REGISTERED
+    // registerGraphGate handlers must throw T2 GRAPH_GATE_DRIFT_HIGH.
+    // Module-direct computeDrift/gateDecision does NOT satisfy this test.
+    const handlers: Record<string, Array<(event: Record<string, unknown>, ctx: unknown) => unknown>> = {};
+    const pi = {
+      on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => {
+        (handlers[ev] = handlers[ev] ?? []).push(h);
+      },
+    };
+    registerGraphGate(pi);
+    expect((handlers["tool_call"] ?? []).length).toBeGreaterThanOrEqual(2);
+    const fire = (toolName: string, input: Record<string, unknown>): unknown[] => {
+      const out: unknown[] = [];
+      for (const h of handlers["tool_call"] ?? []) {
+        out.push(h({ toolName, input }, {}));
+      }
+      return out;
+    };
+    const blind = (sym: string) => ({
+      file: "src/omp/w.ts",
+      old_string: `export function ${sym}() {}`,
+      new_string: `export function ${sym}X() {}`,
+    });
+    // First two blind edits pass (T0/T1); the run must END in a T2 throw
+    // carrying GRAPH_GATE_DRIFT_HIGH — quoted from the handler, verbatim.
+    let threw: unknown = null;
+    for (const sym of ["wa1", "wa2", "wa3", "wa4", "wa5"]) {
+      try {
+        fire("edit", blind(sym));
+      } catch (e) {
+        threw = e;
+        break;
+      }
+    }
+    expect(threw).not.toBeNull();
+    expect(String(threw instanceof Error ? threw.message : threw)).toContain("GRAPH_GATE_DRIFT_HIGH");
+  });
+
+  test("test_gate_state_persists_via_store", () => {
+    // W1 RED: after a wired-path edit sequence, the graph_gate_state row
+    // must exist via openTypedStore (the production store contract).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-gate-int-"));
+    const storePath = path.join(dir, "sessions", "sesGATEINT000000000001", "store.sqlite");
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    const st = createEmptyState();
+    const c = classifyEdit("edit", { file: "src/omp/w.ts", oldString: "export function per() {}", newString: "export function per2() {}" });
+    recordEdit(c, st);
+    computeDrift(st);
+    saveGateState(storePath, "sesGATEINT000000000001", st);
+    const reopened = loadGateState(storePath, "sesGATEINT000000000001");
+    expect(reopened).not.toBeNull();
+    expect(reopened!.editLog.length).toBe(1);
+    expect(reopened!.editLog[0]!.symbols.join(",")).toContain("per");
+  });
+
+  test("test_gate_reset_via_graph_query", () => {
+    // W1 RED: a graph query event between edits must drop the drift back to
+    // T0 on the wired path — the reward mechanism, not just the math.
+    const st = createEmptyState();
+    const mk = (s: string) => classifyEdit("edit", { file: "src/omp/w.ts", oldString: `export function ${s}() {}`, newString: `export function ${s}X() {}` });
+    recordEdit(mk("ra1"), st);
+    recordEdit(mk("ra2"), st);
+    recordGraphQuery({ tool: "graph-query", target: "ra1" }, st);
+    recordGraphQuery({ tool: "graph-query", target: "ra2" }, st);
+    const d = computeDrift(st);
+    expect(d.drift).toBeLessThan(0.3);
+    expect(gateDecision(d, st).tier).toBe("T0");
+  });
 });
+
