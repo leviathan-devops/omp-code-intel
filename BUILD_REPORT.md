@@ -249,3 +249,9 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The how:** W1 TDD module (edit-level coverage + case-insensitive rulings) → W2 wiring (static imports, no require indirection) → W3/W4 doctrine+bodies → container angles caught 2 real defects (comment-drift, single-edit-block) → fixes re-verified unit+container+battery.
 **The evidence:** gate suite 12/12 (30 expect); full battery 230/0/1786 ×31 [8.72s]; dist `83eb7bba9c5e76db` (markers: graph_gate_state=1, DRIFT_HIGH×2, ABORT×2); deployed + HOST-EXEC-OK + CT-FINAL-EXEC-OK; container angles ALL-6-PASS ×3 runs.
 **The honest notes:** tetris threshold tuning deferred (blueprint values); TTSR T3 never fired live (unit-asserted); session-id fallback to "default" documented.
+
+## [2026-09-20] v1.3 SHIP PACKAGE SEALED — Graph_Intel_v1.3, PACKAGE_AUDIT PASS
+
+**The built:** canonical package at `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.3/` — dist/index.js (sha16=83eb7bba9c5e76db), src/ (4 files), tests/ (12/12), scripts/ (6-angle harness), reports/ (DPL1 279L + blueprint 448L + waves 61L + mission + discovery), 5 ship docs (251/301/257/70/528L), manifests + DEPLOY script + README + MASTER_INDEX + PACKAGE_AUDIT.
+**The evidence:** blocks staged ≥800 chars from docs (never memory); dist SHA parity repo↔host↔package; secret scan clean (src/ RC=1; DEBUG_LOG sk- hits are truncated quotes); battery 230/0/1786; container ALL-6-PASS.
+**The honest notes:** tetris tuning deferred; T3 live-fire unproven; session-id fallback documented.
