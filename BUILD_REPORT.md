@@ -241,3 +241,11 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The how:** angle-5 fix (symbol-less edits carry ZERO drift — they cannot break callers); angle-4 fix (T2 requires ≥3 consecutive unverified edits; T3 keeps its 5-rule). Both fixes re-verified: unit 12/12 green, all-6 container PASS, battery 230/0/1789 ×31 THREE consecutive runs.
 **The evidence:** container JSON verbatim (6 PASS lines); `bun scripts/ct-gate-angles-v13.mjs` host run ALL-6-PASS; dist `83eb7bba9c5e76db` (markers grep=3), deployed, HOST-EXEC-OK + CT-FINAL-EXEC-OK; commit 60fe3e4.
 **The honest notes:** tetris tuning still deferred (thresholds are blueprint values + container-proven floors); V2 scaffold empty by design.
+
+## [2026-09-20] v1.3 SHIP PACKAGE — graph gate sealed, dist 83eb7bba, battery 230/0
+
+**The built:** v1.3 intelligent graph gate as a sealed ship package: `src/omp/graph-gate.ts` (308L lexicon + drift + tiers + state + V2 scaffold), `registerGraphGate()` single call site (`gate-hook.ts:117`, wired `extension.ts:597`), `graph_gate_state` session table, TTSR rule + doctrine + 3 agent bodies, 12 gate tests, 6-angle container harness.
+**The why:** the operator's v1.3 mission — LASME enforcement (lexicon detects → state machine decides → tier ladder enforces), never blind; graph calls reset drift.
+**The how:** W1 TDD module (edit-level coverage + case-insensitive rulings) → W2 wiring (static imports, no require indirection) → W3/W4 doctrine+bodies → container angles caught 2 real defects (comment-drift, single-edit-block) → fixes re-verified unit+container+battery.
+**The evidence:** gate suite 12/12 (30 expect); full battery 230/0/1786 ×31 [8.72s]; dist `83eb7bba9c5e76db` (markers: graph_gate_state=1, DRIFT_HIGH×2, ABORT×2); deployed + HOST-EXEC-OK + CT-FINAL-EXEC-OK; container angles ALL-6-PASS ×3 runs.
+**The honest notes:** tetris threshold tuning deferred (blueprint values); TTSR T3 never fired live (unit-asserted); session-id fallback to "default" documented.

@@ -509,3 +509,20 @@ Top clusters:
 - **The raw output:** `{"angle1_blind_spree":"PASS","angle2_doc_flood":"PASS","angle3_query_then_edit":"PASS","angle4_two_edits_no_block":"PASS","angle5_severity_gaming":"PASS","angle6_sequence":"e1-ok | q-ok | later-THREW:GRAPH_GATE_DRIFT_HIGH: 3 ","angle6_reset_gaming":"PASS:drift-persisted"}` + `ALL-6-PASS` (host re-run)
 - **The verdict:** PASS — all 6 angles green in-container AND on host; 2 real defects found+fixed by the angles (comment-drift, single-edit block); battery 230/0 ×3 stable post-fix
 - **The artifacts:** scripts/ct-gate-angles-v13.mjs; commit 60fe3e4
+
+## TEST RESULT — 2026-09-20 — v1.3 SHIP (script + host + container)
+
+### SCRIPT
+- **The run:** full 31-file battery + 12 gate tests
+- **The raw output:** `230 pass / 0 fail / 1786 expect() calls / Ran 230 tests across 31 files. [8.72s]`; gate `12 pass / 0 fail / 30 expect()`
+- **The verdict:** PASS
+- **The artifacts:** tests/st-gi-graph-gate.test.ts; commit f4c349d
+
+### CONTAINER (omp-ct, wired registerGraphGate path)
+- **The run:** scripts/ct-gate-angles-v13.mjs (6 DPL1 §7 angles)
+- **The raw output:** angle1 PASS (T2), angle2 PASS (zero fires), angle3 PASS (T0), angle4 PASS (no premature block), angle5 PASS (comments never T2), angle6 PASS (drift persisted) + ALL-6-PASS
+- **The verdict:** PASS — 2 real defects found+fixed by the angles (commit 60fe3e4)
+
+### HOST
+- **The run:** dist rebuilt, deployed, import-verified; 5-edit blind spree through wired handlers → T2 GRAPH_GATE_DRIFT_HIGH verbatim
+- **The verdict:** PASS

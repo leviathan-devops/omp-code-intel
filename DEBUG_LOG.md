@@ -291,3 +291,11 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE FIX:** DPL1 124→279L (wiring anchors, decision algorithm subsections, dispatch traces, invoke pseudocode, interface table, failure-mode table, anchored success criteria, bound container plan, evidence-backed open decisions, honest 14-section checklist naming the 400-600L gap); WAVES with per-wave file ownership + evidence commands + W3/W4 parallel note; MISSION/DISCOVERY with spec anchors + measured anchors + explicit residual; operator manual deploy fixed (the `--outfile` form is the true build — `cp extension.js index.js` was the stale recipe); fix-status section carries W44/W45 commits + battery + refutation log.
 - **THE VERIFICATION:** `wc -l` on every doc; file-anchor grep counts (DPL1 42, manual 55, improvements 20); battery 218/0 re-run post-overhaul; zero-trident audit (8 mentions are incident records, none in built code).
 - **THE LESSON:** A gate that claims its own line count without running `wc -l` is theater. Every density claim in this entry was measured this turn.
+
+## EN-038 — v1.3 ship package build: dist 83eb7bba verified, battery 230/0, angles all-6 (2026-09-20)
+
+- **THE FINDING:** Ship-package build for v1.3. Ground truth this turn: dist sha16=83eb7bba9c5e76db (repo == deployed), battery 230/0/1786 ×31 [8.72s], HEAD 9356e0b jarvis/gi-main.
+- **THE ROOT CAUSE:** N/A (build capture, not a bug).
+- **THE FIX:** Package assembly per SPG phases (docs → dist → assembly → audit).
+- **THE VERIFICATION:** `bun test` tail pasted above; `sha256sum` parity repo↔host; container angles ALL-6-PASS (scripts/ct-gate-angles-v13.mjs on host + omp-ct).
+- **THE LESSON:** The package is only as honest as its ground truth — every number above was measured this turn.

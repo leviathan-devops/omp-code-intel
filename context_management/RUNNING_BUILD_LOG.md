@@ -188,3 +188,10 @@
 - EVIDENCE: battery 119/0/1004 ×3; SHAs exec-verified 4 copies; TUI G1+G4+G5 green (run-id 1789492431044); re-runs IV/V/VI = 56/55/60 findings, crits 1→0→1→0 (real crit fixed; wipe crit refuted gi-registry.ts:111).
 - GATE STATUS: FAIL-by-count stands (highs ≠ 0); residual = bounded fix-now vs accepted-debt per TESTING_LOG re-run III/IV/V/VI triage. Convergence law: EN-023/F-20.
 - NEXT: operator ruling on debt set → fixed-scope re-run VII → production-grade verdict.
+
+## [2026-09-20T12:00:00] — v1.3 graph gate sealed + ship package
+- WHAT: graph-gate.ts (308L) + wiring + TTSR rule + doctrine + agent bodies + 12 tests + container harness; dist 83eb7bba; ship package Graph_Intel_v1.3
+- WHY: operator's v1.3 mission — LASME enforcement, never blind
+- HOW: TDD module → wiring → doctrine → container angles (caught 2 real defects) → fixes → re-verify
+- EVIDENCE: 230/0/1786 ×31 [8.72s]; 12/12 gate; ALL-6-PASS container ×3; SHA 83eb7bba9c5e76db
+- NEXT: tetris threshold tuning (operator order); V2 scaffold consumers
