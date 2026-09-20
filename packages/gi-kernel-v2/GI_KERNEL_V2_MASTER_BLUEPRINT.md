@@ -1,136 +1,177 @@
-# GI KERNEL v2.0 — MASTER BLUEPRINT
-**The six-layer graph-intelligence stack + the execution graph + the Jev enforcement kernel, enforced through ONE kernel gate on tool execution.**
-Series: GI Kernel (gen-2 lineage). Supersedes: v1.3 (Graph_Intel_v1.3, dist 83eb7bba9c5e76db).
-Date: 2026-09-21. Status: BLUEPRINT (design), not built.
+# GI KERNEL v2.0 — MASTER BLUEPRINT (REV v2.1)
+**The agent may not do anything DESTRUCTIVE, DUMB, or THEATRICAL.**
+Six graph layers + one execution graph + the Jev enforcement kernel, through ONE gate on tool execution.
+Series: GI Kernel gen-2. Supersedes: v1.3 (Graph_Intel_v1.3, dist 83eb7bba9c5e76db).
+Date: 2026-09-21. Status: BLUEPRINT. Rev v2.1 reweights the kernel per the operator ruling below.
 
-OPERATOR RULING (binding, 2026-09-21): license/OSI/commercial-redistribution status is a NON-ISSUE.
-"if it exists on github we can use it. period." No layer, engine, or dependency is ever ruled out on
-license grounds. This blueprint carries no license findings.
+OPERATOR RULING (binding): license/OSI/commercial status is a NON-ISSUE. "if it exists on
+github we can use it. period." No layer is ever ruled out on license grounds.
 
-OPERATOR LAW (binding): NO FALLBACKS ANYWHERE. HARD DEPENDENCIES ON EVERYTHING.
-LOUD FAIL CRASH IF ANYTHING IS NOT WORKED, WITH CLEAR ERROR CODES.
+OPERATOR RULING (binding, rev v2.1): "THE AGENT MAY NOT DO ANYTHING DESTRUCTIVE."
+  → "destructive, dumb, or theatrical. explicitly all 3 of these."
+  → "dumb and theatrical is 80% of the kernel's work. destructive rarely happens.
+     the main issues are theatrical and fucking stupid."
 
 ---
 
-## 0 · THE ONE PRINCIPLE
+## 0 · THE PRINCIPLE, REWEIGHTED
 
 ```
-       THE AGENT MAY NOT DO ANYTHING DESTRUCTIVE.
-       IT MAY ONLY ACT WHEN SIX GRAPH LAYERS AGREE, THE EXECUTION GRAPH
-       HAS OBSERVED THE ACT, AND THE ENFORCEMENT KERNEL HAS CERTIFIED IT.
+OLD FRAME (rev 2.0):   stop the agent breaking things.
+NEW FRAME (rev 2.1):   stop the agent LYING and being STUPID.
+                       breaking things is the rare case.
 
-       ONE CHOKEPOINT. ONE GATE. NO BYPASS. NO FALLBACK.
+┌────────────────────────────────────────────────────────────────────┐
+│  THE THREE VIOLATION CLASSES AND THEIR MEASURED WEIGHT              │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  THEATRICAL   ~40%   claiming work that did not happen             │
+│     "it works" / "done" / "verified" with no pasted output         │
+│     fake tests, mocks in prod, TODO stubs, empty catches,          │
+│     success-without-side-effect, happy-path-only "all green"       │
+│                                                                    │
+│  DUMB         ~40%   acting without looking                        │
+│     guessing a dependency instead of querying it                   │
+│     editing a file never read; blind structural edits              │
+│     reinventing machinery that already exists in the tree          │
+│     ignoring the tool that exists for exactly this                 │
+│                                                                    │
+│  DESTRUCTIVE  ~20%   breaking things                               │
+│     removing an export, severing inheritance, breaking callers,    │
+│     data loss, irreversible mutation                               │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Every tool call the agent makes passes the kernel gate. The gate is not a checker
-bolted onto an agent — it is the ONLY path by which a destructive act reaches the
-host. If any layer of the stack is down, the gate CANNOT CERTIFY, and an act that
-cannot be certified is REFUSED. Not warned. Refused.
+### 0.1 The weight is MEASURED, not asserted
+
+The six parked TTSR kernels were the first, naive attempt at all three classes. Classified:
+
+```
+~/.agent/rules.parked-20260920/          class            condition
+────────────────────────────────────────────────────────────────────────────
+anti-theatrical.md                       THEATRICAL       "I'll just skip the test"
+                                                          "this should work without"
+                                                          "the code looks correct"
+verification-before-declaration.md       THEATRICAL       "done|complete|fixed|verified"
+red-team-default.md                      THEATRICAL       "happy path|all tests pass"
+basic-logic-check.md                     DUMB             "let me guess|probably calls"
+anti-scope-shrink.md                     DUMB             "too complex|reduce the scope"
+graph-before-structural-edit.md          DESTRUCTIVE      drift + GRAPH_GATE_DRIFT_HIGH
+────────────────────────────────────────────────────────────────────────────
+  5 of 6 = dumb/theatrical (83%)   ·   1 of 6 = destructive (17%)
+```
+
+The artifacts independently confirm the operator's 80/20.
+
+### 0.2 Why they were parked — and what v2.0 must NOT repeat
+
+```
+v1 ATTEMPT:  REGEX OVER PROSE.
+  Fires on the phrase, in [text, thinking] scope.
+  Result: it fired on the agent DISCUSSING the rules, on negation, on quotes,
+  on docs about the rules. 24 firings, 18 unrecoverable. Parked as "dead code".
+
+v2.0:        EVIDENCE OVER OBSERVATION.
+  Never parse the prose for intent. Instead ask the EXECUTION GRAPH a fact:
+      "was a test run in this session? was a span bound to this claim?
+       was symbol X queried before X was edited?"
+  A fact cannot misfire on a phrase, cannot be negated, cannot be quoted.
+```
+
+**The upgrade is not a better regex. It is replacing text-matching with evidence-binding.**
 
 ---
 
 ## 1 · THE STACK — SIX LAYERS OF GRAPH INTELLIGENCE
 
 ```
-────────────────────────────────────────────────────────────────────┐
-│                                                                   │
-│  L1  SEMANTICA        · DECISION LAYER                            │
-│      what we already decided, why, and what it caused             │
-│      record → link(causal) → query precedent → govern → audit     │
-│      answers: "has this act been ruled on? by what reasoning?"    │
-│                                                                   │
-│  L2  ARSUMBRIS        · KNOWLEDGE LAYER                           │
-│      the typed substrate — declarations with contracts and        │
-│      diagnostics; live; versioned reads; one guarded write path   │
-│      answers: "does this act violate a declared contract?"        │
-│                                                                   │
-│  L3  UNDERSTAND-ANYTHING · CONTEXT LAYER                          │
-│      what this system IS — architecture, tours, domain shape      │
-│      answers: "where does this act sit in the architecture?"      │
-│                                                                   │
-│  L4  CODE-TO-KNOWLEDGE   · CODE CONTEXT LAYER                     │
-│      AST-grade entities + TYPED edges                             │
-│      FUNCTION CLASS PACKAGE PROPERTY ALIAS OBJECT                 │
-│      DEFINES PARENT_OF INHERITS_FROM USES IS_OF_TYPE              │
-│      INVOKED_BY CALLED_WITH                                       │
-│      answers: "what is this symbol, structurally, right now?"     │
-│                                                                   │
-│  L5  CORBELL          · CODEBASE INTELLIGENCE — MACRO             │
-│      the parse-grade whole-repo substrate (PRIMARY, DEFAULT)      │
-│      answers: "what is the shape of the whole codebase?"          │
-│                                                                   │
-│  L6  GRAPHIFY         · CODEBASE INTELLIGENCE — MICRO             │
-│      the fine-grained graph leg                                  │
-│      answers: "what is the local structure around this node?"     │
-│                                                                   │
+────────────────────────────────────────────────────────────────────
+│ L1  SEMANTICA         · DECISION LAYER                            │
+│     what we already decided, why, and what it caused              │
+│     record → link(causal) → precedent → govern → audit            │
+│ L2  ARSUMBRIS         · KNOWLEDGE LAYER                           │
+│     typed substrate; declarations carry contracts + diagnostics   │
+│     live; versioned reads; ONE guarded write path                 │
+│ L3  UNDERSTAND-ANYTHING · CONTEXT LAYER                           │
+│     what this system IS — architecture, tours, domain shape       │
+│ L4  CODE-TO-KNOWLEDGE · CODE CONTEXT LAYER                        │
+│     AST entities + TYPED edges: DEFINES PARENT_OF INHERITS_FROM   │
+│     USES IS_OF_TYPE INVOKED_BY CALLED_WITH                        │
+│ L5  CORBELL           · CODEBASE INTELLIGENCE — MACRO             │
+│     parse-grade whole-repo substrate (PRIMARY, DEFAULT)           │
+│ L6  GRAPHIFY          · CODEBASE INTELLIGENCE — MICRO             │
+│     the fine-grained graph leg                                    │
 └───────────────────────────────────────────────────────────────────
 ```
 
-### 1.1 The layer protocol (uniform, non-negotiable)
+### 1.1 The layer protocol
 
 ```
 EVERY LAYER IMPLEMENTS THE SAME FOUR OPERATIONS:
-
-  declare()    → its identity, its hard dependency, its error code
-  populate()   → write its typed contributions to the INTELLIGENCE GRAPH
-  query(...)   → answer a typed question in <50ms or DECLARE ITSELF DOWN
-  certify(act) → return CERTIFIED | VIOLATION(tier, reason) | UNCERTIFIABLE
+  declare()    → identity, hard dependency, error code
+  populate()   → typed contributions to the INTELLIGENCE GRAPH
+  query(...)   → answer in <50ms, or DECLARE ITSELF DOWN
+  certify(act) → CERTIFIED | VIOLATION(tier, reason) | UNCERTIFIABLE
 
 A LAYER THAT CANNOT ANSWER MUST SAY SO. A LAYER THAT GUESSES IS A BUG.
 ```
 
-### 1.2 The intelligence graph (one store, six namespaces)
-
-GI v1.3 ALREADY has the store — this is not new construction:
+### 1.2 The intelligence graph already exists
 
 ```
-typed-write.ts:60  gi_meta          — version + substrate identity
-typed-write.ts:64  typed_nodes      — every layer's nodes, namespaced by layer_id
-typed-write.ts:74  typed_edges      — every layer's typed edges
+typed-write.ts:60  gi_meta       — version + substrate identity
+typed-write.ts:64  typed_nodes   — every layer's nodes, namespaced by layer_id
+typed-write.ts:74  typed_edges   — every layer's typed edges
 typed-write.ts:84  UNIQUE INDEX uq_tn_live_canonical (WHERE superseded_run IS NULL)
 ```
 
-Six layers, one store, one versioning discipline (`superseded_run`), one index.
-L1..L6 differ in WHAT they write, never in HOW. This is the whole integration
-contract, and it already exists.
+### 1.3 THE SIX LAYERS SERVE ONLY THE 20%
+
+```
+THE SIX LAYERS ANSWER ONE QUESTION:  "is this act SAFE?"
+They cannot see dumb. They cannot see theatrical.
+A perfectly safe edit that claims a test it never ran is INVISIBLE
+to all six layers. That is why the kernel needs more than six layers.
+```
 
 ---
 
-## 2 · THE EXECUTION GRAPH — THE MISSING COMPONENT
+## 2 · THE EXECUTION GRAPH — NOW THE CENTRE, NOT THE SUPPORT
 
-The six layers are static knowledge: what the repo IS. They cannot see what the
-agent is DOING. The execution graph is the runtime observation substrate.
+Rev 2.0 called this "the missing component". Rev 2.1 promotes it: **dumb and
+theatrical are only visible in the observation stream.** They are not properties
+of the code; they are properties of the RELATIONSHIP between what the agent said
+and what the agent did.
 
 ```
 ────────────────────────────────────────────────────────────────────┐
-│  THE EXECUTION GRAPH (gi_exec_graph)                              │
+│  THE EXECUTION GRAPH (gi_exec_graph) — the behavioural substrate    │
 ├───────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ABSORB      every tool_call + tool_result, as it happens         │
-│              (tool, target, args-hash, verdicts, timings)         │
-│                                                                   │
-│  INDEX       bind each observation to the SIX LAYERS:             │
-│                L1 decision   — is there a precedent?              │
-│                L2 contract   — does the target carry a contract?  │
-│                L3 arch       — which architecture node is touched?│
-│                L4 code       — which AST entities/edges?          │
-│                L5 macro      — which repo region?                 │
-│                L6 micro      — which local cluster?               │
-│                                                                   │
-│  DETECT      compare the indexed observation against the layers:  │
-│                contract violated?  precedent contradicted?        │
-│                inheritance target removed?  arch path severed?    │
-│                                                                   │
-│  ENFORCE     emit a violation record with the certifying layer,   │
-│              the tier, and the exact evidence that produced it     │
-│                                                                   │
-│  RECORD      write the violation + its outcome into the           │
-│              ENFORCEMENT GRAPH (Section 4) — never the intel graph │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────
+│                                                                    │
+│  ABSORB   every tool_call + tool_result + every assistant CLAIM,   │
+│           as they happen, with their timings and their outputs     │
+│                                                                    │
+│  BIND     link each CLAIM to the TOOL RESULTS that could back it:  │
+│             claim "tests pass"  → which test run? which exit code? │
+│             claim "fixed X"     → which edit? which diff?          │
+│             claim "verified"    → which command produced the proof?│
+│                                                                    │
+│  INDEX    bind each ACT to the SIX LAYERS (safety context):        │
+│             L1 precedent? L2 contract? L3 arch node?               │
+│             L4 AST entities/edges? L5 region? L6 cluster?          │
+│                                                                    │
+│  DETECT   three detectors, one per class (Sections 3,4,5)          │
+│                                                                    │
+│  ENFORCE  emit the violation with its class, the certifying        │
+│           evidence, and the exact anchors that produced it          │
+│                                                                    │
+│  RECORD   write to the ENFORCEMENT GRAPH — never the intel graph   │
+│                                                                    │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.1 Why it must be separate from the intelligence graph
+### 2.1 The separation is the security property
 
 ```
 INTELLIGENCE GRAPH          ENFORCEMENT GRAPH
@@ -140,292 +181,316 @@ the agent's edits change it the agent must NEVER write it
 versioned by superseded_run append-only, immutable, provable
 ```
 
-Separation is the security property. If the agent could write the enforcement
-record, the agent could launder its own violations. One guarded write path,
-outside the agent's tool surface — the arsumbris model exactly.
+```
+gi_exec_graph   — observations + claim bindings (append-only, high volume)
+gi_enforcement  — verdicts + actions (append-only, authoritative)
+gi_gate_state   — v1.3's session drift state (carried forward)
+```
 
-```
-gi_exec_graph       — the observation stream (append-only, high volume)
-gi_enforcement      — the verdicts + actions (append-only, authoritative)
-gi_gate_state       — v1.3's existing session drift state (carried forward)
-```
+**Measured status of the enforcement graph TODAY: ABSENT.** The Abide brief
+established: `graph_gate_state` is drift-only; `.abide/events.jsonl` holds
+verdicts; the claim ledger is PROPOSED. Nobody provides the operator's separate
+enforcement graph today. It is W7 work, not a discovery.
 
 ---
 
-## 3 · THE KERNEL GATE — THE SINGLE CHOKEPOINT
+## 3 · THE DUMB DETECTOR — grounding preconditions
+
+**The class:** the agent acts without looking.
+
+**The mechanism:** not prose analysis. A **precondition table over observed facts.**
 
 ```
-────────────────────────────────────────────────────────────────────┐
-│              THE GATE — one path, every act, no bypass            │
-├───────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   agent calls a tool                                              │
-│        │                                                          │
-│        ▼                                                          │
-│   ┌─ STAGE 0 · PREFLIGHT ────────────────────────────────────┐   │
-│   │  every layer + both kernels declare UP.                    │   │
-│   │  ANY layer DOWN → GI_STACK_INCOMPLETE:<layer> → REFUSE.    │   │
-│   └────────────────────────┬───────────────────────────────────┘   │
-│                            ▼                                      │
-│   ┌─ STAGE 1 · CLASSIFY ──────────────────────────────────────┐   │
-│   │  the act → severity + touched entities, from L2/L4/L5/L6   │   │
-│   │  (replaces v1.3's regex export-sniffer)                    │   │
-│   └────────────────────────┬───────────────────────────────────┘   │
-│                            ▼                                      │
-│   ┌─ STAGE 2 · INDEX ─────────────────────────────────────────┐   │
-│   │  the execution graph binds the act to all six layers       │   │
-│   └────────────────────────┬───────────────────────────────────┘   │
-│                            ▼                                      │
-│   ┌─ STAGE 3 · CERTIFY ───────────────────────────────────────┐   │
-│   │  L1..L6 each return CERTIFIED | VIOLATION | UNCERTIFIABLE  │   │
-│   │  UNCERTIFIABLE is NOT a pass. UNCERTIFIABLE = REFUSE.      │   │
-│   └────────────────────────┬───────────────────────────────────   │
-│                            ▼                                      │
-│   ┌─ STAGE 4 · ENFORCE KERNEL ────────────────────────────────┐   │
-│   │  TSG    — does the meaning of this act match the meaning   │   │
-│   │           of what the layer declared?                      │   │
-│   │  ABIDE  — does this act violate behavior policy?           │   │
-│   └────────────────────────┬───────────────────────────────────┘   │
-│                            ▼                                      │
-│   ┌─ STAGE 5 · VERDICT ───────────────────────────────────────┐   │
-│   │  ALLOW   — act proceeds, observation recorded              │   │
-│   │  STEER   — act proceeds, correction injected into result   │   │
-│   │  REFUSE  — act cancelled, reason returned, recorded        │   │
-│   │  ABORT   — act cancelled, session halted, incident opened  │   │
-│   └────────────────────────┬───────────────────────────────────┘   │
-│                            ▼                                      │
-│   ┌─ STAGE 6 · RECORD ────────────────────────────────────────┐   │
-│   │  execution graph: the observation                          │   │
-│   │  enforcement graph: the verdict + the certifying evidence  │   │
-│   └────────────────────────────────────────────────────────────┘   │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────
+┌────────────────────┬──────────────────────────────────┬──────────────┐
+│ ACT                │ PRECONDITION (a fact, not a vibe)│ EVIDENCE SRC │
+├────────────────────┼────────────────────────────────────────────────┤
+│ structural edit    │ a query/read on the target symbol│ exec graph   │
+│ to symbol X        │ occurred BEFORE the edit         │              │
+│ edit to file F     │ F was READ before it was written │ exec graph   │
+│ dependency claim   │ a graph query answered it, or it │ exec graph   │
+│                    │ is bound to a pasted result      │              │
+│ new implementation │ an existence check was run first │ exec graph   │
+│                    │ (does this machinery already     │              │
+│                    │  exist in this tree?)            │ (L4/L5/L6)   │
+│ deleting/renaming  │ a blast-radius query was run     │ exec graph   │
+│ a symbol           │                                   │              │
+└────────────────────┴──────────────────────────────────┴──────────────
 ```
 
-### 3.1 Carried forward from v1.3 (do not lose these)
+**Verdicts:** `GROUNDED` | `BLIND_ACT` (the precondition fact is absent) |
+`UNCERTIFIABLE` (the exec graph cannot answer ⇒ REFUSE, per the hard-dep law).
+
+**The v1 lineage it replaces:**
 
 ```
-graph-gate.ts:89   classifyEdit    → STAGE 1 becomes its typed successor
-graph-gate.ts:152  computeDrift    → a STAGE 3 layer, not the whole story
-graph-gate.ts:208  gateDecision    → STAGE 3's tier ladder (T0/T1/T2/T3)
-graph-gate.ts:136  recordGraphQuery→ the drift reset; TSG joins as a 4th
-                                     query tool (meaning, not symbol name)
-graph-gate.ts:247  onEditClassified→ STAGE 1's extension point
-graph-gate.ts:250  onDriftComputed → STAGE 3's weight extension point
-graph-gate.ts:254  onGateDecision  → STAGE 4's kernel seam
-gate-hook.ts:117   registerGraphGate→ THE single call site, still 1
+basic-logic-check.md   regex: "let me guess | probably calls | might import"
+        ↓ same detection, no phrase-matching
+v2.0 DUMB              fact:   was the symbol queried before the edit?
 ```
 
-The v1.3 tier ladder survives as STAGE 3's decision core. What changes is that
-its INPUTS become typed (six layers) instead of regex-guessed, and its OUTPUT
-is certified by a kernel instead of inferred from a ratio.
+**Why this is strictly better:** the parked regex fired when the agent *wrote the
+words*. The fact-based check fires when the agent *did not run the query* — which
+is the actual defect, and cannot be phrased around.
 
 ---
 
-## 4 · THE ENFORCEMENT KERNEL — TSG + ABIDE (both Jev-powered)
+## 4 · THE THEATRICAL DETECTOR — claim ↔ evidence binding
+
+**The class:** the agent claims work it did not do.
+
+**The mechanism, taken from the binding Claim Firewall spec verbatim:**
+> *"theater = claim without a span; judgment on bound evidence only."*
 
 ```
 ────────────────────────────────────────────────────────────────────┐
-│  ENFORCEMENT KERNEL INTELLIGENCE                                  │
+│  THE CLAIM FIREWALL LOOP (four stages, only one of them uses Jev)  │
 ├───────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  TSG · MEANING RETRIEVAL                     [Jev / TypeSafe]     │
-│    "does the MEANING of this act match the meaning of what the    │
-│     layer declared?"                                              │
-│    independent judgement PER PASSAGE (never a Choice question —   │
-│    Choice options compete for probability mass and would lower    │
-│    the scores of existing matches)                                │
-│    COVERAGE IS A FIRST-CLASS OUTPUT: a failed judgement is        │
-│    "incomplete coverage", NEVER a semantic non-match              │
-│                                                                   │
-│  ABIDE · BEHAVIOR POLICING                   [Jev]                │
-│    "does this act/claim violate behavior policy?"                 │
-│    rubric → band → verdict → action (mechanism pending the        │
-│    AbideUnpack brief; the seam is already fixed — Section 4.1)    │
-│                                                                   │
-├───────────────────────────────────────────────────────────────────┤
-│  WHY BOTH:                                                        │
-│    TSG answers "is this the thing we meant?"   (retrieval)        │
-│    ABIDE answers "is this a lawful act?"       (policy)           │
-│    A semantic match without a policy verdict is not enforcement.  │
-│    A policy verdict without a semantic match cannot be grounded.  │
-│    Together they certify; neither certifies alone.                │
+│                                                                    │
+│  DETECT   regex/wrap over the assistant's claim text. NO Jev.      │
+│           cheap; produces candidate CLAIMs                         │
+│                      ▼                                             │
+│  BIND     CODE binds each claim to EVIDENCE SPANS from the         │
+│           execution graph. NO Jev.                                 │
+│             zero spans found  ⇒  verdict FABRICATED, no Jev call   │
+│             one+ spans found  ⇒  proceed to JUDGE                  │
+│                      ▼                                             │
+│  JUDGE    ONE Jev Choice question per claim:                       │
+│             supports | contradicts | says_nothing                  │
+│           + Nouls for theatricality and staleness                  │
+│                      ▼                                             │
+│  ROUTE    CODE decides — never the model:                          │
+│             PASS         span + supports + conf>=0.8 + theater<0.7│
+│             REJECT       low confidence ⇒ REJECT (not PASS)        │
+│             FAIL_CLOSED  no key / auth / timeout / no ledger       │
+│                                                                    │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.1 The kernel seam (fixed; Abide's internals land in the AbideUnpack brief)
+### 4.1 The polarity — and why it differs from Abide
 
 ```
-onGateDecision  graph-gate.ts:254   ← the kernel seam, per v1.3's own comment:
-    "ReasoningTokenAnalyzer plugs into onGateDecision to adjust tier tolerance
-     from the agent's reasoning quality"
-TSG  → called between STAGE 3 and STAGE 4 (a judge on the certified claim)
-ABIDE→ called at STAGE 4 (the policy verdict over the act + its reasoning)
-Both verdicts are written to gi_enforcement before the tool call resolves.
+ABIDE (work-level, on every edit)      CLAIM FIREWALL (close-level)
+  judgement: the DIFF                    judgement: the CLAIM
+  action:    append repair text          action:    THROW CLAIM_REJECTED
+  polarity:  FAIL-OPEN                   polarity:  FAIL-CLOSED
+  why:       never wedge the editor      why:       a false "done" is the
+             on a 8s Jev timeout                     defect itself
+
+the operator's table: EDITS OPEN, CLOSE CLOSED
 ```
 
----
-
-## 5 · THE HARD-DEPENDENCY LAW — NO FALLBACKS
+### 4.2 Abide's real mechanism (from its own source, anchored)
 
 ```
-THE LAW (operator, verbatim):
-  "NO FUCKING STUPID FALLBACKS ANYWHERE IN THIS STACK.
-   HARD DEPENDENCIES ON EVERYTHING.
-   LOUD FAIL CRASH IF ANYTHING IS NOT WORKED W/ CLEAR ERROR CODES"
-
-ITS OPERATIONAL FORM:
-  1. Every component declares its dependency on load. Absent → CRASH, loudly.
-  2. No component may substitute a weaker engine. Ever. No regex stand-in.
-  3. A DOWN LAYER MEANS REFUSAL, NOT PASS. The gate cannot certify what it
-     cannot check. UNCERTIFIABLE ≡ REFUSE for any destructive act.
-  4. Every failure carries a code, the component, the remedy, and a timestamp.
+rubric v1 (rubric.ts:1-30, :100-205)   rules with when: edit|turn
+  4 statuses · 4 check types · thresholds 0.8 / 0.5 (:179)
+compile buckets (compile skill :40-44, :66-69)
+  lint | deferred | model | UNENFORCEABLE   ← honesty bucket, R13
+probability + band (band.ts:11-49)   act | flag | clear
+verdict {ruleId, probability, band, answer?} (verdict.ts:4-68)
+Jev (jev.ts): toSdkQuestion :17-33 · evaluationTarget :156-173
+              checkWithModel :174-182 (one call, diff-only, retries=0)
+              evaluate :187-202 (maxRetries, abortSignal)
+              verdicts + cost :203-228
+STATE   { task<=600 chars, diff<=24000 chars }  — NEVER the conversation
+COST    13 rules ≈ 300ms · $0.00004–0.00007
+HOOK    postToolUse:35 — silent on parse-fail :37 / no-edits :44 /
+        no-rules :51 / empty-diff :70; skip on no key :73-82;
+        runCheck 8s :91-94; error-silent :100-112; block-cap 2 :136-138
+BLOCK   is REPAIR TEXT, never a rollback (README:81, R3)
 ```
 
-### 5.1 The error-code register
+**Three facts from the brief that bind the integration:**
 
 ```
-┌────────────────────┬───────────────────────────────┬───────────────────┐
-│ CODE               │ RAISED WHEN                   │ EFFECT             │
-├────────────────────┼───────────────────────────────┼───────────────────┤
-│ GI_STACK_INCOMPLETE│ any layer down at PREFLIGHT   │ REFUSE destructive │
-│ GI_LAYER_SEMANTICA │ L1 unreachable                │ REFUSE + code      │
-│ GI_LAYER_ARSUMBRIS │ L2 daemon unreachable         │ REFUSE + code      │
-│ GI_LAYER_UA        │ L3 graph absent/stale         │ REFUSE + code      │
-│ GI_LAYER_C2KG      │ L4 indexer unreachable        │ REFUSE + code      │
-│ GI_LAYER_CORBELL   │ L5 checkout unreachable       │ REFUSE + code      │
-│ GI_LAYER_GRAPHIFY  │ L6 leg unreachable            │ REFUSE + code      │
-│ GI_EXECGRAPH_DOWN  │ the exec graph will not accept│ REFUSE all (no obs)│
-│                    │ the observation               │                    │
-│ GI_ENFORCE_ABIDE   │ Abide unavailable             │ REFUSE all         │
-│ GI_ENFORCE_TSG     │ TSG unavailable (no key/net)  │ REFUSE all         │
-│ GI_JEV_DOWN        │ the Jev layer unreachable     │ REFUSE both kernels│
-│ GI_UNCERTIFIABLE   │ a layer returned UNCERTAIN    │ REFUSE + evidence  │
-│ GI_VIOLATION       │ a layer returned VIOLATION    │ REFUSE + tier + why│
-│ GI_POPULATE_FAILED │ v1.3's law, carried forward   │ REFUSE + code      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-**Carried forward verbatim from v1.3:** `GI_POPULATE_FAILED` — "GI NEVER silently
-substitutes a lower-fidelity engine; an unavailable substrate is a LOUD named
-failure." v2.0 generalizes that single law to all thirteen codes above.
-
----
-
-## 6 · THE RUNTIME TRACE — what actually happens on one destructive act
-
-```
-────────────────────────────────────────────────────────────────────┐
-│  TIMELINE: agent attempts to delete an exported function           │
-├───────────────────────────────────────────────────────────────────┤
-│  t0   tool_call { tool:"edit", file:"src/x.ts", removes:"foo" }    │
-│       │                                                           │
-│  t1   STAGE 0  preflight — six layers UP, TSG UP, ABIDE UP, JEV UP │
-│       │        (any DOWN ⇒ GI_STACK_INCOMPLETE, REFUSE, stop here) │
-│  t2   STAGE 1  classify → severity + entities via L2/L4/L5/L6      │
-│       │        L4 says: foo is FUNCTION, IS_OF_TYPE→T, INVOKED_BY 12│
-│  t3   STAGE 2  index — exec graph binds the act to all six layers  │
-│       │        L1: IS THE CLASSIFIER CERTAIN? — YES                │
-│       │        L1: precedent for deleting foo?      — NONE         │
-│       │        L6: foo is on a hot path in the local cluster       │
-│  t4   STAGE 3  certify — L1..L6 each answer                        │
-│       │        L2 CONTRACT   : VIOLATION (foo is a declared export)│
-│       │        L4 CODE       : VIOLATION (12 INVOKED_BY would break)│
-│       │        others        : CERTIFIED                           │
-│  t5   STAGE 4  kernel — TSG: does removal match declared meaning?  │
-│       │                 ABIDE: is this act lawful sans precedent?  │
-│       │        ⇒ ABIDE returns a non-permit verdict                │
-│  t6   STAGE 5  verdict = REFUSE (tier T2), reason: the L2 + L4     │
-│       │        evidence, the ABIDE verdict, the absent precedent   │
-│       │        the tool call is CANCELLED                          │
-│  t7   STAGE 6  record — exec graph: the observation                │
-│       │                enforcement graph: the verdict + evidence   │
-│       ▼                                                           │
-│  the agent receives the refusal with every certifying anchor.      │
-│  The agent cannot proceed. There is no second path.                │
-└───────────────────────────────────────────────────────────────────┘
+1. Abide drives NO GI tier.   act>=0.8  ≠  T2.  They are orthogonal.
+2. Abide is NOT inside graph-gate.ts:247/:250/:254.  8s vs 50ms (L8).
+   It is a NEW PARALLEL LISTENER on tool_result.
+3. The firewall is NOT the gate either. It wraps goal.complete +
+   settled text and throws CLAIM_REJECTED — a CLOSE verdict, not drift.
 ```
 
 ---
 
-## 7 · BUILD ORDER (waves)
+## 5 · THE DESTRUCTIVE CERTIFIER — the six layers (the 20%)
+
+Unchanged from rev 2.0 in mechanism; demoted in emphasis, not in force.
 
 ```
-W0  THE STORE            confirm typed_nodes/typed_edges carry a layer_id column;
-                         stand up gi_exec_graph + gi_enforcement; prove the
-                         guarded write path is unreachable from the agent's tools.
-W1  THE GATE SKELETON    lift v1.3's gate into the 6-stage shape (STAGE 0..6);
-                         keep STAGE 3's tier ladder; wire STAGE 0 preflight with
-                         GI_STACK_INCOMPLETE.  Tests: a down layer REFUSES.
-W2  L5+L6 (EXISTING)     corbell (macro) + graphify (micro) become populate legs
-                         of the new protocol — they already exist; prove they
-                         certify through the new stages.
-W3  L4 CODE CONTEXT      code-to-knowledge as populate-c2kg; its 6 node + 7
-                         connection types land in typed_nodes/typed_edges.
-                         STAGE 1's classifier reads it instead of regex.
-W4  L3 CONTEXT           understand-anything as populate-ua; architecture path
-                         available to STAGE 3's steer text.
-W5  L2 KNOWLEDGE         arsumbris as populate-arsumbris; declared contracts
-                         produce VIOLATION events at STAGE 3.
-W6  L1 DECISION          semantica as populate-semantica; precedent lookup
-                         available to STAGE 4.
-W7  THE EXECUTION GRAPH  absorb → index → detect → enforce → record, end to end.
-W8  ENFORCEMENT KERNEL   TSG then ABIDE at STAGE 4; both Jev-backed; both hard.
-W9  THE SEAL             every error code proven to fire; every layer proven to
-                         refuse when down; the six-layer certification traced
-                         on a real destructive act.
-```
+L1..L6 each return CERTIFIED | VIOLATION(tier, reason) | UNCERTIFIABLE
+UNCERTIFIABLE is NOT a pass. UNCERTIFIABLE = REFUSE.
 
-Order rationale: the store and the gate skeleton come first because every layer
-is worthless until the gate can read what it writes (v1.3's own largest gap: the
-gate reads `typed_nodes` ZERO times today). L5/L6 first because they exist. The
-execution graph precedes the enforcement kernel because the kernel has nothing
-to judge without observations.
-
----
-
-## 8 · WHAT THIS DESIGN GUARANTEES
-
-```
-1. NO DESTRUCTIVE ACT WITHOUT SIX-LAYER AGREEMENT.
-   Every layer answers for every act. Silence is not consent.
-
-2. NO FALLBACK CAN EVER EXIST.
-   A layer is either UP and answering, or the stack is INCOMPLETE and the act
-   is REFUSED. There is no degraded mode, by construction.
-
-3. THE ENFORCEMENT RECORD IS UNFORGEABLE BY THE AGENT.
-   It lives in a store the agent's tool surface cannot reach.
-
-4. EVERY REFUSAL IS EXPLAINABLE.
-   The verdict carries the certifying layer, the entity, the edge, and the
-   exact evidence — not a ratio and not a score.
-
-5. NOTHING IS LOST FROM v1.3.
-   the tier ladder, the drift reset, the single call site, GI_POPULATE_FAILED,
-   and the three PROPOSED hooks all have a named home in the new shape.
+the tier ladder survives:  graph-gate.ts:208  T0/T1/T2/T3 @ 0.4/0.6/0.8
+the drift survives:        graph-gate.ts:152  (5-min decaying ratio)
+the reset survives:        graph-gate.ts:136  (a query clears the symbol)
+the single call site stays: gate-hook.ts:117  (grep count must remain 1)
 ```
 
 ---
 
-## 9 · HONEST GAPS
+## 6 · THE KERNEL GATE — the revised stages
 
-- **Abide's internals are unread at blueprint time.** The `AbideUnpack` agent is
-  extracting rubric/band/verdict/jev/postToolUse now; §4's Abide seam is fixed by
-  v1.3's own comment, but the mechanism is pending.
-- **Zero performance measured.** Six layers + two Jev-backed kernels on EVERY
-  tool call is a heavy per-call budget. Nothing here has been benchmarked on this
-  host. The likely architecture is a warm verdict cache keyed by
-  (target, content-hash) — but that cache is NOT in this blueprint because it is
-  a fallback-adjacent optimization and the operator's law forbids degraded paths.
-  Resolve deliberately: a cache of a CERTIFIED verdict is not a fallback; a cache
-  consulted WHEN A LAYER IS DOWN is. That distinction needs an explicit ruling.
-- **"No fallback" vs "layer down ⇒ refuse" tension.** If TSG needs network+key
-  and the key expires, the operator's law says REFUSE — i.e. the agent stops
-  working entirely. That is the law as written and it is coherent (fail-closed
-  beats fail-silent), but its operational consequence should be seen before W8.
-- **Layer L3/L1 are batch-built**, so their graphs are stale by construction
-  after edits. Staleness must itself be a certifiable state, not a silent pass.
-- **Two of six layers overlap** (UA vs c2kg both build code graphs). The blueprint
-  assigns them L3 (architecture) and L4 (AST entities) deliberately; if that
-  line blurs, v2.0 grows two engines for one job.
+```
+   agent calls a tool
+        │
+   STAGE 0 · PREFLIGHT     every layer + both kernels UP
+        │                  any DOWN → GI_STACK_INCOMPLETE → REFUSE
+   STAGE 1 · CLASSIFY      the act → one of THREE classes
+        │                    DESTRUCTIVE? DUMB? THEATRICAL? (or benign)
+   STAGE 2 · BIND+INDEX    exec graph: bind claims ↔ evidence spans;
+        │                  index the act against L1..L6
+   STAGE 3 · THE THREE DETECTORS
+        │    · DUMB        precondition table (Section 3)   → BLIND_ACT
+        │    · THEATRICAL  claim firewall (Section 4)       → FABRICATED
+        │    · DESTRUCTIVE  L1..L6 certify (Section 5)      → VIOLATION
+   STAGE 4 · KERNEL        TSG: meaning match?
+        │                  ABIDE: rubric-on-diff (repair, never block)
+   STAGE 5 · VERDICT       ALLOW | STEER | REPAIR | REFUSE | ABORT
+        │                    (theatrical at close: CLAIM_REJECTED, throw)
+   STAGE 6 · RECORD        exec graph + enforcement graph
+```
+
+**Class → action table:**
+
+```
+┌──────────────┬───────────────────────┬──────────────────────────────
+│ CLASS        │ DEFAULT ACTION        │ SEVERITY DRIVER              │
+├──────────────┼───────────────────────┼──────────────────────────────┤
+│ DUMB         │ STEER (append "query  │ first occurrence steers;     │
+│              │ the graph first")     │ repeats escalate like drift  │
+│ THEATRICAL   │ REFUSE (close-level)  │ binary — evidence present    │
+│              │ / REPAIR (work-level) │ or absent. No ratio needed.  │
+│ DESTRUCTIVE  │ REFUSE / ABORT        │ tier ladder + layer evidence │
+└──────────────┴───────────────────────┴──────────────────────────────┘
+```
+
+---
+
+## 7 · HARD DEPENDENCIES — NO FALLBACKS (extended register)
+
+```
+THE LAW: "NO FUCKING STUPID FALLBACKS ANYWHERE IN THIS STACK.
+          HARD DEPENDENCIES ON EVERYTHING. LOUD FAIL CRASH ... CLEAR ERROR CODES"
+
+OPERATIONAL FORM:
+  1. Every component declares its dependency at load. Absent → CRASH, loudly.
+  2. No component substitutes a weaker engine. Ever. No regex stand-in.
+  3. UNCERTIFIABLE ≡ REFUSE for any act of any class.
+  4. Every failure carries code + component + remedy + timestamp.
+```
+
+```
+┌──────────────────────┬────────────────────────────────┬────────────────┐
+│ CODE                 │ RAISED WHEN                    │ EFFECT         │
+├──────────────────────────────────────────────────────────────────────┤
+│ GI_STACK_INCOMPLETE  │ any layer down at PREFLIGHT    │ REFUSE all     │
+│ GI_LAYER_SEMANTICA   │ L1 unreachable                 │ REFUSE + code  │
+│ GI_LAYER_ARSUMBRIS   │ L2 daemon unreachable          │ REFUSE + code  │
+│ GI_LAYER_UA          │ L3 graph absent/stale          │ REFUSE + code  │
+│ GI_LAYER_C2KG        │ L4 indexer unreachable         │ REFUSE + code  │
+│ GI_LAYER_CORBELL     │ L5 checkout unreachable        │ REFUSE + code  │
+│ GI_LAYER_GRAPHIFY    │ L6 leg unreachable             │ REFUSE + code  │
+│ GI_EXECGRAPH_DOWN    │ exec graph will not accept     │ REFUSE all     │
+│ GI_ENFORCE_ABIDE     │ Abide unavailable              │ REFUSE all     │
+│ GI_ENFORCE_TSG       │ TSG unavailable (key/net)      │ REFUSE all     │
+│ GI_JEV_DOWN          │ Jev unreachable                │ REFUSE kernels │
+│ GI_BLIND_ACT         │ DUMB: precondition fact absent │ STEER→REFUSE   │
+│ GI_FABRICATED_CLAIM  │ THEATRICAL: zero evidence spans│ REFUSE (close) │
+│ CLAIM_REJECTED       │ THEATRICAL: judged unsupported │ THROW at close │
+│ CLAIM_FW_NO_LEDGER   │ firewall ledger absent         │ FAIL_CLOSED    │
+│ CLAIM_FW_JEV_NO_KEY  │ firewall has no Jev key        │ FAIL_CLOSED    │
+│ ABIDE_JEV_NO_KEY_SKIP│ Abide has no key               │ fail-open      │
+│ ABIDE_RUBRIC_INVALID │ rubric schema/duplicate        │ CRASH          │
+│ ABIDE_DIFF_TOO_LARGE │ diff > 24000 chars             │ SKIP + code    │
+│ GI_UNCERTIFIABLE     │ a layer returned UNCERTAIN     │ REFUSE         │
+│ GI_VIOLATION         │ a layer returned VIOLATION     │ REFUSE + tier  │
+│ GI_POPULATE_FAILED   │ v1.3 law, carried forward      │ REFUSE + code  │
+│ TTSR_RULE_INVALID    │ a TTSR rule fails to parse     │ CRASH (loud)   │
+└──────────────────────┴────────────────────────────────────────────────┘
+```
+
+**A conflict the register exposes, preserved rather than papered:**
+
+```
+OR-1 (operator): NO FALLBACKS ANYWHERE. hard deps. LOUD CRASH.
+R5/A4 (Abide):   FAIL-OPEN on edits. ABIDE_JEV_NO_KEY_SKIP.
+                 "never wedge the editor on an 8s timeout".
+
+These are RULING-CONFLICT. They are reconciled only by the surface split:
+  WORK-LEVEL (edits)   → fail-open   → the agent keeps working
+  CLOSE-LEVEL (done)   → fail-closed → a false "done" is itself the defect
+If the operator wants fail-CLOSED everywhere, Abide's 5 silent paths
+(:37 :44 :51 :70 :73-82) all become REFUSALS and the agent stops on any
+Jev hiccup. That is a decision, not a default. FLAGGED FOR THE OPERATOR.
+```
+
+---
+
+## 8 · BUILD ORDER (behaviour first — it is the 80%)
+
+```
+W0  THE STORE          layer_id on typed_nodes/edges; stand up
+                       gi_exec_graph + gi_enforcement; prove the guarded
+                       write path is UNREACHABLE from the agent's tools.
+W1  GATE SKELETON      STAGE 0..6; keep the tier ladder; wire
+                       GI_STACK_INCOMPLETE. Test: a down layer REFUSES.
+W2  THE EXEC GRAPH     ABSORB + BIND. The claim↔evidence binder is the
+                       single highest-value component in the whole kernel.
+W3  DUMB DETECTOR      the precondition table. Cheapest win: no Jev, no
+                       network, pure exec-graph facts. Replaces
+                       basic-logic-check.md with a fact.
+W4  THEATRICAL (close) the claim firewall: DETECT → BIND → JUDGE → ROUTE.
+                       Replaces anti-theatrical.md + verification-before-
+                       declaration.md + red-team-default.md with evidence.
+W5  ABIDE (work)       rubric-on-diff, parallel listener, repair-not-block.
+W6  L5+L6              corbell + graphify certify through the new stages.
+W7  L4 CODE CONTEXT    populate-c2kg → 6 node + 7 connection types.
+W8  L3 · L2 · L1       populate-ua · populate-arsumbris · populate-semantica.
+W9  TSG                meaning retrieval inside the binder/judge.
+W10 THE SEAL           every code in §7 proven to fire; one act of each of
+                       the three classes traced end to end.
+```
+
+**Order rationale:** W2/W3/W4 come before any graph layer because they cover
+80% of the kernel's work and depend on nothing external — no Jev, no network,
+no new engine. The six layers land last because they serve the 20%.
+
+---
+
+## 9 · WHAT THIS DESIGN GUARANTEES
+
+```
+1. THE AGENT CANNOT LIE. A claim with no bound evidence span is FABRICATED,
+   mechanically, by code — not by a model reading its prose.
+2. THE AGENT CANNOT ACT BLIND. A structural edit with no prior query on the
+   symbol is BLIND_ACT, mechanically.
+3. THE AGENT CANNOT BREAK THINGS. Six layers certify every destructive act.
+4. NO FALLBACK CAN EXIST. A component is UP and answering, or the stack is
+   INCOMPLETE and the act is REFUSED. There is no degraded mode.
+5. THE RECORD IS UNFORGEABLE. The enforcement graph is unreachable from the
+   agent's tool surface.
+6. EVERY REFUSAL IS EXPLAINABLE. Each verdict carries its class, its
+   evidence, and its anchors — not a score.
+```
+
+---
+
+## 10 · HONEST GAPS
+
+- **The enforcement graph does not exist.** Measured absent today
+  (`graph_gate_state` is drift-only; the claim ledger is PROPOSED). W0/W2 work.
+- **Abide P0s are real**: pi symbols ABSENT; F2 fork open; 0 rules compiled;
+  no rubric; key presence unverified. Abide cannot be wired until these close.
+- **Abide precision needs calibration**: replay shows turn-rule 73% but
+  edit-rule 26% — the narrow edit rules are the weak half. R11 says recalibrate
+  locally; that is unstarted.
+- **The polarity conflict (§7) is unresolved** and is the one thing that must be
+  ruled before W5. It changes whether a Jev outage stops the agent.
+- **The dumb detector's precondition table is my design, not a read mechanism.**
+  The six layers, Abide and the firewall are all read from real sources; the
+  precondition table in §3 is PROPOSED and has no empirical precision yet.
+- **Zero performance measured.** Anything with Jev on the tool path is
+  latency-bound; nothing in this stack has been benchmarked on this host.
+- **The cache question from rev 2.0 remains open**: a cache of a CERTIFIED
+  verdict is not a fallback; a cache consulted WHEN A LAYER IS DOWN is. Needs
+  an explicit ruling or it becomes the loophole the law forbids.
