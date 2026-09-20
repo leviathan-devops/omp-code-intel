@@ -495,3 +495,17 @@ Top clusters:
 ### HOST
 - **The run:** dist rebuilt (`bun build`, `ca38ebaaea025dd5`), deployed to live path, `bun -e import` → HOST-EXEC-OK; 8-edit blind spree through the wired handlers → T2 GRAPH_GATE_DRIFT_HIGH on the FIRST blind edit (single-edit drift=1.0 ≥ 0.6 cut), verbatim
 - **The verdict:** PASS — deploy + wired-path enforcement witnessed
+
+## TEST RESULT — 2026-09-20 — v1.3 CONTAINER ANGLES (DPL1 §7, all 6)
+
+### CONTAINER (omp-ct, wired registerGraphGate path, dist ca38ebaa→83eb7bba)
+- **The run:** 6 adversarial angles from DPL1 §7, each a fresh handler registration, tool_call events, assertions on throw/no-throw:
+  angle1 blind-spree (6 export edits) → T2 GRAPH_GATE_DRIFT_HIGH: PASS
+  angle2 doc-flood (20 doc edits) → zero fires: PASS
+  angle3 query-then-edit (query cov1 → edit cov1) → T0: PASS
+  angle4 two-edits (2 blind edits) → NO block (minimum-evidence floor): PASS
+  angle5 severity-gaming (10 comment edits) → never T2 (zero drift): PASS
+  angle6 reset-gaming (edit A → query unrelated B → edits) → drift persisted: PASS
+- **The raw output:** `{"angle1_blind_spree":"PASS","angle2_doc_flood":"PASS","angle3_query_then_edit":"PASS","angle4_two_edits_no_block":"PASS","angle5_severity_gaming":"PASS","angle6_sequence":"e1-ok | q-ok | later-THREW:GRAPH_GATE_DRIFT_HIGH: 3 ","angle6_reset_gaming":"PASS:drift-persisted"}` + `ALL-6-PASS` (host re-run)
+- **The verdict:** PASS — all 6 angles green in-container AND on host; 2 real defects found+fixed by the angles (comment-drift, single-edit block); battery 230/0 ×3 stable post-fix
+- **The artifacts:** scripts/ct-gate-angles-v13.mjs; commit 60fe3e4

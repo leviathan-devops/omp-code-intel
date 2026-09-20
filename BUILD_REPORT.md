@@ -233,3 +233,11 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The how:** ripwire task-lens mapped the gate domain first (registerGraphGate/giOmpExtension/gateDecision top-ranked); static imports (no require indirection); per-symbol query reset; T2 witnessed THROUGH the registered handlers with verbatim error quoted.
 **The evidence:** gate suite 12/12 (30 expect); full battery 230 pass / 0 fail / 1789 expect ×31 files; dist `ca38ebaaea025dd5` (gate markers grep=3), deployed, HOST-EXEC-OK; T2 text: "GRAPH_GATE_DRIFT_HIGH: 1 structural edits without graph query. Call ripwire verb=callers or graph-query verb=who-calls on the symb…".
 **The honest notes:** tetris tuning still deferred (thresholds are blueprint values); V2 scaffold empty by design.
+
+## [2026-09-20] v1.3 CONTAINER ANGLES ALL-6-PASS — 2 real defects fixed, 230/0 ×3 stable, dist 83eb7bba
+
+**The built:** container run of all 6 DPL1 §7 angles against the WIRED registerGraphGate path in `omp-ct` (harness `scripts/ct-gate-angles-v13.mjs`, derived from the verified container run): angle1 blind-spree PASS (T2), angle2 doc-flood PASS (zero fires), angle3 query-then-edit PASS (T0), angle4 two-edits PASS (no premature block), angle5 severity-gaming PASS (comments never T2), angle6 reset-gaming PASS (drift persisted).
+**The why:** the first container run caught 2 REAL defects the 12 unit tests missed: (1) comment-only edits carried MEDIUM drift — 10 comment edits alone reached T2; (2) single-edit drift=1.0 blocked immediately — no minimum-evidence floor.
+**The how:** angle-5 fix (symbol-less edits carry ZERO drift — they cannot break callers); angle-4 fix (T2 requires ≥3 consecutive unverified edits; T3 keeps its 5-rule). Both fixes re-verified: unit 12/12 green, all-6 container PASS, battery 230/0/1789 ×31 THREE consecutive runs.
+**The evidence:** container JSON verbatim (6 PASS lines); `bun scripts/ct-gate-angles-v13.mjs` host run ALL-6-PASS; dist `83eb7bba9c5e76db` (markers grep=3), deployed, HOST-EXEC-OK + CT-FINAL-EXEC-OK; commit 60fe3e4.
+**The honest notes:** tetris tuning still deferred (thresholds are blueprint values + container-proven floors); V2 scaffold empty by design.

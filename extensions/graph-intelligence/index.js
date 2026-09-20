@@ -10333,9 +10333,7 @@ function computeDrift(state, now = Date.now()) {
       if (!verifiedSymbols.includes(v))
         verifiedSymbols.push(v);
     if (edit.symbols.length === 0) {
-      totalWeight += weight;
-      unverifiedWeight += weight;
-      unverifiedCount += 1;
+      continue;
     } else if (verifiedHere.length > 0) {
       continue;
     } else {
@@ -10371,7 +10369,8 @@ function consecutiveUnverified(state, now = Date.now()) {
   return n;
 }
 function gateDecision(d, state, now = Date.now()) {
-  if (d.drift >= TIER_T3_CUT && consecutiveUnverified(state, now) >= TIER_T3_MIN_CONSECUTIVE) {
+  const n = consecutiveUnverified(state, now);
+  if (d.drift >= TIER_T3_CUT && n >= TIER_T3_MIN_CONSECUTIVE) {
     state.gateState = "HARD_STOP";
     return {
       tier: "T3",
@@ -10380,7 +10379,7 @@ function gateDecision(d, state, now = Date.now()) {
       blockReason: `GRAPH_GATE_ABORT: drift ${d.drift.toFixed(2)} with ${d.unverifiedCount} unverified structural edits \u2014 reasoning rewound, query the graph`
     };
   }
-  if (d.drift >= TIER_T2_CUT) {
+  if (d.drift >= TIER_T2_CUT && n >= 3) {
     state.gateState = "GATE_ON";
     return {
       tier: "T2",
