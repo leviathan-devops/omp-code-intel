@@ -162,11 +162,10 @@ export function computeDrift(state: GraphGateSessionState, now: number = Date.no
     const verifiedHere = edit.symbols.filter((s) => symbolVerified(s, state));
     for (const v of verifiedHere) if (!verifiedSymbols.includes(v)) verifiedSymbols.push(v);
     if (edit.symbols.length === 0) {
-      // Symbol-less edits (logic bodies with no exports) can only be covered
-      // by a same-file graph query — weight them in full when uncovered.
-      totalWeight += weight;
-      unverifiedWeight += weight;
-      unverifiedCount += 1;
+      // CONTAINER ANGLE 5 FIX: symbol-less comment-only edits carry ZERO
+      // drift — they cannot break callers. Weighting them at MEDIUM let 10
+      // comment edits alone reach T2.
+      continue;
     } else if (verifiedHere.length > 0) {
       // RULING (W1): edit-level coverage — a query on ANY touched symbol
       // covers the edit. Per-symbol pro-rating demanded agents query a new
@@ -207,7 +206,12 @@ function consecutiveUnverified(state: GraphGateSessionState, now: number = Date.
 }
 
 export function gateDecision(d: DriftResult, state: GraphGateSessionState, now: number = Date.now()): GateDecision {
-  if (d.drift >= TIER_T3_CUT && consecutiveUnverified(state, now) >= TIER_T3_MIN_CONSECUTIVE) {
+  // CONTAINER ANGLE 4 FIX: minimum-evidence floor — a SINGLE edit can never
+  // block, no matter how high the ratio reads. Drift of 1.0 on one edit is a
+  // sample-size artifact, not a pattern. T2 needs ≥3 unverified edits; T3
+  // keeps its 5-consecutive rule on top.
+  const n = consecutiveUnverified(state, now);
+  if (d.drift >= TIER_T3_CUT && n >= TIER_T3_MIN_CONSECUTIVE) {
     state.gateState = "HARD_STOP";
     return {
       tier: "T3",
@@ -216,7 +220,7 @@ export function gateDecision(d: DriftResult, state: GraphGateSessionState, now: 
       blockReason: `GRAPH_GATE_ABORT: drift ${d.drift.toFixed(2)} with ${d.unverifiedCount} unverified structural edits — reasoning rewound, query the graph`,
     };
   }
-  if (d.drift >= TIER_T2_CUT) {
+  if (d.drift >= TIER_T2_CUT && n >= 3) {
     state.gateState = "GATE_ON";
     return {
       tier: "T2",
