@@ -137,16 +137,21 @@ to all six layers. That is why the kernel needs more than six layers.
 
 ---
 
-## 2 · THE EXECUTION GRAPH — NOW THE CENTRE, NOT THE SUPPORT
+## 2 · THE EXECUTION RECORD — TSG + THE LEDGERS (not a new store)
 
-Rev 2.0 called this "the missing component". Rev 2.1 promotes it: **dumb and
-theatrical are only visible in the observation stream.** They are not properties
-of the code; they are properties of the RELATIONSHIP between what the agent said
-and what the agent did.
+CORRECTION (rev 2.2): rev 2.0 invented a component named `gi_exec_graph`.
+That was THEATRICAL — a name for work another engine already does. RETRACTED.
+**The load/index unit IS TSG** (Rust, per-passage Noul, coverage-first).
+**The record IS the ledgers**: Abide's `.abide/events.jsonl` and the claim
+ledger. There is no eighth store.
+
+WHY IT STILL MATTERS: dumb and theatrical are only visible in the observation
+stream. They are not properties of the code; they are properties of the
+RELATIONSHIP between what the agent said and what the agent did.
 
 ```
 ────────────────────────────────────────────────────────────────────┐
-│  THE EXECUTION GRAPH (gi_exec_graph) — the behavioural substrate    │
+│  THE EXECUTION RECORD — TSG indexes it, the ledgers keep it         │
 ├───────────────────────────────────────────────────────────────────┤
 │                                                                    │
 │  ABSORB   every tool_call + tool_result + every assistant CLAIM,   │
@@ -166,7 +171,7 @@ and what the agent did.
 │  ENFORCE  emit the violation with its class, the certifying        │
 │           evidence, and the exact anchors that produced it          │
 │                                                                    │
-│  RECORD   write to the ENFORCEMENT GRAPH — never the intel graph   │
+│  RECORD   TSG passage→span map + .abide/events.jsonl + claim ledger │
 │                                                                    │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -182,9 +187,11 @@ versioned by superseded_run append-only, immutable, provable
 ```
 
 ```
-gi_exec_graph   — observations + claim bindings (append-only, high volume)
-gi_enforcement  — verdicts + actions (append-only, authoritative)
-gi_gate_state   — v1.3's session drift state (carried forward)
+.abide/events.jsonl — the observation stream (append-only, high volume)
+claim ledger      — claim ↔ span bindings (append-only)
+gi_enforcement    — verdicts + actions (append-only, authoritative)
+graph_gate_state  — v1.3's session drift state (carried forward)
+[RETRACTED]       — gi_exec_graph: rev 2.0 invention, never built, deleted
 ```
 
 **Measured status of the enforcement graph TODAY: ABSENT.** The Abide brief
@@ -429,12 +436,13 @@ Jev hiccup. That is a decision, not a default. FLAGGED FOR THE OPERATOR.
 ## 8 · BUILD ORDER (behaviour first — it is the 80%)
 
 ```
-W0  THE STORE          layer_id on typed_nodes/edges; stand up
-                       gi_exec_graph + gi_enforcement; prove the guarded
-                       write path is UNREACHABLE from the agent's tools.
+W0  THE STORE          layer_id on typed_nodes/edges; stand up the ledgers
+                       (.abide/events.jsonl + claim ledger + gi_enforcement);
+                       TSG reachable as the load unit; prove the guarded write
+                       path is UNREACHABLE from the agent's tools.
 W1  GATE SKELETON      STAGE 0..6; keep the tier ladder; wire
                        GI_STACK_INCOMPLETE. Test: a down layer REFUSES.
-W2  THE EXEC GRAPH     ABSORB + BIND. The claim↔evidence binder is the
+W2  THE LEDGER+BIND    ABSORB (TSG) + BIND (claim↔span). The claim↔evidence binder is the
                        single highest-value component in the whole kernel.
 W3  DUMB DETECTOR      the precondition table. Cheapest win: no Jev, no
                        network, pure exec-graph facts. Replaces
