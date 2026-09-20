@@ -7,7 +7,7 @@ import { Database } from "bun:sqlite";
 import { blastRadius, chainCalls, countTypedNodes, gateAdvisory, getMeta, impact, safeDelete, unwiredNodes, whoCalls, wouldBreak } from "./typed-write.ts";
 import { GiScopeError, openSessionStore } from "./store-open.ts";
 import { GiPathError } from "../scoping/index.ts";
-import { attachGiGraphGate } from "./gate-hook.ts";
+import { attachGiGraphGate, registerGraphGate } from "./gate-hook.ts";
 import { clearGiRegistry, GiClearError } from "./gi-registry.ts";
 import { populateSessionStore } from "./populate.ts";
 import { corbellCheckoutPath, isCorbellCheckoutFreshFor } from "./populate-corbell.ts";
@@ -592,7 +592,9 @@ createBugHuntTool(pi, { cwdOf });
 export default function giOmpExtension(pi: GiExtensionAPI): void {
   const names = registerGiOmpTools(pi, (ctx) => ctx?.cwd ?? process.cwd());
   if (typeof pi.on === "function") {
-    attachGiGraphGate(pi as { on: (ev: string, h: (e: unknown, c: unknown) => unknown) => void });
+    // W2: registerGraphGate = attachGiGraphGate (per-edit middleware) + the
+    // v1.3 drift layer (graph-gate.ts). One call site — grep count must stay 1.
+    registerGraphGate(pi as { on: (ev: string, h: (e: unknown, c: unknown) => unknown) => void });
   }
   console.error("[gi-omp] registered " + names.join(", "));
 }

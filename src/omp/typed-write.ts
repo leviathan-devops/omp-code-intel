@@ -89,6 +89,17 @@ export const TYPED_STORE_DDL: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`,
+  // W2 (v1.3 gate): the gate's session state lives beside gi_meta — one row
+  // per session, same scoping law (sessions/{sid}/store.sqlite), same
+  // create-if-absent discipline as every other table in this array.
+  `CREATE TABLE IF NOT EXISTS graph_gate_state (
+    session_id TEXT PRIMARY KEY,
+    drift REAL NOT NULL DEFAULT 0,
+    state TEXT NOT NULL DEFAULT 'IDLE',
+    edits_json TEXT NOT NULL DEFAULT '[]',
+    queries_json TEXT NOT NULL DEFAULT '[]',
+    updated_ms INTEGER NOT NULL DEFAULT 0
+  )`,
 ];
 
 // W21 (frozen-scan HIGH): the TRUE magic is 16 bytes INCLUDING the trailing NUL —

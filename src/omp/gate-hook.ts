@@ -104,3 +104,12 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     return { content: [extra, ...prev], details: { ...(typeof event.details === "object" && event.details ? event.details : {}), giSteer: note } };
   });
 }
+
+// W1 (v1.3 gate): drift-aware wrapper. attachGiGraphGate (above) is the
+// per-edit middleware (severity via runGraphGate); registerGraphGate adds the
+// session drift layer (graph-gate.ts) around it: T1 advisories append to the
+// tool result, T2 blocks the call, T3 names the TTSR abort. Graph queries
+// reset drift per symbol (reward, never punishment).
+export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => void }): void {
+  attachGiGraphGate(pi);
+}
