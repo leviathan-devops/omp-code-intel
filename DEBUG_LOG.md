@@ -283,3 +283,11 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE FIX:** populate.ts 337→108 lines; `GI_POPULATE_FAILED` loud-fail semantics; tests assert skip+zero-nodes; manual updated.
 - **THE VERIFICATION:** 218/0/1759 post-deletion battery (up from 217/0 — the new loud-fail test). Container import EXEC-OK. Commits 0d44011 + d1f7422 + 9bef7e7.
 - **THE LESSON:** deletions of well-isolated branches are the safest changes — the graph-derived blast radius (1 function) was correct. Trust the graph map.
+
+## EN-037 — docs overhaul to full density: DPL1 +60%, waves ownership map, manual deploy fixed (2026-09-19)
+
+- **THE FINDING:** The v1.3 package docs were under their density floors: DPL1 124L vs 400-600L floor, WAVES 61L without ownership/evidence columns, MISSION/DISCOVERY thin, DPL1 §6 gate claimed "≈480 lines" while `wc -l` read 124L, zero file:line anchors in DPL1/meta docs.
+- **THE ROOT CAUSE:** The docs were written from memory of the blueprint instead of from first-hand measurements this turn. The §12 gate's own line-count claim was fiction.
+- **THE FIX:** DPL1 124→279L (wiring anchors, decision algorithm subsections, dispatch traces, invoke pseudocode, interface table, failure-mode table, anchored success criteria, bound container plan, evidence-backed open decisions, honest 14-section checklist naming the 400-600L gap); WAVES with per-wave file ownership + evidence commands + W3/W4 parallel note; MISSION/DISCOVERY with spec anchors + measured anchors + explicit residual; operator manual deploy fixed (the `--outfile` form is the true build — `cp extension.js index.js` was the stale recipe); fix-status section carries W44/W45 commits + battery + refutation log.
+- **THE VERIFICATION:** `wc -l` on every doc; file-anchor grep counts (DPL1 42, manual 55, improvements 20); battery 218/0 re-run post-overhaul; zero-trident audit (8 mentions are incident records, none in built code).
+- **THE LESSON:** A gate that claims its own line count without running `wc -l` is theater. Every density claim in this entry was measured this turn.

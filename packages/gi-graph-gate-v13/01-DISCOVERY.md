@@ -12,13 +12,14 @@
 - Battery: 218 pass / 0 fail / 1759 expect() × 30 files
 - Dist: ee0829c735cc5a1a deployed ×2 + HOST-EXEC-OK
 
-## What was NOT read
-- The full OMP vendor source beyond wrapper.ts hook surface (the OMP hook bible research agent failed on quota)
-- The v4.4.2 warhead bodies beyond the port map (already ported into APPEND_SYSTEM.md)
-- The V2 context-graph/knowledge-graph systems (explicitly out of scope — PROPOSED only)
+## What was NOT read (explicit residual, blocks nothing in v1.3)
+- The full OMP vendor source beyond the wrapper.ts hook contract — the OMP hook bible research agent FAILED on poolside quota (429); the beforeToolCall/afterToolCall contract used by this spec is confirmed first-hand, the deeper event inventory (message_start/turn boundaries) is UNVERIFIED
+- The v4.4.2 warhead bodies beyond the port map — already ported into APPEND_SYSTEM.md (31 lines); the port map is the evidence
+- The V2 context-graph/knowledge-graph systems — explicitly out of scope (PROPOSED only); any V2 design work starts from scratch evidence, never from this section
 
 ## Landing zone constraints
-- The gate lives INSIDE the existing extension bundle (no new extension to register)
-- Session state follows the existing sessions/{sid}/store.sqlite scoping law
-- TTSR rules use the established frontmatter format (name/scope/condition/contextMode/repeatMode)
+- The gate lives INSIDE the existing extension bundle (no new extension to register) — `registerGiOmpTools()` at `src/omp/extension.ts:302` is the single wiring point; the gate registers hooks beside the existing `pi.registerTool()` calls (`:306`, `:345`, `:576`, `:582`)
+- Session state follows the existing sessions/{sid}/store.sqlite scoping law — `openTypedStore()` at `src/omp/typed-write.ts:145` is the open pattern; tables gi_meta (:60) + typed_nodes (:64) + typed_edges (:74) are the neighbors
+- TTSR rules use the established frontmatter format (name/scope/condition/contextMode/repeatMode) — 5 live examples in `~/.agent/rules/`
 - The 613KB bundle grows by ~40KB (graph-gate.ts bundled) — no size gate risk
+- OMP hook contract confirmed in vendor source (`wrapper.ts` ~:178): beforeToolCall/afterToolCall fire around every tool execution; the same surface `code-retrieval/index.js` already uses

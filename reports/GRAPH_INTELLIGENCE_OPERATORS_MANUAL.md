@@ -431,7 +431,9 @@ The original 21 highs (2 criticals later) were fixed across waves W1–W3 + the 
 | POLICY INCONSISTENCY | 3 | FIXED (W3): lineless skip+count unified across chain/imports/awaits/unwired/whoCalls (null OR undefined) |
 | SCOPING | 1 | FIXED (W4): scopeBuildToProfile at the store boundary, wired in script + adapter |
 
-**The residual band (16–20 oscillating highs per scan)** is the ARCHITECTURAL remainder — TOCTOU classes, first-run mtime semantics, cycle-enumeration precision, default-allowlist breadth — each named with root cause in reports/WAVE_REPORT_W1-W7.md and BLAST_REPORT_2026-09-18.md. Per the convergence law these require the kernel rebuild (§12) or operator rulings; patch waves demonstrably cannot reach 0h (three passes of evidence).
+**The residual band (16–20 oscillating highs per scan)** breaks into two classes.
+Class A — FIXED post-manual: the W44 wave closed 21 structural highs TDD red→green (`2f300a0`..`1b9897c`); the W45 wave closed 11 re-scan highs (`061a14f`..`6508092`); 3 scan claims were REFUTED by first-hand read (Tarjan onStack guard is live standard iterative order — EN-027; sizeHint NON-AUTHORITATIVE pinned in st-gi-omp-corrupt; DDL contention rethrows at the plain-DDL layer). Battery: 218 pass / 0 fail / 1759 expect() across 30 files.
+Class B — OPEN: fresh scan passes surface NEW findings the prior rounds never saw (the scan chain is the same non-convergent `ocr scan --provider <lane> --timeout 30 --concurrency 2` loop; evidence: /tmp/w44-scan/*.json, /tmp/w45-rescan2/*.json, reports/w45-rescan2-verdicts/). These need the v1.3 gate cycle or operator-ruled acceptance — patch waves against a non-convergent scanner produce diminishing returns (EN-023/EN-034).
 
 **Full details:** `reports/V1.1_STRUCTURAL_FINDINGS.md` (163 lines, every finding with file:line and severity) + `reports/WAVE_REPORT_W1-W7.md` + `reports/BLAST_REPORT_2026-09-18.md`
 
@@ -443,10 +445,12 @@ The original 21 highs (2 criticals later) were fixed across waves W1–W3 + the 
 
 ```bash
 cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
-bun build src/omp/extension.ts --outdir extensions/graph-intelligence --target bun --format esm --bundle
-cp extensions/graph-intelligence/extension.js extensions/graph-intelligence/index.js
+bun build src/omp/extension.ts --outfile extensions/graph-intelligence/index.js --target bun --format esm --bundle
+sha256sum extensions/graph-intelligence/index.js   # record SHA16
 cp extensions/graph-intelligence/index.js ~/.omp/agent/extensions/graph-intelligence/index.js
-# Both dists must be rebuilt and deployed together (the tool-name race)
+timeout 60 bun -e 'await import("/home/leviathan/.omp/agent/extensions/graph-intelligence/index.js"); console.log("HOST-EXEC-OK")'
+# GI ships its OWN dist only. Trident's dist (which embeds a GI copy) rebuilds
+# itself on its own schedule — that is trident's problem, never GI's (F-44).
 ```
 
 ### 11.2 Build a Graph
@@ -460,11 +464,23 @@ bun /path/to/Graph_Intelligence/scripts/graphify-build.ts --target . --extract
 ### 11.3 Query the Graph
 
 ```bash
-# Via CLI (scripts/gi-cli.ts):
-bun scripts/gi-cli.ts who-calls <function-name> .
-bun scripts/gi-cli.ts impact <function-name> .
-bun scripts/gi-cli.ts unwired x .
-bun scripts/gi-cli.ts safe-delete <function-name> .
+# Via CLI (scripts/gi-cli.ts — all 9 verbs):
+bun scripts/gi-cli.ts who-calls <symbol> <root>
+bun scripts/gi-cli.ts impact <symbol> <root>
+bun scripts/gi-cli.ts unwired x <root>
+bun scripts/gi-cli.ts safe-delete <symbol> <root>
+bun scripts/gi-cli.ts snapshot <root>
+bun scripts/gi-cli.ts diff <a.json> <b.json>
+bun scripts/gi-cli.ts gate <a.json> <b.json> <micro|category|domain>
+bun scripts/gi-cli.ts preflight <fn> <root>
+bun scripts/gi-cli.ts test-targets <fn> <root> [max]
+
+# Store override (default is the session's own store):
+GI_CLI_STORE=<path-to>/store.sqlite bun scripts/gi-cli.ts <verb> ...
+
+# Symbol-label rule (graphify labels carry () suffixes):
+# who-calls "supersedeThenInsert()" NOT "supersedeThenInsert" —
+# a NOT-FOUND response names the closest candidate ("did you mean …?").
 
 # Via OMP agent (the tools are registered as first-class):
 graph-query --verb who-calls --target <function> --target-path <dir>

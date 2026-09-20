@@ -9,7 +9,7 @@ Every fix that followed "write the failing test, watch it fail, fix, watch it pa
 The 33 commits this session each carry exactly one fix and its named test. This made every commit independently revertable and independently auditable. When F35 (poolPath declaration swallowed) was discovered, reverting to the pre-F21 commit was a clean single-commit operation.
 
 ### Pattern 3: The test-seam pattern centralizes security checks
-Before: security checks were inlined at each call site (chmodSync, lstatSync, path.relative). After: each check became an exported seam (hardenPoolFile, ledgerDirConfined, containedScopeTarget, warmStoreUnchanged). The seam pattern has three benefits:
+Before: security checks were inlined at each call site (chmodSync, lstatSync, path.relative). After: each check became an exported seam (hardenPoolFile (`src/hunter/keys/go-key-pool.ts`), ledgerDirConfined (`src/omp/extension.ts:44`), containedScopeTarget (`src/omp/populate-graphify.ts`), warmStoreUnchanged (`src/omp/populate-corbell.ts`)). The seam pattern has three benefits:
 1. The security logic exists in ONE place (no drift between call sites)
 2. The seam is directly unit-testable without mocking the caller
 3. Future call sites inherit the hardened check for free
@@ -48,7 +48,7 @@ The session inferred authorization to fix ANY blocking issue from the dependency
 ### Failure 4: Test-seam tail rot (MF-5, F35)
 F21 added hardenPoolFile at the write path but the edit accidentally deleted the poolPath declaration. The whole re-chmod threw ReferenceError inside a catch block and silently no-opped. The test passed because it asserted "victim NOT modified" (true when nothing happens).
 
-**Lesson:** Every seam test must assert the POSITIVE outcome (target IS hardened) not just the negative (victim NOT clobbered). And when a fix modifies code that a seam wraps, re-run the seam's test specifically.
+**Lesson:** Every seam test must assert the POSITIVE outcome (target IS hardened) not just the negative (victim NOT clobbered). And when a fix modifies code that a seam wraps, re-run the seam's test specifically (e.g. `bun test tests/st-gi-w44-highs.test.ts` for pool/corbell/graphify seams).
 
 ### Failure 5: The both-dists doctrine (MF-2)
 The goal prompt's W7 wave mandated simultaneous GI+trident deploy. This was trident's deployment convenience (trident's dist embeds GI code), not GI's requirement. GI is self-contained.
@@ -75,9 +75,9 @@ This cycle was executed 3 times (W44 original, W45 re-scan, W46 re-scan). It pro
 ```
 Primary lane (muse GO): fastest, quota-limited
   ↓ quota-blocked
-Fallback 1 (muse-free via adapter): free tier, rate-limited, SSE-incompat solved by adapter
+Fallback 1 (muse-free via `/tmp/zen-free-adapter.mjs` on :4098: gate-injecting de-stream proxy — control file 4m4s, session `ffba8ebb`): free tier, rate-limited
   ↓ rate-limited
-Fallback 2 (poolside direct): paid, fast but tool-call non-compliant ~50%
+Fallback 2 (poolside-laguna-s direct via `ocr scan --provider poolside-laguna-s`: paid, fast but tool-call non-compliant ~50% — control file 5m56s, session `b74f2114`)
   ↓ flaky
 Fallback 3 (openrouter): 429 upstream (dead)
   ↓ dead
@@ -97,9 +97,12 @@ This pattern was violated once (F-44) and must be mechanically enforced.
 
 ---
 
+## SHIP-CLOSE RECORD (v1.2.1, `8599500`)
+Full battery 218/0/1759 ×30. Dist `ee0829c7` deployed ×2 + HOST-EXEC-OK + CT-EXEC-OK. FallHunter CLEAN + FallAuditor VERIFIED (two independent subagent passes). `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.2.1/` (PACKAGE_AUDIT PASS). One commit = one fix, red→green (33 code commits).
+
 ## NOTES FOR FUTURE AGENTS
 
-1. **Read the governing spec first, not the goal prompt.** The spec (GI_CLEANUP_AND_INFRA_OVERHAUL_SPEC.md) is the binding authority. The goal prompt may contain inherited doctrine that contradicts the spec (the both-dists law). When they conflict, the spec wins.
+1. **Read the governing spec first, not the goal prompt.** The spec (`reports/GI_CLEANUP_AND_INFRA_OVERHAUL_SPEC.md`) is the binding authority. The goal prompt may contain inherited doctrine that contradicts the spec (the both-dists law). When they conflict, the spec wins.
 
 2. **Run a 1-file scan control before any full batch.** The control costs 2-5 minutes and proves the lane works. A failed full batch costs 30-60 minutes and may corrupt partial results.
 
@@ -107,7 +110,7 @@ This pattern was violated once (F-44) and must be mechanically enforced.
 
 4. **When a fix introduces a new seam, TEST THE SEAM, not just the caller.** The seam is the unit that future changes will flow through.
 
-5. **Export security checks as named seams.** Don't inline chmodSync/lstatSync at call sites. Export hardenPoolFile/containedScopeTarget/ledgerDirConfined. The seam centralizes the check and makes it testable.
+5. **Export security checks as named seams (live inventory: `src/omp/typed-write.ts` verifyOpenedStoreFile, `src/omp/extension.ts` ledgerDirConfined/settlementLedgerConfined/writeWipeAudit/parseTargetRoots/substrateNeedsPopulate, `src/omp/populate-graphify.ts` containedScopeTarget, `src/omp/populate-corbell.ts` warmStoreStat/warmStoreUnchanged, `src/hunter/keys/go-key-pool.ts` hardenPoolFile/hardenPrivateDir).** Don't inline chmodSync/lstatSync at call sites. Export hardenPoolFile/containedScopeTarget/ledgerDirConfined. The seam centralizes the check and makes it testable.
 
 6. **When the scan produces new findings on unchanged code, that's the non-determinism signal.** Stop scanning. Fix what you have. Ask the operator to rule on the residual.
 

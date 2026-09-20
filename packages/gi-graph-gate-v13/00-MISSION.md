@@ -13,15 +13,15 @@ A new module `src/omp/graph-gate.ts` (~500 lines) inside the existing GI kernel 
 4. Session state table: new `graph_gate_state` in the session store, or separate file? (default: session store table, same scoping law)
 5. tetris tuning before or after the gate build? (default: AFTER — gate built to blueprint, then tetris-tuned as W5)
 
-## Non-negotiables
-- Doc-only edits (.md/.json/.yaml/.toml) NEVER trigger — zero friction
-- Graph calls reset drift — the gate rewards, never punishes coding
-- Minimum escalation path: T1 (advise) before T2 (block); T3 only at drift ≥ 0.8 + 5 consecutive structural edits
-- V2 extension points are EMPTY interfaces — no V2 implementation in this package
-- HARD DEPENDENCY preserved: the gate never substitutes, only advises/blocks/aborts
+## Non-negotiables (each with its spec anchor)
+- Doc-only edits (.md/.json/.yaml/.toml) NEVER trigger — zero friction (spec §2.4, §6.1; container angle 2)
+- Graph calls reset drift — the gate rewards, never punishes coding (spec §2.7, §6.5; container angle 3)
+- Minimum escalation path: T1 (advise) before T2 (block); T3 only at drift ≥ 0.8 + 5 consecutive structural edits (spec §5.4; container angle 1 proves T2 fires, angle 5 proves LOW never reaches it)
+- V2 extension points are EMPTY interfaces — no V2 implementation in this package (spec §2.10, §6.8; anti-pattern row 5 guards creep)
+- HARD DEPENDENCY preserved: the gate never substitutes, only advises/blocks/aborts (F-48 law; the gate has no populate path and must never gain one)
 
-## Forbidden list
-- No blind "graph call before every edit" — the operator explicitly ruled this retarded
-- No hardcoded edit-count thresholds (the "3 edits" derailment) — drift score only
-- No trident references, no trident dist involvement
-- No silent fallbacks anywhere in the gate path
+## Forbidden list (each with its derailment evidence)
+- No blind "graph call before every edit" — the operator explicitly ruled this retarded (F-48-era ruling; the LASME split in spec §4 is the approved alternative)
+- No hardcoded edit-count thresholds (the "3 edits" derailment) — drift score only (anti-pattern row 2 detects `>= 3` mechanically)
+- No trident involvement: no trident references in code under build, no trident dist in the ship path (F-44 scope breach; historical incident records in ship docs are the audit trail, not references)
+- No silent fallbacks anywhere in the gate path (the indexer-fallback lesson; every gate failure returns a named GI_GATE_* token)

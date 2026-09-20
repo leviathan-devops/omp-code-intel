@@ -54,7 +54,7 @@ If the scope jail is too narrow, the agent can't do its job (frustrating but saf
 The scan-to-fix treadmill: 3 rounds produced 3 DISJOINT finding sets (zero overlap between rounds 1 and 3). The loop consumed hours without converging. The 0c/0h target was structurally unreachable.
 
 ### Why this is a good use of tokens
-The treadmill consumed ~6 hours of session time across 3 rounds. A convergence tracker is a 20-line script that runs after each scan and measures the overlap with the previous round. If overlap < 50%, the tracker recommends stopping. This turns an open-ended loop into a bounded process.
+The treadmill consumed ~6 hours of session time across 3 rounds. A convergence tracker is a 20-line script that runs after each scan (`/tmp/w44-scan/*.json`, `/tmp/w45-rescan2/*.json` verdicts as the input corpus) and measures the overlap with the previous round. If overlap < 50%, the tracker recommends stopping. This turns an open-ended loop into a bounded process.
 
 ### How it works
 ```
@@ -77,7 +77,7 @@ The treadmill consumed ~6 hours of session time across 3 rounds. A convergence t
 ### Implementation
 1. Extract finding keys from each scan's JSON output (file:line:title normalized)
 2. Store the keys in a per-scan-round file
-3. A 20-line Python script computes Jaccard overlap between consecutive rounds
+3. A 20-line Python script over the verdict JSONs (`/tmp/w44-scan/*.json`, `/tmp/w45-rescan2/*.json`, `reports/w45-rescan2-verdicts/`) computes Jaccard overlap between consecutive rounds
 4. Report the convergence curve: R1→R2 overlap, R2→R3 overlap, R1→R3 overlap
 5. If the overlap is consistently < 50%, the scan is non-convergent → recommend switching to acceptance-based gate
 
@@ -240,7 +240,7 @@ A real defect that appears in only 1 round (reviewer didn't surface it again) ge
 F35: the F21 fix modified code that the hardenPoolFile test seam wrapped, but the seam's test wasn't re-run specifically. The full battery passed (because the seam test's negative assertion still held), but the seam was testing a dead code path.
 
 ### Why this is a good use of tokens
-Every fix that touches code wrapped by a test seam should trigger that seam's specific test. Currently, only the full battery runs (which passes because the seam test's assertion is too weak). A git hook that maps changed source files to their wrapping seams and runs those specific tests would catch this.
+Every fix that touches code wrapped by a test seam should trigger that seam's specific test. Currently, only the full battery runs (which passes because the seam test's assertion is too weak). A git hook that maps changed source files to their wrapping seams (`src/hunter/keys/go-key-pool.ts` → `tests/st-gi-w44-highs.test.ts` F21 block, proven by the F35 incident) and runs those specific tests would catch this.
 
 ### How it works
 ```
@@ -354,9 +354,9 @@ The graph gate makes the graph tools habitual without being annoying. It fires O
 
 ### Implementation
 - `src/omp/graph-gate.ts` (~300 lines) — lexicon + state machine + gate
-- Wired into `extension.ts` via `beforeToolCall`/`afterToolCall` hooks
-- Session state in `graph_gate_state` table
-- Tests in `st-gi-graph-gate.test.ts` (~200 lines)
+- Wired into `src/omp/extension.ts:302` `registerGiOmpTools()` via the OMP extension `beforeToolCall`/`afterToolCall` contract (same surface `code-retrieval/index.js` uses)
+- Session state in `graph_gate_state` table beside `gi_meta` in the session sqlite (`src/omp/typed-write.ts:145` openTypedStore pattern)
+- Tests in `tests/st-gi-graph-gate.test.ts` (~200 lines)
 - V2 scaffold: `onEditClassified`, `onDriftComputed`, `onGateDecision` extension points for future spec-drift lexicons, blast-radius weighters, and context-graph bridges
 
 ### Status
