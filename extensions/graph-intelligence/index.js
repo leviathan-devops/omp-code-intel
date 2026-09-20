@@ -57,7 +57,7 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
-// node_modules/xstate/dist/xstate-dev.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-dev.development.cjs.js
 var require_xstate_dev_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   function getGlobal() {
@@ -107,7 +107,7 @@ var require_xstate_dev_development_cjs = __commonJS(function(exports) {
   exports.registerService = registerService;
 });
 
-// node_modules/xstate/dist/raise-6dbf7d60.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/raise-6dbf7d60.development.cjs.js
 var require_raise_6dbf7d60_development_cjs = __commonJS(function(exports) {
   var dist_xstateDev = require_xstate_dev_development_cjs();
 
@@ -2440,7 +2440,7 @@ ${err.message}`);
   exports.transitionNode = transitionNode;
 });
 
-// node_modules/xstate/dist/xstate-actors.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate-actors.development.cjs.js
 var require_xstate_actors_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
@@ -2822,7 +2822,7 @@ var require_xstate_actors_development_cjs = __commonJS(function(exports) {
   exports.fromTransition = fromTransition;
 });
 
-// node_modules/xstate/dist/assign-22c2f2aa.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/assign-22c2f2aa.development.cjs.js
 var require_assign_22c2f2aa_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   function createSpawner(actorScope, {
@@ -2922,7 +2922,7 @@ var require_assign_22c2f2aa_development_cjs = __commonJS(function(exports) {
   exports.assign = assign;
 });
 
-// node_modules/xstate/dist/StateMachine-d4a4d688.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/StateMachine-d4a4d688.development.cjs.js
 var require_StateMachine_d4a4d688_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   var assign = require_assign_22c2f2aa_development_cjs();
@@ -3405,7 +3405,7 @@ ${err.message}`);
   exports.StateNode = StateNode;
 });
 
-// node_modules/xstate/dist/log-dc444aec.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/log-dc444aec.development.cjs.js
 var require_log_dc444aec_development_cjs = __commonJS(function(exports) {
   var dist_xstateGuards = require_raise_6dbf7d60_development_cjs();
   var assign = require_assign_22c2f2aa_development_cjs();
@@ -3644,7 +3644,7 @@ var require_log_dc444aec_development_cjs = __commonJS(function(exports) {
   exports.sendTo = sendTo;
 });
 
-// node_modules/xstate/dist/xstate.development.cjs.js
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate.development.cjs.js
 var require_xstate_development_cjs = __commonJS(function(exports) {
   Object.defineProperty(exports, "__esModule", { value: true });
   var dist_xstateActors = require_xstate_actors_development_cjs();
@@ -4042,7 +4042,7 @@ var init_ontology = __esm(() => {
   PREDICATE_SET = new Set(ALL_PREDICATES);
 });
 
-// node_modules/typescript/package.json
+// ../../OMP/Graph_Intelligence/node_modules/typescript/package.json
 var require_package = __commonJS(function(exports, module) {
   module.exports = {
     name: "typescript",
@@ -4133,7 +4133,7 @@ var require_package = __commonJS(function(exports, module) {
   };
 });
 
-// node_modules/zod/v4/core/core.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/core.js
 function $constructor(name, initializer, params) {
   function init(inst, def) {
     var _a;
@@ -4202,7 +4202,7 @@ var init_core = __esm(() => {
   globalConfig = {};
 });
 
-// node_modules/zod/v4/core/util.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/util.js
 function getEnumValues(entries) {
   const numericValues = Object.values(entries).filter((v) => typeof v === "number");
   const values = Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
@@ -4588,7 +4588,7 @@ var init_util = __esm(() => {
   };
 });
 
-// node_modules/zod/v4/core/errors.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/errors.js
 function flattenError(error, mapper = (issue) => issue.message) {
   const fieldErrors = {};
   const formErrors = [];
@@ -4661,7 +4661,7 @@ var init_errors = __esm(() => {
   $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
 });
 
-// node_modules/zod/v4/core/parse.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/parse.js
 var _parse = (_Err) => (schema, value, _ctx, _params) => {
   const ctx = _ctx ? Object.assign(_ctx, { async: false }) : { async: false };
   const result = schema._zod.run({ value, issues: [] }, ctx);
@@ -4733,7 +4733,7 @@ var init_parse = __esm(() => {
   safeParseAsync = /* @__PURE__ */ _safeParseAsync($ZodRealError);
 });
 
-// node_modules/zod/v4/core/regexes.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/regexes.js
 function emoji() {
   return new RegExp(_emoji, "u");
 }
@@ -4789,7 +4789,7 @@ var init_regexes = __esm(() => {
   uppercase = /^[^a-z]*$/;
 });
 
-// node_modules/zod/v4/core/checks.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/checks.js
 var $ZodCheck, numericOriginMap, $ZodCheckLessThan, $ZodCheckGreaterThan, $ZodCheckMultipleOf, $ZodCheckNumberFormat, $ZodCheckMaxLength, $ZodCheckMinLength, $ZodCheckLengthEquals, $ZodCheckStringFormat, $ZodCheckRegex, $ZodCheckLowerCase, $ZodCheckUpperCase, $ZodCheckIncludes, $ZodCheckStartsWith, $ZodCheckEndsWith, $ZodCheckOverwrite;
 var init_checks = __esm(() => {
   init_core();
@@ -5180,7 +5180,7 @@ var init_checks = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/core/doc.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/doc.js
 class Doc {
   constructor(args = []) {
     this.content = [];
@@ -5218,7 +5218,7 @@ class Doc {
   }
 }
 
-// node_modules/zod/v4/core/versions.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/versions.js
 var version2;
 var init_versions = __esm(() => {
   version2 = {
@@ -5228,7 +5228,7 @@ var init_versions = __esm(() => {
   };
 });
 
-// node_modules/zod/v4/core/schemas.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/schemas.js
 function isValidBase64(data) {
   if (data === "")
     return true;
@@ -6540,7 +6540,7 @@ var init_schemas = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/locales/en.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/locales/en.js
 function en_default() {
   return {
     localeError: error()
@@ -6660,10 +6660,10 @@ var init_en = __esm(() => {
   init_util();
 });
 
-// node_modules/zod/v4/locales/index.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/locales/index.js
 var init_locales = () => {};
 
-// node_modules/zod/v4/core/registries.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/registries.js
 class $ZodRegistry {
   constructor() {
     this._map = new WeakMap;
@@ -6717,7 +6717,7 @@ var init_registries = __esm(() => {
   globalRegistry = /* @__PURE__ */ registry();
 });
 
-// node_modules/zod/v4/core/api.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/api.js
 function _string(Class, params) {
   return new Class({
     type: "string",
@@ -7173,13 +7173,13 @@ var init_api = __esm(() => {
   init_util();
 });
 
-// node_modules/zod/v4/core/to-json-schema.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/to-json-schema.js
 var init_to_json_schema = () => {};
 
-// node_modules/zod/v4/core/json-schema.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/json-schema.js
 var init_json_schema = () => {};
 
-// node_modules/zod/v4/core/index.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/core/index.js
 var init_core2 = __esm(() => {
   init_util();
   init_regexes();
@@ -7196,12 +7196,12 @@ var init_core2 = __esm(() => {
   init_to_json_schema();
 });
 
-// node_modules/zod/v4/classic/checks.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/checks.js
 var init_checks2 = __esm(() => {
   init_core2();
 });
 
-// node_modules/zod/v4/classic/iso.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/iso.js
 function datetime2(params) {
   return _isoDateTime(ZodISODateTime, params);
 }
@@ -7236,7 +7236,7 @@ var init_iso = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/classic/errors.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/errors.js
 var initializer2 = (inst, issues) => {
   $ZodError.init(inst, issues);
   inst.name = "ZodError";
@@ -7276,7 +7276,7 @@ var init_errors2 = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/classic/parse.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/parse.js
 var parse3, parseAsync2, safeParse2, safeParseAsync2, encode, decode, encodeAsync, decodeAsync, safeEncode, safeDecode, safeEncodeAsync, safeDecodeAsync;
 var init_parse2 = __esm(() => {
   init_core2();
@@ -7295,7 +7295,7 @@ var init_parse2 = __esm(() => {
   safeDecodeAsync = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 });
 
-// node_modules/zod/v4/classic/schemas.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/schemas.js
 function string2(params) {
   return _string(ZodString, params);
 }
@@ -7890,16 +7890,16 @@ var init_schemas2 = __esm(() => {
   });
 });
 
-// node_modules/zod/v4/classic/compat.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/compat.js
 var ZodFirstPartyTypeKind;
 var init_compat = __esm(() => {
   (function(ZodFirstPartyTypeKind) {})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
 });
 
-// node_modules/zod/v4/classic/coerce.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/coerce.js
 var init_coerce = () => {};
 
-// node_modules/zod/v4/classic/external.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/v4/classic/external.js
 var init_external = __esm(() => {
   init_core2();
   init_core2();
@@ -7915,7 +7915,7 @@ var init_external = __esm(() => {
   config(en_default());
 });
 
-// node_modules/zod/index.js
+// ../../OMP/Graph_Intelligence/node_modules/zod/index.js
 var init_zod = __esm(() => {
   init_external();
   init_external();
@@ -9570,7 +9570,15 @@ var TYPED_STORE_DDL = [
   `CREATE UNIQUE INDEX IF NOT EXISTS uq_te_live_triple ON typed_edges(src_canonical, dst_canonical, predicate) WHERE superseded_run IS NULL`,
   `CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical)`,
   `CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical)`,
-  `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`
+  `CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate)`,
+  `CREATE TABLE IF NOT EXISTS graph_gate_state (
+    session_id TEXT PRIMARY KEY,
+    drift REAL NOT NULL DEFAULT 0,
+    state TEXT NOT NULL DEFAULT 'IDLE',
+    edits_json TEXT NOT NULL DEFAULT '[]',
+    queries_json TEXT NOT NULL DEFAULT '[]',
+    updated_ms INTEGER NOT NULL DEFAULT 0
+  )`
 ];
 var SQLITE_MAGIC = Buffer.from("SQLite format 3\x00");
 function getMeta(storePath, key) {
@@ -10332,6 +10340,9 @@ function attachGiGraphGate(pi) {
     const prev = Array.isArray(event.content) ? event.content : [];
     return { content: [extra, ...prev], details: { ...typeof event.details === "object" && event.details ? event.details : {}, giSteer: note } };
   });
+}
+function registerGraphGate(pi) {
+  attachGiGraphGate(pi);
 }
 
 // src/omp/populate.ts
@@ -12583,7 +12594,7 @@ function releaseHuntLock(targetPath) {
   }
 }
 
-// node_modules/xstate/dist/xstate.development.cjs.mjs
+// ../../OMP/Graph_Intelligence/node_modules/xstate/dist/xstate.development.cjs.mjs
 var import_xstate_development_cjs = __toESM(require_xstate_development_cjs(), 1);
 
 // src/hunter/harness/micro-loop-machine.ts
@@ -12981,7 +12992,7 @@ function mirrorToMasterContext(db, profile) {
 import fs14 from "fs";
 import path16 from "path";
 
-// node_modules/typescript/lib/version.cjs
+// ../../OMP/Graph_Intelligence/node_modules/typescript/lib/version.cjs
 var { version } = require_package();
 
 // src/hunter/profile/loader.ts
@@ -16924,7 +16935,7 @@ function registerGiOmpTools(pi, cwdOf) {
 function giOmpExtension(pi) {
   const names = registerGiOmpTools(pi, (ctx) => ctx?.cwd ?? process.cwd());
   if (typeof pi.on === "function") {
-    attachGiGraphGate(pi);
+    registerGraphGate(pi);
   }
   console.error("[gi-omp] registered " + names.join(", "));
 }

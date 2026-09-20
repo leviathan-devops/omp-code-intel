@@ -471,3 +471,15 @@ Top clusters:
   - unwired: returned 0, store holds 26 Function isolates — FAIL (case-sensitive kind filter)
 - **The verdict:** 14/15 PASS. The 1 failure (unwired kind case) fixed same-session: kind filter now matches kernel convention (commit c466940), re-verified 26 nodes surfaced.
 - **The artifacts:** session store `.omp/graph-intelligence/sessions/gi-baseline000000000000/store.sqlite`; audit reports under `.omp/graph-intelligence/audit/`
+
+## TEST RESULT — 2026-09-20 — v1.3 GRAPH GATE (W1-W6)
+
+### SCRIPT
+- **The run:** `tests/st-gi-graph-gate.test.ts` (9 named tests) + full 31-file battery
+- **The raw output:** `9 pass / 0 fail / 22 expect()` (gate suite); `227 pass / 0 fail / 1781 expect() calls / Ran 227 tests across 31 files` (full)
+- **The verdict:** PASS — gate suite 9/9; full battery 227/0 with zero regressions
+- **The artifacts:** tests/st-gi-graph-gate.test.ts; commit f3b128b (W1+W2)
+
+### HOST
+- **The run:** dist rebuilt (`bun build`, `3efa95d78b2f2fef`), deployed to live path, `bun -e import` → HOST-EXEC-OK; 5-edit blind-spree simulation on the shipped module → T2 GRAPH_GATE_DRIFT_HIGH ×4 → T3 GRAPH_GATE_ABORT on 5th (verbatim)
+- **The verdict:** PASS — deploy + live enforcement witnessed
