@@ -494,3 +494,52 @@ no new engine. The six layers land last because they serve the 20%.
 - **The cache question from rev 2.0 remains open**: a cache of a CERTIFIED
   verdict is not a fallback; a cache consulted WHEN A LAYER IS DOWN is. Needs
   an explicit ruling or it becomes the loophole the law forbids.
+
+---
+
+## §11 THE RSI REFLEX LAYER — THE CHAT-DELIVERED DESIGN (2026-09-21, preserved verbatim per the operator order)
+
+## Q3 · THE RSI LAYER — buildable today, because the substrate exists
+
+Your 8D framing is exactly right, and the closing move is this: **enforcement must be a
+WRITER to the knowledge graph, not only a reader.**
+
+```
+      6D  KNOWLEDGE  (read by the gate)      ←──┐
+                                                │ the RSI edge:
+      2D  ENFORCEMENT (TSG + Abide)  ───────────┘
+          observes → judges → RECORDS A REFLEX back into the 6D
+```
+
+**The reflex loop, using the columns that already exist:**
+
+```
+1  ENFORCE   a violation fires (dumb | theatrical | destructive) with its
+             class, its target symbols, and its evidence spans
+2  RECORD    write a REFLEX node:
+               kind            = 'Reflex'
+               canonical_id    = 'gi:reflex:<class>:<signature>'
+               label           = the trigger predicate
+               evidence_quote  = THE ORIGINAL VIOLATION TEXT   (provenance)
+               confidence      = measured precision
+                                 confirmed / (confirmed + false_positives)
+               created_run     = 'rsi-<N>'
+3  SUPERSEDE on the next occurrence: the old reflex row gets
+             superseded_run = 'rsi-<N>' and a NEW row is inserted live
+             (uq_tn_live_canonical already enforces one live row per id)
+4  TIGHTEN   the reflex's confidence GATES its tier:
+               precision ≥0.90 and ≥10 fires  → kind='Guard'  hard tier
+               0.70–0.90                      → advisory (steer)
+               <0.70 after N fires            → superseded to 'retired'
+```
+
+**A live reflex row would look like this — in the store we opened today:**
+
+```
+kind='Reflex'
+canonical_id='gi:reflex:theatrical:claim-without-span'
+label='claim "tests pass" with zero bound spans'
+evidence_quote='<the actual claim + the absence proof>'
+confidence=0.95            ← precision: 19 confirmed / 20 fired
+created_run='rsi-7'  superseded_run=NULL        ← LIVE
+```
