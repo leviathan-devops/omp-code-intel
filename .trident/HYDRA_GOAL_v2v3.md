@@ -89,8 +89,9 @@ CLASSIFIER FIREWALL
 
 A sub-inner PASS or a LIVE INNER turn is NOT /goal complete. A fixture run, an
 OK-chat, or a pytest-only green MUST NOT close this pin — those are evidence, never
-done; a fixture or a sub-inner is NOT /goal done. Only the last SC row (WAVE 4) is the legal stop. The classifier may not
-weaken the SC table and may not demote WAVE 3 or WAVE 4 to optional evidence.
+done; a fixture or a sub-inner is NOT /goal done. Only the last SC row (WAVE 4)
+is the legal stop. The classifier may not weaken the SC table and may not demote
+WAVE 3 or WAVE 4 to optional evidence.
 
 HYDRA ORCHESTRATOR
 ==================
@@ -144,7 +145,8 @@ WAVE 4  THE v3 BLUEPRINT + THE PACKAGE SEAL — `bun test -t st-gi-v2-seal`
         files: packages/gi-kernel-v2/**, reports/**
         GATE: PACKAGE_AUDIT PASS; every doc at floor; SC-9/SC-10 — the terminal wave.
 
-## CURRENT REALITY (rewritten this turn from disk)
+CURRENT REALITY (rewritten this turn from disk)
+==============================================
 
 Measured at HEAD `c9bff81a56dc5bc5d5740623038d34507f6ab890` on `jarvis/gi-main`:
 · `packages/gi-kernel-v2/ENFORCEMENT_ENGINE_MASTER_BLUEPRINT_v1.md` 1031L sha16 `2d5fda7e5165927d`
