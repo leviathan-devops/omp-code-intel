@@ -10237,6 +10237,172 @@ function runGraphGate(input) {
   return { cancel: false, token: null, advisory: null };
 }
 
+// src/omp/graph-gate.ts
+var DRIFT_WINDOW_MS = 300000;
+var TIER_T1_CUT = 0.4;
+var TIER_T2_CUT = 0.6;
+var TIER_T3_CUT = 0.8;
+var TIER_T3_MIN_CONSECUTIVE = 5;
+var SEV_WEIGHT = { NONE: 0, LOW: 1, MEDIUM: 2, HIGH: 3 };
+var DOC_SUFFIXES = [".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".lock"];
+var TEST_HINTS = ["test", "spec", "fixture", "__tests__", "__mocks__"];
+function baseName(p) {
+  return p.split("/").pop() ?? p;
+}
+function extractExportSymbols(text) {
+  const out = [];
+  const re = /\bexport\s+(?:async\s+)?(?:function|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g;
+  let m;
+  while ((m = re.exec(text)) !== null)
+    out.push(m[1]);
+  const braceRe = /export\s*\{([^}]{1,400})\}/g;
+  while ((m = braceRe.exec(text)) !== null) {
+    for (const part of m[1].split(",")) {
+      const name = part.trim().split(/\s+as\s+/).pop()?.trim() ?? "";
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name))
+        out.push(name);
+    }
+  }
+  return [...new Set(out)];
+}
+function classifyEdit(toolName, args) {
+  const targetFile = args.file ?? args.path ?? "";
+  const lowered = targetFile.toLowerCase();
+  if (DOC_SUFFIXES.some((s) => lowered.endsWith(s))) {
+    return { severity: "NONE", structuralFlags: ["doc-only"], touchedSymbols: [], targetFile };
+  }
+  const base = baseName(lowered);
+  const isTest = TEST_HINTS.some((h) => base.includes(h) || lowered.includes(`/${h}/`));
+  const body = `${args.oldString ?? ""}
+${args.newString ?? ""}
+${args.content ?? ""}`;
+  const oldSyms = extractExportSymbols(args.oldString ?? args.content ?? "");
+  const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
+  const structural = oldSyms.length > 0 || newSyms.length > 0 || /\bimport\s+.*\bfrom\b/.test(body) || /\bexport\s+default\b/.test(body) || /\bdelete\s+function\b/.test(body) || /:\s*[A-Za-z_$][A-Za-z0-9_$<>[\]|]*\s*[=;{]/.test(body) && /export\s+(type|interface)/.test(body);
+  const touchedSymbols = [...new Set([...oldSyms, ...newSyms])];
+  const flags = [];
+  if (oldSyms.length > 0 || newSyms.length > 0)
+    flags.push("export_change");
+  if (/\bimport\s+.*\bfrom\b/.test(body))
+    flags.push("import_change");
+  if (/\bexport\s+default\b/.test(body))
+    flags.push("default_export");
+  if (isTest) {
+    return { severity: "LOW", structuralFlags: flags.length > 0 ? flags : ["test-only"], touchedSymbols, targetFile };
+  }
+  if (structural) {
+    return { severity: "HIGH", structuralFlags: flags.length > 0 ? flags : ["structural"], touchedSymbols, targetFile };
+  }
+  return { severity: "MEDIUM", structuralFlags: ["logic"], touchedSymbols, targetFile };
+}
+function createEmptyState() {
+  return { editLog: [], graphQueries: [], gateState: "IDLE", drift: 0 };
+}
+function normTarget(t) {
+  return t.replace(/\(\)$/, "").trim().toLowerCase();
+}
+function recordEdit(c, state, ts = Date.now()) {
+  if (c.severity === "NONE")
+    return;
+  state.editLog.push({ timestamp: ts, severity: c.severity, symbols: c.touchedSymbols.map(normTarget) });
+  if (state.gateState === "IDLE")
+    state.gateState = "TRACKING";
+}
+function recordGraphQuery(q, state, ts = Date.now()) {
+  const target = normTarget(q.target ?? "");
+  if (target.length > 0)
+    state.graphQueries.push({ timestamp: ts, tool: q.tool, target });
+}
+function symbolVerified(sym, state) {
+  const t = normTarget(sym);
+  return state.graphQueries.some((q) => q.target === t);
+}
+function computeDrift(state, now = Date.now()) {
+  let unverifiedWeight = 0;
+  let totalWeight = 0;
+  let unverifiedCount = 0;
+  const verifiedSymbols = [];
+  for (const edit of state.editLog) {
+    const age = Math.max(0, now - edit.timestamp);
+    if (age >= DRIFT_WINDOW_MS)
+      continue;
+    const decay = 1 - age / DRIFT_WINDOW_MS;
+    const weight = SEV_WEIGHT[edit.severity] * decay;
+    const verifiedHere = edit.symbols.filter((s) => symbolVerified(s, state));
+    for (const v of verifiedHere)
+      if (!verifiedSymbols.includes(v))
+        verifiedSymbols.push(v);
+    if (edit.symbols.length === 0) {
+      totalWeight += weight;
+      unverifiedWeight += weight;
+      unverifiedCount += 1;
+    } else if (verifiedHere.length > 0) {
+      continue;
+    } else {
+      totalWeight += weight;
+      unverifiedWeight += weight;
+      unverifiedCount += 1;
+    }
+  }
+  for (const q of state.graphQueries) {
+    if (!verifiedSymbols.includes(q.target))
+      verifiedSymbols.push(q.target);
+  }
+  const drift = totalWeight <= 0 ? 0 : Math.min(1, unverifiedWeight / totalWeight);
+  let lastGraphQuery = null;
+  for (const q of state.graphQueries) {
+    if (lastGraphQuery === null || q.timestamp > lastGraphQuery)
+      lastGraphQuery = q.timestamp;
+  }
+  state.drift = drift;
+  return { drift, unverifiedCount, verifiedSymbols, lastGraphQuery };
+}
+function consecutiveUnverified(state, now = Date.now()) {
+  let n = 0;
+  for (let i = state.editLog.length - 1;i >= 0; i--) {
+    const edit = state.editLog[i];
+    if (now - edit.timestamp >= DRIFT_WINDOW_MS)
+      break;
+    const unverified = edit.symbols.length === 0 ? true : edit.symbols.some((s) => !symbolVerified(s, state));
+    if (!unverified)
+      break;
+    n += 1;
+  }
+  return n;
+}
+function gateDecision(d, state, now = Date.now()) {
+  if (d.drift >= TIER_T3_CUT && consecutiveUnverified(state, now) >= TIER_T3_MIN_CONSECUTIVE) {
+    state.gateState = "HARD_STOP";
+    return {
+      tier: "T3",
+      state: "HARD_STOP",
+      ttsrRuleName: "graph-before-structural-edit",
+      blockReason: `GRAPH_GATE_ABORT: drift ${d.drift.toFixed(2)} with ${d.unverifiedCount} unverified structural edits \u2014 reasoning rewound, query the graph`
+    };
+  }
+  if (d.drift >= TIER_T2_CUT) {
+    state.gateState = "GATE_ON";
+    return {
+      tier: "T2",
+      state: "GATE_ON",
+      blockReason: `GRAPH_GATE_DRIFT_HIGH: ${d.unverifiedCount} structural edits without graph query. Call ripwire verb=callers or graph-query verb=who-calls on the symbols you are modifying.`
+    };
+  }
+  if (d.drift >= TIER_T1_CUT) {
+    state.gateState = "WARNING";
+    return {
+      tier: "T1",
+      state: "WARNING",
+      advisory: `[GATE STEER] ${d.unverifiedCount} symbols modified without graph query \u2014 consider ripwire verb=callers before the next structural edit`
+    };
+  }
+  if (d.drift > 0)
+    state.gateState = "TRACKING";
+  else
+    state.gateState = "IDLE";
+  return { tier: "T0", state: state.gateState };
+}
+
 // src/omp/gate-hook.ts
 function str(v) {
   return typeof v === "string" ? v : "";
@@ -10343,6 +10509,48 @@ function attachGiGraphGate(pi) {
 }
 function registerGraphGate(pi) {
   attachGiGraphGate(pi);
+  const states = new Map;
+  pi.on("tool_call", (event) => {
+    const name = String(event.toolName ?? "").toLowerCase();
+    const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
+    const isQuery = name === "graph-query" || name === "ripwire" || String(event.toolName ?? "") === "graph-query";
+    const sid = fieldStr(event, "sessionId") || fieldStr(event, "sessionID") || "default";
+    let st = states.get(sid);
+    if (!st) {
+      st = createEmptyState();
+      states.set(sid, st);
+    }
+    if (isQuery) {
+      const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
+      if (target)
+        recordGraphQuery({ tool: name, target }, st);
+      return;
+    }
+    if (!isEdit)
+      return;
+    const rec = reconstruct(name, eventInput(event));
+    const c = classifyEdit(name, { file: rec.file, oldString: rec.oldText, newString: rec.newText });
+    recordEdit(c, st);
+    const d = computeDrift(st);
+    const g = gateDecision(d, st);
+    if (g.tier === "T3") {
+      throw new Error(`${g.blockReason ?? "GRAPH_GATE_ABORT"} (rule: graph-before-structural-edit)`);
+    }
+    if (g.tier === "T2") {
+      throw new Error(g.blockReason ?? "GRAPH_GATE_DRIFT_HIGH");
+    }
+    return;
+  });
+}
+function eventInput(event) {
+  const input = event.input;
+  return typeof input === "object" && input !== null ? input : {};
+}
+function fieldStr(record, key) {
+  if (!(key in record))
+    return "";
+  const value = record[key];
+  return typeof value === "string" ? value : "";
 }
 
 // src/omp/populate.ts

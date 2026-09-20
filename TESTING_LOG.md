@@ -483,3 +483,15 @@ Top clusters:
 ### HOST
 - **The run:** dist rebuilt (`bun build`, `3efa95d78b2f2fef`), deployed to live path, `bun -e import` → HOST-EXEC-OK; 5-edit blind-spree simulation on the shipped module → T2 GRAPH_GATE_DRIFT_HIGH ×4 → T3 GRAPH_GATE_ABORT on 5th (verbatim)
 - **The verdict:** PASS — deploy + live enforcement witnessed
+
+## TEST RESULT — 2026-09-20 — v1.3 WIRING GAP (W1-W3)
+
+### SCRIPT
+- **The run:** `tests/st-gi-graph-gate.test.ts` (12 tests: 9 unit + 3 integration through REGISTERED handlers) + full 31-file battery
+- **The raw output:** `12 pass / 0 fail / 30 expect()` (gate); `230 pass / 0 fail / 1789 expect() calls / Ran 230 tests across 31 files` (full)
+- **The verdict:** PASS — e2e test fires 5 blind edits through registerGraphGate handlers and asserts the T2 throw; state-persists test asserts the graph_gate_state row via openTypedStore; reset test asserts per-symbol query reset
+- **The artifacts:** tests/st-gi-graph-gate.test.ts; commit 0711d57
+
+### HOST
+- **The run:** dist rebuilt (`bun build`, `ca38ebaaea025dd5`), deployed to live path, `bun -e import` → HOST-EXEC-OK; 8-edit blind spree through the wired handlers → T2 GRAPH_GATE_DRIFT_HIGH on the FIRST blind edit (single-edit drift=1.0 ≥ 0.6 cut), verbatim
+- **The verdict:** PASS — deploy + wired-path enforcement witnessed

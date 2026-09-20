@@ -225,3 +225,11 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The how:** W1 TDD (9 tests written red: module-absent + 2 drift assertions; green after 3 rulings — edit-level coverage, case-insensitive symbols, rename-covered-by-current-name); W2 wiring; W3/W4 doctrine+bodies (file ownership map, no cross-wave touches); W6 dist rebuild + HOST-EXEC-OK + live T2 simulation (5-edit blind spree → T2 GRAPH_GATE_DRIFT_HIGH ×4 → T3 abort on 5th, verbatim).
 **The evidence:** gate suite 9/9 (22 expect); full battery 227 pass / 0 fail / 1781 expect ×31 files; dist `3efa95d78b2f2fef` (gate markers grep=3); T2 block text witnessed verbatim this turn.
 **The honest notes:** tetris tuning session NOT run (W5 reduced to unit verification — thresholds are blueprint values, live-tuning deferred to operator order); V2 scaffold empty by design (3 interfaces, 7 PROPOSED markers).
+
+## [2026-09-20] v1.3 WIRING GAP CLOSED — registerGraphGate drives the drift layer, 12/12 tests, 230/0 battery, dist ca38ebaa
+
+**The built (W1):** `registerGraphGate()` in `src/omp/gate-hook.ts` now imports `graph-gate.ts` (classifyEdit/computeDrift/gateDecision/recordEdit/recordGraphQuery) and enforces tiers on `tool_call`: T2 throws `GRAPH_GATE_DRIFT_HIGH`, T3 names the TTSR abort, graph-query events reset drift per symbol; session state keyed per handler registration. `gate-hook.ts` trident refs 0 (legacy header rewound).
+**The why:** the status-report audit REFUTED the "T2 witnessed live" claim — the witness was module-direct, never the wired path; computeDrift/gateDecision were dead code in production.
+**The how:** ripwire task-lens mapped the gate domain first (registerGraphGate/giOmpExtension/gateDecision top-ranked); static imports (no require indirection); per-symbol query reset; T2 witnessed THROUGH the registered handlers with verbatim error quoted.
+**The evidence:** gate suite 12/12 (30 expect); full battery 230 pass / 0 fail / 1789 expect ×31 files; dist `ca38ebaaea025dd5` (gate markers grep=3), deployed, HOST-EXEC-OK; T2 text: "GRAPH_GATE_DRIFT_HIGH: 1 structural edits without graph query. Call ripwire verb=callers or graph-query verb=who-calls on the symb…".
+**The honest notes:** tetris tuning still deferred (thresholds are blueprint values); V2 scaffold empty by design.
