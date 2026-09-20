@@ -49,7 +49,7 @@ superseded_run IS NULL`) refuses a second live row. Layer G1 held.
 **The write SUCCEEDED at the database level.** The signature check is what stops it:
 
 ```
-  VERIFIED (trusted): [(1,'Reflex','2d12217667fe732d'), (2,'Guard','e4731c86..')]
+  VERIFIED (trusted): [(1,'Reflex','2d122176..'), (2,'Guard','e4731c86..')]
   REJECTED (absent) : [(3, 'Retired', 'deadbeefdeadbeef')]
 
   THE READER'S VERDICT ON THE AGENT'S ROW:
@@ -112,7 +112,7 @@ degrades these to tamper-*detection*.
 predicates:  declares 1283 · calls 842 · imports 575 · implements 14
 confidence:  ONE distinct value across all 2714 edges (1.0)  ← the defect
 evidence_quote (real): 'explicit: imports in source graphify:src_hunter_
-                        diagnostics_calibration->src_hunter_shared_db @ src/...'
+              diagnostics_calibration->src_hunter_shared_db @ src/...'
 ```
 
 **The sharper reading of the defect:** `1.0` is *correct* for `imports` — that is
@@ -356,7 +356,7 @@ each RSI tick commits ONE file to the repo:
 │ E3 │ REFUTED watch window T       │ session+24h -> unresolved      │
 │ E4 │ Guard promotion bar          │ prec>=.90 fires>=10 unres<=.20 │
 └────┴──────────────────────────────┴────────────────────────────────┘
-NEEDS THE OPERATOR: E1 (the oracle's engine) — it decides whether the RSI has
+NEEDS THE OPERATOR: E1 (the oracle's engine) — whether the RSI has a
 model in the loop at all.
 ```
 
