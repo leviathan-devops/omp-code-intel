@@ -63,7 +63,7 @@ LAYER 3 — THE ONLY STRUCTURAL DETECTOR IN THE LOOP IS A MODEL PAID PER FILE.
 │  P1  THE GRAPH-FACT SETTLEMENT LAYER      ★ BUILT (a9a7a99) — src/omp/graph-facts.ts   │
 │  P3  THE CONSULT-PATH FRESHNESS GATE      ★ BUILT (same commit) + the provenance fix    │
 │  P2  THE EVIDENCE PRODUCER               the oracle's missing input                    │
-│  P4  CLOSURE-LEVEL INDEXING               ★ ELEVATED — THE MEASURED BOTTLENECK          │
+│  P4  CLOSURE-LEVEL INDEXING               ★ DONE (5771099) — the kernel's OWN extractor │
 │  P5  THE SELF-AUDIT                       the kernel checks its own author               │
 └───────────────────────────────────────────────────────────────────────────────────────┘
 
@@ -243,4 +243,56 @@ R-2  M2 (the cost matrix) is still owed and still gates W6's final thresholds.
 R-3  The audit is a STANDING PROCESS by measurement, not a gate that reaches zero — unchanged
      by this plan; the plan REDUCES what the audit must find, it does not replace it.
 R-4  P5's rules are PROCESS rules: the kernel can count a violation, never prevent one.
+```
+
+
+---
+
+# ★★★ P4 — CLOSED (5771099): THE KERNEL EXTRACTS ITS OWN KINDS
+
+```
+THE BOTTLENECK: the rules were correct + tested (12/12) and could settle 0 of 4, because
+corbell emits method|class|flow|service and the rules read type|field|const|closure.
+
+THE FIX: scripts/structural-extract.py — THE SAME PARSER corbell uses (tree-sitter +
+tree_sitter_typescript, taken from the corbell venv), emitting the four missing kinds plus
+AST-exact `references` edges, into layer_id='structural' in the SAME typed store.
+MEASURED: 4,477 nodes / 98 files · 7,639 reference edges.
+
+THE RESULT, RE-MEASURED ON THE SESSION'S OWN DERAILMENTS:
+    D-2 OutcomeRecord   → M-GRAPH-1 · FIRE      "the consumed symbol has ZERO incoming edges"
+    D-6 ledgerPath      → M-GRAPH-2 · FIRE      "the declared symbol has ZERO edges in or out"
+    D-5 abandonInFlight → M-GRAPH-4 · ESCALATE  "has 2 call sites — their guards must agree"
+    D-7 serializedBytes → UNOBSERVED            (an object KEY, not a declaration — honest)
+  ★ 3 OF 4 GRAPH-HANDLED · 2 OF WHICH SETTLE **FIRE** AT $0 — the graph catches the defect
+    BEFORE the model is consulted. 0/4 → 3/4.
+
+★★ AND THE THREE DEFECTS THAT RUNNING IT PRODUCED, none readable:
+  1 THE EXTRACTOR MANUFACTURED THE EVIDENCE ITS CONSUMER NEEDED. Declaring a member emitted
+    `Container --references--> itsOwnMember`, so EVERY member had in-degree ≥ 1 and
+    M-GRAPH-2 gave a FALSE IGNORE on a dead field. 1,320 manufactured edges removed.
+    ★ A PRODUCER THAT INVENTS THE EVIDENCE ITS CONSUMER NEEDS IS THE WORST KIND OF INSTRUMENT.
+  2 canonical_id is UNIQUE and THE SAME NAME CAN BE DECLARED TWICE IN ONE FILE — the id now
+    carries the declaration's line, because two declarations of one name in different scopes
+    ARE different nodes.
+  3 ★ FOUND BY THE CONTAINER: the suite hard-coded the HOST venv path, so all three tests
+    FAILED in a clean container — THE SAME CLASS as the register's host-pinned ABIDE/RSI
+    paths. FIXED so the dependency is NAMED everywhere and the tests SKIP with the reason
+    (BLOCKED, never silently passed).
+
+THE COVERAGE, DECLARED IN CODE (`GRAPH_FACTS_COVERAGE`):
+    corbellKinds       method | class | flow | service
+    structuralKinds    type | field | const | closure      ← the kernel's own
+    verdict            3 of 4 derailments graph-handled; 2 settle FIRE at $0
+```
+
+## THE PLAN'S REMAINING WEIGHT
+
+```
+P2  THE EVIDENCE PRODUCER    src/omp/evidence-producer.ts — the oracle's missing input.
+                             UNCHANGED BY P4. This is the next build.
+P5  THE SELF-AUDIT           the process rules + a violation counter.
+★ AND CORBELL ITSELF         the kernel no longer BLOCKS on it for the four kinds; it still
+                             depends on it for `calls` (M-GRAPH-4's predicate) and for the
+                             method graph. Two layers, one store, distinct layer_ids.
 ```
