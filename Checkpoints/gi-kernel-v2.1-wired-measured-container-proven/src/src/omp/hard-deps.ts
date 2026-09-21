@@ -174,8 +174,16 @@ export function keyFileComponent(
           return { up: false, evidence: `${keyFile} (EMPTY — 0 bytes)` };
         }
         return { up: false, evidence: `${keyFile} (not a regular file)` };
-      } catch {
-        // the file is absent — but an explicitly-passed env key is still a valid source
+      } catch (e) {
+        // ★ EN-078 (PASS-6 HIGH) — ABSENT IS NOT UNREADABLE. The first version treated EVERY
+        //   statSync failure as "absent" and then let the env fallback read UP — so an
+        //   EACCES/EPERM on the key file (a permissions fault the operator must FIX) would
+        //   silently be answered by a different source. Only ENOENT is absence.
+        const code = (e as NodeJS.ErrnoException)?.code;
+        if (code !== "ENOENT") {
+          return { up: false, evidence: `${keyFile} UNREADABLE (${code ?? "unknown"}) — not an absence; the permissions fault is the finding` };
+        }
+        // the file is genuinely absent — an explicitly-passed env key is still a valid source
         const v = env[envName];
         return v !== undefined && v.length > 0
           ? { up: true, evidence: `${keyFile} ABSENT but ${envName} present (non-empty)` }
@@ -238,7 +246,10 @@ export function liveSocketComponent(
         // ★ `join` in this module is a LOCAL helper inside `buildRegister` (line ~295),
         //   invisible at module scope — my first version of this component called it and
         //   the probe returned "join is not defined" at RUNTIME (the register caught it).
-        const full = socketDir + "/" + n;
+        // ★ EN-079 (PASS-6 HIGH) — NORMALIZE THE PATH. `socketDir + "/" + n` emits `//` when
+        //   socketDir carries a trailing slash, and the EXACT match against /proc/net/unix
+        //   then fails — a false STALE/DOWN for a socket that IS listening. One slash.
+        const full = (socketDir.endsWith("/") ? socketDir.slice(0, -1) : socketDir) + "/" + n;
         if (listeningPaths.has(full)) {
           return { up: true, evidence: `${full} is LISTENING (per /proc/net/unix)` };
         }

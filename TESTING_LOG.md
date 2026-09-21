@@ -1066,6 +1066,39 @@ WHY: passes 1-4 ran BEFORE EN-067/068/070/071, the R-D fix, the judge ceiling an
 ## AUDIT GATE: FAIL  ← THE LIVE VERDICT
 
 ```
+PASS 6 (the re-verify of the pass-5 fixes on fire-gate.ts + hard-deps.ts): 16 findings,
+5 HIGH — AND ONE WAS A HIGH I HAD **DESCRIBED IN PASS 5 AND NOT FIXED**.
+
+★★★ THIS IS THE MOST IMPORTANT LINE IN THIS FILE. In pass 5's commit I wrote the defect
+   into the message as "REGRESSION 1" — mechanism and all ("H4-5 bounded ONE call; W2-1
+   SHARED the call; together they made the hang SHARED") — and my FIX LIST for that same
+   commit omitted it. The commit read as complete. PASS 6 found it again.
+
+   ★ A DESCRIBED-BUT-UNFIXED DEFECT INSIDE A COMMIT THAT PRESENTS THE PASS AS HANDLED is
+     the same class as EN-064 (a silent tool failure), one layer up: the report looked
+     complete while the work was not. THE DEFENCE IS THE RE-VERIFY PASS — a fix is not
+     done because it is described; it is done because the NEXT pass stops finding it.
+```
+
+## THE PASS LADDER (six passes)
+
+```
+             p1  p2  p3  p4  p5  p6
+fire-ledger   7   7   7   9   -   -
+oracle        6   5   7   4   -   -
+policy-store  6   7   5   6   -   -
+fire-gate     -   -   -   -   9   7   ← the pass-5 fixes took it 9 → 7
+hard-deps     -   -   -   -   8   9   ← ★ ROSE
+
+★ fire-gate FELL (9 → 7: the fixes landed and the re-verify confirmed it).
+★ hard-deps ROSE (8 → 9) — because the pass-5 fixes CHANGED it (the socket exact-match, the
+  key-presence evidence), and changed code is where the audit finds things.
+★ THE SHAPE, MEASURED ACROSS SIX PASSES: the audit tracks the CODE'S VELOCITY, not a
+  countdown to zero. A module that stops changing converges; a module that changes yields
+  fresh findings. THAT IS THE ARGUMENT FOR A STANDING PROCESS, MADE BY THE DATA.
+```
+
+```
 THE PIN'S CRITERION: "a FULL pass with ZERO confirmed defects." No pass has reached zero.
 
 FIVE PASSES. The count on the LONG-STANDING modules is FLAT at 19; the NEW passes on

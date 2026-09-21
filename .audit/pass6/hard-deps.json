@@ -1,0 +1,121 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 9,
+    "total_tokens": 118839,
+    "input_tokens": 103897,
+    "output_tokens": 14942,
+    "cache_read_tokens": 81672,
+    "elapsed": "2m46s"
+  },
+  "tool_calls": {
+    "total": 6,
+    "by_tool": {
+      "code_comment": 4,
+      "code_search": 2
+    },
+    "failure": 1,
+    "failure_by_tool": {
+      "code_comment": 1
+    },
+    "failure_details": [
+      {
+        "tool_call_number": 2,
+        "tool_name": "code_comment",
+        "file_path": "src/omp/hard-deps.ts",
+        "arguments": "{\"comments\":\"[{\\\"category\\\": \\\"security\\\", \\\"content\\\": \\\"Unused `keyComponent` still leaks key length (`len=${v.length}`) — the exact side channel `keyFileComponent` explicitly removed. Search confirms zero call sites outside its definition; `buildRegister` uses `keyFileComponent`. Either delete the factory or change evidence to `present (non-empty)` like the file probe. As long as it is exported, any future caller (or `HardDependencyError` message surfacing `evidence` in logs) reintroduces the oracle.\\\", \\\"existing_code\\\": \\\"export function keyComponent(\\\\n  id: string,\\\\n  cls: ComponentClass,\\\\n  dependency: string,\\\\n  errorCode: string,\\\\n  envName: string,\\\\n  env: Record\u003cstring, string | undefined\u003e = process.env,\\\\n): ComponentDecl {\\\\n  return {\\\\n    id, cls, dependency, errorCode,\\\\n    probe: () =\u003e {\\\\n      const v = env[envName];\\\\n      return v !== undefined \u0026\u0026 v.length \u003e 0\\\\n        ? { up: true, evidence: `${envName} present (len=${v.length})` }\\\\n        : { up: false, evidence: `${envName} ABSENT` };\\\\n    },\\\\n  };\\\\n}\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"medium\\\", \\\"suggestion_code\\\": \\\"? { up: true, evidence: `${envName} present (non-empty)` }\\\\n        : { up: false, evidence: `${envName} ABSENT` };\\\"}, {\\\"category\\\": \\\"maintainability\\\", \\\"content\\\": \\\"Unused `commandComponent` is dead surface: no caller in `buildRegister` or elsewhere (search hits only the definition). Keep-or-delete decision needed — dead exported factories invite a future caller to bypass the fail-closed `liveSocket`/`keyFile` probes the file was hardened toward. If retained as generic helper, add a contract (e.g. executable-bit check, not just non-null string) or remove it.\\\", \\\"existing_code\\\": \\\"export function commandComponent(\\\\n  id: string,\\\\n  cls: ComponentClass,\\\\n  dependency: string,\\\\n  errorCode: string,\\\\n  lookUp: () =\u003e string | null,\\\\n): ComponentDecl {\\\\n  return {\\\\n    id, cls, dependency, errorCode,\\\\n    probe: () =\u003e {\\\\n      const found = lookUp();\\\\n      return found === null ? { up: false, evidence: \\\\\\\"not found on PATH\\\\\\\" } : { up: true, evidence: found };\\\\n    },\\\\n  };\\\\n}\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"low\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Naive `join` + `socketDir + \\\\\\\"/\\\\\\\" + n` breaks the exact-match liveness guarantee. `parts.join(\\\\\\\"/\\\\\\\")` does no normalization, so `scopeRoot`/`HOME` with a trailing slash yields `//` (e.g. `/home/u//.arsumbris/.../x.instance.sock`) which will never `Set.has()` the `/proc/net/unix` token and falsely reports STALE/DOWN. Same double-slash risk affects all `pathComponent` probes. Use `node:path.posix.join` (or `path.join` + normalize) and normalize `socketDir` before concatenation.\\\", \\\"existing_code\\\": \\\"  const env = cfg.env ?? process.env;\\\\n  const join = (...parts: string[]): string =\u003e parts.filter((p) =\u003e p.length \u003e 0).join(\\\\\\\"/\\\\\\\");\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"high\\\", \\\"suggestion_code\\\": \\\"import path from \\\\\\\"node:path\\\\\\\";\\\\n  const env = cfg.env ?? process.env;\\\\n  const join = (...parts: string[]): string =\u003e path.posix.join(...parts);\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Related exact-match break: `socketDir` concatenation must use the same normalized form as the probe table. Strip trailing slashes or build with the shared `join`/path helper, otherwise a configured `socketDir` ending in `/` always misses.\\\", \\\"existing_code\\\": \\\"        const full = socketDir + \\\\\\\"/\\\\\\\" + n;\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"high\\\", \\\"suggestion_code\\\": \\\"        const full = socketDir.replace(/\\\\\\\\/+$/, \\\\\\\"\\\\\\\") + \\\\\\\"/\\\\\\\" + n;\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"`/proc/net/unix` parsing includes header, blank, inode-only and abstract-namespace lines in the exact-match set. The header's final token is `\\\\\\\"Path\\\\\\\"`, blank lines contribute `\\\\\\\"\\\\\\\"`, inode-only lines (unnamed sockets) contribute the inode number, and abstract sockets contribute `@...`. None should participate in a filesystem-path equality test — filter to tokens starting with `/` (and skip line 0 / empty lines). Today a socket file literally named `Path` in a colliding dir, or future whitespace quirks, can false-positive; more commonly the set is polluted and hard to debug.\\\", \\\"existing_code\\\": \\\"      const listeningPaths = new Set(\\\\n        table.split(\\\\\\\"\\\\\\\\n\\\\\\\").map((line) =\u003e {\\\\n          const parts = line.trim().split(/\\\\\\\\s+/);\\\\n          return parts[parts.length - 1] ?? \\\\\\\"\\\\\\\";\\\\n        }),\\\\n      );\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"medium\\\", \\\"suggestion_code\\\": \\\"      const listeningPaths = new Set(\\\\n        table.split(\\\\\\\"\\\\\\\\n\\\\\\\").slice(1)\\\\n          .map((line) =\u003e (line.trim().split(/\\\\\\\\s+/).pop() ?? \\\\\\\"\\\\\\\"))\\\\n          .filter((p) =\u003e p.startsWith(\\\\\\\"/\\\\\\\")),\\\\n      );\\\"}, {\\\"category\\\": \\\"maintainability\\\", \\\"content\\\": \\\"Host-pinned absolute defaults guarantee permanent DOWN on any other host, contradicting the register's \\\\\\\"ask reality\\\\\\\" goal. `HOME ?? \\\\\\\"/home/leviathan\\\\\\\"`, the `ABIDE` handover-report path, and `RSI_STORE` `/home/leviathan/...` are single-machine values. Derive from `os.homedir()` (or require explicit `RegisterConfig` with no baked user) and point ABIDE at a stable checkout, not a dated handover doc. Also `L2` reads `process.env.HOME` directly while everything else uses injectable `cfg.env` — tests cannot hermetically stub HOME.\\\", \\\"existing_code\\\": \\\"    liveSocketComponent(\\\\\\\"L2_ARSUMBRIS\\\\\\\", \\\\\\\"layer\\\\\\\", \\\\\\\"the au daemon socket + its typed repo graph\\\\\\\", \\\\\\\"GI_LAYER_ARSUMBRIS\\\\\\\",\\\\n      join(process.env.HOME ?? \\\\\\\"/home/leviathan\\\\\\\", \\\\\\\".arsumbris/au-host/run\\\\\\\")),\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"high\\\", \\\"suggestion_code\\\": \\\"    liveSocketComponent(\\\\\\\"L2_ARSUMBRIS\\\\\\\", \\\\\\\"layer\\\\\\\", \\\\\\\"the au daemon socket + its typed repo graph\\\\\\\", \\\\\\\"GI_LAYER_ARSUMBRIS\\\\\\\",\\\\n      join(env.HOME ?? os.homedir(), \\\\\\\".arsumbris/au-host/run\\\\\\\")),\\\"}, {\\\"category\\\": \\\"maintainability\\\", \\\"content\\\": \\\"Same host-pinning: ABIDE defaults to a single-user handover file path and RSI_STORE to `/home/leviathan/.omp/...`. On any other user/host these components can never be UP. Make them required config (throw a clear `REGISTER_INCOMPLETE` if absent) or default under the current user's home.\\\", \\\"existing_code\\\": \\\"    pathComponent(\\\\\\\"ABIDE\\\\\\\", \\\\\\\"kernel\\\\\\\", \\\\\\\"the Abide source — the ALU (repair, never block)\\\\\\\", \\\\\\\"GI_ENFORCE_ABIDE\\\\\\\",\\\\n      cfg.abideRoot ?? \\\\\\\"/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/JARVIS/reports/handovers/JEV_ABIDE_CONTEXT_HANDOVER\\\\\\\"),\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"high\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"`assertRegisterComplete` itself throws `TypeError` on malformed input: `d.id.trim()` / `d.dependency.trim()` assume non-null strings. A decl with `undefined` id/dependency (the exact undeclared-dependency case this guard exists for) crashes with `Cannot read properties of undefined` instead of `REGISTER_INCOMPLETE`. Guard with `(d.id ?? \\\\\\\"\\\\\\\").trim()` etc. Also consider duplicate-`id` detection — duplicates silently pass and `firstCode` becomes ambiguous.\\\", \\\"existing_code\\\": \\\"  for (const d of register) {\\\\n    if (d.id.trim() === \\\\\\\"\\\\\\\") bad.push(\\\\\\\"\u003cblank id\u003e\\\\\\\");\\\\n    if (d.dependency.trim() === \\\\\\\"\\\\\\\") bad.push(`${d.id}: blank dependency`);\\\\n    if (d.errorCode.trim() === \\\\\\\"\\\\\\\") bad.push(`${d.id}: blank errorCode`);\\\\n  }\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"medium\\\", \\\"suggestion_code\\\": \\\"  const seen = new Set\u003cstring\u003e();\\\\n  for (const d of register) {\\\\n    if ((d.id ?? \\\\\\\"\\\\\\\").trim() === \\\\\\\"\\\\\\\") bad.push(\\\\\\\"\u003cblank id\u003e\\\\\\\");\\\\n    else if (seen.has(d.id)) bad.push(`${d.id}: duplicate id`);\\\\n    else seen.add(d.id);\\\\n    if (((d as {dependency?: unknown}).dependency as string ?? \\\\\\\"\\\\\\\").trim() === \\\\\\\"\\\\\\\") bad.push(`${d.id}: blank dependency`);\\\\n    if (((d as {errorCode?: unknown}).errorCode as string ?? \\\\\\\"\\\\\\\").trim() === \\\\\\\"\\\\\\\") bad.push(`${d.id}: blank errorCode`);\\\\n  }\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"`keyFileComponent` treats every `statSync` failure as \\\\\\\"absent\\\\\\\" and then allows env-fallback UP. `EACCES`/`EPERM` (unreadable key file, wrong mode) is not absence — if env is set this masks a permission fault and reports UP over a key the judge cannot read; if env is unset the evidence says `ABSENT` and misdirects the operator. Distinguish `ENOENT` (fallback allowed) from other errnos (DOWN with `EACCES` evidence, no env fallback). Also probe never checks readability/mode 0600 it documents — `stat` succeeding does not mean the judge can read the file; add `fs.accessSync(keyFile, fs.constants.R_OK)` (fail-closed to DOWN on throw).\\\", \\\"existing_code\\\": \\\"      } catch {\\\\n        // the file is absent — but an explicitly-passed env key is still a valid source\\\\n        const v = env[envName];\\\\n        return v !== undefined \u0026\u0026 v.length \u003e 0\\\\n          ? { up: true, evidence: `${keyFile} ABSENT but ${envName} present (non-empty)` }\\\\n          : { up: false, evidence: `${keyFile} ABSENT and ${envName} unset` };\\\\n      }\\\", \\\"path\\\": \\\"src/omp/hard-deps.ts\\\", \\\"severity\\\": \\\"high\\\", \\\"suggestion_code\\\": \\\"      } catch (e) {\\\\n        const code = (e as NodeJS.ErrnoException).code ?? \\\\\\\"ERR\\\\\\\";\\\\n        if (code !== \\\\\\\"ENOENT\\\\\\\") return { up: false, evidence: `${keyFile} UNREADABLE (${code})` };\\\\n        const v = env[envName];\\\\n        return v !== undefined \u0026\u0026 v.length \u003e 0\\\\n          ? { up: true, evidence: `${keyFile} ABSENT but ${envName} present (non-empty)` }\\\\n          : { up: false, evidence: `${keyFile} ABSENT and ${envName} unset` };\\\\n      }\\\"}]}\"}",
+        "error": "Error: failed to parse 'comments' JSON string: invalid character '}' after top-level value"
+      }
+    ]
+  },
+  "comments": [
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Unused keyComponent leaks key length via len= evidence, the exact side channel keyFileComponent removed. Search shows zero call sites; buildRegister uses keyFileComponent. Delete the factory or change evidence to present (non-empty).",
+      "existing_code": "export function keyComponent(",
+      "start_line": 104,
+      "end_line": 104,
+      "category": "security",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Unused commandComponent is dead surface: no caller in buildRegister or elsewhere (only definition found). Remove it or document why a generic shell-out helper is retained alongside the fail-closed liveSocket/keyFile probes.",
+      "existing_code": "export function commandComponent(",
+      "start_line": 86,
+      "end_line": 86,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Path normalization double-slash bug causes false STALE/DOWN on exact /proc/net/unix match: local join() does no normalization so trailing slash in scopeRoot/HOME yields double-slash paths, and socket full-path built via raw socketDir + \"/\" + n inherits the same bug. Normalize trailing slashes / use node:path join/normalize and build socket path with the shared join helper.",
+      "existing_code": "const join = (...parts: string[]): string =\u003e parts.filter((p) =\u003e p.length \u003e 0).join(\"/\");",
+      "start_line": 312,
+      "end_line": 312,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "/proc/net/unix parsing pollutes the listener set with header token Path, blank-line empty string, inode numbers for unnamed sockets, and abstract-namespace entries. Filter to tokens starting with slash and skip header/blank lines before exact final-token comparison.",
+      "existing_code": "const listeningPaths = new Set(",
+      "start_line": 231,
+      "end_line": 231,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Host-pinned defaults guarantee permanent DOWN on other hosts: HOME fallback to /home/leviathan, ABIDE single-user dated handover document path, and RSI_STORE /home/leviathan path. Derive from os.homedir() or require explicit abideRoot/rsiDir config with home-relative defaults. Also fix hermeticity: L2 reads process.env.HOME directly while other components use injectable cfg.env.",
+      "existing_code": "join(process.env.HOME ?? \"/home/leviathan\", \".arsumbris/au-host/run\")),",
+      "start_line": 329,
+      "end_line": 329,
+      "category": "maintainability",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "assertRegisterComplete calls d.id.trim() without null guard, so a decl with undefined id/dependency throws TypeError instead of REGISTER_INCOMPLETE. Guard with (d.id ?? '').trim() and consider duplicate-id detection since duplicates make firstCode ambiguous.",
+      "existing_code": "if (d.id.trim() === \"\") bad.push(\"\u003cblank id\u003e\");",
+      "start_line": 286,
+      "end_line": 286,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "keyFileComponent treats every statSync failure as absent and allows env fallback UP. EACCES/EPERM (unreadable key, wrong mode) is not absence and should be DOWN with permission evidence, not masked by env. Also probe checks stat size only, never readability, so an unreadable key file reports UP though the judge cannot read it.",
+      "existing_code": "} catch {",
+      "start_line": 177,
+      "end_line": 177,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "audit and requireUp duplicate the same try-probe-catch block. Extract a safeProbe helper to avoid drift between the two fail-closed paths.",
+      "existing_code": "export function requireUp(decl: ComponentDecl): void {",
+      "start_line": 268,
+      "end_line": 268,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Empty-file DOWN check applies only to files; empty directories report UP with evidence dir. An empty GI_STORE_DIR/TSG/ABIDE/RSI dir would read UP while contributing nothing, the same silent-pass the zero-byte graph.json guard was added for. Check directory emptiness for store/layer dirs.",
+      "existing_code": "if (st.isFile() \u0026\u0026 st.size === 0) {",
+      "start_line": 71,
+      "end_line": 71,
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Socket liveness exact-match is broken in both directions** — `src/omp/hard-deps.ts` (`liveSocket` probe + local `join()`). Trailing slash in `scopeRoot`/`HOME` yields double-slash paths with no normalization, causing false `STALE`/`DOWN`; simultaneously `/proc/net/unix` parsing includes header token `Path`, blank-line `\"\"`, inode numbers for unnamed sockets, and abstract-namespace entries. Combined: valid listener missed while garbage entries pollute the set.\n2. **Hard-coded host defaults guarantee permanent `DOWN` off-origin host** — `src/omp/hard-deps.ts` (`HOME` fallback to `/home/leviathan`, dated single-user `ABIDE` handover path, `RSI_STORE` under `/home/leviathan`). Must derive from `os.homedir()` or require explicit `abideRoot`/`rsiDir` config.\n3. **Permission errors masked as absence with env-fallback `UP`** — `src/omp/hard-deps.ts` (`keyFileComponent`). Any `statSync` failure is treated as absent, so `EACCES`/`EPERM` falls through to env check; probe also checks size only, never readability. Unreadable key reports `UP` instead of `DOWN` with permission evidence.\n4. **Empty directories report `UP`** — `src/omp/hard-deps.ts` (store/layer probes). Zero-byte `graph.json` guard exists for files, but empty `GI_STORE_DIR`/`TSG`/`ABIDE`/`RSI` dirs return `UP` with `dir` evidence while contributing nothing — same silent-pass class.\n5. **Unused `keyComponent` reintroduces `len=` side channel** — `src/omp/hard-deps.ts`. Zero call sites (`buildRegister` uses `keyFileComponent`, which deliberately removed length); retained factory leaks key length in evidence.\n6. **Validator crashes instead of failing closed** — `src/omp/hard-deps.ts` (`assertRegisterComplete`). `d.id.trim()` with no null guard throws `TypeError` on malformed decl instead of `REGISTER_INCOMPLETE`; no duplicate-`id` detection, making `firstCode` ambiguous.\n7. **Dead `commandComponent` + duplicated fail-closed paths** — `src/omp/hard-deps.ts`. Generic shell-out helper has no callers alongside the fail-closed `liveSocket`/`keyFile` probes; `audit` and `requireUp` duplicate the same try-probe-catch, inviting drift.\n\n### Module Hotspots\n\n- **`src/omp/hard-deps.ts` — sole hotspot (9/9 comments).** Density centers on three functions: socket probe (`join` + `/proc/net/unix` parsing), key probe (`keyComponent` vs `keyFileComponent` + `statSync` error handling), and register wiring (`buildRegister` defaults, `assertRegisterComplete`, `audit`/`requireUp` duplication).\n\n### Cross-Cutting Concerns\n\n- **Fail-closed inconsistency:** permission-denied treated as absent (`keyFileComponent`), empty dirs treated as present (store probes), duplicated `audit`/`requireUp` catch blocks risking divergent behavior — all in `src/omp/hard-deps.ts`.\n- **Path handling without normalization or portability:** raw `socketDir + \"/\" + n` concatenation, non-normalizing local `join()`, and `/home/leviathan`-pinned defaults — all in `src/omp/hard-deps.ts`.\n- **Dead/duplicate surface:** unused `keyComponent` and `commandComponent` retained with no call sites; `audit`/`requireUp` copy-paste — `src/omp/hard-deps.ts`.\n\n### Quick Wins\n\n- Delete `keyComponent` and `commandComponent` (or document retention); change any retained key evidence to `present` boolean — `src/omp/hard-deps.ts`.\n- Normalize paths (`path.join`/`path.normalize`) for `scopeRoot`/`HOME` and socket full-path construction — `src/omp/hard-deps.ts`.\n- Filter `/proc/net/unix` to tokens starting with `/`, skip header/blank lines — `src/omp/hard-deps.ts`.\n- Guard with `(d.id ?? '').trim()` and add duplicate-`id` check in `assertRegisterComplete` — `src/omp/hard-deps.ts`.\n- Extract `safeProbe` helper shared by `audit` and `requireUp` — `src/omp/hard-deps.ts`.\n- Replace `/home/leviathan` fallbacks with `os.homedir()` and add directory-emptiness check for store dirs — `src/omp/hard-deps.ts`.",
+  "session_id": "6fe9f320-873d-49a4-b5c6-19691e9ca1ed"
+}
