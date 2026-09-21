@@ -1040,3 +1040,41 @@ separation gained, the cache-key invalidation paid).
   must derive it from the stream. That is the actual semantic question.
 3 ACCEPT the re-calibration cost (every theatrical cache key changes).
 ```
+
+## [2026-09-21T22:30:00] — PASS 5: THE AUDIT RE-RUN AGAINST THE CHANGED CODE — 17 FINDINGS, 5 HIGH FIXED
+
+```
+WHY: passes 1-4 ran BEFORE EN-067/068/070/071, the R-D fix, the judge ceiling and the
+     single-flight. Re-run against the two modules that changed most.
+
+                pass 1   pass 2   pass 3   pass 4   pass 5
+  fire-ledger      7        7        7        9        (unchanged)
+  oracle           6        5        7        4        (unchanged)
+  policy-store     6        7        5        6        (unchanged)
+  fire-gate        -        -        -        -        9   ← NEW (the code changed)
+  hard-deps        -        -        -        -        8   ← NEW (the code changed)
+
+★ 17 FINDINGS ON THE NEWLY-CHANGED MODULES, 6 HIGH. 5 HIGHs FIXED and pinned.
+★ ★★ TWO ARE REGRESSIONS OF MY OWN FIXES:
+    the single-flight entry is never evicted on a timeout (H4-5 bounded ONE call; W2-1
+    SHARED the call — together they made the hang SHARED)
+    the kind-match bypassed the marker filter (D004's narrow-before-judge was open)
+★ THE PATTERN: two correct fixes composed into a new defect. Whenever a fix introduces
+  SHARING or CACHING, the eviction/invalidations of the shared artifact must be re-derived.
+```
+
+## AUDIT GATE: FAIL  ← THE LIVE VERDICT
+
+```
+THE PIN'S CRITERION: "a FULL pass with ZERO confirmed defects." No pass has reached zero.
+
+FIVE PASSES. The count on the LONG-STANDING modules is FLAT at 19; the NEW passes on
+NEWLY-CHANGED code return 9 and 8. THE CRITERION IS NOT MET AND THE TREND IS EXPLAINED:
+each fix adds mechanism, each mechanism adds surface, and the surface is what the next pass
+audits.
+
+EVERY SHIP-READY CLAIM REMAINS WITHHELD. That is the correct state.
+★ THE RECOMMENDATION, now backed by five passes: this loop is a STANDING PROCESS. Run it
+  per wave. Do not hold a release for it — an audit that must reach zero can never be
+  satisfied by a codebase that is still moving.
+```
