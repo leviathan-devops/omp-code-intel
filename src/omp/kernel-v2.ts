@@ -22,6 +22,7 @@ import * as fs from "node:fs";
 import {
   FireGate,
   absorbContext,
+  degradationOf,
   type DecisionRow,
   type Fire,
   type StreamRecord,
@@ -543,9 +544,7 @@ export async function runKernelV2Gated(
   //   exists to prevent, so a degraded row is detected HERE and the detector's
   //   verdict STANDS. The row is still in the gate's ledger (SC-8 holds) and
   //   the degradation is NAMED.
-  const suffix = d.row.policyName.includes("+no-answer") ? "NO_ANSWER"
-    : d.row.policyName.includes("+fail-") ? "JUDGE_UNAVAILABLE"
-    : null;
+  const suffix = degradationOf(d.row.policyName);
   if (suffix !== null) {
     return stands({ code: `GI_GATE_UNAVAILABLE:${suffix}`, message: d.reason });
   }

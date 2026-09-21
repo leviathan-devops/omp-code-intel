@@ -112,3 +112,17 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
 - M2 (the cost matrix) — OPERATOR-OWNED. Blocks W6 only. W1/W2/W3/W5 build regardless.
 - E1 (the oracle's engine) — OPERATOR-OWNED. v3, not on the v2.1 critical path.
 - The rig stupefied_morse @ omp-ct:master — required for W8.
+
+## P5 — THE RED-TEAM CORPUS PASS  ✅ CLOSED
+  tests/st-gi-v21-redteam.test.ts — 24 tests / 57 expects · the A..M evasion family over
+  the surface map of all 15 exported decision functions.
+  ★ 2 CONFIRMED DEFECTS FOUND AND FIXED, ZERO REMAIN:
+    R-1 (CRITICAL) a NaN bypassed the fail polarity — every comparison false, so the
+        corrupt value fell off the end of the ternary into IGNORE. On a fail-CLOSED class
+        that is a DISMISSAL its contract forbids. FIXED + the vocabulary moved into
+        degradationOf() so the new suffix cannot create a consumer hole.
+    R-2 (LOW) the validator rejected act < flag while ACCEPTING act == flag — both empty
+        the ESCALATE band. FIXED, distinctly named.
+  ★ THE SCOPE LIMIT, NAMED: probes import the MODULE surface — v2.1 is not in the dist
+    (sha 83eb7bba unchanged), so a probe against the dist would test v1.3.
+  EVIDENCE: battery 268/0/958/26 (244/0/901/25 → +24 tests, ZERO regressions) · tsc 191

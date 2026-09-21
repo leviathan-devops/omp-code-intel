@@ -116,10 +116,22 @@ export function validatePolicies(file: PolicyFile): void {
         throw new PolicyError("RANGE", `the policy for ${ruleId} has ${key}=${v}, outside 0..1 — it could never band`);
       }
     }
-    if (p.act < p.flag) {
-      // act < flag EMPTIES the escalate band: a probability could be at or above
-      // the flag and still below the act, in an order the kernel never expects.
-      throw new PolicyError("INVERTED", `the policy for ${ruleId} has act=${p.act} below flag=${p.flag} — the ESCALATE band would be empty`);
+    if (p.act <= p.flag) {
+      // ★ BOTH `act < flag` AND `act == flag` EMPTY THE ESCALATE BAND, and the first
+      // version of this check only caught the first — an inconsistency found by the P5
+      // red-team corpus (R-2, the K-policy probe). The reason to reject BOTH: ESCALATE
+      // is a DOCUMENTED band of this kernel, and a policy that silently makes it
+      // unreachable is exactly the silent-configuration class this module exists to
+      // prevent ("a malformed policy that silently fell back to the seeds would move the
+      // enforcement bar with nobody watching").
+      //   act < flag   the two numbers CONTRADICT: the flag claims a higher bar than the
+      //                act, and `p >= act` is tested first, so the flag is never consulted.
+      //   act == flag  a ZERO-WIDTH band: `p >= act` catches everything `p >= flag` would.
+      const kind = p.act < p.flag ? "INVERTED" : "ZERO_WIDTH_BAND";
+      const detail = p.act < p.flag
+        ? `act=${p.act} sits BELOW flag=${p.flag} — the flag would never be consulted`
+        : `act=${p.act} EQUALS flag=${p.flag} — the ESCALATE band has zero width`;
+      throw new PolicyError(kind, `the policy for ${ruleId} has ${detail}; ESCALATE would be unreachable`);
     }
     if (p.failPolarity !== "open" && p.failPolarity !== "closed") {
       throw new PolicyError("MALFORMED", `the policy for ${ruleId} has failPolarity='${String(p.failPolarity)}' — must be open|closed`);
