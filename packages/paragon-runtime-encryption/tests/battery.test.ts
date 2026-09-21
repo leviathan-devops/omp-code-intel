@@ -197,11 +197,14 @@ describe("paragon-runtime-encryption battery", () => {
     const realCompare = verifyHooks.compare;
     verifyHooks.compare = () => true; // MUTANT: every sig "verifies"
     try {
-      // T2's expectation (forgery rejected) now FAILS: the mutant trusts it.
-      expect(store.verify(store.rawById(fid)!)).toBe(true);
+      // F-51 FIX: the OLD body asserted the MUTANT'S behaviour, which proves
+      // only that the seam is wired. A test whose name claims "the test bites"
+      // must run the ORIGINAL assertion UNDER the mutation and watch it FAIL.
+      // T2 asserts verify(forged) === false; under the mutant that must throw.
+      const forgedRow = store.rawById(fid)!;
+      expect(store.verify(forgedRow)).toBe(true);                       // the mutant trusts it
+      expect(() => expect(store.verify(forgedRow)).toBe(false)).toThrow(); // ⇒ T2's assertion FAILS ⇒ IT BITES
       expect(store.readLive("app:reflex:mutant-probe")?.id).toBe(fid);
-      // And the battery's T2 invariant is inverted — the proof it bites:
-      expect(store.verify(store.rawById(fid)!)).not.toBe(false);
     } finally {
       verifyHooks.compare = realCompare;
     }

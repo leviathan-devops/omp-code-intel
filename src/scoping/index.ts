@@ -10,6 +10,8 @@ export { makeDbPath, type DbPathSpec } from "./db-path.ts";
 export { getStoreDb, closeStoreDb, upsertRow, runWithRetry, withImmediateTx } from "./scoped-store.ts";
 export { sessionKey, readSessionState, writeSessionState, tickSessionBudget } from "./session-state.ts";
 export {
+  resolveSessionId,
+  resolveSessionIdFromEvent,
   GI_STATE_DIR,
   GI_ECOSYSTEM,
   GI_WAVE_PREFIX,

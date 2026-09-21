@@ -54,6 +54,56 @@ export function assertSessionStorePath(p: string): void {
   }
 }
 
+/** ── GI SESSION IDENTITY (the "sessionID is always default" fix) ────────────
+ *  THE MEASURED DEFECT: `ctx.sessionID ?? "default"` (extension.ts:338) and
+ *  `event.sessionId || event.sessionID || "default"` (gate-hook.ts:126) both
+ *  resolved to the literal "default" on every live call — the omp tool_call
+ *  ctx and event carry no session id — so every session in every project shared
+ *  ONE drift bucket and ONE probe identity. A phantom id is worse than no id:
+ *  it looks like an identity and silently merges unrelated sessions.
+ *
+ *  THE RESOLUTION (priority order, and the SOURCE is returned so provenance is
+ *  visible end-to-end):
+ *    1  ctx.sessionID         the harness's own id, when it does provide one
+ *    2  GI_SESSION_ID         an explicit operator/harness override
+ *    3  the scope root        a REAL, stable, project-scoped identity
+ *  There is NO phantom fallback. A caller that cannot resolve a session gets the
+ *  project scope — which is the gate's actual ownership boundary (drift is
+ *  per-project, not per-session, by design).
+ */
+export function resolveSessionId(
+  ctx?: unknown,
+  env: NodeJS.ProcessEnv = process.env,
+  scopeRoot?: string,
+): { id: string; source: string } {
+  const fromCtx = (ctx as { sessionID?: unknown } | undefined)?.sessionID;
+  if (typeof fromCtx === "string" && fromCtx.length > 0) {
+    return { id: fromCtx, source: "ctx.sessionID" };
+  }
+  const fromEnv = env["GI_SESSION_ID"];
+  if (typeof fromEnv === "string" && fromEnv.length > 0) {
+    return { id: fromEnv, source: "GI_SESSION_ID" };
+  }
+  const root = scopeRoot ?? env["GI_SCOPE_ROOT"] ?? process.cwd();
+  // A stable, filesystem-derived key: the scope root, made into a legal
+  // session id (the store-path guard accepts [A-Za-z0-9_-]{8,24}).
+  const slug = path.resolve(root).replace(/[^A-Za-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  const id = (`scope-${slug}`).slice(0, 24);
+  return { id, source: "scope-root" };
+}
+
+/** The event-shaped convenience used by the gate's tool_call handler. */
+export function resolveSessionIdFromEvent(
+  event: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): { id: string; source: string } {
+  const direct = event["sessionId"] ?? event["sessionID"];
+  if (typeof direct === "string" && direct.length > 0) {
+    return { id: direct, source: "event.sessionId" };
+  }
+  return resolveSessionId(event, env);
+}
+
 export function forbiddenSharedProjectStore(scopeRoot: string): string {
   return path.join(scopeRoot, GI_STATE_DIR, "store.sqlite");
 }

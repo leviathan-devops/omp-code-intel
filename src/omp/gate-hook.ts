@@ -1,3 +1,4 @@
+import { resolveSessionIdFromEvent } from "../scoping/gi-session-path.ts";
 // GI graph-gate on OMP write/edit. Separate tool_call listener; the handler
 // throw cancels FULL.
 
@@ -123,7 +124,11 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     const name = String(event.toolName ?? "").toLowerCase();
     const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
     const isQuery = name === "graph-query" || name === "ripwire" || String(event.toolName ?? "") === "graph-query";
-    const sid = fieldStr(event, "sessionId") || fieldStr(event, "sessionID") || "default";
+    // SESSION-IDENTITY FIX: was `|| "default"` — the phantom that merged every
+    // session into one drift bucket. The resolver returns a real identity and
+    // NEVER a phantom; a caller that cannot resolve one gets the project scope
+    // (which is this gate's actual ownership boundary: drift is per-project).
+    const sid = resolveSessionIdFromEvent(event).id;
     let st = states.get(sid);
     if (!st) {
       st = createEmptyState();

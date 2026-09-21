@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import { blastRadius, chainCalls, countTypedNodes, gateAdvisory, getMeta, impact, safeDelete, unwiredNodes, whoCalls, wouldBreak } from "./typed-write.ts";
 import { GiScopeError, openSessionStore } from "./store-open.ts";
-import { GiPathError } from "../scoping/index.ts";
+import { GiPathError, resolveSessionId } from "../scoping/index.ts";
 import { attachGiGraphGate, registerGraphGate } from "./gate-hook.ts";
 import { clearGiRegistry, GiClearError } from "./gi-registry.ts";
 import { populateSessionStore } from "./populate.ts";
@@ -335,10 +335,14 @@ pi.registerTool({
         return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
       }
     }
-    const sessionID = String((ctx as { sessionID?: string } | undefined)?.sessionID ?? "default");
+    // SESSION-IDENTITY FIX: was `?? "default"` — a phantom that merged every
+    // session into one bucket. The resolver returns a REAL identity and its
+    // source, which the probe now reports so the provenance is visible.
+    const sid = resolveSessionId(ctx, process.env);
+    const sessionID = sid.id;
     return textResult(
-      JSON.stringify({ token: "PROBE_TOOL_OK", sessionID, echo: p.echo ?? null }),
-      { ok: true, token: "PROBE_TOOL_OK", sessionID },
+      JSON.stringify({ token: "PROBE_TOOL_OK", sessionID, sessionIDSource: sid.source, echo: p.echo ?? null }),
+      { ok: true, token: "PROBE_TOOL_OK", sessionID, sessionIDSource: sid.source },
     );
   },
 });
