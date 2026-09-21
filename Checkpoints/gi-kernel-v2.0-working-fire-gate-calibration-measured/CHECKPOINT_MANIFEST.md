@@ -58,6 +58,30 @@ A mutable working snapshot. Follow-up work is in flight (the v2.1 Jev-in-the-loo
 blueprint, the 50+ firing calibration, the container RB re-run). The operator owns
 the guardian layer and may re-save with MODE A for a frozen baseline.
 
+
+## REFRESH — 2026-09-21 (the blueprint + §12 landed AFTER the first save)
+
+The checkpoint was FIRST committed at 750009c, BEFORE the v2.1 blueprint existed.
+A checkpoint that predates the artifact it is meant to carry is a stale baseline —
+the same class as a doc that describes yesterday's build. REFRESHED with:
+
+```
+artifacts/gi-kernel-v2.1/GI_KERNEL_V2.1_MASTER_BLUEPRINT_v1.md   862 L
+  sha256(16) 242f52c556151449 · 41,853 B · 14 sections · 25/25 components mapped
+  · the W1-W9 build order with the operator's "both" as W3+W4 · the M1-M12 plan
+artifacts/reports/GI_Kernel_V2_Engineering_Report_v1.md          1098 L
+  §12 THE JEV FIRING-TIME KERNEL — preserved verbatim (774 → 1098, +324)
+the 6 ship docs REFRESHED:
+  BUILD_REPORT 467 L (★ CRITICAL: the calibration run) · DEBUG_LOG 521 L (EN-047)
+  FAILURE_LOG 397 L (F-53) · SPEC_VIOLATION_LOG 74 L (V-01 VIOLATED-HIGH)
+  TESTING_LOG 576 L (the instrument's raw run) · THEATRICALITY_LOG 387 L (T-11)
+```
+
+**THE LESSON (and it is the session's own lesson applied to itself):** a checkpoint
+saved at the START of a work burst does not contain the burst. Save the checkpoint
+AFTER the deliverable lands, or refresh it in the same turn — otherwise the baseline
+certifies a state that no longer exists.
+
 ## THE HONEST GAPS
 
 ```

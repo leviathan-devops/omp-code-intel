@@ -420,3 +420,67 @@ RB-ERRORS       BLOCKED — GI_STACK_INCOMPLETE is a v2 token, not yet wired
 6. F-51 (the boilerplate's T8 mutation test overreaches) — logged, fix proposed.
 
 **23 commits. 2563 L of v2 source · 69 v2 tests · 11 package docs · 3253 L of documentation.**
+
+## [2026-09-21] ★ CRITICAL / IMPORTANT — THE FIRST REAL CALIBRATION RUN + THE JEV FIRING-TIME KERNEL
+
+**SEMANTIC INDEX KEYWORDS:** `measurement-informed-data/args/vals` · `data-informed-measurements`
+**THE MINTED SKILL:** `derive-runtime-measurements` (managed-skills, 224 L) — the meta-process,
+extracted from this run. Read it before choosing ANY constant.
+**THE AUTHORITY:** `JEV_ENGINEERING_BIBLE.md` D001-D026, §6.4 (confidence/calibration/thresholds),
+§6.4.6 (the two traps), §6.4.7 (the calibration record).
+
+**The built:** `src/omp/fire-gate.ts` (370 L) — the firing-time decision kernel:
+`shape trigger → MPSE pre-filter → lexicon-filtered context absorption → ONE Jev Noul → the
+decision point (FIRE|ESCALATE|IGNORE)` under a NAMED policy with a per-surface fail polarity and
+a cache. `src/omp/calibration.ts` (185 L) — the derivation machinery: `thresholdFromCost`,
+`precisionFromCounts` (Wilson), `derivePolicy` (per-rule), `checkCalibrationHealth` (the named
+traps), `firesNeededForGap`.
+
+**★ THE FINDING (the reason this entry is CRITICAL):** the seed thresholds — destructive 0.90 ·
+dumb 0.75 · theatrical 0.85 — were run against a **14-case labelled corpus** (7 real violations,
+each with a false-positive twin differing ONLY in context) through the **LIVE Jev API**.
+**No real violation scored above 0.65. At the assumed bars the act band fired ZERO times.**
+
+```
+real violations  n=7  mean P=0.581  min=0.490
+false positives  n=7  mean P=0.253  max=0.530
+SEPARABLE (min(real) > max(fp)): false     BEST F1=0.933 at t=0.40
+
+   t     TP  FP  FN  TN   precision  recall
+  0.20    7   4   0   3   0.636     1.000
+  0.40    7   1   0   6   0.875     1.000
+  0.55    5   0   2   7   1.000     0.714
+  0.70    0   0   7   7   1.000     0.000   ← STARVATION
+```
+
+**★ WHY IT IS CRITICAL:** **a gate that never fires is indistinguishable from a gate that
+works.** Calm ledger, zero acts — while every violation passes. The error was in the FATAL
+direction and only the instrument could see it. The seeds came from an intuition about what
+"confident" means; Jev's absolutes for clear violations sit near 0.5-0.6.
+
+**The verification:** the instrument's raw run (above); `checkCalibrationHealth` returns
+`ok=false` for all three rules; `derivePolicy` returns `calibrated=false` with the basis
+`"cost matrix only … NO measured counts yet"`; `firesNeededForGap(0.85, 0.10) = 49`.
+
+**The honest notes:** 14 cases is a real measurement OF 14 CASES. The measured answer to the
+fire-floor question is **49 resolved firings**, not the 10 I had guessed. The thresholds remain
+UNCALIBRATED until 50+ real firings land.
+
+## [2026-09-21] v2.1 BLUEPRINT MINTED — the Jev-in-the-loop runtime kernel (862 L, 14 sections)
+
+**The built:** `packages/gi-kernel-v2.1/GI_KERNEL_V2.1_MASTER_BLUEPRINT_v1.md` — the macro map, the
+S0-S9 lifecycle, three dispatch traces, every type verbatim with its contract, 13 engine checks,
+the gate/derivation/health-gate pseudocode, the call/component/file trees, 15 anchored laws, the
+error vocabulary + the `fire_decisions` schema + the forkable shell, **25/25 components mapped
+(zero orphans)**, the W1-W9 build order, and the **M1-M12 measurement plan** with the cost per row
+and what each row blocks.
+**The operator's rulings, folded in verbatim:** `1) both` → the gate sits in BOTH positions
+(**W3 the pre-act advisory**, fail-OPEN, landing first because it cannot break anything; **W4 the
+post-detector filter**, per-surface polarity). `2) get proper measurements for everything. no
+guesses` → the M1-M12 plan, with the three deciders named: **M1** the curve, **M2** the operator's
+cost matrix, **M11** the silent false negatives nobody measures.
+**The evidence in hand:** the 14-case measurement (the 2x finding) carried forward as §12; the
+v2.0 machinery (2563 L) it extends; the bible's D001-D026 + §6.4.
+**The honest residual (6 items):** E1 unruled · the ESCALATE target unpicked · M2 unanswered ·
+every M-row unmeasured except the baseline · the container RB re-run open · W3/W4 change the live
+path so the wiring order stands (engines before registration).

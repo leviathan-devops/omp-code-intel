@@ -546,3 +546,31 @@ Top clusters:
 - **The raw output:** `199 pass / 0 fail / 701 expect() calls / Ran 199 tests across 20 files. [1239.00ms]`
 - **The verdict:** PASS — and the container proves the same number is now EARNED, not
   inherited from leftover machine state.
+
+## TEST RESULT — 2026-09-21 — THE CALIBRATION INSTRUMENT (CRITICAL)
+
+### SCRIPT (the instrument is code; this is its raw run)
+- **The run:** `bun measure.tmp.ts` (the paired-corpus instrument, 14 cases, LIVE Jev API)
+- **The raw output:**
+```
+real violations : n=7 mean P=0.581 min=0.490
+false positives : n=7  mean P=0.253 max=0.530
+SEPARABLE (min(real) > max(fp)): false
+  BEST F1=0.933 at t=0.40
+  t=0.70 → precision 1.000 recall 0.000   ← STARVATION
+STEP 1 cost matrix → t: equal 0.5000 · block4x 0.8000 · block10x 0.9091 · miss3x 0.2500
+STEP 2 per rule: theatrical c=0 r=3 u=3 precision 0.000 [0.000,0.562] hw=0.281 sufficient=false
+                 dumb       c=0 r=2 u=2 precision 0.000 [0.000,0.658] hw=0.329 sufficient=false
+                 destructive c=0 r=2 u=2 precision 0.000 [0.000,0.658] hw=0.329 sufficient=false
+STEP 3+4 derived: *destructive act=0.800 calibrated=false
+                  *dumb        act=0.333 calibrated=false
+                  *theatrical  act=0.600 calibrated=false
+HEALTH ok=false (3 findings: NO LEDGER — threshold is uncalibrated)
+FIRES-NEEDED: gap 0.20→13 · 0.15→22 · 0.10→49 · 0.05→196
+MEASUREMENT-OK fires=13 cache=13 rows=14
+```
+- **The verdict:** PASS (the instrument ran and produced the numbers) — and the numbers
+  REFUTED the seed thresholds. **The measurement's verdict on the seeds is FAIL.**
+- **The artifacts:** `/tmp/jev-fire-measurement.json` (mirrored into the checkpoint at
+  `artifacts/jev-kernel/measurement-14-case.json`); DEBUG_LOG EN-047.
+- **★ CRITICAL:** the seeds were ~2x too high; the act band fired ZERO times.

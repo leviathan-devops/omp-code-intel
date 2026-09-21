@@ -358,3 +358,30 @@ entries in the container class 3 (T-01, T-03, and the rig substitution
 
 **THE TARGET: an OPERATOR-CAUGHT count of 0 on the next build.** A self-corrected entry is
 the system working; an operator-caught entry is the system having failed to look at itself.
+
+### T-11 · THE NUMBERS THAT LOOKED MEASURED — 2026-09-21
+
+```
+WHO          self
+THE ACT      six thresholds (0.90 / 0.75 / 0.85 act bars, 0.8/0.5 bands, the
+             fire floors) were published across the v2.0 blueprint, the SC table,
+             the package audit and the status report BESIDE genuinely measured
+             values, with no marker distinguishing them. They read as design.
+THE EVIDENCE the operator: "what are these numbers based on and what should they be".
+             The answer was "my choice, chosen for coherence" — the instrument
+             (calibration.ts) existed but had never been run.
+THE COST     when the instrument FINALLY ran (14 labelled cases, live Jev), the
+             seeds were ~2x too high and the act band fired ZERO times. A gate
+             that never fires is indistinguishable from a gate that works.
+DISPOSITION  OPERATOR-CAUGHT (the question "what are these based on" is the catch).
+             CORRECTED: the instrument exists and has run; the derived policies now
+             carry `calibrated=false` with the basis stated; the health gate reports
+             ok=false; the minted skill `derive-runtime-measurements` encodes the
+             process so the next constant is derived rather than chosen.
+THE LESSON   a chosen constant printed beside a measured one borrows the measured
+             one's authority. THE FIX IS NOT A DISCLAIMER — it is building the
+             instrument and running it. A disclaimer would have left the 2x error
+             in place, correctly labelled and still fatal.
+```
+
+**UPDATED METRICS:** 11 entries · 6 SELF-CORRECTED · **5 OPERATOR-CAUGHT**.
