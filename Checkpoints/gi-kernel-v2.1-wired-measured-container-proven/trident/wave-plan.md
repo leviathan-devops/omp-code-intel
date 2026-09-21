@@ -205,3 +205,60 @@ AFTER EN-070:               L5 UP — 4 down (L1, L2, L3, L4)
   L4  no .c2kg/index.json exists; no c2kg binary exists
   L1/L3/L4's probes remain UNVERIFIED (no consumer corroborates their paths) — recorded as a residual.
 ```
+
+## REGISTRATION — THE PER-LAYER RESUME CONDITIONS (what would bring each up)
+
+```
+★ THE LAW: "ENGINES BEFORE REGISTRATION — registering the gate first refuses every tool
+  call on this host." The gate is NOT registered. It cannot be until the layers answer.
+
+  UP (6): L5_CORBELL · L6_GRAPHIFY · TSG · ABIDE · JEV · RSI_STORE · GI_STORE_DIR
+  DOWN (4): L1_SEMANTICA · L2_ARSUMBRIS · L3_UA · L4_C2KG
+
+★★ AND THE TEMPTATION THAT MUST BE REFUSED: every one of these four probes checks
+   EXISTENCE + non-emptiness. Writing a plausible file at any of those paths would flip
+   the register to UP in seconds — AND FABRICATE A SUBSTRATE TO UNBLOCK A GATE. That is
+   the precise violation this register exists to prevent, and it is refused. A DOWN layer
+   with a named resume condition is the honest state; a FABRICATED UP is a false report
+   that would let the gate refuse every tool call for a substrate that does not exist.
+
+L1_SEMANTICA   probes <scopeRoot>/.omp/graph-intelligence/layers/semantica
+               RESUME: install semantica and ingest this repo into a workspace at that
+               path. NO CONSUMER in this repo reads it and NO TOOL on this host provides
+               it (the checkout in research/ is SOURCE: docs + triplet_store/ code).
+               ★ UNVERIFIED PATH — nobody has corroborated the location.
+
+L2_ARSUMBRIS   probes ~/.arsumbris/au-host/run/*.instance.sock (liveness, not existence)
+               RESUME: start the au-host instance. It is an ELECTRON GUI APP
+               (~/arsumbris/au-host/app, main: ./out/main/index.js, launched via
+               electron-vite). Its instance socket is bound WHILE A WORKSPACE IS OPEN —
+               so bringing L2 up means opening the operator's desktop app, which is not
+               an autonomous action. The two socket files dated Sep 16/17 are DEAD
+               corpses (ECONNREFUSED; absent from /proc/net/unix).
+
+L3_UA          probes <scopeRoot>/.ua/knowledge-graph.json
+               ★ PATH VERIFIED CORRECT: UA's own persistence writes exactly this
+               (resolveUaDir: join(projectRoot, ".ua")).
+               RESUME: run UA's `/understand` workflow over this repo. The graph is
+               produced by an AGENT ANALYSIS PASS, not a scanner — saveGraph(projectRoot,
+               graph) takes a graph the workflow BUILDS. There is no CLI.
+
+L4_C2KG        probes <scopeRoot>/.c2kg/index.json
+               RESUME: install the c2kg tool and index this repo. NOTHING named c2kg
+               exists on this host outside /tmp test fixtures — no binary, no repo,
+               no consumer.
+```
+
+## THE OTHER TWO BLOCKERS
+
+```
+E1  the oracle's engine — OPERATOR-OWNED, v3. The oracle's four gatherers are
+    DETERMINISTIC and proven; E1 would name the engine that adjudicates ambiguous
+    evidence. Not on the v2.1 critical path.
+
+AUDIT CONVERGENCE — OPERATOR-OWNED (a process ruling). FIVE PASSES, no zero, and the
+    shape is now MEASURED: the long-standing modules are FIXED POINTS at 19 findings,
+    while newly-changed modules yield 9 and 8. The audit charges rent on every change;
+    it does not count down to zero. RECOMMENDATION: a STANDING PROCESS (per wave), not
+    a pre-ship gate.
+```
