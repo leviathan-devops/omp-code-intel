@@ -135,3 +135,12 @@
   and the upstream's schema) plus a third reader (ocr). Each was discovered by RUNNING it.
   A skill that names the steps but not the SHAPES leaves the next session to rediscover
   them one 400 at a time.
+
+## [2026-09-21T16:00:00] — EN-063 ★★★ CRITICAL: my own F0 fix RE-INTRODUCED F0
+- SYMPTOM: the pass-3 audit scan rated a `drain()` finding CRITICAL — "marks failed rows as seen on partial commit — permanent data loss".
+- ROOT CAUSE: THE FIX FOR F0 CREATED A NEW INSTANCE OF F0. F0 was "the watermark advances before the commit". The fix moved the watermark to after the commit — but the R7 fix then made `appendMany` commit SOME rows and fail others (a per-row fallback), while returning only a COUNT. `drain` still marked EVERY ATTEMPTED row as seen, so the failed rows were marked seen and NEVER RETRIED: a permanently lost fire, which is precisely F0's harm.
+- ★ THE PATTERN, AND WHY IT MATTERS MORE THAN THE BUG: F0's fix needed a second fix (R7) to stop one bad row blocking its siblings, and THAT fix silently re-opened F0. A count cannot distinguish "all committed" from "some committed"; only the ROWS can. The fix: `appendManyDetailed` returns `{committed, failed}` and `drain` advances the watermark PER COMMITTED ROW.
+- THE SECOND FINDING IT DREW: "withLedger's retry guarantee depends on the broken watermark" (HIGH) — the same root, and it is now sound because the watermark is per-row.
+- LESSON: when a fix changes a function's RETURN SHAPE from "a fact about the whole" to "a fact about a part", every consumer of that return value must be re-derived. `appendMany` went from "all or nothing" (a boolean-ish count) to "some of each" — and `drain`'s invariant ("every attempted row is now persisted") silently became false. The audit found it in one pass; a test suite that only asserted the happy path would not have.
+- ALSO FIXED FROM PASS 3: recordTruth now WHITELISTS confirmed|refuted (a single-value exclusion let any other string reach SQLite) · band/action domain validation added · `all()` gained an optional limit (the table grows without bound) · the module-global drain map is now bounded at 64 entries.
+- EVIDENCE: the new test `F0b-critical` repairs a failed row IN PLACE and asserts the next drain WRITES it (1 → 2 rows, no duplicate); battery 292/0/1043/28 · tsc 191 == baseline.

@@ -76,6 +76,37 @@ describe("st-gi-v21-audit-fixes: the independent audit's findings", () => {
     ledger.close();
   });
 
+  // ══ PASS-3 CRITICAL — THE WATERMARK MUST ADVANCE PER COMMITTED ROW ════════════
+  // "drain() marks failed rows as seen on partial commit — permanent data loss."
+  // ★ This was the ORIGINAL F0 defect RE-INTRODUCED BY F0's OWN FIX: once appendMany
+  //   could commit SOME rows and fail others, marking every ATTEMPTED row as seen lost
+  //   the failures forever.
+
+  test("F0b-critical: a row that FAILED to commit is retried on the next drain", () => {
+    const ledger = new FireLedger(tmpPath());
+    const good = aRow({ stateHash: "good-a" });
+    const bad = aRow({ stateHash: "   " });          // rejected by validation
+    let rows: DecisionRow[] = [good, bad];
+    const fakeGate = { rows: () => rows } as unknown as FireGate;
+
+    const n1 = drain(fakeGate, ledger);
+    expect(n1).toBe(1);                              // the good row landed
+    expect(ledger.count()).toBe(1);
+    expect(ledger.persistFailures()).toBeGreaterThan(0);
+
+    // ★ THE CRITICAL'S ASSERTION: repair the bad row IN PLACE — the SAME object — and
+    //   the next drain must WRITE IT. With the defect it was already marked seen, so
+    //   drain returned 0 and the fire was lost permanently.
+    (bad as { stateHash: string }).stateHash = "good-b";
+    const n2 = drain(fakeGate, ledger);
+    expect(n2).toBe(1);                              // ★ the repaired row was RETRIED
+    expect(ledger.count()).toBe(2);
+    expect(ledger.all().map((r) => r.stateHash).sort()).toEqual(["good-a", "good-b"]);
+    // and the good row was NOT written twice
+    expect(ledger.all().filter((r) => r.stateHash === "good-a").length).toBe(1);
+    ledger.close();
+  });
+
   // ══ FINDING 1 (HIGH) — withLedger DISCARDS A MADE DECISION ═══════════════════
 
   test("F1-withLedger: a persist failure does NOT destroy the decision", async () => {

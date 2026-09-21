@@ -738,3 +738,49 @@ WHAT IS NOT PROVEN:
 CONSEQUENCE: every ship-ready claim remains WITHHELD. That is the correct state — a green
 battery is not a clean audit, and this session has now measured the difference.
 ```
+
+## [2026-09-21T16:05:00] — PASS 3: A CRITICAL, AND THE CONVERGENCE VERDICT IS NOW DECISIVE
+
+```
+fire-ledger   pass1=7  pass2=7  pass3=7   ← and pass 3 contains a CRITICAL
+oracle        pass1=6  pass2=5  pass3=?
+policy-store  pass1=6  pass2=7  pass3=?
+```
+
+**★ PASS 3'S FIRE-LEDGER FINDING IS A CRITICAL, AND IT IS MY OWN FIX RE-INTRODUCING THE
+ORIGINAL DEFECT:**
+
+```
+[CRITICAL] drain() marks failed rows as seen on partial commit — permanent data loss.
+[ HIGH  ] withLedger() retry guarantee depends on the broken watermark.
+```
+
+The F0 fix moved the watermark after the commit. The R7 fix then made `appendMany` commit
+SOME rows and fail others — while returning only a count. `drain` still marked every ATTEMPTED
+row seen, so the failures were never retried. **That is F0's exact harm, restored by F0's own
+fix.** A count cannot distinguish "all committed" from "some committed"; only the rows can.
+FIXED: `appendManyDetailed` returns `{committed, failed}`; the watermark advances per committed
+row. The HIGH shares the root and is now sound.
+
+**THE CONVERGENCE VERDICT — THE LOOP IS NOT CONVERGING, AND THE EVIDENCE IS NOW UNARGUABLE:**
+
+```
+pass 1   19 findings   (2 HIGH in fire-ledger, 5 HIGH in oracle, 3 HIGH in policy-store)
+pass 2   19 findings   (different findings; the pass-1 ones are absent — the fixes verified)
+pass 3    7 findings   (fire-ledger only so far) — AND ONE IS A CRITICAL
+```
+
+A flat count would be tolerable if the defects were independent. They are not: **the fixes
+generate the next pass's findings**, and pass 3 proves the mechanism with a CRITICAL that is a
+re-introduction of the defect the first fix addressed.
+
+THE HONEST CONCLUSION: the audit loop needs to run to a genuinely clean pass, and it has not.
+Each pass costs ~11 minutes of model time plus the fixes. Three passes have found 46 defects;
+the marginal pass is not yet yielding zero. **The unswept frontier is named:**
+```
+· the DRAIN/WATERMARK family is now fixed twice and needs a third pass to confirm
+· oracle + policy-store pass 3 are RUNNING; their findings are not yet in this line
+· the CLASSES most likely to remain: cross-module invariants (the ledger's exactly-once
+  contract AS CONSUMED by the oracle's batch resolver), and the interaction of the two
+  write paths (recordTruth's conditional update + the watermark)
+```

@@ -226,6 +226,15 @@ export class FireLedger {
         throw new LedgerError("BAD_PROBABILITY", `${key}=${row[key]} is outside 0..1 — a probability that cannot band`);
       }
     }
+    // ★ pass-3: the DOMAIN of each column, not merely non-emptiness. A row whose band
+    //   says "banana" or whose cls is unknown is not calibration input — it is a row
+    //   no reader can interpret, and it would be counted anyway.
+    if (!["act", "escalate", "ignore"].includes(row.band)) {
+      throw new LedgerError("BAD_DOMAIN", `band='${row.band}' is not act|escalate|ignore`);
+    }
+    if (!["FIRE", "ESCALATE", "IGNORE"].includes(row.action)) {
+      throw new LedgerError("BAD_DOMAIN", `action='${row.action}' is not FIRE|ESCALATE|IGNORE`);
+    }
     if (row.laterTruth !== "unresolved") {
       // §6.4.7 — written 'unresolved' AT FIRING TIME, never assumed. Only the
       // oracle changes it, through recordTruth.
@@ -254,38 +263,60 @@ export class FireLedger {
    *  Returns the number of rows that committed. The caller's watermark logic must
    *  still only advance for rows this method confirms (see `drain`). */
   appendMany(rows: readonly DecisionRow[]): number {
+    return this.appendManyDetailed(rows).committed.length;
+  }
+
+  /** ★ PASS-3 CRITICAL — THE COMMITTED ROWS, NOT JUST THEIR COUNT. The first version
+   *  returned a NUMBER, and `drain` marked every row it had ATTEMPTED as seen. Once
+   *  the R7 fallback existed, a batch could commit some rows and fail others — and the
+   *  failed ones were marked seen anyway, so they were NEVER RETRIED. That is the
+   *  original F0 defect (a permanently lost fire), re-introduced by F0's own fix.
+   *
+   *  A count cannot distinguish "all committed" from "some committed"; only the ROWS
+   *  can. The watermark now advances per committed row. */
+  appendManyDetailed(rows: readonly DecisionRow[]): { committed: DecisionRow[]; failed: { row: DecisionRow; error: LedgerError }[] } {
     this.ensureOpen();
-    if (rows.length === 0) return 0;
+    if (rows.length === 0) return { committed: [], failed: [] };
     const tx = this.db.transaction((rs: readonly DecisionRow[]) => {
-      let n = 0;
-      for (const r of rs) { this.append(r); n += 1; }
-      return n;
+      for (const r of rs) this.append(r);
+      return rs.length;
     });
     try {
-      return tx(rows);
+      tx(rows);
+      return { committed: [...rows], failed: [] };          // the fast path: all landed
     } catch (e) {
       if (!(e instanceof LedgerError)) {
         throw new LedgerError("APPEND_MANY_FAILED", `${rows.length} rows did not commit`, e);
       }
-      // THE FALLBACK: commit what CAN commit, name what cannot.
-      let committed = 0;
+      // THE FALLBACK: commit what CAN commit, and REPORT exactly which rows did not.
+      const committed: DecisionRow[] = [];
+      const failed: { row: DecisionRow; error: LedgerError }[] = [];
       for (const r of rows) {
-        try { this.append(r); committed += 1; } catch (inner) {
+        try {
+          this.append(r);
+          committed.push(r);
+        } catch (inner) {
           const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
+          failed.push({ row: r, error: err });
           // the recorded code carries the greppable prefix, consistently with the
           // withLedger path — a reader greps GI_LEDGER_*, not a bare suffix.
           this.notePersistFailure(`GI_LEDGER_${err.code}`, err.message);
         }
       }
-      return committed;
+      return { committed, failed };
     }
   }
 
-  /** The full table, oldest-first. */
-  all(): PersistedFireRow[] {
+  /** The full table, oldest-first. ★ pass-3: `limit` exists because the ledger GROWS
+   *  without bound — an unpaginated read of a year's fires is an OOM waiting for a
+   *  caller that only wanted the recent rows. */
+  all(limit?: number): PersistedFireRow[] {
     return this.guard("all", () => {
-      const raw = this.db.query(`SELECT * FROM fire_decisions ORDER BY id ASC`).all() as Record<string, unknown>[];
-      return raw.map(toPersisted);
+      const raw = (limit === undefined
+        ? this.db.query(`SELECT * FROM fire_decisions ORDER BY id ASC`).all()
+        : this.db.query(`SELECT * FROM fire_decisions ORDER BY id DESC LIMIT ?1`).all(limit)) as Record<string, unknown>[];
+      const rows = raw.map(toPersisted);
+      return limit === undefined ? rows : rows.reverse();   // keep oldest-first
     });
   }
 
@@ -310,8 +341,11 @@ export class FireLedger {
    *  state_hash, because one state judged twice is two rows of the SAME state
    *  and both must resolve). */
   recordTruth(stateHash: string, truth: DecisionRow["laterTruth"], at = new Date().toISOString()): number {
-    if (truth === "unresolved") {
-      throw new LedgerError("BAD_TRUTH", "the oracle resolves to confirmed|refuted — 'unresolved' is the ABSENCE of a resolution, not one");
+    // ★ pass-3: a WHITELIST, not a single-value exclusion. `truth !== 'unresolved'`
+    //   let ANY other string reach SQLite, where only the DDL CHECK stopped it — and a
+    //   table created before that CHECK existed would accept it.
+    if (truth !== "confirmed" && truth !== "refuted") {
+      throw new LedgerError("BAD_TRUTH", `the oracle resolves to confirmed|refuted; got ${JSON.stringify(truth)}`);
     }
     // ★ R2 (re-verify finding) — an empty stateHash matched ZERO rows and returned
     //   `0` as if the resolution had been applied. A silent no-op is the exact class
@@ -457,6 +491,8 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
 // both would consider the same fire unseen and write it TWICE. Exactly-once must be
 // a property of the LEDGER (the file), not of whichever handle happens to call.
 const drained = new Map<string, WeakSet<object>>();
+/** How many distinct ledger FILES one process tracks drain state for. */
+export const DRAIN_TRACKING_CAP = 64;
 
 /** Persist every row the gate has produced that this ledger has not seen.
  *  Returns the number of NEW rows written (0 on a repeat drain). */
@@ -464,6 +500,14 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   const key = path.resolve(ledger.path);
   let seen = drained.get(key);
   if (seen === undefined) {
+    // ★ pass-3: BOUNDED. A module-global map keyed by path grows for every ledger a
+    //   process ever opens and is never evicted. Beyond the cap the OLDEST entry goes —
+    //   the cost of a re-drain on an evicted ledger is a duplicate write, which is why
+    //   the cap is high, not why there should be no cap.
+    if (drained.size >= DRAIN_TRACKING_CAP) {
+      const oldest = drained.keys().next().value;
+      if (oldest !== undefined) drained.delete(oldest);
+    }
     seen = new WeakSet<object>();
     drained.set(key, seen);
   }
@@ -478,9 +522,12 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   // already-persisted: the next drain returned 0 and THOSE FIRES WERE PERMANENTLY
   // LOST. In a module whose entire purpose is "a row per fire, or no calibration",
   // a lost row is an uncalibratable fire — the defect W1 exists to prevent.
-  const n = ledger.appendMany(fresh);
-  for (const row of fresh) seen.add(row);
-  return n;
+  // ★ PASS-3 CRITICAL — THE WATERMARK ADVANCES ONLY FOR ROWS THE LEDGER CONFIRMS.
+  // Marking every ATTEMPTED row seen was the original F0 defect wearing the R7
+  // fallback as a disguise: a partially-committed batch lost its failures forever.
+  const { committed } = ledger.appendManyDetailed(fresh);
+  for (const row of committed) seen.add(row);
+  return committed.length;
 }
 
 // ── THE GUARANTEE (the wrapper) ─────────────────────────────────────────────
