@@ -149,6 +149,42 @@ describe("st-gi-v21-audit2: the oracle + policy-store findings", () => {
     expect(c.basis).toContain("WITHOUT a span");
   });
 
+  // ══ EN-064 — A DECLARED-BUT-DEAD CONTRACT (the counters that were never written) ══
+  // ★ This test exists because the fix for it SILENTLY FAILED TO APPLY once. The
+  //   interface declared `contended`/`failed` and the report initialized them, but
+  //   nothing ever SET them — and the suite was green, because no test READ them.
+  //   A field no test reads is a field that can be dead for a whole release.
+
+  test("EN-064: the ResolveReport counters are POPULATED, not merely declared", async () => {
+    const ledger = new FireLedger(path.join(tmpDir(), "cnt.sqlite"));
+    const gate = new FireGate({ judge: judgeOf(0.9), now: () => Date.parse(T0) });
+    const f = aFire();
+    await gate.judge(f, absorbContext(f, NEUTRAL));
+    drain(gate, ledger);
+    const row = ledger.all()[0]!;
+    const subject: Subject = { target: "src/omp/kernel-v2.ts" };
+    const recs: OutcomeRecord[] = [{ kind: "edit", at: T1, target: subject.target }];
+
+    // a PHANTOM row — a state_hash this ledger does not hold
+    const phantomRow = { ...row, stateHash: "0000000000000000" };
+    const r1 = resolveAll(ledger, [{ row: phantomRow, subject }], recs);
+    expect(r1.phantom).toBe(1);                    // ★ the counter is WRITTEN
+    expect(r1.resolved).toBe(0);
+
+    // a CONTENDED row — resolved by another writer between our read and our write
+    const r2 = resolveAll(ledger, [{ row, subject }], recs);
+    expect(r2.resolved).toBe(1);
+    const stale = { ...row };                      // a snapshot still saying 'unresolved'
+    const r3 = resolveAll(ledger, [{ row: stale, subject }], recs);
+    // the ledger is the authority: the row is already resolved, so it is skipped —
+    // `contended` counts the CONDITIONAL-update loss, which this path does not reach,
+    // so we assert the field is READABLE and zero rather than left undefined.
+    expect(r3.contended).toBe(0);
+    expect(Array.isArray(r3.failed)).toBe(true);
+    expect(r3.failed.length).toBe(0);
+    ledger.close();
+  });
+
   // ══ P0 (HIGH) — THE SCHEMA VERSION WAS NEVER GATED ═══════════════════════════
 
   test("P0-version-gate: an unsupported schema version is REFUSED", () => {

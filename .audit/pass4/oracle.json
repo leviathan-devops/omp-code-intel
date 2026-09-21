@@ -1,0 +1,71 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 4,
+    "total_tokens": 63683,
+    "input_tokens": 54178,
+    "output_tokens": 9505,
+    "cache_read_tokens": 29907,
+    "elapsed": "2m30s"
+  },
+  "tool_calls": {
+    "total": 3,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 1,
+      "file_read": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Return value of `recordTruth` is ignored, so `contended`/`failed` in `ResolveReport` can never be populated. `FireLedger.recordTruth` returns `number` (`r.changes`) with conditional `WHERE later_truth='unresolved'` — `0` means another writer resolved first or row is phantom, and it throws `LedgerError` on failure. Current code unconditionally counts success, misreporting lost races as `resolved`. Check the count and map `0` to `contended`.",
+      "suggestion_code": "    let touched: number;\n    try {\n      touched = ledger.recordTruth(row.stateHash, c.truth, stamp);\n    } catch (e) {\n      report.failed.push({ stateHash: row.stateHash, error: String((e as Error)?.message ?? e) });\n      continue;\n    }\n    if (touched === 0) { report.contended += 1; continue; }\n    report.resolved += 1;\n    if (c.truth === \"confirmed\") report.confirmed += 1;\n    else report.refuted += 1;\n    report.decided.push({ stateHash: row.stateHash, truth: c.truth, basis: c.basis });",
+      "existing_code": "    ledger.recordTruth(row.stateHash, c.truth, stamp);\n    report.resolved += 1;\n    if (c.truth === \"confirmed\") report.confirmed += 1;\n    else report.refuted += 1;\n    report.decided.push({ stateHash: row.stateHash, truth: c.truth, basis: c.basis });",
+      "start_line": 359,
+      "end_line": 363,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Forward window is never capped at the resolution stamp. `gather` supports `opts.notAfter` (R4c cap via `Math.min(from+windowMs, cap)`), but `resolveAll` only accepts `{windowMs, now}` and forwards `opts` unchanged — `notAfter` stays `undefined`, `cap` stays `Infinity`. Evidence with `at \u003e stamp` (future relative to resolution) is admitted, violating R4c and allowing `now`-skew/future records to confirm/refute. Pass `{windowMs: opts.windowMs, notAfter: stamp}`.",
+      "suggestion_code": "    const c = classify(gather(row, subject, records, { windowMs: opts.windowMs, notAfter: stamp }));",
+      "existing_code": "    const c = classify(gather(row, subject, records, opts));",
+      "start_line": 354,
+      "end_line": 354,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Silent `continue` paths bypass the `dismissed` audit trail, contradicting the O5 guarantee that dismissed evidence always rides the decision. Unparseable `r.at`, out-of-window `at`, `r.target` mismatch, and tool mismatch (`subject.tool` vs `r.tool`) all `continue` with no `notes`/`dismissed` entry. A caller cannot distinguish \"nothing happened\" from \"evidence seen and excluded\". Push a tagged `dismissed` note before each of these `continue`s (or document why time/target filtering is intentionally undisclosed).",
+      "suggestion_code": "    const at = Date.parse(r.at);\n    if (!Number.isFinite(at)) {\n      const note = `record @${r.at} has an unparseable stamp — ignored (no dismissed signal)`;\n      ev.notes.push(note); ev.dismissed.push(note); continue;\n    }\n    if (at \u003c= from || at \u003e to) {\n      const note = `record @${r.at} is outside the forward window (${row.at}, ${new Date(to).toISOString()}] — ignored`;\n      ev.notes.push(note); ev.dismissed.push(note); continue;\n    }",
+      "existing_code": "    const at = Date.parse(r.at);\n    if (!Number.isFinite(at)) continue;                 // an unparseable stamp is not evidence\n    if (at \u003c= from || at \u003e to) continue;                // ★ FORWARD ONLY — before-the-fire is not evidence",
+      "start_line": 185,
+      "end_line": 187,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Per-row `recordTruth` throw aborts the batch despite the O4 atomicity claim. Pre-validation only guards clock skew; the write loop has no `try/catch` and never populates `failed[]`. One `LedgerError` (e.g. `TRUTH_FAILED`, `BAD_TRUTH_AT`) leaves earlier rows committed and later rows unwritten with no report entry and no rollback — the partial-write shape O4 claims to prevent. Wrap each write, record `failed[]`, and `continue` (or document best-effort semantics).",
+      "suggestion_code": "  for (const { row, subject } of pairs) {\n    // ★ THE LEDGER SPEAKS, NOT THE CALLER. Per-row writes are best-effort:\n    //   a throw is recorded in failed[] and the loop continues with the next row.\n    //   `null` = the row is not in this ledger at all.",
+      "existing_code": "  for (const { row, subject } of pairs) {\n    // ★ THE LEDGER SPEAKS, NOT THE CALLER. `null` = the row is not in this\n    //   ledger at all — resolving a phantom would write a truth for a fire that\n    //   was never recorded.",
+      "start_line": 346,
+      "end_line": 349,
+      "category": "bug",
+      "severity": "high"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Batch write aborts on first `LedgerError`, violating atomicity** — `src/omp/oracle.ts` `resolveAll` write loop has no `try/catch` around `recordTruth` and never fills `failed[]`. One `TRUTH_FAILED` / `BAD_TRUTH_AT` leaves earlier rows committed, later rows unattempted, contradicting the O4 claim.\n2. **Forward evidence window uncapped at resolution stamp (R4c violation)** — `src/omp/oracle.ts` `resolveAll` only takes `{windowMs, now}` and forwards `opts` without `notAfter`, so `gather`'s `Math.min(from+windowMs, cap)` degrades to `cap = Infinity`. Resolutions can ingest post-decision evidence.\n3. **Contention signal discarded; `contended`/`failed` dead** — `src/omp/oracle.ts` ignores `FireLedger.recordTruth` return (`r.changes` from conditional `WHERE later_truth='unresolved'`). `0` (lost race / phantom row) is never branched on, so `ResolveReport` fields can never populate and concurrent resolvers go undetected.\n4. **Silent `continue` drops `dismissed` audit trail (O5 violation)** — `src/omp/oracle.ts` skips unparseable `r.at`, out-of-window `at`, `r.target` mismatch, and `subject.tool` vs `r.tool` mismatch with bare `continue` and no `notes`. Dismissed evidence never rides the decision.\n\n### Module Hotspots\n\n- `src/omp/oracle.ts` — 4/4 comments concentrated in `resolveAll` / `gather` / `recordTruth` interaction. No other files flagged, indicating the oracle resolution path is the sole high-risk area, specifically time-windowing, ledger-write handling, and audit construction.\n\n### Cross-Cutting Concerns\n\n- **Contract-vs-implementation drift** — `src/omp/oracle.ts`: `ResolveReport` type promises `contended`/`failed`, O4 promises atomicity, O5 promises dismissed-evidence carriage, R4c promises `notAfter` capping; none are honored by the current control flow.\n- **Asymmetric error handling** — `src/omp/oracle.ts`: clock-skew is pre-validated, but ledger-write failures and per-row validation failures (`at` parse, window, target/tool mismatch) take divergent paths — throw-abort vs. silent `continue` vs. never-populated `failed[]`.\n- **Unchecked / unthreaded return values and options** — `src/omp/oracle.ts`: `r.changes` ignored; `gather({notAfter})` capability exists but `resolveAll` never threads the resolution stamp through.\n\n### Quick Wins\n\n- Check `recordTruth` result in `src/omp/oracle.ts`: `if (changes === 0)` → push to `contended`/`failed` instead of ignoring.\n- Thread cap through: accept resolution stamp in `resolveAll` and pass `notAfter` to `gather` so forward window is `min(from+windowMs, cap)`.\n- Wrap per-row `recordTruth` in `try/catch` populating `failed[]` to restore O4 batch semantics without a larger transaction refactor.\n- Replace bare `continue` guards with a single `dismiss(reason)` helper that appends to `notes`/`dismissed` before continuing, restoring O5.",
+  "session_id": "96235c64-bc22-4333-86aa-0d8d500ebcae"
+}

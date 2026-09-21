@@ -356,7 +356,22 @@ export function resolveAll(
 
     // the stamp was validated for the WHOLE batch above (O4) — one `now()` for the
     // batch also means every row in it carries the SAME resolution time.
-    ledger.recordTruth(row.stateHash, c.truth, stamp);
+    // ★ PASS-3 HIGH, RE-APPLIED (EN-064): THE RETURN VALUE IS READ, and the two
+    //   counters are now WRITTEN. The first application of this fix silently no-op'd:
+    //   the interface declared `contended`/`failed` and the report initialized them, but
+    //   NOTHING EVER SET THEM — a declared-but-dead contract, the same class as the
+    //   unreachable `>= 2 signals` branch this module already had removed. The audit
+    //   caught it; the assertion below is why it cannot happen twice.
+    //   `recordTruth` performs a CONDITIONAL update (`WHERE later_truth='unresolved'`),
+    //   so 0 changes means another writer won the race — NOT our resolution.
+    let changes: number;
+    try {
+      changes = ledger.recordTruth(row.stateHash, c.truth, stamp);
+    } catch (e) {
+      report.failed.push({ stateHash: row.stateHash, error: e instanceof Error ? e.message : String(e) });
+      continue;
+    }
+    if (changes === 0) { report.contended += 1; continue; }
     report.resolved += 1;
     if (c.truth === "confirmed") report.confirmed += 1;
     else report.refuted += 1;

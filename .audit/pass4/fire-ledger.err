@@ -1,0 +1,5 @@
+[ocr] full-scan: 1 file(s) discovered, reviewing 1 in /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+[ocr] estimated cost: ~1 file(s), est. 80K input + 7K output ≈ 87K total tokens (rough; actual reported after run)
+[ocr] scan dispatch: 1 batch(es) by by-language strategy
+[ocr]   ▶ code_comment
+[ocr]   ✔ code_comment (1ms)
