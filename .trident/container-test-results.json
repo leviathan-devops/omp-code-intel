@@ -1,13 +1,13 @@
 {
   "phase": "F",
   "wave": "W8",
-  "generatedAt": "2026-09-21T16:30:00Z",
+  "generatedAt": "2026-09-21T17:50:00Z",
   "rig": {
     "container": "stupefied_morse",
     "image": "omp-ct:master",
     "bun": "1.4.2",
     "workdir": "/work/gi",
-    "hostSha": "bb5a1d9",
+    "hostSha": "8221cc4",
     "distSha": "83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
   },
   "method": {
@@ -17,15 +17,15 @@
   },
   "scenarios": [
     {
-      "id": "ct-v2.1-battery-post-audit",
-      "what": "the full battery in the clean container AFTER the 65 audit fixes (GAP-9 closed)",
-      "passToken": "292 pass",
+      "id": "ct-v2.1-battery-post-hotseat",
+      "what": "the full battery in the clean container AFTER the 65 audit fixes AND the 2 P4 hot-seat fixes",
+      "passToken": "300 pass",
       "failToken": "0 fail",
-      "expects": 1047,
-      "files": 28,
-      "wall": "1.80s",
+      "expects": 1078,
+      "files": 29,
+      "wall": "3.02s",
       "environment": {
-        "tmp": "cleaned (rm -rf /tmp/gi-*)",
+        "tmp": "cleaned",
         "ambientKeyEnv": "absent"
       },
       "verdict": "PASS"
@@ -33,53 +33,51 @@
   ],
   "hostVsContainer": {
     "host": {
-      "pass": 292,
+      "pass": 300,
       "fail": 0,
-      "expects": 1043,
-      "files": 28
+      "expects": 1074,
+      "files": 29
     },
     "container": {
-      "pass": 292,
+      "pass": 300,
       "fail": 0,
-      "expects": 1047,
-      "files": 28
+      "expects": 1078,
+      "files": 29
     },
     "deltaExpects": 4,
     "deltaRootCause": {
-      "status": "ROOT-CAUSED \u2014 MEASURED, and now STABLE across both runs",
+      "status": "ROOT-CAUSED \u2014 MEASURED, and STABLE across three runs (pre-audit, post-audit, post-hotseat)",
       "hostDown": 9,
       "containerDown": 11,
       "perEntryExpects": 2,
-      "arithmetic": "2 extra down entries x 2 expects = +4 \u2014 the SAME delta as the pre-audit run",
+      "arithmetic": "2 extra down entries x 2 expects = +4",
       "theTwoComponents": [
         {
           "id": "ABIDE",
-          "evidenceHost": "/home/leviathan/JARVIS_WORKSPACE/... (EXISTS)",
-          "evidenceContainer": "the same absolute path, ENOENT"
+          "evidenceContainer": "the host-absolute path, ENOENT"
         },
         {
           "id": "RSI_STORE",
-          "evidenceHost": "/home/leviathan/.omp/graph-intelligence/rsi (EXISTS)",
-          "evidenceContainer": "the same absolute path, ENOENT"
+          "evidenceContainer": "the host-absolute path, ENOENT"
         }
       ],
-      "mechanism": "the register probes ABSOLUTE HOST PATHS, so those two are UP on the host and DOWN in a container; tests/st-gi-v2-deps.test.ts:112 asserts 2 expectations per down entry.",
-      "stability": "the delta was +4 before the audit and is +4 after \u2014 it is a property of the ENVIRONMENT, not of the code, and the 65 fixes did not move it."
+      "mechanism": "the register probes ABSOLUTE HOST PATHS; tests/st-gi-v2-deps.test.ts:112 asserts 2 expectations per down entry.",
+      "stability": "the delta has been +4 on EVERY run \u2014 it is an ENVIRONMENT property, unaffected by 67 fixes."
     }
   },
   "findings": [
     {
       "id": "CT-1",
       "severity": "INFO",
-      "what": "THE 65 AUDIT FIXES ARE HERMETIC: 292/0 in BOTH the host and the clean container, 28 files each.",
+      "what": "67 fixes (65 audit + 2 hot-seat) are HERMETIC: 300/0 on host and container, 29 files each.",
       "verdict": "HERMETIC"
     },
     {
       "id": "CT-2",
       "severity": "INFO",
-      "what": "the +4 expects delta is UNCHANGED by the audit fixes (+4 before, +4 after) \u2014 confirmed to be an environment property (host-absolute path probing), not a code effect.",
+      "what": "the +4 expects delta is unchanged across three runs \u2014 an environment property, not a code effect.",
       "verdict": "STABLE"
     }
   ],
-  "verdict": "PASS \u2014 292/0/1047 in the clean container after the 65 audit fixes; the fixes are hermetic and the count delta is unchanged."
+  "verdict": "PASS \u2014 300/0/1078 in the clean container after 67 fixes; hermetic; the delta is stable."
 }

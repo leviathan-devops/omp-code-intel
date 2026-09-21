@@ -108,6 +108,24 @@ export const SEED_POLICY: Readonly<Record<string, Policy>> = {
   theatrical: { name: "theatrical-seed", act: 0.85, flag: 0.45, failPolarity: "closed" },
 };
 
+/** ★ HOT-SEAT H4-5 (BREAK): THE GATE'S OWN TIMEOUT.
+ *  Measured live: a judge that NEVER RESOLVES hung the gate forever. `budgetFires`
+ *  bounds the NUMBER of fires; NOTHING bounded TIME, so the ceiling belonged to
+ *  whichever judge implementation was passed in. The pin's own words: "a SILENT
+ *  wrong-answer / no-op / HANG is CRITICAL."
+ *  The gate is the ENFORCEMENT layer — if it can hang, the agent hangs. It now
+ *  enforces its own ceiling regardless of the judge's contract. */
+export const DEFAULT_JUDGE_TIMEOUT_MS = 10_000;
+
+/** Thrown when the gate's own ceiling elapses. DISTINCT from a judge error so the
+ *  degradation it records is named for what actually happened. */
+export class FireGateTimeout extends Error {
+  constructor(readonly ms: number) {
+    super(`GI_FIREGATE_JUDGE_TIMEOUT: the judge did not answer within ${ms}ms`);
+    this.name = "FireGateTimeout";
+  }
+}
+
 // ── THE DEGRADATION VOCABULARY (ONE place knows it) ─────────────────────────
 /** ★ THE ROW'S POLICY NAME IS THE CONTRACT FOR "this was not a real judgment".
  *  The gate marks every degraded row with a `+suffix`, and every CONSUMER must be
@@ -121,9 +139,12 @@ export const SEED_POLICY: Readonly<Record<string, Policy>> = {
  *  here; the consumers ask.
  *
  *  Returns null when the row IS a real judgment. */
-export function degradationOf(policyName: string): "NO_ANSWER" | "BAD_ANSWER" | "JUDGE_UNAVAILABLE" | null {
+export function degradationOf(policyName: string): "NO_ANSWER" | "BAD_ANSWER" | "TIMEOUT" | "JUDGE_UNAVAILABLE" | null {
   if (policyName.includes("+no-answer")) return "NO_ANSWER";
   if (policyName.includes("+bad-answer")) return "BAD_ANSWER";
+  // ★ the hot seat's finding: a TIMEOUT is a degradation like any other, and a
+  //   consumer that could not name it would treat a hung judge as a real judgment.
+  if (policyName.includes("+timeout")) return "TIMEOUT";
   if (policyName.includes("+fail-")) return "JUDGE_UNAVAILABLE";
   return null;
 }
@@ -241,8 +262,11 @@ export interface FireGateConfig {
   /** Where to append the decision rows. Absent ⇒ no ledger ⇒ no calibration. */
   ledgerPath?: string;
   cachePath?: string;
-  /** Hard stop, §D017. */
+  /** Hard stop, §D017 — bounds the NUMBER of fires. */
   budgetFires?: number;
+  /** ★ HOT-SEAT H4-5 — bounds the TIME of one judgment. `budgetFires` cannot: a judge
+   *  that never answers spends no budget. Defaults to DEFAULT_JUDGE_TIMEOUT_MS. */
+  judgeTimeoutMs?: number;
   now?: () => number;
 }
 
@@ -271,6 +295,13 @@ export function mpsePreFilter(fire: Fire, ctx: AbsorbedContext): { settle: FireD
 export class FireGate {
   private budgetUsed = 0;
   private cache = new Map<string, { probability: number }>();
+  /** ★ HOT-SEAT W2-1 (BREAK): SINGLE-FLIGHT. `cache.set` runs only AFTER a judgment
+   *  returns, so N CONCURRENT fires with the same state all missed and all paid the
+   *  model. Measured live: 24 fires over 3 distinct states produced cacheHits=0 and 24
+   *  model calls, against a documented 60-80% hit rate — the operator's cost envelope
+   *  assumes those hits. This map makes a concurrent duplicate WAIT for the call already
+   *  in flight instead of starting its own. */
+  private inFlight = new Map<string, Promise<readonly { id: string; probability: number }[]>>();
   private ledger: DecisionRow[] = [];
 
   constructor(private readonly cfg: FireGateConfig) {}
@@ -325,24 +356,49 @@ export class FireGate {
 
     // THE JUDGMENT — ONE Noul, one state, one call.
     let answers: readonly { id: string; probability: number }[];
+    let sharedCall = false;
     try {
-      answers = await this.cfg.judge.evaluate(state, [fireQuestion()]);
-      this.budgetUsed += 1;
+      // ★ HOT-SEAT H4-5 — THE GATE'S OWN CEILING. Measured: a judge that never resolves
+      //   hung this gate forever, because the timeout belonged to the JUDGE's contract
+      //   and not the gate's. `Promise.race` against a timer makes the ceiling the
+      //   GATE's, whatever the judge does. The timer is cleared so a normal path does
+      //   not hold the event loop open.
+      const ceiling = this.cfg.judgeTimeoutMs ?? DEFAULT_JUDGE_TIMEOUT_MS;
+      const timer = Promise.withResolvers<never>();
+      const handle = setTimeout(() => timer.reject(new FireGateTimeout(ceiling)), ceiling);
+      // ★ W2-1: a concurrent identical fire SHARES the call already in flight.
+      const call = this.judgeOnce(stateHash, state);
+      sharedCall = call.shared;
+      try {
+        answers = await Promise.race([call.answers, timer.promise]);
+      } finally {
+        clearTimeout(handle);
+      }
+      // ★ only the CREATOR spends budget: a shared call is one model call, and the
+      //   budget counter is the economic meter, not a judgment counter.
+      if (!call.shared) this.budgetUsed += 1;
     } catch (e) {
       // D010: the polarity of THIS surface. Fail-open = the act proceeds and the
       // miss is RECORDED; fail-closed = the act is refused.
+      // ★ A TIMEOUT AND A JUDGE ERROR ARE DIFFERENT FACTS and get different names —
+      //   a consumer that cannot tell them apart cannot tell "the model is slow" from
+      //   "the model is broken".
+      const timedOut = e instanceof FireGateTimeout;
       const closed = policy.failPolarity === "closed";
+      const suffix = timedOut ? "timeout" : `fail-${policy.failPolarity}`;
       const row: DecisionRow = {
         at: new Date(t0).toISOString(), ruleId: fire.ruleId, cls: fire.cls,
         questionVersion: QUESTION_VERSION, probability: closed ? 1 : 0,
         band: closed ? "act" : "ignore", action: closed ? "FIRE" : "IGNORE",
-        policyName: `${policy.name}+fail-${policy.failPolarity}`, actThreshold: policy.act,
+        policyName: `${policy.name}+${suffix}`, actThreshold: policy.act,
         flagThreshold: policy.flag, stateHash, costUsd: 0, laterTruth: "unresolved",
       };
       this.ledger.push(row);
       return {
         ruleId: fire.ruleId, probability: row.probability, band: row.band as never, action: row.action as never,
-        reason: `judge unavailable (${e instanceof Error ? e.message.slice(0, 120) : "?"}) — fail-${policy.failPolarity} for the ${fire.cls} surface`,
+        reason: timedOut
+          ? `the judge exceeded the gate's ${(e as FireGateTimeout).ms}ms ceiling — fail-${policy.failPolarity} for the ${fire.cls} surface`
+          : `judge unavailable (${e instanceof Error ? e.message.slice(0, 120) : "?"}) — fail-${policy.failPolarity} for the ${fire.cls} surface`,
         row, cached: false, latencyMs: (this.cfg.now ?? Date.now)() - t0,
       };
     }
@@ -387,7 +443,31 @@ export class FireGate {
       stateHash, costUsd: 0, laterTruth: "unresolved",
     };
     this.ledger.push(row);
-    return { ruleId: fire.ruleId, probability: p, band: band as never, action: action as never, reason: `P(real)=${p.toFixed(3)} under ${policy.name} (act>=${policy.act}, flag>=${policy.flag})`, row, cached: false, latencyMs: (this.cfg.now ?? Date.now)() - t0 };
+    return {
+      ruleId: fire.ruleId, probability: p, band: band as never, action: action as never,
+      reason: `P(real)=${p.toFixed(3)} under ${policy.name} (act>=${policy.act}, flag>=${policy.flag})`,
+      // ★ W2-1: a SHARED call is a cache hit in effect — the same state did not pay
+      //   twice. Reporting it as `cached: false` would have hidden the very saving the
+      //   single-flight exists to make.
+      row, cached: sharedCall, latencyMs: (this.cfg.now ?? Date.now)() - t0,
+    };
+  }
+
+  /** ★ HOT-SEAT W2-1 — ONE MODEL CALL PER STATE IN FLIGHT. Returns the shared promise
+   *  and whether this caller CREATED it: only the creator spends budget, because only
+   *  the creator makes a call. The map entry is removed when the call settles, so the
+   *  long-lived cache below takes over for later (non-concurrent) repeats. */
+  private judgeOnce(stateHash: string, state: Record<string, unknown>): { answers: Promise<readonly { id: string; probability: number }[]>; shared: boolean } {
+    const existing = this.inFlight.get(stateHash);
+    if (existing !== undefined) return { answers: existing, shared: true };
+    const answers = this.cfg.judge.evaluate(state, [fireQuestion()]);
+    this.inFlight.set(stateHash, answers);
+    // settle → evict, so the map holds only calls genuinely in flight.
+    void answers.then(
+      () => this.inFlight.delete(stateHash),
+      () => this.inFlight.delete(stateHash),
+    );
+    return { answers, shared: false };
   }
 
   /** §6.4.7 — the oracle fills this in later. Never assumed at firing time. */

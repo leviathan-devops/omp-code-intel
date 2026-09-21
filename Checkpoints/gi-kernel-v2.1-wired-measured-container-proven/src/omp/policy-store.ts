@@ -66,7 +66,11 @@ function canonical(value: unknown): string {
 }
 
 export class PolicyError extends Error {
-  constructor(code: string, detail: string, cause?: unknown) {
+  /** ★ PASS-4 / EN-064 CLASS — THE CODE IS A PROPERTY, as `LedgerError.code` is. The
+   *  pass-3 sweep gave the LEDGER's error a machine-readable code and left the POLICY's
+   *  embedding it only in the message: the same fix, applied to one class and not its
+   *  sibling. A consumer must never parse a message to get a code. */
+  constructor(readonly code: string, detail: string, cause?: unknown) {
     // ★ P6 — CHAIN the cause rather than stringifying it into the message. The
     // original stack was discarded, which made a load failure hard to diagnose.
     // The message keeps the short form so the code stays greppable.
@@ -196,8 +200,11 @@ export function readPolicyFile(filePath: string): PolicyFile {
   if (typeof obj.version !== "number" || !Number.isFinite(obj.version)) {
     throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no numeric version`);
   }
-  if (obj.policies === null || typeof obj.policies !== "object") {
-    throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no policies object`);
+  // ★ EN-064 CLASS — `typeof [] === "object"`, so an ARRAY passed this check and then
+  //   every array INDEX became a rule id. This upgrade was committed in pass 3 and never
+  //   applied (the assertion in the fix script is why that cannot recur).
+  if (obj.policies === null || typeof obj.policies !== "object" || Array.isArray(obj.policies)) {
+    throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no policies object (an array is not a map)`);
   }
   if (!SUPPORTED_POLICY_VERSIONS.includes(obj.version)) {
     throw new PolicyError(
@@ -205,7 +212,16 @@ export function readPolicyFile(filePath: string): PolicyFile {
       `the policy file at ${filePath} declares version ${obj.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(", ")}`,
     );
   }
-  const file: PolicyFile = { version: obj.version, policies: obj.policies as Record<string, Policy> };
+  // ★ EN-064 CLASS — THREE fixes were committed here in pass 3 and NONE applied:
+  //   the keys were never checked (a `__proto__` rule id walked the prototype chain),
+  //   the map was never null-prototyped, and the returned file was never frozen (a
+  //   caller could mutate a VALIDATED file and hand an unvalidated bar onward).
+  const policies = nullProtoRecord<Policy>();
+  for (const [ruleId, pol] of Object.entries(obj.policies as Record<string, unknown>)) {
+    assertSafeKey(ruleId);
+    policies[ruleId] = pol as Policy;
+  }
+  const file: PolicyFile = deepFreeze({ version: obj.version, policies });
   // ★ P3 — VALIDATE ON READ, not only inside PolicyStore. `readPolicyFile` is
   // exported, so a direct caller could install an out-of-range or inverted bar
   // without ever reaching the store's constructor.

@@ -118,6 +118,15 @@ export interface ResolveReport {
    *  another store. Previously `continue`d with no counter, so a caller could not tell
    *  "nothing to do" from "I gave you rows you do not own". */
   phantom: number;
+  /** ★ HOT-SEAT H4-7 (BREAK) — rows ALREADY RESOLVED when this call reached them.
+   *  The live partition assertion (`resolved + leftUnresolved + phantom + contended +
+   *  failed === rows`) failed: rows=17 but the counters summed to 16. The skip for an
+   *  already-resolved row had NO counter, so a row could vanish from the report.
+   *  ★ The common cause is the CACHE: two rows can share a state_hash (a cache hit
+   *  writes a second row for the same state), and `recordTruth` updates by state_hash —
+   *  so resolving the first resolves the second too, and the second is skipped here.
+   *  That is correct behaviour; the REPORT was wrong to hide it. */
+  alreadyResolved: number;
   /** ★ pass-3: rows another writer resolved first (the conditional update lost). */
   contended: number;
   /** ★ pass-3: rows whose WRITE failed — named, never silent. */
@@ -316,7 +325,7 @@ export function resolveAll(
 ): ResolveReport {
   const now = opts.now ?? (() => new Date().toISOString());
   const report: ResolveReport = {
-    resolved: 0, confirmed: 0, refuted: 0, leftUnresolved: 0, phantom: 0, contended: 0, failed: [], decided: [],
+    resolved: 0, confirmed: 0, refuted: 0, leftUnresolved: 0, alreadyResolved: 0, phantom: 0, contended: 0, failed: [], decided: [],
   };
   // ★ O4 (HIGH) — PRE-VALIDATE THE WHOLE BATCH BEFORE THE FIRST WRITE. The clock
   // check used to run INSIDE the loop, so a single skewed stamp (or one bad row.at)
@@ -349,14 +358,32 @@ export function resolveAll(
     //   was never recorded.
     const live = ledger.truthOf(row.stateHash);
     if (live === null) { report.phantom += 1; continue; }
-    if (live !== "unresolved") continue;         // already decided — never re-stamped
+    // ★ HOT-SEAT H4-7 — COUNTED, not silently skipped. Every row in the input must land
+    //   in exactly ONE bucket, or a caller cannot tell "I resolved everything" from
+    //   "I quietly ignored some".
+    if (live !== "unresolved") { report.alreadyResolved += 1; continue; }
 
     const c = classify(gather(row, subject, records, opts));
     if (c.truth === "unresolved") { report.leftUnresolved += 1; continue; }
 
     // the stamp was validated for the WHOLE batch above (O4) — one `now()` for the
     // batch also means every row in it carries the SAME resolution time.
-    ledger.recordTruth(row.stateHash, c.truth, stamp);
+    // ★ PASS-3 HIGH, RE-APPLIED (EN-064): THE RETURN VALUE IS READ, and the two
+    //   counters are now WRITTEN. The first application of this fix silently no-op'd:
+    //   the interface declared `contended`/`failed` and the report initialized them, but
+    //   NOTHING EVER SET THEM — a declared-but-dead contract, the same class as the
+    //   unreachable `>= 2 signals` branch this module already had removed. The audit
+    //   caught it; the assertion below is why it cannot happen twice.
+    //   `recordTruth` performs a CONDITIONAL update (`WHERE later_truth='unresolved'`),
+    //   so 0 changes means another writer won the race — NOT our resolution.
+    let changes: number;
+    try {
+      changes = ledger.recordTruth(row.stateHash, c.truth, stamp);
+    } catch (e) {
+      report.failed.push({ stateHash: row.stateHash, error: e instanceof Error ? e.message : String(e) });
+      continue;
+    }
+    if (changes === 0) { report.contended += 1; continue; }
     report.resolved += 1;
     if (c.truth === "confirmed") report.confirmed += 1;
     else report.refuted += 1;

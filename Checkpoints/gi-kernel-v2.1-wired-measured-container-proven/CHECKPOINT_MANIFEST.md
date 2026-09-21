@@ -14,8 +14,11 @@ DIST      extensions/graph-intelligence/index.js
           sha256 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
           613,039 bytes — UNCHANGED through this session (the v2.1 work is SOURCE; the
           dist is v1.3's and the v2.x modules are not bundled into it)
-BATTERY   292 pass / 0 fail / 1043 expect / 28 files  (host — after the 65 audit fixes)
-          292 pass / 0 fail / 1047 expect / 28 files  (clean container, POST-audit ✓ GAP-9 CLOSED)
+BATTERY   300 pass / 0 fail / 1074 expect / 29 files  (host — after 65 audit + 2 hot-seat fixes)
+          300 pass / 0 fail / 1078 expect / 29 files  (clean container ✓)")
+BATTERY_NOTE
+          300 pass / 0 fail / 1074 expect / 29 files  (host — after 65 audit + 2 hot-seat fixes)
+          300 pass / 0 fail / 1078 expect / 29 files  (clean container)
           ★ the +4 expects delta is UNCHANGED by the audit fixes — it is an ENVIRONMENT
             property (the register probes host-absolute paths for ABIDE + RSI_STORE), not
             a code effect. The 65 fixes are HERMETIC.
@@ -75,6 +78,33 @@ The artifacts are in artifacts/audit/ (9 files: sg-ocr-*, reverify/, pass3/).
   · PROTOTYPE POLLUTION FROM A JSON CONFIG (__proto__ / constructor rule ids)
   · A SYMLINK-FOLLOWING ATOMIC WRITE
   · A COMMENT PROMISING MORE THAN THE CODE DOES
+```
+
+## ★ THE P4 HOT SEAT — WHAT DRIVING FOUND (2026-09-21)
+
+```
+STANCE: "I am the driver of the GI Kernel v2.1 fire gate at dist sha 83eb7bba, driven
+through the live JevJudge against api.typesafe.ai."
+DRIVER: packages/gi-kernel-v2.1/tools/hotseat-v2.1.ts — 24 ops in two waves.
+LEDGER: artifacts/runtime/hotseat-report.json
+
+★★ TWO CRITICAL-CLASS DEFECTS, both on paths no test had ever driven:
+
+  H4-5  A JUDGE THAT NEVER RESOLVES HUNG THE GATE FOREVER.
+        budgetFires bounds the NUMBER of fires; NOTHING bounded TIME. The ENFORCEMENT
+        LAYER could hang the agent — the pin names a hang as CRITICAL explicitly.
+        FIXED: the gate enforces its OWN ceiling (10s default), with a DISTINCT
+        degradation (+timeout) because "slow" and "broken" need different responses.
+
+  W2-1  N CONCURRENT IDENTICAL FIRES ALL MISSED THE CACHE AND ALL PAID.
+        Measured: 24 fires over 3 distinct states → cacheHits=0, 24 model calls, against
+        a documented 60-80% hit rate that the operator's COST ENVELOPE assumes.
+        FIXED: SINGLE-FLIGHT — a concurrent duplicate waits for the call in flight.
+        RETEST: cacheHits 0 → 21 of 24; firesUsed 41 → 20.
+
+★ THE LESSON: the adversarial corpus probes DECISIONS with controlled inputs. The hot
+  seat runs the REAL instance under concurrency, a dead judge and a spent budget — and
+  found two CRITICAL-class defects the corpus could not reach.
 ```
 
 ## ★ THE HONEST GAPS (what this checkpoint does NOT give you)
