@@ -210,7 +210,7 @@ describe("st-gi-v21-evidence-producer: P2 — the producer", () => {
     }
 
     // ★ THE SESSION'S OPERATION: one edit to the target that fired 3 times
-    const events: ToolEvent[] = [{ tool: "edit", target: "src/omp/kernel-v2.ts", at: AFTER, ok: true }];
+    const events: ToolEvent[] = [{ tool: "edit", target: "src/omp/kernel-v2.ts", at: AFTER, ok: true, repair: true }];
     const r = resolveFromSession(ledger, events, {
       recordsPath: path.join(dir, "r.ndjson"), subjects,
       now: () => "2026-09-20T12:00:00.000Z",

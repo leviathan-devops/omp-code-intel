@@ -73,7 +73,10 @@ async function aPersistedRow(over: Partial<Fire> = {}): Promise<{ row: Persisted
 const SUBJECT = { target: "src/omp/kernel-v2.ts", tool: "edit" };
 
 function rec(over: Partial<OutcomeRecord>): OutcomeRecord {
-  return { kind: "edit", at: "2026-09-20T11:00:00.000Z", target: SUBJECT.target, ...over };
+  // ★ EN-089 — THE FIXTURES NOW CARRY THE REPAIR SHAPE. A bare edit is a TOUCH, and the
+  //   measurement proved a touch is saturated (100% on a self-editing session) and carries
+  //   no information. These scenarios mean "the act was REVISITED" — so they say so.
+  return { kind: "edit", at: "2026-09-20T11:00:00.000Z", target: SUBJECT.target, repair: true, ...over };
 }
 
 describe("st-gi-v21-oracle: W2 — the laterTruth resolution", () => {
@@ -219,6 +222,23 @@ describe("st-gi-v21-oracle: W2 — the laterTruth resolution", () => {
     const bound = classify(gather(row, SUBJECT, [rec({ kind: "withdraw", span: "src/omp/kernel-v2.ts:299" })]));
     expect(bound.truth).toBe("confirmed");
     expect(bound.basis).toContain("withdrawn");
+    ledger.close();
+  });
+
+  test("test_oracle_bare_touch_is_NOT_harm — the EN-089 measured fix", async () => {
+    const { row, ledger } = await aPersistedRow();
+    // ★ A TOUCH WITHOUT THE REPAIR SHAPE. The clock signal resolved 48/48 (100%) on this
+    //   session's own history — because the session edits its own files continuously. The
+    //   file-scoped DIFF predicate discriminates at 0.55%. So a bare touch is NOT harm:
+    //   it is recorded, DISCLOSED, and lands UNRESOLVED.
+    const bare = gather(row, SUBJECT, [{ kind: "edit", at: "2026-09-20T11:00:00.000Z", target: SUBJECT.target }]);
+    expect(bare.laterEdit).toBe(false);
+    expect(bare.signals).toEqual([]);
+    const c = classify(bare);
+    expect(c.truth).toBe("unresolved");
+    // ★ AND THE DISMISSAL IS DISCLOSED — "nothing happened" and "something happened and was
+    //   declined" must never render identically (the EN-054 law)
+    expect(c.basis).toContain("NOT repaired");
     ledger.close();
   });
 

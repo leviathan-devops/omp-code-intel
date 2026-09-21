@@ -333,7 +333,10 @@ const SCENARIOS: Scenario[] = [
       drain(gate, ledger);
       const row = ledger.all()[0]!;
       const subject: Subject = { target: "src/omp/x.ts" };
-      const events: ToolEvent[] = [{ tool: "edit", target: "src/omp/x.ts", at: "2026-09-20T09:00:00Z", ok: true }];
+      // ★ EN-089 — THE SCENARIO'S EVIDENCE MUST CARRY THE REPAIR SHAPE. A bare touch is not
+      //   harm (the clock signal saturated at 100%; the file-scoped diff discriminates at
+      //   0.55%), so this scenario — which MEANS "the act was revisited" — says so.
+      const events: ToolEvent[] = [{ tool: "edit", target: "src/omp/x.ts", at: "2026-09-20T09:00:00Z", ok: true, repair: true }];
       const recs = produce(events, row.at, subject);
       const rep = resolveAll(ledger, [{ row, subject }], recs, { now: () => "2026-09-20T12:00:00Z" });
       const after = ledger.all()[0]!;

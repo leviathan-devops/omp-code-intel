@@ -200,7 +200,7 @@ describe("st-gi-v21-redteam: P5 — the full corpus pass", () => {
     await gate.judge(f, absorbContext(f, NEUTRAL));
     drain(gate, ledger);
     const stale = ledger.all()[0]!;                       // the caller's SNAPSHOT
-    const recs: OutcomeRecord[] = [{ kind: "edit", at: new Date(Date.parse(stale.at) + 3_600_000).toISOString(), target: f.target }];
+    const recs: OutcomeRecord[] = [{ kind: "edit", at: new Date(Date.parse(stale.at) + 3_600_000).toISOString(), target: f.target, repair: true }];
     expect(resolveAll(ledger, [{ row: stale, subject: { target: f.target } }], recs).resolved).toBe(1);
     // the SECOND pass with the SAME stale object must change nothing
     expect(resolveAll(ledger, [{ row: stale, subject: { target: f.target } }], recs).resolved).toBe(0);
@@ -235,7 +235,7 @@ describe("st-gi-v21-redteam: P5 — the full corpus pass", () => {
     expect(ev.signals).toEqual([]);
     expect(classify(ev).truth).toBe("unresolved");
     // and one millisecond later IS later
-    const ev2 = gather(row, { target: f.target }, [{ kind: "edit", at: new Date(Date.parse(row.at) + 1).toISOString(), target: f.target }]);
+    const ev2 = gather(row, { target: f.target }, [{ kind: "edit", at: new Date(Date.parse(row.at) + 1).toISOString(), target: f.target, repair: true }]);
     expect(ev2.signals).toEqual(["laterEdit"]);
     ledger.close();
   });

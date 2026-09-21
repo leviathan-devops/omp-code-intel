@@ -463,3 +463,34 @@
   plausible, cheap, and WRONG; a sweep costing 0.2 seconds eliminated it.
 - EVIDENCE: .trident/e1-window-sweep.json · the oracle's header carries the table and the verdict
   · battery 351/0/1253/33 · tsc 191.
+
+## [2026-09-22T05:40:00] — EN-089 ★★★ THE REPAIR PREDICATE: THE ONLY PRINCIPLED REMEDY, MEASURED AND IMPLEMENTED
+- THE CHAIN OF THREE MEASUREMENTS (each refuting the previous reading):
+    1 e1-sizing: the laterEdit gatherer resolved **48/48 (100%)** on this session's own history
+      → a RED FLAG, not a result — the signal saturated.
+    2 e1-window-sweep: the CLOCK cannot discriminate. 1m→0% · 5m→2% · 15m→6% · 1h→17% ·
+      ★ 6h→100% ← THE CLIFF. The cliff IS the session's length (the session ran ~6h), so a
+      tighter window is a CALIBRATION TO HOW LONG THE RUN LASTED — REFUTED as a semantic fix.
+    3 ★★★ repair-predicate, AS A LADDER:
+        P0 content-global (my first attempt)   265,389   38.34%   ← SATURATED (comment rewrites)
+        P1 FILE-SCOPED                           4,330    0.63%   ← ★ A 60x DROP
+        P2 FILE + 6h WINDOW                      3,802    0.55%   ← ★ THE VIABLE PREDICATE
+      ★ THE FILE SCOPE IS THE DECISIVE NARROWING. MY FIRST PREDICATE WAS THE WHOLE PROBLEM: it
+        matched content GLOBALLY, so a comment removed in one file and re-added in another
+        counted as a repair — and on this corpus, comment rewrites are constant.
+- ★ THE IMPLEMENTATION (measured, used — never an unused signal, the unwired-kernel law):
+    `OutcomeRecord.repair?: boolean` + `ToolEvent.repair?: boolean`, set by the CALLER (only the
+    caller holds the diff). The oracle's edit branch: a `repair: true` edit → `laterEdit` (HARM);
+    a BARE TOUCH → recorded, DISCLOSED in `dismissed`, and lands UNRESOLVED.
+  ★ A bare touch is NOT harm — the measured reason: the clock signal saturated at 100%, so it
+    carried ZERO information about whether the firing was real.
+- ★ AND THE TESTS ENCODED THE DEFECT: 8 fixtures asserted "a bare edit → CONFIRMED" — the
+  saturated behaviour as the contract. All 8 now carry the repair shape, and a NEW test
+  (`test_oracle_bare_touch_is_NOT_harm`) asserts the measured fix AND that the dismissal is
+  DISCLOSED (the EN-054 law: "nothing happened" and "something happened and was declined" must
+  never render identically).
+- ★ AND THE HOST SUITE CAUGHT ITS OWN S13: the producer→oracle scenario dropped to 12/13 because
+  its event no longer carried the repair shape — THE SCENARIO'S EVIDENCE MUST MATCH ITS MEANING.
+  Fixed; 13/13 green again.
+- EVIDENCE: .trident/repair-predicate.json · .trident/e1-window-sweep.json · .trident/e1-sizing.json
+  · battery 352/0/1257/33 host · 352/0/1250/33 container · tsc 191 · host suite 13/13.

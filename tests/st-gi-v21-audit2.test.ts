@@ -107,7 +107,7 @@ describe("st-gi-v21-audit2: the oracle + policy-store findings", () => {
     const ev = gather({ at: T0 }, subject, records);
     expect(ev.signals).toEqual([]);                 // ★ the tool filter must reject it
     // and the RIGHT tool still counts
-    const ok = gather({ at: T0 }, subject, [{ kind: "edit", at: T1, target: subject.target, tool: "edit" }]);
+    const ok = gather({ at: T0 }, subject, [{ kind: "edit", at: T1, target: subject.target, tool: "edit", repair: true }]);
     expect(ok.signals).toEqual(["laterEdit"]);
   });
 
@@ -164,7 +164,7 @@ describe("st-gi-v21-audit2: the oracle + policy-store findings", () => {
     drain(gate, ledger);
     const row = ledger.all()[0]!;
     const subject: Subject = { target: "src/omp/kernel-v2.ts" };
-    const recs: OutcomeRecord[] = [{ kind: "edit", at: T1, target: subject.target }];
+    const recs: OutcomeRecord[] = [{ kind: "edit", at: T1, target: subject.target, repair: true }];
 
     // a PHANTOM row — a state_hash this ledger does not hold
     const phantomRow = { ...row, stateHash: "0000000000000000" };

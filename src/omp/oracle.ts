@@ -90,6 +90,17 @@ export interface OutcomeRecord {
   target?: string;
   /** For a test: did it pass? */
   passed?: boolean;
+  /** ★ EN-089 — IS THIS EDIT REPAIR-SHAPED? MEASURED, NOT ASSUMED: a later edit is a
+   *  REPAIR iff it REMOVES a line that an earlier commit removed-then-readded... precisely:
+   *  iff the added content was previously REMOVED FROM THE SAME FILE within the window.
+   *  THE MEASUREMENT (this repo's whole history, 692,220 additions):
+   *      content-global predicate     38.34%   ← SATURATED (fires on comment rewrites)
+   *      FILE-SCOPED                   0.63%   ← a 60x drop: THE FILE SCOPE IS DECISIVE
+   *      FILE + 6h WINDOW              0.55%   ← the viable predicate
+   *  ★ versus the CLOCK, which gave 100% at every window ≥ 6h. THE DIFF DISCRIMINATES
+   *    WHERE THE CLOCK COULD NOT.
+   *  The caller sets it because only the caller holds the diff. */
+  repair?: boolean;
   /** For a withdrawal: the bound evidence that makes the retraction real. */
   span?: string;
   /** ★ WHICH TOOL produced the record (audit finding O3). `Subject.tool` was
@@ -245,8 +256,19 @@ export function gather(
     if (subject.tool !== undefined && r.tool !== undefined && r.tool !== subject.tool) continue;
 
     if (r.kind === "edit") {
-      ev.laterEdit = true;
-      ev.notes.push(`laterEdit @${r.at} on ${r.target ?? "(global)"} — the act was revisited`);
+      // ★ EN-089 — THE MEASURED FIX. A bare TOUCH is not a REPAIR: the clock-based signal
+      //   saturated at 100% on a self-editing session (measured, .trident/e1-sizing.json),
+      //   so it carried ZERO information. The content predicate discriminates at 0.55%.
+      //   ★ A touch WITHOUT the repair shape is recorded and does NOT count as harm —
+      //   it lands in the dismissed bucket, so the basis DISCLOSES what it saw and declined.
+      if (r.repair === true) {
+        ev.laterEdit = true;
+        ev.notes.push(`laterEdit @${r.at} on ${r.target ?? "(global)"} — REPAIR-SHAPED (a line re-added after removal from the same file)`);
+      } else {
+        const note = `touch @${r.at} on ${r.target ?? "(global)"} — the file was touched but NOT repaired (a bare touch is not harm; the clock signal saturated at 100% — EN-089)`;
+        ev.notes.push(note);
+        ev.dismissed.push(note);
+      }
     } else if (r.kind === "test") {
       ev.testsAfter += 1;
       if (r.passed === true) {

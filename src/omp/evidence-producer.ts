@@ -41,6 +41,10 @@ export interface ToolEvent {
   ok?: boolean;
   /** For a verify/test command: did it PASS? Absent = the run carried no verdict. */
   passed?: boolean;
+  /** ★ EN-089 — IS THIS EDIT REPAIR-SHAPED? The CALLER sets it because only the caller holds
+   *  the diff. Measured: the clock signal saturated at 100%; the file-scoped diff predicate
+   *  discriminates at 0.55%. A bare touch is not harm. */
+  repair?: boolean;
   /** Who or what produced the event. */
   by?: string;
 }
@@ -100,7 +104,12 @@ export function produce(
     if (!touches(e, subject)) continue;
 
     if (e.tool === "edit" || e.tool === "write") {
-      out.push({ kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool });
+      // ★ the repair shape is CARRIED, never inferred — an edit the caller did not measure is
+      //   a TOUCH, and a touch is not harm (EN-089).
+      out.push({
+        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
+        ...(e.repair === undefined ? {} : { repair: e.repair }),
+      });
       continue;
     }
     if (VERIFY_COMMAND.test(e.command ?? "")) {
