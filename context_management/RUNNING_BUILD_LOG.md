@@ -307,3 +307,69 @@
 - ★ THE DELTA IS UNCHANGED: +4 expects, exactly as before the audit. Root cause (measured earlier): the register probes ABSOLUTE HOST PATHS for ABIDE and RSI_STORE, so those two are UP on the host and DOWN in a container, and tests/st-gi-v2-deps.test.ts:112 asserts 2 expectations per down entry → 2 × 2 = +4. The audit fixes did NOT move it, which confirms it is an ENVIRONMENT property rather than a code effect.
 - ★ THE CONCLUSION: the 65 audit fixes are HERMETIC. The container and the host agree on every count that is a property of the code.
 - The Phase F artifact (.trident/container-test-results.json) now carries the POST-audit scenario and the stability finding.
+
+## [2026-09-21T17:10:00] — ★ EN-064/EN-065: MY COMMITTED FIXES HAD SILENTLY NOT APPLIED
+- WHAT: 8 fixes re-applied across fire-gate.ts + oracle.ts + policy-store.ts, each with an ASSERTING replace helper (raise on a missing pattern).
+- WHY: python `str.replace(old,new)` returns the string UNCHANGED when `old` is absent and raises nothing — and I printed a success line unconditionally. Two rounds of fixes (3 oracle, 5 policy) were committed as landed and had never applied. The build parsed, the battery stayed green, the tests passed, because NO TEST READ THE FIELDS THE FIXES ADDED.
+- ★ THIS WAS A FALSE REPORT — the anti-theatricality violation this session spent its length policing, committed by its own author through a tool that fails silently by design. The AUDIT caught it.
+- FIXED AT BOTH LEVELS: the code, and the MECHANISM (the helper now refuses to claim an unapplied fix — it fired on the first re-application attempt).
+- EVIDENCE: battery 293/0/1049/28 · tsc 191 · 9 grep verifications after the edits.
+
+## [2026-09-21T17:40:00] — P4 THE RUNTIME SEAT: 24 OPS, TWO CRITICAL-CLASS DEFECTS
+- STANCE (declared in writing): "I am the driver of the GI Kernel v2.1 fire gate at dist sha 83eb7bba, driven through the live JevJudge against api.typesafe.ai."
+- DRIVER: packages/gi-kernel-v2.1/tools/hotseat-v2.1.ts — 24 ops, two waves.
+- ★ H4-5 (CRITICAL CLASS): a judge that NEVER RESOLVES hung the gate FOREVER. `budgetFires` bounds the NUMBER of fires; NOTHING bounded TIME. FIXED: the gate's own ceiling (DEFAULT_JUDGE_TIMEOUT_MS) + a `+timeout` degradation distinct from a judge error. RETEST: returned at 1502ms, named.
+- ★ W2-1 (CRITICAL CLASS): N CONCURRENT identical fires ALL MISSED the cache (24 fires / 3 states → cacheHits=0, 24 calls) against a documented 60-80% hit rate the cost envelope assumes. FIXED: single-flight. RETEST: cacheHits 0 → 21 of 24 · firesUsed 41 → 20.
+- +H4-7: the oracle's counters did not PARTITION (rows=17, sum=16). FIXED: alreadyResolved.
+- EVIDENCE: 24 ops / 0 breaks / 1 note · tests/st-gi-v21-hotseat.test.ts · battery 300/0/1074/29 · tsc 191.
+
+## [2026-09-21T18:10:00] — THE SECOND OPERATOR: 9 DOC GAPS FOUND, ALL FIXED
+- A zero-context `task` subagent, given ONLY the eight named docs. 8 ops · 6 SUFFICIENT · 2 GAP.
+- ★ OP-8 THE DECISIVE GAP: the operator succeeded ONLY by reading src/omp/fire-gate.ts to infer the Judge.evaluate RETURN CONTRACT — the §8.3 "forkable shell" was not forkable.
+- ★ OP-3: THREE docs named tests/st-gi-v2.1-firegate.test.ts, which NEVER EXISTED (the real files are st-gi-v21-*.test.ts). A suite cannot detect a doc pointing at a phantom.
+- FIXED: §8.2.1 (the Judge + Fire contracts) added to the blueprint · §8 corrected in the spec · 00-INDEX + 06-WAVES corrected · the run location and the -t file-scoping rule stated.
+- REPORT: .mimocode/runtime-grade/second-operator-report.md
+
+## [2026-09-21T18:35:00] — EN-067 ★★ THE REGISTER WAS WRONG ABOUT JEV
+- MEASURED: register JEV DOWN ("TYPESAFE_AI_API_KEY ABSENT") while the live JevJudge answered p=0.49. The register probed an ENV VAR the judge NEVER READS; the judge reads ~/.config/typesafe/key.
+- ★ STAGE 0 refuses the whole stack when any component is down — so the gate would have refused EVERY tool call on this host WITH THE MODEL WORKING.
+- FIXED: keyFileComponent probes KEY_FILE, IMPORTED from jev.ts so they cannot drift. RE-MEASURED: "JEV: UP · /home/leviathan/.config/typesafe/key present (len=107)".
+
+## [2026-09-21T19:15:00] — EN-068 ★★ THE REGISTER'S LAYER PROBES POINT AT PATHS NO CODE CREATES
+- MEASURED: L1 probes .omp/.../layers/semantica · L2 probes <scopeRoot>/.arsumbris · L3 .ua/... · L4 .c2kg/... · L5 corbell-out — ALL created by NOBODY. Only L6 matches its consumer, and it is the ONE layer that read UP.
+- ★ AND: EXISTENCE IS NOT LIVENESS — two au socket FILES sat at the real runtime dir, both DEAD (ECONNREFUSED).
+- FIXED: a NEW component kind `liveSocketComponent` probes /proc/net/unix (the kernel's LISTENER table); L2 uses it against the real runtime dir; L5 imports the consumer's constant from populate-corbell.ts.
+- ★ THE HONEST NEGATIVE: the register's VERDICT was correct (all five genuinely down) — a TRUE-DOWN reported with WRONG PATHS AND WRONG REASONS. A correct verdict with a misleading diagnosis is still a defect.
+
+## [2026-09-21T20:05:00] — EN-069: TWO OBSTACLES TO BRINGING L5 UP, BOTH MEASURED
+- 1 `corbell graph build --methods` dies at RecursionError with its own DEFAULT limit of 1000. WORKAROUND (tested): a SCOPED sitecustomize.py on PYTHONPATH raising it to 50,000 — the limit, not the algorithm, was the obstacle.
+- 2 THE BUILD IS IO-BOUND: it walks 679 MB of non-source (Checkpoints 116M + research 505M + fork-v143 40M) to graph 1.5 MB of src/. A scoped target: 2.49s wall instead of 6+ minutes.
+- +A SELF-INFLICTED ONE: the first attempt failed "database is locked" because an earlier backgrounded corbell of MINE still held the DB.
+
+## [2026-09-21T20:30:00] — EN-070 ★★★ A STALE DUPLICATE SCHEMA MADE EVERY CORBELL CHECKOUT FAIL
+- SYMPTOM: corbell scanned 97 ts files and produced a graph, then the checkout write died with SQLITE_ERROR "no such column: layer_id".
+- ROOT CAUSE: THREE `CREATE TABLE IF NOT EXISTS typed_nodes` existed and the one that ran FIRST on a fresh DB WON — src/hunter/graph/store-map.ts:207 (NO layer_id) vs src/omp/typed-write.ts:68 (HAS layer_id, the authority). A second copy of a schema is a second source of truth and the two WILL drift.
+- FIXED: writeCorbellCheckout calls applyTypedDdl (the authority). EVIDENCE: SQLITE_ERROR → nodes=961 edges=4207 in 6.7s · layer_id='corbell' on every row.
+- ★ THE REGISTER MOVED: 5 down → 4 down. L5 IS UP.
+
+## [2026-09-21T21:00:00] — EN-071 ★ R-D: THE CACHE SERVED OLD ANSWERS UNDER A NEW QUESTION VERSION
+- buildState has NO questionVersion field, so stateHash covers trigger+context only — and the cache was keyed by stateHash alone. A question re-authoring changes what a probability MEANS (measured: gap -0.040 → +0.322 on the SAME states), so the old answer would have been served under the new name.
+- FIXED: the cache AND the single-flight map keyed by (QUESTION_VERSION, stateHash).
+- ★ LESSON: any cache whose key omits a parameter that changes the answer's meaning is a misattribution cache.
+- EVIDENCE: battery 312/0/1107/30 host · 312/0/1113/30 container · tsc 191 · 3 new tests.
+
+## [2026-09-21T21:30:00] — THE W6 CALIBRATION LOOP + THE TWO MEASURED THEATRICAL REMEDIES
+- ★★ THE LOOP PROVEN UNDER THE SEED MATRIX (48 live fires): *dumb and *theatrical flipped calibrated=true; *destructive is 4 fires short. health.ok=false — the kernel CORRECTLY REFUSES to set a bar on 16 samples.
+- ★★★ A POOLED PRECISION OF 0.500 HID THREE CLASSES: destructive SEPARABLE (gap 0.60) · dumb SEPARABLE (0.06) · theatrical ★ INVERTED.
+- ★★★ THE MECHANISM, CORRECTED: the model DOES see the stream (buildState places the slots in `context`). The defect is the QUESTION — factor (b) ("does any context record contradict the detector's premise?") can NEVER fire for this class, because the premise is a fact about the detector's OWN INPUT. The question is UNDECIDABLE AS POSED.
+- ★★★ TWO REMEDIES, BOTH MEASURED (20 paired fires each, no production code touched):
+    option 1 (evidence carries corroboration=present|absent)  gap -0.036 → +0.082  separable · changes every theatrical cache key
+    option 2 (re-author the question so the premise is about the WORLD)  gap -0.040 → +0.322  separable · touches NOTHING
+- ★ THE L1/L3/L4 VERDICT: L3's probe is CORRECT (UA writes <projectRoot>/.ua/knowledge-graph.json — the same convention); L1 and L4 are CONFIRMED UNVERIFIABLE (no consumer, no tool, no substrate).
+- EVIDENCE: battery 312/0/1107/30 · tsc 191 · the reports in packages/gi-kernel-v2.1/tools/.
+
+## [2026-09-21T22:00:00] — ★ THE LOG ITSELF WAS LATE (recorded, not hidden)
+- The BUILD log stopped at 16:30 while the DEBUG log ran to 21:30 — ~5 hours of work missing from the build record, in violation of the pin's "the 2 logs update at the MOMENT of work".
+- CAUSE: each entry was written to the DEBUG log at the moment of work and the BUILD log was deferred, on the assumption that the wave-level entries would batch naturally. They did not: the work moved to fixes and probes that read as debug entries.
+- ★ THE LESSON: "update at the moment of work" means BOTH logs, at the moment — a deferred log is a log that can be lost, and this one nearly was (it survived only because the DEBUG log carried the same facts).
+- REMEDIATED: the missing entries above were reconstructed from the DEBUG log and the commit history, each carrying its own evidence line.
