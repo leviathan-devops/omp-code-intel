@@ -407,8 +407,10 @@ describe("st-gi-v21-redteam: P5 — the full corpus pass", () => {
     expect(typeof meta.serializedBytes).toBe("number");
     expect(meta.serializedBytes).toBeGreaterThan(0);
     expect(meta.estTokens).toBe(Math.round(meta.serializedBytes / 4));
-    // and it EQUALS the real serialization (the measurement is not an estimate of itself)
-    expect(Buffer.byteLength(JSON.stringify(state), "utf8")).toBeGreaterThanOrEqual(meta.serializedBytes - 60);
+    // ★ PASS-7: the measurement INCLUDES ITSELF — the first version measured the state before
+    //   adding these fields, so the reported number undercounted the envelope by the width of
+    //   the fields reporting it. It is now EXACT.
+    expect(Buffer.byteLength(JSON.stringify(state), "utf8")).toBe(meta.serializedBytes);
     expect(meta.overTarget).toBe(false);                     // a small fire is under the target
   });
 

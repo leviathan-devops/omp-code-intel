@@ -165,6 +165,35 @@ describe("st-gi-v21-hotseat: the runtime seat's findings", () => {
     expect(gate.modelCallsUsed()).toBe(2);
   });
 
+  // ══ EN-080 — THE BUDGET RESERVES AT ADMISSION (the check-then-act race) ═════════
+  // ★ PASS-7 HIGH: the D017 guard read `budgetUsed` BEFORE the await and incremented it
+  //   after the model answered, so N CONCURRENT fires all read the same pre-await value and
+  //   all passed — the stop was bypassable by concurrency exactly like the cache was.
+
+  test("EN-080: N concurrent fires cannot slip past the D017 budget", async () => {
+    const calls = { n: 0 };
+    const gate = new FireGate({ judge: judgeOf(0.9, calls), budgetFires: 3 });
+    // ★ FIVE DISTINCT states launched at once against a budget of THREE. Without the
+    //   reservation every one reads budgetUsed=0 before its await and all five pass.
+    const settled = await Promise.allSettled(
+      Array.from({ length: 5 }, (_, i) => {
+        const f = aFire({ evidence: `en080-distinct=${i}` });
+        return gate.judge(f, absorbContext(f, NEUTRAL));
+      }),
+    );
+    const fulfilled = settled.filter((r) => r.status === "fulfilled").length;
+    const rejected = settled.filter((r) => r.status === "rejected").length;
+    // ★ EXACTLY the budget: three admitted, two refused — the reservation is what makes the
+    //   count race-free. (Ordering is not guaranteed, so only the TOTALS are asserted.)
+    expect(fulfilled).toBe(3);
+    expect(rejected).toBe(2);
+    expect(gate.firesUsed()).toBe(3);
+    // and the refusals are the NAMED stop, never a silent drop
+    for (const r of settled) {
+      if (r.status === "rejected") expect(String(r.reason)).toContain("GI_FIREGATE_BUDGET");
+    }
+  });
+
   // ══ R-D — THE CACHE IS VERSION-SCOPED ════════════════════════════════════════
   // The question probe exposed it: buildState has NO questionVersion field, so the state
   // hash covers trigger+context only. Before this fix the cache was keyed by stateHash

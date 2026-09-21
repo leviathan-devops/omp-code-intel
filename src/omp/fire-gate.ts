@@ -258,10 +258,23 @@ export function buildState(fire: Fire, ctx: AbsorbedContext): Record<string, unk
   //   actually receives; `overTarget` says whether it exceeded STATE_BYTE_CAP. Both ride
   //   `context_meta` so M5 can count the overshoot instead of guessing at it — and so a
   //   caller can SEE a fire that grew past the target rather than being quietly trimmed.
-  const serializedBytes = Buffer.byteLength(JSON.stringify(state), "utf8");
-  meta["serializedBytes"] = serializedBytes;
-  meta["estTokens"] = Math.round(serializedBytes / 4);
-  meta["overTarget"] = serializedBytes > STATE_BYTE_CAP;
+  //
+  //   ★ PASS-7 MEDIUM — THE MEASUREMENT MUST INCLUDE ITSELF. The first version measured the
+  //   state BEFORE adding these three fields, so the reported number UNDERCOUNTED the real
+  //   envelope by the width of the fields that report it — a measurement that changes the
+  //   thing it measures and then reports the pre-change value. A two-pass fixed point fixes
+  //   it exactly: seed the fields so the SHAPE is final, measure, write the real values, then
+  //   verify — the second pass settles because the digits either match or the third confirms.
+  meta["serializedBytes"] = 0;
+  meta["estTokens"] = 0;
+  meta["overTarget"] = false;
+  for (let pass = 0; pass < 3; pass++) {
+    const measured = Buffer.byteLength(JSON.stringify(state), "utf8");
+    if (meta["serializedBytes"] === measured) break;          // the fixed point held
+    meta["serializedBytes"] = measured;
+    meta["estTokens"] = Math.round(measured / 4);
+    meta["overTarget"] = measured > STATE_BYTE_CAP;
+  }
   return state;
 }
 
@@ -295,8 +308,15 @@ export interface FireGateConfig {
   judge: Judge;
   /** ruleId → policy; a rule with no policy falls to its CLASS seed. */
   policies?: Record<string, Policy>;
-  /** Where to append the decision rows. Absent ⇒ no ledger ⇒ no calibration. */
+  /** ★ PASS-7 — RESERVED, NOT WIRED. The first comment promised "absent ⇒ no ledger ⇒ no
+   *  calibration", which is TRUE of the SYSTEM but FALSE of this field: nothing in this class
+   *  reads it. The ledger is wired by the CALLER (`withLedger(gate, ledger)` from
+   *  fire-ledger.ts, or `drain(gate, ledger)`), and the cache is in-memory by design (D013's
+   *  key is the canonical state; persistence of the cache is not specified). These fields are
+   *  kept for a future file-backed mode and are NAMED as unused rather than promising a
+   *  behaviour they do not have. */
   ledgerPath?: string;
+  /** ★ PASS-7 — RESERVED, NOT WIRED. See `ledgerPath`. */
   cachePath?: string;
   /** Hard stop, §D017 — bounds the NUMBER of fires. */
   budgetFires?: number;
@@ -416,14 +436,23 @@ export class FireGate {
       return { ruleId: fire.ruleId, probability: cached.probability, band: band as never, action: row.action as never, reason: "cache hit — the same state was judged before", row, cached: true, latencyMs: 0 };
     }
 
-    // BUDGET (D017) — a hard stop, loudly.
+    // BUDGET (D017) — a hard stop, loudly. ★ PASS-7 HIGH — THE RESERVATION HAPPENS HERE,
+    // BEFORE THE AWAIT. The first version checked the budget here and incremented it AFTER
+    // the model answered, so N CONCURRENT fires all read the same pre-await value and all
+    // passed — the stop was bypassable by concurrency exactly like the cache was. The unit
+    // is RESERVED at admission, which is also the honest accounting: a fire that is admitted
+    // has spent its slot whether or not it returns an answer.
     if (this.cfg.budgetFires !== undefined && this.budgetUsed >= this.cfg.budgetFires) {
       throw new Error(`GI_FIREGATE_BUDGET: ${this.budgetUsed}/${this.cfg.budgetFires} fires used`);
     }
+    this.budgetUsed += 1;
 
     // THE JUDGMENT — ONE Noul, one state, one call.
     let answers: readonly { id: string; probability: number }[];
     let sharedCall = false;
+    // ★ PASS-7 — DECLARED OUTSIDE THE TRY. `const` inside the try block is invisible to the
+    //   catch, so the timeout path could not name the call it was abandoning.
+    let thisCall: Promise<readonly { id: string; probability: number }[]> | null = null;
     try {
       // ★ HOT-SEAT H4-5 — THE GATE'S OWN CEILING. Measured: a judge that never resolves
       //   hung this gate forever, because the timeout belonged to the JUDGE's contract
@@ -436,18 +465,14 @@ export class FireGate {
       // ★ W2-1: a concurrent identical fire SHARES the call already in flight.
       const call = this.judgeOnce(cacheKey, state);
       sharedCall = call.shared;
+      thisCall = call.answers;
       try {
         answers = await Promise.race([call.answers, timer.promise]);
       } finally {
         clearTimeout(handle);
       }
-      // ★ EN-076 (PASS-6 HIGH) — THE BUDGET COUNTS **FIRES**, AS DOCUMENTED. D017's
-      //   contract is "bounds the NUMBER of fires", and my single-flight change made it
-      //   count only CREATOR calls — so N shared fires cost ONE unit and the hard stop was
-      //   bypassable by concurrency. The two meters are now SEPARATE and both honest:
-      //     budgetUsed  — FIRES (every judgment that reached the model path) — the D017 stop
-      //     modelCalls  — actual model calls (shared fires cost one) — the economic meter
-      this.budgetUsed += 1;
+      // ★ EN-076 — the ECONOMIC meter only; `budgetUsed` was RESERVED at admission above
+      //   (PASS-7 moved it there to close the check-then-act race).
       if (!call.shared) this.modelCalls += 1;
     } catch (e) {
       // D010: the polarity of THIS surface. Fail-open = the act proceeds and the
@@ -458,12 +483,9 @@ export class FireGate {
       const timedOut = e instanceof FireGateTimeout;
       // ★ EN-075 — A TIMED-OUT CALL IS ABANDONED. Its promise never settles, so nothing else
       //   would ever remove it; and a later same-state fire would inherit the hang.
-      if (timedOut) this.abandonInFlight(cacheKey);
-      // ★ AND A FIRE THAT REACHED THE MODEL AND GAVE UP IS STILL A FIRE. The budget
-      //   increment sat after the race, so a timed-out fire counted ZERO — D017's stop was
-      //   blind to exactly the fires that consume the most time (and still spend tokens).
-      //   `firesUsed` counts fires; `modelCalls` counts calls, and only the creator made one.
-      this.budgetUsed += 1;
+      if (timedOut && thisCall !== null) this.abandonInFlight(cacheKey, thisCall);
+      // ★ AND A FIRE THAT REACHED THE MODEL AND GAVE UP IS STILL A FIRE — its slot was
+      //   already reserved at admission; only the economic meter moves here.
       if (!sharedCall) this.modelCalls += 1;
       const closed = policy.failPolarity === "closed";
       const suffix = timedOut ? "timeout" : `fail-${policy.failPolarity}`;
@@ -565,9 +587,14 @@ export class FireGate {
 
   /** ★ EN-075 — ABANDON AN IN-FLIGHT CALL THE CALLER HAS GIVEN UP ON. Called when the
    *  gate's own ceiling fires: the hung call is dead to us, and leaving it in the map would
-   *  hand it to every later same-state fire. Public so the timing path can state it. */
-  private abandonInFlight(cacheKey: string): void {
-    this.inFlight.delete(cacheKey);
+   *  hand it to every later same-state fire.
+   *  ★ PASS-7 HIGH — AND IT MUST BE COMPARE-AND-DELETE TOO. My first version deleted by KEY
+   *  ALONE, while the settle-handler used compare-and-delete — THE EXACT INCONSISTENCY I WAS
+   *  FIXING. A SHARER that times out (the entry is the creator's promise, not its own) would
+   *  delete an entry a NEW call had since created. The identity is required, so the caller
+   *  passes the call it is abandoning. */
+  private abandonInFlight(cacheKey: string, abandoned: Promise<readonly { id: string; probability: number }[]>): void {
+    if (this.inFlight.get(cacheKey) === abandoned) this.inFlight.delete(cacheKey);
   }
 
   /** §6.4.7 — the oracle fills this in later. Never assumed at firing time. */
