@@ -386,6 +386,65 @@ describe("st-gi-v21-redteam: P5 — the full corpus pass", () => {
     ledger.close();
   });
 
+  // ══════════════════ EN-074 — THE TOKEN FIGURE IS A SOFT TARGET ═══════════════════
+  // The pin: every fire adjudicated by a "<5000-token Jev Noul". The cap bounded
+  // `ctx.bytes` — an INTERMEDIATE — while the model receives buildState's serialization,
+  // which adds the trigger plus the JSON syntax of every slot. MEASURED under a maximal
+  // stream: ctx.bytes=17,981 (cap respected) but the STATE serialized to 22,914 bytes
+  // ≈ 5,729 tokens.
+  //
+  // ★ THE OPERATOR'S RULING: it is a SOFT TARGET, not a hard cap. My first fix enforced it
+  //   by DROPPING SLOTS — trading judgment quality for a budget that is not hard, and
+  //   discarding material the lexicon filter had admitted BECAUSE the decision needs it.
+  //   The correct behaviour is to MEASURE THE REAL ENVELOPE AND REPORT IT.
+
+  test("EN-074: the serialized envelope is MEASURED and carried on the state", () => {
+    const f = aFire();
+    const ctx = absorbContext(f, [{ kind: "reasoning", text: "because the file is next", offsetMs: -100 }]);
+    const state = buildState(f, ctx);
+    const meta = state["context_meta"] as { serializedBytes: number; estTokens: number; overTarget: boolean };
+    // ★ the envelope the model receives is measured, not inferred from an intermediate
+    expect(typeof meta.serializedBytes).toBe("number");
+    expect(meta.serializedBytes).toBeGreaterThan(0);
+    expect(meta.estTokens).toBe(Math.round(meta.serializedBytes / 4));
+    // and it EQUALS the real serialization (the measurement is not an estimate of itself)
+    expect(Buffer.byteLength(JSON.stringify(state), "utf8")).toBeGreaterThanOrEqual(meta.serializedBytes - 60);
+    expect(meta.overTarget).toBe(false);                     // a small fire is under the target
+  });
+
+  test("EN-074b: a maximal stream is REPORTED as over target — NEVER trimmed to hide it", () => {
+    const stream: StreamRecord[] = [];
+    for (let i = 0; i < 500; i++) {
+      stream.push({ kind: "reasoning", text: `because this is record ${i} and it must be considered carefully`, offsetMs: -i * 10 });
+    }
+    const f = aFire({ evidence: "x".repeat(5_000) });
+    const ctx = absorbContext(f, stream);
+    const state = buildState(f, ctx);
+    const meta = state["context_meta"] as { slots: number; serializedBytes: number; estTokens: number; overTarget: boolean };
+    // ★ NOTHING IS DROPPED BY buildState — every slot the lexicon filter admitted survives
+    expect(meta.slots).toBe(ctx.slots.length);
+    expect((state["context"] as unknown[]).length).toBe(ctx.slots.length);
+    // ★ AND THE OVERSHOOT IS VISIBLE
+    expect(meta.overTarget).toBe(true);
+    expect(meta.estTokens).toBeGreaterThan(5_000);
+    // the newest material is kept (the absorb order is newest-first)
+    expect((state["context"] as { text: string }[])[0]!.text).toContain("record 0");
+  });
+
+  test("EN-074c: the STRUCTURAL bound lives in absorbContext — it drops the OLDEST and says so", () => {
+    const stream: StreamRecord[] = [];
+    for (let i = 0; i < 500; i++) {
+      stream.push({ kind: "reasoning", text: `because this is record ${i} and it must be considered carefully`, offsetMs: -i * 10 });
+    }
+    const f = aFire();
+    const ctx = absorbContext(f, stream);
+    // ★ the byte cap is the STRUCTURAL bound: it drops the oldest and sets `trimmed`
+    expect(ctx.trimmed).toBe(true);
+    expect(ctx.slots.length).toBeLessThan(stream.length);
+    expect(ctx.slots[0]!.text).toContain("record 0");        // newest kept
+    expect(ctx.bytes).toBeLessThanOrEqual(18_000);
+  });
+
   // ══════════════════ M — THE REDUCE EVASION ════════════════════════════════════════
 
   test("M-reduce: a tie between two non-PASS classes resolves to the HEAVIER class", () => {

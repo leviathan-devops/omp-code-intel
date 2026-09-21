@@ -277,3 +277,16 @@
 - ★ WHY THIS MATTERS FOR E1: E1's workload CANNOT be sized from this data. A number derived here would be a false inference wearing a measurement's clothes — the exact class this session has spent its length hunting ("a CHOSEN CONSTANT printed beside a measured one borrows the measured one's authority"). E1's real sizing needs ONE session that produces genuine later-edits, test-runs, withdrawals and permits, then runs the oracle over them.
 - LESSON: before reading a rate as a capability, EXCLUDE the denominator's un-run portion. `truth_at IS NULL` is the machine-detectable signature of "never asked", and it is distinguishable from "asked and undecided" in a single GROUP BY.
 - EVIDENCE: 109 rows across the three ledgers; the GROUP BY truth_at IS NULL cleanly partitions every row into stamped/unstamped with no ambiguity.
+
+## [2026-09-21T23:30:00] — EN-074 ★★ THE CAP MEASURED THE WRONG QUANTITY — AND THE OPERATOR RULED THE TARGET SOFT
+- FOUND BY: verifying the pin's T-1 claim ("every detector fire adjudicated by a <5000-token Jev Noul") — a claim I had never explicitly measured.
+- THE MEASUREMENT (a maximal stream, 500 marker-bearing records + a 5,000-char evidence):
+    STATE_BYTE_CAP              18,000 bytes
+    ctx.bytes (the capped field) 17,981   ← the cap WAS respected
+    the serialized STATE         22,914 bytes ≈ 5,729 tokens   ← ★ OVER THE 5,000 BOUND
+- ROOT CAUSE: the cap bounded `ctx.bytes` — an INTERMEDIATE ACCUMULATOR — while the model receives `buildState(fire, ctx)`, which ADDS the trigger (up to 1,500 chars of detector evidence) and the JSON SYNTAX of every slot (`{"kind":"…","text":"…"}` ≈ 20 bytes of structure each; ×229 slots ≈ 4,580 bytes of pure syntax). **A cap that measures the wrong quantity is not a cap.**
+- ★★ MY FIRST FIX WAS WRONG, AND THE OPERATOR CORRECTED IT: I enforced the bound by DROPPING SLOTS until the serialized state fit. The ruling: **"it doesnt need to be a hard cap. soft target."** Dropping slots trades JUDGMENT QUALITY for a budget that is not hard — and the dropped material had passed the lexicon filter, which admits records BECAUSE the decision needs them. A false economy dressed as discipline.
+- THE CORRECT BEHAVIOUR (implemented): `buildState` MEASURES the real envelope and REPORTS it — `context_meta.serializedBytes`, `estTokens`, and `overTarget`. Nothing is truncated to reach a number. The STRUCTURAL bound stays where it belongs: `absorbContext`'s byte cap, which drops the OLDEST material (the documented policy) and sets `trimmed` — never silent.
+- RE-MEASURED: 229 of 229 slots KEPT · serialized 22,914 bytes ≈ 5,729 tokens · overTarget=TRUE — the overshoot is VISIBLE, COUNTABLE, and available to M5 rather than being quietly trimmed away.
+- ★ THE LESSON, IN TWO PARTS: (1) a cap must measure the quantity the consumer receives, not an intermediate that is convenient to accumulate; (2) a target is not a cap — the difference is whether you may DISCARD THE SUBSTANCE to reach it. Here the substance was decision-relevant context.
+- EVIDENCE: battery 321/0/1142/30 host · 321/0/1148/30 container · tsc 191 == baseline · 3 tests replacing my hard-cap tests, asserting the measurement, the report, AND that nothing is dropped.

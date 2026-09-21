@@ -221,18 +221,48 @@ export function absorbContext(
 /** The state is the EVIDENCE ONLY (D004, Red Pill #12): no conversation, no
  *  instructions to the model, no unbounded material. */
 export function buildState(fire: Fire, ctx: AbsorbedContext): Record<string, unknown> {
-  return {
-    trigger: {
-      rule: fire.ruleId,
-      class: fire.cls,
-      shape: fire.shape,
-      tool: fire.tool,
-      target: fire.target,
-      detector_evidence: fire.evidence.slice(0, 1_500),
-    },
-    context: ctx.slots.map((s) => ({ kind: s.kind, text: s.text })),
-    context_meta: { slots: ctx.slots.length, bytes: ctx.bytes, trimmed: ctx.trimmed, dropped: ctx.droppedKinds },
+  // ★ EN-074, CORRECTED BY THE OPERATOR: THE <5000-TOKEN FIGURE IS A **SOFT TARGET**,
+  //   NOT A HARD CAP. My first fix enforced it by DROPPING SLOTS until the serialized
+  //   state fit — which trades JUDGMENT QUALITY for a budget that is not hard. The
+  //   material `absorbContext` admitted passed the lexicon filter; it is the material the
+  //   decision NEEDS. Truncating it to hit a number is a false economy.
+  //
+  //   WHAT THE MEASUREMENT WAS STILL FOR: the pin's M5 measures the per-fire token cost,
+  //   and the cap was bounding the WRONG QUANTITY — `ctx.bytes` (an intermediate) rather
+  //   than the envelope the model receives. MEASURED under a maximal stream: ctx.bytes
+  //   17,981 while the state serialized to 22,914 bytes ≈ 5,729 tokens. So the fix is to
+  //   MEASURE THE REAL ENVELOPE AND REPORT IT — never to truncate to reach it.
+  //
+  //   The structural bound stays where it belongs: `absorbContext`'s byte cap, which drops
+  //   the OLDEST material (the documented policy) and sets `trimmed` — never silent.
+  const trigger = {
+    rule: fire.ruleId,
+    class: fire.cls,
+    shape: fire.shape,
+    tool: fire.tool,
+    target: fire.target,
+    detector_evidence: fire.evidence.slice(0, 1_500),
   };
+  const meta: Record<string, unknown> = {
+    slots: ctx.slots.length,
+    bytes: ctx.bytes,
+    trimmed: ctx.trimmed,
+    dropped: ctx.droppedKinds,
+  };
+  const state: Record<string, unknown> = {
+    trigger,
+    context: ctx.slots.map((slot) => ({ kind: slot.kind, text: slot.text })),
+    context_meta: meta,
+  };
+  // ★ THE SOFT TARGET, MEASURED AND REPORTED. `serializedBytes` is the envelope the model
+  //   actually receives; `overTarget` says whether it exceeded STATE_BYTE_CAP. Both ride
+  //   `context_meta` so M5 can count the overshoot instead of guessing at it — and so a
+  //   caller can SEE a fire that grew past the target rather than being quietly trimmed.
+  const serializedBytes = Buffer.byteLength(JSON.stringify(state), "utf8");
+  meta["serializedBytes"] = serializedBytes;
+  meta["estTokens"] = Math.round(serializedBytes / 4);
+  meta["overTarget"] = serializedBytes > STATE_BYTE_CAP;
+  return state;
 }
 
 // ── THE QUESTION (authored once, versioned — D026) ──────────────────────────
