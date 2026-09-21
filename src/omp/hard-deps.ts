@@ -298,6 +298,15 @@ export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
   const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/");
   return [
     // ── the six graph layers ──────────────────────────────────────────────
+    // ★ L3 VERIFIED (2026-09-21): UA's own persistence module writes
+    //   <projectRoot>/.ua/knowledge-graph.json — so this probe points at the RIGHT path
+    //   and the substrate is genuinely absent. Verified against
+    //   research/graph-infra-repos/Understand-Anything/.../persistence/index.ts
+    //   (resolveUaDir: join(projectRoot, ".ua")). CORRECT PATH, ABSENT SUBSTRATE.
+    // ★ L1 + L4 REMAIN UNVERIFIED: no consumer in this repo reads their paths, and no
+    //   tool on this host populates them (the semantica checkout is SOURCE, not a store;
+    //   nothing named c2kg exists outside /tmp test fixtures). They may be correct
+    //   (external tools) or wrong — I did NOT invent replacement paths.
     pathComponent("L1_SEMANTICA", "layer", "the semantica workspace + its KG store", "GI_LAYER_SEMANTICA",
       join(cfg.scopeRoot, ".omp/graph-intelligence/layers/semantica")),
     // ★ the au runtime lives in HOME, not the scope root, and liveness (not existence) is

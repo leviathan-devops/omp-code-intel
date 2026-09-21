@@ -243,3 +243,11 @@
 - FIX: the cache AND the single-flight map are keyed by `(QUESTION_VERSION, stateHash)`. The ledger and the cache now agree: both carry the version that produced the answer.
 - LESSON: any cache whose key omits a parameter that changes the answer's MEANING is a misattribution cache. The state hash covers WHAT was asked about; the version covers HOW it was asked. Both belong in the key.
 - EVIDENCE: battery 312/0/1107/30 host · 312/0/1113/30 container (the stable +6) · tsc 191 == baseline · 3 new tests (R-D, R-Db, R-Dc) pinning that the row and the cached repeat carry the producing version.
+
+## [2026-09-21T21:30:00] — L1/L3/L4 PROBES: ONE VERIFIED, TWO CONFIRMED UNVERIFIABLE
+- THE QUESTION: the register's L1/L3/L4 probes point at paths no code in this repo creates. Are the paths RIGHT (with absent substrates) or WRONG (like L2/L5 were)?
+- ★ L3 VERIFIED — CORRECT PATH, ABSENT SUBSTRATE. UA's own persistence module (`research/graph-infra-repos/Understand-Anything/.../persistence/index.ts`) writes `<projectRoot>/.ua/knowledge-graph.json` via `resolveUaDir: join(projectRoot, ".ua")`. The register probes `<scopeRoot>/.ua/knowledge-graph.json` — the SAME convention. The probe is RIGHT; the substrate is genuinely absent. Recorded in code at the probe site.
+- ★ L1 UNVERIFIABLE. The register probes `.omp/graph-intelligence/layers/semantica`. NO consumer in this repo reads that path. The semantica checkout in `research/` is SOURCE (docs, triplet_store/, vector_store/ code) — not a store to point at. There is nothing to import a constant from and no tool to run.
+- ★ L4 UNVERIFIABLE. The register probes `.c2kg/index.json`. Nothing named c2kg exists on this host outside /tmp test fixtures. No binary, no repo, no consumer.
+- ★ THE DISTINCTION FROM EN-068: L2 and L5 were fixable because a CONSUMER existed to import authority from (the au runtime dir, populate-corbell's constant). L1 and L4 have NO consumer, NO tool, NO substrate — so inventing replacement paths would be guessing, and the pin's law against blind edits forbids it. An unverified probe that reports DOWN is the CORRECT state until its substrate exists; the residual is that nobody has verified the PATH.
+- EVIDENCE: battery 312/0/1107/30 · tsc 191 == baseline.
