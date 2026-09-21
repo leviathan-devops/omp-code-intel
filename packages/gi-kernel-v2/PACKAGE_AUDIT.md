@@ -122,6 +122,21 @@ the package documents require nothing outside this directory to be READ.
 ## (j) THE HOST-LIVE EVIDENCE (executed this session)
 
 ```
+RB-IDENT passToken: graph-probe returns PROBE_TOOL_OK + the session id
+              MEASURED (a real xd:// tool result):
+                  {"token":"PROBE_TOOL_OK","sessionID":"default","echo":"rb-ident"}
+              VERDICT: PASS
+
+RB-CONFIG     passToken: a missing store dir emits GI_POPULATE_FAILED
+              MEASURED (a real xd:// tool result):
+                substrate=undefined
+                  reason=GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent
+                rows=0            ← and NO empty store was created
+              plus a second, stronger case: an out-of-root targetPath
+                returns
+                GI_PATH_DENIED ... set GI_TARGET_ROOTS to extend
+              VERDICT: PASS
+
 RB-FIREWALL   passToken: a forged reflex row is ABSENT to the reader
               MEASURED: 2 rows; id=1 verified=true, id=2 (forged, sig
                 deadbeef..)
