@@ -21,3 +21,8 @@ research/graph-infra-repos/
 !Checkpoints/gi-kernel-v2-six-layer-stack-rsi-live-jev-validated/
 !Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/
 !Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/
+
+# corbell's own workspace (recreated by `corbell init` on demand — the adapter's
+# INIT GUARD runs the init only when workspace.yaml is ABSENT, so deleting it is safe
+# and committing it is wrong: it holds a live workspace.db + journal)
+corbell-data/
