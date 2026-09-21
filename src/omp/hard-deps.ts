@@ -16,6 +16,9 @@ import * as fs from "node:fs";
 // ★ the judge's key path, IMPORTED rather than copied: the register and the judge must
 //   agree on where the key lives, and a copied constant drifts.
 import { KEY_FILE } from "./jev.ts";
+// ★ the corbell consumer's own constant — the register must probe what the CONSUMER reads
+//   (populate-corbell.ts has no import of this module, so there is no cycle).
+import { CORBELL_CHECKOUT_REL } from "./populate-corbell.ts";
 
 export type ComponentClass = "layer" | "kernel" | "store" | "harness";
 
@@ -179,6 +182,58 @@ export function keyFileComponent(
   };
 }
 
+/** ★ THE LISTENER TABLE — a SYNC, PRECISE liveness probe for a unix socket.
+ *
+ *  FOUND BY DRIVING (2026-09-21): the register declared L2_ARSUMBRIS as
+ *  `join(scopeRoot, ".arsumbris")` — a path NO CODE CREATES — while the au runtime lives
+ *  at `~/.arsumbris/au-host/run/*.instance.sock`. Worse, two socket FILES sat there dated
+ *  Sep 16/17 and both were DEAD (ECONNREFUSED): **existence is not liveness**, so even
+ *  pointing the probe at the right directory would have read UP over a dead daemon.
+ *
+ *  `/proc/net/unix` is the kernel's LISTENER table — sync, cheap, precise. A socket path
+ *  present in it has a listener; a socket FILE with no entry is a stale corpse. That is
+ *  the difference between "the file is there" and "the daemon is answering". */
+export function liveSocketComponent(
+  id: string,
+  cls: ComponentClass,
+  dependency: string,
+  errorCode: string,
+  socketDir: string,
+  suffix = ".instance.sock",
+): ComponentDecl {
+  return {
+    id, cls, dependency, errorCode,
+    probe: () => {
+      let names: string[];
+      try {
+        names = fs.readdirSync(socketDir).filter((n) => n.endsWith(suffix));
+      } catch {
+        return { up: false, evidence: `${socketDir} ABSENT` };
+      }
+      if (names.length === 0) {
+        return { up: false, evidence: `${socketDir} holds no ${suffix} entries` };
+      }
+      let table: string;
+      try {
+        table = fs.readFileSync("/proc/net/unix", "utf8");
+      } catch {
+        // a non-Linux host cannot answer the liveness question — say so rather than guess
+        return { up: false, evidence: `${socketDir}: ${names.length} socket file(s) but /proc/net/unix is unreadable — liveness UNVERIFIABLE (a socket file is not a listener)` };
+      }
+      for (const n of names) {
+        // ★ `join` in this module is a LOCAL helper inside `buildRegister` (line ~295),
+        //   invisible at module scope — my first version of this component called it and
+        //   the probe returned "join is not defined" at RUNTIME (the register caught it).
+        const full = socketDir + "/" + n;
+        if (table.includes(full)) {
+          return { up: true, evidence: `${full} is LISTENING (per /proc/net/unix)` };
+        }
+      }
+      return { up: false, evidence: `${socketDir}: ${names.length} socket file(s), NONE listening — STALE (the daemon is not running)` };
+    },
+  };
+}
+
 export function audit(register: readonly ComponentDecl[]): AuditResult {
   const entries: RegisterEntry[] = register.map((d) => {
     let r: { up: boolean; evidence: string };
@@ -245,14 +300,19 @@ export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
     // ── the six graph layers ──────────────────────────────────────────────
     pathComponent("L1_SEMANTICA", "layer", "the semantica workspace + its KG store", "GI_LAYER_SEMANTICA",
       join(cfg.scopeRoot, ".omp/graph-intelligence/layers/semantica")),
-    pathComponent("L2_ARSUMBRIS", "layer", "the au daemon socket + its typed repo graph", "GI_LAYER_ARSUMBRIS",
-      join(cfg.scopeRoot, ".arsumbris")),
+    // ★ the au runtime lives in HOME, not the scope root, and liveness (not existence) is
+    //   the dependency the register names. No code creates <scopeRoot>/.arsumbris.
+    liveSocketComponent("L2_ARSUMBRIS", "layer", "the au daemon socket + its typed repo graph", "GI_LAYER_ARSUMBRIS",
+      join(process.env.HOME ?? "/home/leviathan", ".arsumbris/au-host/run")),
     pathComponent("L3_UA", "layer", "the understand-anything graph (.ua/knowledge-graph.json)", "GI_LAYER_UA",
       join(cfg.scopeRoot, ".ua/knowledge-graph.json")),
     pathComponent("L4_C2KG", "layer", "the code-to-knowledge-graph LSP index", "GI_LAYER_C2KG",
       join(cfg.scopeRoot, ".c2kg/index.json")),
+    // ★ the CONSUMER's authority: populate-corbell.ts writes/reads CORBELL_CHECKOUT_REL.
+    //   The register probed `corbell-out` — a path no code creates — so it could NEVER
+    //   report L5 UP however the substrate was populated.
     pathComponent("L5_CORBELL", "layer", "the corbell parse-grade checkout (PRIMARY)", "GI_LAYER_CORBELL",
-      join(cfg.scopeRoot, "corbell-out")),
+      join(cfg.scopeRoot, CORBELL_CHECKOUT_REL), { mustBeFile: true }),
     pathComponent("L6_GRAPHIFY", "layer", "the graphify graph.json leg", "GI_LAYER_GRAPHIFY",
       join(cfg.scopeRoot, "graphify-out/graph.json"), { mustBeFile: true }),
 

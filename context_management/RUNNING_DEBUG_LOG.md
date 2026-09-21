@@ -190,3 +190,27 @@
 - ★ AND THE FIX MADE A REAL ENVIRONMENT FACT VISIBLE: the container/host expects delta GREW 4 → 6, because JEV is now UP on the host (the key file exists) and DOWN in the container (it does not). The model genuinely IS unavailable in the container, and the register now says so. Before the fix JEV read DOWN in BOTH environments — the register was CONSISTENTLY WRONG.
 - LESSON: a probe must read the SAME SOURCE the consumer reads, or it is measuring a DIFFERENT SYSTEM. The env-var probe and the file-reading judge were two systems wearing one name.
 - EVIDENCE: host 300/0/1072/29 · container 300/0/1078/29 (delta +6 = 3 components × 2) · tsc 191 == baseline.
+
+## [2026-09-21T19:15:00] — EN-068 ★★ THE REGISTER'S LAYER PROBES POINT AT PATHS NO CODE CREATES
+- HOW FOUND: EN-067 taught that the register can be WRONG about a component, so each of the five DOWN layers was verified against REALITY rather than accepted.
+- THE MEASURED STATE (before the fix):
+    L1_SEMANTICA  probes <scopeRoot>/.omp/graph-intelligence/layers/semantica   — created by NOBODY
+    L2_ARSUMBRIS  probes <scopeRoot>/.arsumbris                                — created by NOBODY
+                  ★ the real au runtime is ~/.arsumbris/au-host/run/*.instance.sock
+    L3_UA         probes <scopeRoot>/.ua/knowledge-graph.json                  — created by NOBODY
+    L4_C2KG       probes <scopeRoot>/.c2kg/index.json                          — created by NOBODY
+    L5_CORBELL    probes <scopeRoot>/corbell-out                              — created by NOBODY
+                  ★ the CONSUMER uses <scopeRoot>/.omp/graph-intelligence/corbell-checkout/store.sqlite
+                    (populate-corbell.ts:17, written by scripts/corbell-build.ts)
+    L6_GRAPHIFY   probes <scopeRoot>/graphify-out/graph.json                   — ✓ CREATED (the ONE
+                  layer that reads UP, because its probe matches its consumer)
+- ★ THE CONSEQUENCE: an operator told "L5 is down" would populate `corbell-out/` and the register would STILL say DOWN, forever — the substrate would be in the wrong place and the gate would never register. Same for L2 (`<scopeRoot>/.arsumbris` vs `~/.arsumbris/au-host/run`). THE REGISTER'S DIAGNOSIS WOULD HAVE SENT AN OPERATOR TO THE WRONG PATHS.
+- ★★ AND A SECOND CLASS INSIDE THE SAME DEFECT: **EXISTENCE IS NOT LIVENESS.** Two au socket FILES sat at the real runtime dir, dated Sep 16/17, and BOTH were DEAD (ECONNREFUSED — measured). Pointing the probe at the right DIRECTORY would have read UP over a corpse. The dependency is "the au daemon SOCKET", so the probe must test for a LISTENER.
+- THE FIXES:
+    1 a NEW component kind — `liveSocketComponent` — probes `/proc/net/unix`, the kernel's LISTENER table. Sync, cheap, precise: a path in the table has a listener; a socket file with no entry is stale. (Sanity-checked: /run/docker.sock and the X11 sockets DO appear in the table.)
+    2 L2 now uses it against the REAL runtime dir → evidence reads "2 socket file(s), NONE listening — STALE (the daemon is not running)".
+    3 L5 now probes the CONSUMER's constant, IMPORTED from populate-corbell.ts (no cycle — that module does not import this one), so they cannot drift.
+- ★★ THE HONEST NEGATIVE RESULT: **the register's VERDICT WAS CORRECT** — all five layers are GENUINELY down (L2's daemon is dead, the others' substrates are absent). So this is NOT an EN-067 false-DOWN. It is a TRUE-DOWN reported with WRONG PATHS AND WRONG REASONS. The count stayed 5 before and after the fix. That distinction matters: a correct verdict delivered with a misleading diagnosis is still a defect, because the operator's next action is chosen from the DIAGNOSIS.
+- ★ AND THE UNRESOLVED PART, NAMED NOT GUESSED: L1/L3/L4's probes still point at paths no code in this repo creates. They may be correct (external tools populate them) or wrong. I did NOT invent replacement paths — there is no consumer to import from. **Their probes are UNVERIFIED and that is recorded as a residual.**
+- AND A BUG I INTRODUCED AND THE REGISTER CAUGHT: my first `liveSocketComponent` called `join(...)`, but `join` in this module is a LOCAL helper inside `buildRegister` — invisible at module scope. The probe returned "join is not defined" at RUNTIME. Fixed with concatenation. A module-level helper shadowed by a function-local one is a trap the type system does not catch.
+- EVIDENCE: battery 309/0/1100/30 · tsc 191 == baseline 0 new · the register re-measured with precise per-layer evidence.
