@@ -26,3 +26,6 @@ research/graph-infra-repos/
 # INIT GUARD runs the init only when workspace.yaml is ABSENT, so deleting it is safe
 # and committing it is wrong: it holds a live workspace.db + journal)
 corbell-data/
+
+# the ripwire cwd-jail symlink (session tooling, not project content)
+gi-project
