@@ -8,6 +8,7 @@ import { HydraPipeline, specForTemplate } from "../pipeline.ts";
 import { templateByLayerId } from "../templates/index.ts";
 import type { HunterSettlement } from "../auditor.ts";
 import type { GraphifyGraph } from "../map-reader.ts";
+import { ensureFx383 } from "./fx383-fixture.ts";
 
 type Input = { targetRoot: string; graphPath: string };
 type Synthesis = { count: number };
@@ -41,6 +42,9 @@ function makeConfig(overrides?: {
 }
 
 describe("hydra pipeline gates + synthesizer", () => {
+  // HERMETIC: the suite provisions its own fixture (the container proved the
+  // /tmp dependency made these batteries machine-dependent, not code-dependent).
+  ensureFx383();
   test("empty subagents throws GATE FAILED", async () => {
     const { config } = testConfig({ subagents: [] });
     const pipe = new HydraPipeline(config);

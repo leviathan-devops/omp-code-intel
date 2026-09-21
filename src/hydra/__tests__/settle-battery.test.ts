@@ -16,11 +16,15 @@ import {
   READ_CAP,
 } from "../auditor.ts";
 import { ALL_TEMPLATES, templateByLayerId, templateCount } from "../templates/index.ts";
+import { ensureFx383 } from "./fx383-fixture.ts";
 
 const GRAPH_PATH = "/tmp/fx383/graphify-out/graph.json";
 const TARGET_ROOT = "/tmp/fx383";
 
 describe("hydra templates registry", () => {
+  // HERMETIC: the suite provisions its own fixture (the container proved the
+  // /tmp dependency made these batteries machine-dependent, not code-dependent).
+  ensureFx383();
   test("exactly 14 templates (6 LASME + 4 MPSE + 4 SRO)", () => {
     expect(templateCount()).toBe(14);
     expect(ALL_TEMPLATES.length).toBe(14);

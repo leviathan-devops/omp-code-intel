@@ -8,7 +8,7 @@
 // load and RESTORED in the module afterEach — the go-key-pool singleton is
 // shared process-wide, and a leak here poisons st-go-fallback's default-pool
 // assertions (the W7/W8 ordering flake, root-caused 2026-09-18).
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -32,10 +32,30 @@ process.env.OPENCODE_API_KEY = "";
 import { createHash } from "node:crypto";
 import { GO_KEYS, goEarliestDeadIdx, keyidFor, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 
+
 const kid = (k: string): string => createHash("sha256").update(k).digest("hex").slice(0, 16);
 
 // The hermetic pool path — re-pinned per test (afterEach restores the saved env).
 const W7_POOL = process.env.GO_POOL_DB!;
+
+// HERMETIC FIX (found by the CONTAINER, 2026-09-21): ESM HOISTS every static
+// import above this file's statements, so the module-level env overrides above
+// execute AFTER go-key-pool.ts computed GO_KEYS from the AMBIENT environment.
+// On the host that ambient env happened to carry real go keys so GO_KEYS was
+// populated by luck; in a container it is empty and the first test dies with
+//   TypeError: The "data" argument must be of type string ... Received undefined
+//   at kid (tests/st-gi-w7-scanhighs.test.ts:35)
+// because GO_KEYS[1] is undefined. `reloadGoKeys()` refills GO_KEYS IN PLACE
+// (a mutable const array), so re-pinning it per test makes the suite
+// independent of the machine. BEFORE-EACH, not module-level: the afterEach
+// restores the ambient env, so a one-shot module call would be undone after the
+// first test (measured: it broke the second test with GO_KEYS.length=2).
+beforeEach(() => {
+  process.env.GO_POOL_DB = W7_POOL;
+  process.env.GO_KEYS_JSON = JSON.stringify(["w7s-key-0", "w7s-key-1", "w7s-key-2"]);
+  process.env.GI_KEYS_FILE = path.join(os.tmpdir(), `gi-w7s-absent-${Date.now()}`, "keys.json");
+  reloadGoKeys();
+});
 
 afterEach(() => {
   // Restore the EXACT pre-file env (null = delete) + reload the pool from

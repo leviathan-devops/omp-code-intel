@@ -526,3 +526,23 @@ Top clusters:
 ### HOST
 - **The run:** dist rebuilt, deployed, import-verified; 5-edit blind spree through wired handlers → T2 GRAPH_GATE_DRIFT_HIGH verbatim
 - **The verdict:** PASS
+
+## TEST RESULT — 2026-09-21 — the CONTAINER battery (the rig the pin named)
+
+### CONTAINER (omp-ct:master — the container as host runtime)
+- **The run:** `docker exec stupefied_morse sh -lc 'cd /work/gi && bun test ./tests/ ./src/hydra/__tests__/'`
+  with `/tmp/fx383` REMOVED and no ambient key env.
+- **The raw output:** `199 pass / 0 fail / 705 expect() calls / Ran 199 tests across 20 files. [1291.00ms]`
+- **The verdict:** PASS — after fixing the TWO hermeticity defects the container exposed.
+- **The first container run (the finding):**
+  `136 pass / 9 fail / 3 errors` → the hydra suites died on a host-only `/tmp/fx383` fixture
+  and on absent `zod`/`xstate`; a later run exposed the ESM-hoisting `GO_KEYS` trap
+  (`198 pass / 1 fail`).
+- **The artifacts:** the fixture helper `src/hydra/__tests__/fx383-fixture.ts`;
+  DEBUG_LOG EN-046.
+
+### SCRIPT (the host, for comparison)
+- **The run:** `bun test ./tests/ ./src/hydra/__tests__/` (host)
+- **The raw output:** `199 pass / 0 fail / 701 expect() calls / Ran 199 tests across 20 files. [1239.00ms]`
+- **The verdict:** PASS — and the container proves the same number is now EARNED, not
+  inherited from leftover machine state.

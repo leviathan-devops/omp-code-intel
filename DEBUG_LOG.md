@@ -450,3 +450,37 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE LESSON:** when a mutation "does not take effect", suspect the MODULE GRAPH before the
   logic. A counter inside the mutated function is the cheapest way to tell "not called" from
   "called but its result was not the one observed".
+
+## EN-046 — CONTAINER TEST: the hydra batteries were NOT hermetic (2 bugs the host hid) (2026-09-21)
+
+- **THE FINDING:** the host battery read **199 pass / 0 fail**. The SAME code, run in the
+  `omp-ct:master` container, read **136 pass / 12 fail / 6 errors** — and after the dependency
+  fixes, still **198 pass / 1 fail**. The container was right; the host was lucky.
+- **ROOT CAUSE 1 — the /tmp fixture (`GRAPHIFY_NOT_WARM: graph.json not found at
+  /tmp/fx383/graphify-out/graph.json`, 9 of the 12 failures):** `reader-battery`,
+  `settle-battery` and `pipeline-battery` all READ `/tmp/fx383/graphify-out/graph.json` and
+  NEVER created it. On the host a leftover fixture from an earlier `graphify extract` made
+  them green. **A test that depends on an artifact outside the repo is not a test — it is a
+  coincidence with a green readout.**
+  **FIX:** `src/hydra/__tests__/fx383-fixture.ts` — an idempotent `ensureFx383()` that writes
+  the authoritative corpus (4 nodes / 5 edges, the beta→alpha spine) and is called at
+  collection time by all three suites. **PROOF:** with the host fixture PHYSICALLY MOVED AWAY,
+  the three suites read **39 pass / 0 fail** and the helper recreated it.
+- **ROOT CAUSE 2 — the ESM-hoisting trap (`TypeError: The "data" argument must be of type
+  string ... Received undefined at kid(test:35)`, the last failure):** the suite sets
+  `process.env.GO_KEYS_JSON` at line 28 and imports `GO_KEYS` at line 33 — but **static imports
+  HOIST above every statement**, so `go-key-pool.ts` computed `GO_KEYS` from the AMBIENT env
+  BEFORE the override ran. On the host the ambient env carried real go keys, so `GO_KEYS[1]`
+  existed by luck; in the container it was empty and the test died.
+  **FIX:** a `beforeEach` that re-pins the env AND calls `reloadGoKeys()` (`GO_KEYS` is a
+  mutable const array refilled in place). **The first attempt placed the call at MODULE level
+  and REGRESSED the host to 198/1** — the afterEach restores the ambient env, so a one-shot
+  module call is undone after the first test (measured: `GO_KEYS.length` became 2). Per-test
+  re-pinning is the correct shape.
+  **PROOF:** host 199/0; host with the key env STRIPPED (the container condition) 2/0;
+  container 199/0.
+- **THE VERIFICATION:** the container, clean /tmp, no ambient keys:
+  `199 pass / 0 fail / 705 expect() calls / Ran 199 tests across 20 files. [1291ms]`
+- **THE LESSON:** a green host battery proves the code works ON A MACHINE THAT HAS BEEN LIVED
+  IN. The container is the only witness to what the tests actually depend on. Run the suite in
+  a fresh environment before believing an environment-dependent green.

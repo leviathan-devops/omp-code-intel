@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { GraphifyClientReader, createGraphifyToolDefs } from "../client-reader.ts";
 import { GraphifyMapReader, readGraphJson } from "../map-reader.ts";
+import { ensureFx383 } from "./fx383-fixture.ts";
 
 function fakeTransport(opts?: { failList?: boolean; failCall?: boolean }) {
   return {
@@ -25,6 +26,9 @@ function fakeTransport(opts?: { failList?: boolean; failCall?: boolean }) {
 }
 
 describe("hydra client-reader adversarial", () => {
+  // HERMETIC: the suite provisions its own fixture (the container proved the
+  // /tmp dependency made these batteries machine-dependent, not code-dependent).
+  ensureFx383();
   test("attach rejects empty graphPath with GRAPHIFY_CONNECT_INVALID", async () => {
     const c = new GraphifyClientReader();
     await expect(c.attach("", fakeTransport())).rejects.toThrow("GRAPHIFY_CONNECT_INVALID");
