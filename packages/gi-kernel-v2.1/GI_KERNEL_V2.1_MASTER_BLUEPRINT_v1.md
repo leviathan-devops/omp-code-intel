@@ -614,6 +614,47 @@ CREATE INDEX IF NOT EXISTS idx_fd_rule_truth ON fire_decisions(rule_id,
 CREATE INDEX IF NOT EXISTS idx_fd_hash ON fire_decisions(state_hash);
 ```
 
+### §8.2.1 THE TWO CONTRACTS A FORKER NEEDS (added after the SECOND OPERATOR test)
+
+★ A zero-context operator could NOT build a fire from this blueprint: §8.3 below imports the
+real `JevJudge` and never states the STUB contract, so the operator had to read
+`src/omp/fire-gate.ts` to discover it. **A doc-only operator must not need the source.**
+
+**THE JUDGE CONTRACT** — what any object passed as `FireGateConfig.judge` must satisfy:
+
+```ts
+interface Judge {
+  /** ONE call carrying every question. Returns one answer PER QUESTION, matched by id. */
+  evaluate(state: Record<string, unknown>, questions: readonly JudgeQuestion[]): Promise<readonly JudgeAnswer[]>;
+}
+interface JudgeQuestion { id: string; instructions: string; whenTrue: string; whenFalse: string; }
+interface JudgeAnswer  { id: string; probability: number; }   // probability in [0,1]
+```
+
+* The gate asks EXACTLY ONE question per fire, whose id is `"fire_is_real"`.
+* A non-matching id, a missing answer, or a non-finite probability is UNCERTIFIABLE and
+  routes by the policy's fail polarity — never a silent pass.
+* A STUB is therefore: `{ evaluate: async () => [{ id: "fire_is_real", probability: 0.9 }] }`
+* The real client is `JevJudge` (`src/omp/jev.ts`); it reads its key from
+  `~/.config/typesafe/key` (mode 0600), never from the environment.
+
+**THE FIRE CONTRACT** — the six fields, and the context builder's signature:
+
+```ts
+interface Fire { ruleId: string; cls: string; shape: string; tool: string; target: string; evidence: string; }
+interface StreamRecord { kind: string; text: string; offsetMs: number; }
+absorbContext(fire: Fire, stream: readonly StreamRecord[], opts?: { windowMs?, lexicons?, byteCap? }): AbsorbedContext
+```
+
+**THE RUN LOCATION** — resolve `./src/omp/*` from the **REPO ROOT**
+(`/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence`). A script placed
+under `packages/gi-kernel-v2.1/` must import `../../../src/omp/*`.
+
+**THE RUNTIME LEDGER PATH** — the kernel does NOT choose one. `FireGateConfig.ledgerPath` is
+DECLARED and never consumed; `FireLedger` (`src/omp/fire-ledger.ts`) takes the path in its
+CONSTRUCTOR. The instrument's ledger is `packages/gi-kernel-v2.1/tools/campaign-ledger.sqlite`;
+the hot seat's is `.mimocode/runtime-grade/hotseat-ledger.sqlite`. The CALLER decides.
+
 ### §8.3 THE FORKABLE SHELL (the smallest correct fire)
 
 ```ts
