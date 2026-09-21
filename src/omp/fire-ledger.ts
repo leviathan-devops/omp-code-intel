@@ -100,7 +100,7 @@ export class LedgerError extends Error {
 // ── THE LEDGER ──────────────────────────────────────────────────────────────
 export class FireLedger {
   private readonly db: Database;
-  private readonly insertStmt;
+  private readonly insertStmt: ReturnType<Database["prepare"]>;
   private closed = false;
   private persistFailureCount = 0;
   private lastPersist: { code: string; message: string; at: string } | null = null;
@@ -311,6 +311,11 @@ export class FireLedger {
    *  without bound — an unpaginated read of a year's fires is an OOM waiting for a
    *  caller that only wanted the recent rows. */
   all(limit?: number): PersistedFireRow[] {
+    // ★ pass-4: a limit reaching SQL unvalidated gives surprising results (NaN, floats,
+    //   negatives). It is a row count, so it must be a positive integer or absent.
+    if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
+      throw new LedgerError("BAD_LIMIT", `all(limit) needs a positive integer, got ${String(limit)}`);
+    }
     return this.guard("all", () => {
       const raw = (limit === undefined
         ? this.db.query(`SELECT * FROM fire_decisions ORDER BY id ASC`).all()
@@ -321,12 +326,21 @@ export class FireLedger {
   }
 
   /** One rule's rows — the unit calibration works in (never one global number). */
-  byRule(ruleId: string): PersistedFireRow[] {
+  byRule(ruleId: string, limit?: number): PersistedFireRow[] {
+    // ★ pass-4: `byRule` had no limit and no ruleId validation, unlike `all`. A hot rule
+    //   with a year of fires is the same unbounded read the `all` fix addressed.
+    if (typeof ruleId !== "string" || ruleId.trim() === "") {
+      throw new LedgerError("BAD_RULE_ID", `byRule needs a non-empty ruleId, got ${JSON.stringify(ruleId)}`);
+    }
+    if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
+      throw new LedgerError("BAD_LIMIT", `byRule(limit) needs a positive integer, got ${String(limit)}`);
+    }
     return this.guard("byRule", () => {
-      const raw = this.db
-        .query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id ASC`)
-        .all(ruleId) as Record<string, unknown>[];
-      return raw.map(toPersisted);
+      const raw = (limit === undefined
+        ? this.db.query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id ASC`).all(ruleId)
+        : this.db.query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id DESC LIMIT ?2`).all(ruleId, limit)) as Record<string, unknown>[];
+      const rows = raw.map(toPersisted);
+      return limit === undefined ? rows : rows.reverse();
     });
   }
 
@@ -491,8 +505,6 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
 // both would consider the same fire unseen and write it TWICE. Exactly-once must be
 // a property of the LEDGER (the file), not of whichever handle happens to call.
 const drained = new Map<string, WeakSet<object>>();
-/** How many distinct ledger FILES one process tracks drain state for. */
-export const DRAIN_TRACKING_CAP = 64;
 
 /** Persist every row the gate has produced that this ledger has not seen.
  *  Returns the number of NEW rows written (0 on a repeat drain). */
@@ -500,14 +512,13 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   const key = path.resolve(ledger.path);
   let seen = drained.get(key);
   if (seen === undefined) {
-    // ★ pass-3: BOUNDED. A module-global map keyed by path grows for every ledger a
-    //   process ever opens and is never evicted. Beyond the cap the OLDEST entry goes —
-    //   the cost of a re-drain on an evicted ledger is a duplicate write, which is why
-    //   the cap is high, not why there should be no cap.
-    if (drained.size >= DRAIN_TRACKING_CAP) {
-      const oldest = drained.keys().next().value;
-      if (oldest !== undefined) drained.delete(oldest);
-    }
+    // ★ PASS-4 HIGH — THE EVICTION IS GONE, AND IT SHOULD NEVER HAVE BEEN ADDED.
+    //   Pass 3 flagged "this map is never evicted" as a MEDIUM resource concern and I
+    //   bounded it — which DROPPED THE WEAKSET ON EVICTION, so a re-drain of an evicted
+    //   ledger DOUBLE-WRITES. I traded a HIGH guarantee (exactly-once) for a MEDIUM
+    //   resource concern. THE GUARANTEE WINS: one WeakSet per distinct ledger path is
+    //   negligible memory, and a process opens one or two ledgers, not thousands.
+    //   An entry is never removed, so exactly-once holds for the life of the process.
     seen = new WeakSet<object>();
     drained.set(key, seen);
   }
