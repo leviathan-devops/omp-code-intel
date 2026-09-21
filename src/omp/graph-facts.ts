@@ -65,15 +65,26 @@ export interface GraphFactVerdict {
  *    generic gate preempting a specific one is UNOBSERVED, never PASS.
  */
 export const GRAPH_FACTS_COVERAGE = {
-  /** The node kinds the corbell indexer emits (measured from the live store). */
-  indexedKinds: ["method", "class", "flow", "service"] as const,
-  /** The kinds the rules NEED but the indexer does NOT emit — the P4 gap. */
-  missingKinds: ["type", "interface", "config-field", "local-const", "closure"] as const,
-  /** The rules that can settle today (they read indexedKinds only). */
-  settlableNow: ["M-GRAPH-3"] as const,
-  /** The rules that are implemented but BLOCKED on the extractor. */
-  blockedOnExtractor: ["M-GRAPH-1", "M-GRAPH-2", "M-GRAPH-4", "M-GRAPH-5"] as const,
-  verdict: "RULES CORRECT + TESTED (12/12); EXTRACTOR INCOMPLETE — 0 of the session's 4 structural derailments are settlable today",
+  /** The kinds corbell emits. */
+  corbellKinds: ["method", "class", "flow", "service"] as const,
+  /** ★ THE KINDS THE KERNEL'S OWN EXTRACTOR ADDS (scripts/structural-extract.py) — the P4
+   *  gap, closed on the kernel side: 4,477 nodes across 98 files, 7,639 AST-exact
+   *  `references` edges, in a distinct `layer_id='structural'`. */
+  structuralKinds: ["type", "field", "const", "closure"] as const,
+  /** ★ MEASURED on the enriched store, against the session's OWN derailments:
+   *    D-2 OutcomeRecord   → M-GRAPH-1 FIRE       ("ZERO incoming edges")
+   *    D-6 ledgerPath      → M-GRAPH-2 FIRE       ("ZERO edges in or out")
+   *    D-5 abandonInFlight → M-GRAPH-4 ESCALATE   ("2 call sites — their guards must agree")
+   *    D-7 serializedBytes → UNOBSERVED            (an object KEY, not a declaration)
+   *  3 OF 4 HANDLED, 2 OF WHICH SETTLE WITH A FIRE AT $0 — the graph catches the defect
+   *  BEFORE the model is consulted. */
+  verdict: "RULES CORRECT + TESTED (12/12) · EXTRACTOR BUILT (structural-extract.py) · 3 of the session's 4 structural derailments now graph-handled, and 2 of them settle FIRE at $0",
+  /** ★ AND THE LESSON THE FIRST MEASUREMENT TAUGHT: the extractor MANUFACTURED the
+   *  references the rule was looking for — the declaration site emitted
+   *  `Container --references--> itsOwnMember`, so every member had in-degree >= 1 and
+   *  M-GRAPH-2 could never fire. 1,320 manufactured edges were removed. A producer that
+   *  invents the evidence its consumer needs is the worst kind of instrument. */
+  extractorLesson: "the declaration site is NOT a reference to itself",
 } as const;
 
 export interface GraphFactInput {

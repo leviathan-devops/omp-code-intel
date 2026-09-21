@@ -347,3 +347,19 @@
   ★ SO THE LAYER'S COVERAGE IS DECLARED IN CODE (`GRAPH_FACTS_COVERAGE`): only **M-GRAPH-3** (freshness) can settle today; M-GRAPH-1/2/4/5 are implemented and BLOCKED ON THE EXTRACTOR — which is P4 in the plan and is A DIFFERENT REPO.
 - ★ AND A DEFECT IN MY OWN FIRST RULE, CAUGHT BY THE CORPUS TEST: M-GRAPH-1 treated "no node" as "in-degree zero" and fired on ANY unknown target. THOSE ARE DIFFERENT FACTS — a node with in-degree 0 is a producer-less contract; an ABSENT node is something the graph does not know. The pin's own law: "a GENERIC gate preempting a specific one = UNOBSERVED, never PASS." FIXED with a node-existence gate.
 - EVIDENCE: 335/0/1192/31 host · 335/0/1198/31 container · tsc 191 == baseline · 12 corpus-fixture tests, each naming its SPECIFIC rule token with `firesUsed()` UNCHANGED (the pin's own acceptance criterion).
+
+## [2026-09-22T02:15:00] — EN-082 ★★★ THE EXTRACTOR: COVERAGE 0/4 → 3/4, AND THREE DEFECTS FOUND BY RUNNING IT
+- WHAT SHIPPED: `scripts/structural-extract.py` — THE KERNEL'S OWN STRUCTURAL EXTRACTOR. It uses the SAME PARSER corbell uses (tree-sitter + tree_sitter_typescript, probed in the corbell venv) and emits the four node kinds the graph-fact rules read but corbell does not emit: **type · field · const · closure**, plus AST-exact `references` edges, into a distinct `layer_id='structural'` in the SAME typed store.
+  MEASURED: **4,477 nodes across 98 files · 7,639 reference edges · kinds={closure:50, const:2818, field:1296, type:313}**.
+- ★★★ THE COVERAGE, RE-MEASURED on the session's own derailments:
+    D-2 OutcomeRecord   → M-GRAPH-1 · **FIRE**       "the consumed symbol has ZERO incoming edges"
+    D-6 ledgerPath      → M-GRAPH-2 · **FIRE**       "the declared symbol has ZERO edges in or out"
+    D-5 abandonInFlight → M-GRAPH-4 · **ESCALATE**   "has 2 call sites — their guards must agree"
+    D-7 serializedBytes → UNOBSERVED                 (an object KEY, not a declaration — honest)
+  ★ **3 OF 4 GRAPH-HANDLED, 2 OF WHICH SETTLE FIRE AT $0** — the graph catches the defect BEFORE the model is consulted. **0/4 → 3/4.**
+- ★★ DEFECT 1, FOUND BY RUNNING (the worst kind): **THE EXTRACTOR MANUFACTURED THE REFERENCES THE RULE WAS LOOKING FOR.** Declaring `ledgerPath?: string` emitted `FireGateConfig --references--> ledgerPath` FROM THE DECLARATION SITE, so EVERY declared member had in-degree ≥ 1 and M-GRAPH-2 settled a **FALSE IGNORE** on a dead field. 1,320 manufactured edges were removed. **A PRODUCER THAT INVENTS THE EVIDENCE ITS CONSUMER NEEDS IS THE WORST KIND OF INSTRUMENT.**
+  FIX: an identifier is a reference only when it is not the `name` field of its own declaration node.
+- ★ DEFECT 2, found on the first real run: `typed_nodes.canonical_id` is UNIQUE and **THE SAME NAME CAN BE DECLARED TWICE IN ONE FILE** (two `x` in different scopes). `structural::<file>::<name>` hit "UNIQUE constraint failed". Two declarations of one name in different scopes ARE different nodes; the LOCATION is what makes them so. FIX: the id carries the line.
+- ★★ DEFECT 3, **FOUND BY THE CONTAINER**: the new suite hard-codes the HOST path to the corbell venv (`/home/leviathan/corbell-venv/bin/python`), so all three tests FAILED in a clean container. **THE SAME CLASS AS THE REGISTER'S HOST-PINNED ABIDE/RSI PATHS** that produce the container's +6 delta.
+  FIX: the dependency is NAMED by a test that runs everywhere, and the three extractor tests SKIP with the reason stated — **BLOCKED, never silently passed** (the pin's law). MEASURED: container = 339 tests, **3 skip / 0 fail**.
+- EVIDENCE: 339/0/1206/32 host · 339 (3 skip) / 0 fail / 1199 container · tsc 191 == baseline · 4 new tests pinning the extractor's contract (the four kinds, the self-reference guard, the closure visibility, the named runtime dependency).
