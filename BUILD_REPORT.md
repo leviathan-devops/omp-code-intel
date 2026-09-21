@@ -337,3 +337,24 @@ ok=false  down=6/11  firstCode=GI_LAYER_SEMANTICA
 `GI_STACK_INCOMPLETE:...` — which is the T-6 law working exactly as written. It also names the
 real blocker for T-5/SC-8: **no TypeSafe key on this host**, so the Jev-backed judging cannot run
 until one is provisioned. That is a dependency to report, not to route around.
+
+## [2026-09-21] KERNEL v2.0 — T-5 THE ENFORCEMENT KERNEL (WAVE 3 COMPLETE)
+
+**The built:** `src/omp/enforcement.ts` — the 2-layer machine with the declared polarities:
+E1 WORK (Abide, fail-OPEN) and E2 CLOSE (Claim Firewall, fail-CLOSED), with TSG as the load
+unit. Engines arrive through DI seams; the hard-dependency register is checked FIRST, so no
+fallback path exists.
+**The close order is the design:** DETECT → BIND (zero spans ⇒ FABRICATED, **the model is never
+called** — asserted with a call-spy) → JUDGE (one question over BOUND spans) → ROUTE (code
+applies 0.8/0.5; low confidence REJECTS, it does not pass). Coverage is first-class: an
+incomplete scan FAILS CLOSED, never read as "no matches".
+**The two polarities on the SAME outage** — the wave's clearest assertion:
+```
+  engine outage →  work=Skipped (edit proceeds)   close=FAIL_CLOSED (done blocked)
+```
+**The evidence:** `bun test tests/st-gi-v2-enforce.test.ts` → **16 pass / 0 fail / 43 expect**;
+full battery → **194 pass / 0 fail** (was 178); tsc → 191 == baseline.
+**The honest notes:** T-5 is wired and dependency-gated, but the ENGINES are not installed —
+the live register audit shows JEV DOWN (`TYPESAFE_AI_API_KEY ABSENT`), TSG is an unbuilt Rust
+CLI, and Abide is source-only. So the live end-to-end (SC-8) cannot run until a TypeSafe key
+exists. That is a reported dependency, not a routed-around one.
