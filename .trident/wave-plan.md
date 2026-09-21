@@ -262,3 +262,34 @@ AUDIT CONVERGENCE — OPERATOR-OWNED (a process ruling). FIVE PASSES, no zero, a
     it does not count down to zero. RECOMMENDATION: a STANDING PROCESS (per wave), not
     a pre-ship gate.
 ```
+
+
+## ★★★ E1 — SIZED (2026-09-22, EN-087): THE ENGINE'S WORKLOAD, MEASURED
+
+```
+THE METHOD: 1,870 edit-events from this session's OWN git history × 48 REAL ledger fires
+            → the producer → the deterministic gatherers → the split.
+
+THE RESULT: 48/48 RESOLVED (100%) → E1's workload 0%.
+★ A 100% RATE IS A RED FLAG, NOT A RESULT.
+
+THE ROOT CAUSE: the subjects are files THIS SESSION EDITED REPEATEDLY OVER HOURS, and the
+                oracle's window is 24h — so "a later edit to the same target" is satisfied
+                by the session simply doing its work. THE SIGNAL MEANS "the FILE was
+                touched", NOT "the act was REVISITED": every fire resolves CONFIRMED and it
+                carries ZERO information about whether the firing was real.
+★ A SATURATED SIGNAL IS WORSE THAN A MISSING ONE — it produces a 100% resolution rate that
+  READS as excellent.
+
+★★ SO E1 NOW HAS TWO QUESTIONS, NOT ONE:
+  Q1 THE ENGINE (v3): which adjudicates ambiguous evidence.
+  Q2 ★ THE laterEdit SEMANTICS — the saturation. Options, measured-cost:
+      (a) A REPAIR PREDICATE (the edit must revert/re-write the same lines) — strongest
+      (b) A SESSION SCOPE (only same-session edits count) — kills cross-session only
+      (c) A TIGHTER WINDOW (24h is enormous for a repair) — cheapest, needs a distribution
+  UNTIL RULED: a CONFIRMED-from-laterEdit resolution is WEAK EVIDENCE (the oracle's own
+  header now says so).
+
+★ AND WHAT THE MEASUREMENT ESTABLISHED DESPITE ITSELF: the oracle's EDIT gatherer is a
+  TOUCH detector where a REPAIR detector was designed. That is a code finding, and it was
+  found by RUNNING the producer against real events — not by reading.
