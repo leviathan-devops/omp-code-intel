@@ -20,3 +20,4 @@ extensions/graph-intelligence/extension.js
 research/graph-infra-repos/
 !Checkpoints/gi-kernel-v2-six-layer-stack-rsi-live-jev-validated/
 !Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/
+!Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/

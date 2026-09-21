@@ -1,0 +1,56 @@
+{
+  "phase": "F",
+  "wave": "W8",
+  "generatedAt": "2026-09-21T13:35:00Z",
+  "rig": {
+    "container": "stupefied_morse",
+    "image": "omp-ct:master",
+    "bun": "1.4.2",
+    "workdir": "/work/gi",
+    "hostSha": "4834b9f",
+    "distSha": "83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+  },
+  "method": {
+    "staging": "docker cp src/. <dest>/  + tests/. + packages/.  — the TRAILING SLASH: without it docker cp NESTS the directory",
+    "invocation": "docker exec stupefied_morse sh -lc 'cd /work/gi && /root/.bun/bin/bun test ./tests/ ./src/hydra/__tests__/'",
+    "honestScope": "THIS IS THE BATTERY RUN, not the scenario-driver Phase F. The container-testing skill's Phase F driver records a per-scenario passToken/failToken with byte offsets and tool-call-context verification. The battery was run DIRECTLY; the tokens below are the runner's own summary lines, captured verbatim. It satisfies the RIG requirement (a real clean-container execution) but NOT the full scenario-artifact contract. Named here so no reader over-claims it."
+  },
+  "scenarios": [
+    {
+      "id": "ct-v2.1-battery-clean",
+      "what": "the full battery in the clean container with the W1-W5 v2.1 code staged",
+      "passToken": "244 pass",
+      "failToken": "0 fail",
+      "expects": 905,
+      "files": 25,
+      "wall": "1.55s",
+      "environment": { "tmp": "cleaned (rm -rf /tmp/gi-v21-*)", "ambientKeyEnv": "absent" },
+      "verdict": "PASS"
+    }
+  ],
+  "hostVsContainer": {
+    "host": { "pass": 244, "fail": 0, "expects": 901, "files": 25 },
+    "container": { "pass": 244, "fail": 0, "expects": 905, "files": 25 },
+    "deltaExpects": 4,
+    "deltaRootCause": {
+      "status": "ROOT-CAUSED — MEASURED, not guessed",
+      "method": "built the register with a cold tmp() scopeRoot and env:{} in BOTH environments and printed r.down",
+      "hostDown": 9,
+      "containerDown": 11,
+      "perEntryExpects": 2,
+      "arithmetic": "2 extra down entries x 2 expects = +4 — EXACTLY the observed delta",
+      "theTwoComponents": [
+        { "id": "ABIDE", "evidenceHost": "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/JARVIS/rep... (EXISTS on the host)", "evidenceContainer": "the same absolute path, ENOENT" },
+        { "id": "RSI_STORE", "evidenceHost": "/home/leviathan/.omp/graph-intelligence/rsi (EXISTS on the host)", "evidenceContainer": "the same absolute path, ENOENT" }
+      ],
+      "mechanism": "the register probes ABSOLUTE HOST PATHS. A path that exists on the host cannot exist in a container, so those two components are UP on the host and DOWN in the container — and tests/st-gi-v2-deps.test.ts:112 asserts 2 expectations PER down entry, making the assertion count a FUNCTION OF THE HOST'S FILESYSTEM.",
+      "whyItMatters": "the count 901 is therefore not a stable constant; a reader comparing host vs container totals must know the loop is data-dependent. The SAME +4 appeared in the v2.0 container run (host 701 / container 705) — this is its first root-cause. NOT a defect in the W1-W5 code.",
+      "myNewSuites": { "host": 200, "container": 200, "verdict": "IDENTICAL — W1-W5 contribute ZERO to the delta" }
+    }
+  },
+  "findings": [
+    { "id": "CT-1", "severity": "INFO", "what": "the W1-W5 v2.1 suites are environment-INDEPENDENT: ledger 36 / oracle 37 / advisory 45 / wiring 46 / policy 36 = 200 expects in BOTH the host and the clean container, measured per-file in each.", "verdict": "HERMETIC" },
+    { "id": "CT-2", "severity": "LOW", "what": "the pre-existing host/container expects delta (+4) is caused by the register probing host-absolute paths for ABIDE and RSI_STORE, combined with a data-dependent assertion loop (2 expects per down entry) in tests/st-gi-v2-deps.test.ts:112.", "action": "RECORDED. Not fixed — it is pre-existing, outside W1-W5, and the loop is CORRECT (it asserts every down entry states why). The number 901 is the thing a reader must not treat as a constant." }
+  ],
+  "verdict": "PASS — 244/0/905 in the clean container; the W1-W5 code is hermetic; the one count delta is root-caused to pre-existing host-path probing."
+}

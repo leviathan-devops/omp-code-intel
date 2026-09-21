@@ -1,0 +1,11 @@
+[ocr] full-scan: 3 file(s) discovered, reviewing 3 in /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+[ocr] estimated cost: ~3 file(s), est. 122K input + 18K output ≈ 140K total tokens (rough; actual reported after run)
+[ocr] scan dispatch: 1 batch(es) by by-language strategy
+[ocr] scan plan failed for src/omp/policy-store.ts: Post "http://127.0.0.1:4098/zen/v1/responses": dial tcp 127.0.0.1:4098: connect: connection refused (falling back to plan-less)
+[ocr] scan plan failed for src/omp/oracle.ts: Post "http://127.0.0.1:4098/zen/v1/responses": dial tcp 127.0.0.1:4098: connect: connection refused (falling back to plan-less)
+[ocr] scan plan failed for src/omp/fire-ledger.ts: Post "http://127.0.0.1:4098/zen/v1/responses": dial tcp 127.0.0.1:4098: connect: connection refused (falling back to plan-less)
+[ocr] Scan subtask error for src/omp/policy-store.ts (batch #0): LLM completion error: Post "http://127.0.0.1:4098/zen/v1/responses": dial tcp 127.0.0.1:4098: connect: connection refused
+[ocr] Scan subtask error for src/omp/fire-ledger.ts (batch #0): LLM completion error: Post "http://127.0.0.1:4098/zen/v1/responses": dial tcp 127.0.0.1:4098: connect: connection refused
+[ocr] Scan subtask error for src/omp/oracle.ts (batch #0): LLM completion error: Post "http://127.0.0.1:4098/zen/v1/responses": dial tcp 127.0.0.1:4098: connect: connection refused
+[ocr] Session: 6e3df056-47fb-44ff-be41-09a2f8de28b8 (retry with: --resume 6e3df056-47fb-44ff-be41-09a2f8de28b8)
+Error: scan failed: all 3 file scan(s) failed — check your LLM configuration and API key
