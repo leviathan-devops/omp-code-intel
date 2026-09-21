@@ -258,3 +258,20 @@
     contribute ZERO to the delta and are HERMETIC.
 - ★ HONEST SCOPE (recorded INSIDE the artifact): this is the BATTERY run, not the scenario-driver Phase F. The rig requirement (a real clean-container execution with a captured artifact) is met; the full per-scenario passToken/failToken contract with byte offsets is not. Named so no reader over-claims it.
 - NEXT: W7 (the measurement plan) · W9 (the seal).
+
+## [2026-09-21T13:55:00] — v2.1 W7 THE MEASUREMENT: M1-M12 filled — 12 MEASURED · 0 TBD
+- WHAT: packages/gi-kernel-v2.1/tools/measure-campaign.ts (the M1 INSTRUMENT, ~280 L) + campaign-report.json + MEASUREMENT_PLAN.md filled.
+- WHY: the operator's law — "2) get proper measurements for everything. no guesses". W7's gate is ZERO TBD, and every M-number must come from a COUNTER OVER STORED ROWS.
+- THE CAMPAIGN: 14 PAIRED cases (8 real + 6 false-positive twins) fired through the WIRED path (W3's advisory/FireGate → W1's ledger) with the LIVE Jev judge. 14 fires → 14 rows written AND stored, end to end. THE PAIRING IS THE POINT: a corpus of reals alone cannot measure a gate (firing on everything scores R=1.000 and is worthless).
+- ★ THE MEASURED NUMBERS:
+    M1  best t=0.35 → F1=0.889 · P=0.800 · R=1.000   (per rule: theatrical 3C/2R · dumb 3C/2R · destructive 2C/2R)
+    M6  latency p50=331ms p95=748ms (run 1); p50=328ms p95=1351ms (run 2 — ★ the p95 nearly DOUBLED; the p50 was stable to 3ms)
+    M7  trimmed 0/14 · 29 slots (~2 per fire) — the 18KB cap never bit on this corpus
+    M8  MPSE settled 0/14 = 0.0% — ★ THE CHEAPEST LAYER CONTRIBUTED NOTHING
+    M9  degraded 0/14 = 0.0% — the failure path was never taken (so EN-056/EN-057 are test-proven, not runtime-proven)
+    M12 act band 0/14 → STARVED=TRUE — REPRODUCED through the wired path
+    M10 14/14 resolvable on the corpus labels (NOT the same number as the real downstream resolution rate — do not conflate)
+    health ok=false with 3 findings — the kernel correctly REFUSES to calibrate at n=4/5 per rule
+- ★ THE DECISIVE FINDING: the shipped seeds are ~2.5x too high. At the `dumb` seed act=0.75 only 2 of 8 REAL violations fire (R=0.250). The measured optimum is t≈0.35-0.40. This reproduces the prior session's "2x error that made the act band fire ZERO times" — on a different corpus through a different code path, which upgrades it from an observation to a PROPERTY of the shipped seeds.
+- ★ AND THE M2 CONNECTION MADE EXPLICIT: the cost matrix does not change what is TRUE (the curve); it chooses which error the operator prefers to pay for. The shipped posture (block 4x) pins the bar at 0.80 and starves the band. The operator's M2 answer decides whether this gate ever fires.
+- EVIDENCE: the campaign ran LIVE twice; campaign-report.json carries the sweep, the per-rule counts, the policies and the health; MEASUREMENT_PLAN 12 MEASURED / 0 TBD / 5 UNMEASURED (M2 the operator's · M5 an instrument gap NAMED — the judge does not surface usage · M11 needs a human sampling session · M10's real-downstream rate).
