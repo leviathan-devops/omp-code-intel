@@ -7,6 +7,25 @@
 // threshold remained a seed guess. This module is what converts a pile of rows
 // into the curve the thresholds are derived from.
 //
+// ★★ A NAMED LIMIT, MEASURED 2026-09-22 (scripts/e1-sizing.ts): THE laterEdit GATHERER
+//   SATURATES ON A SELF-EDITING CORPUS. Run over this session's own operation — 1,870
+//   git-log edit-events against 48 real ledger fires — the gatherer resolved 48/48 (100%),
+//   because the oracle's window is 24h and the session edits its own files continuously. So
+//   the signal means "the FILE was touched", NOT "the act was REVISITED": every fire
+//   resolves CONFIRMED and the signal carries ZERO information about whether the firing was
+//   real.
+//   ★ A 100% RATE IS A RED FLAG, NOT A RESULT — the measurement refuted its own first
+//   reading ("E1's workload is 0%") and produced this instead.
+//   ★ THE REMEDY OPTIONS, NOT APPLIED (the semantics are a design ruling, not a bug fix):
+//     (a) A REPAIR PREDICATE — require the later edit to REVERT or re-write the same lines,
+//         not merely to touch the file. The strongest narrowing; needs a diff predicate.
+//     (b) A SESSION SCOPE — only edits BY THE SAME SESSION count. Kills the cross-session
+//         saturation, not the within-session one.
+//     (c) A TIGHTER WINDOW — the 24h default is enormous for a repair; minutes-to-hours is
+//         the repair scale. Cheapest; needs a measured repair-latency distribution.
+//   ★ UNTIL ONE IS RULED: treat a CONFIRMED-from-laterEdit resolution as WEAK EVIDENCE and
+//     prefer the test/withdraw/permit signals where they exist.
+
 // ★ THE ONE LAW THAT MATTERS: A FIRING IS NOT A RESOLUTION. If a firing could
 //   count as a confirmation, the system would report perfect precision on ZERO
 //   evidence. EN-050 caught exactly that mistake in a test harness (12 fired

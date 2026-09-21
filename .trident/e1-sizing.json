@@ -1,0 +1,550 @@
+{
+  "at": "2026-09-21T13:45:57.223Z",
+  "method": "git-log edit-events × the live ledger's real fires",
+  "limits": [
+    "ONE session's git history is ONE kind of organic evidence (the later-edit kind).",
+    "There are NO test-run, withdrawal or permit records in git history — this measures the edit-gatherer's reach, not the full four-gatherer reach.",
+    "The subject per fire is paired by RULE (the §8.2 DDL carries no target column), so the pairing is an approximation and is NAMED as one.",
+    "NO LEDGER WRITES: this sizes the engine; it does not mutate the evidence."
+  ],
+  "events": 1870,
+  "subjects": 1133,
+  "fires": 48,
+  "reach": {
+    "laterEdit": 48,
+    "test": 0,
+    "other": 0,
+    "unresolved": 0,
+    "settled": 48
+  },
+  "perFire": [
+    {
+      "at": "2026-09-21T09:52:47.338Z",
+      "cls": "theatrical",
+      "subject": ".trident/host-suite-results.json",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:48.410Z",
+      "cls": "theatrical",
+      "subject": "context_management/RUNNING_DEBUG_LOG.md",
+      "records": 25,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:48.913Z",
+      "cls": "dumb",
+      "subject": "scripts/host-suite.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:49.203Z",
+      "cls": "dumb",
+      "subject": "src/omp/kernel-v2.ts",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:49.527Z",
+      "cls": "destructive",
+      "subject": "tests/st-gi-v21-wiring.test.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:49.857Z",
+      "cls": "destructive",
+      "subject": "GUARDRAIL_SPEC.md",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:50.161Z",
+      "cls": "theatrical",
+      "subject": "META_OBSERVATIONS.md",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:50.459Z",
+      "cls": "theatrical",
+      "subject": "SUGGESTED_IMPROVEMENTS.md",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:50.735Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/context_management/context_management/RUNNING_DEBUG_LOG.md",
+      "records": 23,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:51.169Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/packages/gi-kernel-v2.1/GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md",
+      "records": 7,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:51.460Z",
+      "cls": "destructive",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/omp/evidence-producer.ts",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:51.764Z",
+      "cls": "destructive",
+      "subject": "packages/gi-kernel-v2.1/GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md",
+      "records": 7,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:52.188Z",
+      "cls": "theatrical",
+      "subject": "src/omp/evidence-producer.ts",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:52.488Z",
+      "cls": "theatrical",
+      "subject": "tests/st-gi-v21-evidence-producer.test.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:52.817Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/TESTING_LOG.md",
+      "records": 10,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:53.213Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/graph-store-enriched.sqlite",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:53.623Z",
+      "cls": "destructive",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/corbell-build.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:53.919Z",
+      "cls": "destructive",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/ct-gate-angles-v13.mjs",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:54.237Z",
+      "cls": "theatrical",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/gi-cli.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:54.555Z",
+      "cls": "theatrical",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/graphify-build.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:54.876Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/scan-panel.sh",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:55.210Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/structural-extract.py",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:55.518Z",
+      "cls": "destructive",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/omp/graph-facts.ts",
+      "records": 4,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:55.825Z",
+      "cls": "destructive",
+      "subject": ".omp/graph-intelligence/corbell-checkout/store.sqlite",
+      "records": 4,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:56.148Z",
+      "cls": "theatrical",
+      "subject": ".omp/graph-intelligence/graphify-checkout/store.sqlite",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:56.429Z",
+      "cls": "theatrical",
+      "subject": ".omp/graph-intelligence/sessions/gi-baseline000000000000/store.sqlite",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:56.750Z",
+      "cls": "dumb",
+      "subject": "scripts/structural-extract.py",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:57.053Z",
+      "cls": "dumb",
+      "subject": "src/omp/graph-facts.ts",
+      "records": 4,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:57.387Z",
+      "cls": "destructive",
+      "subject": "tests/st-gi-v21-structural-extract.test.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:57.667Z",
+      "cls": "destructive",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/corbell-checkout/store.sqlite",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:57.973Z",
+      "cls": "theatrical",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/packages/gi-kernel-v2.1/META_PATTERNS_GRAPH_BLINDSPOT.md",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:58.256Z",
+      "cls": "theatrical",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/hunter/graph/store-map.ts",
+      "records": 4,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:58.544Z",
+      "cls": "dumb",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/omp/fire-gate.ts",
+      "records": 11,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:58.872Z",
+      "cls": "dumb",
+      "subject": "src/hunter/graph/store-map.ts",
+      "records": 5,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:59.163Z",
+      "cls": "destructive",
+      "subject": "src/omp/fire-gate.ts",
+      "records": 12,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:59.461Z",
+      "cls": "destructive",
+      "subject": "tests/st-gi-v21-graph-facts.test.ts",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:52:59.754Z",
+      "cls": "theatrical",
+      "subject": ".mimocode/runtime-grade/derailment-ledger-2026-09-22.md",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:00.050Z",
+      "cls": "theatrical",
+      "subject": "FAILURE_LOG.md",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:00.387Z",
+      "cls": "dumb",
+      "subject": "TESTING_LOG.md",
+      "records": 10,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:00.737Z",
+      "cls": "dumb",
+      "subject": "THEATRICALITY_LOG.md",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:01.025Z",
+      "cls": "destructive",
+      "subject": "packages/gi-kernel-v2.1/META_PATTERNS_GRAPH_BLINDSPOT.md",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:01.346Z",
+      "cls": "destructive",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/audit/pass7/fire-gate.err",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:01.673Z",
+      "cls": "theatrical",
+      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/audit/pass7/fire-gate.json",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:02.049Z",
+      "cls": "theatrical",
+      "subject": ".audit/pass7/fire-gate.err",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:02.380Z",
+      "cls": "dumb",
+      "subject": ".audit/pass7/fire-gate.json",
+      "records": 1,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:02.669Z",
+      "cls": "dumb",
+      "subject": "tests/st-gi-v21-hotseat.test.ts",
+      "records": 3,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:02.953Z",
+      "cls": "destructive",
+      "subject": "tests/st-gi-v21-redteam.test.ts",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    },
+    {
+      "at": "2026-09-21T09:53:03.239Z",
+      "cls": "destructive",
+      "subject": ".audit/pass6/hard-deps.json",
+      "records": 2,
+      "signals": [
+        "laterEdit"
+      ],
+      "truth": "confirmed",
+      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+    }
+  ]
+}

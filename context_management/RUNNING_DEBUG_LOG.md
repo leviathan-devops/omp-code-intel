@@ -416,3 +416,28 @@
   `degradationOf` branch names it `GI_GATE_UNAVAILABLE:JUDGE_UNAVAILABLE`; only the THROW path
   (the budget = a refusal to call at all) reaches the runner's own catch.
 - EVIDENCE: host suite 13/13 · battery 351/0/1253/33 host · 351/0/1246/33 container · tsc 191.
+
+## [2026-09-22T04:40:00] — EN-087 ★★★ THE E1 SIZING: THE MEASUREMENT REFUTED ITS OWN FIRST READING
+- THE QUESTION SIZED: E1 (the oracle's engine) has been carried as "the operator's, v3" with NO
+  measurement attached — so naming an engine was a decision with an unknown payoff.
+- THE METHOD (no synthetic labels): 1,870 edit-events from this session's OWN git history × 48
+  REAL ledger fires (real timestamps, real state hashes) → the producer → the deterministic
+  gatherers → the resolved/unresolved split.
+- THE FIRST READING: **48/48 RESOLVED (100%) → E1's workload is 0%.** ★ A 100% RATE IS A RED
+  FLAG, NOT A RESULT.
+- ★★ ROOT CAUSE OF THE SATURATION: the subjects are files THIS SESSION EDITED REPEATEDLY OVER
+  HOURS, and the oracle's window is **24h**. So "a later edit to the same target" is satisfied
+  by the session simply doing its work. **THE SIGNAL MEANS "THE FILE WAS TOUCHED", NOT "the act
+  was REVISITED"** — every fire resolves CONFIRMED and the signal carries ZERO information about
+  whether the firing was real. A saturated signal is worse than a missing one: it produces a
+  100% resolution rate that READS as excellent.
+- ★ THE REMEDY OPTIONS, RECORDED NOT APPLIED (the semantics are a design ruling, not a bug fix):
+  (a) A REPAIR PREDICATE (the later edit must REVERT or re-write the same lines) · (b) A SESSION
+  SCOPE (only same-session edits count) · (c) A TIGHTER WINDOW (24h is enormous for a repair).
+  UNTIL ONE IS RULED: a CONFIRMED-from-laterEdit resolution is WEAK EVIDENCE.
+- ★ AND THE HONEST LIMITS, STATED IN THE ARTIFACT: one session's git history is ONE kind of
+  organic evidence (no test-run, withdrawal or permit records exist in git history), and the
+  subject per fire is paired by RULE (the §8.2 DDL carries no target column).
+- ★ THE DISCIPLINE THIS EXERCISED: the measurement refuted its own headline. The 100% was the
+  CORRECT OUTPUT of a saturated instrument — and the finding is the instrument, not the engine.
+- EVIDENCE: .trident/e1-sizing.json · scripts/e1-sizing.ts · battery 351/0/1253/33 · tsc 191.
