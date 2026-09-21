@@ -210,3 +210,11 @@
 - ★ THE SPEC GAP (named, not papered): §8.2's DDL carries NO `target` and NO `tool` column, yet W2's contract is "a later edit to THE TARGET". The row cannot supply its own subject, so `resolveAll` takes it EXPLICITLY. The DDL was NOT silently extended.
 - EVIDENCE: W2 suite 12 pass/0 fail/37 expect · battery 218/0/774/22 files (W1 baseline 206/0/737/21 → +12 tests/+37 expects/+1 file, ZERO regressions) · tsc 191 == baseline 0 new · `bun test -t test_oracle_resolves` PASS scoped.
 - NEXT: W3 (position A) · W5 (policy store). W6 stays BLOCKED on M2.
+
+## [2026-09-21T12:50:00] — v2.1 W3 POSITION A: the pre-act advisory (fail-OPEN), in fire-gate.ts
+- WHAT: fire-gate.ts +127 L — `Intent`, `Advisory`, `intentFire()`, `advisory()`. tests/st-gi-v21-advisory.test.ts (9 tests, 45 expects).
+- WHY: the operator's ruling was "1) both" — the gate in BOTH positions. This is the first half: before an act runs, ask whether the SHAPE of the INTENDED act is a violation. An act not yet taken can be steered for free; the v2.0 post-hoc refusal costs the agent the whole edit.
+- ★ THE LAW IS IN THE TYPE: `Advisory.block` is the literal `false`. Position A CANNOT block, so an edit that tried to make it refuse would not compile. The fail-open polarity on this surface is enforced by the type system, not by a comment.
+- ★ IT COMPOSES, DOES NOT DUPLICATE (the ripwire lens found this): the v1.3 gate ALREADY has a pre-act advisory — `gateAdvisory` (typed-write.ts:1213, churn=39 amp=11) — a DETERMINISTIC $0 caller-listing that says WHICH callers a change would break. That one INFORMS; this one ADJUDICATES. Re-deriving the caller list here would have been duplicate machinery.
+- EVIDENCE: W3 suite 9 pass/0 fail/45 expect · battery 227/0/819/23 files (W2 baseline 218/0/774/22 → +9 tests/+45 expects/+1 file, ZERO regressions) · tsc 191 == baseline 0 new · `bun test -t test_advisory_open` PASS scoped.
+- NEXT: W4 (position B, THE WIRING — the gate between the detector's VIOLATION and the v2.0 verdict) · W5 (policy store).

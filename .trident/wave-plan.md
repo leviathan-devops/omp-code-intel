@@ -56,9 +56,12 @@ T-6 ← W9 ← all of the above
   EVIDENCE: 12/0/37 · battery 218/0/774/22 (W1 was 206/0/737/21 → +12 tests, no regressions) · tsc 191 (0 new)
             ★ FOUND A REAL DEFECT: resolveAll trusted the caller's stale row (EN-052) — now reads LIVE truth
             ★ THE SPEC GAP NAMED: §8.2 has no target/tool column, so resolveAll takes the subject explicitly
-### W3 — POSITION A  src/omp/fire-gate.ts (intent path)  [depends: W1]  ☐
-  Deliverable: the pre-act advisory (fail-OPEN)
-  Gate: an advisory fires · test_advisory_open
+### W3 — POSITION A  src/omp/fire-gate.ts (intent path)  [depends: W1]  ✅ CLOSED
+  Deliverable: Intent + Advisory + intentFire() + advisory() — the pre-act advisory (fail-OPEN)
+  Gate: an advisory fires · test_advisory_open ✓
+  ★ THE LAW IS IN THE TYPE: Advisory.block is the literal `false`
+  ★ COMPOSES with the existing gateAdvisory (typed-write.ts:1213) — informs vs adjudicates
+  EVIDENCE: 9/0/45 · battery 227/0/819/23 (W2 was 218/0/774/22 → +9 tests, no regressions) · tsc 191
 ### W4 — POSITION B  src/omp/kernel-v2.ts  [depends: W1,W3]  ☐
   Deliverable: the post-detector filter — THE WIRING
   Gate: a real FIRE + a real IGNORE · test_gate_fire · test_gate_ignore
@@ -83,7 +86,8 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
 |---|---|---|---|
 | W1 | 7/0/36 · 206/0/737/21 · tsc 191 | battery 206/0/737/21 ✓ · tsc 191 ✓ · 5 named selectors ✓ · derivePolicy+health ✓ | **CLOSED** |
 | W2 | 12/0/37 · 218/0/774/22 · tsc 191 | battery 218/0/774/22 ✓ · tsc 191 ✓ · test_oracle_resolves ✓ | **CLOSED** |
-| W3 | — | — | OPEN |
+| W3 | 9/0/45 · 227/0/819/23 · tsc 191 | battery 227/0/819/23 ✓ · tsc 191 ✓ · test_advisory_open ✓ | **CLOSED** |
+| W4 | — | — | OPEN |
 
 ## HARD STOPS ACTIVE
 - M2 (the cost matrix) — OPERATOR-OWNED. Blocks W6 only. W1/W2/W3/W5 build regardless.

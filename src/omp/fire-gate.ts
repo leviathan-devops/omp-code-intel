@@ -368,3 +368,130 @@ export class FireGate {
   firesUsed(): number { return this.budgetUsed; }
   cacheSize(): number { return this.cache.size; }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// POSITION A — THE PRE-ACT ADVISORY (§S0). The operator's ruling was "1) both":
+// the gate sits BEFORE the act as well as after the detector.
+//
+// WHY A BEFORE THE ACT: an act not yet taken can be steered for free. The
+// v2.0 post-hoc refusal costs the agent the whole edit — the work is already
+// done and is then thrown away. Here the same judgment arrives while the
+// intent is still only an intent.
+//
+// ★ FAIL POLARITY: **OPEN**. An advisory that cannot reach the model MUST NEVER
+//   block a legitimate act. That is not a convention here — it is the TYPE:
+//   `block` is the literal `false`, so an edit that tried to make position A
+//   refuse would fail to compile.
+//
+// ★ IT COMPOSES, DOES NOT DUPLICATE. The v1.3 gate already carries a pre-act
+//   advisory (`gateAdvisory`, typed-write.ts:1213) — a DETERMINISTIC, $0
+//   caller-listing that says which callers a change would break. That one
+//   INFORMS. This one ADJUDICATES ("is this shape a violation?"). Both ride the
+//   same moment; re-deriving the caller list here would be duplicate machinery.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** What is ABOUT to happen — the pre-act shape. The difference between this and
+ *  a detector's Fire is tense: an Intent describes an act not yet taken. */
+export interface Intent {
+  /** The tool that is about to run — edit, write, goal.complete, bash. */
+  tool: string;
+  /** What it is about to touch. */
+  target: string;
+  /** ★ THE PRE-ACT FACT the dumb rule keys on: was the target mapped before
+   *  the act? `false` is the blind edit, and it is the whole point of having an
+   *  advisory — the act can still be preceded by the query. */
+  queriedBefore: boolean;
+  /** Anything else the operator would want in the shape line. */
+  detail?: string;
+}
+
+/** ★ THE ADVISORY'S RESULT. `block` is the literal `false`: position A cannot
+ *  stop an act, and the type system enforces it rather than a comment. */
+export interface Advisory {
+  /** `steer` = the shape looks like a violation; the act still proceeds. */
+  verdict: "pass" | "steer";
+  /** ★ ALWAYS false. The fail-open law, in the type. */
+  block: false;
+  /** The model's probability, or null when the advisory could not reach it. */
+  probability: number | null;
+  /** The operator-readable why, carrying the rule, the probability and the
+   *  threshold in force (§6.4.3 rule 3). */
+  reason: string;
+  /** The decision row, when a judgment actually happened (SC-8). */
+  row: DecisionRow | null;
+  /** The NAMED degradation, when the advisory ran fail-open or could not
+   *  certify. Null when a real judgment was obtained. */
+  skipped: { code: string; message: string } | null;
+}
+
+const DESTRUCTIVE_HINT = /(^|[\s"])(rm|rmdir|dd|mkfs|shutdown|reboot|kill|pkill|drop|truncate)(\s|$)|--force|--hard|-rf\b|:\s*>|>\s*\/dev\/sd/;
+const CLOSE_HINT = /(complete|close|done|finish|ship|finalize|merge)/i;
+
+/** Derive the class of an INTENT with the SAME vocabulary the detectors use
+ *  (`dumb` | `theatrical` | `destructive`). Destructive wins: an intent that
+ *  could destroy outranks one that merely claims. */
+export function intentFire(intent: Intent): Fire {
+  const probe = `${intent.tool} ${intent.target}`;
+  const cls = DESTRUCTIVE_HINT.test(probe)
+    ? "destructive"
+    : CLOSE_HINT.test(intent.tool)
+      ? "theatrical"
+      : "dumb";
+  return {
+    ruleId: `*${cls}`,
+    cls,
+    shape: `intended ${intent.tool} on ${intent.target}`,
+    tool: intent.tool,
+    target: intent.target,
+    // the same field the dumb detector fills, in the same truthy vocabulary —
+    // one vocabulary across both positions.
+    evidence: `queriedBefore=${intent.queriedBefore}${intent.detail !== undefined ? ` ${intent.detail}` : ""}`,
+  };
+}
+
+/** ★ ADJUDICATE AN INTENT — position A. ALWAYS returns; NEVER throws on a
+ *  degraded path; NEVER blocks. Every degradation is NAMED in `skipped`, so
+ *  "the model said it was fine" and "the model could not be reached" are
+ *  distinguishable — which is exactly what an advisory must preserve. */
+export async function advisory(gate: FireGate, intent: Intent, ctx: AbsorbedContext): Promise<Advisory> {
+  const fire = intentFire(intent);
+  let d: FireDecision;
+  try {
+    d = await gate.judge(fire, ctx);
+  } catch (e) {
+    // THE FAIL-OPEN PATH. A down judge, a spent budget (D017), any throw — the
+    // act PROCEEDS and the reason is CARRIED. An advisory is a courtesy; it is
+    // never a gate.
+    const message = e instanceof Error ? e.message : String(e);
+    return {
+      verdict: "pass", block: false, probability: null, row: null,
+      reason: `advisory unavailable — the act proceeds (fail-open): ${message}`,
+      skipped: { code: "GI_ADVISORY_OPEN", message },
+    };
+  }
+
+  // The gate's OWN degraded rows carry a suffix on the policy name. Read the
+  // SUFFIX, never the prose: a reason string is for humans and may be reworded.
+  const suffix = d.row.policyName.includes("+no-answer") ? "NO_ANSWER"
+    : d.row.policyName.includes("+fail-") ? "JUDGE_UNAVAILABLE"
+    : null;
+  if (suffix !== null) {
+    return {
+      verdict: "pass", block: false, probability: d.probability, row: d.row,
+      reason: `advisory could not certify the intent — the act proceeds (fail-open): ${d.reason}`,
+      skipped: { code: `GI_ADVISORY_OPEN:${suffix}`, message: d.reason },
+    };
+  }
+
+  const steer = d.band === "act";
+  return {
+    verdict: steer ? "steer" : "pass",
+    block: false,
+    probability: d.probability,
+    reason: steer
+      ? `ADVISORY STEER [${fire.ruleId}] — ${d.reason}`
+      : `advisory pass [${fire.ruleId}] — the intended act does not read as a violation (${d.reason})`,
+    row: d.row,
+    skipped: null,
+  };
+}
