@@ -212,8 +212,10 @@ PACKAGE_AUDIT: PASS (with the named residual below)
   RB TALLY: 5 PASS / 2 BLOCKED / 0 FAIL.
 
 NAMED RESIDUAL — reported, not hidden:
-  1  TYPESAFE_AI_API_KEY ABSENT — the LIVE Jev path and 2 RB rows cannot run.
-  2  TSG (an unbuilt Rust CLI) and Abide (source-only) are wired at DI seams,
+  1 TYPESAFE_AI_API_KEY ABSENT — the LIVE Jev path and 2 RB rows cannot
+    run.
+  2 TSG (an unbuilt Rust CLI) and Abide (source-only) are wired at DI
+    seams,
      neither installed.
   3  the tier thresholds and the 0.8/0.5 bands are UNCALIBRATED.
   4  the RSI oracle's engine (E1: Jev / MPSE / JESL) is UNRESOLVED.
