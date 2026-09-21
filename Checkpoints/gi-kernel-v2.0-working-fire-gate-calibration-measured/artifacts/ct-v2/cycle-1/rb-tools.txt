@@ -1,0 +1,7 @@
+═══ RB-TOOLS — the live artifacts (2026-09-21) ═══
+gate-log rows: 3969
+GATE STEER firings: 129
+--- verbatim firing rows ---
+{"recFile":"","dial":"STEER","verdict":{"cancel":false,"token":"[GATE STEER]","advisory":"SIGNATURE_BREAK removed=wa1"}}
+{"recFile":"","dial":"STEER","verdict":{"cancel":false,"token":"[GATE STEER]","advisory":"SIGNATURE_BREAK removed=wa2"}}
+{"recFile":"","dial":"STEER","verdict":{"cancel":false,"token":"[GATE STEER]","advisory":"SIGNATURE_BREAK removed=wa3"}}
