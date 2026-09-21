@@ -123,27 +123,38 @@ the package documents require nothing outside this directory to be READ.
 
 ```
 RB-FIREWALL   passToken: a forged reflex row is ABSENT to the reader
-              MEASURED: 2 rows; id=1 verified=true, id=2 (forged, sig deadbeef..)
-              verified=false; the forged row is ABSENT to the verified reader.
+              MEASURED: 2 rows; id=1 verified=true, id=2 (forged, sig
+                deadbeef..)
+              verified=false; the forged row is ABSENT to the verified
+                reader.
               VERDICT: PASS
 
-RB-LIFECYCLE  passToken: the reflex row supersedes with a VERIFIED successor
-              MEASURED: naive live() for the victim = 0 (the attack's effect);
-              the verified-retirement reader RECOVERED run=rsi-1 kind=HOLD;
-              a VERIFIED supersede produced kind=REFLEX conf=1.000, live=rsi-2,
+RB-LIFECYCLE passToken: the reflex row supersedes with a VERIFIED
+  successor
+              MEASURED: naive live() for the victim = 0 (the attack's
+                effect);
+              the verified-retirement reader RECOVERED run=rsi-1
+                kind=HOLD;
+              a VERIFIED supersede produced kind=REFLEX conf=1.000,
+                live=rsi-2,
               history preserved at 3 rows (append-only).
               VERDICT: PASS
 
 RB-TOOLS      the live artifacts:
-              /tmp/gi-gate.log = 3969 rows, 129 GATE STEER firings (the v1.3 gate
+              /tmp/gi-gate.log = 3969 rows, 129 GATE STEER firings (the
+                v1.3 gate
               firing on real sessions);
-              the live typed store = 1266 live nodes, distinct layer_id = [graphify]
-              VERDICT: PARTIAL — the artifacts are real; the ROW's full pass needs the
+              the live typed store = 1266 live nodes, distinct layer_id =
+                [graphify]
+              VERDICT: PARTIAL — the artifacts are real; the ROW's full
+                pass needs the
               kernel loaded in a live session (blocked)
 
 RB-IDENT / RB-INTEGRATION / RB-ERRORS / RB-CONFIG
-              VERDICT: BLOCKED — need the kernel wired into the live gate path +
-              TYPESAFE_AI_API_KEY (ABSENT). Reported BLOCKED, never marked passed.
+              VERDICT: BLOCKED — need the kernel wired into the live gate
+                path +
+              TYPESAFE_AI_API_KEY (ABSENT). Reported BLOCKED, never marked
+                passed.
 ```
 
 ## (k) SC-6 ON THE REAL CORPUS (the B1 kill, measured)
@@ -152,21 +163,28 @@ RB-IDENT / RB-INTEGRATION / RB-ERRORS / RB-CONFIG
 the real corpus: 2714 edges from the live store
   OLD (the B1 defect)   1 distinct confidence value
   NOW                   2 distinct values
-                        conf=0.990  n=1872   (explicit: imports/declares/implements)
+                        conf=0.990 n=1872 (explicit:
+                          imports/declares/implements)
                         conf=0.720  n=842    (inferred: calls)
-  SC6: PASS — the 842 `calls` edges no longer claim an observed fact's certainty.
+  SC6: PASS — the 842 `calls` edges no longer claim an observed fact's
+    certainty.
 ```
 
 ## (l) A DEFECT THE HOST-LIVE RUN FOUND (logged, not hidden)
 
 ```
-F-50  crypto.timingSafeEqual THROWS RangeError on a length mismatch, so a malformed
-      sig crashed the verifier instead of rejecting the row. Found ONLY by running
-      against the real store (every unit fixture used a 64-char sig). FIXED +
+F-50 crypto.timingSafeEqual THROWS RangeError on a length mismatch, so a
+  malformed
+      sig crashed the verifier instead of rejecting the row. Found ONLY by
+        running
+      against the real store (every unit fixture used a 64-char sig).
+        FIXED +
       regression-tested.
 
-EN-041 the CURRENT graph.json (24,757 edges) drops EVERY edge as lineless through the
-      real mapper, while the store holds 2,713 from an older populate. A populate-path
+EN-041 the CURRENT graph.json (24,757 edges) drops EVERY edge as lineless
+  through the
+      real mapper, while the store holds 2,713 from an older populate. A
+        populate-path
       defect, OPEN, recorded so the next populate does not read as clean.
 ```
 
