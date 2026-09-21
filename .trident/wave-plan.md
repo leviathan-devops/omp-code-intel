@@ -71,9 +71,12 @@ T-6 ← W9 ← all of the above
   ★ THE BOUNDARY: level 1 (gate→kernel) DONE. Level 2 (kernel→live tool path) NOT done —
     runKernelV2 call sites outside its file = 0, and the ENGINES-BEFORE-REGISTRATION law
     forbids registering while the register reads up=5/11.
-### W5 — POLICY  src/omp/policy-store.ts  [depends: W1]  ☐
-  Deliverable: versioned JSON policies (data, not code — D026)
-  Gate: a reload without a rebuild · test_policy_reload
+### W5 — POLICY  src/omp/policy-store.ts  [depends: W1]  ✅ CLOSED
+  Deliverable: PolicyStore + atomic read/write + validate; packages/gi-kernel-v2.1/policies/policies.json SHIPPED
+  Gate: a reload without a rebuild · test_policy_reload ✓
+  ★ EXIT GATE MEASURED: edit act 0.75→0.90 ⇒ the SAME p=0.80 goes act/FIRE → escalate/ESCALATE, costUsd=0, and the model was called exactly ONCE
+  ★ LOUD LOAD FAILURES: MISSING · MALFORMED · RANGE · INVERTED (act<flag empties the escalate band)
+  EVIDENCE: 8/0/36 · battery 244/0/901/25 (W4 was 236/0/865/24 → +8 tests, no regressions) · tsc 191 (0 new)
 ### W6 — CALIBRATION  src/omp/calibration.ts (the loop)  [depends: W1,W2,W5]  ★ BLOCKED ON M2
   Deliverable: derivePolicy flips calibrated=true
   Gate: health.ok=true · test_calib_flips
@@ -93,7 +96,9 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
 | W2 | 12/0/37 · 218/0/774/22 · tsc 191 | battery 218/0/774/22 ✓ · tsc 191 ✓ · test_oracle_resolves ✓ | **CLOSED** |
 | W3 | 9/0/45 · 227/0/819/23 · tsc 191 | battery 227/0/819/23 ✓ · tsc 191 ✓ · test_advisory_open ✓ | **CLOSED** |
 | W4 | 9/0/46 · 236/0/865/24 · tsc 191 | battery 236/0/865/24 ✓ · tsc 191 ✓ · test_gate_fire ✓ · test_gate_ignore ✓ | **CLOSED** |
-| W5 | — | — | OPEN |
+| W5 | 8/0/36 · 244/0/901/25 · tsc 191 | battery 244/0/901/25 ✓ · tsc 191 ✓ · test_policy_reload ✓ | **CLOSED** |
+| W6 | — | BLOCKED on M2 (the operator's cost matrix) | BLOCKED |
+| W7 | — | — | OPEN |
 
 ## HARD STOPS ACTIVE
 - M2 (the cost matrix) — OPERATOR-OWNED. Blocks W6 only. W1/W2/W3/W5 build regardless.

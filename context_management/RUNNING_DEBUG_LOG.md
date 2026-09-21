@@ -75,3 +75,10 @@
 - FIX: `runKernelV2Gated` detects a degraded row by its POLICY-NAME SUFFIX (`+no-answer` / `+fail-*`) — never by an exception, which never comes — and returns the detector's verdict UNCHANGED with `gateSkipped` naming the degradation. The row still exists in the gate's ledger, so SC-8 holds and nothing is lost.
 - LESSON: "fail-open" is a property of a SURFACE, and the same degraded row can be safe on one surface and dangerous on another. On position A an IGNORE is harmless (the advisory was never blocking); on position B an IGNORE is a DISMISSAL. The wrapper must therefore never blindly apply the inner layer's fail-polarity — it must recognise a degraded row as NOT AN ADJUDICATION and fall back to the verdict it was asked to filter.
 - EVIDENCE: 7 pass/1 fail → 9 pass/0 fail; the new `test_gate_degraded_row_never_dismisses_on_a_FAIL_OPEN_class` pins it (a `dumb` violation + a down judge ⇒ verdict stays STEER, NOT ALLOW)
+
+## [2026-09-21T13:22:00] — EN-058: a reload test that constructed the store AFTER the edit (a no-op masquerading as a reload)
+- SYMPTOM: `test_policy_reload` failed on `r.changed === true` — received false, on a file that HAD been edited.
+- ROOT CAUSE: the test wrote the EDITED file first, then `new PolicyStore(p)` (which reads the edited content), then called `reload()` — which re-read the same content it was constructed from. The store was correct; the fixture had eliminated the very transition it was meant to observe.
+- FIX: load the store BEFORE the edit, matching the production sequence (load → a human edits → reload). `changed` now reports true and the version bump is observed.
+- LESSON: a RELOAD can only be tested across a CHANGE. Constructing the subject after the mutation silently converts the test into a tautology — it passes or fails on the fixture's ordering, not on the behaviour. This is the fixture-clock trap (EN-053) in a different costume: both are cases where the SETUP, not the code, determined the outcome.
+- EVIDENCE: 7 pass/1 fail → 8 pass/0 fail; changed=false on a re-read of identical content, changed=true on a genuine edit
