@@ -465,3 +465,22 @@ direction and only the instrument could see it. The seeds came from an intuition
 **The honest notes:** 14 cases is a real measurement OF 14 CASES. The measured answer to the
 fire-floor question is **49 resolved firings**, not the 10 I had guessed. The thresholds remain
 UNCALIBRATED until 50+ real firings land.
+
+## [2026-09-21] v2.1 BLUEPRINT MINTED — the Jev-in-the-loop runtime kernel (862 L, 14 sections)
+
+**The built:** `packages/gi-kernel-v2.1/GI_KERNEL_V2.1_MASTER_BLUEPRINT_v1.md` — the macro map, the
+S0-S9 lifecycle, three dispatch traces, every type verbatim with its contract, 13 engine checks,
+the gate/derivation/health-gate pseudocode, the call/component/file trees, 15 anchored laws, the
+error vocabulary + the `fire_decisions` schema + the forkable shell, **25/25 components mapped
+(zero orphans)**, the W1-W9 build order, and the **M1-M12 measurement plan** with the cost per row
+and what each row blocks.
+**The operator's rulings, folded in verbatim:** `1) both` → the gate sits in BOTH positions
+(**W3 the pre-act advisory**, fail-OPEN, landing first because it cannot break anything; **W4 the
+post-detector filter**, per-surface polarity). `2) get proper measurements for everything. no
+guesses` → the M1-M12 plan, with the three deciders named: **M1** the curve, **M2** the operator's
+cost matrix, **M11** the silent false negatives nobody measures.
+**The evidence in hand:** the 14-case measurement (the 2x finding) carried forward as §12; the
+v2.0 machinery (2563 L) it extends; the bible's D001-D026 + §6.4.
+**The honest residual (6 items):** E1 unruled · the ESCALATE target unpicked · M2 unanswered ·
+every M-row unmeasured except the baseline · the container RB re-run open · W3/W4 change the live
+path so the wiring order stands (engines before registration).
