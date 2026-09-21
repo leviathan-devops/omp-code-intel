@@ -110,7 +110,15 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
           assumes. FIXED: single-flight. RETEST: cacheHits 0 → 21 of 24, firesUsed 41 → 20.
     +H4-7 the oracle's counters did not PARTITION (rows=17, sum=16) — the already-resolved
           skip had no counter. FIXED: alreadyResolved; the six counters now sum exactly.
-  THE SECOND OPERATOR: dispatched (a zero-context subagent, docs only).
+  THE SECOND OPERATOR ✅ CLOSED: dispatched as a zero-context `task` subagent with ONLY the
+  eight docs. 8 ops · 6 SUFFICIENT · 2 GAP · 9 documentation gaps found, ALL FIXED.
+  ★ OP-8 THE DECISIVE GAP: the operator succeeded ONLY by reading src/omp/fire-gate.ts to
+    infer the Judge.evaluate RETURN CONTRACT — the §8.3 "forkable shell" was not forkable.
+  ★ OP-3: THREE docs named tests/st-gi-v2.1-firegate.test.ts, which NEVER EXISTED (the real
+    files are st-gi-v21-*.test.ts). A suite cannot detect a doc pointing at a phantom.
+  FIXES: §8.2.1 (the Judge + Fire contracts) added to the blueprint · §8 corrected in the
+  spec · 00-INDEX + 06-WAVES corrected · the run location and the -t file-scoping rule stated.
+  REPORT: .mimocode/runtime-grade/second-operator-report.md
   EVIDENCE: 24 ops / 0 breaks / 1 note · tests/st-gi-v21-hotseat.test.ts 7/0/25 ·
             battery 300/0/1074/29 host · 300/0/1078/29 container · tsc 191
 

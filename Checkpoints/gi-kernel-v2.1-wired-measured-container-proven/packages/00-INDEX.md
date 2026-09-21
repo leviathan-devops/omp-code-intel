@@ -56,7 +56,10 @@ src/omp/fire-ledger.ts       —  TO BUILD    W1
 ```
 EXISTING 6 files · 1050 L · 65 tests · battery 199 pass / 0 fail / 701
   expect
-TO BUILD tests/st-gi-v2.1-firegate.test.ts (14 tests, T1-T14, incl. the
+★ CORRECTED 2026-09-21 (the SECOND OPERATOR test): there is NO
+`tests/st-gi-v2.1-firegate.test.ts`. The W1-W5 gate is covered by FIVE files at the repo
+root: st-gi-v21-{ledger,oracle,advisory,wiring,policy}.test.ts.
+BUILT  tests/st-gi-v21-*.test.ts (the W1-W5 gate + the red-team + the audit fixes + the hot seat)
   mutation)
 ```
 

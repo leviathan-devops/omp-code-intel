@@ -202,8 +202,30 @@ CLASS 3 — THE UNWIRED KERNEL
 
 ## §8 · PRE-WRITTEN SCRIPT TESTS
 
+★ **RUN EVERY COMMAND IN THIS SPEC FROM THE REPO ROOT**
+  `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence`
+  (that is where `src/` and `tests/` live; the build package `packages/gi-kernel-v2.1/`
+  contains DOCS + `tools/` + `policies/`, NOT the test tree). Running `bun test ./tests/`
+  from inside the package directory fails with "no tests found" — a second-operator finding.
+
+★ **A `-t <name>` SELECTOR MUST BE FILE-SCOPED.**
+  `bun test -t test_ledger_row_written` (bare) scans the WHOLE repo — including the
+  `Checkpoints/` tree — and produces hundreds of lines of unrelated module errors, burying
+  the one test you asked for. The correct form is:
+  `bun test -t test_ledger_row_written ./tests/st-gi-v21-ledger.test.ts`
+  Measured by the second operator: unscoped produced 308 lines of errors from
+  `Checkpoints/`; file-scoped produced `1 pass / 0 fail`.
+
 ```
-tests/st-gi-v2.1-firegate.test.ts   (the W1-W5 gate)
+★ CORRECTED 2026-09-21 (the SECOND OPERATOR test named this a GAP): the file is NOT
+  `st-gi-v2.1-firegate.test.ts` (this spec carried a phantom name for weeks). The W1-W5
+  gate's tests are FIVE files, all with `v21` and NO DOT:
+
+tests/st-gi-v21-ledger.test.ts     (W1 the ledger)
+tests/st-gi-v21-oracle.test.ts     (W2 the oracle)
+tests/st-gi-v21-advisory.test.ts   (W3 position A)
+tests/st-gi-v21-wiring.test.ts     (W4 position B)
+tests/st-gi-v21-policy.test.ts     (W5 the policy store)
   T1  a real violation → band=act, action=FIRE
   T2  a paired false positive → band=ignore, action=IGNORE
   T3 MPSE settles an empty-evidence fire for $0 (no judge call — a

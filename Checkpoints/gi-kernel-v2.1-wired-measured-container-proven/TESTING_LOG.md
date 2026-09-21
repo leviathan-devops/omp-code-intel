@@ -782,3 +782,115 @@ CONSEQUENCE: EVERY SHIP-READY CLAIM REMAINS WITHHELD.
   PROCESS, not a one-shot pre-ship gate. Each fix generating surface is a property of the
   approach, so an audit that must reach zero before shipping can never be satisfied by a
   codebase that is still moving. Run it per wave. Do not hold a release for it.
+
+## [2026-09-21T17:45:00] — P4 THE RUNTIME SEAT: 24 OPS, TWO CRITICAL-CLASS DEFECTS
+
+```
+STANCE (declared in writing, as the pin requires):
+  "I am the driver of the GI Kernel v2.1 fire gate at dist sha 83eb7bba, driven through the
+   live JevJudge against api.typesafe.ai."
+DRIVER: packages/gi-kernel-v2.1/tools/hotseat-v2.1.ts
+LEDGER: .mimocode/runtime-grade/hotseat-report.json
+RESULT: 24 ops · 0 breaks · 1 note   (after two fix rounds in the seat)
+```
+
+**★ THE PIN'S OWN DISCIPLINE APPLIED: "ZERO BUGS IS A RED FLAG."** The first run had 2 breaks.
+Rather than stopping, a SECOND WAVE was pushed — 24 fires at once, two ledger handles on one
+file, an empty ledger, an impossible policy, a destructive intent, a future record, a
+state-hash collision probe, a corrupt row in a live batch.
+
+```
+H4-5 ★★ CRITICAL-CLASS — A JUDGE THAT NEVER RESOLVES HUNG THE GATE FOREVER.
+     expected: the gate returns
+     actual:   STILL HANGING after 6s
+     MECHANISM: `budgetFires` bounds the NUMBER of fires; NOTHING bounded TIME, so the
+                ceiling belonged to whichever judge was passed in. THE ENFORCEMENT LAYER
+                COULD HANG THE AGENT — and the pin names a hang as CRITICAL explicitly.
+     FIX:      the gate enforces its OWN ceiling (DEFAULT_JUDGE_TIMEOUT_MS, configurable)
+                by racing the call against a timer, with a DISTINCT degradation (+timeout)
+                because "the model is slow" and "the model is broken" need different
+                responses.
+     RETEST:   returned: action=IGNORE policy=dumb-seed+timeout (waited 1502ms)
+
+W2-1 ★★ CRITICAL-CLASS — N CONCURRENT IDENTICAL FIRES ALL MISSED THE CACHE AND ALL PAID.
+     expected: the cache serves a repeat
+     actual:   24 fires over 3 distinct states → cacheHits=0 · firesUsed=41
+     MECHANISM: `cache.set` runs only AFTER a judgment returns, so N concurrent duplicates
+                all missed and all paid. The cache is documented "the same firing never
+                pays twice" with a 60-80% expected hit rate — and the OPERATOR'S COST
+                ENVELOPE assumes those hits. Under concurrency the rate was 0%.
+     FIX:      SINGLE-FLIGHT — an in-flight map keyed by state_hash makes a concurrent
+                duplicate WAIT for the call already running. Only the CREATOR spends
+                budget (the meter is economic, not a judgment counter); a shared call
+                reports `cached: true`, because the same state did not pay twice.
+     RETEST:   cacheHits 0 → 21 of 24 · firesUsed 41 → 20
+
+H4-7 — THE ORACLE'S COUNTERS DID NOT PARTITION (found while fixing W2-1).
+     expected: resolved + leftUnresolved + phantom + contended + failed === rows
+     actual:   rows=17 but the sum was 16 — ONE ROW VANISHED FROM THE REPORT.
+     MECHANISM: the skip for an ALREADY-RESOLVED row had no counter. The common cause is
+                the cache: two rows can share a state_hash, and `recordTruth` updates by
+                state_hash, so resolving the first resolves the second. The BEHAVIOUR was
+                correct; the REPORT hid it.
+     FIX:      `alreadyResolved`. The six counters now sum exactly: 16 + 1 = 17 ✓
+
+W2-7 (NOTE, confirming safety) — two classes with the SAME evidence produce DIFFERENT state
+     hashes, so the cache cannot serve one class's judgment to another. `buildState` carries
+     the class. Verified live: sameHash=false.
+```
+
+**★ WHAT DRIVING FOUND THAT READING AND THE CORPUS COULD NOT.** The adversarial corpus (P5)
+probes DECISIONS with controlled inputs. The audit (P6) reads CONTRACTS. The hot seat runs
+the REAL instance under **concurrency, a dead judge, and a spent budget** — and found two
+CRITICAL-class defects on paths no test had ever driven: the budget bounded the wrong
+resource, and the cache was correct only in the sequential case the tests used.
+
+**THE SECOND OPERATOR** — a zero-context subagent given ONLY the docs — was dispatched as the
+final P4 gate. Its report is recorded below.
+
+## [2026-09-21T18:10:00] — THE SECOND OPERATOR: 8 OPS · 6 SUFFICIENT · 2 GAP · 9 GAPS FOUND
+
+```
+THE PIN'S RULE: "THE SECOND OPERATOR: a zero-context subagent, given ONLY the docs, must
+operate it." Dispatched as a `task` subagent with NO prior context and ONLY the eight named
+documents. Duration 8m53s. Report: .mimocode/runtime-grade/second-operator-report.md
+
+VERDICT: 8 ops · 6 SUFFICIENT · 2 GAP (one of them DECISIVE) · 9 documentation gaps.
+```
+
+**★ OP-8 — THE DECISIVE GAP. The operator SUCCEEDED, but only by reading `src/omp/fire-gate.ts`
+to infer the `Judge.evaluate` RETURN CONTRACT, which the brief forbade and which it reported
+itself.** Verbatim: *"The stub return shape is NOT documented."* The §8.3 "FORKABLE SHELL" was
+not forkable — it imported the real `JevJudge` and never stated what a stub must return.
+**A doc-only operator could not have built a fire.**
+
+**★ OP-3 — A PHANTOM TEST FILE, CONFIRMED IN THREE DOCUMENTS.** The operator: *"The docs
+reference `tests/st-gi-v2.1-firegate.test.ts` but it doesn't exist with that exact name."*
+Verified at source: the spec §8, `00-INDEX.md:59` and `06-WAVES.md:15` all named a file that
+has never existed. The real gate is five files: `st-gi-v21-{ledger,oracle,advisory,wiring,policy}.test.ts`.
+
+**★ OP-2 — the RUN LOCATION was unstated** (the operator ran from the package directory and
+got "no tests found"; `src/` and `tests/` are at the repo root).
+
+**★ OP-3b — `-t` MUST BE FILE-SCOPED**, measured by the operator: bare `-t` ⇒ **308 lines** of
+unrelated `Checkpoints/` errors; file-scoped ⇒ **1 pass / 0 fail**.
+
+**★ OP-4 — the RUNTIME ledger path was unstated** (the docs name the instrument's ledger, not
+the kernel's; the path is the `FireLedger` constructor's argument and the caller chooses).
+
+**NOTE — OP-6, a real tension the operator spotted:** `PACKAGE_AUDIT.md` says "PASS (after
+remediation)" while its own section says "THE AUDIT GATE READS FAIL". Both are true and about
+different things — the PACKAGE sealed cleanly; the INDEPENDENT AUDIT did not reach zero — but
+the docs did not say so plainly.
+
+**THE FIXES (applied):** §8.2.1 added to the blueprint (THE JUDGE CONTRACT + THE FIRE
+CONTRACT, a stub example, the run location, the ledger-path rule) · §8 of the spec corrected
+(the phantom filename, the run location, the `-t` scoping rule with the measured numbers) ·
+`00-INDEX.md` + `06-WAVES.md` corrected.
+
+**★ WHAT THIS TEST PROVED.** The docs were ~75% sufficient, and the missing 25% was EXACTLY
+the part a forker needs first: where to run, what a stub must return, which test file exists.
+The DESIGN layer was fully sufficient (purpose, the two positions, the wave states, how a
+policy edit works). **And the operator found a defect no test could: three documents naming a
+test file that has never existed — a suite cannot detect a doc pointing at a phantom; only a
+reader following the doc can.**

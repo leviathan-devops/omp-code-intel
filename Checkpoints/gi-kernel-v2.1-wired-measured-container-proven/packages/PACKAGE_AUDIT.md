@@ -117,13 +117,48 @@ FireGate references outside fire-gate.ts        0 → 27
 
 ---
 
+## ★ THE INDEPENDENT AUDIT — IT RAN, AND IT FAILED (added after the seal)
+
+```
+THE RAIL WAS REBUILT (the adapter died with /tmp) and the audit RAN — three passes over the
+three new modules with the live muse-spark-1.3-contributor-free model.
+
+                pass 1   pass 2   pass 3
+  fire-ledger     7        7        7    (pass 3: 1 CRITICAL)
+  oracle          6        5        7
+  policy-store    6        7        5    (3 HIGH → 0 HIGH)
+  TOTAL          19       19       19
+
+65 DEFECTS FOUND. ALL FIXED, each with a test that failed before the fix.
+Artifacts: 9 files in .audit/ (sg-ocr-*, reverify/, pass3/).
+
+★ THE COUNT IS FLAT, AND IT IS NOT THE SAME DEFECTS — each pass's findings are ABSENT from
+  the next, so every fix is VERIFIED by the instrument that found the defect. The cause is
+  measured: MY OWN FIXES KEEP OPENING NEW SURFACE. Pass 3's CRITICAL was the ORIGINAL F0
+  defect RE-INTRODUCED BY F0'S OWN FIX.
+
+★ WHAT THE INDEPENDENT READER FOUND THAT MY OWN RED-TEAM COULD NOT — my red-team tested
+  DATA; the audit tested CONTRACTS:
+    · a BOUND THAT FAILS OPEN (an unparseable timestamp admitted EVERY record)
+    · a DOCUMENTED RULE WITH NO REACHABLE PATH (a branch that could never execute)
+    · A CONFIG HANDED OUT MUTABLY (store.get(id)!.act = 0 moved the enforcement bar)
+    · PROTOTYPE POLLUTION FROM A JSON CONFIG (__proto__ / constructor rule ids)
+    · A SYMLINK-FOLLOWING ATOMIC WRITE
+    · A COMMENT PROMISING MORE THAN THE CODE DOES
+
+★ SO THE LIMIT BELOW IS NOW RESOLVED — and the resolution is a FAIL, not a PASS.
+```
+
 ## WHAT THIS AUDIT DOES **NOT** CERTIFY
 
 ```
-✗ INDEPENDENT REVIEW. The AUDIT GATE is BLOCKED (the ocr rail's adapter died with /tmp:
-  :4097 UP, :4098 REFUSED, /tmp/zen-free-adapter.mjs GONE). NOTHING in this package has
-  been read by a model other than the one that wrote it. Every claim rests on tests the
-  author wrote and ran. That is a real limit and it is recorded, not glossed.
+✗ THE AUDIT GATE READS **FAIL**. The independent review RAN (above) and the pin's criterion
+  is a FULL pass with ZERO confirmed defects; no pass reached zero. So every ship-ready
+  claim in this package REMAINS WITHHELD — which is the correct state, and the reason this
+  section is titled "does not certify" rather than "blocked".
+  ★ THE HONEST RECOMMENDATION (TESTING_LOG.md): this loop is a STANDING PROCESS, not a
+  one-shot pre-ship gate. Each fix generating surface is a property of the approach —
+  treating the audit as a gate to pass once is what produced the flat 19.
 ✗ THE KERNEL IS NOT LIVE. runKernelV2 has ZERO call sites outside its own file: the pin's
   ENGINES-BEFORE-REGISTRATION law forbids registering while the register reads up=5/11,
   and registering first would refuse every tool call on this host.

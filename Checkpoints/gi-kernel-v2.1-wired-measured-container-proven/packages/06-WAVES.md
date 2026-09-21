@@ -12,7 +12,10 @@ ENTRY      the blueprint read; the fire_decisions schema agreed (§8.2)
 DELIVERS the table + the append; laterTruth defaults to "unresolved";
   indices on
            (rule_id, later_truth) and (state_hash)
-EXIT GATE bun test tests/st-gi-v2.1-firegate.test.ts -t T9 (every fire
+EXIT GATE bun test -t <selector> ./tests/st-gi-v21-<file>.test.ts  ← ★ FILE-SCOPED (the
+  second operator measured: a bare -t scans the whole repo and drowns in Checkpoints/ errors)
+  ★ there is NO st-gi-v2.1-firegate.test.ts; the gate is covered by st-gi-v21-*.test.ts
+  bun test -t T9 (every fire
   leaves a row)
            + a live row query showing laterTruth='unresolved'
 DEPENDS    nothing

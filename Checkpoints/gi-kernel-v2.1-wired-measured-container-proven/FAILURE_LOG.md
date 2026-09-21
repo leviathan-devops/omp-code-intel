@@ -436,3 +436,48 @@ F-61  THE AUDIT RAIL IS DOWN. ocr → 127.0.0.1:4098 refused; the adapter script
       /tmp. NOT FIXED — recorded as AUDIT GATE: BLOCKED with the exact retry condition.
       ★ COST: every ship-ready claim remains WITHHELD. That is the correct state.
 ```
+
+## [2026-09-21] — P4: the two failures that only RUNNING could find
+
+```
+F-62 ★★ CRITICAL-CLASS — THE GATE COULD HANG FOREVER.
+     A judge that never resolves hung the gate at 6s and would have hung it indefinitely.
+     `budgetFires` bounds the NUMBER of fires; nothing bounded TIME. The enforcement layer
+     could hang the agent it exists to govern.
+     COST: found only by driving a deliberately-hung judge — no test had ever passed one.
+     FIXED: the gate's own ceiling + a +timeout degradation.
+
+F-63 ★★ CRITICAL-CLASS — THE CACHE WAS DEAD UNDER CONCURRENCY.
+     24 fires over 3 distinct states → cacheHits=0, 24 model calls, against a documented
+     60-80% hit rate that the operator's COST ENVELOPE assumes. `cache.set` runs only after
+     a judgment returns, so concurrent duplicates all missed.
+     COST: the cost model was wrong by ~8x in the concurrent case, and every test used the
+     sequential path.
+     FIXED: single-flight. RETEST: cacheHits 0 → 21 of 24.
+
+F-64 — THE ORACLE'S COUNTERS DID NOT PARTITION (a row vanished from the report).
+     rows=17, counters summed to 16. The already-resolved skip had no counter. The
+     behaviour was right; the REPORT hid it.
+     FIXED: `alreadyResolved`; the six counters sum exactly.
+
+F-65 — TWO PROBE-MEASUREMENT BUGS OF MY OWN, both caught by reading the numbers:
+     (a) the H4-5 probe waited 6s against a 10s default ceiling, so the fix looked like a
+         hang. The probe's window was shorter than the thing it measured.
+     (b) the W2-1 probe drained AFTER taking its baseline, so it counted a pending row from
+         an earlier op (25 for 24 fires) and called a correct code path a break.
+     ★ BOTH are the same class: A MEASUREMENT THAT DOES NOT MEASURE WHAT IT CLAIMS.
+```
+
+## [2026-09-21] — the four-pass audit, consolidated
+
+```
+F-54..F-61   pass-1 and pass-2 findings (the ledger/oracle/policy-store families)
+EN-064/EN-065  MY OWN FIXES HAD SILENTLY NOT APPLIED and I committed them as landed:
+             python `str.replace` returns the string UNCHANGED when its pattern is absent,
+             and I printed success unconditionally. Two rounds, eight fixes. THE COMMITS
+             WERE FALSE REPORTS — the anti-theatricality violation this session spent its
+             length policing, committed by its own author through a tool that fails
+             silently by design. The audit caught it. FIXED at both levels: the code, and
+             the MECHANISM (the replacement helper now raises on a missing pattern).
+F-62..F-65   the P4 hot-seat findings (above).
+```

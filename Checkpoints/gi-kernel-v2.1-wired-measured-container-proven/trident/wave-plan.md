@@ -96,6 +96,32 @@ T-6 ← W9 ← all of the above
 ## COVERAGE MAP
 T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T-6 → W9
 
+## P4 — THE RUNTIME SEAT  ✅ CLOSED
+  STANCE (declared in writing): "I am the driver of the GI Kernel v2.1 fire gate at dist sha
+  83eb7bba, driven through the live JevJudge against api.typesafe.ai."
+  DRIVER: packages/gi-kernel-v2.1/tools/hotseat-v2.1.ts — 24 ops, two waves (H4: N at once ·
+  the legit path twice · starve it · hostile input · kill mid-operation).
+  ★★ TWO CRITICAL-CLASS DEFECTS FOUND BY DRIVING, BOTH FIXED AND PINNED:
+    H4-5  a judge that never resolves HUNG THE GATE FOREVER (budgetFires bounds the NUMBER
+          of fires, nothing bounded TIME). FIXED: the gate's own ceiling + a +timeout
+          degradation distinct from a judge error. RETEST: returned at 1502ms, named.
+    W2-1  N concurrent identical fires ALL MISSED the cache (24 fires / 3 states →
+          cacheHits=0, 24 calls) against a documented 60-80% hit rate the cost envelope
+          assumes. FIXED: single-flight. RETEST: cacheHits 0 → 21 of 24, firesUsed 41 → 20.
+    +H4-7 the oracle's counters did not PARTITION (rows=17, sum=16) — the already-resolved
+          skip had no counter. FIXED: alreadyResolved; the six counters now sum exactly.
+  THE SECOND OPERATOR ✅ CLOSED: dispatched as a zero-context `task` subagent with ONLY the
+  eight docs. 8 ops · 6 SUFFICIENT · 2 GAP · 9 documentation gaps found, ALL FIXED.
+  ★ OP-8 THE DECISIVE GAP: the operator succeeded ONLY by reading src/omp/fire-gate.ts to
+    infer the Judge.evaluate RETURN CONTRACT — the §8.3 "forkable shell" was not forkable.
+  ★ OP-3: THREE docs named tests/st-gi-v2.1-firegate.test.ts, which NEVER EXISTED (the real
+    files are st-gi-v21-*.test.ts). A suite cannot detect a doc pointing at a phantom.
+  FIXES: §8.2.1 (the Judge + Fire contracts) added to the blueprint · §8 corrected in the
+  spec · 00-INDEX + 06-WAVES corrected · the run location and the -t file-scoping rule stated.
+  REPORT: .mimocode/runtime-grade/second-operator-report.md
+  EVIDENCE: 24 ops / 0 breaks / 1 note · tests/st-gi-v21-hotseat.test.ts 7/0/25 ·
+            battery 300/0/1074/29 host · 300/0/1078/29 container · tsc 191
+
 ## THE CLAIM REGISTRY (a wave closes ONLY on a re-run by the orchestrator)
 | wave | claimed | re-run by orchestrator | verdict |
 |---|---|---|---|
