@@ -210,7 +210,8 @@ detector fires: {ruleId:"*theatrical", cls:"theatrical",
   5 judge.evaluate(state, [fireQuestion()])            :313
        → POST https://api.typesafe.ai/v1/systemone
          {"model":"jev-latest",
-            "state":{trigger:{...},context:[{kind,text}...],context_meta:{...}},
+            "state":{trigger:{...}, context:[{kind,text},...],
+                  context_meta:{...}},
           "questions":{"fire_is_real":{"type":"noul",
              "instructions":"A detector fired on this act because its
                SHAPE
