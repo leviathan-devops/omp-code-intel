@@ -263,3 +263,38 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The self-containment proof:** ran the packaged tests + harness FROM INSIDE the package — 12 pass / 0 fail / 30 expect [16.00ms] and ALL-6-PASS [EXIT=0]. Packaged src is byte-identical to repo (5/5 sha16 MATCH).
 **The defects the in-package run caught (both fixed):** P-1 `src/omp/gate-middleware.ts` was MISSING from the package (a dependency of gate-hook.ts) — the package would have failed on first run while looking complete; P-2 src/ laid out flat so `../src/omp/...` imports could not resolve.
 **The honest notes:** tsc EXIT=1 (191 errors, 0 in gate modules); B-3 (the extension.ts:597 cast type error) reported and NOT fixed pending the v1.3.1 rebuild decision.
+
+## [2026-09-21] KERNEL v2.0 — WAVE 1 COMPLETE: the store + the two live-defect kills
+
+**The built:** `layer_id` + `derivation` columns on `typed_nodes`/`typed_edges` (T-1) with an
+idempotent `migrateLayerColumns()` that ALTERs a pre-v2 store and backfills `layer_id` from the
+`canonical_id` prefix; `derivedConfidence`/`derivationOf` (T-8) with a PREDICATE-AWARE derivation
+class; `layerFreshness`/`storeFreshness` (SC-7) with a per-derivation TTL.
+**The why:** §13 of the runtime ledger — a constant confidence is a dead dial, and a stale graph
+was indistinguishable from a fresh one (B1, B3, both CRITICAL-class for v2.0).
+**The evidence:** `bun test tests/st-gi-store.test.ts` → 11 pass / 0 fail / 36 expect.
+Full battery → **145 pass / 0 fail** (was 144/1). tsc → **191 errors == baseline, 0 new**.
+Live store migrated: cols added, **1266 live nodes, layer_id NULL = 0, all `graphify`**;
+`storeFreshness` → `stale=true, code=GI_LAYER_STALE:explicit, ageMs=128234269 > ttlMs=86400000`.
+Commit `9f9e9db`.
+**The honest notes:** the derivation prefix `explicit:` is the blanket prefix on 2714/2714 live
+edges, so the prefix ALONE yields one class — the predicate's nature is the discriminator
+(`calls`=inferred vs `imports`=explicit). SC-6 asserts distinct > 1, never a specific pair.
+One self-inflicted regression (the migration broke st-gi-w3-validation's db double) was caught by
+the battery and fixed: the migration now REPORTS the skip instead of throwing, preserving
+`applyTypedDdl`'s contract.
+
+## [2026-09-21] KERNEL v2.0 — WAVE 2 COMPLETE: the stage machine + the three detectors
+
+**The built:** `src/omp/kernel-v2.ts` — STAGE 0 PREFLIGHT (T-3) → CLASSIFY → BIND+INDEX →
+DETECT → KERNEL → VERDICT → RECORD; three detectors on ONE `Detector` shape (T-4):
+`dumb.grounding-precondition`, `theatrical.claim-without-span`, `destructive.layer-certification`.
+**The why:** v1.3 asked one question ("is this safe?"); 80% of the work is the OTHER two classes.
+**The evidence:** `bun test tests/st-gi-v2-gate.test.ts` → **14 pass / 0 fail / 61 expect**;
+full battery → **159 pass / 0 fail** (was 145); tsc → **191 == baseline, 0 new**.
+SC-2 verbatim: `code = "GI_STACK_INCOMPLETE:L4_C2KG"`, `reason` carries `GI_LAYER_C2KG` + the
+named dependency, and STAGE 3 never ran. Commit next.
+**The honest notes:** a clean run was first labelled by whichever detector was FIRST (dumb) — a
+real mis-report caught by the test; the all-PASS case is now `benign`. The class is derived from
+the firing detector so a caller cannot mislabel its own act into a lighter class. On a
+verdict tie the order is destructive > theatrical > dumb: a safety tie never lightens.

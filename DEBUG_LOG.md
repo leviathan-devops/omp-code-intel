@@ -299,3 +299,33 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE FIX:** Package assembly per SPG phases (docs → dist → assembly → audit).
 - **THE VERIFICATION:** `bun test` tail pasted above; `sha256sum` parity repo↔host; container angles ALL-6-PASS (scripts/ct-gate-angles-v13.mjs on host + omp-ct).
 - **THE LESSON:** The package is only as honest as its ground truth — every number above was measured this turn.
+
+## EN-039 — W1: the derivation must come from the PREDICATE, not the evidence prefix (2026-09-21)
+
+- **THE FINDING:** the first B1 fix derived the confidence class from the `evidence_quote` prefix.
+  Measured on the live corpus: **2714/2714 edges carry `explicit:`** (declares 1283, calls 842,
+  imports 575, implements 14). The prefix yields ONE class, so the field would again carry no
+  information and SC-6 would fail.
+- **THE ROOT CAUSE:** `graphifyEvidence()` emits a blanket `explicit:` for every predicate —
+  honest about `imports` (the statement IS the edge) and false about `calls` (resolved by name).
+- **THE FIX:** `derivationOf(evidence, predicate)` prefers a NON-blanket prefix, then falls to the
+  predicate's nature: `OBSERVED_PREDICATES` (imports/declares/implements/extends/defines/…) →
+  `explicit`; `INFERRED_PREDICATES` (calls/uses/references/is_of_type/…) → `inferred`; unknown →
+  `unknown` at the fail-closed base 0.30.
+- **THE VERIFICATION:** `deriveConfidence(ev,{predicate:"calls"})` = 0.72 vs
+  `{predicate:"imports"}` = 0.99; the mixed-corpus test asserts `COUNT(DISTINCT confidence) > 1`.
+- **THE LESSON:** check the DISCRIMINATOR's variance on the real corpus before building on it. A
+  field that is "derived" but whose input is constant is still a constant.
+
+## EN-040 — W2: a clean run was labelled by the FIRST detector (2026-09-21)
+
+- **THE FINDING:** `runKernelV2` on an all-PASS input returned `class="dumb"`.
+- **THE ROOT CAUSE:** the worst-verdict `reduce` keeps the FIRST element on a rank tie, and on a
+  clean run every detector is rank 0 — so the class fell out of the detector ORDER (dumb is
+  first in `DEFAULT_DETECTORS`), not out of the act. A clean act has no violation class.
+- **THE FIX:** `cleanRun = worst.outcome.verdict === "PASS"` ⇒ `class = "benign"`, `code = null`.
+- **THE VERIFICATION:** the test now asserts `class === "benign"`; `bun test tests/st-gi-v2-gate.test.ts`
+  → 14 pass / 0 fail.
+- **THE LESSON:** a reducer that picks "the worst" must define what it returns when NOTHING is
+  wrong. Otherwise an incidental ORDER becomes the label — the same class of defect as a
+  default that silently asserts a value.
