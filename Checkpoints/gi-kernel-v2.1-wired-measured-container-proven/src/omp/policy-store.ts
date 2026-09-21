@@ -27,11 +27,50 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import type { Policy } from "./fire-gate.ts";
+
+/** ★ P0 — THE SCHEMA VERSIONS THIS BUILD UNDERSTANDS. The module header promises a
+ *  reader "can refuse a shape it does not understand"; before this constant existed,
+ *  `version: 99` loaded silently and was then treated as the current shape. */
+export const SUPPORTED_POLICY_VERSIONS: readonly number[] = [1];
+
+/** ★ RE-VERIFY FINDINGS (4 of them) — THIS IS A JSON-LOADED CONFIG, SO ITS KEYS ARE
+ *  UNTRUSTED INPUT. A rule id of `__proto__` / `constructor` / `prototype` walks the
+ *  PROTOTYPE CHAIN instead of the map: `policies["constructor"]` returns Object's
+ *  constructor (truthy, so `get()` hands out a non-Policy), and assigning
+ *  `out["__proto__"]` on a plain `{}` POLLUTES every object in the process. The map is
+ *  therefore null-prototyped and every key is checked. */
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function assertSafeKey(key: string): void {
+  if (FORBIDDEN_KEYS.has(key)) {
+    throw new PolicyError("FORBIDDEN_KEY", `the rule id ${JSON.stringify(key)} collides with Object.prototype — refusing to load a prototype-pollution vector`);
+  }
+}
+
+/** A record with NO prototype, so an inherited property can never masquerade as an entry. */
+function nullProtoRecord<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>;
+}
+
+/** ★ A CANONICAL STRINGIFY — key-ORDER-INSENSITIVE. `JSON.stringify` emits keys in
+ *  insertion order, so two structurally identical files whose keys were written in a
+ *  different order compared as CHANGED, and a reload reported a change that did not
+ *  happen. Sorting makes the comparison a statement about the CONTENT. */
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+}
 
 export class PolicyError extends Error {
   constructor(code: string, detail: string, cause?: unknown) {
-    super(`GI_POLICY_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`);
+    // ★ P6 — CHAIN the cause rather than stringifying it into the message. The
+    // original stack was discarded, which made a load failure hard to diagnose.
+    // The message keeps the short form so the code stays greppable.
+    super(`GI_POLICY_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`, { cause });
     this.name = "PolicyError";
   }
 }
@@ -48,24 +87,80 @@ export interface PolicyFile {
  *  so the file the operator edits is COMPLETE rather than a partial overlay. A
  *  file that omitted a class would make the seed path the common case, and a
  *  common-case fallback is a fallback nobody notices. */
-export const DEFAULT_POLICY_FILE: PolicyFile = {
+/** ★ P5 — freeze the WHOLE graph, not just the top level. Declared before its first
+ *  use: `Object.freeze` on the outer object leaves nested policies mutable, so an
+ *  importer could still write `DEFAULT_POLICY_FILE.policies["*dumb"].act = 0`. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+export const DEFAULT_POLICY_FILE: PolicyFile = deepFreeze({
   version: 1,
   policies: {
     "*destructive": { name: "destructive-seed", act: 0.9, flag: 0.5, failPolarity: "closed" },
     "*dumb": { name: "dumb-seed", act: 0.75, flag: 0.35, failPolarity: "open" },
     "*theatrical": { name: "theatrical-seed", act: 0.85, flag: 0.45, failPolarity: "closed" },
   },
-};
+});
+
+/** ★ P1 — the shape a caller may SEE. Policies are handed out as frozen COPIES, so
+ *  a validated recipe can never be mutated into an unvalidated one. */
+function frozenCopy(policy: Policy): Policy {
+  return Object.freeze({ ...policy });
+}
 
 /** Write a policy file. Atomic (write-temp + rename) so a reader can never see
  *  a half-written recipe — a torn policy file would be a threshold that changed
  *  for no reason anyone can find. */
+/** A monotonic counter for temp-path uniqueness within this process (P2). */
+let writeSeq = 0;
+
 export function writePolicyFile(filePath: string, file: PolicyFile): void {
+  // ★ P4 — VALIDATE BEFORE WRITING. The writer used to atomically persist an
+  // inverted, out-of-range or nameless policy that PolicyStore would then refuse to
+  // load — deferring the failure to the NEXT RESTART instead of the faulty writer.
+  // ★ the input is dereferenced only AFTER it is known to be an object — the
+  //   re-verify found `file.version` throwing a bare TypeError on a null writer input.
+  if (file === null || typeof file !== "object" || Array.isArray(file)) {
+    throw new PolicyError("MALFORMED", `writePolicyFile needs a PolicyFile object, got ${Array.isArray(file) ? "an array" : String(file)}`);
+  }
+  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {
+    throw new PolicyError("UNSUPPORTED_VERSION", `refusing to write version ${file.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(", ")}`);
+  }
+  validatePolicies(file);
   const dir = path.dirname(filePath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmp = `${filePath}.tmp-${process.pid}`;
   try {
-    fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    // ★ the re-verify found mkdir OUTSIDE the try: a permission or ENOTDIR failure
+    //   escaped as a raw fs error instead of a named one.
+    throw new PolicyError("WRITE_FAILED", `could not create the policy directory ${dir}`, e);
+  }
+  // ★ P2 — A UNIQUE TEMP PATH. `process.pid` alone collides for two writes from the
+  // SAME process (a retry, or concurrent callers), so they could interleave content
+  // or delete each other's temp in the catch below. A predictable path is also
+  // pre-creatable as a symlink. Counter + pid + a random suffix closes both.
+  // ★ pass-3: `Math.random` is a PREDICTABLE PRNG — a temp name an attacker can guess is
+  //   a temp name they can pre-plant. `randomUUID` is a CSPRNG and the name is already
+  //   exclusive-created below, so both layers agree on unpredictability.
+  const tmp = `${filePath}.tmp-${process.pid}-${++writeSeq}-${crypto.randomUUID()}`;
+  try {
+    // ★ "wx" — EXCLUSIVE CREATE. A plain write follows a SYMLINK at `tmp` and
+    //   truncates its target, so a pre-planted symlink redirects the write (the
+    //   re-verify's finding). `wx` fails if the path exists in ANY form, symlink
+    //   included, and the unique name makes planting one impractical.
+    fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    // ★ pass-3: fsync the TEMP before the rename. Without it a crash between the write
+    //   and the rename can leave the rename visible with the DATA still unwritten — the
+    //   atomic-rename guarantee is only as strong as the durability of what it renames.
+    try {
+      const fd = fs.openSync(tmp, "r+");
+      try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    } catch { /* a filesystem that cannot fsync still gets the rename; the data is in the page cache */ }
     fs.renameSync(tmp, filePath);
   } catch (e) {
     try { fs.unlinkSync(tmp); } catch { /* the temp is already gone; nothing to clean */ }
@@ -79,7 +174,14 @@ export function readPolicyFile(filePath: string): PolicyFile {
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch (e) {
-    throw new PolicyError("MISSING", `no policy file at ${filePath} — refusing to substitute the seeds silently`, e);
+    // ★ pass-3: ENOENT is MISSING; EACCES/EISDIR/ENOTDIR/EMFILE are DIFFERENT problems
+    //   and an operator debugging one must not be told "the file is not there".
+    const code = (e as NodeJS.ErrnoException)?.code;
+    const kind = code === "ENOENT" ? "MISSING"
+      : code === "EACCES" ? "UNREADABLE"
+      : code === "EISDIR" || code === "ENOTDIR" ? "NOT_A_FILE"
+      : "READ_FAILED";
+    throw new PolicyError(kind, `could not read the policy file at ${filePath} (${code ?? "unknown"})`, e);
   }
   let parsed: unknown;
   try {
@@ -97,13 +199,36 @@ export function readPolicyFile(filePath: string): PolicyFile {
   if (obj.policies === null || typeof obj.policies !== "object") {
     throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no policies object`);
   }
-  return { version: obj.version, policies: obj.policies as Record<string, Policy> };
+  if (!SUPPORTED_POLICY_VERSIONS.includes(obj.version)) {
+    throw new PolicyError(
+      "UNSUPPORTED_VERSION",
+      `the policy file at ${filePath} declares version ${obj.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(", ")}`,
+    );
+  }
+  const file: PolicyFile = { version: obj.version, policies: obj.policies as Record<string, Policy> };
+  // ★ P3 — VALIDATE ON READ, not only inside PolicyStore. `readPolicyFile` is
+  // exported, so a direct caller could install an out-of-range or inverted bar
+  // without ever reaching the store's constructor.
+  validatePolicies(file);
+  return file;
 }
 
 /** ★ Validate every recipe. Called on load — a bad policy must never become
  *  the bar in force. */
 export function validatePolicies(file: PolicyFile): void {
+  if (file === null || typeof file !== "object" || Array.isArray(file)) {
+    throw new PolicyError("MALFORMED", `validatePolicies needs a PolicyFile object`);
+  }
+  if (file.policies === null || typeof file.policies !== "object" || Array.isArray(file.policies)) {
+    throw new PolicyError("MALFORMED", `the policies must be a map, not ${Array.isArray(file.policies) ? "an array" : typeof file.policies}`);
+  }
+  // ★ pass-3: `validatePolicies` IS EXPORTED, so it must check the version itself —
+  //   a direct caller validated a file whose shape this build does not understand.
+  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {
+    throw new PolicyError("UNSUPPORTED_VERSION", `version ${file.version} is not supported by this build (${SUPPORTED_POLICY_VERSIONS.join(", ")})`);
+  }
   for (const [ruleId, p] of Object.entries(file.policies)) {
+    assertSafeKey(ruleId);
     if (p === null || typeof p !== "object") {
       throw new PolicyError("MALFORMED", `the policy for ${ruleId} is not an object`);
     }
@@ -116,10 +241,22 @@ export function validatePolicies(file: PolicyFile): void {
         throw new PolicyError("RANGE", `the policy for ${ruleId} has ${key}=${v}, outside 0..1 — it could never band`);
       }
     }
-    if (p.act < p.flag) {
-      // act < flag EMPTIES the escalate band: a probability could be at or above
-      // the flag and still below the act, in an order the kernel never expects.
-      throw new PolicyError("INVERTED", `the policy for ${ruleId} has act=${p.act} below flag=${p.flag} — the ESCALATE band would be empty`);
+    if (p.act <= p.flag) {
+      // ★ BOTH `act < flag` AND `act == flag` EMPTY THE ESCALATE BAND, and the first
+      // version of this check only caught the first — an inconsistency found by the P5
+      // red-team corpus (R-2, the K-policy probe). The reason to reject BOTH: ESCALATE
+      // is a DOCUMENTED band of this kernel, and a policy that silently makes it
+      // unreachable is exactly the silent-configuration class this module exists to
+      // prevent ("a malformed policy that silently fell back to the seeds would move the
+      // enforcement bar with nobody watching").
+      //   act < flag   the two numbers CONTRADICT: the flag claims a higher bar than the
+      //                act, and `p >= act` is tested first, so the flag is never consulted.
+      //   act == flag  a ZERO-WIDTH band: `p >= act` catches everything `p >= flag` would.
+      const kind = p.act < p.flag ? "INVERTED" : "ZERO_WIDTH_BAND";
+      const detail = p.act < p.flag
+        ? `act=${p.act} sits BELOW flag=${p.flag} — the flag would never be consulted`
+        : `act=${p.act} EQUALS flag=${p.flag} — the ESCALATE band has zero width`;
+      throw new PolicyError(kind, `the policy for ${ruleId} has ${detail}; ESCALATE would be unreachable`);
     }
     if (p.failPolarity !== "open" && p.failPolarity !== "closed") {
       throw new PolicyError("MALFORMED", `the policy for ${ruleId} has failPolarity='${String(p.failPolarity)}' — must be open|closed`);
@@ -145,7 +282,8 @@ export class PolicyStore {
   reload(): { changed: boolean; version: number; policies: number } {
     const next = readPolicyFile(this.path);
     validatePolicies(next);
-    const changed = JSON.stringify(next) !== JSON.stringify(this.file);
+    // ★ CANONICAL comparison — key order is not content (the re-verify's finding).
+    const changed = canonical(next) !== canonical(this.file);
     this.file = next;
     return { changed, version: next.version, policies: Object.keys(next.policies).length };
   }
@@ -153,11 +291,28 @@ export class PolicyStore {
   /** The policy for a rule, or undefined so the caller falls to its class seed
    *  — the documented pre-calibration path. NOT a silent default from here. */
   get(ruleId: string): Policy | undefined {
-    return this.file.policies[ruleId];
+    // ★ OWN-PROPERTY ONLY. `policies["constructor"]` used to return Object's
+    //   constructor through the prototype chain — truthy, so a caller received a
+    //   non-Policy that passed every `!== undefined` check downstream.
+    if (!Object.hasOwn(this.file.policies, ruleId)) return undefined;
+    const p = this.file.policies[ruleId];
+    // ★ P1 — A FROZEN COPY. Returning the live object let a caller write
+    // `store.get(id)!.act = 0` and silently move the enforcement bar, bypassing
+    // validatePolicies entirely. The validated object is now unreachable from outside.
+    return p === undefined ? undefined : frozenCopy(p);
   }
 
   all(): Record<string, Policy> {
-    return { ...this.file.policies };
+    // ★ a NULL-PROTOTYPED out — `out["__proto__"] = v` on a plain {} would have
+    //   POLLUTED Object.prototype for the whole process (the re-verify's finding).
+    const out = nullProtoRecord<Policy>();
+    for (const [k, v] of Object.entries(this.file.policies)) {
+      assertSafeKey(k);
+      out[k] = frozenCopy(v);
+    }
+    // ★ pass-3: the VALUES were frozen but the CONTAINER was not, so a caller could add
+    //   or delete entries and hand the result on as if it came from the store.
+    return Object.freeze(out);
   }
 
   version(): number {

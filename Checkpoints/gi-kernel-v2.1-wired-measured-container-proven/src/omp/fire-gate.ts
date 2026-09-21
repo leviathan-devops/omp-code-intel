@@ -108,6 +108,26 @@ export const SEED_POLICY: Readonly<Record<string, Policy>> = {
   theatrical: { name: "theatrical-seed", act: 0.85, flag: 0.45, failPolarity: "closed" },
 };
 
+// ── THE DEGRADATION VOCABULARY (ONE place knows it) ─────────────────────────
+/** ★ THE ROW'S POLICY NAME IS THE CONTRACT FOR "this was not a real judgment".
+ *  The gate marks every degraded row with a `+suffix`, and every CONSUMER must be
+ *  able to tell a degradation from a decision — a degraded row must never be
+ *  allowed to DISMISS (EN-057) and must never be mistaken for a real FIRE.
+ *
+ *  WHY THIS FUNCTION EXISTS: consumers used to pattern-match the suffixes
+ *  themselves. Adding `+bad-answer` (R-1) would then have required every consumer
+ *  to learn a new string, and any consumer that missed it would treat a corrupt
+ *  answer as a real adjudication — a hole created by the FIX. The vocabulary lives
+ *  here; the consumers ask.
+ *
+ *  Returns null when the row IS a real judgment. */
+export function degradationOf(policyName: string): "NO_ANSWER" | "BAD_ANSWER" | "JUDGE_UNAVAILABLE" | null {
+  if (policyName.includes("+no-answer")) return "NO_ANSWER";
+  if (policyName.includes("+bad-answer")) return "BAD_ANSWER";
+  if (policyName.includes("+fail-")) return "JUDGE_UNAVAILABLE";
+  return null;
+}
+
 // ── THE LEXICON-FILTERED CONTEXT ASSEMBLER ──────────────────────────────────
 /** Lexicons select WHICH stream material enters the state. A record kind that
  *  no lexicon matches never reaches the model — that is the narrow-before-judge
@@ -328,18 +348,32 @@ export class FireGate {
     }
 
     const a = answers.find((x) => x.id === "fire_is_real");
-    if (a === undefined) {
-      // A missing answer is UNCERTIFIABLE, never a silent pass.
+    // ★ A MISSING ANSWER **OR A CORRUPT ONE** IS UNCERTIFIABLE — never a silent pass.
+    // A NaN or Infinity probability fails EVERY `>=` comparison, so before this guard it
+    // landed in the LOWEST band REGARDLESS of the policy's fail polarity: a broken model
+    // answer would have DISMISSED a violation on a fail-CLOSED surface (theatrical,
+    // destructive) whose contract says REFUSE. A NaN therefore BYPASSED THE POLARITY
+    // CONTRACT ENTIRELY. Found by the P5 red-team corpus (R-1, the J-numeric probes).
+    if (a === undefined || !Number.isFinite(a.probability)) {
+      const why = a === undefined ? "no-answer" : "bad-answer";
+      const closed = policy.failPolarity === "closed";
       const row: DecisionRow = {
         at: new Date(t0).toISOString(), ruleId: fire.ruleId, cls: fire.cls,
-        questionVersion: QUESTION_VERSION, probability: policy.failPolarity === "closed" ? 1 : 0,
-        band: policy.failPolarity === "closed" ? "act" : "ignore",
-        action: policy.failPolarity === "closed" ? "FIRE" : "IGNORE",
-        policyName: `${policy.name}+no-answer`, actThreshold: policy.act, flagThreshold: policy.flag,
+        questionVersion: QUESTION_VERSION, probability: closed ? 1 : 0,
+        band: closed ? "act" : "ignore",
+        action: closed ? "FIRE" : "IGNORE",
+        policyName: `${policy.name}+${why}`, actThreshold: policy.act, flagThreshold: policy.flag,
         stateHash, costUsd: 0, laterTruth: "unresolved",
       };
       this.ledger.push(row);
-      return { ruleId: fire.ruleId, probability: row.probability, band: row.band as never, action: row.action as never, reason: "the judge returned no answer for fire_is_real", row, cached: false, latencyMs: 0 };
+      return {
+        ruleId: fire.ruleId, probability: row.probability, band: row.band as never,
+        action: row.action as never,
+        reason: a === undefined
+          ? "the judge returned no answer for fire_is_real"
+          : `the judge returned a NON-FINITE probability (${String(a.probability)}) for fire_is_real — routed by the ${policy.failPolarity} polarity, not by the comparison`,
+        row, cached: false, latencyMs: 0,
+      };
     }
 
     const p = a.probability;
@@ -470,11 +504,11 @@ export async function advisory(gate: FireGate, intent: Intent, ctx: AbsorbedCont
     };
   }
 
-  // The gate's OWN degraded rows carry a suffix on the policy name. Read the
-  // SUFFIX, never the prose: a reason string is for humans and may be reworded.
-  const suffix = d.row.policyName.includes("+no-answer") ? "NO_ANSWER"
-    : d.row.policyName.includes("+fail-") ? "JUDGE_UNAVAILABLE"
-    : null;
+  // The gate's OWN degraded rows carry a suffix on the policy name. Read it
+  // through the SHARED vocabulary, never by prose and never by a local copy of
+  // the string list — a consumer that pattern-matches suffixes itself will miss
+  // the next one added (R-1's `+bad-answer` would have been such a miss).
+  const suffix = degradationOf(d.row.policyName);
   if (suffix !== null) {
     return {
       verdict: "pass", block: false, probability: d.probability, row: d.row,

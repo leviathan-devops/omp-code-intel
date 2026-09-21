@@ -91,3 +91,56 @@
 - FIX: NONE — and that is the correct call. The loop is right (every down entry must state why). The defect is in what a reader may CONCLUDE: "901 expects" is not a constant, it is a function of the host's filesystem. Recorded in the Phase F artifact so the next session does not re-derive it or mistake it for a regression.
 - LESSON: a count that differs between two environments with IDENTICAL pass/fail is not noise — it is a test whose ASSERTION COUNT is data-dependent. Chase it to the loop, then to the data, then to the environment fact. And when a delta predates your work, root-cause it anyway: unexplained folklore becomes a false regression the moment someone moves a directory.
 - EVIDENCE: 9 vs 11 down measured in both; 2 expects per entry at st-gi-v2-deps.test.ts:112-113; 2×2=4 = the observed delta; my five suites identical at 200 expects in both
+
+## [2026-09-21T14:30:00] — EN-060 ★ CRITICAL: a NaN from the model bypassed the fail polarity entirely
+- SYMPTOM: found by the P5 red-team's J-numeric probe, written to RECORD behaviour rather than assert it. A judge returning `NaN` produced `band: "ignore"` on a `dumb` fire.
+- ROOT CAUSE: `const band = p >= policy.act ? "act" : p >= policy.flag ? "escalate" : "ignore"`. EVERY comparison against NaN is false, so control falls to the final `else` — `ignore` — REGARDLESS of the policy's fail polarity. On a fail-CLOSED class (theatrical, destructive) the D010 contract says a judge that cannot answer must REFUSE; a NaN produced IGNORE. **The fail polarity was not consulted at all** — the corrupt value routed itself by falling off the end of a ternary.
+- THE SEVERITY: identical in form to EN-057 (the fail-OPEN dismissal) but reached from the WRONG side — there, a degradation applied the polarity; here, a corrupt value ESCAPED the polarity. Both end with enforcement silently switched off while the battery stays green.
+- FIX: extend the existing UNCERTIFIABLE guard from `a === undefined` to `a === undefined || !Number.isFinite(a.probability)`, and route by the polarity exactly as the no-answer path does, naming the degradation `+bad-answer`.
+- ★ AND THE FIX OPENED A HOLE I CLOSED IN THE SAME PASS: `+bad-answer` is a NEW suffix, and two consumers (the advisory, the gated runner) pattern-matched the suffix LIST themselves. Either would have treated a corrupt answer as a REAL adjudication. FIX: the vocabulary moved to `degradationOf()` in fire-gate.ts — one place knows the strings, the consumers ask. Adding a degradation kind is now a ONE-LINE change in one file.
+- LESSON: a value that fails every comparison is not a value that fails SAFELY — it is a value that takes whatever branch is left over, and the leftover branch is almost never the conservative one. Also: when a fix introduces a new member of an enumeration, grep every consumer of that enumeration BEFORE the fix, not after.
+- EVIDENCE: 21 pass/2 fail → 24 pass/0 fail; `degradationOf(row.policyName) === "BAD_ANSWER"` for NaN and Infinity on both polarities
+
+## [2026-09-21T14:32:00] — EN-061: an inconsistent policy validation (one empty band caught, its twin not)
+- SYMPTOM: the P5 red-team's K-policy probe. `act < flag` was REJECTED; `act == flag` LOADED — and both empty the ESCALATE band.
+- ROOT CAUSE: the check was `if (p.act < p.flag)` with the message "the ESCALATE band would be empty" — accurate for `<`, and EQUALLY accurate for `==`, which the check did not cover.
+- FIX: `act <= flag` is rejected, with the two cases distinctly named — GI_POLICY_INVERTED (the numbers contradict: the flag claims a higher bar than the act, and `p >= act` is tested first so the flag is never consulted) and GI_POLICY_ZERO_WIDTH_BAND (the band has no width). BOTH rejections rest on the same reason: ESCALATE is a DOCUMENTED band, and a policy that silently makes it unreachable is the silent-configuration class this module exists to prevent.
+- LESSON: when a validation says "this would empty X", check whether the IDENTICAL harm arrives by a second path the predicate does not cover. A `<` where the harm is `<=` catches one and advertises that the other is safe.
+- EVIDENCE: the zero-width policy loaded before → now throws GI_POLICY_ZERO_WIDTH_BAND; the inverted case still throws GI_POLICY_INVERTED
+
+## [2026-09-21T14:50:00] — EN-062: the AUDIT RAIL REBUILT — the zen-free adapter restored and corrected
+- SYMPTOM: `ocr scan` failed with `dial tcp 127.0.0.1:4098: connect: connection refused`. The audit gate had been BLOCKED for the whole session, so no ship-ready claim could be made.
+- ROOT CAUSE (measured, three components): port 4097 UP · go-session-proxy 6 procs RUNNING · port 4098 REFUSED because `/tmp/zen-free-adapter.mjs` was GONE — /tmp does not survive a reboot, which the skill itself warns about.
+- FIX: rebuilt the adapter at `~/.omp/run/adapters/zen-free-adapter.mjs` (durable, out of /tmp) and started it with the hub (`op:"start"`, ready on port 4098, restart on-failure) so it is SUPERVISED rather than a bare `&`.
+- ★ THREE ROUNDS OF PROBE ERRORS, EACH A MEASURED CORRECTION THE SKILL DID NOT CARRY:
+    1. `{type:"function", function:{name}}` → 400 "tools[0] missing required field `name`"
+       (the [OI] nested shape the rest of this stack uses is REJECTED here)
+    2. `{name, description, input_schema}` → 400 "tools[0] did not match any supported type"
+    3. `{type:"function", name, description, parameters}` → 200 ✓ THE WORKING SHAPE
+       — `type` AND a TOP-LEVEL `name` are both required.
+  Plus a bug of my own, caught by the probe and not by reading: the dedupe filter still
+  used the NESTED accessor (`t.function.name`) after I flattened the stubs, so it threw and
+  the adapter answered 500 with Bun's HTML error overlay.
+- ★ AND A SECOND MEASURED CORRECTION: the raw `response.completed` object carries NO
+  top-level `output_text` (measured: `output: [reasoning, message]`, no output_text field).
+  That field is a CLIENT-SDK CONVENIENCE. ocr reads it, so the adapter must SYNTHESIZE it
+  from `output[].content[].text` over the `message` items — without that, every scan would
+  silently read an empty answer.
+- VERIFICATION: the probe returns `status: completed` and `output_text: 'ADAPTER_OK'`.
+- THE SKILL WAS UPDATED (a managed skill, so writable): the working tool shape, the
+  output_text synthesis, the durable-path + hub-supervision rule, and a
+  failure-symptom→cause table (500+HTML = the adapter threw, not the upstream; 400 name =
+  no top-level name; 200-but-empty = output_text not synthesized; refused = not running).
+- LESSON: an adapter is a CONTRACT with two independent validators (the gate fingerprint
+  and the upstream's schema) plus a third reader (ocr). Each was discovered by RUNNING it.
+  A skill that names the steps but not the SHAPES leaves the next session to rediscover
+  them one 400 at a time.
+
+## [2026-09-21T16:00:00] — EN-063 ★★★ CRITICAL: my own F0 fix RE-INTRODUCED F0
+- SYMPTOM: the pass-3 audit scan rated a `drain()` finding CRITICAL — "marks failed rows as seen on partial commit — permanent data loss".
+- ROOT CAUSE: THE FIX FOR F0 CREATED A NEW INSTANCE OF F0. F0 was "the watermark advances before the commit". The fix moved the watermark to after the commit — but the R7 fix then made `appendMany` commit SOME rows and fail others (a per-row fallback), while returning only a COUNT. `drain` still marked EVERY ATTEMPTED row as seen, so the failed rows were marked seen and NEVER RETRIED: a permanently lost fire, which is precisely F0's harm.
+- ★ THE PATTERN, AND WHY IT MATTERS MORE THAN THE BUG: F0's fix needed a second fix (R7) to stop one bad row blocking its siblings, and THAT fix silently re-opened F0. A count cannot distinguish "all committed" from "some committed"; only the ROWS can. The fix: `appendManyDetailed` returns `{committed, failed}` and `drain` advances the watermark PER COMMITTED ROW.
+- THE SECOND FINDING IT DREW: "withLedger's retry guarantee depends on the broken watermark" (HIGH) — the same root, and it is now sound because the watermark is per-row.
+- LESSON: when a fix changes a function's RETURN SHAPE from "a fact about the whole" to "a fact about a part", every consumer of that return value must be re-derived. `appendMany` went from "all or nothing" (a boolean-ish count) to "some of each" — and `drain`'s invariant ("every attempted row is now persisted") silently became false. The audit found it in one pass; a test suite that only asserted the happy path would not have.
+- ALSO FIXED FROM PASS 3: recordTruth now WHITELISTS confirmed|refuted (a single-value exclusion let any other string reach SQLite) · band/action domain validation added · `all()` gained an optional limit (the table grows without bound) · the module-global drain map is now bounded at 64 entries.
+- EVIDENCE: the new test `F0b-critical` repairs a failed row IN PLACE and asserts the next drain WRITES it (1 → 2 rows, no duplicate); battery 292/0/1043/28 · tsc 191 == baseline.

@@ -1,0 +1,99 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 7,
+    "total_tokens": 39273,
+    "input_tokens": 27834,
+    "output_tokens": 11439,
+    "cache_read_tokens": 9442,
+    "elapsed": "3m23s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "Atomic write follows symlinks and uses truncating create. `writeFileSync(tmp)` with default flag `w` follows a pre-created symlink at `tmp` and clobbers its target, and `Math.random()` is predictable/non-cryptographic for temp uniqueness. Use exclusive create (`wx`) + `crypto.randomBytes`/`randomUUID` (or `fs.mkdtempSync`) so a colliding retry or planted symlink fails instead of redirecting content.",
+      "suggestion_code": "  const rand = crypto.randomBytes(8).toString(\"hex\");\n  const tmp = `${filePath}.tmp-${process.pid}-${++writeSeq}-${rand}`;\n  try {\n    fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\\n`, { encoding: \"utf8\", flag: \"wx\" });\n    fs.renameSync(tmp, filePath);",
+      "existing_code": "  const tmp = `${filePath}.tmp-${process.pid}-${++writeSeq}-${Math.random().toString(36).slice(2, 10)}`;\n  try {\n    fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\\n`, \"utf8\");\n    fs.renameSync(tmp, filePath);",
+      "start_line": 107,
+      "end_line": 110,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "Prototype-chain lookup bypasses validation and seed fallback. `this.file.policies[ruleId]` returns inherited members (`__proto__`, `constructor`, `toString`) when the key is absent, so `get()` returns a frozen copy of the prototype instead of `undefined` and the caller never falls to its class seed. Guard with `Object.hasOwn` (or store policies in a null-prototype object).",
+      "suggestion_code": "  get(ruleId: string): Policy | undefined {\n    if (!Object.hasOwn(this.file.policies, ruleId)) return undefined;\n    const p = this.file.policies[ruleId];",
+      "existing_code": "  get(ruleId: string): Policy | undefined {\n    const p = this.file.policies[ruleId];",
+      "start_line": 219,
+      "end_line": 220,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "Prototype-polluting assignment in `all()`. `out` is a plain `{}` so `out[\"__proto__\"] = ...` invokes the prototype setter and mutates `Object.prototype` (or silently changes the result's prototype) if the file contains a `__proto__` key. `Object.entries` will include such an own-property from `JSON.parse`. Build the result on `Object.create(null)` or use `Object.defineProperty` for `__proto__` keys, and reject/filter `__proto__`/`constructor`/`prototype` keys on load.",
+      "suggestion_code": "  all(): Record\u003cstring, Policy\u003e {\n    const out: Record\u003cstring, Policy\u003e = Object.create(null);\n    for (const [k, v] of Object.entries(this.file.policies)) {\n      Object.defineProperty(out, k, { value: frozenCopy(v), enumerable: true, writable: false, configurable: false });\n    }\n    return out; // or return { ...out } if plain-object return is required",
+      "existing_code": "  all(): Record\u003cstring, Policy\u003e {\n    const out: Record\u003cstring, Policy\u003e = {};\n    for (const [k, v] of Object.entries(this.file.policies)) out[k] = frozenCopy(v);",
+      "start_line": 227,
+      "end_line": 229,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "`policies` shape check accepts arrays and `__proto__` payloads. `typeof [] === \"object\"` passes, so `{\"policies\": []}` validates as zero policies (silent all-seeds fallback this module forbids) and `{\"policies\": [..]}` validates ruleIds `\"0\"...`. Add `Array.isArray(obj.policies)` rejection and require a plain object (e.g. `Object.getPrototypeOf(...) === Object.prototype`) plus explicit `__proto__` handling.",
+      "suggestion_code": "  if (obj.policies === null || typeof obj.policies !== \"object\" || Array.isArray(obj.policies)) {\n    throw new PolicyError(\"MALFORMED\", `the policy file at ${filePath} has no policies object`);\n  }",
+      "existing_code": "  if (obj.policies === null || typeof obj.policies !== \"object\") {\n    throw new PolicyError(\"MALFORMED\", `the policy file at ${filePath} has no policies object`);",
+      "start_line": 138,
+      "end_line": 139,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "Unwrapped `TypeError` on malformed writer input. `writePolicyFile` dereferences `file.version` and calls `Object.entries(file.policies)` without guarding `file`/`file.policies` shape, so `null`/`undefined`/non-object inputs throw raw `TypeError` instead of the documented named `PolicyError`. Validate shape first and throw `MALFORMED`.",
+      "suggestion_code": "  if (file === null || typeof file !== \"object\") {\n    throw new PolicyError(\"MALFORMED\", \"policy file value is not an object\");\n  }\n  if (file.policies === null || typeof file.policies !== \"object\" || Array.isArray(file.policies)) {\n    throw new PolicyError(\"MALFORMED\", \"policy file has no policies object\");\n  }\n  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {\n    throw new PolicyError(\"UNSUPPORTED_VERSION\", `refusing to write version ${file.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(\", \")}`);\n  }\n  validatePolicies(file);",
+      "existing_code": "  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {\n    throw new PolicyError(\"UNSUPPORTED_VERSION\", `refusing to write version ${file.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(\", \")}`);\n  }\n  validatePolicies(file);",
+      "start_line": 97,
+      "end_line": 100,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "Key-order-sensitive change detection. `JSON.stringify(next) !== JSON.stringify(this.file)` reports `changed=true` for semantically identical files with different key insertion order, triggering unnecessary re-banding, and costs O(size) serializations per `reload()`. Compare canonically (sorted-key stringify or order-insensitive deep-equal/hash).",
+      "suggestion_code": "    const changed = stableStringify(next) !== stableStringify(this.file);\n    // where stableStringify recursively sorts object keys before JSON.stringify",
+      "existing_code": "    const changed = JSON.stringify(next) !== JSON.stringify(this.file);",
+      "start_line": 212,
+      "end_line": 212,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/policy-store.ts",
+      "content": "`readPolicyFile` returns a live mutable alias to the parsed `policies` object, so a direct caller can mutate a validated recipe into an unvalidated one without going through `validatePolicies` — the same aliasing hazard fixed for `get()`/`all()` with `frozenCopy`. Return a deep clone/frozen copy instead of aliasing `obj.policies`.",
+      "suggestion_code": "  const file: PolicyFile = {\n    version: obj.version,\n    policies: Object.freeze(Object.fromEntries(Object.entries(obj.policies as Record\u003cstring, Policy\u003e).map(([k, v]) =\u003e [k, Object.freeze({ ...v })]))) as Record\u003cstring, Policy\u003e,\n  };",
+      "existing_code": "  const file: PolicyFile = { version: obj.version, policies: obj.policies as Record\u003cstring, Policy\u003e };",
+      "start_line": 147,
+      "end_line": 147,
+      "category": "maintainability",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Prototype pollution / prototype-confusion in policy lookup, enumeration, and validation** — `src/omp/policy-store.ts`\n   Single root cause (unsafe plain-object handling of attacker-controlled `ruleId` keys) manifests three ways: `get()` uses `this.file.policies[ruleId]` so `__proto__`/`constructor`/`toString` hit the prototype chain and return a frozen prototype instead of `undefined` (bypasses seed-fallback); `all()` builds into plain `{}` so `out[\"__proto__\"] = …` invokes the setter and mutates `Object.prototype` / mangles result prototype; `policies` shape check uses `typeof === \"object\"` without `Array.isArray()` / own-property `__proto__` rejection, so `{\"policies\":[]}` validates as zero-policies and array ruleIds `\"0\"…` slip through.\n\n2. **Unsafe atomic-write allows symlink-target clobber + predictable temp name** — `src/omp/policy-store.ts`\n   `writeFileSync(tmp)` with default `w` follows a pre-created symlink at `tmp`; combined with `Math.random()` temp uniqueness this is a TOCTOU / file-clobber primitive. Requires `crypto.random*` + exclusive `wx` create, same-directory temp, and `fsync`/rename discipline.\n\n3. **Validated-object alias escape via `readPolicyFile`** — `src/omp/policy-store.ts`\n   Returns a live mutable alias to the parsed `policies` object, letting a direct caller mutate a validated recipe into an unvalidated one without re-running `validatePolicies`. Negates the `frozenCopy` hardening already applied to `get()`/`all()`; return a deep-clone/frozen copy.\n\n4. **Writer accepts malformed input with raw `TypeError` instead of named error** — `src/omp/policy-store.ts`\n   `writePolicyFile` dereferences `file.version` and `Object.entries(file.policies)` without guarding `file`/`file.policies`, so `null`/`undefined`/non-object throws unwrapped `TypeError` violating the documented `Policy*` error contract.\n\n5. **Order-sensitive, O(size) change detection in `reload()`** — `src/omp/policy-store.ts`\n   `JSON.stringify(next) !== JSON.stringify(this.file)` flags semantically identical files with different key insertion order as `changed=true`, triggering unnecessary re-banding on every reload, plus full serializations per call. Needs canonical / hash-based comparison.\n\n### Module Hotspots\n\n- `src/omp/policy-store.ts` — 7/7 comments concentrated in one store module (`get()` / `all()` / `readPolicyFile` / `writePolicyFile` / `reload()` / validation). Abnormal density; indicates missing security invariants (prototype-safety, defensive copying, atomic I/O) rather than isolated bugs.\n\n### Cross-Cutting Concerns\n\n- **Missing prototype-safe object idiom repeated in every policy-map touchpoint** — `src/omp/policy-store.ts` (`get()` lookup, `all()` accumulation, validation of `policies`/`__proto__` payloads). Fix once with `Object.create(null)` / `Map`, `Object.hasOwn()` / `Object.getOwnPropertyDescriptor`, and explicit `__proto__` rejection.\n- **Asymmetric validation / copying between read and write paths** — `src/omp/policy-store.ts` (`readPolicyFile` + `validatePolicies` vs `writePolicyFile`; `get()`/`all()` frozen vs `readPolicyFile` live alias). Reader enforces shape + immutability, writer and direct-read escape both.\n- **Inconsistent error contract** — `src/omp/policy-store.ts` (`writePolicyFile` raw `TypeError` vs documented named errors elsewhere). Needs input-shape guard at module boundary.\n\n### Quick Wins\n\n- Replace `out = {}` with `Object.create(null)` (or `Map`) in `all()` and guard `get()` with `Object.hasOwn(policies, ruleId)` — kills two prototype bugs in ~3 lines (`src/omp/policy-store.ts`).\n- Add `if (!obj || typeof obj !== \"object\" || Array.isArray(obj.policies)) throw …` plus `__proto__`-key rejection in validation and `writePolicyFile` entry guard — restores named-error contract (`src/omp/policy-store.ts`).\n- Switch temp name to `crypto.randomUUID()` and `writeFileSync(tmp, {flag:\"wx\"})` — eliminates predictable-name + symlink-follow with one-line change (`src/omp/policy-store.ts`).\n- Deep-clone/freeze return of `readPolicyFile` (reuse existing `frozenCopy` helper) — closes alias escape without new API (`src/omp/policy-store.ts`).",
+  "session_id": "144f41e0-e173-4cbb-afa1-e6414bfe1bfd"
+}

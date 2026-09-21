@@ -1,0 +1,9 @@
+[ocr] full-scan: 1 file(s) discovered, reviewing 1 in /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+[ocr] estimated cost: ~1 file(s), est. 53K input + 7K output ≈ 60K total tokens (rough; actual reported after run)
+[ocr] scan dispatch: 1 batch(es) by by-language strategy
+[ocr]   ▶ code_search search_text=interface Policy|type Policy file_patterns=[src/omp/* *.ts]
+[ocr]   ✔ code_search (22ms)
+[ocr]   ▶ code_search search_text=failPolarity
+[ocr]   ✔ code_search (149ms)
+[ocr]   ▶ code_comment
+[ocr]   ✔ code_comment (0s)
