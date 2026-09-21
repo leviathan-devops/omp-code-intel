@@ -13,6 +13,9 @@
 // The register is DATA. Probes ask reality; `requireUp` refuses to proceed on a
 // DOWN answer. Nothing here reads a fallback, because none is declared.
 import * as fs from "node:fs";
+// ★ the judge's key path, IMPORTED rather than copied: the register and the judge must
+//   agree on where the key lives, and a copied constant drifts.
+import { KEY_FILE } from "./jev.ts";
 
 export type ComponentClass = "layer" | "kernel" | "store" | "harness";
 
@@ -124,6 +127,58 @@ export interface AuditResult {
 
 /** Ask EVERY declared component. One DOWN entry fails the whole audit — the
  *  stack has no partial mode. */
+/** ★ THE JEV KEY, PROBED WHERE THE JUDGE READS IT.
+ *
+ *  FOUND BY DRIVING (2026-09-21): the register declared JEV via `keyComponent(...,
+ *  "TYPESAFE_AI_API_KEY", env)` — an ENVIRONMENT VARIABLE — while `JevJudge` reads
+ *  `KEY_FILE` (`~/.config/typesafe/key`, mode 0600). MEASURED CONSEQUENCE:
+ *
+ *      register JEV:  state DOWN · evidence "TYPESAFE_AI_API_KEY ABSENT"
+ *      live JevJudge: answered p=0.49  ✓
+ *
+ *  The register reported the model DOWN while it was answering. This is not cosmetic:
+ *  STAGE 0 PREFLIGHT REFUSES the whole stack when any component is down, so the gate
+ *  would have refused EVERY tool call on this host — with the model working — and the
+ *  pin's "ENGINES BEFORE REGISTRATION" law reads the register to decide when to register.
+ *  A register that is wrong about the one dependency that thinks would have blocked
+ *  registration forever, for the wrong reason.
+ *
+ *  The probe therefore reads `KEY_FILE` — IMPORTED FROM `jev.ts`, not copied — so the
+ *  register and the judge can never drift again. The env var is still REPORTED (a caller
+ *  may pass a key explicitly), but the UP decision follows the judge's own default. */
+export function keyFileComponent(
+  id: string,
+  cls: ComponentClass,
+  dependency: string,
+  errorCode: string,
+  keyFile: string,
+  envName: string,
+  env: Record<string, string | undefined> = process.env,
+): ComponentDecl {
+  return {
+    id, cls, dependency, errorCode,
+    probe: () => {
+      try {
+        const st = fs.statSync(keyFile);
+        if (st.isFile() && st.size > 0) {
+          // the VALUE is never read and never reported — only its presence and length
+          return { up: true, evidence: `${keyFile} present (len=${st.size})` };
+        }
+        if (st.isFile() && st.size === 0) {
+          return { up: false, evidence: `${keyFile} (EMPTY — 0 bytes)` };
+        }
+        return { up: false, evidence: `${keyFile} (not a regular file)` };
+      } catch {
+        // the file is absent — but an explicitly-passed env key is still a valid source
+        const v = env[envName];
+        return v !== undefined && v.length > 0
+          ? { up: true, evidence: `${keyFile} ABSENT but ${envName} present (len=${v.length})` }
+          : { up: false, evidence: `${keyFile} ABSENT and ${envName} unset` };
+      }
+    },
+  };
+}
+
 export function audit(register: readonly ComponentDecl[]): AuditResult {
   const entries: RegisterEntry[] = register.map((d) => {
     let r: { up: boolean; evidence: string };
@@ -206,8 +261,9 @@ export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
       cfg.tsgRoot ?? join(cfg.scopeRoot, "research/graph-infra-repos/typesafe-ai/examples/tsg")),
     pathComponent("ABIDE", "kernel", "the Abide source — the ALU (repair, never block)", "GI_ENFORCE_ABIDE",
       cfg.abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/JARVIS/reports/handovers/JEV_ABIDE_CONTEXT_HANDOVER"),
-    keyComponent("JEV", "kernel", "the TypeSafe API key (the only part that thinks)", "GI_JEV_DOWN",
-      "TYPESAFE_AI_API_KEY", env),
+    // ★ the judge's OWN authority — imported, so they cannot drift (see keyFileComponent)
+    keyFileComponent("JEV", "kernel", "the TypeSafe API key (the only part that thinks)", "GI_JEV_DOWN",
+      KEY_FILE, "TYPESAFE_AI_API_KEY", env),
 
     // ── the stores ────────────────────────────────────────────────────────
     pathComponent("RSI_STORE", "store", "the reflex store dir (mode 0700, out-of-tree)", "GI_ENFORCE_RSI_STORE",

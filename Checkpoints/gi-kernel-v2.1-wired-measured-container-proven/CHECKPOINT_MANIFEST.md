@@ -14,8 +14,9 @@ DIST      extensions/graph-intelligence/index.js
           sha256 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
           613,039 bytes — UNCHANGED through this session (the v2.1 work is SOURCE; the
           dist is v1.3's and the v2.x modules are not bundled into it)
-BATTERY   300 pass / 0 fail / 1074 expect / 29 files  (host — after 65 audit + 2 hot-seat fixes)
-          300 pass / 0 fail / 1078 expect / 29 files  (clean container ✓)")
+BATTERY   309 pass / 0 fail / 1100 expect / 30 files  (host — after 65 audit + 2 hot-seat fixes
+                                                      + the W6 machinery tests)
+          300 pass / 0 fail / 1078 expect / 29 files  (clean container — the W6 suite is host-only)")
 BATTERY_NOTE
           300 pass / 0 fail / 1074 expect / 29 files  (host — after 65 audit + 2 hot-seat fixes)
           300 pass / 0 fail / 1078 expect / 29 files  (clean container)
@@ -107,6 +108,37 @@ LEDGER: artifacts/runtime/hotseat-report.json
   found two CRITICAL-class defects the corpus could not reach.
 ```
 
+## ★★★ THE W6 FINDING — THE SHARPEST MEASUREMENT OF THE SESSION
+
+```
+W6 (the calibration loop) is BLOCKED ON M2 — the operator's cost matrix. But its MACHINERY
+is testable without those numbers by running it under the SEED matrix. It was run: 48 LIVE
+fires through the wired path.
+
+THE LOOP WORKS: *dumb and *theatrical flipped calibrated=true (16 resolved vs floors 10 and
+15); *destructive is 4 fires short of 20. health.ok=false — THE KERNEL CORRECTLY REFUSES TO
+SET A BAR ON 16 SAMPLES.
+
+★★★ A POOLED PRECISION OF 0.500 HID THREE DIFFERENT CLASSES:
+    destructive  REAL [0.77..0.78]  FP [0.15..0.17]   SEPARABLE  (gap 0.60)
+    dumb         REAL [0.51..0.53]  FP [0.42..0.45]   SEPARABLE  (gap 0.06)
+    theatrical   REAL [0.38..0.48]  FP [0.40..0.52]   ★ INVERTED (the FPs score HIGHER)
+    ★ THE AVERAGE DESCRIBED NONE OF THE THREE.
+
+★★ THE ROOT CAUSE IS A DESIGN DEFECT, NOT A THRESHOLD: the theatricalDetector asserts only
+COUNTS ("claims=1 unbound=1 spans[0]=0") — identical for a fabricated claim and a
+corroborated one — while fireQuestion instructs "judge only the evidence supplied; do not
+speculate". THE MODEL RETURNS ~0.5 BECAUSE IT IS CORRECTLY FOLLOWING ITS INSTRUCTION. The
+other two classes discriminate perfectly because THEIR evidence carries the discriminator
+("certifications=0", "execution record: queried_before=false").
+
+★★ THE DECISIVE CONCLUSION: THE COST MATRIX CANNOT FIX A NON-DISCRIMINATING CLASS. M2 is
+NECESSARY BUT NOT SUFFICIENT. A bar set from the pooled 0.500 would have been a guess dressed
+as a derivation — the exact failure the pin's CHOSEN CONSTANT anti-derail names.
+
+DETAIL: packages/gi-kernel-v2.1/W6_CALIBRATION_FINDING.md
+```
+
 ## ★ THE HONEST GAPS (what this checkpoint does NOT give you)
 
 ```
@@ -116,9 +148,12 @@ GAP-1  ★ THE KERNEL IS NOT LIVE. `runKernelV2` has ZERO call sites outside its
        "ENGINES BEFORE REGISTRATION — the register reads up=5/11; registering the gate
        first refuses every tool call on this host." Registered without the engines, this
        machine's every tool call fails at STAGE 0.
-GAP-2  W6 (THE CALIBRATION LOOP) IS NOT DONE — BLOCKED ON M2, the operator's cost matrix.
-       Every policy still carries `calibrated: false`. No threshold in this system has been
-       calibrated against real outcomes. The CURVE exists (M1, measured live).
+GAP-2  W6 (THE CALIBRATION LOOP) IS NOT COMPLETE — the MACHINERY is proven (2 of 3 rules
+       flipped calibrated=true under the seed matrix; the third is 4 fires short) but the
+       FINAL THRESHOLDS await M2. ★ AND THE W6 RUN SHOWS M2 ALONE WILL NOT SUFFICE: the
+       theatrical class does not discriminate, because its detector's evidence carries only
+       counts. The operator's cost matrix is necessary but NOT sufficient — the DETECTOR's
+       evidence must carry the discriminator first (a W4 semantic change, needing a ruling).
 GAP-3  ★ THE AUDIT GATE READS **FAIL** — AND THAT IS THE CORRECT STATE. The rail was
        rebuilt and the audit RAN (three passes, 65 defects, all fixed). But the pin's
        criterion is a FULL pass with ZERO confirmed defects, and no pass reached zero: the

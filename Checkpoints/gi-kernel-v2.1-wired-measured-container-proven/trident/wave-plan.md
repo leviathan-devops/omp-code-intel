@@ -77,10 +77,23 @@ T-6 ← W9 ← all of the above
   ★ EXIT GATE MEASURED: edit act 0.75→0.90 ⇒ the SAME p=0.80 goes act/FIRE → escalate/ESCALATE, costUsd=0, and the model was called exactly ONCE
   ★ LOUD LOAD FAILURES: MISSING · MALFORMED · RANGE · INVERTED (act<flag empties the escalate band)
   EVIDENCE: 8/0/36 · battery 244/0/901/25 (W4 was 236/0/865/24 → +8 tests, no regressions) · tsc 191 (0 new)
-### W6 — CALIBRATION  src/omp/calibration.ts (the loop)  [depends: W1,W2,W5]  ★ BLOCKED ON M2
+### W6 — CALIBRATION  src/omp/calibration.ts (the loop)  ★ MACHINERY PROVEN · M2 STILL OWED
   Deliverable: derivePolicy flips calibrated=true
   Gate: health.ok=true · test_calib_flips
-  ⛔ BLOCKED: M2 (the operator's cost matrix). W1/W2/W3/W5 proceed independently.
+  ★★ THE MACHINERY IS PROVEN END-TO-END (2026-09-21): the loop was run under the SEED matrix
+     with 48 LIVE fires. *dumb and *theatrical flipped calibrated=true (16 resolved vs floors
+     10 and 15); *destructive is 4 fires short of 20. health.ok=false — THE KERNEL CORRECTLY
+     REFUSES TO SET A BAR ON 16 SAMPLES.
+  ★★★ THE FINDING (W6_CALIBRATION_FINDING.md): A POOLED PRECISION OF 0.500 HID THREE CLASSES.
+     destructive SEPARABLE (gap 0.60) · dumb SEPARABLE (gap 0.06) · theatrical ★ INVERTED.
+     ROOT CAUSE: the theatricalDetector asserts only COUNTS ("claims=1 unbound=1 spans[0]=0"),
+     identical for a fabricated claim and a corroborated one, while fireQuestion instructs
+     "judge only the evidence supplied". THE MODEL RETURNS ~0.5 CORRECTLY FOLLOWING ITS
+     INSTRUCTION. The other two carry the DISCRIMINATOR in their evidence.
+  ★★ CONCLUSION: THE COST MATRIX CANNOT FIX A NON-DISCRIMINATING CLASS. M2 is NECESSARY BUT
+     NOT SUFFICIENT — a bar from the pooled 0.500 would be a guess dressed as a derivation.
+  ⛔ STILL BLOCKED ON M2 for the FINAL thresholds; the LOOP itself is proven.
+  EVIDENCE: 48 live fires · 9 deterministic tests (st-gi-v21-w6calibration) · battery 309/0/1100/30 · tsc 191
 ### W7 — MEASUREMENT  MEASUREMENT_PLAN.md  [depends: W1..W6]  ☐ — M1..M12, zero TBD
 ### W8 — CONTAINER  .trident/ct-v2.1/  [depends: all]  ✅ CLOSED
   244/0/905/25 in the CLEAN container (host 244/0/901/25)
