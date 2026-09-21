@@ -402,3 +402,51 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
   the gate's ownership boundary). The probe now reports `sessionIDSource`.
 - **THE VERIFICATION:** 6 resolver cases, **zero phantom "default"**; the store-path guard's
   id shape is satisfied; battery 199 pass / 0 fail.
+
+## EN-045 — F-51's mechanism MEASURED: two `signing` module instances in the test process (2026-09-21)
+
+- **THE FINDING:** with a source-level gutter (`compare` → `return true`) PROVEN present in
+  `src/signing.ts` before the run, the battery's `verifyRow` still produced REAL verdicts
+  (`cmp=false` for the forged `deadbeef` row, `cmp=true` for genuine rows) — i.e. the gutter's
+  return value was NOT what `verifyRow` observed. Yet an independent probe importing the same
+  file DID observe the gutter.
+- **THE DECISIVE EXPERIMENT (one run, everything printed in order):**
+  ```
+  STEP 1  write the gutter:      return true; // GUTTED-1789965822216085624
+  STEP 2  PROVE it in-file:      sed -n '53,60p' -> the gutter is line 55,
+                                 ABOVE the original body (unreachable)
+  STEP 3  instrument:            a global counter incremented inside the gutter,
+                                 plus a print inside verifyRow
+  STEP 4  the battery:
+          [VR] cmp= false  hits= 7     <- verifyRow saw FALSE ...
+          [VR] cmp= false  hits= 7     <- ... and the counter did NOT move ...
+          [VR] cmp= false  hits= 7
+          [VR] cmp= false  hits= 7
+          [VR] cmp= false  hits= 7
+          [VR] cmp= false  hits= 7
+          [VR] cmp= true   hits= 7     <- ... to true, which the gutter always returns
+          [VR] cmp= true   hits= 7
+  ```
+- **THE MECHANISM (measured, not guessed):** `hits` is CONSTANT at 7 across every print while
+  `cmp` varies per row. A function that returns `true` unconditionally cannot yield `false`.
+  So the 7 increments came from callers reaching instance A, and `verifyRow`'s calls reached
+  instance B — **two module instances of `signing.ts` coexist in the battery process**: one on
+  the import chain the TEST uses (`../src/index`), one on the chain `src/store.ts` uses
+  (`./signing`). bun's loader serves them separately.
+- **WHY T8 STILL WORKS (and why the fix is correct):** T8 mutates `verifyHooks.compare`
+  IN-PROCESS on the instance it imported — and that instance IS the one `verifyRow` uses
+  (T8's mutant-credits-the-forgery assertions pass). T8's claim was never "the source file is
+  the seam"; it is "the seam, mutated at runtime, makes T2's assertion fail". That claim is now
+  true and battery-proven (17 pass / 0 fail / 51 expect).
+- **THE STANDING RULE THIS PRODUCES:** on this package, a SOURCE-FILE mutation is NOT a valid
+  mutation method — the module graph has more than one instance of `signing.ts`, so editing the
+  file does not reliably reach the consumer. A mutation test must mutate the SEAM at runtime
+  (as T8 does). Recorded because the next person will otherwise repeat this experiment.
+- **RESIDUAL (honest):** the exact cause of the instance split is NOT isolated. A direct
+  identity probe from a test file reported all four specifier spellings (`../src/index`,
+  `../src/index.ts`, `../src/signing`, `../src/signing.ts`) as the SAME object — which
+  contradicts the counter. The contradiction is measured and reproducible; the resolution is
+  not claimed.
+- **THE LESSON:** when a mutation "does not take effect", suspect the MODULE GRAPH before the
+  logic. A counter inside the mutated function is the cheapest way to tell "not called" from
+  "called but its result was not the one observed".

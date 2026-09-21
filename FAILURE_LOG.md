@@ -336,7 +336,23 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **THE LESSON:** a fixture that gives two compared systems different inputs tests nothing.
   If a driver asserts agreement, it must supply one truth to both sides.
 
-## F-51 (UPDATED) — the mutation reading is CONTRADICTORY and the cause is NOT isolated (2026-09-21)
+## F-51 (RESOLVED MECHANISM) — two `signing` module instances in the test process (2026-09-21)
+
+- **MECHANISM MEASURED (see DEBUG_LOG EN-045 for the full experiment):** with the gutter
+  PROVEN in `src/signing.ts`, a global counter inside it read a CONSTANT `hits=7` while
+  `verifyRow` printed varying verdicts (`false` for the forged row — impossible from a function
+  that always returns `true`). The 7 increments came from one instance; `verifyRow`'s calls hit
+  another. TWO instances of `signing.ts` coexist in the battery process (`./signing` from
+  store.ts vs `../src/index` from the test).
+- **CONSEQUENCE:** a SOURCE-FILE mutation is not a valid mutation method on this package. T8
+  mutates the seam AT RUNTIME, which is the supported method — and T8 is now battery-proven
+  (17 pass / 0 fail / 51 expect).
+- **Disposition: FIXED for the test; NOT-ISOLATED for the instance-split cause.** A direct
+  identity probe reported all four specifier spellings as the SAME object, which contradicts
+  the counter. The contradiction is recorded, not resolved.
+- **THE ORIGINAL ENTRY FOLLOWS (verbatim, append-only).**
+
+## F-51 (UPDATED, superseded by the entry above) — the mutation reading was CONTRADICTORY and the cause was NOT isolated (2026-09-21)
 
 - **WHAT IS FIXED:** T8's body asserted the MUTANT'S behaviour and never re-ran T2. It now
   runs T2's own assertion under the mutation and expects it to THROW. The test bites. VERIFIED:
