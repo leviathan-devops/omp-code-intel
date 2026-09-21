@@ -481,3 +481,24 @@ EN-064/EN-065  MY OWN FIXES HAD SILENTLY NOT APPLIED and I committed them as lan
              the MECHANISM (the replacement helper now raises on a missing pattern).
 F-62..F-65   the P4 hot-seat findings (above).
 ```
+
+## [2026-09-22] — THE GRAPH BLINDSPOT: 7 derailments, 1 root cause
+
+```
+F-66 THE RITUAL QUERY        100% of this session's ripwire calls were gate tokens.
+F-67 THE HAND-DERIVED FINDING a 70ms graph lookup presented as an analysis.
+F-68 ★★ THE STALE INSTRUMENT the graph answered about obsolete code for ~20 commits;
+                              the freshness gate EXISTED and was never run.
+F-69 THE UNWIRED GRAPH       the store's writers were built; the store was never read.
+F-70 THE GUARD INCONSISTENCY found by an audit pass, not by a graph query.
+F-71 THE DEAD CONFIG         found by grep, late.
+F-72 THE SELF-MEASUREMENT    found by an audit pass.
+
+ROOT CAUSE, ONE SENTENCE: I treated the 6 graph layers as a REGISTRATION PRECONDITION — a
+substrate to bring UP — instead of as THE INPUT TO EVERY DECISION.
+CONSEQUENCE: seven audit passes, ~90 findings, and the same structural classes recurring,
+because the only structural detector in the loop was a MODEL PAID PER FILE.
+THE FIX IS THE PLAN (packages/gi-kernel-v2.1/GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md):
+graph-asserted MPSE rules at the PRE-ACT seat, so the edit that creates the defect is refused
+at $0 before it exists.
+```

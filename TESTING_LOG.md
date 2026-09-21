@@ -1111,3 +1111,40 @@ EVERY SHIP-READY CLAIM REMAINS WITHHELD. That is the correct state.
   per wave. Do not hold a release for it — an audit that must reach zero can never be
   satisfied by a codebase that is still moving.
 ```
+
+## [2026-09-22] — ★★★ THE GRAPH-BLINDSPOT AUDIT: THE INSTRUMENTS I HAD AND DID NOT USE
+
+```
+THE CHARGE (operator, verbatim): the coding derailed FROM A LACK OF USING THE 6 GRAPH LAYERS
+WE HAVE FOR INTELLIGENCE. PROVEN, not conceded:
+
+$ SELECT count(*) FROM typed_edges WHERE dst_canonical LIKE '%OutcomeRecord%'
+  0 — ★ THE GRAPH ALREADY SAID NOTHING PRODUCES IT. I found it by reading code and called
+      it a finding. 70ms vs 70 tool calls.
+
+$ SELECT canonical_id FROM typed_nodes WHERE canonical_id LIKE '%abandonInFlight%'
+  ABSENT — ★ THE GRAPH WAS STALE. Populated once at EN-070, never refreshed across ~20
+      commits. THE INSTRUMENT WAS ANSWERING ABOUT OBSOLETE CODE — and the freshness gate
+      (storeFreshness, typed-write.ts:424 + gi_meta.populated_at) ALREADY EXISTED.
+
+REMEDIATED THIS TURN: the corbell checkout is REFRESHED (964 nodes / 4217 edges) and
+abandonInFlight is IN it (fire-gate.ts:596). The blindspot is now visible in the graph.
+```
+
+**★ THE SEVEN DERAILMENTS AND THEIR DETECTORS** — full detail in
+`.mimocode/runtime-grade/derailment-ledger-2026-09-22.md`:
+
+```
+D-1 THE RITUAL QUERY        the gate was satisfied; no decision derived       → M-GRAPH-6
+D-2 THE HAND-DERIVED FINDING OutcomeRecord: 0 producers (graph held it)      → M-GRAPH-1
+D-3 ★★ THE STALE INSTRUMENT  populated once, ~20 commits stale               → M-GRAPH-3
+D-4 THE UNWIRED GRAPH       writers built, zero consults                     → M-GRAPH-4
+D-5 THE GUARD INCONSISTENCY abandonInFlight vs evict (pass-7 HIGH)           → M-GRAPH-4
+D-6 THE DEAD CONFIG         ledgerPath: 0 readers                            → M-GRAPH-2
+D-7 THE SELF-MEASUREMENT    serializedBytes counted itself out               → M-GRAPH-5
+
+★ 7 OF 7 ARE GRAPH-DETECTABLE. 7 OF 7 ARE MPSE-SETTLEABLE ($0). 0 OF 7 NEED A JEV CALL.
+★ AND THE COST: 7 audit passes · ~90 findings · 70+ model calls — to find, one file at a
+  time, what the graph states in 60ms. THE SAME STRUCTURAL CLASS RECURRED ACROSS PASSES
+  (the eviction inconsistency: pass 6 → "fixed" → pass 7 HIGH).
+```
