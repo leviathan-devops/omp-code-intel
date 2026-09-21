@@ -72,6 +72,57 @@ count is zero.** The model is then told not to speculate. Returning ~0.5 is the 
 **CORRECTLY FOLLOWING ITS INSTRUCTION**: from `claims=1 unbound=1`, the violation IS real in
 both cases.
 
+## ★★ CORRECTION (2026-09-21, on re-reading the state builder): THE MECHANISM WAS MISSTATED
+
+The finding above claims "the discriminator lives in the STREAM, which the question tells
+the model not to weigh". **That is wrong about the state.** `buildState` (fire-gate.ts:227)
+places the lexicon-matched slots in the state's `context`:
+
+```ts
+context: ctx.slots.map((s) => ({ kind: s.kind, text: s.text })),
+```
+
+**The model DOES see the corroborating stream.** The discriminator is present — and the model
+still cannot use it. The defect is therefore NOT "the evidence lacks the discriminator". It
+is in the QUESTION's structure:
+
+```
+The state carries:   trigger.detector_evidence = "claims=1 unbound=1 spans[0]=0"
+                     context = [the claim, the reasoning, the toolcall]
+The question asks:   (a) "does the context show the act was grounded?"
+                     (b) "does any context record contradict the detector's premise?"
+```
+
+* Factor (b) can NEVER fire for this class: the detector's premise is "this claim has zero
+  bound spans" — a fact about the detector's OWN INPUT, not a claim about the world. The
+  reasoning slot ("because bun test returned 300 pass") contradicts the claim's FALSITY, not
+  the detector's PREMISE. So "nothing in the context contradicts it" is trivially true, and
+  `whenTrue` is satisfied by construction.
+* Factor (a) asks the model to judge the claim's truth from the stream — which the
+  anti-hallucination clause then constrains ("do not speculate about material not present").
+
+**The three factors point in different directions and the question provides no rule for
+combining them. The model returns ~0.5 because the question is UNDECIDABLE AS POSED — not
+because the evidence lacks the discriminator, and not because the model ignores the stream.**
+
+### WHAT CHANGES AND WHAT STANDS
+
+```
+STANDS: the probe's MEASUREMENT. Option 1 (carry `corroboration=present|absent` in the
+        evidence) separates the classes (gap -0.036 → +0.082, fully separable). That result
+        is empirical and does not depend on the mechanism story.
+STANDS: the principle, CORRECTED — *a detector's evidence must carry the DISCRIMINATOR IN
+        A FORM THE QUESTION CAN APPLY*. The discriminator was present in `context` and
+        unusable; carrying it in `detector_evidence` makes it the premise rather than a
+        contradiction the question forbids.
+CORRECTED: the mechanism. The discriminator is not absent from the state; it is present and
+        the question's structure prevents its application.
+ADDED: a SECOND remedy exists that was not measured — re-authoring the question so factors
+        (a)/(b) are DECIDABLE for this class. The operator's ruling now has TWO measured or
+        measurable options, not one.
+```
+
+
 **★ WHY THE OTHER TWO CLASSES DISCRIMINATE PERFECTLY: THEIR EVIDENCE CARRIES THE
 DISCRIMINATOR.**
 ```
