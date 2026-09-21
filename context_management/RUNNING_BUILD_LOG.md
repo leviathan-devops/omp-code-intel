@@ -300,3 +300,10 @@
 - ★ ONE OF THE FIXES EXPOSED A SEMANTIC ERROR OF MINE: I had the reload test bump the schema version to signal "the content changed". A THRESHOLD edit is not a SCHEMA change. The P0 gate correctly rejected it, which is how the conflation surfaced.
 - EVIDENCE: audit-fixes 9/0/43 · audit2 14/0/33 · battery **291/0/1034/28** (268/0/958/26 → +23 tests, ZERO regressions) · tsc 191 == baseline 0 new · the 3 artifacts on disk (.audit/sg-ocr-*.json, 14165 + 10850 + 10672 bytes).
 - NEXT: the RE-VERIFY scan (the same instrument) → the AUDIT GATE verdict.
+
+## [2026-09-21T16:30:00] — GAP-9 CLOSED: the container re-run after the 65 audit fixes
+- WHAT: re-staged src/. + tests/. into stupefied_morse:/work/gi (clean /tmp) and re-ran the battery.
+- EVIDENCE: **292 pass / 0 fail / 1047 expect / 28 files** in the CLEAN container. Host: 292/0/1043/28.
+- ★ THE DELTA IS UNCHANGED: +4 expects, exactly as before the audit. Root cause (measured earlier): the register probes ABSOLUTE HOST PATHS for ABIDE and RSI_STORE, so those two are UP on the host and DOWN in a container, and tests/st-gi-v2-deps.test.ts:112 asserts 2 expectations per down entry → 2 × 2 = +4. The audit fixes did NOT move it, which confirms it is an ENVIRONMENT property rather than a code effect.
+- ★ THE CONCLUSION: the 65 audit fixes are HERMETIC. The container and the host agree on every count that is a property of the code.
+- The Phase F artifact (.trident/container-test-results.json) now carries the POST-audit scenario and the stability finding.

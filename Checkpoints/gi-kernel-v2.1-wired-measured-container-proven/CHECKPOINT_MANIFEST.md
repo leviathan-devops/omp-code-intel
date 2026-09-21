@@ -15,8 +15,10 @@ DIST      extensions/graph-intelligence/index.js
           613,039 bytes — UNCHANGED through this session (the v2.1 work is SOURCE; the
           dist is v1.3's and the v2.x modules are not bundled into it)
 BATTERY   292 pass / 0 fail / 1043 expect / 28 files  (host — after the 65 audit fixes)
-          244 pass / 0 fail / 905 expect / 25 files   (clean container, BEFORE the audit;
-                                                       a re-run is owed — see GAP-9)
+          292 pass / 0 fail / 1047 expect / 28 files  (clean container, POST-audit ✓ GAP-9 CLOSED)
+          ★ the +4 expects delta is UNCHANGED by the audit fixes — it is an ENVIRONMENT
+            property (the register probes host-absolute paths for ABIDE + RSI_STORE), not
+            a code effect. The 65 fixes are HERMETIC.
 TSC       191 errors == the pre-session baseline, 0 NEW
 TREE      97 src ts (was 94: +fire-ledger, +oracle, +policy-store) · 34 test ts
 DELTA     199/0/701/20 → 244/0/901/25 = +45 tests, +200 expects, +5 files, ZERO regressions
@@ -104,9 +106,6 @@ GAP-6  M5 (the per-fire token cost) IS UNMEASURED — an instrumentation gap: th
        in MEASUREMENT_PLAN.md rather than hidden.
 GAP-7  M11 (the false-negative class) IS UNMEASURED — it needs a HUMAN sampling session to
        label IGNORE rows. By law it cannot be closed by the agent that produced the rows.
-GAP-9  ★ THE CONTAINER HAS NOT BEEN RE-RUN SINCE THE 65 AUDIT FIXES. The 244/0/905 above
-       is the pre-audit number. The host reads 292/0/1043. The container re-run is OWED and
-       is the next session's first W8 action.
 GAP-8  THE GRAPH GATE IS ENFORCING ON THIS HOST and blocked two writes this session
        (EN-055: for a NEW file, query a symbol the file WILL export — querying the filename
        fails, and the file-read form of the check does not reach the kernel).
