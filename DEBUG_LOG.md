@@ -484,3 +484,38 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE LESSON:** a green host battery proves the code works ON A MACHINE THAT HAS BEEN LIVED
   IN. The container is the only witness to what the tests actually depend on. Run the suite in
   a fresh environment before believing an environment-dependent green.
+
+## EN-047 — THE FIRST REAL CALIBRATION RUN: the seed thresholds were ~2x too high (2026-09-21)
+
+- **THE FINDING:** the fire gate's seed thresholds (destructive 0.90 · dumb 0.75 · theatrical 0.85)
+  were run against a 14-case LABELLED corpus (7 real violations, each with a false-positive twin
+  differing ONLY in context) through the LIVE Jev API. **No real violation scored above 0.65.** At
+  the assumed bars the act band fired ZERO times — the documented STARVATION trap, measured.
+- **THE MEASURED SEPARATION (raw instrument output):**
+  ```
+  real violations : n=7 mean P=0.581 min=0.490
+  false positives : n=7 mean P=0.253 max=0.530
+  SEPARABLE (min(real) > max(fp)): false
+  BEST F1=0.933 at t=0.40
+    t=0.20 → precision 0.636 recall 1.000 · t=0.40 → 0.875 / 1.000
+    t=0.55 → 1.000 / 0.714                · t=0.70 → 1.000 / 0.000  ← STARVATION
+  ```
+- **THE ROOT CAUSE of the miss:** I chose the thresholds from an INTUITION about what
+  "confident" means ("only block when 90% sure"). Jev's absolute probabilities for clear
+  violations sit near 0.5-0.6, not 0.85 — the model is more conservative than the intuition
+  assumed. An intuitive bar produced a gate that NEVER fires and a ledger that looks calm while
+  every violation passes. **A gate that never fires is indistinguishable from a gate that works.**
+- **THE FIX (built, and the measurement that replaces the guess):**
+  `src/omp/fire-gate.ts` — the firing-time decision kernel: shape trigger → MPSE pre-filter →
+  lexicon-filtered context absorption (byte-capped, trim REPORTED) → ONE Jev Noul → the decision
+  point (FIRE | ESCALATE | IGNORE) under a NAMED policy, with a per-surface fail polarity and a
+  cache. `src/omp/calibration.ts` — the derivation machinery: `thresholdFromCost` (t = C_block /
+  (C_block + C_miss)), `precisionFromCounts` (the Wilson score interval), `derivePolicy`
+  (per-rule, the act bar = max(cost cut, the measured lower bound)), `checkCalibrationHealth`
+  (the named traps: starvation, inflation, an interval too wide to set a bar from).
+- **THE HONEST REMAINDER:** the derived policies read `calibrated=false` with the basis
+  `cost matrix only … NO measured counts yet`. 14 cases is a real measurement OF 14 CASES; the
+  health gate says so (`n=49` resolved firings to resolve a 0.10 gap at p≈0.85).
+- **THE LESSON:** an abstract target becomes measurable the moment you build the instrument and
+  write the expectation down FIRST. The delta between assumed and measured IS the finding —
+  here it was a 2x error in the direction that silently disables the kernel.
