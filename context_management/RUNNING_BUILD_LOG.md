@@ -195,3 +195,10 @@
 - HOW: TDD module → wiring → doctrine → container angles (caught 2 real defects) → fixes → re-verify
 - EVIDENCE: 230/0/1786 ×31 [8.72s]; 12/12 gate; ALL-6-PASS container ×3; SHA 83eb7bba9c5e76db
 - NEXT: tetris threshold tuning (operator order); V2 scaffold consumers
+
+## [2026-09-21T12:05:00] — v2.1 W1 THE LEDGER: src/omp/fire-ledger.ts (the calibration substrate)
+- WHAT: src/omp/fire-ledger.ts (337 L) — the §8.2 fire_decisions table + the writer + the reader + the two seams. tests/st-gi-v21-ledger.test.ts (215 L, 7 tests, 36 expects).
+- WHY: FireGate's config declares `ledgerPath` (fire-gate.ts:222 — "Absent ⇒ no ledger ⇒ no calibration") and NOTHING EVER READ IT. The gate has built rows in memory since it was written (fire-gate.ts:367 `rows()` — "the calibration machinery and the tests read the ledger") and every one died with the process. A threshold cannot be derived from rows that do not exist.
+- HOW: TDD — the RED run (module absent, 0 pass/1 fail/1 error) preceded the implementation. The DDL is §8.2 VERBATIM; a test asserts the live table's columns equal the constant, so a silent column rename cannot slip through. The seam needs ZERO edits to fire-gate.ts (W3 owns that file): `drain()` reads the public `rows()` accessor with an object-identity WeakSet watermark, and `withLedger()` is a Proxy wrapping `judge()` so an empty ledger is impossible BY CONSTRUCTION, not by discipline.
+- EVIDENCE: battery 206 pass / 0 fail / 737 expect / 21 files (baseline 199/0/701/20 → +7 tests/+36 expects/+1 file, ZERO regressions). tsc 191 == baseline, 0 new. W1 suite 7/0/36. All 5 pin-named selectors pass individually (test_ledger_row_written · test_ledger_ddl_exact · test_ledger_fails_loud · test_ledger_no_double_write · test_ledger_feeds_calibration). `derivePolicy` flips calibrated=true at 12 confirmed fires + `checkCalibrationHealth` returns ok=true with ZERO findings — the loop ENGAGES end to end.
+- NEXT: W2 (the oracle) · W3 (position A) · W5 (policy store) — all unblocked. W6 stays BLOCKED on M2 (the operator's cost matrix).
