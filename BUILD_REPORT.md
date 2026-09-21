@@ -358,3 +358,26 @@ full battery → **194 pass / 0 fail** (was 178); tsc → 191 == baseline.
 the live register audit shows JEV DOWN (`TYPESAFE_AI_API_KEY ABSENT`), TSG is an unbuilt Rust
 CLI, and Abide is source-only. So the live end-to-end (SC-8) cannot run until a TypeSafe key
 exists. That is a reported dependency, not a routed-around one.
+
+## [2026-09-21] KERNEL v2.0 — WAVE 4 COMPLETE: the package + the executed reflex loop
+
+**The built:** the complete package at `packages/gi-kernel-v2/` — **11 documents, 3167 L**:
+00-MISSION · 01-DISCOVERY · GI_KERNEL_V2_DPL1_SPEC (404L) · 06-WAVES · 07-GOALS · 00-INDEX ·
+PACKAGE_AUDIT · GI_KERNEL_V2_MASTER_BLUEPRINT (553L) · ENFORCEMENT_ENGINE_MASTER_BLUEPRINT
+(1031L) · RSI_ARCHITECTURE (371L) · FORWARD_COMPAT_v2_TO_v3 (200L). Plus `drivers/` with the
+SC-8 loop and its measured output.
+**SC-8's runnable half EXECUTED** — one firing through the full path:
+```
+STAGES 0:PREFLIGHT=UP 1:CLASSIFY=OK 2:BIND+INDEX=OK 3:DETECT=SIGNAL
+       4:KERNEL=VIOLATION 5:VERDICT=REFUSE 6:RECORD=WRITTEN
+KERNEL REFUSE class=theatrical code=GI_FABRICATED_CLAIM
+LEDGER confirmed=1→2→3 · RSI precision=1.000 fires=2→4→6 → tier HOLD→REFLEX
+SUPERSEDE HOLD → REFLEX, live=rsi-2, history=2 rows   SC8-EXEC-OK
+```
+**PACKAGE_AUDIT verdict:** 8 of 10 SC rows MET; **SC-8 PARTIAL** (machinery proven, the LIVE
+model path blocked on `TYPESAFE_AI_API_KEY`); SC-10 open. Two documents reported at true length
+rather than padded to the floor.
+**The honest notes:** the driver's judge and load unit are STUBS, disclosed in the file — a
+machinery proof, not a live-Jev proof. A stub inconsistency is disclosed too: the kernel saw
+`spans=0` and fired while the close layer's stub returned one span and passed; that is a fixture
+mismatch, not a code defect.
