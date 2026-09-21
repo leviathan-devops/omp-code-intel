@@ -289,3 +289,31 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **THE LESSON:** a comparison primitive that THROWS on malformed input is a crash
   surface. Run the reader against the REAL store before trusting the unit suite — the
   live corpus is the only place malformed rows exist.
+
+## F-51 — the boilerplate's T8 mutation test is SELF-FULFILLING; a source-level gutting does not turn the battery red (2026-09-21)
+
+- **THE FINDING (two parts, separated by what was VERIFIED vs not):**
+  **VERIFIED (by reading tests/battery.test.ts:191-205):** T8's NAME claims "removing the
+  signature check makes T2 FAIL (the test bites)". Its BODY mutates the seam in-process
+  (`verifyHooks.compare = () => true`) and then asserts the MUTANT's behaviour
+  (`expect(store.verify(forged)).toBe(true)` and `readLive(...)?.id === fid`). It never
+  RE-RUNS T2's expectation under the mutation, so the assertion it makes is the mutant's
+  success, not the original test's failure. As written it is a SEAM-IS-WIRED proof, not
+  the "the test bites" proof its name asserts.
+  **VERIFIED (by execution):** gutting `verifyHooks.compare` to `return true` IN THE SOURCE
+  (confirmed present at signing.ts:55 before the run) left the battery at **17 pass / 0 fail**.
+  A mutation that does not turn a battery red is not a mutation proof.
+  **NOT DETERMINED:** WHY the source mutation did not surface in T2. My direct probe of the
+  store failed on a constructor-shape mismatch (`TypeError: this.db is undefined` at
+  store.ts:280) — the desk's `rig()` builds the store differently from my probe, and I did
+  not resolve it before the budget check. Stated as UNRESOLVED rather than guessed.
+- **THE CONSEQUENCE FOR THE DELIVERABLE:** the package's headline evidence is "the battery
+  includes a MUTATION test that goes RED". That claim is NOT supported by an executed red
+  run. The battery itself is real (17 pass, 50 expect, verified by me) and the attacks are
+  real (the demo's both attacks + the recovery ran), but the MUTATION claim overreaches.
+- **THE FIX (proposed, not applied):** T8 must run T2's OWN assertion under the mutation and
+  expect it to THROW/FAIL — e.g. `expect(() => expect(store.verify(forged)).toBe(false)).toThrow()`
+  — or the source-level gutting must be shown to redden T2.
+- **THE LESSON:** a test whose name claims "the test bites" must FAIL when the guarded
+  property is removed. Asserting the MUTANT'S behaviour proves the seam is wired; it does
+  not prove the guarded test bites. Both are worth having; they are different claims.
