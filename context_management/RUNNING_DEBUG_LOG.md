@@ -301,3 +301,27 @@
 - VERIFIED BY RUNNING (not by reading): fire 1 timed out at 201ms; fire 2 on the SAME state paid its OWN 200ms ceiling — it did not inherit the hang. Pinned by `EN-075`.
 - ALSO FIXED FROM PASS 6: the budget counted CALLS not FIRES (D017's documented contract is "the NUMBER OF FIRES", and collapsing the two made the stop bypassable by concurrency) → two separate meters (`firesUsed` = fires, `modelCallsUsed` = calls) · the probability RANGE was never validated (p=-0.2 and p=1.5 passed `Number.isFinite`, banded, and would be REJECTED by the ledger's own W1 guard — the gate producing a row it cannot persist) · `keyFileComponent` treated EVERY statSync failure as absent, so EACCES/EPERM fell through to the env fallback and read UP · the socket path emitted `//` on a trailing slash, failing the exact match and reporting a false STALE.
 - EVIDENCE: battery 322/0/1150/30 host · the container re-run · tsc 191 == baseline · the EN-075 test paying its own ceiling twice on the same state.
+
+## [2026-09-22T00:15:00] — E1's REAL BLOCKER: NOT THE ENGINE — THE EVIDENCE SOURCE
+- THE FRAMING I HAD BEEN USING: "E1 (the oracle's engine) is the operator's, v3." That names the wrong gate.
+- ★ THE MEASURED STATE: the oracle's four gatherers read a single input type —
+    `OutcomeRecord { kind: "edit" | "test" | "withdraw" | "permit"; at; target?; passed?; span?; tool?; by? }`
+  — and NOTHING ON THIS HOST PRODUCES THOSE RECORDS. Every resolution this session achieved was
+  synthetic: the W6 run fed the corpus LABELS, the hot seat fed hand-built edits.
+- ★ SO E1 IS NECESSARY BUT NOT SUFFICIENT. Naming an engine (Jev, MPSE, or a v3 substrate) would
+  give the resolver a way to ADJUDICATE ambiguous evidence — and it would still have NO EVIDENCE
+  to adjudicate, because the producer does not exist. The oracle's real dependency is a
+  **DOWNSTREAM-EVIDENCE PRODUCER**: a watcher that turns the session's own operation into
+  OutcomeRecords —
+    a later edit to the fired target  → kind:"edit"
+    a test/verify run after the fire  → kind:"test" + passed
+    a withdrawal with a bound span    → kind:"withdraw" + span
+    a downstream gate's permit        → kind:"permit"
+- THE PRECISE RESUME CONDITION, NOW STATABLE: the oracle needs A PRODUCER and possibly an engine.
+  The producer is the gate; the engine is the refinement.
+- ★ WHY THIS MATTERS FOR THE PIN'S T-2 ("thresholds DERIVED from a measured curve + the
+  operator's cost matrix"): the CURVE was measured with labelled data. A curve from ORGANIC
+  evidence is a different number, and it cannot be produced until the producer exists. So M1's
+  organic form and M10's resolution rate BOTH wait on the same missing component — not on M2.
+- EVIDENCE: the OutcomeRecord contract (oracle.ts) + every resolution this session traced to a
+  synthetic source (the W6 labels; the hot seat's hand-built records).
