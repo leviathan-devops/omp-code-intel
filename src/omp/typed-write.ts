@@ -61,6 +61,10 @@ export const TYPED_STORE_DDL: readonly string[] = [
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`,
+  // T-1 (kernel v2.0): layer_id namespaces the six graph layers (L1 semantica,
+  // L2 arsumbris, L3 UA, L4 c2kg, L5 corbell, L6 graphify) inside ONE store.
+  // NULL is legal and means "pre-v2 row" — the migration backfills it from the
+  // canonical_id prefix, which every substrate already carries ('graphify:...').
   `CREATE TABLE IF NOT EXISTS typed_nodes (
     id INTEGER PRIMARY KEY,
     canonical_id TEXT NOT NULL,
@@ -68,9 +72,16 @@ export const TYPED_STORE_DDL: readonly string[] = [
     label TEXT NOT NULL,
     file TEXT,
     line INTEGER,
+    layer_id TEXT,
     created_run TEXT NOT NULL,
     superseded_run TEXT
   )`,
+  // T-1 + T-8 (kernel v2.0): layer_id namespaces the layer; `derivation` records
+  // the METHOD that produced the edge ('explicit' | 'inferred' | 'heuristic'),
+  // which is the base term of the confidence function. The old DEFAULT 1.0 is
+  // kept for backward-compat ONLY as a floor sentinel: a writer that omits
+  // confidence now leaves derivation NULL, which is DETECTABLE (SC-6), rather
+  // than silently asserting the certainty of an observed fact on an inference.
   `CREATE TABLE IF NOT EXISTS typed_edges (
     id INTEGER PRIMARY KEY,
     src_canonical TEXT NOT NULL,
@@ -78,6 +89,8 @@ export const TYPED_STORE_DDL: readonly string[] = [
     predicate TEXT NOT NULL,
     evidence_quote TEXT NOT NULL,
     confidence REAL NOT NULL DEFAULT 1.0,
+    derivation TEXT,
+    layer_id TEXT,
     created_run TEXT NOT NULL,
     superseded_run TEXT
   )`,
@@ -242,6 +255,219 @@ export function openTypedStore(storePath: string): Database {
 // constraint failure on a CREATE UNIQUE INDEX statement defers (legacy dup
 // rows). Any other failure (the old catch deferred anything CONTAINING the
 // word "UNIQUE") rethrows. Exported for the contract test.
+// ── T-8 (kernel v2.0) — THE CONFIDENCE FUNCTION ─────────────────────────────
+// The v1.3 defect (finding B1): typed_edges.confidence was the DDL DEFAULT 1.0
+// for every row, so a statically-INFERRED edge claimed the certainty of an
+// observed one, and the field carried ZERO information (1 distinct value over
+// 2714 rows). A constant is banned. Confidence is now DERIVED from three
+// measured inputs, and the method is recorded beside it so the derivation is
+// re-computable and the battery can diff it (B1 recompute-and-diff).
+//
+//   confidence = BASE[derivation] × CORROBORATION[layers] × FRESHNESS[age]
+//
+// BASE is the prior: a fact read off a statement is near-certain; a name-based
+// resolution is not; a pattern match is a guess. 'unknown' fails CLOSED at 0.30
+// rather than defaulting to certainty.
+export const DERIVATION_BASE: Readonly<Record<string, number>> = {
+  explicit: 0.99,
+  inferred: 0.72,
+  heuristic: 0.45,
+  unknown: 0.30,
+};
+
+/** Predicates whose EDGE IS THE SYNTACTIC CONSTRUCT ITSELF: the statement was
+ *  read, so the edge is observed. An `imports` edge exists because an import
+ *  statement is in the file; an `implements` edge because the keyword is. */
+export const OBSERVED_PREDICATES: readonly string[] = [
+  "imports", "declares", "implements", "extends", "defines", "contains", "parent_of",
+];
+
+/** Predicates whose edge is RESOLVED, not read: a call expression names a
+ *  target and the extractor resolves it by name. That resolution can be wrong
+ *  (dynamic dispatch, shadowing, a same-named symbol elsewhere), so a `calls`
+ *  edge is INFERRED and must never carry an observed fact's certainty. */
+export const INFERRED_PREDICATES: readonly string[] = [
+  "calls", "invokes", "uses", "references", "invoked_by", "called_with",
+  "is_of_type", "inherits_from", "traces-to", "depends_on",
+];
+
+/** Extract the derivation class. Two inputs, in priority order:
+ *   1. an evidence prefix that NAMES a real class (not the blanket 'explicit');
+ *   2. otherwise the PREDICATE's nature — observed construct vs resolved edge.
+ *  The second input exists because the live corpus writes the blanket prefix
+ *  'explicit:' on EVERY edge (verified: 2714/2714), so the prefix alone yields
+ *  one class and the field would carry no information again. The predicate is
+ *  the honest discriminator, and it is the extractor's own semantics. */
+export function derivationOf(evidence: string, predicate?: string): string {
+  const m = /^\s*([a-z_]+)\s*:/.exec(evidence);
+  const prefix = m?.[1]?.toLowerCase();
+  if (prefix !== undefined && prefix !== "explicit" && prefix in DERIVATION_BASE) return prefix;
+  if (predicate !== undefined) {
+    const pred = predicate.toLowerCase();
+    if (OBSERVED_PREDICATES.includes(pred)) return "explicit";
+    if (INFERRED_PREDICATES.includes(pred)) return "inferred";
+  }
+  if (prefix !== undefined && prefix in DERIVATION_BASE) return prefix;
+  return "unknown";
+}
+
+/** T-1: the layer namespace of a canonical id — every substrate already namespaces
+ *  its rows ('graphify:src_omp_typed_write'), so the layer is recoverable from
+ *  the id itself without a re-populate. */
+export function layerOf(canonicalId: string): string | null {
+  const i = canonicalId.indexOf(":");
+  return i > 0 ? canonicalId.slice(0, i) : null;
+}
+
+/** CORROBORATION: a second independent layer asserting the same edge raises
+ *  belief; two layers CONFLICTING lowers it. Disagreement is evidence. */
+export const CORROBORATION_AGREE = 1.15;
+export const CORROBORATION_CONFLICT = 0.7;
+
+/** FRESHNESS: a graph is a claim about a moment. Age decays belief; the tau
+ *  differs by derivation class (a syntactic fact ages more slowly than a guess).
+ *  With no clock supplied the term is 1.0 — freshness is applied by the reader
+ *  that knows the age, never guessed by the writer. */
+export const FRESHNESS_TAU_DAYS: Readonly<Record<string, number>> = {
+  explicit: 1.0,
+  inferred: 3.0,
+  heuristic: 7.0,
+  unknown: 1.0,
+};
+
+export function deriveConfidence(
+  evidence: string,
+  opts: { predicate?: string; ageDays?: number; corroboration?: "agree" | "conflict" } = {},
+): { confidence: number; derivation: string } {
+  const derivation = derivationOf(evidence, opts.predicate);
+  const base = DERIVATION_BASE[derivation] ?? DERIVATION_BASE["unknown"]!;
+  const corr =
+    opts.corroboration === "agree"
+      ? CORROBORATION_AGREE
+      : opts.corroboration === "conflict"
+        ? CORROBORATION_CONFLICT
+        : 1.0;
+  const tau = FRESHNESS_TAU_DAYS[derivation] ?? 1.0;
+  const fresh =
+    typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1.0;
+  const confidence = Math.max(0, Math.min(1, base * corr * fresh));
+  return { confidence, derivation };
+}
+
+/** T-1 MIGRATION: CREATE TABLE IF NOT EXISTS cannot add a column to an existing
+ *  store, so every pre-v2 store needs an explicit ALTER. The backfill derives
+ *  layer_id from the canonical_id prefix — every substrate already namespaces
+ *  its rows ('graphify:…'), so the layer is recoverable without a re-populate.
+ *  Idempotent: reads pragma table_info first, adds only what is missing. */
+export function migrateLayerColumns(db: Database): { added: string[]; backfilled: number } {
+  const added: string[] = [];
+  const cols = (t: string): string[] => {
+    const rows = db.query(`PRAGMA table_info(${t})`).all() as Array<{ name: string }>;
+    return rows.map((r) => r.name);
+  };
+  const addCol = (t: string, col: string, decl: string): void => {
+    if (!cols(t).includes(col)) {
+      db.run(`ALTER TABLE ${t} ADD COLUMN ${col} ${decl}`);
+      added.push(`${t}.${col}`);
+    }
+  };
+  addCol("typed_nodes", "layer_id", "TEXT");
+  addCol("typed_edges", "layer_id", "TEXT");
+  addCol("typed_edges", "derivation", "TEXT");
+  // Backfill from the canonical_id prefix where the layer is still unknown.
+  let backfilled = 0;
+  try {
+    db.run(
+      `UPDATE typed_nodes SET layer_id = substr(canonical_id, 1, instr(canonical_id, ':') - 1)
+       WHERE layer_id IS NULL AND instr(canonical_id, ':') > 0`,
+    );
+    const chg = db.query("SELECT changes() AS n").get() as { n: number } | null;
+    backfilled += chg?.n ?? 0;
+  } catch { /* no rows to backfill on a fresh store */ }
+  try {
+    db.run(
+      `UPDATE typed_edges SET layer_id = substr(src_canonical, 1, instr(src_canonical, ':') - 1)
+       WHERE layer_id IS NULL AND instr(src_canonical, ':') > 0`,
+    );
+  } catch { /* fresh store */ }
+  return { added, backfilled };
+}
+
+// ── SC-7 / finding B3 — THE STALENESS GATE ─────────────────────────────────
+// The live store was populated 2026-09-19 and read on 2026-09-21 with NO marker
+// distinguishing it from a fresh one (finding B3, severity CRITICAL: a stale
+// graph answers confidently about code that has changed). gi_meta carried
+// populated_at and nothing compared it to anything. This makes staleness a
+// first-class, queryable verdict.
+//
+// TTL is per DERIVATION CLASS, symmetric with FRESHNESS_TAU_DAYS: an observed
+// fact tolerates a shorter window before it must be re-read (it is cheap to
+// re-read); a heuristic edge tolerates longer (it is expensive and approximate).
+// SC-7 uses a TTL of 0 for the test, which makes ANY prior populate stale — the
+// deterministic way to assert the gate fires without waiting a day.
+export const LAYER_TTL_MS: Readonly<Record<string, number>> = {
+  explicit: 24 * 60 * 60 * 1000,
+  inferred: 3 * 24 * 60 * 60 * 1000,
+  heuristic: 7 * 24 * 60 * 60 * 1000,
+  unknown: 60 * 60 * 1000,
+};
+
+export interface LayerFreshness {
+  stale: boolean;
+  code: string | null;
+  populatedAt: number | null;
+  ageMs: number | null;
+  ttlMs: number;
+  derivation: string;
+}
+
+/** Read gi_meta.populated_at and judge the store against its TTL. A store with
+ *  NO populated_at is STALE by construction — an unprovenanced graph is never
+ *  assumed fresh (fail-closed). */
+export function layerFreshness(
+  db: Database,
+  opts: { derivation?: string; ttlMs?: number; now?: number } = {},
+): LayerFreshness {
+  const derivation = opts.derivation ?? "explicit";
+  const ttlMs = opts.ttlMs ?? LAYER_TTL_MS[derivation] ?? LAYER_TTL_MS["unknown"]!;
+  const now = opts.now ?? Date.now();
+  let populatedAt: number | null = null;
+  try {
+    const row = db.query("SELECT value FROM gi_meta WHERE key = 'populated_at'").get() as
+      | { value: string } | null;
+    if (row?.value !== undefined) {
+      const t = Date.parse(row.value);
+      populatedAt = Number.isFinite(t) ? t : null;
+    }
+  } catch { /* legacy store without gi_meta */ }
+  if (populatedAt === null) {
+    return { stale: true, code: `GI_LAYER_STALE:${derivation}`, populatedAt: null, ageMs: null, ttlMs, derivation };
+  }
+  const ageMs = now - populatedAt;
+  const stale = ageMs > ttlMs;
+  return {
+    stale,
+    code: stale ? `GI_LAYER_STALE:${derivation}` : null,
+    populatedAt,
+    ageMs,
+    ttlMs,
+    derivation,
+  };
+}
+
+/** Store-path convenience wrapper — the shape the gate calls at PREFLIGHT. */
+export function storeFreshness(
+  storePath: string,
+  opts: { derivation?: string; ttlMs?: number; now?: number } = {},
+): LayerFreshness {
+  const db = openTypedStore(storePath);
+  try {
+    return layerFreshness(db, opts);
+  } finally {
+    db.close();
+  }
+}
+
 export function applyTypedDdl(db: Database): void {
   let dedupRecovered = 0;
   for (const stmt of TYPED_STORE_DDL) {
@@ -323,6 +549,26 @@ export function applyTypedDdl(db: Database): void {
   if (dedupRecovered > 0) {
     console.error(`[gi-omp] DDL: ${dedupRecovered} legacy-duplicate dedup(s) recovered — UNIQUE invariant restored`);
   }
+  // T-1 (kernel v2.0): a pre-v2 store has no layer_id/derivation columns and
+  // CREATE TABLE IF NOT EXISTS cannot add them. Migrate + backfill on open so
+  // an EXISTING store (the live gi-baseline one included) gains the six-layer
+  // namespacing without a re-populate. Idempotent.
+  //
+  // W1 CONTRACT (regression caught by st-gi-w3-validation): applyTypedDdl throws
+  // ONLY for a real DDL failure and defers ONLY a real unique-constraint failure
+  // — that contract is tested with a db double that implements `run` alone. The
+  // migration introspects, so a handle that cannot introspect must NOT turn a
+  // successful DDL application into a throw. It is REPORTED, never silent.
+  try {
+    const mig = migrateLayerColumns(db);
+    if (mig.added.length > 0) {
+      console.error(`[gi-omp] DDL MIGRATION: added ${mig.added.join(", ")} (pre-v2 store upgraded)`);
+    }
+  } catch (e) {
+    console.error(
+      `[gi-omp] DDL MIGRATION SKIPPED (handle cannot introspect — layer_id absent until a capable open): ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
 }
 
 // Legacy writer kept for ST compat (isolate/refuse insert canonical+name+file).
@@ -343,6 +589,9 @@ export interface ForkNode {
   label: string;
   file: string | null;
   line: number | null;
+  /** T-1 (kernel v2.0): which of the six graph layers wrote this node. Absent ⇒
+   *  derived from the canonical_id prefix (layerOf) at insert time. */
+  layerId?: string;
   run: string;
 }
 
@@ -378,8 +627,8 @@ export function insertForkNode(storePath: string, node: ForkNode): void {
         [node.run, node.canonicalId],
       );
       db.run(
-        "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-        [node.canonicalId, node.kind, node.label, node.file, node.line, node.run],
+        "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, layer_id, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+        [node.canonicalId, node.kind, node.label, node.file, node.line, node.layerId ?? layerOf(node.canonicalId), node.run],
       );
       db.exec("COMMIT;");
     } catch (e) {
@@ -399,6 +648,13 @@ export interface ForkEdge {
   /** Warm-copy confidence (M05, qwen 33d64eca): corbell reads confidence from
    *  the warm store — the copy must carry it, not re-default to 1.0. */
   confidence?: number;
+  /** T-8 (kernel v2.0): the METHOD that produced the edge. The base term of
+   *  the confidence function (BASE[derivation]). Absent ⇒ the writer did not
+   *  derive a confidence, which SC-6 detects as a NULL derivation, never a
+   *  silent 1.0. */
+  derivation?: string;
+  /** T-1 (kernel v2.0): which of the six graph layers wrote this edge. */
+  layerId?: string;
   run: string;
 }
 
@@ -413,9 +669,17 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
         "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
         [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate],
       );
+      // T-8 (kernel v2.0): the old `: 1.0` fallback asserted the certainty of an
+      // observed fact on every edge whose writer omitted a confidence — the B1
+      // defect (1 distinct value over 2714 rows). An absent confidence is now
+      // DERIVED from the edge's own evidence prefix and the derivation is stored
+      // beside it, so the value is re-computable and SC-6 can diff it.
+      const derived = deriveConfidence(edge.evidence, { predicate: edge.predicate });
+      const conf = typeof edge.confidence === "number" && Number.isFinite(edge.confidence)
+        ? edge.confidence : derived.confidence;
       db.run(
-        "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-        [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
+        "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, derivation, layer_id, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+        [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, conf, edge.derivation ?? derived.derivation, edge.layerId ?? layerOf(edge.srcCanonical), edge.run],
       );
       db.exec("COMMIT;");
     } catch (e) {
@@ -445,8 +709,8 @@ export function insertForkNodesBatch(db: TxnDb, nodes: ForkNode[]): void {
       [node.run, node.canonicalId],
     );
     db.run(
-      "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-      [node.canonicalId, node.kind, node.label, node.file, node.line, node.run],
+      "INSERT INTO typed_nodes (canonical_id, kind, label, file, line, layer_id, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+      [node.canonicalId, node.kind, node.label, node.file, node.line, node.layerId ?? layerOf(node.canonicalId), node.run],
     );
   }
 }
@@ -462,9 +726,13 @@ export function insertForkEdgesBatch(db: TxnDb, edges: ForkEdge[]): void {
       "UPDATE typed_edges SET superseded_run = ? WHERE src_canonical = ? AND dst_canonical = ? AND predicate = ? AND superseded_run IS NULL",
       [edge.run, edge.srcCanonical, edge.dstCanonical, edge.predicate],
     );
+    // T-8: derive, never default — same law as the single-edge writer above.
+    const derivedB = deriveConfidence(edge.evidence, { predicate: edge.predicate });
+    const confB = typeof edge.confidence === "number" && Number.isFinite(edge.confidence)
+      ? edge.confidence : derivedB.confidence;
     db.run(
-      "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, NULL)",
-      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, typeof edge.confidence === "number" && Number.isFinite(edge.confidence) ? edge.confidence : 1.0, edge.run],
+      "INSERT INTO typed_edges (src_canonical, dst_canonical, predicate, evidence_quote, confidence, derivation, layer_id, created_run, superseded_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+      [edge.srcCanonical, edge.dstCanonical, edge.predicate, edge.evidence, confB, edge.derivation ?? derivedB.derivation, edge.layerId ?? layerOf(edge.srcCanonical), edge.run],
     );
   }
 }
