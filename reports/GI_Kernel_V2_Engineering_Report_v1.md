@@ -772,3 +772,327 @@ Graph_Intelligence/  (jarvis/gi-main @ 01b5afd)
   (executed, reported).
 - Slop detectors: 0 fire — 16 diagrams, 8 code blocks, 11 tables, 6 pasted run
   outputs, 10 named gaps.
+
+---
+
+## §12 THE JEV FIRING-TIME KERNEL — CHAT-DELIVERED ARCHITECTURE EXPLANATION (2026-09-21, preserved verbatim per the operator order)
+
+# 1 · `mpsePreFilter` — WHAT IS ACTUALLY ENGINEERED
+
+It is **not a filter**. It is a **settlement engine**: the deterministic layer's chance to end a fire *before the model is ever called*. It returns `{ settle: action | null, reason }` — and `null` is the honest answer "I cannot settle this; it needs judgment."
+
+```
+src/omp/fire-gate.ts:196  export function mpsePreFilter(fire, ctx)
+                          → { settle: "IGNORE" | null, reason }
+```
+
+Two rules are engineered, and each one closes a **measured** false-positive class:
+
+```
+RULE 1 — THE EMPTY-EVIDENCE SETTLEMENT                        :199
+  if (fire.evidence.trim() === "") → IGNORE
+  WHY IT IS CORRECT: a fire with no detector evidence gives the model
+  NOTHING to judge. Asking anyway would produce a confident number about
+  an empty premise — the worst possible input. The settlement is IGNORE,
+  and the reason string says "fail-closed to ignore, recorded".
+  ★ NOTE THE ASYMMETRY: this is fail-CLOSED-to-ignore, not fail-open.
+    An unadjudicable fire must not become a FIRE by default.
+
+RULE 2 — THE MENTION-VS-ACT SETTLEMENT                        :205
+  mentions = slots whose text contains the target
+  if EVERY mention is negated/discussed → IGNORE
+  THE REGEX: /(not |never|won't|don't|without|skip|avoid|discuss|mention|
+              about the rule)/
+  WHY IT IS CORRECT: this is THE parked-kernel failure, mechanized away.
+  The six TTSR kernels died because they fired on the agent DISCUSSING the
+  rule, on negation, on quotations — 24 firings, 18 unrecoverable. Rule 2
+  catches exactly that class for $0, deterministically, before the model.
+  ★ AND IT IS CONSERVATIVE: it only settles when EVERY mention is negated.
+    One un-negated mention → null → the model decides. It never guesses.
+```
+
+**What is engineered, in one line:** the two false-positive classes that are *provably* decidable without a model are decided without a model — and everything else is honestly deferred. The `reason` string is not decoration; it is the audit trail that says *which* rule settled the fire and why.
+
+# 2 · `fireQuestion` — WHAT IS ENGINEERED
+
+```
+src/omp/fire-gate.ts:158  export function fireQuestion(): JudgeQuestion
+                          QUESTION_VERSION = "fire-legitimacy-v1"
+```
+
+It is **one Noul**, and every clause in it is a defence against a specific failure mode:
+
+```
+"Judge whether the SHAPE is a REAL violation given the surrounding context,
+ or a FALSE POSITIVE."
+   ★ "the SHAPE" — it asks about the trigger's form, not the act's morality.
+     A vague question ("is this bad?") scores ~0.4 on everything (bible D006)
+     and never fires. This one has a decidable referent.
+
+"Weigh: (a) does the context show the act was grounded, intended, or already
+ covered elsewhere?  (b) does any context record contradict the detector's
+ premise?  (c) is the shape the same thing the rule meant to catch, or a
+ coincidental match?"
+   ★ THREE NAMED FACTORS, not one composite. They are what the model can
+     actually check against the supplied slots.
+
+"A mention of a rule, a negation, a quotation, or a discussion ABOUT the
+ behaviour is NOT the behaviour itself."
+   ★ THE EXCLUSION CLAUSE — the parked-kernel killer, stated IN the question
+     so the model applies it too (belt and braces with mpsePreFilter).
+
+"Judge only the evidence supplied; do not speculate about material not present."
+   ★ THE ANTI-HALLUCINATION CLAUSE. Without it the model fills gaps from its
+     priors and the number stops being about YOUR system.
+```
+
+```
+whenTrue:  "the detector's premise holds on this act — the shape is the
+            violation it names, and nothing in the context contradicts it"
+whenFalse: "the shape matched but the act is legitimate, already grounded,
+            discussed rather than performed, negated, or the context
+            contradicts the detector's premise"
+   ★ THE CRITERIA ARE THE CALIBRATION SURFACE. `whenTrue`/`whenFalse` are what
+     the model reasons against, and they are VERSIONED (fire-legitimacy-v1) so
+     that a change to them invalidates the cache and the calibration together.
+```
+
+**What is engineered:** a question whose *version* is a first-class artifact. Change a word and the version bumps, the cache key changes, and the precision curve starts over — because a question edit is a **new instrument**, not a tweak.
+
+# 3 · `FireGate.judge` — WHAT IS ENGINEERED
+
+```
+src/omp/fire-gate.ts:262  async judge(fire, ctx): Promise<FireDecision>
+```
+
+The **order** is the engineering. Each rung is cheaper than the next, and each one can terminate:
+
+```
+ 1  stateHash = sha256(buildState(fire, ctx)).slice(0,16)     :267
+    ★ the cache key is the CANONICAL STATE, not the fire id.
+      Two fires that produce the same evidence share one judgment.
+
+ 2  MPSE PRE-FILTER                                           :271
+    → settles for $0, 0ms. Terminates the call.
+
+ 3  CACHE (D013)                                              :289
+    → a hit returns at 0ms/$0 and is marked `cached: true`.
+      ★ bible: 60-80% of agent decisions repeat.
+
+ 4  BUDGET HARD-STOP (D017)                                   :306
+    → THROWS `GI_FIREGATE_BUDGET: n/N fires used`.
+      ★ a budget overrun is LOUD. It never degrades to "skip the judgment".
+
+ 5  THE LIVE CALL — ONE evaluate(state, [fireQuestion()])     :313
+    ★ ONE question, ONE state, ONE round trip. Bible D012: questions
+      batch in parallel, so the marginal question is nearly free.
+
+ 6  THE FAIL POLARITY (D010)                                  :316
+    → on a judge failure: closed ⇒ FIRE, open ⇒ IGNORE.
+      ★ PER SURFACE. `dumb` is open (an editor is never wedged);
+        `theatrical`/`destructive` are closed (a false done IS the defect).
+      ★ THE ROW RECORDS WHICH: policyName = "…+fail-open|fail-closed".
+
+ 7  THE MISSING-ANSWER GUARD                                  :340
+    → an answer whose id is not `fire_is_real` is UNCERTIFIABLE,
+      routed by the SAME polarity. Never a silent pass.
+
+ 8  THE BAND + THE ACTION                                     :354
+    → act ≥ policy.act → FIRE · ≥ policy.flag → ESCALATE · else IGNORE.
+
+ 9  THE DECISION ROW (§6.4.7)                                 :358
+    → { at, ruleId, cls, questionVersion, probability, band, action,
+        policyName, actThreshold, flagThreshold, stateHash, costUsd,
+        laterTruth: "unresolved" }
+      ★ `laterTruth` is written as "unresolved" AT FIRING TIME and only the
+        oracle may change it. The firing never assumes its own correctness.
+```
+
+**What is engineered:** a **cost ladder** where every rung that can answer does, and the expensive rung is reached only when the cheap ones honestly cannot. Plus the two properties that make it auditable: the row records **the threshold in force** (so a later calibration can separate "the model changed" from "the bar moved" — §6.4.3 rule 3), and `reroute()` re-decides a stored probability under a new policy **without re-inferring** (§6.4.3 rule 4).
+
+# 4 · `SEED_POLICY` — WHAT IS ENGINEERED
+
+```
+src/omp/fire-gate.ts:120  SEED_POLICY: destructive 0.90/0.50 closed
+                                       dumb        0.75/0.35 open
+                                       theatrical  0.85/0.45 closed
+```
+
+Two things are engineered, and **one of them was wrong**:
+
+```
+ENGINEERED CORRECTLY — THE PER-SURFACE FAIL POLARITY (D010)
+  dumb        fail OPEN    an advisory steer must never wedge the editor
+  theatrical  fail CLOSED  a false "done" IS the defect
+  destructive fail CLOSED  a false destructive block is the cheap error
+  ★ this is a POLICY choice, correctly made, and the measurement did not
+    disturb it.
+
+ENGINEERED WRONG — THE NUMBERS
+  They were chosen for COHERENCE, not measured. The instrument says they are
+  ~2x too high and the act band fires ZERO times. They are now labelled
+  `calibrated=false` with the basis stated, and the health gate reports
+  ok=false. ★ THE LABEL IS NOT THE FIX — the fix is the 50-firing run.
+```
+
+# 5 · THE META-PROCESS, IN MORE DETAIL
+
+You asked for the detail behind the seven steps. Here is what each one *actually did* in this session, and the specific way it can fail.
+
+```
+STEP 1 · NAME THE ABSTRACT TARGET AS AN ANSWERABLE QUESTION
+  DID:  "what should the thresholds be for the runtime kernels to function
+         efficiently"  →  "at what P(real) does a firing become right, per class?"
+  HOW:  scan the abstract sentence for a NOUN that can be counted (thresholds,
+        coverage, latency, accuracy) and a POPULATION it is counted over.
+        If no noun is countable, the target is not yet understood.
+  FAILS AS: producing numbers for a target you have not restated — every number
+        then answers a question nobody asked. The tell: you cannot say what a
+        WRONG value would look like.
+
+STEP 2 · FIND THE DECIDABLE DENOMINATOR
+  DID:  the denominator = a LABELLED FIRING CORPUS. Not "firings" (unlabelled
+        firings give a distribution, never a precision).
+  HOW:  ask "what is counted, over what population, from what source?" and
+        then check the source EXISTS and is reachable THIS TURN.
+  FAILS AS: the twin-denominator trap. Two denominators that look alike measure
+        different populations (host vs container; fixture vs live store) and
+        produce two contradictory "measured" numbers — and the better-looking
+        one gets published. This session hit it twice (the container battery,
+        the fx383 fixture).
+
+STEP 3 · BUILD THE INSTRUMENT — CODE, NOT PROSE
+  DID:  a paired corpus (7 real, each with a false twin differing ONLY in
+        context) + the live API + the sweep.
+  HOW:  the PAIRING is the instrument's core. A twin that differs in two ways
+        measures neither. The pairing forces the instrument to isolate the
+        one dimension under test.
+  FAILS AS: measuring against a fixture built from the belief being tested —
+        it confirms the assumption by construction. The check: could this
+        fixture have been written by someone who held the OPPOSITE belief?
+
+STEP 4 · RUN ON REAL DATA AND PASTE THE RAW OUTPUT
+  DID:  the live Jev endpoint (not a stub), the full stdout pasted into
+        BUILD_REPORT + TESTING_LOG + EN-047.
+  HOW:  real inputs; a label for every case; the cost stated (13 fires here).
+  FAILS AS: summarizing. A summarized run is a claim again, and the claim is
+        exactly what the instrument existed to replace.
+
+STEP 5 · CONFRONT WITH THE ASSUMPTION — THE DELTA IS THE FINDING
+  DID:  assumed 0.90/0.75/0.85 · measured best-F1 at 0.40 with nothing real
+        above 0.65 · the act band fired ZERO times.
+  HOW:  write the expectation BEFORE the run. Without it, the same output
+        reads as "roughly fine" — the eye fits every number to the belief.
+  FAILS AS: no delta recorded → the measurement becomes a description of the
+        status quo rather than a finding. ★ THIS IS THE STEP PEOPLE SKIP, and
+        it is the only step that produces value.
+
+STEP 6 · DERIVE, DO NOT CHOOSE
+  DID:  t = C_block/(C_block+C_miss) per class, with the operator owning the
+        costs and the measurement owning the curve; the act bar = max(cost cut,
+        the measured lower bound).
+  HOW:  separate the two inputs explicitly — a TASTE input (the operator's risk
+        posture) and a MEASURED input (the curve). Never let the agent invent
+        the taste input: an invented asymmetry is a hidden opinion.
+  FAILS AS: a global constant across asymmetric costs. One bar for "stop work"
+        and "shape advice" is the tell that the instrument was never run
+        per-class.
+
+STEP 7 · RECORD THE MEASUREMENT AND ITS COST OF ERROR
+  DID:  EN-047 + BUILD_REPORT (★ CRITICAL) + TESTING_LOG + THEATRICALITY T-11 +
+        SPEC_VIOLATION V-01 + the minted skill + the checkpoint artifact.
+  HOW:  the record carries: the instrument · the raw output · the derived value
+        · THE ASSUMPTION IT REPLACED · what the wrong assumption would have
+        cost. That last field is what makes the next person run the instrument.
+  FAILS AS: the number lands in a chat and decays; the next session re-guesses.
+```
+
+**The one-line meta-process:** *an abstraction is a question you have not asked yet; a number is an answer you have not measured yet; the delta between what you assumed and what the instrument returned IS the finding.*
+
+# 6 · EVERYTHING WE NEED TO MEASURE, AND HOW
+
+```
+┌────┬───────────────────────────────┬──────────────────────────────┬──────────────┐
+│ #  │ WHAT                          │ HOW                          │ COST         │
+├────┼───────────────────────────────┼──────────────────────────────┼──────────────┤
+│ M1 │ THE PRECISION CURVE           │ 50+ real firings through the │ ~50 fires    │
+│    │ per rule (the one that flips  │ gate with oracle-resolved    │ ≈$0.003      │
+│    │ calibrated=true)              │ outcomes → Wilson per rule   │              │
+│ M2 │ THE COST MATRIX (the taste    │ ASK THE OPERATOR: C_block vs │ 1 question   │
+│    │ input — only they can set it) │ C_miss per class, in units   │              │
+│    │                               │ they think in (time, trust)  │              │
+│ M3 │ THE FIRE FLOOR per rule       │ firesNeededForGap(p, gap)    │ 0 (derived)  │
+│    │                               │ with the gap = the smallest  │              │
+│    │                               │ precision difference that    │              │
+│    │                               │ changes a decision           │              │
+│ M4 │ THE CACHE HIT RATE            │ count cache hits / total     │ 0 (already   │
+│    │ (bible: 60-80% expected)      │ fires over a session         │ instrumented)│
+│ M5 │ THE PER-FIRE TOKEN COST       │ Jev's usage.input_tokens per │ 0 (in the    │
+│    │ (the <5000 budget)            │ fire, p50/p95, vs the 18KB   │ response)    │
+│    │                               │ state cap                    │              │
+│ M6 │ THE LATENCY p50/p95           │ the decision row's latencyMs │ 0 (in the    │
+│    │ (is it a <50ms rung or a      │ over N fires                 │ row)         │
+│    │ 300ms rung?)                  │                              │              │
+│ M7 │ THE CONTEXT TRIM RATE         │ ctx.trimmed / total fires —  │ 0 (in the    │
+│    │ (how often the cap bites)     │ a high rate means the window │ ctx object)  │
+│    │                               │ or cap is wrong              │              │
+│ M8 │ THE MPSE SETTLEMENT RATE      │ settlements / total fires —  │ 0            │
+│    │ (how much the free layer      │ the free layer's yield       │              │
+│    │ actually saves)               │                              │              │
+│ M9 │ THE FAIL-POLARITY FIRE RATE   │ fail-open/fail-closed events │ 0            │
+│    │ (how often the judge is down) │ / total — an availability    │              │
+│    │                               │ measurement                  │              │
+│ M10│ THE ORACLE'S RESOLUTION RATE  │ confirmed+refuted / total    │ needs the    │
+│    │ (unresolved_ratio)            │ firings — the gate on        │ oracle (v3)  │
+│    │                               │ promotion                    │              │
+│ M11│ THE FALSE-POSITIVE CLASSES    │ sample the IGNORE rows and   │ human review │
+│    │ (what the gate is wrongly     │ label them — the corpus that │              │
+│    │ ignoring)                     │ M1 cannot see                │              │
+│ M12│ THE STARVATION CHECK          │ act-band fires / total — 0   │ 0 (health    │
+│    │                               │ means the bar is too high    │ gate has it) │
+└────┴───────────────────────────────┴──────────────────────────────┴──────────────┘
+```
+
+**M1 is the one that matters and M2 is the one only you can give.** M1's instrument is already built (`calibration.ts` + the pairing pattern); it needs 50 real firings, which needs the gate wired into a live path. **M11 is the one nobody thinks to measure** — the gate's *false negatives* are invisible by construction, because an ignored fire leaves no trace except an IGNORE row. Sampling those rows for human labels is the only way to see what the gate is silently letting through.
+
+**Total cost to close M1-M3: ~$0.003 and one question to you.**
+
+# 7 · THE v2.1 BLUEPRINT — the process is started
+
+I am starting it rather than finishing it in this turn, because the master-blueprint law requires the full 9-section anatomy (1000+ lines, every component read first-hand) and a half-emitted blueprint is the theatrical artifact this whole session has been about.
+
+**What is already in hand for it** (measured this session, all on disk):
+
+```
+v2.0 SOURCE         typed-write 1243 · kernel-v2 390 · rsi 448 · hard-deps 220 ·
+                    enforcement 270 · jev 149 · fire-gate 370 · calibration 185
+THE SEAMS           the 3 PROPOSED hooks (graph-gate.ts:247/250/254) ·
+                    the Detector interface · the Judge/LoadUnit DI seams ·
+                    the DecisionRow + laterTruth
+THE BIBLE           JEV_ENGINEERING_BIBLE D001-D026 · §6.4 · §6.5 · §6.12
+THE MEASUREMENT     the 14-case corpus + its instrument + the 2x finding
+THE CONTAINER RIG   omp-ct:master, bun 1.4.2, the staged /work/gi
+```
+
+**The v2.1 shape the evidence already points at** (to be formalised in the blueprint):
+
+```
+  v2.0 TODAY                          v2.1 (Jev in the loop)
+  ──────────────────────────────      ──────────────────────────────────────
+  detector fires → act                detector fires → FireGate.judge()
+  (no adjudication)                     MPSE → cache → JEV → band
+                                        FIRE | ESCALATE | IGNORE
+  thresholds = seeds (uncalibrated)   thresholds = derivePolicy(ledger)
+  the oracle = unbuilt (v3)           the oracle = the same FireGate rows,
+                                      laterTruth filled by the RSI loop
+```
+
+**The three things the blueprint must decide** (each with the evidence already gathered):
+1. **Where the gate sits in the call path** — before the detector acts, or as a filter on the detector's output.
+2. **The oracle's engine (E1)** — and the measurement above now informs it: Jev's absolutes are conservative, so the oracle's 0.8/0.2 cuts need the same instrument.
+3. **The wiring order** — engines installed before the kernel is registered, or STAGE 0 refuses everything (the measured consequence).
+
+**RULED BY THE OPERATOR (2026-09-21, verbatim):**
+> 1) both
+> 2) get proper measurements for everything. no guesses
+> go
