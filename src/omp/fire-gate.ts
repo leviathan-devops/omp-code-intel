@@ -28,6 +28,7 @@
 //          (a starved act band means the system pays and uses nothing)
 import * as crypto from "node:crypto";
 import type { Judge, JudgeQuestion } from "./enforcement.ts";
+import { graphFacts } from "./graph-facts.ts";
 
 /** What a detector produced. The trigger carries the SHAPE, not a conclusion. */
 export interface Fire {
@@ -323,6 +324,14 @@ export interface FireGateConfig {
   /** ★ HOT-SEAT H4-5 — bounds the TIME of one judgment. `budgetFires` cannot: a judge
    *  that never answers spends no budget. Defaults to DEFAULT_JUDGE_TIMEOUT_MS. */
   judgeTimeoutMs?: number;
+  /** ★ P1 (THE GRAPH-FACT RUNG) — the typed store the fact set reads. Present ⇒ the ladder
+   *  is graph → MPSE → cache → Jev and a FACT settles the fire at $0. Absent ⇒ the graph
+   *  rung is UNAVAILABLE and says so, never silently skipped. */
+  graphStorePath?: string;
+  /** What the fire's intent does with the target — selects the applicable fact rules. */
+  graphIntent?: "consume" | "declare" | "mutate" | "measure";
+  /** The derivation class for the store's TTL (explicit | inferred | heuristic). */
+  graphDerivation?: string;
   now?: () => number;
 }
 
@@ -403,7 +412,45 @@ export class FireGate {
     const state = buildState(fire, ctx);
     const stateHash = crypto.createHash("sha256").update(JSON.stringify(state)).digest("hex").slice(0, 16);
 
-    // MPSE FIRST — the deterministic layer can settle a fire for $0.
+    // ═══ THE GRAPH-FACT RUNG (P1, 2026-09-22) — THE CHEAPEST RUNG GETS EYES ═══════
+    // ★ THE LADDER IS NOW: graph → MPSE → cache → Jev. The graph answers FACTS; a fact is
+    //   never worth a model call. Every rule is $0 (one indexed query, no network).
+    // ★ AND THE RUNG IS NAMED WHEN UNAVAILABLE — the hard-dependency law: a missing store
+    //   produces a row that SAYS SO, never a silent fall-through that looks like a pass.
+    if (this.cfg.graphStorePath !== undefined) {
+      const facts = graphFacts({
+        storePath: this.cfg.graphStorePath,
+        target: fire.target,
+        intent: this.cfg.graphIntent ?? "consume",
+        derivation: this.cfg.graphDerivation,
+      });
+      const settled = facts.find((v) => v.settles && v.action !== null);
+      if (settled !== undefined && settled.action !== null) {
+        const row: DecisionRow = {
+          at: new Date(t0).toISOString(), ruleId: fire.ruleId, cls: fire.cls,
+          questionVersion: `graph:${settled.rule}`,
+          probability: settled.action === "IGNORE" ? 0 : 1,
+          band: settled.action === "IGNORE" ? "ignore" : "act",
+          action: settled.action,
+          policyName: policy.name, actThreshold: policy.act, flagThreshold: policy.flag,
+          stateHash, costUsd: 0, laterTruth: "unresolved",
+        };
+        this.ledger.push(row);
+        return {
+          ruleId: fire.ruleId, probability: row.probability, band: row.band as never,
+          action: settled.action as never,
+          reason: `${settled.rule} — ${settled.reason} [${settled.evidence}]`,
+          row, cached: false, latencyMs: (this.cfg.now ?? Date.now)() - t0,
+        };
+      }
+      // a factless or escalate-only outcome falls through, with the consulted facts recorded
+      if (facts.length > 0) {
+        (state["context_meta"] as Record<string, unknown>)["graph_facts"] =
+          facts.map((v) => `${v.rule}:${v.settles ? v.action : "ESCALATE"}`);
+      }
+    }
+
+    // MPSE — the second deterministic rung; it settles a fire for $0.
     const pre = mpsePreFilter(fire, ctx);
     if (pre.settle !== null) {
       const row: DecisionRow = {
