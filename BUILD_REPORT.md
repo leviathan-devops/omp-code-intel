@@ -298,3 +298,23 @@ named dependency, and STAGE 3 never ran. Commit next.
 real mis-report caught by the test; the all-PASS case is now `benign`. The class is derived from
 the firing detector so a caller cannot mislabel its own act into a lighter class. On a
 verdict tie the order is destructive > theatrical > dumb: a safety tie never lightens.
+
+## [2026-09-21] KERNEL v2.0 — WAVE 3 (PARTIAL): the RSI reflex layer, proven by attack
+
+**The built:** `src/omp/rsi.ts` — `RsiStore` with signed+chained rows, the append-only evidence
+ledger, `deriveTier`, and the VERIFIED-RETIREMENT reader.
+**The evidence — two attacks and a mutation, all executed:**
+- SC-5 (the disablement hole): the attacker retires the victim, then inserts its own live row.
+  Measured: `live()` → **0 rows** (the naive view is wrecked — that IS the attack's effect);
+  `liveIncludingForgedRetirement()` → **the real REFLEX row, recovered**, `createdRun="rsi-1"`.
+- SC-4 (forgery): `verify(forged)` → **false**; the forged row is ABSENT to every verified reader.
+- SC-4 (MUTATION): with `verify()` neutered to `return true` → **6 pass / 2 FAIL**; restored →
+  **8 pass / 0 fail**. The test bites.
+- SC-4 (self-reference): `recount()` reads the ledger — 2 confirmed + 1 refuted + 1 unresolved →
+  `precision = 2/3`, recomputed, never incremented.
+**The honest notes:** `supersede()` first hit the partial unique index (insert-before-retire);
+fixed to an ATOMIC retire-then-insert, which preserves G5 by atomicity rather than by ordering.
+The tier ladder originally promoted on ONE firing — caught by the test; both promoting tiers now
+carry an evidence floor. **W3 IS NOT COMPLETE**: the TSG load unit and the Abide ALU are not yet
+wired (both need their external engines present), and the hard-dependency register (T-6) is not
+yet written. The reflex loop — the highest-value half — is done.
