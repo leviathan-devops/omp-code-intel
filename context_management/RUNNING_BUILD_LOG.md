@@ -284,3 +284,9 @@
 - ★ DEFECT R-2 (LOW): the policy validator rejected `act < flag` while ACCEPTING `act == flag` — both empty the ESCALATE band, and ESCALATE is a DOCUMENTED band. FIXED: both rejected, distinctly named (GI_POLICY_INVERTED · GI_POLICY_ZERO_WIDTH_BAND).
 - ★ THE FIX'S OWN HOLE, CLOSED: adding `+bad-answer` would have required EVERY consumer that pattern-matches suffixes to learn a new string — and any consumer that missed it would treat a corrupt answer as a REAL adjudication, a hole created BY the fix. So the vocabulary moved into ONE place: `degradationOf(policyName)` in fire-gate.ts, asked by both consumers.
 - EVIDENCE: red-team suite 24 pass/0 fail/57 expect · battery 268/0/958/26 files (244/0/901/25 → +24 tests/+57 expects/+1 file, ZERO regressions) · tsc 191 == baseline 0 new.
+
+## [2026-09-21T14:50:00] — THE AUDIT RAIL RESTORED (unblocking the AUDIT GATE)
+- WHAT: ~/.omp/run/adapters/zen-free-adapter.mjs (~170 L, durable) started under the hub on :4098 with restart=on-failure; ocr wired to it; the scan dispatched.
+- WHY: the AUDIT GATE was BLOCKED — the adapter had died with /tmp, so NOTHING this session could be independently reviewed and every ship-ready claim stayed withheld.
+- THE MEASURED CORRECTIONS (all three folded into the managed skill): the working tool shape is `{type:"function", name, ...}` (the [OI] nested shape and the flat name-only shape both 400); `output_text` is NOT an API field and must be synthesized from `output[].content[].text`; the adapter must live outside /tmp and be hub-supervised.
+- EVIDENCE: the probe returns status=completed and output_text='ADAPTER_OK'; the scan discovers the file, prices it (~49K in + 7K out) and dispatches with NO connection error.

@@ -107,3 +107,31 @@
 - FIX: `act <= flag` is rejected, with the two cases distinctly named — GI_POLICY_INVERTED (the numbers contradict: the flag claims a higher bar than the act, and `p >= act` is tested first so the flag is never consulted) and GI_POLICY_ZERO_WIDTH_BAND (the band has no width). BOTH rejections rest on the same reason: ESCALATE is a DOCUMENTED band, and a policy that silently makes it unreachable is the silent-configuration class this module exists to prevent.
 - LESSON: when a validation says "this would empty X", check whether the IDENTICAL harm arrives by a second path the predicate does not cover. A `<` where the harm is `<=` catches one and advertises that the other is safe.
 - EVIDENCE: the zero-width policy loaded before → now throws GI_POLICY_ZERO_WIDTH_BAND; the inverted case still throws GI_POLICY_INVERTED
+
+## [2026-09-21T14:50:00] — EN-062: the AUDIT RAIL REBUILT — the zen-free adapter restored and corrected
+- SYMPTOM: `ocr scan` failed with `dial tcp 127.0.0.1:4098: connect: connection refused`. The audit gate had been BLOCKED for the whole session, so no ship-ready claim could be made.
+- ROOT CAUSE (measured, three components): port 4097 UP · go-session-proxy 6 procs RUNNING · port 4098 REFUSED because `/tmp/zen-free-adapter.mjs` was GONE — /tmp does not survive a reboot, which the skill itself warns about.
+- FIX: rebuilt the adapter at `~/.omp/run/adapters/zen-free-adapter.mjs` (durable, out of /tmp) and started it with the hub (`op:"start"`, ready on port 4098, restart on-failure) so it is SUPERVISED rather than a bare `&`.
+- ★ THREE ROUNDS OF PROBE ERRORS, EACH A MEASURED CORRECTION THE SKILL DID NOT CARRY:
+    1. `{type:"function", function:{name}}` → 400 "tools[0] missing required field `name`"
+       (the [OI] nested shape the rest of this stack uses is REJECTED here)
+    2. `{name, description, input_schema}` → 400 "tools[0] did not match any supported type"
+    3. `{type:"function", name, description, parameters}` → 200 ✓ THE WORKING SHAPE
+       — `type` AND a TOP-LEVEL `name` are both required.
+  Plus a bug of my own, caught by the probe and not by reading: the dedupe filter still
+  used the NESTED accessor (`t.function.name`) after I flattened the stubs, so it threw and
+  the adapter answered 500 with Bun's HTML error overlay.
+- ★ AND A SECOND MEASURED CORRECTION: the raw `response.completed` object carries NO
+  top-level `output_text` (measured: `output: [reasoning, message]`, no output_text field).
+  That field is a CLIENT-SDK CONVENIENCE. ocr reads it, so the adapter must SYNTHESIZE it
+  from `output[].content[].text` over the `message` items — without that, every scan would
+  silently read an empty answer.
+- VERIFICATION: the probe returns `status: completed` and `output_text: 'ADAPTER_OK'`.
+- THE SKILL WAS UPDATED (a managed skill, so writable): the working tool shape, the
+  output_text synthesis, the durable-path + hub-supervision rule, and a
+  failure-symptom→cause table (500+HTML = the adapter threw, not the upstream; 400 name =
+  no top-level name; 200-but-empty = output_text not synthesized; refused = not running).
+- LESSON: an adapter is a CONTRACT with two independent validators (the gate fingerprint
+  and the upstream's schema) plus a third reader (ocr). Each was discovered by RUNNING it.
+  A skill that names the steps but not the SHAPES leaves the next session to rediscover
+  them one 400 at a time.
