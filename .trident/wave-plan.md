@@ -174,3 +174,25 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
   ★ THE SCOPE LIMIT, NAMED: probes import the MODULE surface — v2.1 is not in the dist
     (sha 83eb7bba unchanged), so a probe against the dist would test v1.3.
   EVIDENCE: battery 268/0/958/26 (244/0/901/25 → +24 tests, ZERO regressions) · tsc 191
+
+## REGISTRATION — THE REGISTER MOVED (2026-09-21)
+
+```
+BEFORE (the pin froze it):  up=5/11
+AFTER EN-067 + EN-068:      the register was WRONG about JEV and its layer paths pointed
+                            at paths no code creates
+AFTER EN-070:               L5 UP — 4 down (L1, L2, L3, L4)
+
+★ THE REGISTER IS NOW CORRECT WHERE IT CAN BE: JEV reads UP (the judge answers) · L5 reads
+  UP (961 nodes / 4207 edges, layer_id='corbell') · L2 reads DOWN with the PRECISE reason
+  ("2 socket file(s), NONE listening — STALE") · L5's probe imports the consumer's constant.
+
+★ THE REMAINING 4 ARE GENUINELY DOWN:
+  L1  no semantica workspace exists (a cloned semantica REPO sits in research/ — source, not a store)
+  L2  the au daemon is dead (its sockets are stale corpses, ECONNREFUSED, and /proc/net/unix
+      has no au listener)
+  L3  no .ua/knowledge-graph.json exists; /usr/bin/ua is ubuntu-advantage, not
+      "understand-anything" — the tool is ABSENT
+  L4  no .c2kg/index.json exists; no c2kg binary exists
+  L1/L3/L4's probes remain UNVERIFIED (no consumer corroborates their paths) — recorded as a residual.
+```
