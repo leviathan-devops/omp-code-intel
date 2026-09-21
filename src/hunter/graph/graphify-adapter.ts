@@ -487,6 +487,18 @@ function parseLineValue(v: unknown): number | undefined {
   return undefined;
 }
 
+/** EN-041 FIX — THE RAW LOCATOR. The real graphify schema records the position
+ *  on `source_location` (`"L1"` on a node, `"L54"` on an edge) — NOT on `line`.
+ *  The internal GraphNode/GraphEdge types do not carry the field, so it is read
+ *  STRUCTURALLY here: absent stays `undefined`, never a guess. Without this, the
+ *  resolver's `source_location` candidate is never reached and EVERY row reads
+ *  lineless (the measured defect: 24,757/24,757 edges dropped). */
+function rawSourceLocation(x: unknown): unknown {
+  return x !== null && typeof x === "object"
+    ? (x as Record<string, unknown>)["source_location"]
+    : undefined;
+}
+
 export interface GraphifyLineLike {
   line?: unknown;
   data?: Record<string, unknown>;
@@ -584,7 +596,11 @@ export function mapGraphifyToTyped(
     // schema, and the VERBS own the lineless policy (W3: skip + count —
     // graphify-adapter.ts chain/imports/awaits/unwired). Storing the null is
     // legal and honest; throwing here broke every real extract.
-    const line = resolveGraphifyLine({ line: n.line ?? undefined, data: n.data ?? {} }, null, n.id);
+    const line = resolveGraphifyLine(
+      { line: n.line ?? undefined, data: n.data ?? {}, source_location: rawSourceLocation(n) },
+      null,
+      n.id,
+    );
     return {
       canonicalId: n.id,
       kind: graphifyKindToTyped(n.kind),
@@ -598,7 +614,14 @@ export function mapGraphifyToTyped(
   let linelessEdgesDropped = 0;
   const edgeRows: ForkEdge[] = edges.flatMap((e) => {
     const src = nodesById.get(e.sourceId);
-    const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {} });
+    // EN-041: the same fix as the projector — the node's `source_location` and
+    // the raw edge both reach the resolver.
+    const line = e.line
+      ?? src?.line
+      ?? tryResolveGraphifyLine(
+        { data: src?.data ?? {}, source_location: rawSourceLocation(src) },
+        e as unknown as { source_location?: unknown },
+      );
     // W9 CONTRACT RESOLUTION (pipeline contradiction): projectGraphifyGraph
     // DELIBERATELY keeps lineless edges (danglingNoLine count) — the map
     // branch now SKIPS + counts them (W3 policy) instead of throwing, so the
@@ -643,7 +666,7 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
       if (contained) file = rel.split(path.sep).join("/");
     }
     const data = (n.data ?? {}) as Record<string, unknown>;
-    const line = tryResolveGraphifyLine({ data });
+    const line = tryResolveGraphifyLine({ data, source_location: rawSourceLocation(n) });
     const name = n.label && n.label.length > 0 ? n.label : n.id;
     return {
       id: `graphify:${n.id}`,
@@ -662,14 +685,31 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
   let dangling = 0;
   let danglingNoLine = 0;
   for (const e of graph.edges) {
-    const src = `graphify:${e.src}`;
-    const dst = `graphify:${e.dst}`;
-    if (!byId.has(src) || !byId.has(dst)) { dangling++; continue; }
+    // EN-041 LAYER 2: the GraphifyEdge TYPE declares src/dst, but the REAL
+    // graphify schema emits `source`/`target`. Reading only the typed fields
+    // made every edge resolve to `graphify:undefined` and be counted DANGLING
+    // (measured: 24,757/24,757). Read BOTH, exactly as the build() path does
+    // at graphify-adapter.ts:236 — one reader, one truth.
+    const rawE = e as unknown as Record<string, unknown>;
+    const srcId = String(rawE["source"] ?? rawE["src"] ?? "");
+    const dstId = String(rawE["target"] ?? rawE["dst"] ?? "");
+    const src = `graphify:${srcId}`;
+    const dst = `graphify:${dstId}`;
+    if (srcId === "" || dstId === "" || !byId.has(src) || !byId.has(dst)) { dangling++; continue; }
     const rawEdge = e as unknown as Record<string, unknown>;
     const edgeLoc = rawEdge["source_location"];
     const srcNode = byId.get(src);
     const srcFile = srcNode?.file;
-    const line = parseLineValue(edgeLoc) ?? srcNode?.line ?? tryResolveGraphifyLine({ data: (nodeByRawId.get(e.src)?.data ?? {}) as Record<string, unknown> });
+    // EN-041: the node's `source_location` AND the raw edge are both handed to
+    // the resolver — the raw edge is the authoritative locator when the node
+    // lacks one (the real schema puts `source_location` on BOTH).
+    const line = parseLineValue(edgeLoc)
+      ?? srcNode?.line
+      ?? tryResolveGraphifyLine(
+        { data: (nodeByRawId.get(e.src)?.data ?? {}) as Record<string, unknown>,
+          source_location: rawSourceLocation(nodeByRawId.get(e.src)) },
+        rawEdge,
+      );
     if (line === undefined) danglingNoLine++;
     edges.push({
       sourceId: src,
