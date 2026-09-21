@@ -255,3 +255,37 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **Verification:** full battery 218 pass / 0 fail / 1759 expect across 30 files. New loud-fail test green. Container import EXEC-OK. Ship package Graph_Intel_v1.2.1 minted with PACKAGE_AUDIT PASS.
 - **Residual references:** the only remaining `indexer-fallback` strings are (1) two HISTORICAL comments documenting the removal, (2) one NEGATIVE test assertion (`not.toBe("indexer-fallback")`). Zero live code paths.
 - **Disposition:** FIXED+PROVEN.
+
+## F-49 — the migration broke a test's db double: applyTypedDdl's contract vs a new step (2026-09-21)
+
+- **THE FINDING:** after adding the T-1 migration to `applyTypedDdl`, the battery went 144/1 —
+  `st-gi-w3-validation :: test_w3_ddl_deferral_precise_rethrows_other_errors` failed on
+  `expect(() => applyTypedDdl(deferringDb)).not.toThrow()`.
+- **THE ROOT CAUSE (mine):** the test drives `applyTypedDdl` with a db DOUBLE implementing `run`
+  alone. `migrateLayerColumns` calls `db.query(...)` → `TypeError: db.query is not a function` →
+  threw out of a function whose tested contract is "throws ONLY for a real DDL failure, defers
+  ONLY a real unique-constraint failure".
+- **THE FIX:** wrap the migration in its own try/catch that LOGS a named skip
+  (`DDL MIGRATION SKIPPED (handle cannot introspect …)`) — the contract is preserved and the
+  skip is REPORTED, never silent.
+- **THE VERIFICATION:** battery back to **145 pass / 0 fail**.
+- **THE LESSON:** adding a step to a function whose error contract is TESTED means the new step
+  inherits that contract. A test double is a contract witness, not an obstacle.
+
+## F-50 — a MALFORMED sig crashed the verifier instead of rejecting the row (2026-09-21)
+
+- **THE FINDING:** `RangeError: Input buffers must have the same byte length`
+  (`ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH`) at `rsi.ts` `verify()`, on the FIRST run
+  against the LIVE store.
+- **THE ROOT CAUSE:** `crypto.timingSafeEqual` THROWS on a length mismatch. A hostile
+  row carrying a short/garbage sig took the whole reader down instead of being treated
+  as ABSENT — a denial-of-service on the enforcement record, which is the worst place
+  for one.
+- **WHY THE UNIT TESTS MISSED IT:** every fixture used a well-formed 64-char sig, so the
+  lengths always matched. The bug needed a REAL malformed row to surface.
+- **THE FIX:** length-check before comparing; a wrong-length sig returns `false`.
+- **THE VERIFICATION:** the regression test (the two-step attack shape) → `9 pass / 0 fail`;
+  the full battery → `195 pass / 0 fail`.
+- **THE LESSON:** a comparison primitive that THROWS on malformed input is a crash
+  surface. Run the reader against the REAL store before trusting the unit suite — the
+  live corpus is the only place malformed rows exist.

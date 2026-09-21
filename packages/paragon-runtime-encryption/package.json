@@ -1,0 +1,14 @@
+{
+  "name": "paragon-runtime-encryption",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Guarded-seam security + auditable-edit primitive: signed rows, hash chain, verified reads, verified retirement, append-only ledger, time-travel queries.",
+  "scripts": {
+    "test": "bun test",
+    "demo": "bun demo.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2"
+  }
+}

@@ -329,3 +329,21 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE LESSON:** a reducer that picks "the worst" must define what it returns when NOTHING is
   wrong. Otherwise an incidental ORDER becomes the label — the same class of defect as a
   default that silently asserts a value.
+
+## EN-041 — W4: the real graph.json drops EVERY edge as lineless (2026-09-21)
+
+- **THE FINDING:** running the real mapper over the live corpus —
+  `graphify-out/graph.json` (9,814 nodes / 24,757 edges) — produces ZERO edge rows:
+  `[gi-omp] mapGraphifyToTyped: dropped 24757 lineless edge(s) (counted, never silent)`.
+- **THE ROOT CAUSE:** `mapGraphifyToTyped` requires an anchorable line
+  (`e.line ?? src?.line ?? tryResolveGraphifyLine(...)`); the current graph.json carries
+  none for its edges, so every edge is dropped by the W9 lineless policy.
+- **THE VERIFICATION:** the live STORE holds 2,713 edges while the CURRENT graph.json
+  offers 24,757 — so the store was populated from an OLDER graph (2026-09-19T12:31) and
+  the graph has since been regenerated in a lineless form.
+- **THE LESSON:** the store and the graph.json are two artifacts with independent
+  lifecycles; a populate that drops 100% of edges is still "successful" and leaves the
+  prior store in place. A re-populate must be VERIFIED against the source's edge count,
+  or a total drop is indistinguishable from a no-op.
+- **STATUS:** OPEN — a populate-path defect, NOT part of the confidence work. Recorded so
+  the next populate does not read as clean.
