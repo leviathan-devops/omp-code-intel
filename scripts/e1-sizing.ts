@@ -138,6 +138,48 @@ async function main() {
   fs.writeFileSync(path.join(OUT, "e1-sizing.json"), `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(`  artifact: .trident/e1-sizing.json\n`);
 
+  // ★★ THE WINDOW SWEEP — THE DIRECT TEST OF REMEDY (c). Option (c) claims the 24h window is
+  //    the saturation's cause. That is a TESTABLE claim: sweep the window and watch the
+  //    resolution rate. If it holds at ~100% even at MINUTES, the window is NOT the remedy and
+  //    (c) is refuted; if it collapses, (c) is the fix and the curve gives the value.
+  console.log(`  ── ★★ THE WINDOW SWEEP — is the WINDOW the saturation's cause? ──`);
+  const windows = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000, 6 * 3600_000, 24 * 3600_000];
+  const sweep: { windowMs: number; resolved: number; rate: number }[] = [];
+  for (const w of windows) {
+    let resolved = 0;
+    for (const p of pairs) {
+      const ev = gather(p.row, p.subject, produce(events, p.row.at, p.subject, {}), { windowMs: w });
+      if (ev.signals.length > 0) resolved += 1;
+    }
+    sweep.push({ windowMs: w, resolved, rate: resolved / pairs.length });
+    const label = w < 3600_000 ? `${w / 60_000}m` : `${w / 3600_000}h`;
+    console.log(`     window ${String(label).padStart(4)} → ${String(resolved).padStart(3)}/${pairs.length} resolved  ${((resolved / pairs.length) * 100).toFixed(0)}%`);
+  }
+
+  // ★ AND THE REPAIR-LATENCY DISTRIBUTION — the gap between consecutive touches of ONE file,
+  //   which is the scale a REPAIR actually lives at, measured from the same event stream.
+  const byFile = new Map<string, number[]>();
+  for (const e of events) {
+    const t = Date.parse(e.at);
+    const arr = byFile.get(e.target!) ?? [];
+    arr.push(t);
+    byFile.set(e.target!, arr);
+  }
+  const gaps: number[] = [];
+  for (const ts of byFile.values()) {
+    ts.sort((a, b) => a - b);
+    for (let i = 1; i < ts.length; i++) gaps.push(ts[i]! - ts[i - 1]!);
+  }
+  gaps.sort((a, b) => a - b);
+  const q = (p: number) => gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * p))] ?? 0;
+  const mins = (ms: number) => `${(ms / 60_000).toFixed(1)}m`;
+  console.log(`  ── THE REPAIR-LATENCY DISTRIBUTION (${gaps.length} consecutive-touch gaps) ──`);
+  console.log(`     p50 ${mins(q(0.5))} · p90 ${mins(q(0.9))} · p99 ${mins(q(0.99))} · max ${mins(gaps[gaps.length - 1] ?? 0)}`);
+  const within1h = gaps.filter((g) => g <= 3600_000).length;
+  console.log(`     within 1h: ${((within1h / gaps.length) * 100).toFixed(0)}% · within 24h: 100%`);
+  if (gaps.length > 0) fs.writeFileSync(path.join(OUT, "e1-window-sweep.json"), `${JSON.stringify({ at: new Date().toISOString(), sweep, repairLatency: { n: gaps.length, p50: q(0.5), p90: q(0.9), p99: q(0.99), max: gaps[gaps.length - 1] } }, null, 2)}\n`);
+  console.log();
+
   // ★ AND THE ARCHITECTURAL CONCLUSION, read off the numbers rather than asserted.
   console.log(`  ── WHAT THIS SAYS ABOUT E1 ──`);
   console.log(`     the producer's yield on REAL events: ${pairs.filter((_, i) => produce(events, pairs[i]!.row.at, pairs[i]!.subject).length > 0).length}/${pairs.length} fires had ≥1 record`);

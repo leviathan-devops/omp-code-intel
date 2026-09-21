@@ -16,13 +16,24 @@
 //   real.
 //   ★ A 100% RATE IS A RED FLAG, NOT A RESULT — the measurement refuted its own first
 //   reading ("E1's workload is 0%") and produced this instead.
-//   ★ THE REMEDY OPTIONS, NOT APPLIED (the semantics are a design ruling, not a bug fix):
-//     (a) A REPAIR PREDICATE — require the later edit to REVERT or re-write the same lines,
-//         not merely to touch the file. The strongest narrowing; needs a diff predicate.
+//   ★★ AND THE WINDOW WAS TESTED, NOT ASSUMED (the sweep in scripts/e1-sizing.ts):
+//         window  1m →  0/48   0%      window  1h →  8/48  17%
+//         window  5m →  1/48   2%      ★ 6h → 48/48 100%  ← THE CLIFF
+//         window 15m →  3/48   6%      window 24h → 48/48 100%
+//         repair-latency: p50 36.7m · p90 146.9m · p99 1780.8m · within 1h 64%
+//     ★ THE CLIFF AT ~6h IS THE SESSION'S OWN LENGTH, NOT THE REPAIR SCALE. Tightening the
+//       window to 6h yields 100% because the session ran ~6h — so option (c) is a
+//       CALIBRATION TO HOW LONG THE RUN LASTED, not a semantic fix. IT IS REFUTED AS A
+//       PRINCIPLED REMEDY. (It remains a useful BOUND if paired with a predicate.)
+//     ★ AND THE SWEEP'S OWN LIMIT NAMES THE REAL FIX: TIMESTAMPS CANNOT DISTINGUISH "a
+//       repair" FROM "the session touched the file again". ONLY A DIFF PREDICATE CAN.
+//   ★ THE REMEDY OPTIONS (one REFUTED, two standing):
+//     (a) ★ THE REPAIR PREDICATE — the later edit must REVERT or re-write the same lines.
+//         THE ONLY PRINCIPLED FIX, because it reads the CONTENT, not the clock.
+//         Needs a diff predicate (git log -p or the structural layer's line spans).
 //     (b) A SESSION SCOPE — only edits BY THE SAME SESSION count. Kills the cross-session
-//         saturation, not the within-session one.
-//     (c) A TIGHTER WINDOW — the 24h default is enormous for a repair; minutes-to-hours is
-//         the repair scale. Cheapest; needs a measured repair-latency distribution.
+//         saturation; does nothing about the within-session one (which is the measured one).
+//     (c) ✗ A TIGHTER WINDOW — REFUTED by the sweep above as a semantic fix.
 //   ★ UNTIL ONE IS RULED: treat a CONFIRMED-from-laterEdit resolution as WEAK EVIDENCE and
 //     prefer the test/withdraw/permit signals where they exist.
 

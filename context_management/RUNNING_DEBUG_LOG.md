@@ -441,3 +441,25 @@
 - ★ THE DISCIPLINE THIS EXERCISED: the measurement refuted its own headline. The 100% was the
   CORRECT OUTPUT of a saturated instrument — and the finding is the instrument, not the engine.
 - EVIDENCE: .trident/e1-sizing.json · scripts/e1-sizing.ts · battery 351/0/1253/33 · tsc 191.
+
+## [2026-09-22T05:10:00] — EN-088 ★★★ THE WINDOW SWEEP: REMEDY (c) IS REFUTED, AND THE REFUTATION NAMES THE REAL FIX
+- THE CLAIM TESTED: option (c) held that the 24h window is the saturation's cause. A TESTABLE
+  claim — so it was swept rather than argued.
+- THE SWEEP (the same 48 fires × the same 1,870 real edit-events, the window as the only variable):
+      1m →  0/48   0%        1h →  8/48  17%
+      5m →  1/48   2%        ★ 6h → 48/48 100%   ← THE CLIFF
+     15m →  3/48   6%        24h → 48/48 100%
+    AND THE REPAIR-LATENCY DISTRIBUTION (736 consecutive-touch gaps): p50 36.7m · p90 146.9m ·
+    p99 1780.8m · max 3047.3m · within 1h 64%.
+- ★★ THE FINDING: **THE CLIFF AT ~6h IS THE SESSION'S OWN LENGTH, NOT THE REPAIR SCALE.**
+  Tightening the window to 6h yields 100% because the session ran ~6h — so (c) is a
+  CALIBRATION TO HOW LONG THE RUN LASTED, not a semantic fix. **REFUTED AS A PRINCIPLED REMEDY.**
+  (It survives as a useful BOUND when paired with a predicate.)
+- ★★ AND THE SWEEP'S OWN LIMIT NAMES THE REAL FIX: **TIMESTAMPS CANNOT DISTINGUISH "a repair"
+  FROM "the session touched the file again". ONLY A DIFF PREDICATE CAN.** So option (a) — the
+  REPAIR PREDICATE — is the only principled remedy, and the measurement says so.
+- ★ WHY THIS MATTERS BEYOND E1: it is the SAME DISCIPLINE the whole session has run on —
+  reason about the fix, then MEASURE the fix instead of shipping the reason. Option (c) was
+  plausible, cheap, and WRONG; a sweep costing 0.2 seconds eliminated it.
+- EVIDENCE: .trident/e1-window-sweep.json · the oracle's header carries the table and the verdict
+  · battery 351/0/1253/33 · tsc 191.

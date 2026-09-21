@@ -1,0 +1,42 @@
+{
+  "at": "2026-09-21T13:48:19.879Z",
+  "sweep": [
+    {
+      "windowMs": 60000,
+      "resolved": 0,
+      "rate": 0
+    },
+    {
+      "windowMs": 300000,
+      "resolved": 1,
+      "rate": 0.020833333333333332
+    },
+    {
+      "windowMs": 900000,
+      "resolved": 3,
+      "rate": 0.0625
+    },
+    {
+      "windowMs": 3600000,
+      "resolved": 8,
+      "rate": 0.16666666666666666
+    },
+    {
+      "windowMs": 21600000,
+      "resolved": 48,
+      "rate": 1
+    },
+    {
+      "windowMs": 86400000,
+      "resolved": 48,
+      "rate": 1
+    }
+  ],
+  "repairLatency": {
+    "n": 736,
+    "p50": 2200000,
+    "p90": 8815000,
+    "p99": 106847000,
+    "max": 182838000
+  }
+}
