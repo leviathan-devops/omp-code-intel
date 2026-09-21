@@ -301,3 +301,35 @@
 - VERIFIED BY RUNNING (not by reading): fire 1 timed out at 201ms; fire 2 on the SAME state paid its OWN 200ms ceiling — it did not inherit the hang. Pinned by `EN-075`.
 - ALSO FIXED FROM PASS 6: the budget counted CALLS not FIRES (D017's documented contract is "the NUMBER OF FIRES", and collapsing the two made the stop bypassable by concurrency) → two separate meters (`firesUsed` = fires, `modelCallsUsed` = calls) · the probability RANGE was never validated (p=-0.2 and p=1.5 passed `Number.isFinite`, banded, and would be REJECTED by the ledger's own W1 guard — the gate producing a row it cannot persist) · `keyFileComponent` treated EVERY statSync failure as absent, so EACCES/EPERM fell through to the env fallback and read UP · the socket path emitted `//` on a trailing slash, failing the exact match and reporting a false STALE.
 - EVIDENCE: battery 322/0/1150/30 host · the container re-run · tsc 191 == baseline · the EN-075 test paying its own ceiling twice on the same state.
+
+## [2026-09-22T00:15:00] — E1's REAL BLOCKER: NOT THE ENGINE — THE EVIDENCE SOURCE
+- THE FRAMING I HAD BEEN USING: "E1 (the oracle's engine) is the operator's, v3." That names the wrong gate.
+- ★ THE MEASURED STATE: the oracle's four gatherers read a single input type —
+    `OutcomeRecord { kind: "edit" | "test" | "withdraw" | "permit"; at; target?; passed?; span?; tool?; by? }`
+  — and NOTHING ON THIS HOST PRODUCES THOSE RECORDS. Every resolution this session achieved was
+  synthetic: the W6 run fed the corpus LABELS, the hot seat fed hand-built edits.
+- ★ SO E1 IS NECESSARY BUT NOT SUFFICIENT. Naming an engine (Jev, MPSE, or a v3 substrate) would
+  give the resolver a way to ADJUDICATE ambiguous evidence — and it would still have NO EVIDENCE
+  to adjudicate, because the producer does not exist. The oracle's real dependency is a
+  **DOWNSTREAM-EVIDENCE PRODUCER**: a watcher that turns the session's own operation into
+  OutcomeRecords —
+    a later edit to the fired target  → kind:"edit"
+    a test/verify run after the fire  → kind:"test" + passed
+    a withdrawal with a bound span    → kind:"withdraw" + span
+    a downstream gate's permit        → kind:"permit"
+- THE PRECISE RESUME CONDITION, NOW STATABLE: the oracle needs A PRODUCER and possibly an engine.
+  The producer is the gate; the engine is the refinement.
+- ★ WHY THIS MATTERS FOR THE PIN'S T-2 ("thresholds DERIVED from a measured curve + the
+  operator's cost matrix"): the CURVE was measured with labelled data. A curve from ORGANIC
+  evidence is a different number, and it cannot be produced until the producer exists. So M1's
+  organic form and M10's resolution rate BOTH wait on the same missing component — not on M2.
+- EVIDENCE: the OutcomeRecord contract (oracle.ts) + every resolution this session traced to a
+  synthetic source (the W6 labels; the hot seat's hand-built records).
+
+## [2026-09-22T00:40:00] — EN-080 ★★ PASS 7: TWO OF THE FINDINGS ARE REGRESSIONS OF MY PASS-6 FIXES
+- ★★ THE PATTERN, NOW AT ITS THIRD INSTANCE THIS SESSION: **a fix that is verified only by its own author's reasoning generates the next pass's finding.** Pass 6 fixed the single-flight eviction; pass 7 found the FIX had the very inconsistency it removed.
+- ★ REGRESSION A (HIGH): `abandonInFlight` EVICTED BY KEY UNCONDITIONALLY while `evict` used compare-and-delete — I introduced the exact inconsistency I was fixing. A SHARER timing out (whose entry is the CREATOR's promise) would delete an entry a NEW call had since created. FIXED: `abandonInFlight(cacheKey, abandoned)` compares identity; the promise is captured outside the try (a `const` inside the try is invisible to the catch — a scoping error the battery caught as three failures and tsc as one).
+- ★ REGRESSION B (MEDIUM): `serializedBytes` SYSTEMATICALLY UNDERCOUNTED — `JSON.stringify(state)` ran BEFORE the three measurement fields were added to `context_meta`, so the reported number omitted the width of the fields reporting it. **A measurement that changes the thing it measures and then reports the pre-change value.** FIXED by a two-pass fixed point: seed the fields so the SHAPE is final, measure, write the real values, re-verify. MEASURED NOW EXACT: reported 21,458 = actual 21,458.
+- ★ AND A THIRD HIGH, PRE-EXISTING AND REAL: THE BUDGET CHECK-THEN-ACT RACED. The D017 guard read `budgetUsed` BEFORE the await and incremented AFTER the answer, so N CONCURRENT fires all read the same pre-await value and all passed — the stop was bypassable by concurrency EXACTLY like the cache was. FIXED: the unit is RESERVED at admission, which is also the honest accounting — an admitted fire has spent its slot whether or not it returns. PINNED by `EN-080`: five concurrent distinct fires against `budgetFires: 3` yield exactly 3 fulfilled and 2 named refusals.
+- ★ ALSO FIXED: `ledgerPath`/`cachePath` were DEAD CONFIG whose comment PROMISED a behaviour they do not have ("absent ⇒ no ledger ⇒ no calibration"). The promise is true of the SYSTEM and false of the FIELD — nothing in the class reads either. Now NAMED as reserved-not-wired, with the real wiring (`withLedger` / `drain`) stated.
+- EVIDENCE: battery 323/0/1155/30 host · container re-run · tsc 191 == baseline · the scoping error caught by the battery AND tsc (3 failures + 1 error) and fixed.
