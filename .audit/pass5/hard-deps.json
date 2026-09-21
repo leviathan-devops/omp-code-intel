@@ -1,0 +1,109 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 8,
+    "total_tokens": 55659,
+    "input_tokens": 43105,
+    "output_tokens": 12554,
+    "cache_read_tokens": 14946,
+    "elapsed": "3m21s"
+  },
+  "tool_calls": {
+    "total": 2,
+    "by_tool": {
+      "code_comment": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "liveSocket liveness uses substring match `table.includes(full)` — reports UP on partial/prefix match (e.g. `/run/a.instance.sock` matches `/run/a.instance.sock.bak` or an abstract-socket suffix) and any occurrence in /proc/net/unix (including connected/exit entries), risking false-UP over a dead/stale socket. Parse the table line-by-line and require an exact path-token equality (last whitespace-separated field == full) and, if available, check the listener state/flags.",
+      "suggestion_code": "      const lines = table.split(\"\\n\");\n      for (const n of names) {\n        const full = socketDir + \"/\" + n;\n        const listening = lines.some((line) =\u003e {\n          const cols = line.trimEnd().split(/\\s+/);\n          return cols[cols.length - 1] === full;\n        });\n        if (listening) {\n          return { up: true, evidence: `${full} is LISTENING (per /proc/net/unix)` };\n        }\n      }",
+      "existing_code": "        if (table.includes(full)) {\n          return { up: true, evidence: `${full} is LISTENING (per /proc/net/unix)` };\n        }",
+      "start_line": 228,
+      "end_line": 230,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "UP evidence leaks secret-material length (env `len=${v.length}` and key-file `len=${st.size}`), contradicting the file's own 'labels only / VALUE never reported' law — length/file-size is a brute-force oracle. Report presence only and strip all lengths from UP evidence.",
+      "suggestion_code": "      const v = env[envName];\n      return v !== undefined \u0026\u0026 v.length \u003e 0\n        ? { up: true, evidence: `${envName} present` }\n        : { up: false, evidence: `${envName} ABSENT` }; ",
+      "existing_code": "      const v = env[envName];\n      return v !== undefined \u0026\u0026 v.length \u003e 0\n        ? { up: true, evidence: `${envName} present (len=${v.length})` }\n        : { up: false, evidence: `${envName} ABSENT` };",
+      "start_line": 115,
+      "end_line": 118,
+      "category": "security",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Host-pinned defaults (`/home/leviathan/...`, `process.env.HOME ?? \"/home/leviathan\"` for ABIDE/RSI/TSG/socket dir) make the register fail-closed on every other host/CI container, contradicting 'REAL path on this host'. Socket dir also reads `process.env.HOME` directly, ignoring `cfg.env`. Require explicit config / env-driven paths with loud missing-config error and thread `env.HOME` through.",
+      "suggestion_code": "    liveSocketComponent(\"L2_ARSUMBRIS\", \"layer\", \"the au daemon socket + its typed repo graph\", \"GI_LAYER_ARSUMBRIS\",\n      join(env.HOME ?? os.homedir(), \".arsumbris/au-host/run\")),",
+      "existing_code": "    liveSocketComponent(\"L2_ARSUMBRIS\", \"layer\", \"the au daemon socket + its typed repo graph\", \"GI_LAYER_ARSUMBRIS\",\n      join(process.env.HOME ?? \"/home/leviathan\", \".arsumbris/au-host/run\")),",
+      "start_line": 314,
+      "end_line": 315,
+      "category": "maintainability",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Local `join` on \"/\" without trimming/normalizing emits `//`, trailing-slash, and `scopeRoot=\"\"` artifacts, causing false-DOWN probes. It also duplicates `node:path` and is inconsistently bypassed by `socketDir + \"/\" + n`. Use `path.posix.join`/`path.join`.",
+      "suggestion_code": "  import { join } from \"node:path\";\n  // then use join(cfg.scopeRoot, ...) — normalizes //, trailing /, \"\" segments",
+      "existing_code": "  const join = (...parts: string[]): string =\u003e parts.filter((p) =\u003e p.length \u003e 0).join(\"/\");",
+      "start_line": 298,
+      "end_line": 298,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "`statSync`/`readdirSync`/`readFileSync(/proc/net/unix)` run synchronously inside every probe, and `audit()` fans out over all of them on the event loop. Preflight/registration latency blocks the loop and serializes I/O that could overlap. Provide an async `auditAsync`/parallel variant (Promise.all + `fs/promises`) or cache `/proc/net/unix` once per audit instead of once per socket component.",
+      "suggestion_code": "    probe: () =\u003e {\n      try {\n        // TODO: add async probe path with fs/promises access+stat so audit() can Promise.all without blocking the loop\n        const st = fs.statSync(p);",
+      "existing_code": "    probe: () =\u003e {\n      try {\n        const st = fs.statSync(p);",
+      "start_line": 65,
+      "end_line": 67,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Existence (`statSync` success + size\u003e0) is treated as UP without a readability check. A file with no read permission (or a 0600 key owned by another uid) probes UP then fails at the consumer — a fail-open. Add `fs.accessSync(p, fs.constants.R_OK)` (and for the key file, verify mode/ownership if the 0600 law matters) before returning UP.",
+      "suggestion_code": "        fs.accessSync(p, fs.constants.R_OK);\n        return { up: true, evidence: `${p} (${st.isDirectory() ? \"dir\" : `${st.size}B`}, readable)` };",
+      "existing_code": "        return { up: true, evidence: `${p} (${st.isDirectory() ? \"dir\" : `${st.size}B`})` };",
+      "start_line": 76,
+      "end_line": 76,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "`assertRegisterComplete` calls `d.id.trim()`/`d.dependency.trim()` without null-guarding — a malformed entry with undefined throws an un-coded TypeError instead of REGISTER_INCOMPLETE — and never detects duplicate ids (ambiguous `firstCode`/refusal) or empty `scopeRoot`-derived probe paths. Validate presence + uniqueness.",
+      "suggestion_code": "  const seen = new Set\u003cstring\u003e();\n  for (const d of register) {\n    if (typeof d?.id !== \"string\" || d.id.trim() === \"\") bad.push(\"\u003cblank id\u003e\");\n    else if (seen.has(d.id)) bad.push(`${d.id}: duplicate id`);\n    else seen.add(d.id);\n    if (typeof d?.dependency !== \"string\" || d.dependency.trim() === \"\") bad.push(`${d?.id ?? \"\u003cblank id\u003e\"}: blank dependency`);\n    if (typeof d?.errorCode !== \"string\" || d.errorCode.trim() === \"\") bad.push(`${d?.id ?? \"\u003cblank id\u003e\"}: blank errorCode`);\n    if (typeof d?.probe !== \"function\") bad.push(`${d?.id ?? \"\u003cblank id\u003e\"}: missing probe`);\n  }",
+      "existing_code": "  for (const d of register) {\n    if (d.id.trim() === \"\") bad.push(\"\u003cblank id\u003e\");\n    if (d.dependency.trim() === \"\") bad.push(`${d.id}: blank dependency`);\n    if (d.errorCode.trim() === \"\") bad.push(`${d.id}: blank errorCode`);\n  }",
+      "start_line": 271,
+      "end_line": 275,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "content": "Imports use explicit `.ts` extensions (`./jev.ts`, `./populate-corbell.ts`) which Node ESM/`tsc` resolution does not accept at runtime (expects `./jev.js` or extensionless under bundler/loader). Works only under specific loaders (tsx/deno) and will crash otherwise. Import extensionless or `.js` outputs.",
+      "suggestion_code": "import { KEY_FILE } from \"./jev.js\";",
+      "existing_code": "import { KEY_FILE } from \"./jev.ts\";",
+      "start_line": 18,
+      "end_line": 18,
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **False-UP socket liveness in `src/omp/hard-deps.ts`** — `table.includes(full)` substring match against `/proc/net/unix` matches prefixes/suffixes (e.g. `.sock.bak`, abstract-socket variants) and non-listening entries. Preflight can report UP for a dead/mismatched socket.\n2. **Secret-length oracle in UP evidence in `src/omp/hard-deps.ts`** — reporting `len=${v.length}` for env secrets and `len=${st.size}` for key files violates the file's own `labels only / VALUE never reported` rule and aids brute-force. Report presence only.\n3. **Host-pinned defaults break portability in `src/omp/hard-deps.ts`** — hardcoded `/home/leviathan/...` and `process.env.HOME ?? \"/home/leviathan\"` for ABIDE/RSI/TSG paths and socket dir make the register fail-closed on any other host/CI container, contradicting `REAL path on this host` intent.\n4. **Fail-open file probes in `src/omp/hard-deps.ts`** — `statSync` success + `size\u003e0` treated as UP without `R_OK` readability check (notably 0600 keys owned by another uid). Probes UP then fails at consumer.\n5. **Brittle register validation in `src/omp/hard-deps.ts`** — `assertRegisterComplete` calls `d.id.trim()` / `d.dependency.trim()` unguarded (malformed entry throws un-coded `TypeError` instead of `REGISTER_INCOMPLETE`) and misses duplicate `id`s and empty `scopeRoot`-derived entries, causing ambiguous `firstCode`/refusals.\n6. **Blocking synchronous I/O on hot path in `src/omp/hard-deps.ts`** — `statSync` / `readdirSync` / `readFileSync(/proc/net/unix)` in every probe, fanned out by `audit()` on the event loop. Adds preflight/registration latency; needs `auditAsync` + parallel I/O.\n7. **Broken path construction causes false-DOWNs in `src/omp/hard-deps.ts`** — local `join` on `/` without normalization emits `//`, trailing-slash, and `scopeRoot=\"\"` artifacts, inconsistently bypassed by `socketDir + \"/\" + n`. Use `path.posix.join` / `path.join`.\n8. **Non-portable `.ts` imports in `src/omp/hard-deps.ts`** — `./jev.ts`, `./populate-corbell.ts` only work under `tsx`/deno-style loaders; crashes under Node ESM/`tsc` (expects `./jev.js` or extensionless).\n\n### Module Hotspots\n\n- `src/omp/hard-deps.ts` — 8/8 comments concentrated in one file; all probe semantics, validation, and portability risk lives here. No other modules flagged in this scan.\n\n### Cross-Cutting Concerns\n\n- **Unreliable UP/DOWN semantics in `src/omp/hard-deps.ts`:** false-UP (socket substring, unreadable-file-as-UP) and false-DOWN (unnormalized `join`, host-pinned paths) coexist — representative: socket `includes()` check, `statSync`-only file check, custom `join`.\n- **Sync-over-async I/O in `src/omp/hard-deps.ts`:** `statSync` / `readdirSync` / `readFileSync` repeated per-probe instead of batched/async.\n- **Inconsistent platform/path handling in `src/omp/hard-deps.ts`:** custom `join` duplicating `node:path`, mixed with raw string concatenation (`socketDir + \"/\" + n`), plus direct `process.env.HOME` reads and `/home/leviathan` fallbacks.\n- **Weak validation/error coding in `src/omp/hard-deps.ts`:** unguarded `.trim()` producing un-coded `TypeError`s, no duplicate-`id` detection — same root cause as ambiguous refusal codes.\n\n### Quick Wins\n\n- Replace socket check with exact path-token match on parsed `/proc/net/unix` in `src/omp/hard-deps.ts`.\n- Strip all `len=` / `size` from UP evidence; emit presence-only labels in `src/omp/hard-deps.ts`.\n- Replace local `join` + `socketDir + \"/\" + n` with `path.posix.join` / `path.join` in `src/omp/hard-deps.ts`.\n- Fix imports `./jev.ts` → `./jev.js` (same for `populate-corbell`) in `src/omp/hard-deps.ts`.\n- Guard `d.id?.trim ??` / `d.dependency` and add duplicate-`id` check in `assertRegisterComplete` in `src/omp/hard-deps.ts`.\n- Add `fs.accessSync(p, R_OK)` to file probes in `src/omp/hard-deps.ts`.",
+  "session_id": "f3b356aa-d1b9-4d4b-8f68-fdeddabf8399"
+}

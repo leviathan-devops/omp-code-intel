@@ -19,7 +19,8 @@ import { describe, test, expect } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { FireGate, absorbContext, type Fire } from "../src/omp/fire-gate.ts";
+import { FireGate, absorbContext, degradationOf, mpsePreFilter, type Fire } from "../src/omp/fire-gate.ts";
+import { keyFileComponent, liveSocketComponent } from "../src/omp/hard-deps.ts";
 import type { Judge } from "../src/omp/enforcement.ts";
 import { FireLedger, drain } from "../src/omp/fire-ledger.ts";
 import { gather, classify, resolveAll, type OutcomeRecord, type Subject } from "../src/omp/oracle.ts";
@@ -265,6 +266,107 @@ describe("st-gi-v21-audit2: the oracle + policy-store findings", () => {
     try { (DEFAULT_POLICY_FILE.policies["*dumb"] as { act: number }).act = 0; } catch { threw = true; }
     expect(threw || DEFAULT_POLICY_FILE.policies["*dumb"]!.act === before).toBe(true);
     expect(DEFAULT_POLICY_FILE.policies["*dumb"]!.act).toBe(before);
+  });
+
+  // ══ PASS 5 — THE FIVE HIGHS THE REGISTER AND THE GATE'S OWN AUDIT FOUND ══════
+
+  test("P5-kind-match: a record whose KIND matches but whose TEXT has no marker is DROPPED", () => {
+    // ★ the kind-match bypass: `{kind:"reasoning", text:"lorem ipsum"}` sailed through the
+    //   narrow-before-judge gate carrying NO decision-relevant material.
+    const f: Fire = aFire();
+    const withMarker = absorbContext(f, [
+      { kind: "reasoning", text: "because the migration is real", offsetMs: -100 },
+    ]);
+    const withoutMarker = absorbContext(f, [
+      { kind: "reasoning", text: "lorem ipsum dolor sit amet", offsetMs: -100 },
+    ]);
+    expect(withMarker.slots.length).toBe(1);      // "because" is a reasoning marker
+    expect(withoutMarker.slots.length).toBe(0);   // ★ NO marker, NO admission
+    expect(withoutMarker.droppedKinds).toContain("reasoning");
+  });
+
+  test("P5-empty-target: an empty target does NOT settle IGNORE via the negation branch", () => {
+    // ★ ''.includes('') is true — an empty target matched EVERY slot and was settled IGNORE
+    //   on no evidence.
+    const f: Fire = aFire({ target: "" });
+    const ctx = absorbContext(f, [{ kind: "reasoning", text: "because the file is next", offsetMs: -100 }]);
+    const pre = mpsePreFilter(f, ctx);
+    expect(pre.settle).toBeNull();                // it goes to Jev, not to a branch
+    expect(pre.reason).toContain("names no target");
+  });
+
+  test("P5-unknown-cls: an UNKNOWN class falls to the FAIL-CLOSED policy, not dumb-seed", async () => {
+    // ★ the first version fell to SEED_POLICY["dumb"] — fail-OPEN. A new destructive-like
+    //   surface would have defaulted to the polarity that lets a down judge DISMISS it.
+    const gate = new FireGate({ judge: { async evaluate() { throw new Error("down"); } } });
+    const f: Fire = aFire({ cls: "banana", ruleId: "*banana" });
+    const d = await gate.judge(f, absorbContext(f, [{ kind: "reasoning", text: "because x", offsetMs: -100 }]));
+    // fail-CLOSED ⇒ the degraded row reads FIRE, and the policy name is not dumb-seed
+    expect(d.row.policyName).not.toContain("dumb-seed");
+    expect(d.action).toBe("FIRE");
+    expect(d.probability).toBe(1);
+  });
+
+  test("P5-reroute: a DEGRADED row stays degraded through a reroute", () => {
+    // ★ the first version replaced the policy name outright, STRIPPING the marker — so a
+    //   placeholder, re-bandied, presented itself as a real judgment.
+    const gate = new FireGate({ judge: { async evaluate() { return [{ id: "fire_is_real", probability: 0.9 }]; } } });
+    const degraded = {
+      at: new Date().toISOString(), ruleId: "*dumb", cls: "dumb", questionVersion: "q",
+      probability: 0, band: "ignore", action: "IGNORE", policyName: "dumb-seed+timeout",
+      actThreshold: 0.75, flagThreshold: 0.35, stateHash: "h", costUsd: 0,
+      laterTruth: "unresolved" as const,
+    };
+    const re = gate.reroute(degraded, { name: "tuned", act: 0.9, flag: 0.5, failPolarity: "open" });
+    expect(re.policyName).toBe("tuned+timeout");           // ★ the marker SURVIVES
+    expect(degradationOf(re.policyName)).toBe("TIMEOUT");  // and is still recognizable
+    // a REAL row reroutes normally (no suffix invented)
+    const real = { ...degraded, policyName: "dumb-seed", probability: 0.9, band: "act", action: "FIRE" };
+    const re2 = gate.reroute(real, { name: "tuned", act: 0.9, flag: 0.5, failPolarity: "open" });
+    expect(re2.policyName).toBe("tuned");
+    expect(degradationOf(re2.policyName)).toBeNull();
+  });
+
+  test("P5-socket-liveness: a REAL listening socket reads UP; the same path dead reads DOWN", async () => {
+    // ★ existence is not liveness, and a SUBSTRING match would report UP on a partial path.
+    const dir = tmpDir();
+    const sockPath = path.join(dir, "probe.instance.sock");
+    const comp = liveSocketComponent("PROBE", "layer", "a test socket", "GI_PROBE", dir);
+    // nothing there yet
+    expect(comp.probe().up).toBe(false);
+    // a REAL listener
+    const server = Bun.listen({ unix: sockPath, socket: { data() {} } });
+    try {
+      const live = comp.probe();
+      expect(live.up).toBe(true);                          // ★ the kernel's table has it
+      expect(live.evidence).toContain("LISTENING");
+    } finally {
+      server.stop(true);
+    }
+    // ★ THE STALE CORPSE, reproduced exactly: a socket FILE present with NO listener —
+    //   the condition measured on this host (two au sockets dated Sep 16/17, both
+    //   ECONNREFUSED). `server.stop()` unlinks the socket, so the file is re-created;
+    //   the probe only readdirs and consults /proc/net/unix, so a plain file exercises
+    //   the same path.
+    fs.writeFileSync(sockPath, "");
+    const dead = comp.probe();
+    expect(dead.up).toBe(false);
+    expect(dead.evidence).toContain("STALE");          // ★ a file is not a listener
+  });
+
+  test("P5-key-presence: the JEV probe reports PRESENCE, never the key's size", () => {
+    // ★ the first version reported `len=107` — a key's length narrows the search space.
+    const dir = tmpDir();
+    const keyFile = path.join(dir, "key");
+    fs.writeFileSync(keyFile, "secret-material-of-a-known-length");
+    const comp = keyFileComponent("JEV", "kernel", "the key", "GI_JEV_DOWN", keyFile, "TYPESAFE_AI_API_KEY", {});
+    const r = comp.probe();
+    expect(r.up).toBe(true);
+    expect(r.evidence).toContain("present");
+    expect(r.evidence).not.toContain("len=");              // ★ no side channel
+    // an EMPTY key is not a warm substrate
+    fs.writeFileSync(keyFile, "");
+    expect(comp.probe().up).toBe(false);
   });
 
   // ══ THE FIXES MUST NOT BREAK THE CONTRACT ════════════════════════════════════

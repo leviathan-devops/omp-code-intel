@@ -200,7 +200,13 @@ export function absorbContext(
   let trimmed = false;
   for (const rec of ordered) {
     const lc = rec.text.toLowerCase();
-    const lex = lexicons.find((l) => l.kind === rec.kind) ?? lexicons.find((l) => l.markers.some((m) => lc.includes(m)));
+    // ★ PASS-5 HIGH — THE KIND-MATCH BYPASS. The first branch admitted a record whose
+    //   kind merely EQUALLED a lexicon's kind, WITHOUT any marker in its text. A record
+    //   `{kind: "reasoning", text: "lorem ipsum"}` sailed through the narrow-before-judge
+    //   gate (D004) carrying NO decision-relevant material — the gate the whole kernel's
+    //   token budget depends on. A kind is a LABEL, not evidence; the admission test is
+    //   whether the TEXT matches a marker.
+    const lex = lexicons.find((l) => l.markers.some((m) => lc.includes(m)));
     if (lex === undefined) { droppedKinds.push(rec.kind); continue; }
     const text = rec.text.length > SLOT_CHAR_CAP ? rec.text.slice(0, SLOT_CHAR_CAP) + "…[clipped]" : rec.text;
     const cost = Buffer.byteLength(text, "utf8") + rec.kind.length + 8;
@@ -279,6 +285,12 @@ export function mpsePreFilter(fire: Fire, ctx: AbsorbedContext): { settle: FireD
   if (fire.evidence.trim() === "") {
     return { settle: "IGNORE", reason: "MPSE: empty detector evidence — nothing to adjudicate (fail-closed to ignore, recorded)" };
   }
+  // ★ PASS-5 HIGH — AN EMPTY OR WHITESPACE TARGET MATCHES EVERYTHING: ''.includes('')
+  //   is true, so a fire with a missing target would be settled IGNORE by the negation
+  //   branch on NO evidence. A missing subject is not a discussion — it is a malformed fire.
+  if (fire.target.trim() === "") {
+    return { settle: null, reason: "MPSE: the fire names no target — the negation branch cannot run on an empty subject (the judgment goes to Jev)" };
+  }
   // The act target appears in a NEGATION slot and nowhere else → discussion, not act.
   const mentionsTarget = ctx.slots.filter((s) => s.text.toLowerCase().includes(fire.target.toLowerCase()));
   if (mentionsTarget.length > 0) {
@@ -313,15 +325,26 @@ export class FireGate {
 
   /** §6.4.3 rule (4): the probabilities are stored; re-routing never re-infers. */
   reroute(row: DecisionRow, policy: Policy): DecisionRow {
+    // ★ PASS-5 HIGH — A DEGRADED ROW STAYS DEGRADED. Its probability is a FORCED value (0 or
+    //   1 by the fail polarity), NOT a model answer. The first version replaced the policy
+    //   name outright, which STRIPPED the `+timeout`/`+fail-*`/`+no-answer`/`+bad-answer`
+    //   marker — so a placeholder, re-bandied under a new policy, presented itself as a real
+    //   judgment, and `degradationOf` could no longer see it. The suffix is preserved.
+    const degradation = degradationOf(row.policyName);
+    const suffix = degradation === null ? "" : (row.policyName.match(/\+[^+]*$/) ?? [""])[0];
     const band = row.probability >= policy.act ? "act" : row.probability >= policy.flag ? "escalate" : "ignore";
     const action = band === "act" ? "FIRE" : band === "escalate" ? "ESCALATE" : "IGNORE";
-    return { ...row, band, action, policyName: policy.name, actThreshold: policy.act, flagThreshold: policy.flag, costUsd: 0 };
+    return { ...row, band, action, policyName: `${policy.name}${suffix}`, actThreshold: policy.act, flagThreshold: policy.flag, costUsd: 0 };
   }
 
   async judge(fire: Fire, ctx: AbsorbedContext): Promise<FireDecision> {
     const t0 = (this.cfg.now ?? Date.now)();
-    // the policy: an explicit per-rule override, else the class seed.
-    const policy = this.cfg.policies?.[fire.ruleId] ?? SEED_POLICY[fire.cls] ?? SEED_POLICY["dumb"]!;
+    // ★ PASS-5 HIGH — AN UNKNOWN CLASS MUST NOT FALL TO THE DUMB-SEED OPEN POLICY. A new
+    //   destructive-like surface would have defaulted to fail-OPEN — the polarity that lets a
+    //   down judge DISMISS it. An unrecognized class is UNCERTIFIABLE, and uncertifiable is
+    //   fail-CLOSED: the act is refused until someone names the class.
+    //   the policy: an explicit per-rule override, else the class seed.
+    const policy = this.cfg.policies?.[fire.ruleId] ?? SEED_POLICY[fire.cls] ?? SEED_POLICY["destructive"]!;
     const state = buildState(fire, ctx);
     const stateHash = crypto.createHash("sha256").update(JSON.stringify(state)).digest("hex").slice(0, 16);
 

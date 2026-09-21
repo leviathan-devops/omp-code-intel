@@ -17,15 +17,20 @@ kernel-v2.ts:264  runKernelV2(input)         STAGE 0..6
       ├── preflight(layers)       :57        the six layers; one DOWN ⇒ REFUSE
       ├── classifyByDetectors     :208       three detectors, ONE shape
       │     dumb :138 · theatrical :155 · destructive :173
-      └── [v2.1] the fire gate — NOT WIRED (grep -c FireGate = 0)
+      └── [v2.1] THE FIRE GATE — WIRED (grep -c FireGate = 3; gate.judge ×1)
+                 runKernelV2Gated wraps the stage machine (the sync kernel is unchanged)
       │
       ▼
-fire-gate.ts:262  FireGate.judge(fire, ctx)  [v2.1 — BUILT, UNWIRED]
-      ├── mpsePreFilter           :196       the settlement engine ($0)
-      ├── the cache               :289       the canonical state is the key
-      ├── absorbContext           :150       the lexicon-filtered, byte-capped slice
+fire-gate.ts:316  FireGate.judge(fire, ctx)  [v2.1 — WIRED via runKernelV2Gated]
+      ├── mpsePreFilter           :275       the settlement engine ($0)
+      ├── the cache               :342       ★ keyed (QUESTION_VERSION, stateHash) — R-D
+      ├── the gate's OWN ceiling  :374       ★ DEFAULT_JUDGE_TIMEOUT_MS — H4-5
+      ├── single-flight           :469       ★ one model call per state IN FLIGHT — W2-1
+      ├── absorbContext           :186       the lexicon-filtered, byte-capped slice
+      ├── buildState              :217       ★ the model DOES see ctx.slots → context
       ├── JevJudge.evaluate       :72        → POST api.typesafe.ai/v1/systemone
-      └── the band                :354       act|escalate|ignore → FIRE|ESCALATE|IGNORE
+      └── the band / degradation  :446/:494  act|escalate|ignore · +timeout/+fail/+no-answer/
+                                             +bad-answer via degradationOf()
       │
       ▼
 calibration.ts  thresholdFromCost :38 · precisionFromCounts :52 · derivePolicy :118
@@ -46,10 +51,20 @@ hard-deps.ts 220 L     SOLID  the register; up=5/11 on this host.
 enforcement.ts 270 L   SOLID  TSG+Abide seams; the engines NOT installed.
 jev.ts 149 L           SOLID  LIVE: probe ok=true p=0.76 @790ms; the kernel judged a
                               real claim at p=0.980 with the live model.
-fire-gate.ts 370 L     BUILT  UNWIRED. 0 call sites. The v2.1 core.
-calibration.ts 185 L   BUILT  14 cases measured; health.ok=FALSE.
-the ledger             OPEN   W1 — fire_decisions does not exist.
-the oracle             OPEN   W2 — oracle.ts does not exist; laterTruth always "unresolved".
+fire-gate.ts 590 L     WIRED  ★ the v2.1 core. The gate's OWN judge ceiling (H4-5), the
+                              single-flight cache (W2-1), the version-scoped cache key (R-D),
+                              the degradation vocabulary (degradationOf), the advisory (W3).
+                              Called by kernel-v2.ts (gate.judge ×1).
+calibration.ts 185 L   PROVEN 14 cases + the 48-fire loop run under the seed matrix;
+                              health.ok=FALSE (correct — it refuses a bar on 16 samples).
+fire-ledger.ts 590 L   WIRED  ★ W1. The §8.2 fire_decisions table + drain + withLedger.
+oracle.ts 381 L        WIRED  ★ W2. The 4 gatherers + classify + resolveAll (atomic batch).
+policy-store.ts 343 L  WIRED  ★ W5. Versioned JSON + atomic write + loud validation.
+kernel-v2.ts 571 L     WIRED  ★ W4. runKernelV2GATED — the post-detector filter. The v1.3
+                              stage machine unchanged; worstOutcome shared.
+hard-deps.ts 390 L     SOLID  the register; ★ now CORRECT about JEV (reads KEY_FILE) and L5
+                              (imports the consumer's constant). up=5/11: L5+L6+TSG+ABIDE+
+                              JEV+RSI+GI_STORE_DIR up; L1-L4 down (genuinely).
 ```
 
 ## THE PROVEN MACHINERY INVENTORY (what NOT to re-open, and why)
@@ -71,16 +86,19 @@ the oracle             OPEN   W2 — oracle.ts does not exist; laterTruth always
 ## THE OPEN ITEMS (blocker + the next attempted fix)
 
 ```
-1  W1 THE LEDGER      no blocker. src/omp/fire-ledger.ts + the DDL (blueprint S8.2).
-2  W2 THE ORACLE      no blocker; starts with the MPSE-decidable outcomes.
-3  W6 THE CALIBRATION ★ BLOCKED ON M2 — the operator's cost matrix per class.
-                      Until it arrives, derivePolicy returns calibrated=false.
-4  THE CONTAINER CT   the Phase F artifact is MISSING — the run was by hand. Re-run via
-                      the CT tool, OR record the terminal evidence as such.
-5  THE CANON DOCS     written this prep; the floors measured below.
-6  F-51               the module-instance split: measured, not root-caused.
-7  EN-041             the lineless-drop defect FIXED (23,086 edges) but the OLD store
-                      needs a re-populate to show it.
+1  W6 THE CALIBRATION ★ BLOCKED ON M2 — the operator's cost matrix. The LOOP is PROVEN
+                      (2 of 3 rules flipped calibrated=true under the seed matrix). ★ AND
+                      M2 ALONE WILL NOT SUFFICE: the theatrical class does not discriminate,
+                      and BOTH remedies are now MEASURED (option 1 evidence +0.082 · option 2
+                      question +0.322). See W6_CALIBRATION_FINDING.md.
+2  REGISTRATION       4 layers genuinely down (L1 semver/absent · L2 the au daemon is DEAD ·
+                      L3 no UA graph · L4 no c2kg tooling). L5 is UP. The ENGINES-BEFORE-
+                      REGISTRATION law blocks registering the gate until they are up.
+3  THE AUDIT GATE     ★ FAIL. Four passes, a fixed point at 19 findings each time. Every
+                      ship-ready claim is WITHHELD. RECOMMENDATION: a STANDING PROCESS,
+                      not a one-shot pre-ship gate.
+4  E1                 the oracle's engine — the operator's, v3.
+5  F-51               the module-instance split: measured, not root-caused.
 ```
 
 ## THE FULL FROZEN LIST (file:line, what is locked and why)
@@ -97,10 +115,14 @@ src/omp/populate.ts:21                   "There is NO third substrate" (the F-48
 ## THE DEVIATIONS FROM DESIGN (noted, never smoothed over)
 
 ```
-· the v2.1 gate exists but is not in the call path — the blueprint's W3/W4 are UNBUILT.
-· the oracle is a seam with no implementation — laterTruth never leaves "unresolved".
-· the policy store is hardcoded (SEED_POLICY) rather than data (D026's intent).
-· the container evidence is terminal output, not the Phase F artifact.
+· ★ RESOLVED: W3/W4 ARE BUILT and the gate IS in the kernel's call path (runKernelV2Gated).
+  NOT in the LIVE TOOL path — that is the registration, blocked by the engines law.
+· ★ RESOLVED: the oracle IS implemented (oracle.ts) and resolves laterTruth through the
+  ledger; its truth source for the W6 run was the CORPUS LABELS, not organic downstream
+  evidence — the organic resolution rate stays unmeasured and is named as such.
+· ★ RESOLVED: the policy store IS data (policy-store.ts + policies.json) — D026 honoured.
+· ★ RESOLVED: the Phase F artifact EXISTS (.trident/container-test-results.json) — its own
+  method.honestScope names it the BATTERY run, not the scenario-driver Phase F.
 · no Effect-TS harness: the script tests are bun:test with real modules + real stores
   (the observation-channel discipline holds; the Effect wrapper is not used).
 · the register is up=5/11 — the six layers are DESIGNED, one (graphify) is POPULATED.

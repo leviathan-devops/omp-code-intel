@@ -164,8 +164,11 @@ export function keyFileComponent(
       try {
         const st = fs.statSync(keyFile);
         if (st.isFile() && st.size > 0) {
-          // the VALUE is never read and never reported — only its presence and length
-          return { up: true, evidence: `${keyFile} present (len=${st.size})` };
+          // ★ PASS-5 MED — PRESENCE, NOT SIZE. The value is never read; the first version
+          //   also reported its LENGTH (`len=107`), and a key's length narrows the search
+          //   space. "present (non-empty)" carries the same operational fact — the key is
+          //   there and usable — without the side channel.
+          return { up: true, evidence: `${keyFile} present (non-empty)` };
         }
         if (st.isFile() && st.size === 0) {
           return { up: false, evidence: `${keyFile} (EMPTY — 0 bytes)` };
@@ -175,7 +178,7 @@ export function keyFileComponent(
         // the file is absent — but an explicitly-passed env key is still a valid source
         const v = env[envName];
         return v !== undefined && v.length > 0
-          ? { up: true, evidence: `${keyFile} ABSENT but ${envName} present (len=${v.length})` }
+          ? { up: true, evidence: `${keyFile} ABSENT but ${envName} present (non-empty)` }
           : { up: false, evidence: `${keyFile} ABSENT and ${envName} unset` };
       }
     },
@@ -220,12 +223,23 @@ export function liveSocketComponent(
         // a non-Linux host cannot answer the liveness question — say so rather than guess
         return { up: false, evidence: `${socketDir}: ${names.length} socket file(s) but /proc/net/unix is unreadable — liveness UNVERIFIABLE (a socket file is not a listener)` };
       }
+      // ★ PASS-5 HIGH — EXACT TOKEN MATCH, NOT A SUBSTRING. `table.includes(full)` would
+      //   report UP on a PARTIAL/PREFIX match — a socket named `.../abc.sock` would be
+      //   "listening" because `.../xabc.sock` appears in the table. The kernel's table is
+      //   whitespace-delimited with the path LAST, so the comparison is exact equality of
+      //   the final token.
+      const listeningPaths = new Set(
+        table.split("\n").map((line) => {
+          const parts = line.trim().split(/\s+/);
+          return parts[parts.length - 1] ?? "";
+        }),
+      );
       for (const n of names) {
         // ★ `join` in this module is a LOCAL helper inside `buildRegister` (line ~295),
         //   invisible at module scope — my first version of this component called it and
         //   the probe returned "join is not defined" at RUNTIME (the register caught it).
         const full = socketDir + "/" + n;
-        if (table.includes(full)) {
+        if (listeningPaths.has(full)) {
           return { up: true, evidence: `${full} is LISTENING (per /proc/net/unix)` };
         }
       }
