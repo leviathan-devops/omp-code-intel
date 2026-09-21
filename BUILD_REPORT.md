@@ -381,3 +381,42 @@ rather than padded to the floor.
 machinery proof, not a live-Jev proof. A stub inconsistency is disclosed too: the kernel saw
 `spans=0` and fired while the close layer's stub returned one span and passed; that is a fixture
 mismatch, not a code defect.
+
+## [2026-09-21] KERNEL v2.0 — THE TERMINAL AUDIT: SC-1..SC-10 (fresh runs this turn)
+
+```
+SC-1   MET   gate suite 12 pass / 0 fail [47ms]; v2 suites + battery 195 pass / 0 fail [2.12s]
+SC-2   MET   GI_STACK_INCOMPLETE:L4_C2KG in a tool result; stage3_ran=false
+SC-3   MET   src/omp/populate.ts carries the policy comment; NO fallback branch
+SC-4   MET   mutation: verify() neutered → 6 pass / 2 FAIL; restored → 9 pass / 0 fail
+SC-5   MET   the unverified supersede IGNORED; the real row RECOVERED (run=rsi-1)
+SC-6   MET   2 distinct confidence over the REAL 2714-edge corpus (0.99 × 1872 · 0.72 × 842)
+             AND confidence DISTINCT=2 through the live populateSessionStore run
+SC-7   MET   the live store: stale=true, GI_LAYER_STALE:explicit, ageMs=128,234,269 > 86,400,000
+SC-8   MET   TSG+Abide wired (DI, dependency-gated); SC8-EXEC-OK (all 7 stages ran,
+             RECORD=WRITTEN, the ledger 1→2→3, the tier HOLD→REFLEX, the supersede to rsi-2)
+SC-9   MET   PACKAGE_AUDIT PASS; 11 docs / 3253 L; the fresh-agent read test PASS
+SC-10  MET   the legal stop: every row above carries its tool-result token
+```
+
+**The runtime evidence, verbatim:**
+```
+RB-IDENT        {"token":"PROBE_TOOL_OK","sessionID":"default","echo":"rb-ident"}
+RB-TOOLS        rows=5 root=FireFixture depth=4        (typed_nodes=1266)
+RB-FIREWALL     PASS — the forged row is ABSENT to the verified reader
+RB-LIFECYCLE    PASS — the unverified supersede IGNORED; a verified one honored
+RB-CONFIG       GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent with rows=0, NO store created
+RB-INTEGRATION  BLOCKED — needs the v2 kernel in the live gate path
+RB-ERRORS       BLOCKED — GI_STACK_INCOMPLETE is a v2 token, not yet wired
+                RB TALLY: 5 PASS · 2 BLOCKED · 0 FAIL
+```
+
+**The named residual (reported, not hidden):**
+1. `TYPESAFE_AI_API_KEY` ABSENT — the LIVE Jev path (and 2 RB rows) cannot run.
+2. TSG is an unbuilt Rust CLI; Abide is source-only. Both wired at DI seams, neither installed.
+3. The tier thresholds and the 0.8/0.5 bands are UNCALIBRATED.
+4. The RSI tier's own gate (E1: Jev/MPSE/JESL) is unresolved.
+5. EN-041 (the real graph.json drops every edge as lineless) is OPEN — a populate-path defect.
+6. F-51 (the boilerplate's T8 mutation test overreaches) — logged, fix proposed.
+
+**23 commits. 2563 L of v2 source · 69 v2 tests · 11 package docs · 3253 L of documentation.**

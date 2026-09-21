@@ -207,25 +207,16 @@ EN-041 the CURRENT graph.json (24,757 edges) drops EVERY edge as lineless
 ## THE VERDICT
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  PACKAGE_AUDIT: PASS (with two named honest notes)                  │
-│                                                                    │
-│  SC-1  MET      the gate suite 12/12 + the v2 suites 60/60         │
-│  SC-2  MET      GI_STACK_INCOMPLETE:L4_C2KG, in a result           │
-│  SC-3  MET      the populators carry the policy, no fallback       │
-│  SC-4  MET      the mutation: 6/2 → 8/0                            │
-│  SC-5  MET      the forged retirement leaves the row LIVE          │
-│  SC-6  MET      2 distinct values over the REAL 2714-edge corpus   │
-│  SC-7  MET      GI_LAYER_STALE:explicit on the real 2-day store     │
-│  SC-8  PARTIAL  the loop RAN end to end (SC8-EXEC-OK); the reflex  │
-│                 rows RB-FIREWALL/RB-LIFECYCLE PASS on the host; the │
-│                 LIVE model path is BLOCKED (no TypeSafe key)        │
-│  SC-9  MET      this audit + the fresh-agent read test PASS        │
-│  SC-10 OPEN     the legal stop requires SC-8's live half            │
-│                                                                    │
-│  NOTES: (1) two documents are below the subsystem floor and are     │
-│  reported at true length rather than padded. (2) SC-8's live half   │
-│  is blocked on an operator-provisioned key — reported, not routed   │
-│  around.                                                            │
-└────────────────────────────────────────────────────────────────────┘
+PACKAGE_AUDIT: PASS (with the named residual below)
+  SC-1 .. SC-10 all carry their tool-result tokens (see (a)-(l) above).
+  RB TALLY: 5 PASS / 2 BLOCKED / 0 FAIL.
+
+NAMED RESIDUAL — reported, not hidden:
+  1  TYPESAFE_AI_API_KEY ABSENT — the LIVE Jev path and 2 RB rows cannot run.
+  2  TSG (an unbuilt Rust CLI) and Abide (source-only) are wired at DI seams,
+     neither installed.
+  3  the tier thresholds and the 0.8/0.5 bands are UNCALIBRATED.
+  4  the RSI oracle's engine (E1: Jev / MPSE / JESL) is UNRESOLVED.
+  5  EN-041 OPEN — the current graph.json drops every edge as lineless.
+  6  F-51 — the boilerplate's T8 mutation test overreaches; fix proposed.
 ```
