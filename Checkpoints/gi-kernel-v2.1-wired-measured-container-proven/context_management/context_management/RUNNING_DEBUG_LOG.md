@@ -363,3 +363,30 @@
 - ★★ DEFECT 3, **FOUND BY THE CONTAINER**: the new suite hard-codes the HOST path to the corbell venv (`/home/leviathan/corbell-venv/bin/python`), so all three tests FAILED in a clean container. **THE SAME CLASS AS THE REGISTER'S HOST-PINNED ABIDE/RSI PATHS** that produce the container's +6 delta.
   FIX: the dependency is NAMED by a test that runs everywhere, and the three extractor tests SKIP with the reason stated — **BLOCKED, never silently passed** (the pin's law). MEASURED: container = 339 tests, **3 skip / 0 fail**.
 - EVIDENCE: 339/0/1206/32 host · 339 (3 skip) / 0 fail / 1199 container · tsc 191 == baseline · 4 new tests pinning the extractor's contract (the four kinds, the self-reference guard, the closure visibility, the named runtime dependency).
+
+## [2026-09-22T03:00:00] — EN-083 ★★★ P2 BUILT: THE EVIDENCE PRODUCER — THE ORACLE'S MISSING INPUT
+- WHAT SHIPPED: `src/omp/evidence-producer.ts` — the missing constructor for `OutcomeRecord`. 11 tests, including THE ORGANIC RESOLUTION GATE.
+- ★ THE OPERATOR'S OWN ANSWER, EXECUTED: "the oracle needs a DOWNSTREAM-EVIDENCE PRODUCER; the producer is the gate, the engine" — and "CODE THIS PROEPRLY". The four emissions, each from its own source:
+    kind:"edit"      a later edit to the fired target    ← the session's own tool events, OR THE GRAPH
+    kind:"test"      a verify run after the fire (+passed) ← the shell events, matched by a DECLARED command shape
+    kind:"withdraw"  a retraction WITH a bound span       ← SUPPLIED (only the claimant has the span)
+    kind:"permit"    a downstream gate's permission       ← SUPPLIED (another system's verdict)
+- ★★ THE ORGANIC RESOLUTION GATE IS MET (`test_organic_resolution`): a fire → the session edits the SAME target → a test FAILS → the producer emits → the records are PERSISTED → `resolveAll` reads them BACK FROM DISK and the row flips to `confirmed`. **NO LABEL ANYWHERE IN THE PATH.** That is the first organic resolution in this project's history; every prior one was synthetic.
+- ★ THE THREE LAWS IT OBEYS: REPRODUCIBLE (NDJSON beside the ledger — a resolution is re-derived from the record, not the moment) · NEVER INVENTED (a verify run with NO verdict emits `passed` ABSENT, because emitting `true` would manufacture corroboration — the O1 fix's discipline extended to the producer) · NAMED (an unreadable graph source emits `graph:UNAVAILABLE` and DOES NOT void the event-derived records).
+- ★★ THE GRAPH AS A SOURCE, LABELLED: `laterEditFromGraph` derives "a later edit" from the structural layer's `created_run` — a file re-indexed after the fire HAS changed. It carries `by: "graph:structural"` because it proves the FILE changed, not that the edit was a REPAIR. **A WEAKER FACT MUST NOT LOOK LIKE A STRONGER ONE.**
+- ★ AND THE WIRING (the pin's own UNWIRED-KERNEL anti-pattern): `resolveFromSession(ledger, events, opts)` — ONE CALL resolves EVERY unresolved row in a ledger from the session's own operation, and it REPORTS what it could not do (`noSubject` — a fire with no target mapping is NAMED; `noEvidence` — silence is COUNTED, not a failure). Without it the producer would be a library with no caller.
+- EVIDENCE: 11/0/40 producer tests · 350/0/1246 full battery · container 350 (3 skip)/0 fail · tsc 191.
+
+## [2026-09-22T02:50:00] — EN-084 ★ THE SECOND SHADOWING DEFECT THIS SESSION: a parameter named `path`
+- SYMPTOM: `TypeError: path.dirname is not a function` on the first run of the producer's suite.
+- ROOT CAUSE: `persistRecords(path: string, …)` — **THE PARAMETER SHADOWED THE `node:path` IMPORT.** Inside the function, `path` was the caller's STRING.
+- ★ IT IS THE SAME CLASS AS EN-068's `join`: hard-deps.ts called a `join` that was a FUNCTION-LOCAL helper shadowing the concept, and here a PARAMETER shadows a MODULE. **A name that collides with an import is a bug the compiler catches only sometimes** — `string.dirname` IS a type error here, and the `join` case was NOT (the local helper had a compatible signature).
+- FIX: the parameters are `recordsPath`.
+- LESSON: before naming a parameter, ask whether the name is already bound in the module scope. The compiler is an unreliable guard for this class.
+
+## [2026-09-22T03:10:00] — EN-085 ★ AN UNIDENTIFIED, UNREPRODUCED FAILURE — RECORDED, NOT EXPLAINED AWAY
+- SYMPTOM: the combined battery reported **350 pass / 1 fail** on the run that followed the P2 commit. The IMMEDIATE re-run: **350 pass / 0 fail**.
+- CHARACTERISATION, MEASURED: five consecutive re-runs, all 350/0. The flake is RARE (~1 in 7 combined runs observed) and **NOT REPRODUCED**.
+- ★★ AND THE FAILING TEST WAS NEVER NAMED. The run's output did not identify which test failed — so this is not merely an unreproduced failure, it is an **UNATTRIBUTED** one. Both suites pass individually (tests/ alone: 0 fail; src/hydra/__tests__/ alone: 39 pass / 0 fail), so if it is real it is a CROSS-SUITE INTERACTION — and it cannot be chased without a name.
+- ★ THE HONEST STATE: **a residual, NOT a pass.** The pin's law: an unreproduced failure is named, never absorbed. What is named here: the RATE (~1 in 7), the ENVIRONMENT (host, combined run only — the container has shown no such failure), the ABSENCE of attribution, and the NEXT ACTION (capture the full output on the next occurrence and read the failing test's name from it).
+- ★ AND THIS IS THE SECOND FLAKE THIS SESSION (the first: EN-067's turn, a container 299/1 that did not reproduce). TWO unreproduced failures in one session, both in COMBINED runs, neither attributed. **A pattern worth watching is not yet a pattern worth claiming.** Logged as such.

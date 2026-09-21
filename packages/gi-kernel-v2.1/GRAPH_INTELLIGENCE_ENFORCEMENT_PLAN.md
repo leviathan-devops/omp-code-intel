@@ -62,7 +62,7 @@ LAYER 3 — THE ONLY STRUCTURAL DETECTOR IN THE LOOP IS A MODEL PAID PER FILE.
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
 │  P1  THE GRAPH-FACT SETTLEMENT LAYER      ★ BUILT (a9a7a99) — src/omp/graph-facts.ts   │
 │  P3  THE CONSULT-PATH FRESHNESS GATE      ★ BUILT (same commit) + the provenance fix    │
-│  P2  THE EVIDENCE PRODUCER               the oracle's missing input                    │
+│  P2  THE EVIDENCE PRODUCER               ★ DONE (be41822) — WIRED via resolveFromSession │
 │  P4  CLOSURE-LEVEL INDEXING               ★ DONE (5771099) — the kernel's OWN extractor │
 │  P5  THE SELF-AUDIT                       the kernel checks its own author               │
 └───────────────────────────────────────────────────────────────────────────────────────┘
@@ -295,4 +295,68 @@ P5  THE SELF-AUDIT           the process rules + a violation counter.
 ★ AND CORBELL ITSELF         the kernel no longer BLOCKS on it for the four kinds; it still
                              depends on it for `calls` (M-GRAPH-4's predicate) and for the
                              method graph. Two layers, one store, distinct layer_ids.
+```
+
+
+---
+
+# ★★★ P2 — CLOSED (be41822): THE ORACLE'S INPUT EXISTS, AND THE FIRST ORGANIC RESOLUTION RAN
+
+```
+WHAT SHIPPED:  src/omp/evidence-producer.ts (11 tests) + resolveFromSession (the orchestrator)
+
+THE FOUR EMISSIONS, each from its own source:
+  kind:"edit"      a later edit to the fired target    ← the session's tool events, OR THE GRAPH
+  kind:"test"      a verify run after the fire (+passed) ← shell events, matched by a DECLARED
+                                                          command shape (never a guess)
+  kind:"withdraw"  a retraction WITH a bound span       ← SUPPLIED (only the claimant has it)
+  kind:"permit"    a downstream gate's permission       ← SUPPLIED (another system's verdict)
+
+★★ THE ORGANIC RESOLUTION GATE — MET:
+   a fire → the session edits the SAME target → a test FAILS → the producer emits →
+   the records are PERSISTED → resolveAll reads them BACK FROM DISK → the row flips to
+   confirmed. NO LABEL ANYWHERE IN THE PATH.
+   ★ THE FIRST ORGANIC RESOLUTION IN THIS PROJECT'S HISTORY. Every prior one was synthetic
+     (the W6 corpus labels; the hot seat's hand-built edits) — and a precision computed from
+     labels is a measurement of the labels.
+
+THE THREE LAWS IT OBEYS:
+  REPRODUCIBLE    NDJSON beside the ledger — a resolution is re-derived from the RECORD,
+                  not re-guessed from the session that produced it
+  NEVER INVENTED  a verify run with NO verdict emits `passed` ABSENT — emitting `true` would
+                  MANUFACTURE corroboration (the O1 fix extended to the producer)
+  NAMED           an unreadable graph source emits `graph:UNAVAILABLE` and does NOT void the
+                  event-derived records
+
+★★ THE GRAPH AS A LABELLED SOURCE: laterEditFromGraph derives "a later edit" from the
+   structural layer's `created_run` — a file re-indexed after the fire HAS changed. It carries
+   `by: "graph:structural"` because it proves the FILE changed, not that the edit was a
+   REPAIR. **A WEAKER FACT MUST NOT LOOK LIKE A STRONGER ONE.**
+
+★ AND THE WIRING — THE PIN'S OWN UNWIRED-KERNEL ANTI-PATTERN: `resolveFromSession(ledger,
+  events, opts)` resolves EVERY unresolved row in ONE call and REPORTS what it could not do
+  (`noSubject` NAMED · `noEvidence` COUNTED). Without it the producer would be a library with
+  no caller.
+```
+
+## THE PLAN'S REMAINING WEIGHT
+
+```
+P5  THE SELF-AUDIT      the process rules + a violation counter.
+★ E1 (the oracle's ENGINE)  now correctly scoped: the PRODUCER is the gate (built), the
+  ENGINE is the refinement. An engine would adjudicate AMBIGUOUS evidence; the evidence now
+  EXISTS to adjudicate.
+★ CORBELL                still depended on for `calls` and the method graph — two layers,
+  one store, distinct layer_ids.
+```
+
+## ★ AND TWO FLAKES, RECORDED NOT EXPLAINED
+
+```
+EN-085  an UNIDENTIFIED, UNREPRODUCED failure: 350/1 once, then FIVE consecutive 350/0.
+        The failing test was NEVER NAMED — so if it is real it is a cross-suite interaction
+        that cannot be chased without a name. RATE ~1 in 7 combined runs. RESIDUAL, not a pass.
+★ AND THIS IS THE SECOND FLAKE THIS SESSION (the first: a container 299/1 that did not
+  reproduce). TWO unreproduced failures, both in COMBINED runs, neither attributed.
+  A pattern worth watching is NOT YET a pattern worth claiming.
 ```
