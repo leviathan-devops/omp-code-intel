@@ -92,6 +92,15 @@ T-6 ← W9 ← all of the above
      INSTRUCTION. The other two carry the DISCRIMINATOR in their evidence.
   ★★ CONCLUSION: THE COST MATRIX CANNOT FIX A NON-DISCRIMINATING CLASS. M2 is NECESSARY BUT
      NOT SUFFICIENT — a bar from the pooled 0.500 would be a guess dressed as a derivation.
+  ★★★ ADDENDUM 2 (theatrical-question-probe.ts, 20 paired fires x 2 arms): THE QUESTION
+     RE-AUTHORING IS MEASURED — gap -0.040 → +0.322, FULLY SEPARABLE (REAL min 0.82 >
+     FP max 0.70). THE COMPARISON THAT DECIDES: option 1 (evidence) gap +0.082 AND changes
+     every theatrical cache key; option 2 (question) gap +0.322, touches NOTHING. Option 2
+     dominates ~4x on effectiveness and ~0 on cost.
+     ★ CACHE-KEY CORRECTION (verified in code): buildState has NO questionVersion field —
+     the hash covers trigger+context only. A question bump does NOT change the cache key;
+     it serves OLD answers under a NEW name (R-D, pre-existing, exposed by the probe).
+     THE RULING: (1) apply option 2? (2) also option 1? (3) fix the cache/version defect?
   ★★★ THE REMEDY IS NOW MEASURED (theatrical-discriminator-probe.ts, 20 paired fires x 2 arms):
      CURRENT   (counts only)  REAL 0.406 vs FP 0.442 · gap -0.036 · NOT separable
      AUGMENTED (corroboration=present|absent)  REAL 0.490 vs FP 0.408 · gap +0.082 · ★ FULLY

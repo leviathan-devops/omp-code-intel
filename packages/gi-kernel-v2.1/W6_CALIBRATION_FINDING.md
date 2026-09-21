@@ -246,3 +246,101 @@ known in both directions: **the separation gained, the cache-key invalidation pa
    stream. THIS is the actual semantic question, and it is now the ONLY open one.
 3  ACCEPT the re-calibration cost — every theatrical cache key changes.
 ```
+
+---
+
+# ★★★ ADDENDUM 2: THE QUESTION RE-AUTHORING IS MEASURED — AND IT DOMINATES
+
+**Run:** 2026-09-21 · 20 paired fires × 2 arms · live JevJudge
+**Instrument:** `packages/gi-kernel-v2.1/tools/theatrical-question-probe.ts`
+**Report:** `packages/gi-kernel-v2.1/tools/theatrical-question-report.json`
+
+The corrected mechanism produced a SECOND remedy that "was not measured": re-author the
+question so factors (a)/(b) are DECIDABLE for this class. **It is measured now.**
+
+```
+METHOD: the SAME 20 paired fires (10 fabricated / 10 corroborated), asked TWO questions
+        through JevJudge.evaluate(state, [question]) — which takes ARBITRARY questions.
+        The state envelope (buildState) is IDENTICAL in both arms; the ONLY difference is
+        the question text. NO production code touched: no detector change, no gate change,
+        no question-version bump, no calibration invalidation.
+        ★ POLARITY PRESERVED: id stays "fire_is_real", true still means "the violation is
+          real" (the claim is FABRICATED) — an apples-to-apples comparison.
+```
+
+**THE RESULT:**
+```
+ARM: CURRENT   (fireQuestion, premise = the detector's input)
+    REAL  [0.36 .. 0.47]   mean 0.403
+    FP    [0.39 .. 0.47]   mean 0.443
+    gap -0.040 · FULLY SEPARABLE: false      ← the inversion, reproduced again
+
+ARM: VARIANT   (premise = the claim's truth — what the context CAN contradict)
+    REAL  [0.82 .. 0.90]   mean 0.851
+    FP    [0.32 .. 0.70]   mean 0.529
+    gap +0.322 · FULLY SEPARABLE: true       ← ★ REAL min 0.82 > FP max 0.70
+```
+
+## ★ THE COMPARISON THAT DECIDES THE RULING
+
+```
+                          gap      separable   touches detector?  touches gate?  cache keys?
+option 1 (evidence fix)   +0.082   yes         YES (asserts it)   no             ALL theatrical keys change
+option 2 (question fix)   +0.322   yes         NO                 NO             UNCHANGED (see below)
+```
+
+**The question fix is ~4x more effective on this corpus AND touches nothing.**
+
+## ★ THE CACHE-KEY CORRECTION (verified against the code, not the docs)
+
+The finding's addendum claimed a question re-authoring would change the cache key. **That is
+FALSE.** `buildState` (fire-gate.ts:217-230) contains NO `questionVersion` field — the hash
+covers `trigger` + `context` only. `questionVersion` rides the LEDGER ROW, not the state:
+
+```
+stateHash = sha256(trigger + context)          ← the CACHE key: question-independent
+row.questionVersion = QUESTION_VERSION         ← the LEDGER row: question-recorded
+```
+
+The blueprint's line — "a question edit is a NEW INSTRUMENT" — is TRUE for calibration
+(the row records which question produced the probability, so re-derivation is attributed
+correctly) and FALSE for the cache (the same state re-judged under a new question would
+return the OLD cached probability). **That is a SECOND defect the probe exposed by
+accident:** bump `QUESTION_VERSION` without clearing the cache and the new question never
+fires — the old answers are served under the new name. Recorded as a residual below.
+
+## ★ WHAT THIS DOES NOT PROVE (stated, not glossed)
+
+```
+· n=20 (10 per class) — one corpus, one model, one run
+· the FP spread under the variant is WIDE (0.32–0.70): the mean moved, but 3 of 10 FPs
+  still score ≥0.59. The separation is clean (min REAL 0.82 > max FP 0.70) but the FP
+  band is not tight — a harder corpus could close the gap
+· the variant was asked on theatrical fires ONLY; its effect on the dumb/destructive
+  classes is unmeasured (the question is shared — fireQuestion() has no per-class variant)
+· the variant question has NOT been through the red-team corpus or the audit passes
+```
+
+## THE RULING REQUESTED (now fully measured on both sides)
+
+```
+1  APPLY the question re-authoring (option 2)? Measured: gap −0.040 → +0.322, separable,
+   no detector change, no gate change, no cache-key change.
+2  ALSO apply the evidence augmentation (option 1)? Measured: gap −0.040 → +0.082. It is
+   weaker AND costlier (every theatrical cache key changes). The measurement says option 2
+   dominates it — unless the operator wants belt-and-suspenders with the invalidation cost.
+3  FIX the cache-key/question-version defect the probe exposed: either include the question
+   version in the state hash (a question edit genuinely becomes a new instrument), or
+   clear the cache on a version bump. Currently a bump serves OLD answers under a NEW name.
+```
+
+## RESIDUALS NAMED BY THIS PROBE
+
+```
+R-A  the variant's FP spread (0.32–0.70) is wide — 3 of 10 FPs score ≥0.59. A harder corpus
+     (corroboration that is partial, stale, or itself disputed) could close the 0.12 margin.
+R-B  the variant is unmeasured on dumb/destructive — the question is shared.
+R-C  the variant has not been red-teamed or audited.
+R-D  ★ the cache serves OLD answers under a NEW question version (see above). Pre-existing,
+     exposed by the probe, not caused by it.
+```
