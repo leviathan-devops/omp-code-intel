@@ -27,7 +27,8 @@ MISSION     persist every fire so it can be calibrated and audited
 READ FIRST  src/omp/fire-gate.ts (DecisionRow) · the blueprint §8.2
 KNOWN STATE the gate exists and is unwired; no ledger table exists
 TASKS       the fire_decisions table · the append · the indices
-CONSTRAINTS laterTruth defaults 'unresolved' · the append is never an update
+CONSTRAINTS laterTruth defaults 'unresolved' · the append is never an
+  update
 VERIFICATION T9 green + a live row query
 RETURN      the schema + a live row, pasted
 STOP        every fire leaves a row and the row is queryable
@@ -36,10 +37,12 @@ STOP        every fire leaves a row and the row is queryable
 ### D2 · THE ORACLE DESK
 ```
 MISSION     fill laterTruth from the downstream evidence — never guess
-READ FIRST  RSI_ARCHITECTURE_v1.md §4 (the oracle's design) · the blueprint §9.3
+READ FIRST RSI_ARCHITECTURE_v1.md §4 (the oracle's design) · the blueprint
+  §9.3
 KNOWN STATE the oracle has never scored a real firing
-TASKS       resolve() · the evidence gatherers · confirmed/refuted/unresolved
-CONSTRAINTS REFUTED requires a SECOND signal, never the absence of complaint;
+TASKS resolve() · the evidence gatherers · confirmed/refuted/unresolved
+CONSTRAINTS REFUTED requires a SECOND signal, never the absence of
+  complaint;
             UNRESOLVED is EXCLUDED, never counted as confirmed
 VERIFICATION one real firing resolved with the evidence recorded
 RETURN      the resolution + its evidence, pasted
@@ -49,12 +52,14 @@ STOP        a row's laterTruth changed with the evidence attached
 ### D3 · THE GATE DESK
 ```
 MISSION     wire the gate in BOTH positions without breaking v2.0
-READ FIRST  src/omp/kernel-v2.ts:264 (runKernelV2) · the blueprint §10 W3/W4
+READ FIRST src/omp/kernel-v2.ts:264 (runKernelV2) · the blueprint §10
+  W3/W4
 KNOWN STATE grep -c "FireGate" kernel-v2.ts = 0 (unwired)
 TASKS       position A (pre-act, fail-open) · position B (post-detector)
 CONSTRAINTS the v2.0 tier ladder survives · the single call site stays 1 ·
             ENGINES BEFORE REGISTRATION
-VERIFICATION the battery 199/0 + tsc baseline + a real FIRE and a real IGNORE
+VERIFICATION the battery 199/0 + tsc baseline + a real FIRE and a real
+  IGNORE
 RETURN      the two adjudications, pasted
 STOP        grep -c "FireGate" > 0 AND both positions exercised
 ```
@@ -65,8 +70,10 @@ MISSION     the policies as versioned DATA (D026)
 READ FIRST  src/omp/fire-gate.ts:110 (Policy) · the bible D026
 KNOWN STATE the seeds are hardcoded in SEED_POLICY
 TASKS       the JSON schema · the loader · the reload-without-rebuild path
-CONSTRAINTS a policy edit changes the cache key · the basis travels with the policy
-VERIFICATION an edited JSON changes the band on a STORED probability (reroute)
+CONSTRAINTS a policy edit changes the cache key · the basis travels with
+  the policy
+VERIFICATION an edited JSON changes the band on a STORED probability
+  (reroute)
 RETURN      the before/after bands, pasted
 STOP        a policy edit lands without a rebuild
 ```
@@ -77,7 +84,8 @@ MISSION     fill M1-M12 with numbers; zero TBD
 READ FIRST  the blueprint §11 · the skill derive-runtime-measurements
 KNOWN STATE only the 14-case baseline (M1 partial, health.ok=false)
 TASKS       the instruments per row · M11's human sampling session
-CONSTRAINTS no guesses · every number cites its instrument · the delta is the finding
+CONSTRAINTS no guesses · every number cites its instrument · the delta is
+  the finding
 VERIFICATION MEASUREMENT_PLAN.md with zero TBD
 RETURN      the filled plan
 STOP        every row carries a number and its instrument
@@ -87,6 +95,8 @@ STOP        every row carries a number and its instrument
 
 ```
 · registering the gate before the engines · a chosen constant unlabelled ·
-  a global threshold across asymmetric costs · a silent pass on a missing answer ·
-  a source-file mutation as a mutation test · a host battery as a code property
+  a global threshold across asymmetric costs · a silent pass on a missing
+    answer ·
+  a source-file mutation as a mutation test · a host battery as a code
+    property
 ```

@@ -22,9 +22,11 @@
 ## THE THREE THAT DECIDE EVERYTHING
 
 ```
-M1   THE CURVE          the instrument exists; it needs 50 firings through a wired path
+M1 THE CURVE the instrument exists; it needs 50 firings through a wired
+  path
 M2   THE COST MATRIX    ★ YOURS — every derived threshold waits on it
-M11  THE FALSE NEGATIVES ★ the class nobody measures, because an ignored fire leaves
+M11 THE FALSE NEGATIVES ★ the class nobody measures, because an ignored
+  fire leaves
                           no trace except an IGNORE row
 ```
 
@@ -32,17 +34,20 @@ M11  THE FALSE NEGATIVES ★ the class nobody measures, because an ignored fire 
 
 ```
 ~50 fires ≈ $0.003 + one question to the operator.
-The remaining rows (M4-M10, M12) are counters over rows that already exist once W1 lands.
+The remaining rows (M4-M10, M12) are counters over rows that already exist
+  once W1 lands.
 ```
 
 ## THE METHOD (per row, the skill's 7 steps)
 
 ```
-1 NAME IT as an answerable question         ("what is the cache hit rate?" not "is it fast")
-2 THE DENOMINATOR                           (hits/total FIRES, not hits/total calls)
-3 THE INSTRUMENT                            (a counter over the ledger — code, not prose)
-4 RUN ON REAL DATA + PASTE                  (a wired session, the raw rows)
-5 CONFRONT WITH THE ASSUMPTION              (the bible says 60-80% for the cache — is it?)
-6 DERIVE, DON'T CHOOSE                      (the number comes from the counter)
-7 RECORD + THE COST OF ERROR                (a wrong cache expectation costs re-pays)
+1 NAME IT as an answerable question ("what is the cache hit rate?" not "is
+  it fast")
+2 THE DENOMINATOR (hits/total FIRES, not hits/total calls)
+3 THE INSTRUMENT (a counter over the ledger — code, not prose)
+4 RUN ON REAL DATA + PASTE (a wired session, the raw rows)
+5 CONFRONT WITH THE ASSUMPTION (the bible says 60-80% for the cache — is
+  it?)
+6 DERIVE, DON'T CHOOSE (the number comes from the counter)
+7 RECORD + THE COST OF ERROR (a wrong cache expectation costs re-pays)
 ```

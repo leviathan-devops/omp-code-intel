@@ -3,22 +3,25 @@
 ## THE LANDING ZONE
 
 ```
-repo      /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+repo /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
 branch    jarvis/gi-main · HEAD 89e86b8 (the blueprint commit)
 runtime   bun 1.4.2 · node >= 22
-rig       stupefied_morse @ omp-ct:master  Up 4 hours (the container as host runtime)
+rig stupefied_morse @ omp-ct:master Up 4 hours (the container as host
+  runtime)
 ```
 
 ## THE MACHINERY THIS BUILD EXTENDS (measured, wc -l)
 
 ```
-src/omp/typed-write.ts   1243 L   the store: layer_id · derivation · confidence · freshness
+src/omp/typed-write.ts 1243 L the store: layer_id · derivation ·
+  confidence · freshness
 src/omp/kernel-v2.ts      390 L   STAGE 0..6 + the three detectors
 src/omp/rsi.ts            448 L   the reflex store + VERIFIED RETIREMENT
 src/omp/hard-deps.ts      220 L   the dependency register (no fallbacks)
 src/omp/enforcement.ts    270 L   TSG + Abide, the two-layer kernel
 src/omp/jev.ts            149 L   the live Jev client (the real endpoint)
-src/omp/fire-gate.ts      370 L   THE FIRING-TIME DECISION KERNEL (v2.1's core, built)
+src/omp/fire-gate.ts 370 L THE FIRING-TIME DECISION KERNEL (v2.1's core,
+  built)
 src/omp/calibration.ts    185 L   THE DERIVATION MACHINERY (built)
 ────────────────────────────────
                         3275 L   the v2.0+v2.1 source delta
@@ -57,7 +60,8 @@ the paragon bat.  17 pass / 0 fail / 51 expect
 ok=false  up=5/11  first=GI_LAYER_SEMANTICA
   DOWN L1_SEMANTICA · L2_ARSUMBRIS · L3_UA · L4_C2KG · L5_CORBELL (ENOENT)
   UP   L6_GRAPHIFY · TSG · ABIDE · RSI_STORE · GI_STORE_DIR
-  DOWN JEV   (TYPESAFE_AI_API_KEY — present at ~/.config/typesafe/key mode 0600,
+  DOWN JEV (TYPESAFE_AI_API_KEY — present at ~/.config/typesafe/key mode
+    0600,
               NOT exported into the ambient env; the run shim sources it)
 ```
 
@@ -68,10 +72,11 @@ host.** The wiring order is load-bearing (the blueprint's §13 residual #6).
 ## THE MEASUREMENT BASELINE (the 14-case run, EN-047)
 
 ```
-/tmp/jev-fire-measurement.json   bestT=0.40 · bestF1=0.933 · health.ok=false
+/tmp/jev-fire-measurement.json bestT=0.40 · bestF1=0.933 · health.ok=false
 real violations  n=7 mean P=0.581 min=0.490
 false positives  n=7 mean P=0.253 max=0.530
-★ the seeds (0.90/0.75/0.85) were ~2x too high; the act band fired ZERO times.
+★ the seeds (0.90/0.75/0.85) were ~2x too high; the act band fired ZERO
+  times.
 ```
 
 ## THE BLUEPRINT (Step 4 — EXISTS, 862 L)
@@ -85,33 +90,45 @@ packages/gi-kernel-v2.1/GI_KERNEL_V2.1_MASTER_BLUEPRINT_v1.md
 ## THE CONTAINER HERITAGE (what the container already taught, EN-046)
 
 ```
-· the hydra batteries READ a host-only /tmp/fx383 fixture and never created it
+· the hydra batteries READ a host-only /tmp/fx383 fixture and never
+  created it
   → FIXED with the idempotent ensureFx383() helper
-· the w7 suite's GO_KEYS depended on the AMBIENT env (an ESM-hoisting trap)
+· the w7 suite's GO_KEYS depended on the AMBIENT env (an ESM-hoisting
+  trap)
   → FIXED with a beforeEach re-pinning the env + reloadGoKeys()
-· the container then read 199 pass / 0 fail with a clean /tmp and no ambient keys
+· the container then read 199 pass / 0 fail with a clean /tmp and no
+  ambient keys
 ```
 
 ## VARIANT LINEAGE
 
 ```
-no competing variants — the v2.1 modules are new this session. The v2.0 package
-(packages/gi-kernel-v2/, 3246 L) is the direct predecessor and is carried as context.
-The v1.3 lineage remains sealed in SHIP_PACKAGES/Graph_Intel_v1.3 (dist 83eb7bba).
+no competing variants — the v2.1 modules are new this session. The v2.0
+  package
+(packages/gi-kernel-v2/, 3246 L) is the direct predecessor and is carried
+  as context.
+The v1.3 lineage remains sealed in SHIP_PACKAGES/Graph_Intel_v1.3 (dist
+  83eb7bba).
 ```
 
 ## CONSTRAINTS DISCOVERED (each cost a round this session)
 
 ```
-· openTypedStore REFUSES a symlinked store path; the session-path regex needs
-  /sessions/[A-Za-z0-9_-]{8,24}/store.sqlite — fixtures must use sessionStorePath()
-· applyTypedDdl's error contract is TESTED with a run-only db double: a new step that
+· openTypedStore REFUSES a symlinked store path; the session-path regex
+  needs
+  /sessions/[A-Za-z0-9_-]{8,24}/store.sqlite — fixtures must use
+    sessionStorePath()
+· applyTypedDdl's error contract is TESTED with a run-only db double: a
+  new step that
   introspects must REPORT a skip rather than throw
-· bun:sqlite returns snake_case; a camelCase domain type needs an explicit mapper
-· a SOURCE-FILE mutation is not a valid mutation method on the paragon package (the
+· bun:sqlite returns snake_case; a camelCase domain type needs an explicit
+  mapper
+· a SOURCE-FILE mutation is not a valid mutation method on the paragon
+  package (the
   module-instance split, F-51) — mutate the SEAM at runtime
 · docker cp of a directory NESTS it; use the trailing /. to copy contents
-· the graphify freshness probe compares a sidecar the BUILD never wrote → the build
+· the graphify freshness probe compares a sidecar the BUILD never wrote →
+  the build
   must mark its own output fresh (EN-043)
 ```
 

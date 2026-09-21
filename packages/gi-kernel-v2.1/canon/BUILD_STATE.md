@@ -13,7 +13,8 @@ the baseline at session start  c9bff81a56dc5bc5d5740623038d34507f6ab890
 ## THE MODULE INVENTORY (measured, wc -l)
 
 ```
-typed-write 1243 · kernel-v2 390 · rsi 448 · hard-deps 220 · enforcement 270 ·
+typed-write 1243 · kernel-v2 390 · rsi 448 · hard-deps 220 · enforcement
+  270 ·
 jev 149 · fire-gate 370 · calibration 185 = 3275 L
 tests: 6 files, 1050 L, 65 tests
 ```
