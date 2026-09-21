@@ -124,7 +124,7 @@ the package documents require nothing outside this directory to be READ.
 ```
 RB-IDENT passToken: graph-probe returns PROBE_TOOL_OK + the session id
               MEASURED (a real xd:// tool result):
-                  {"token":"PROBE_TOOL_OK","sessionID":"default","echo":"rb-ident"}
+                    {"token":"PROBE_TOOL_OK","sessionID":"default","echo":"rb-ident"}
               VERDICT: PASS
 
 RB-CONFIG     passToken: a missing store dir emits GI_POPULATE_FAILED
