@@ -226,6 +226,19 @@ export class FireLedger {
     return out;
   }
 
+  /** ★ THE LIVE TRUTH, read from the TABLE. The resolver MUST consult this and
+   *  not the caller's row object: a caller holding rows from an earlier
+   *  `all()` is holding a SNAPSHOT, and resolving against a snapshot re-stamps
+   *  decisions (found by W2's skip test — a second pass re-resolved an
+   *  already-confirmed row). The ledger is the only authority on truth. */
+  truthOf(stateHash: string): DecisionRow["laterTruth"] | null {
+    const r = this.db
+      .query(`SELECT later_truth FROM fire_decisions WHERE state_hash = ?1 ORDER BY id DESC LIMIT 1`)
+      .get(stateHash) as { later_truth: string } | null;
+    if (r === null) return null;
+    return r.later_truth as DecisionRow["laterTruth"];
+  }
+
   /** The live columns, read from the DB itself (not from the constant) — the
    *  DDL-consistency test compares the two. */
   columns(): string[] {

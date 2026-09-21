@@ -50,9 +50,12 @@ T-6 ← W9 ← all of the above
   DONE-SEAM: drain() (identity watermark) + withLedger() (Proxy) — ZERO edits to fire-gate.ts
   EVIDENCE: 7/0/36 · battery 206/0/737/21 (199/0/701/20 +7 tests no regressions) · tsc 191 (0 new)
             · all 5 named selectors pass scoped · derivePolicy calibrated=true AND health.ok=true
-### W2 — THE ORACLE  src/omp/oracle.ts  [depends: W1]  ☐
-  Deliverable: laterTruth resolution (4 evidence gatherers → confirmed|refuted|unresolved)
-  Gate: one fire resolved · test_oracle_resolves
+### W2 — THE ORACLE  src/omp/oracle.ts  [depends: W1]  ✅ CLOSED
+  Deliverable: laterTruth resolution (4 gatherers → confirmed|refuted|unresolved) + FireLedger.truthOf (W2-driven amendment)
+  Gate: one fire resolved · test_oracle_resolves ✓
+  EVIDENCE: 12/0/37 · battery 218/0/774/22 (W1 was 206/0/737/21 → +12 tests, no regressions) · tsc 191 (0 new)
+            ★ FOUND A REAL DEFECT: resolveAll trusted the caller's stale row (EN-052) — now reads LIVE truth
+            ★ THE SPEC GAP NAMED: §8.2 has no target/tool column, so resolveAll takes the subject explicitly
 ### W3 — POSITION A  src/omp/fire-gate.ts (intent path)  [depends: W1]  ☐
   Deliverable: the pre-act advisory (fail-OPEN)
   Gate: an advisory fires · test_advisory_open
@@ -79,7 +82,8 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
 | wave | claimed | re-run by orchestrator | verdict |
 |---|---|---|---|
 | W1 | 7/0/36 · 206/0/737/21 · tsc 191 | battery 206/0/737/21 ✓ · tsc 191 ✓ · 5 named selectors ✓ · derivePolicy+health ✓ | **CLOSED** |
-| W2 | — | — | OPEN |
+| W2 | 12/0/37 · 218/0/774/22 · tsc 191 | battery 218/0/774/22 ✓ · tsc 191 ✓ · test_oracle_resolves ✓ | **CLOSED** |
+| W3 | — | — | OPEN |
 
 ## HARD STOPS ACTIVE
 - M2 (the cost matrix) — OPERATOR-OWNED. Blocks W6 only. W1/W2/W3/W5 build regardless.

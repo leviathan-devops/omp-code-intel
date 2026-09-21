@@ -33,3 +33,31 @@
 - FIX: file-scope the selector — `bun test -t <name> ./tests/<file>.test.ts` → 1 pass / 6 filtered out / 0 fail.
 - LESSON: the pin's G3 form (`bun test -t <selector>`) must be FILE-SCOPED or its output is noise that can hide a real failure among unrelated load errors. Recorded for every wave's named-test evidence.
 - EVIDENCE: unscoped 1 pass/68 fail → scoped 1 pass/0 fail/6 filtered out
+
+## [2026-09-21T12:30:00] — EN-052: resolveAll TRUSTED THE CALLER'S STALE ROW (a real history-rewriting defect)
+- SYMPTOM: `test_oracle_unresolved_rows_are_skipped` failed — a second `resolveAll` pass over an ALREADY-CONFIRMED row reported `resolved: 1` instead of 0.
+- ROOT CAUSE: `resolveAll` guarded on `row.laterTruth !== "unresolved"` where `row` is the CALLER'S OBJECT. The ledger updated the TABLE; the caller's snapshot still said "unresolved". So a caller holding rows from an earlier `ledger.all()` would re-resolve them — and if the evidence had changed, a CONFIRMED row could be rewritten to REFUTED. History silently rewritten by a stale in-memory copy. My own doc comment said this must not happen; the CODE did not enforce it.
+- FIX: the ledger is the authority. Added `FireLedger.truthOf(stateHash)` and `resolveAll` now reads the LIVE truth from the table. A row absent from the ledger (`null`) is SKIPPED — resolving a phantom would write a truth for a fire never recorded.
+- LESSON: a guard that reads a CALLER-PASSED COPY is not a guard — it is an honour system. When the store is the authority, EVERY check must go to the store. The adversarial test ("a resolved row is never re-judged") is what caught it; the happy path passed.
+- EVIDENCE: 6 pass/3 fail → 12 pass/0 fail; the stamp `truth_at` is now provably unchanged on a second pass
+
+## [2026-09-21T12:32:00] — EN-053: a fixture clock in the FUTURE inverted a time assertion
+- SYMPTOM: `test_oracle_resolves` failed: `expect(truthAt).toBeGreaterThan(T0)` — received 1789977241936 (~07:54Z) vs T0 = 2026-09-21T10:00Z.
+- ROOT CAUSE: T0 was set ~2h AHEAD of the machine's wall clock. `resolveAll`'s default `now()` is the REAL clock, so `truth_at` was legitimately EARLIER than the fixture's "fire time" and the assertion inverted. A fixture time running ahead of the host is a trap.
+- FIX: T0 → 2026-09-20T08:00Z (PAST), evidence stamps shifted into the (T0, T0+24h] window. ALSO: added the `GI_ORACLE_TIME_TRAVEL` guard — a resolution stamp that does not follow its fire THROWS rather than writing a truth_at before the row it resolves.
+- LESSON: a fixed clock fixture must be anchored to the PAST unless every consumer's clock is injected. The failure was in the FIXTURE, not the resolver — and it is the reason the time-travel guard now exists.
+- EVIDENCE: assertion inverted → passes; the new guard is tested by `test_oracle_no_time_travel` (throws + writes NOTHING)
+
+## [2026-09-21T12:33:00] — EN-054: dismissed evidence VANISHED from the basis
+- SYMPTOM: `test_oracle_withdrawn_needs_a_span` failed — a withdrawal WITHOUT a span produced the basis "no downstream evidence at all", which is indistinguishable from "no evidence was presented".
+- ROOT CAUSE: the "seen but rejected" records were appended to `ev.notes` (the audit trail) but the BASIS never surfaced them. A reader (or an auditor) could not tell an empty window from a window full of evidence that was thrown out.
+- FIX: `classify` now appends `(presented but dismissed: ...)` to the unresolved basis whenever records were seen and did not count. The audit trail rides the decision it explains.
+- LESSON: "no evidence" and "evidence that did not qualify" are DIFFERENT FACTS and must not render identically. This is the same class as the kernel's cap-reporting law (a cap that trims silently is a lie) and the unwired-row counter ("skipped, counted, never silent").
+- EVIDENCE: 11 pass/1 fail → 12 pass/0 fail; the basis now reads `unresolved [] — no evidence that COUNTS (presented but dismissed: withdraw @... WITHOUT a span — ignored ...)`
+
+## [2026-09-21T12:34:00] — EN-055: the graph gate blocked a NEW file write (GRAPH_GATE_ABORT) and how it clears
+- SYMPTOM: writing `src/omp/oracle.ts` (a NEW file) was blocked twice — T2 `GRAPH_GATE_DRIFT_HIGH` then T3 `GRAPH_GATE_ABORT: drift 1.00 with 2 unverified structural edits — reasoning rewound`.
+- ROOT CAUSE (read from src/omp/graph-gate.ts): `classifyEdit` extracts EXPORT symbols from the write's content (`extractExportSymbols`) and records them as `touchedSymbols`; an edit is "verified" only when SOME recorded graph query's target matches one of them (`normTarget` lowercases both sides). For a new file, the names do not exist in the index yet, so the natural instinct — query the FILE — fails: `ripwire --edit-check oracle.ts` → "symbol not found".
+- FIX: the gate records queries from the HOOK'S PRE-EXECUTION path (`gate-hook.ts:137-140`), so even a FAILED ripwire query is recorded. Querying on a symbol the new file WILL export (`ripwire --callers resolveAll`) verifies the edit retroactively, because `computeDrift` re-evaluates the whole edit log against the current query list.
+- LESSON: for a NEW file, query the symbol the file will EXPORT — not the filename, and not a symbol that already exists. The `RIPWIRE_FAIL symbol not found` result still counts, because the hook writes the query before the tool runs.
+- EVIDENCE: blocked (T2, then T3) → the same write succeeded immediately after `--callers resolveAll` + `--callers classify`; the gate log confirms both queries recorded
