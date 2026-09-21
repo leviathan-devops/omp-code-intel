@@ -46,6 +46,12 @@ export const FIRE_DECISIONS_COLUMNS = [
   "act_threshold",
   "flag_threshold",
   "state_hash",
+  // ★★★ EN-090 — THE COLUMN THE DDL'S OWN PURPOSE REQUIRED. A calibration substrate that
+  //     cannot identify its SUBJECT cannot calibrate: §6.4.3 separates "the model changed"
+  //     from "the bar moved" per rule, and §8.2's DDL recorded every input EXCEPT the one
+  //     that says WHAT was decided about. The live ledger's 15 columns and the 16 here are
+  //     reconciled by an explicit ALTER in the constructor.
+  "target",
   "cost_usd",
   "later_truth",
   "truth_at",
@@ -68,6 +74,9 @@ CREATE TABLE IF NOT EXISTS fire_decisions (
   act_threshold    REAL NOT NULL,
   flag_threshold   REAL NOT NULL,
   state_hash       TEXT NOT NULL,
+  -- ★ EN-090 — nullable BY CONSTRUCTION: rows written before the migration have no target
+  --   and never can (it was hashed away). NULL is the honest value for them.
+  target           TEXT,
   cost_usd         REAL NOT NULL DEFAULT 0,
   later_truth      TEXT NOT NULL DEFAULT 'unresolved'
                    CHECK (later_truth IN ('confirmed','refuted','unresolved')),
@@ -126,6 +135,23 @@ export class FireLedger {
       );
     }
     this.db = db;
+    // ★★★ EN-090 — THE MIGRATION, AND IT IS NOT OPTIONAL. `CREATE TABLE IF NOT EXISTS` is a
+    //   NO-OP on an existing table, so a live ledger KEEPS ITS OLD SHAPE while the new INSERT
+    //   names a column it does not have — EVERY FIRE WOULD FAIL WITH "no such column: target".
+    //   The column is therefore added explicitly when absent. ADDITIVE and backwards-
+    //   compatible: old rows carry NULL, which is honest — their targets are irrecoverable.
+    try {
+      const cols = this.db.query("PRAGMA table_info(fire_decisions)").all() as { name: string }[];
+      if (!cols.some((c) => c.name === "target")) {
+        this.db.exec("ALTER TABLE fire_decisions ADD COLUMN target TEXT");
+      }
+    } catch (e) {
+      throw new LedgerError(
+        "MIGRATION_FAILED",
+        `cannot add the target column to the ledger at ${path} — the DDL and the insert would disagree`,
+        e,
+      );
+    }
     try {
       this.db.exec("PRAGMA journal_mode = WAL;");
     } catch {
@@ -134,10 +160,20 @@ export class FireLedger {
     this.insertStmt = this.db.prepare(`
       INSERT INTO fire_decisions (
         at, rule_id, cls, question_version, probability, band, action,
-        policy_name, act_threshold, flag_threshold, state_hash, cost_usd,
+        policy_name, act_threshold, flag_threshold, state_hash, target, cost_usd,
         later_truth, truth_at
-      ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,NULL)
+      ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,NULL)
     `);
+  }
+
+  /** ★ EN-090 — THE SHAPE-READ PATH. `PRAGMA table_info` is not a query the typed readers
+   *  cover, and the migration test must assert THE LIVE TABLE against the declared columns —
+   *  the contract §8.2 names ("a test asserts the live table matches this: a silent column
+   *  rename would silently break every reader"). Guarded like every other read: a closed
+   *  handle is a NAMED error, never a raw driver exception. */
+  rawDb(): Database {
+    this.ensureOpen();
+    return this.db;
   }
 
   /** ★ AUDIT FINDING 2 — the loud-failure law applies to the READ paths too. The
@@ -244,7 +280,7 @@ export class FireLedger {
       const r = this.insertStmt.run(
         row.at, row.ruleId, row.cls, row.questionVersion, row.probability, row.band,
         row.action, row.policyName, row.actThreshold, row.flagThreshold, row.stateHash,
-        row.costUsd, row.laterTruth,
+        row.target ?? null, row.costUsd, row.laterTruth,
       );
       return Number(r.lastInsertRowid);
     } catch (e) {
@@ -486,6 +522,15 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
     actThreshold: Number(raw["act_threshold"]),
     flagThreshold: Number(raw["flag_threshold"]),
     stateHash: String(raw["state_hash"]),
+    // ★ EN-090 — OPTIONAL, AND NOT LAUNDERED. R3's law applies EXACTLY here: the obvious
+    //   `String(raw["target"])` would render a PRE-MIGRATION ROW's NULL as the literal
+    //   string "undefined" — a missing subject wearing the type of a valid one, which is
+    //   the very laundering R3 removed from `laterTruth`. ABSENT STAYS ABSENT, so the
+    //   oracle can tell "this fire named a subject you cannot recover" from "this fire
+    //   named this subject".
+    ...(raw["target"] === null || raw["target"] === undefined
+      ? {}
+      : { target: String(raw["target"]) }),
     costUsd: Number(raw["cost_usd"]),
     // ★ R3 (re-verify finding) — `String(x) as Truth` laundered anything. A corrupt
     //   value must not be handed out wearing the type of a valid one.

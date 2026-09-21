@@ -225,6 +225,34 @@ describe("st-gi-v21-oracle: W2 — the laterTruth resolution", () => {
     ledger.close();
   });
 
+  // ══ ★★★ EN-090 — THE SUBJECT'S PRECEDENCE, PROVEN ══════════════════════════
+  //    The ledger persists the target, so a real fire names its OWN subject. A caller's
+  //    subject is a GUESS — and every number E1 produced was about the guess.
+
+  test("test_oracle_row_target_wins_over_the_caller — a certified subject beats a guess", () => {
+    // ★ the row names one file; the caller guesses another. THE ROW WINS.
+    const ev = gather(
+      { at: "2026-09-20T10:00:00.000Z", target: "src/omp/kernel-v2.ts" },
+      { target: "src/omp/SOMETHING_ELSE.ts" },
+      [{ kind: "edit", at: "2026-09-20T11:00:00.000Z", target: "src/omp/kernel-v2.ts", repair: true }],
+    );
+    expect(ev.laterEdit).toBe(true);
+    // ★ AND THE PROVENANCE IS DISCLOSED — "the row said so" vs "the caller guessed" must
+    //   never render identically (the EN-054 law).
+    expect(ev.notes.some((n) => n.includes("subject row.target"))).toBe(true);
+  });
+
+  test("test_oracle_neither_subject_NOR_target — a NAMED throw, never a silent default", () => {
+    // ★ the hard-dependency law: a named wrong answer is still a wrong answer. A row with no
+    //   target and no caller subject has NO identifiable subject — refuse, loudly.
+    expect(() => gather({ at: "2026-09-20T10:00:00.000Z" }, undefined, [])).toThrow(/GI_ORACLE_NO_SUBJECT/);
+  });
+
+  test("test_oracle_caller_subject_is_used_WHEN_the_row_has_none — and disclosed as a guess", () => {
+    const ev = gather({ at: "2026-09-20T10:00:00.000Z" }, { target: "src/omp/x.ts" }, []);
+    expect(ev.notes.some((n) => n.includes("subject caller-supplied"))).toBe(true);
+  });
+
   test("test_oracle_bare_touch_is_NOT_harm — the EN-089 measured fix", async () => {
     const { row, ledger } = await aPersistedRow();
     // ★ A TOUCH WITHOUT THE REPAIR SHAPE. The clock signal resolved 48/48 (100%) on this

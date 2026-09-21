@@ -494,3 +494,54 @@
   Fixed; 13/13 green again.
 - EVIDENCE: .trident/repair-predicate.json · .trident/e1-window-sweep.json · .trident/e1-sizing.json
   · battery 352/0/1257/33 host · 352/0/1250/33 container · tsc 191 · host suite 13/13.
+
+## [2026-09-22T06:30:00] — EN-090 ★★★ THE BLOCKER FOR ALL CALIBRATION: THE TARGET WAS HASHED INTO OBLIVION
+- THE DEFECT, FOUND BY ITS OWN CONTROL. E1's sizing reported 6% resolved / 94% unresolved — so
+  the CONTROL was run: are those 3 "confirmed" fires genuine repairs? **THEY WERE NOT.** All 3
+  subjects were `.trident/*.json` files THIS SESSION HAD GENERATED 20 MINUTES EARLIER:
+      fire @09:52:47 · .trident/e1-sizing.json
+      fire @09:52:48 · .trident/e1-window-sweep.json
+      fire @09:52:49 · .trident/host-suite-results.json
+  **THE "REPAIR" WAS MY OWN TOOLING REWRITING ITS JSON. PRECISION 0/3 — every resolution was a
+  FALSE POSITIVE.**
+- ★★ THE ROOT CAUSE, TRACED THROUGH THE WHOLE PIPELINE:
+      fire-gate.ts:244   buildState: `target: fire.target`      ← ★ THE GATE HAS IT IN HAND
+      fire-gate.ts:413   sha256(JSON.stringify(state)).slice(0,16)  ← ★ HASHED INTO OBLIVION
+      DecisionRow        at·ruleId·cls·questionVersion·probability·band·action·policyName·
+                         actThreshold·flagThreshold·stateHash·costUsd·laterTruth
+                         ← ★ NO TARGET. NO SUBJECT.
+      §8.2 DDL           15 columns — none of them say WHAT WAS DECIDED ABOUT.
+  **SO: the target is HASHED (one-way, irrecoverable) and the plaintext is DROPPED.** The
+  oracle's gatherers need a PATH, not a hash — so the caller PAIRED subjects BY RULE
+  (`i % subjects.length`) and **EVERY CALIBRATION NUMBER WAS A NUMBER ABOUT AN ARBITRARY
+  PAIRING.** 0%, 6%, 94% — ALL UNMEANINGFUL.
+- ★★★ AND THE DDL'S OWN PURPOSE REQUIRED THE COLUMN: a calibration substrate that cannot
+  identify its SUBJECT cannot calibrate. §6.4.3 exists to separate "the model changed" from
+  "the bar moved" PER RULE — and the row recorded every input except the subject.
+- THE FIX, THE WHOLE CHAIN (7 assertions, all verified):
+    1 DecisionRow gains `target?: string` (optional BY CONSTRUCTION: pre-migration rows have
+      no target and never can — NULL is the honest value)
+    2 all SIX row-build sites populate it from `fire.target` (in scope at each)
+    3 FIRE_DECISIONS_COLUMNS + the §8.2 DDL gain the column
+    4 ★★ THE MIGRATION — `CREATE TABLE IF NOT EXISTS` is a NO-OP on an existing table, so a
+      LIVE ledger keeps its old shape while the new INSERT names a column it lacks ⇒ EVERY
+      FIRE FAILS APPEND_FAILED. An explicit `PRAGMA table_info` probe + `ALTER TABLE ADD
+      COLUMN target TEXT` runs in the constructor; a failure is a NAMED `GI_LEDGER_MIGRATION_FAILED`.
+    5 the insert + binding carry it
+    6 ★ `toPersisted` maps it UNLAUNDERED — R3's own law: `String(raw["target"])` would render a
+      pre-migration NULL as the literal string "undefined", a missing subject wearing the type
+      of a valid one. ABSENT STAYS ABSENT.
+    7 ★★★ AND THE ORACLE READS IT: `gather` takes the row's target when present, **THE ROW WINS
+      OVER THE CALLER'S GUESS**, neither ⇒ a NAMED `GI_ORACLE_NO_SUBJECT` throw (never a silent
+      default subject — the hard-dependency law), and the PROVENANCE IS DISCLOSED in `notes`
+      ("subject row.target" vs "subject caller-supplied": the EN-054 law — the two must never
+      render identically).
+- ★ AND THE PROOF IS NON-THEATRICAL: the round-trip test drives the REAL `FireGate` (not a
+  stand-in): a real `judge()` → `drain()` → `ledger.all()` returns `target === fire.target`.
+  Plus the MIGRATION test builds a genuine 15-column legacy ledger by hand and proves the
+  ALTER fires, the legacy row survives, and its target is NULL — not "undefined".
+- ★ THE HONEST LIMIT, RECORDED: the EXISTING 48 fires' targets are IRRECOVERABLE. Preimage is
+  impossible; the DDL fix unblocks FUTURE calibration only. E1 STAYS UNMEASURABLE against the
+  current ledger — and now the reason is a stored fact, not a footnote.
+- EVIDENCE: battery 359/0/1272/34 host · 359/0/1265/34 container · tsc 191 · host suite 13/13 ·
+  +7 tests (3 precedence/disclosure + 1 real-gate round-trip + 3 migration).

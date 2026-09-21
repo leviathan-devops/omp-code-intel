@@ -31,12 +31,50 @@ import { resolveAll, gather, classify, type Subject } from "../src/omp/oracle.ts
 const OUT = path.join(process.cwd(), ".trident");
 fs.mkdirSync(OUT, { recursive: true });
 
+/** ★★★ EN-089 — THE REPAIR SHAPE, computed per (file, timestamp) FROM THE DIFFS.
+ *  THE PREDICATE, as measured: a commit is REPAIR-SHAPED iff it ADDS content that an EARLIER
+ *  commit REMOVED FROM THE SAME FILE within the window. The ladder that established it:
+ *      content-global  38.34%  ← SATURATED (fires on comment rewrites)
+ *      FILE-SCOPED      0.63%  ← ★ a 60x drop; the file scope is the decisive narrowing
+ *      FILE + 6h        0.55%  ← the viable predicate (vs the CLOCK's saturated 100%)
+ *  ★ WITHOUT THIS, EVERY EVENT IS A BARE TOUCH — and a touch is not harm (EN-089). */
+function repairFlags(limit = 200, windowSec = 6 * 3600): Set<string> {
+  const raw = Bun.spawnSync([
+    "git", "log", `-${limit}`, "--format=%x01%at", "-p", "--no-merges",
+  ]).stdout.toString();
+  const removedAt = new Map<string, number[]>();  // `${file}\x00${content}` -> [timestamps]
+  const flags = new Set<string>();
+  let stamp = 0;
+  let file: string | null = null;
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("\x01")) { stamp = Number(line.slice(1)); continue; }
+    if (line.startsWith("+++ b/")) { file = line.slice(6).trim(); continue; }
+    if (file === null) continue;
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      const c = line.slice(1);
+      if (c.trim() === "") continue;
+      const ts = removedAt.get(`${file}\x00${c}`);
+      if (ts?.some((t) => Math.abs(stamp - t) <= windowSec)) flags.add(`${stamp * 1000}\x00${file}`);
+    } else if (line.startsWith("-") && !line.startsWith("---")) {
+      const c = line.slice(1);
+      if (c.trim() === "") continue;
+      const k = `${file}\x00${c}`;
+      const arr = removedAt.get(k) ?? [];
+      arr.push(stamp);
+      removedAt.set(k, arr);
+    }
+  }
+  return flags;
+}
+
 /** ★ THE EVENT STREAM, from the session's own git history. Each commit is an edit-event at
- *  its author timestamp, whose target is every file it touched. */
+ *  its author timestamp, whose target is every file it touched. ★ EN-089: each event now
+ *  carries the MEASURED repair shape — a bare touch is not harm. */
 function eventsFromGit(limit = 200): ToolEvent[] {
   const raw = Bun.spawnSync([
     "git", "log", `-${limit}`, "--format=%x01%at", "--name-only", "--no-merges",
   ]).stdout.toString();
+  const repairs = repairFlags(limit);
   const events: ToolEvent[] = [];
   let stamp: number | null = null;
   for (const line of raw.split("\n")) {
@@ -46,7 +84,8 @@ function eventsFromGit(limit = 200): ToolEvent[] {
     }
     const f = line.trim();
     if (f === "" || stamp === null) continue;
-    events.push({ tool: "edit", target: f, at: new Date(stamp).toISOString(), ok: true, by: "git-log" });
+    events.push({ tool: "edit", target: f, at: new Date(stamp).toISOString(), ok: true, by: "git-log",
+                  repair: repairs.has(`${stamp}\x00${f}`) });
   }
   return events;
 }

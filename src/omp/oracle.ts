@@ -183,11 +183,29 @@ export const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** Gather the downstream evidence for ONE row. Pure over its inputs: no clock,
  *  no I/O, no model. The window is (row.at, row.at + windowMs]. */
 export function gather(
-  row: Pick<PersistedFireRow, "at">,
-  subject: Subject,
+  row: Pick<PersistedFireRow, "at"> & { target?: string },
+  subjectInput: Subject | undefined,
   records: readonly OutcomeRecord[],
   opts: { windowMs?: number; notAfter?: string } = {},
 ): Evidence {
+  // ★★★ EN-090 — THE SUBJECT COMES FROM THE ROW WHEN THE ROW NAMES ONE. The ledger now
+  //   persists `target` (the gate always HAD it — `buildState` line 244 — and used to hash
+  //   it away), so a real fire names its OWN subject. A CALLER-SUPPLIED subject is a GUESS,
+  //   and it is the guess that produced E1's false resolutions (all 3 "confirmed" fires were
+  //   artifacts the sizing script had itself rewritten).
+  //   THE PRECEDENCE: THE ROW WINS — a certified value beats a guess, always.
+  //   NEITHER GIVEN ⇒ A NAMED THROW, never a silent fallback to a default subject (the
+  //   hard-dependency law: a named wrong answer is still a wrong answer).
+  const fromRow = row.target !== undefined && row.target !== "";
+  let subject: Subject;
+  if (fromRow) subject = { target: row.target as string, tool: subjectInput?.tool };
+  else if (subjectInput !== undefined) subject = subjectInput;
+  else throw new Error(
+    "GI_ORACLE_NO_SUBJECT: the row carries no target and no subject was supplied — calibration " +
+    "cannot identify what was decided about. (Rows written before the EN-090 migration have " +
+    "no target and never will: it was hashed away.)",
+  );
+  const subjectSrc = fromRow ? "row.target" : "caller-supplied";
   const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
   // ★ PASS-3 HIGH — `windowMs` IS UNTRUSTED INPUT TOO. A NaN or negative window made
   // `from + windowMs` NaN, and `Math.min(NaN, cap)` is NaN, so `at > to` was false for
@@ -200,7 +218,10 @@ export function gather(
   const from = Date.parse(row.at);
   const ev: Evidence = {
     laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0,
-    withdrawn: false, permitted: false, signals: [], notes: [], dismissed: [],
+    withdrawn: false, permitted: false, signals: [],
+    // ★ EN-090 — THE SUBJECT'S PROVENANCE, DISCLOSED. "The row said so" and "the caller
+    //   guessed" must never render identically (the EN-054 law).
+    notes: ["subject " + subjectSrc + ": " + subject.target], dismissed: [],
   };
 
   // ★ O0 (HIGH) — AN UNPARSEABLE STAMP MUST EMPTY THE WINDOW, NOT OPEN IT.

@@ -107,6 +107,34 @@ describe("st-gi-v21-ledger: W1 — the fire ledger", () => {
     ledger.close();
   });
 
+  // ══ ★★★ EN-090 — THE TARGET SURVIVES THE WHOLE CHAIN ═══════════════════════════════════
+  //    The gate HAS the target (`buildState` line 244: `target: fire.target`), HASHES it
+  //    (`sha256(...).slice(0,16)`) and used to DROP the plaintext — so no reader could point
+  //    a gatherer at the subject. THE MEASURED CONSEQUENCE: E1's sizing paired subjects by
+  //    rule, and all 3 "resolved" fires turned out to be artifacts the sizing script had
+  //    itself rewritten. THIS TEST DRIVES THE REAL GATE, not a stand-in.
+
+  test("★ EN-090 test_ledger_row_carries_the_target — a REAL fire's subject reaches the row", async () => {
+    const p = tmpLedgerPath();
+    const ledger = new FireLedger(p);
+    const gate = new FireGate({ judge: stubJudge(0.91), now: () => 1000 });
+    const fire = aFire();
+
+    await gate.judge(fire, aCtx(fire));
+    expect(drain(gate, ledger)).toBe(1);
+
+    const rows = ledger.all(1);
+    const row = rows[0]!;
+    // ★ THE HASH IS STILL WRITTEN — the state contract is unchanged.
+    expect(typeof row.stateHash).toBe("string");
+    // ★ AND THE PLAINTEXT SUBJECT IS NOW WRITTEN BESIDE IT. Without this the oracle's
+    //   caller must GUESS the subject, and every calibration number it produces is a
+    //   number about the guess. ★ AND IT IS TYPED: PersistedFireRow extends DecisionRow,
+    //   so the reader sees it without a cast.
+    expect(row.target).toBe(fire.target);
+    ledger.close();
+  });
+
   // ══ THE DDL IS THE CONTRACT (§8.2 verbatim) ══════════════════════════════
 
   test("test_ledger_ddl_exact — the table's columns match blueprint §8.2", () => {

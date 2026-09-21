@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-21T13:49:05.932Z",
+  "at": "2026-09-21T13:54:19.439Z",
   "method": "git-log edit-events × the live ledger's real fires",
   "limits": [
     "ONE session's git history is ONE kind of organic evidence (the later-edit kind).",
@@ -7,22 +7,22 @@
     "The subject per fire is paired by RULE (the §8.2 DDL carries no target column), so the pairing is an approximation and is NAMED as one.",
     "NO LEDGER WRITES: this sizes the engine; it does not mutate the evidence."
   ],
-  "events": 1873,
-  "subjects": 1136,
+  "events": 1976,
+  "subjects": 1230,
   "fires": 48,
   "reach": {
-    "laterEdit": 48,
+    "laterEdit": 3,
     "test": 0,
     "other": 0,
-    "unresolved": 0,
-    "settled": 48
+    "unresolved": 45,
+    "settled": 3
   },
   "perFire": [
     {
       "at": "2026-09-21T09:52:47.338Z",
       "cls": "theatrical",
-      "subject": ".trident/e1-window-sweep.json",
-      "records": 1,
+      "subject": ".trident/e1-sizing.json",
+      "records": 2,
       "signals": [
         "laterEdit"
       ],
@@ -32,519 +32,429 @@
     {
       "at": "2026-09-21T09:52:48.410Z",
       "cls": "theatrical",
-      "subject": "context_management/RUNNING_DEBUG_LOG.md",
-      "records": 27,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/e1-sizing.sqlite",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:48.913Z",
       "cls": "dumb",
-      "subject": "scripts/e1-sizing.ts",
+      "subject": ".trident/e1-window-sweep.json",
       "records": 2,
       "signals": [
         "laterEdit"
       ],
       "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "basis": "confirmed [laterEdit] — a later edit revisited the target (presented but dismissed: touch "
     },
     {
       "at": "2026-09-21T09:52:49.203Z",
       "cls": "dumb",
-      "subject": "src/omp/oracle.ts",
-      "records": 3,
+      "subject": ".trident/host-suite-results.json",
+      "records": 2,
       "signals": [
         "laterEdit"
       ],
       "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "basis": "confirmed [laterEdit] — a later edit revisited the target (presented but dismissed: touch "
     },
     {
       "at": "2026-09-21T09:52:49.527Z",
       "cls": "destructive",
-      "subject": ".trident/wave-plan.md",
-      "records": 8,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.0u5rja",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:49.857Z",
       "cls": "destructive",
-      "subject": ".trident/e1-sizing.json",
+      "subject": ".trident/host-suite-stub.sqlite.0uup59",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:50.161Z",
       "cls": "theatrical",
-      "subject": ".trident/host-suite-results.json",
+      "subject": ".trident/host-suite-stub.sqlite.198f4x",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:50.459Z",
       "cls": "theatrical",
-      "subject": "scripts/host-suite.ts",
+      "subject": ".trident/host-suite-stub.sqlite.275bj1",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:50.735Z",
       "cls": "dumb",
-      "subject": "src/omp/kernel-v2.ts",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.2rsfx3",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:51.169Z",
       "cls": "dumb",
-      "subject": "tests/st-gi-v21-wiring.test.ts",
+      "subject": ".trident/host-suite-stub.sqlite.2v683t",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:51.460Z",
       "cls": "destructive",
-      "subject": "GUARDRAIL_SPEC.md",
+      "subject": ".trident/host-suite-stub.sqlite.30oc62",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:51.764Z",
       "cls": "destructive",
-      "subject": "META_OBSERVATIONS.md",
+      "subject": ".trident/host-suite-stub.sqlite.30wn3j",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:52.188Z",
       "cls": "theatrical",
-      "subject": "SUGGESTED_IMPROVEMENTS.md",
+      "subject": ".trident/host-suite-stub.sqlite.3et4ki",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:52.488Z",
       "cls": "theatrical",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/context_management/context_management/RUNNING_DEBUG_LOG.md",
-      "records": 25,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.4ama8t",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:52.817Z",
       "cls": "dumb",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/packages/gi-kernel-v2.1/GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md",
-      "records": 7,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.4mm07b",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:53.213Z",
       "cls": "dumb",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/omp/evidence-producer.ts",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.4w8gka",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:53.623Z",
       "cls": "destructive",
-      "subject": "packages/gi-kernel-v2.1/GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md",
-      "records": 7,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.53h9bn",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:53.919Z",
       "cls": "destructive",
-      "subject": "src/omp/evidence-producer.ts",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.64j24y",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:54.237Z",
       "cls": "theatrical",
-      "subject": "tests/st-gi-v21-evidence-producer.test.ts",
+      "subject": ".trident/host-suite-stub.sqlite.6vb7n5",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:54.555Z",
       "cls": "theatrical",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/TESTING_LOG.md",
-      "records": 10,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.7c4teq",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:54.876Z",
       "cls": "dumb",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/graph-store-enriched.sqlite",
+      "subject": ".trident/host-suite-stub.sqlite.7rzdds",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:55.210Z",
       "cls": "dumb",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/corbell-build.ts",
+      "subject": ".trident/host-suite-stub.sqlite.7s33ix",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:55.518Z",
       "cls": "destructive",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/ct-gate-angles-v13.mjs",
+      "subject": ".trident/host-suite-stub.sqlite.7v4an3",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:55.825Z",
       "cls": "destructive",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/gi-cli.ts",
+      "subject": ".trident/host-suite-stub.sqlite.8033f4",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:56.148Z",
       "cls": "theatrical",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/graphify-build.ts",
+      "subject": ".trident/host-suite-stub.sqlite.889vxf",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:56.429Z",
       "cls": "theatrical",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/scan-panel.sh",
+      "subject": ".trident/host-suite-stub.sqlite.93pe9s",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:56.750Z",
       "cls": "dumb",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/scripts/structural-extract.py",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.9hyngq",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:57.053Z",
       "cls": "dumb",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/omp/graph-facts.ts",
-      "records": 4,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.9wl2k7",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:57.387Z",
       "cls": "destructive",
-      "subject": ".omp/graph-intelligence/corbell-checkout/store.sqlite",
-      "records": 4,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.9yhkp0",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:57.667Z",
       "cls": "destructive",
-      "subject": ".omp/graph-intelligence/graphify-checkout/store.sqlite",
+      "subject": ".trident/host-suite-stub.sqlite.avhwcq",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:57.973Z",
       "cls": "theatrical",
-      "subject": ".omp/graph-intelligence/sessions/gi-baseline000000000000/store.sqlite",
+      "subject": ".trident/host-suite-stub.sqlite.az2k2i",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:58.256Z",
       "cls": "theatrical",
-      "subject": "scripts/structural-extract.py",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.b5nqyd",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:58.544Z",
       "cls": "dumb",
-      "subject": "src/omp/graph-facts.ts",
-      "records": 4,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.bc6kec",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:58.872Z",
       "cls": "dumb",
-      "subject": "tests/st-gi-v21-structural-extract.test.ts",
+      "subject": ".trident/host-suite-stub.sqlite.bz70mi",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:59.163Z",
       "cls": "destructive",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/corbell-checkout/store.sqlite",
+      "subject": ".trident/host-suite-stub.sqlite.c2gocx",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:59.461Z",
       "cls": "destructive",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/packages/gi-kernel-v2.1/META_PATTERNS_GRAPH_BLINDSPOT.md",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.ccx4ks",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:52:59.754Z",
       "cls": "theatrical",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/hunter/graph/store-map.ts",
-      "records": 4,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.coqk4g",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:00.050Z",
       "cls": "theatrical",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/src/src/omp/fire-gate.ts",
-      "records": 11,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.d0wyi3",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:00.387Z",
       "cls": "dumb",
-      "subject": "src/hunter/graph/store-map.ts",
-      "records": 5,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.d4n6a9",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:00.737Z",
       "cls": "dumb",
-      "subject": "src/omp/fire-gate.ts",
-      "records": 12,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.dbxdw4",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:01.025Z",
       "cls": "destructive",
-      "subject": "tests/st-gi-v21-graph-facts.test.ts",
+      "subject": ".trident/host-suite-stub.sqlite.dhgg9y",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:01.346Z",
       "cls": "destructive",
-      "subject": ".mimocode/runtime-grade/derailment-ledger-2026-09-22.md",
+      "subject": ".trident/host-suite-stub.sqlite.dk3mz9",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:01.673Z",
       "cls": "theatrical",
-      "subject": "FAILURE_LOG.md",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.dyd3n2",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:02.049Z",
       "cls": "theatrical",
-      "subject": "TESTING_LOG.md",
-      "records": 10,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.e1ef1c",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:02.380Z",
       "cls": "dumb",
-      "subject": "THEATRICALITY_LOG.md",
+      "subject": ".trident/host-suite-stub.sqlite.ecd4i5",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:02.669Z",
       "cls": "dumb",
-      "subject": "packages/gi-kernel-v2.1/META_PATTERNS_GRAPH_BLINDSPOT.md",
-      "records": 2,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "subject": ".trident/host-suite-stub.sqlite.ephfyf",
+      "records": 1,
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:02.953Z",
       "cls": "destructive",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/audit/pass7/fire-gate.err",
+      "subject": ".trident/host-suite-stub.sqlite.eppfuv",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     },
     {
       "at": "2026-09-21T09:53:03.239Z",
       "cls": "destructive",
-      "subject": "Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/artifacts/audit/pass7/fire-gate.json",
+      "subject": ".trident/host-suite-stub.sqlite.er49pp",
       "records": 1,
-      "signals": [
-        "laterEdit"
-      ],
-      "truth": "confirmed",
-      "basis": "confirmed [laterEdit] — a later edit revisited the target"
+      "signals": [],
+      "truth": "unresolved",
+      "basis": "unresolved [] — no evidence that COUNTS (presented but dismissed: touch @2026-09-21T13:52:"
     }
   ]
 }

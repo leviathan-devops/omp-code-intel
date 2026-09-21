@@ -82,6 +82,17 @@ export interface DecisionRow {
   actThreshold: number;
   flagThreshold: number;
   stateHash: string;
+  /** ★★★ EN-090 — THE FIRE'S TARGET, IN PLAINTEXT. THE FINDING THAT PUT IT HERE: the target
+   *  was already in the state (`buildState` line 244: `target: fire.target`) and then HASHED
+   *  INTO OBLIVION (`sha256(JSON.stringify(state)).slice(0,16)`). The row recorded the hash
+   *  and DROPPED THE PLAINTEXT — so no reader could ever point a gatherer at the subject.
+   *  THE MEASURED CONSEQUENCE: the oracle's caller had to PAIR subjects by rule
+   *  (i % subjects.length), and when E1 was sized against that pairing every "resolution"
+   *  was a false positive (all 3 resolved fires were .trident artifacts the sizing script had
+   *  itself rewritten). 0%, 6%, 94% — ALL NUMBERS ABOUT AN ARBITRARY PAIRING. Optional
+   *  because rows written before the migration have no target and NEVER WILL: it is
+   *  irrecoverable, and NULL says so honestly. */
+  target?: string;
   costUsd: number;
   /** Filled LATER, by the oracle. Never assumed. */
   laterTruth: "confirmed" | "refuted" | "unresolved";
@@ -433,7 +444,7 @@ export class FireGate {
           band: settled.action === "IGNORE" ? "ignore" : "act",
           action: settled.action,
           policyName: policy.name, actThreshold: policy.act, flagThreshold: policy.flag,
-          stateHash, costUsd: 0, laterTruth: "unresolved",
+          stateHash, costUsd: 0, target: fire.target, laterTruth: "unresolved",
         };
         this.ledger.push(row);
         return {
@@ -458,7 +469,7 @@ export class FireGate {
         questionVersion: `mpse:${QUESTION_VERSION}`, probability: pre.settle === "IGNORE" ? 0 : 1,
         band: pre.settle === "IGNORE" ? "ignore" : "act", action: pre.settle,
         policyName: policy.name, actThreshold: policy.act, flagThreshold: policy.flag,
-        stateHash, costUsd: 0, laterTruth: "unresolved",
+        stateHash, costUsd: 0, target: fire.target, laterTruth: "unresolved",
       };
       this.ledger.push(row);
       return { ruleId: fire.ruleId, probability: row.probability, band: row.band as never, action: pre.settle, reason: pre.reason, row, cached: false, latencyMs: (this.cfg.now ?? Date.now)() - t0 };
@@ -477,7 +488,7 @@ export class FireGate {
         questionVersion: QUESTION_VERSION, probability: cached.probability,
         band, action: band === "act" ? "FIRE" : band === "escalate" ? "ESCALATE" : "IGNORE",
         policyName: policy.name, actThreshold: policy.act, flagThreshold: policy.flag,
-        stateHash, costUsd: 0, laterTruth: "unresolved",
+        stateHash, costUsd: 0, target: fire.target, laterTruth: "unresolved",
       };
       this.ledger.push(row);
       return { ruleId: fire.ruleId, probability: cached.probability, band: band as never, action: row.action as never, reason: "cache hit — the same state was judged before", row, cached: true, latencyMs: 0 };
@@ -541,7 +552,7 @@ export class FireGate {
         questionVersion: QUESTION_VERSION, probability: closed ? 1 : 0,
         band: closed ? "act" : "ignore", action: closed ? "FIRE" : "IGNORE",
         policyName: `${policy.name}+${suffix}`, actThreshold: policy.act,
-        flagThreshold: policy.flag, stateHash, costUsd: 0, laterTruth: "unresolved",
+        flagThreshold: policy.flag, stateHash, costUsd: 0, target: fire.target, laterTruth: "unresolved",
       };
       this.ledger.push(row);
       return {
@@ -574,7 +585,7 @@ export class FireGate {
         band: closed ? "act" : "ignore",
         action: closed ? "FIRE" : "IGNORE",
         policyName: `${policy.name}+${why}`, actThreshold: policy.act, flagThreshold: policy.flag,
-        stateHash, costUsd: 0, laterTruth: "unresolved",
+        stateHash, costUsd: 0, target: fire.target, laterTruth: "unresolved",
       };
       this.ledger.push(row);
       return {
@@ -595,7 +606,7 @@ export class FireGate {
       at: new Date(t0).toISOString(), ruleId: fire.ruleId, cls: fire.cls,
       questionVersion: QUESTION_VERSION, probability: p, band, action,
       policyName: policy.name, actThreshold: policy.act, flagThreshold: policy.flag,
-      stateHash, costUsd: 0, laterTruth: "unresolved",
+      stateHash, costUsd: 0, target: fire.target, laterTruth: "unresolved",
     };
     this.ledger.push(row);
     return {
