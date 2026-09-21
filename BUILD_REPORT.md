@@ -420,3 +420,48 @@ RB-ERRORS       BLOCKED — GI_STACK_INCOMPLETE is a v2 token, not yet wired
 6. F-51 (the boilerplate's T8 mutation test overreaches) — logged, fix proposed.
 
 **23 commits. 2563 L of v2 source · 69 v2 tests · 11 package docs · 3253 L of documentation.**
+
+## [2026-09-21] ★ CRITICAL / IMPORTANT — THE FIRST REAL CALIBRATION RUN + THE JEV FIRING-TIME KERNEL
+
+**SEMANTIC INDEX KEYWORDS:** `measurement-informed-data/args/vals` · `data-informed-measurements`
+**THE MINTED SKILL:** `derive-runtime-measurements` (managed-skills, 224 L) — the meta-process,
+extracted from this run. Read it before choosing ANY constant.
+**THE AUTHORITY:** `JEV_ENGINEERING_BIBLE.md` D001-D026, §6.4 (confidence/calibration/thresholds),
+§6.4.6 (the two traps), §6.4.7 (the calibration record).
+
+**The built:** `src/omp/fire-gate.ts` (370 L) — the firing-time decision kernel:
+`shape trigger → MPSE pre-filter → lexicon-filtered context absorption → ONE Jev Noul → the
+decision point (FIRE|ESCALATE|IGNORE)` under a NAMED policy with a per-surface fail polarity and
+a cache. `src/omp/calibration.ts` (185 L) — the derivation machinery: `thresholdFromCost`,
+`precisionFromCounts` (Wilson), `derivePolicy` (per-rule), `checkCalibrationHealth` (the named
+traps), `firesNeededForGap`.
+
+**★ THE FINDING (the reason this entry is CRITICAL):** the seed thresholds — destructive 0.90 ·
+dumb 0.75 · theatrical 0.85 — were run against a **14-case labelled corpus** (7 real violations,
+each with a false-positive twin differing ONLY in context) through the **LIVE Jev API**.
+**No real violation scored above 0.65. At the assumed bars the act band fired ZERO times.**
+
+```
+real violations  n=7  mean P=0.581  min=0.490
+false positives  n=7  mean P=0.253  max=0.530
+SEPARABLE (min(real) > max(fp)): false     BEST F1=0.933 at t=0.40
+
+   t     TP  FP  FN  TN   precision  recall
+  0.20    7   4   0   3   0.636     1.000
+  0.40    7   1   0   6   0.875     1.000
+  0.55    5   0   2   7   1.000     0.714
+  0.70    0   0   7   7   1.000     0.000   ← STARVATION
+```
+
+**★ WHY IT IS CRITICAL:** **a gate that never fires is indistinguishable from a gate that
+works.** Calm ledger, zero acts — while every violation passes. The error was in the FATAL
+direction and only the instrument could see it. The seeds came from an intuition about what
+"confident" means; Jev's absolutes for clear violations sit near 0.5-0.6.
+
+**The verification:** the instrument's raw run (above); `checkCalibrationHealth` returns
+`ok=false` for all three rules; `derivePolicy` returns `calibrated=false` with the basis
+`"cost matrix only … NO measured counts yet"`; `firesNeededForGap(0.85, 0.10) = 49`.
+
+**The honest notes:** 14 cases is a real measurement OF 14 CASES. The measured answer to the
+fire-floor question is **49 resolved firings**, not the 10 I had guessed. The thresholds remain
+UNCALIBRATED until 50+ real firings land.
