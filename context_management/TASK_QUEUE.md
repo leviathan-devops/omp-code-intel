@@ -99,3 +99,106 @@ src/omp/kernel-v2.ts:264    runKernelV2 — the W3/W4 wiring target
 src/omp/kernel-v2.ts:57     preflight — the STAGE 0 refusal
 src/omp/jev.ts:72           JevJudge.evaluate — the live model call
 ```
+
+## THE GATE DEFINITIONS (what each gate MEANS, mechanically)
+
+```
+GATE v1.3 SEALED      the ship package exists at SHIP_PACKAGES/Graph_Intel_v1.3/ with
+                      PACKAGE_AUDIT PASS; verified by ls + the audit grep.
+GATE v2.0 PACKAGE     packages/gi-kernel-v2/ holds 11 docs; SC-1..SC-10 each carry a token.
+GATE v2.1 BLUEPRINT   862 L at packages/gi-kernel-v2.1/, 14 sections, 25/25 mapped.
+GATE v2.1 WIRING      grep -c "FireGate" src/omp/kernel-v2.ts > 0 AND a real FIRE + a real
+                      IGNORE adjudicated.
+GATE v2.1 CALIBRATION checkCalibrationHealth(...).ok === true with zero findings.
+GATE THE CONTAINER    .trident/container-test-results.json EXISTS and the per-scenario
+                      verdicts are in it. Terminal output does NOT satisfy this gate.
+GATE THE CANON        every doc at 200+ lines, 3+ file:line refs, and the 5 read-first
+                      docs agreeing on the dist SHA.
+GATE THE AUDIT        an artifact exists on disk (sg-ocr-*.json) AND the TESTING_LOG
+                      carries "AUDIT GATE: PASS". Currently NOT RUN — every ship-ready
+                      claim is WITHHELD.
+```
+
+## THE DEPENDENCY GRAPH (what unblocks what)
+
+```
+M2 (the operator) ────────────────┐
+                                  ▼
+W1 ──► W2 ──► W3 ──► W4 ──► W5 ──► W6 ──► W7 ──► W8 ──► W9
+                                  ▲
+E1 (the operator, for v3) ────────┘  (not on the v2.1 critical path)
+
+THE ENGINES (L1..L5 install) ──► the register goes up ──► the gate may be REGISTERED.
+  ★ THE ORDER IS LAW: engines → register → wire the live path.
+```
+
+## THE OWNERS
+
+```
+d1  THE LEDGER DESK       src/omp/fire-ledger.ts
+d2  THE ORACLE DESK       src/omp/oracle.ts
+d3  THE GATE DESK         src/omp/kernel-v2.ts (+ fire-gate.ts's intent path)
+d4  THE POLICY DESK       src/omp/policy-store.ts (+ the calibration loop)
+d5  THE MEASUREMENT DESK  MEASUREMENT_PLAN.md (+ the instruments)
+the orch                  W8 (the container) + W9 (the seal)
+★ min 5 live desks per turn · cap 4 product-file writers · disjoint write-sets.
+```
+
+## THE COMPLETED-TASK EVIDENCE (the exact artifact each closed on)
+
+```
+C-1  the LIVE migration        the store query: 1424 nodes, layer_id NULL=0
+C-2  the confidence derivation the corpus query: distinct=2 over 2714 real edges
+C-3  the staleness gate        storeFreshness(...) → {"stale":true,"code":"GI_LAYER_STALE:explicit"}
+C-4  the stage machine         bun test -t sc2_one_down_layer_refuses_the_whole_stack
+C-5  the three detectors       bun test -t t4_all_three_detectors_share_one_shape
+C-6  the RSI layer             the mutation: 6 pass/2 FAIL → 9 pass/0 fail
+C-7  the register              bun test -t t6_the_v2_register_declares_ALL_six_layers...
+C-8  the enforcement kernel    bun test -t e2_the_two_polarities_differ_on_the_SAME_outage
+C-9  EN-041                    the real-corpus run: 23,086 edges survive (was 0)
+C-10 F-50                      the regression test: sc4_a_MALFORMED_sig_is_REJECTED...
+C-11 F-51                      T8's rewritten assertion (the expect count 50 → 51)
+C-12 EN-044                    the resolver probe: 0 phantoms across 6 cases
+C-13 F-52                      the driver's agreement assertion (it caught the drift)
+C-14 the container battery     docker exec ... → 199 pass / 0 fail / 705 expect
+C-15 the theatricality log     THEATRICALITY_LOG.md 361 L, T-01..T-11
+C-16 the v2.1 package          19 files / 2091 L, box-law clean (0 over-width)
+C-17 the create pin            the validator stdout: PASS (145 lines, 7/7 slots)
+```
+
+## THE BLOCKED ITEMS — THE EXACT QUESTION TO ASK (per the copilot-intelligence rule)
+
+```
+★ M2 — THE COST MATRIX. Ask it in the 5-part shape:
+  1 WHAT   the two costs per violation class: the cost of a FALSE BLOCK (stopping a
+           legitimate act) vs the cost of a MISS (letting a violation through).
+  2 WHY    t = C_block/(C_block+C_miss) IS the act threshold. Without the ratio, every
+           derived threshold is a guess — the exact failure the operator banned.
+  3 OPTIONS  equal (t=0.50) · block 4x (0.80) · block 10x (0.909) · miss 3x (0.25)
+           per class — destructive, dumb, theatrical may differ.
+  4 DEFAULT  destructive block 4x (a false block stops work; a miss ships damage) ·
+           dumb miss 2x (an advisory is cheap) · theatrical block 3x (a false done is the
+           defect). STATED as a seed, to be overridden.
+  5 BLOCKED  W6 (the calibration) and therefore W7-W9. W1-W5 are unblocked and buildable.
+★ E1 — THE ORACLE'S ENGINE: Jev (recommended) / MPSE-only / JESL. Blocks v3, not v2.1.
+★ THE ENGINES: the L1..L5 install order. Blocks the live registration.
+```
+
+## THE WORKING DISCIPLINE (how the queue is worked)
+
+```
+· ONE wave in flight per desk; the board is updated the moment a state changes.
+· A wave CLOSES on its AUDIT VERDICT, never on a subagent's return.
+· A FLAWED verdict puts the wave back to in_progress with the fix note.
+· A BLOCKED wave names its unblock path — it is never silently parked.
+· The orchestrator re-runs EVERY gate itself before closing (the builder-under-audit law).
+· Docs update the MOMENT a wave closes (the 2 logs first).
+```
+
+## THE RESUME COMMAND (one line for a fresh session)
+
+```
+cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence && \
+  cat context_management/COMPACTION_SURVIVAL.md
+# then read POST-COMPACTION_PROMPT.md and give the 5-line proof-of-context
+```

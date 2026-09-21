@@ -109,3 +109,96 @@ R6 THE ORACLE'S COST — 1 fire per resolution doubles the burn.
   costs more, and by how much?" per class (destructive / dumb / theatrical).
   Until it arrives: W1-W5 are unblocked and buildable; W6 waits.
 ```
+
+## THE WAVE-BY-WAVE EXECUTION DETAIL (the exact shape of each)
+
+```
+W1 THE LEDGER — why first: nothing else can be calibrated, audited or counted without a row.
+   THE DDL (blueprint S8.2): fire_decisions(id, at, rule_id, cls, question_version,
+   probability, band, action, policy_name, act_threshold, flag_threshold, state_hash,
+   cost_usd, later_truth, truth_at) + two indices: (rule_id, later_truth) and (state_hash).
+   THE WRITER hooks FireGate's existing ledger array (fire-gate.ts:344 rows()) — the table
+   is a PERSISTENCE of what the gate already builds in memory.
+   TEST: test_ledger_row_written — fire once, query the table, assert one row with
+   laterTruth='unresolved'.
+
+W2 THE ORACLE — why second: the rows must exist before they can be resolved.
+   THE EVIDENCE GATHERERS (four, each a query over the session record):
+     (a) a later edit touched the same target within T
+     (b) a test/verify tool ran after the firing
+     (c) the claim was withdrawn or restated WITH a span
+     (d) a downstream gate permitted the act
+   THE CLASSIFICATION: any (a)-(d) → confirmed | refuted; none → unresolved.
+   ★ REFUTED REQUIRES A SECOND SIGNAL — never merely the absence of complaint.
+   TEST: test_oracle_resolves — one real firing resolved with its evidence recorded.
+
+W3 POSITION A (the pre-act advisory) — why BEFORE W4: fail-OPEN cannot break anything, so
+   the live path is exercised while the filter is still being built.
+   THE SHAPE: a Fire built from the INTENT (tool + target + the classifier's read), judged
+   BEFORE the act runs. A FIRE verdict on an advisory = the act is refused pre-emptively.
+   TEST: test_advisory_open — an intended blind edit gets an advisory; a legitimate intent
+   passes with zero friction.
+
+W4 POSITION B (the post-detector filter) — THE WIRING.
+   THE CALL SITE: inside runKernelV2, between the detector's VIOLATION (kernel-v2.ts:299)
+   and the verdict mapping (:328). For each detector outcome with verdict != PASS:
+   build a Fire, call FireGate.judge, and let the ACTION modulate the verdict.
+   ★ THE FROZEN SURFACES: gate-hook.ts:117 (the single call site) stays 1;
+   graph-gate.ts:208 (the tier ladder) survives; the 3 PROPOSED hooks :247/:250/:254 remain.
+   THE ANTI-PATTERN DETECTION: grep -c "FireGate" src/omp/kernel-v2.ts > 0.
+   TEST: test_gate_fire (a real violation adjudicated FIRE) + test_gate_ignore (a paired
+   false positive IGNORED).
+
+W5 THE POLICY STORE (D026: data, not code) — a versioned JSON recipe per rule; a human edits
+   it without a rebuild; the edit changes the cache key (L12).
+   TEST: test_policy_reload — edit the JSON, assert the band changes on a STORED
+   probability (the reroute path, no re-inference).
+
+W6 THE CALIBRATION — ★ BLOCKED ON M2. Once the cost matrix arrives: set DEFAULT_PROFILES'
+   costs, run 50+ real firings, let the oracle resolve, and derivePolicy flips
+   calibrated=true on its own.
+   TEST: test_calib_flips + checkCalibrationHealth ok=true with zero findings.
+
+W7 THE MEASUREMENT — M1-M12 (MEASUREMENT_PLAN.md). M11 needs a HUMAN session: sample the
+   IGNORE rows and label them. That is the only view of the gate's silent false negatives.
+
+W8 THE CONTAINER — the whole loop in omp-ct:master AND the Phase F ARTIFACT
+   (.trident/container-test-results.json) — the artifact is the deliverable, not the
+   terminal output. Stage with `docker cp src/. <dest>/` (the trailing slash).
+
+W9 THE SEAL — the package + PACKAGE_AUDIT + a checkpoint refresh AFTER the deliverable.
+```
+
+## THE RISK REGISTER — THE FULL FORM (each: the trigger, the blast, the mitigation)
+
+```
+R1  THE WIRING ORDER     trigger: registering the gate while up=5/11
+    blast: STAGE 0 refuses EVERY tool call on this host — the agent stops working
+    mitigation: W3 lands first (fail-open); the register stays measured; the polarity is
+    per-surface; and the wiring is a SEPARATE wave from the ledger work.
+R2  THE STARVATION TRAP  trigger: keeping the seeds
+    blast: the act band never fires; the ledger looks calm while every violation passes
+    mitigation: M2 + W6; until then every policy carries calibrated=false + the basis.
+R3  THE FROZEN SURFACES  trigger: the W4 edit
+    blast: the v1.3 behaviour changes silently (the single call site, the tier ladder)
+    mitigation: the v1.3 gate suite (12/12) after every wiring change; grep the call-site
+    count after every edit.
+R4  THE CONTAINER FAKE   trigger: running the rows by hand again
+    blast: terminal evidence is not the artifact; the next session cannot verify
+    mitigation: W8 produces .trident/container-test-results.json via the rig.
+R5  THE COST             trigger: a Jev call per fire + per resolution
+    blast: ~2x the token burn (still ~4 cents/day at the envelope)
+    mitigation: the cache (D013) + the MPSE settlement + batching the oracle at session end.
+R6  THE CANON DRIFT      trigger: docs updated at session end
+    blast: the next agent reads a stale SHA and builds on fiction
+    mitigation: the cross-consistency gate (5b) before any prep; the 2 logs at the moment.
+```
+
+## THE DONE-WHEN, CONSOLIDATED (the terminal gate)
+
+```
+ALL of: the battery 199+/0 on the host AND the container (with the Phase F artifact) ·
+tsc 191 == baseline · every wave's named test green verified BY RE-RUNNING IT YOURSELF ·
+checkCalibrationHealth ok=true · MEASUREMENT_PLAN.md with ZERO TBD · PACKAGE_AUDIT PASS ·
+a checkpoint refreshed AFTER the seal exists.
+```

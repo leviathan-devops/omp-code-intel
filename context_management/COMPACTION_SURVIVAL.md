@@ -130,3 +130,83 @@ packages/gi-kernel-v2.1/MEASUREMENT_PLAN.md                      53 L — M1-M12
 **One-line position: v2.1 is designed (blueprint 862 L) and its core is built (555 L) and
 measured (14 live firings), but UNWIRED (0 call sites) and UNCALIBRATED (health.ok=false);
 the next action is W1, and W6 waits on the operator's M2 cost matrix.**
+
+## THE FULL RULING SET (every operator statement that constrains the build)
+
+```
+1  "destructive, dumb, or theatrical. explicitly all 3 of these."
+2  "dumb and theatrical is 80% of the kernel's work."
+3  "the main issues are theatrical and fucking stupid."
+4  "NO FUCKING STUPID FALLBACKS ANYWHERE IN THIS STACK. HARD DEPENDENCIES ON EVERYTHING.
+    LOUD FAIL CRASH IF ANYTHING IS NOT WORKED W/ CLEAR ERROR CODES"
+5  "if it exists on github we can use it. period." (license = a permanent NON-ISSUE)
+6  "1) both"  — the gate in BOTH positions
+7  "2) get proper measurements for everything. no guesses"
+8  "CONTAINER. THATS WHY ITS THERE."
+9  "each fire should be < 5000 tokens"
+10 "100 fires per session across 5 parallel session per day ... costs me literally 2 cents"
+11 "whenever you ask me questions, you always provide the relevant context"
+12 "wire this mfer in its exactly what we need. ltierally designed for embedded systems
+    intelligence like runtime kernels."
+13 "THE AGENT MAY NOT DO ANYTHING DESTRUCTIVE." (extended to dumb + theatrical)
+```
+
+## THE ARCHITECTURAL INVARIANTS (break one and the kernel is wrong)
+
+```
+I-1  THE MODEL NEVER ROUTES. Jev returns a float; code maps it to a consequence.
+     fire-gate.ts:354. A design where the model chooses the action is a non-starter.
+I-2  THE STATE IS EVIDENCE ONLY. No conversation, no instructions (bible D004).
+     buildState at fire-gate.ts:186 — trigger + context + context_meta, nothing else.
+I-3  ONE SNAP JUDGMENT PER QUESTION. Never a composite (D006). A vague question scores
+     ~0.4 on everything and never fires — the silent-failure class.
+I-4  UNCERTIFIABLE IS NOT A PASS. A missing answer routes by the fail polarity and is
+     RECORDED as such (fire-gate.ts:340).
+I-5  EVERY FIRE LEAVES A ROW. A fire with no row cannot be calibrated, audited or counted.
+I-6  laterTruth IS WRITTEN "unresolved" AT FIRING TIME. Only the oracle changes it.
+I-7  THE THRESHOLD IN FORCE IS RECORDED ON EVERY ROW (bible S6.4.3 rule 3) — so a later
+     calibration separates "the model changed" from "the bar moved".
+I-8  RE-ROUTING NEVER RE-INFERS. reroute() re-decides a stored probability (rule 4).
+I-9  A QUESTION EDIT IS A NEW INSTRUMENT. QUESTION_VERSION is in the cache key.
+I-10 THE CHEAPEST RUNG THAT CAN ANSWER DOES. MPSE → cache → model, in that order.
+```
+
+## THE MEASURED FACTS THAT SHOULD NEVER BE RE-DERIVED
+
+```
+· typed_edges.confidence was the DDL DEFAULT 1.0 on 2714/2714 live rows — ONE distinct
+  value. The PREFIX "explicit:" is on ALL of them, so the prefix cannot discriminate;
+  the PREDICATE can (imports=observed 0.99, calls=inferred 0.72).
+· the live store was 2 days stale with NO marker: gi_meta.populated_at existed and nothing
+  compared it to anything.
+· the graphify projector's edgeRows carried NO confidence field at all.
+· the real graph.json has 24,757 edges and 9,814 nodes; the store held 2,713 / 1,266 —
+  the store came from an OLDER graph.
+· the real schema uses source_location ("L54") and source/target, NOT line and src/dst.
+· the register reads up=5/11 on this host; JEV is DOWN without the env shim.
+· the container found 2 defects the host battery hid: a /tmp/fx383 fixture dependency and
+  the ESM-hoisting GO_KEYS trap.
+· the 14-case measurement: real mean P=0.581 (min 0.490), fp mean P=0.253 (max 0.530),
+  best F1=0.933 at t=0.40, and the act band fired ZERO times at the seeds.
+```
+
+## THE DERIVATION DEEP-DIVE (what the numbers mean, for a fresh agent)
+
+```
+t = C_false_block / (C_false_block + C_missed)
+  equal costs → 0.500 · block 4x → 0.800 · block 10x → 0.909 · miss 3x → 0.250
+  ★ the C's are the OPERATOR'S risk posture; the CURVE is the measurement's.
+
+THE WILSON INTERVAL (calibration.ts:52) — the correct interval for a proportion from
+counts. The normal approximation misbehaves exactly where thresholds live (near 0/1 and
+at small n). half-width ≈ z*sqrt(p(1-p)/n).
+
+FIRES NEEDED (calibration.ts:106) — to resolve a gap g at p≈0.85:
+  g=0.20 → 13 · g=0.15 → 22 · g=0.10 → 49 · g=0.05 → 196
+  ★ THE MEASURED ANSWER to the fire-floor question: 49, not the 10 that was guessed.
+
+THE TWO TRAPS (bible S6.4.6)
+  INFLATION: copying a reported bar (someone's 0.95) without calibrating on your data.
+  STARVATION: a bar so high the act band never fires — you pay for every judgment and use
+  none. Symptom: flag rows pile up, act rows are zero. ★ MEASURED on this corpus.
+```

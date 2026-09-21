@@ -105,3 +105,109 @@ src/omp/populate.ts:21                   "There is NO third substrate" (the F-48
   (the observation-channel discipline holds; the Effect wrapper is not used).
 · the register is up=5/11 — the six layers are DESIGNED, one (graphify) is POPULATED.
 ```
+
+## THE DETECTOR MECHANICS (what each one actually keys on)
+
+```
+dumbDetector         kernel-v2.ts:138
+  KEYS ON  ctx.queriedBefore — was the target queried before the act?
+  FIRES    queriedBefore=false → VIOLATION tier T1 → STEER (advisory)
+  WHY T1   a blind edit is a PROCESS defect, not a safety one; the first occurrence
+           steers, and repeats escalate through the drift ladder.
+  THE v1 LINEAGE  replaces the parked basic-logic-check.md regex ("let me guess") with
+           a FACT read off the execution record. A fact cannot be phrased around.
+
+theatricalDetector  kernel-v2.ts:155
+  KEYS ON  ctx.claims[].spans — does any claim have ZERO bound evidence?
+  FIRES    an unbound claim → VIOLATION tier T2 → REFUSE
+  WHY T2   a false "done" IS the defect; the cost asymmetry justifies refusal.
+  THE CHEAP GATE  zero spans is decided in CODE; the model is never called
+           (asserted with a call-spy in the enforce tests: called=false).
+
+destructiveDetector  kernel-v2.ts:173
+  KEYS ON  ctx.certifications[] — the six layers' verdicts
+  FIRES    no certifications → UNCERTIFIABLE (NOT a pass); a VIOLATION → REFUSE
+  WHY      T-6: the gate cannot certify what it cannot check.
+```
+
+## THE STAGE MACHINE (the exact order + what each stage records)
+
+```
+STAGE 0 PREFLIGHT  kernel-v2.ts:268   every layer probed; one DOWN ⇒ GI_STACK_INCOMPLETE
+STAGE 1 CLASSIFY   :283               the classes asked (dumb|theatrical|destructive)
+STAGE 2 BIND+INDEX :292               claims bound; the count recorded
+STAGE 3 DETECT     :208/:299          the three detectors; the outcomes recorded
+STAGE 4 KERNEL     :308               the worst verdict wins; a tie takes the HEAVIER class
+STAGE 5 VERDICT    :328               ALLOW | STEER | REFUSE | ABORT
+STAGE 6 RECORD     :366               the optional sink; a failing sink is REPORTED
+★ AN ALL-PASS RUN IS `benign`, NOT the first detector's class (a mis-report the W2 test
+  caught: the reduce kept the FIRST element on a rank tie).
+```
+
+## THE RSI LAYER (the 3.0 substrate, already built)
+
+```
+rsi.ts:138  RsiStore — signed rows (HMAC-SHA256, key 0600, dir 0700) + a prev_hash chain.
+rsi.ts:248  verify — the length check BEFORE the constant-time compare (the F-50 fix:
+            timingSafeEqual THROWS on a length mismatch, so a malformed sig used to
+            crash the reader instead of being ABSENT).
+rsi.ts:290  retire — VERIFIED RETIREMENT: a supersede is honored ONLY if the SUPERSEDING
+            row exists, is live, and VERIFIES. ★ THE DISABLEMENT HOLE, found by a live
+            attack: signatures stop INJECTION; they do nothing about DISABLEMENT, because
+            the attacker only has to touch the victim's row.
+rsi.ts:365  recount — precision RECOMPUTED from the ledger, never incremented.
+rsi.ts:380  supersede — an ATOMIC retire-then-insert (G5 preserved by atomicity).
+rsi.ts:103  deriveTier — the tier is a PURE FUNCTION. Floors at BOTH promoting tiers:
+            GUARD (prec>=0.90, fires>=10, unres<=0.20) · REFLEX (>=0.70, >=3, <=0.50) ·
+            RETIRED (fires>=20 below the floor) · HOLD (everything else, CAN NEVER PROMOTE).
+```
+
+## THE ENFORCEMENT KERNEL (the two polarities, measured)
+
+```
+E1 WORK  enforcement.ts:99   Abide judges the DIFF          fail-OPEN
+    an act-band verdict appends REPAIR TEXT, never a rollback (R3).
+    a down engine / a throwing judge ⇒ SKIPPED with the NAMED code.
+    a judge answering UNKNOWN rule ids ⇒ a REPORTED defect, not a violation.
+E2 CLOSE enforcement.ts:172  the firewall judges the CLAIM   fail-CLOSED
+    DETECT → BIND (coverage FIRST; zero spans ⇒ FABRICATED, the model NEVER called) →
+    JUDGE (one question over the BOUND spans) → ROUTE (code applies 0.8/0.5).
+BANDS  ACT_PROBABILITY 0.8 (:80) · FLAG_PROBABILITY 0.5 (:81)
+★ THE TWO POLARITIES ON THE SAME OUTAGE (measured):
+    engine outage → work=SKIPPED (the edit proceeds) · close=FAIL_CLOSED (done blocked)
+```
+
+## THE DEBUGGING STATE (what is being worked on + the last insight)
+
+```
+EN-041  the lineless-edge drop — FIXED. Two field-name mismatches: (1) both line-resolution
+        calls passed only the node's `data`, never `source_location` — the field the real
+        schema uses; (2) GraphifyEdge's TYPE declares src/dst while the JSON emits
+        source/target, so every edge resolved to graphify:undefined and counted DANGLING.
+        MEASURED: 0 → 23,086 edges survive; 9,797/9,814 nodes with lines.
+        LEFTOVER: 1,671 edges genuinely dangling; the OLD store shows pre-fix values.
+EN-043  the freshness DEADLOCK — FIXED. The probe reads .graph_hash (written ONLY by the
+        populate path); the build regenerated graph.json but never the sidecar, so
+        build → stale sidecar → populate refuses → the sidecar never rewrites. The build
+        now MARKS ITS OWN OUTPUT fresh.
+EN-044  the phantom sessionID — FIXED. ctx.sessionID ?? "default" resolved to "default" on
+        EVERY live call; every session shared one drift bucket. resolveSessionId: ctx →
+        GI_SESSION_ID → the SCOPE ROOT (the gate's actual ownership boundary).
+F-50    the malformed-sig crash — FIXED. Found ONLY by the first live-store run.
+F-51    the mutation reading conflict — the TEST is fixed; the module-instance split is
+        MEASURED (a call counter reading a CONSTANT hits=7 while verifyRow printed varying
+        verdicts) but not root-caused.
+```
+
+## THE SYSTEM'S OWN VERDICT ON ITSELF (the honesty signal)
+
+```
+checkCalibrationHealth(policies, ledgers) → { ok: false, findings: [...3 items...] }
+  the findings say: "NO LEDGER — threshold is uncalibrated" for all three rules.
+derivePolicy(profile, counts) → { calibrated: false,
+  basis: "cost matrix only (C_block=4, C_miss=1) → t=0.800; NO measured counts yet (needs 20 resolved)" }
+
+★ THIS IS THE DESIGN WORKING. The kernel refuses to claim a calibration it does not have.
+  A fresh agent should READ these two returns as the authoritative statement of the
+  calibration state — not any prose anywhere, including this doc.
+```

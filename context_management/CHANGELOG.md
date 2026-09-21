@@ -103,3 +103,98 @@ src/omp/scoping/gi-session-path.ts  resolveSessionId — the EN-044 fix
 src/hydra/__tests__/fx383-fixture.ts  the hermetic fixture helper
 src/omp/fire-gate.ts:150    absorbContext — the lexicon-filtered slice
 ```
+
+## THE SESSION'S NUMBERS (the full accounting)
+
+```
+commits this session        45+
+battery (host)              199 pass / 0 fail / 701 expect / 20 files
+battery (container)         199 pass / 0 fail / 705 expect / 20 files
+tsc                         191 == baseline (0 new)
+the v2 source delta         3275 L across 8 modules
+the v2 tests                65 tests / 1050 L across 6 files
+the v2.1 package            19 files / 2091 L
+the blueprint               862 L / 14 sections / 25-of-25 mapped
+the ship docs               6 docs / 2441 L
+the theatricality log       361 L / 11 entries / 5 OPERATOR-CAUGHT
+the live store              1424 nodes / 3077 live edges / layer_id NULL=0
+the real corpus             2 distinct confidence (0.99 x 2173 · 0.72 x 904)
+the measurement             14 cases / bestT=0.40 / bestF1=0.933 / health.ok=false
+live Jev                    ok=true p=0.76 @790ms; the kernel judged at p=0.980
+EN-041                      0 → 23,086 edges survive
+```
+
+## THE LESSONS THE NEXT AGENT SHOULD CARRY (each cost a round this session)
+
+```
+1  MEASURE THE DISCRIMINATOR ON THE REAL CORPUS before building on it. The "obvious"
+   confidence fix — parse the evidence prefix — was measured wrong: 2714/2714 carry the
+   blanket prefix. One build wasted.
+2  A TEST DOUBLE IS A CONTRACT WITNESS. Adding a step to a function whose error contract is
+   TESTED means the new step inherits that contract (the migration broke applyTypedDdl).
+3  A MUTATION TEST MUST RE-RUN THE ORIGINAL ASSERTION. Asserting the MUTANT's behaviour
+   proves the seam is wired, not that the test bites.
+4  A GATE WHOSE INPUT IS WRITTEN ONLY BY THE PATH IT BLOCKS IS A DEADLOCK (EN-043).
+5  A WORKTREE WHOSE NAME MATCHES THE PROJECT IS NOT THE PROJECT (the ripwire cwd jail:
+   verify the REPO IDENTITY with rev-parse + cat-file, not the directory name).
+6  THE CONTAINER IS THE ONLY WITNESS to what a test actually depends on.
+7  A NAME IN A DIAGRAM READS AS A DECISION (gi_exec_graph — invented, and it survived
+   review as architecture).
+8  A CHECKPOINT SAVED AT THE START OF A BURST DOES NOT CONTAIN THE BURST.
+9  A CHOSEN CONSTANT PRINTED BESIDE A MEASURED ONE BORROWS THE MEASURED ONE'S AUTHORITY.
+10 THE FIX FOR A CHOSEN CONSTANT IS NOT A DISCLAIMER — it is building the instrument.
+```
+
+## THE OPERATOR INTERACTIONS (verbatim, in order — the ruling trail)
+
+```
+TURN  "save the checkpoint" + the Jev key + "test everything proeprly" + "Build TSG proeprly"
+      + the four defect assignments (EN-041, F-51, the RB rows, the sessionID, the store)
+      → the key out-of-band; TSG built (cargo release 54.50s); EN-041 fixed (2 root causes);
+        F-51 fixed; the sessionID fixed; the store re-populated.
+TURN  "this needs to be contianer tested ... why were they not accomplished"
+      → the container substitution admitted; the container battery run (199/0, 2 defects found).
+TURN  "log all theatricality data in the failure logs ... create a new theatricality log"
+      → THEATRICALITY_LOG.md created (361 L, 11 entries); the skill updated to 6 docs; F-53.
+TURN  "get accurate measurements and then mint a skill ... document the meta process"
+      → the 14-case instrument run; the 2x finding; derive-runtime-measurements minted.
+TURN  "1) both  2) get proper measurements for everything. no guesses  go"
+      → the v2.1 blueprint (862 L) + the build package (19 files / 2091 L).
+TURN  "where is the blueprint"
+      → the path; and the CHECKPOINT REFRESH (it predated the blueprint — a real gap).
+TURN  "looks good /skill:runtime-grade mint the full runtime grade build package"
+      → the 8-step build-package pipeline.
+TURN  "/create"  → the /goal pin (validator PASS).
+TURN  "/skill:compaction-prep"  → this canon.
+```
+
+## THE HONEST DISCLOSURE LEDGER (what a fresh agent must not be misled by)
+
+```
+1  THE CONTAINER PHASE F ARTIFACT DOES NOT EXIST. Every "container tested" claim rests on
+   terminal output, not the handoff artifact. Do not cite it as artifact-backed.
+2  THE CANON WAS THIN AT FIRST — this prep's first pass wrote 9 docs averaging 108 L; the
+   fix pass brought them to 200+. If a doc here reads thin in a section, the source of
+   truth is the blueprint + the spec + the code, not this doc.
+3  THE THRESHOLDS ARE UNCALIBRATED — the kernel says so itself (health.ok=false).
+4  THE v2.1 GATE IS UNWIRED — the improvement is UNMEASURED. Do not report it as working.
+5  THE 5 RB PASS ROWS ARE HOST-RUN. The container re-run is OPEN.
+6  NO AUDIT ARTIFACT EXISTS — the AUDIT GATE has never run; every ship-ready claim is
+   withheld by the ship-docs skill's own S7 gate.
+```
+
+## THE ARTIFACT INDEX (where everything is)
+
+```
+the code          src/omp/*.ts (8 modules, 3275 L)
+the tests         tests/st-gi-*.test.ts (6 files, 65 tests)
+the design        packages/gi-kernel-v2.1/GI_KERNEL_V2.1_MASTER_BLUEPRINT_v1.md (862 L)
+the contract      packages/gi-kernel-v2.1/GI_KERNEL_V2.1_DPL1_SPEC.md (505 L)
+the waves         packages/gi-kernel-v2.1/06-WAVES.md · 07-GOALS.md · MEASUREMENT_PLAN.md
+the pin           .trident/CREATE_PIN_v2.1.txt (145 L)
+the checkpoint    Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/
+the ship docs     6 at the project root (2441 L total)
+the measurement   the checkpoint's artifacts/jev-kernel/measurement-14-case.json
+the skill         ~/.omp/agent/managed-skills/derive-runtime-measurements/
+the threads       omp/threads/store.sqlite (system-debugging EN-001..047 · copilot-intelligence)
+```

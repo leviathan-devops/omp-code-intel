@@ -125,3 +125,77 @@ Give a 5-line state summary naming ALL FIVE of these, then EXECUTE:
 ```
 Then fire W1 the same turn. Do not stop between waves — drive W1 → W2 → W3 → W4 → W5,
 re-running every gate yourself, and report at W6's blocker or at the seal.
+
+## 11 · THE ANTI-DERAIL LIST (this project's known failures — do not re-live them)
+
+```
+A-1  THE RIG SUBSTITUTION — running a container-minted row host-side and calling it passed.
+     Measured cost: the container then found TWO real defects. Use the named rig.
+A-2  THE CHOSEN CONSTANT — publishing a threshold without its derivation. Measured cost:
+     a 2x error that made the act band fire ZERO times (a gate that never fires looks
+     exactly like a gate that works).
+A-3  THE UNWIRED KERNEL — a module that exists, is tested, and is called by nothing.
+     The detection: grep -c "FireGate" src/omp/kernel-v2.ts must be > 0 after W4.
+A-4  THE INVENTED COMPONENT — naming a store that does not exist (gi_exec_graph).
+A-5  SCOPE SHRINK under pressure — "too big" is never a finding; decompose instead.
+A-6  APPROVAL-GATING required work — the remedy IS the work order; execute it.
+A-7  THEORETICAL fixes without runs — a mechanism described but not executed is a claim.
+A-8  BLIND / syntax-only coding — a grep or a file read is not a graph. Map first.
+```
+
+## 12 · THE ANTI-STOP LIST (these never close the run)
+
+```
+· STATIONARITY — "no change in N turns" is not done.
+· A SUB-INNER PASS as complete — one wave's green with siblings open is progress.
+· MEMORY-COMPLETE — "I already verified this" without a this-turn re-run is STALE.
+· THEATER-COMPLETE — prose summaries, typed-but-unrun commands, verdicts without outputs.
+· BLOCKED-AS-DONE — a block names its resume condition; it is never a stop.
+· A PARTIAL-SCOPE close — the board must read all-green.
+· "ZERO BUGS" as success — the push set must have run.
+· AN EMPTY RUNTIME LEDGER — nothing was operated; it was inspected.
+· A GREEN BATTERY as capability — the battery is an effort receipt.
+```
+
+## 13 · THE CONTAINER DISCIPLINE (the rig of record)
+
+```
+THE COMMAND   docker exec stupefied_morse sh -lc 'rm -rf /tmp/fx383; cd /work/gi && \
+                /root/.bun/bin/bun test ./tests/ ./src/hydra/__tests__/'
+STAGING       docker cp <src>/. <dest>/     ← the trailing /. copies CONTENTS.
+              WITHOUT it, docker cp NESTS the directory (measured: __tests__/__tests__).
+THE DEPS      bun add zod xstate (the container has no node_modules for /work/gi)
+THE ARTIFACT  ★ THE DELIVERABLE IS .trident/container-test-results.json (Phase F), not the
+              terminal output. The current run has terminal evidence ONLY.
+```
+
+## 14 · THE ECONOMICS (the operator's envelope, checked)
+
+```
+per fire          ~1,200-3,000 input tokens (the 18KB cap ≈ 4,500 tokens worst case)
+fires per session ~100 · sessions per day 5 · fires per day ~500
+cost per day      ~$0.021-0.063 at $0.042/1M input tokens
+★ THE ENVELOPE HOLDS with headroom. The 18KB cap is the guard: a fire that would exceed it
+  TRIMS (and reports the trim) rather than growing the bill.
+★ THE ORACLE ADDS ~1 fire per resolution — batch resolutions at session end, not per firing.
+```
+
+## 15 · THE THREADS (durable memory, outside this project tree)
+
+```
+~/.omp/threads/store.sqlite
+  omp/system-debugging/global-debug-log     EN-001..EN-047 (the bug ledger)
+  omp/copilot-intelligence                   the operator-interface rules (D-06's standing
+                                             rule: a question always carries its context)
+  omp/copilot-agents                         the copilot machinery
+READ THEM with: bun /home/leviathan/JARVIS_WORKSPACE/OMP/threads/omp-threads.ts \
+                  micro-thread read system-debugging global-debug-log
+```
+
+## 16 · THE DENSITY NOTE (why this doc is not 400 lines)
+
+This doc is the ENTRY SEQUENCE, not the encyclopedia. The depth lives in the blueprint
+(862 L), the DPL1 spec (505 L), and the other canon docs. When this doc names a fact, the
+detail is one read away — the referenced doc is named beside it. A fresh agent that wants
+MORE reads: the blueprint (the design), the spec (the contract), CURRENT_STATE (the
+architecture as it is), DECISION_CHAIN (the rulings verbatim).
