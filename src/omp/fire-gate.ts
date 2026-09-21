@@ -335,7 +335,12 @@ export function mpsePreFilter(fire: Fire, ctx: AbsorbedContext): { settle: FireD
 }
 
 export class FireGate {
+  /** D017's hard stop: the NUMBER OF FIRES that reached the model path. */
   private budgetUsed = 0;
+  /** ★ EN-076 — the ECONOMIC meter: actual model calls. A single-flight share costs one
+   *  call but still counts as a fire, so the two numbers diverge under concurrency and
+   *  BOTH are reported. */
+  private modelCalls = 0;
   /** ★ R-D (cache/version defect, exposed by the question probe): the cache is keyed by
    *  (QUESTION_VERSION, stateHash) — NEVER by the state alone. A question re-authoring
    *  changes what a probability MEANS, so serving an old answer under a new question
@@ -436,9 +441,14 @@ export class FireGate {
       } finally {
         clearTimeout(handle);
       }
-      // ★ only the CREATOR spends budget: a shared call is one model call, and the
-      //   budget counter is the economic meter, not a judgment counter.
-      if (!call.shared) this.budgetUsed += 1;
+      // ★ EN-076 (PASS-6 HIGH) — THE BUDGET COUNTS **FIRES**, AS DOCUMENTED. D017's
+      //   contract is "bounds the NUMBER of fires", and my single-flight change made it
+      //   count only CREATOR calls — so N shared fires cost ONE unit and the hard stop was
+      //   bypassable by concurrency. The two meters are now SEPARATE and both honest:
+      //     budgetUsed  — FIRES (every judgment that reached the model path) — the D017 stop
+      //     modelCalls  — actual model calls (shared fires cost one) — the economic meter
+      this.budgetUsed += 1;
+      if (!call.shared) this.modelCalls += 1;
     } catch (e) {
       // D010: the polarity of THIS surface. Fail-open = the act proceeds and the
       // miss is RECORDED; fail-closed = the act is refused.
@@ -446,6 +456,15 @@ export class FireGate {
       //   a consumer that cannot tell them apart cannot tell "the model is slow" from
       //   "the model is broken".
       const timedOut = e instanceof FireGateTimeout;
+      // ★ EN-075 — A TIMED-OUT CALL IS ABANDONED. Its promise never settles, so nothing else
+      //   would ever remove it; and a later same-state fire would inherit the hang.
+      if (timedOut) this.abandonInFlight(cacheKey);
+      // ★ AND A FIRE THAT REACHED THE MODEL AND GAVE UP IS STILL A FIRE. The budget
+      //   increment sat after the race, so a timed-out fire counted ZERO — D017's stop was
+      //   blind to exactly the fires that consume the most time (and still spend tokens).
+      //   `firesUsed` counts fires; `modelCalls` counts calls, and only the creator made one.
+      this.budgetUsed += 1;
+      if (!sharedCall) this.modelCalls += 1;
       const closed = policy.failPolarity === "closed";
       const suffix = timedOut ? "timeout" : `fail-${policy.failPolarity}`;
       const row: DecisionRow = {
@@ -472,7 +491,12 @@ export class FireGate {
     // answer would have DISMISSED a violation on a fail-CLOSED surface (theatrical,
     // destructive) whose contract says REFUSE. A NaN therefore BYPASSED THE POLARITY
     // CONTRACT ENTIRELY. Found by the P5 red-team corpus (R-1, the J-numeric probes).
-    if (a === undefined || !Number.isFinite(a.probability)) {
+    // ★ EN-077 (PASS-6 HIGH) — FINITE IS NOT A PROBABILITY. `Number.isFinite` let p=-0.2 and
+    //   p=1.5 through: they band (ignore / act) and are written to the ledger, where the W1
+    //   validation would later REJECT the row — so the gate would produce a decision it
+    //   cannot persist, and the ledger's own guard would fire on the gate's output. The range
+    //   is checked HERE, at the source, with the same 0..1 contract the ledger enforces.
+    if (a === undefined || !Number.isFinite(a.probability) || a.probability < 0 || a.probability > 1) {
       const why = a === undefined ? "no-answer" : "bad-answer";
       const closed = policy.failPolarity === "closed";
       const row: DecisionRow = {
@@ -524,12 +548,26 @@ export class FireGate {
     if (existing !== undefined) return { answers: existing, shared: true };
     const answers = this.cfg.judge.evaluate(state, [fireQuestion()]);
     this.inFlight.set(cacheKey, answers);
-    // settle → evict, so the map holds only calls genuinely in flight.
-    void answers.then(
-      () => this.inFlight.delete(cacheKey),
-      () => this.inFlight.delete(cacheKey),
-    );
+    // ★ EN-075 (PASS-6 HIGH) — COMPARE-AND-DELETE, and the eviction must also happen on a
+    //   TIMEOUT. Two defects in one line of intent:
+    //   (a) the first version deleted by KEY alone. An ORPHANED call (one whose caller
+    //       timed out) can settle LATER and delete the entry a NEW call now owns — evicting
+    //       a live call and letting a third caller start yet another. Delete only if the
+    //       entry IS this promise.
+    //   (b) a TIMED-OUT judge's promise NEVER settles, so these handlers never ran and the
+    //       entry persisted FOREVER. Every later same-state fire inherited the hung promise.
+    //       My H4-5 fix bounded ONE call; my W2-1 fix SHARED the call; the two composed
+    //       into a SHARED HANG, and I described it in a commit without fixing it.
+    const evict = () => { if (this.inFlight.get(cacheKey) === answers) this.inFlight.delete(cacheKey); };
+    void answers.then(evict, evict);
     return { answers, shared: false };
+  }
+
+  /** ★ EN-075 — ABANDON AN IN-FLIGHT CALL THE CALLER HAS GIVEN UP ON. Called when the
+   *  gate's own ceiling fires: the hung call is dead to us, and leaving it in the map would
+   *  hand it to every later same-state fire. Public so the timing path can state it. */
+  private abandonInFlight(cacheKey: string): void {
+    this.inFlight.delete(cacheKey);
   }
 
   /** §6.4.7 — the oracle fills this in later. Never assumed at firing time. */
@@ -542,6 +580,8 @@ export class FireGate {
   // Public API seam: the calibration machinery and the tests read the ledger.
   rows(): readonly DecisionRow[] { return this.ledger; }
   firesUsed(): number { return this.budgetUsed; }
+  /** ★ EN-076 — the model calls actually made (≤ firesUsed under single-flight). */
+  modelCallsUsed(): number { return this.modelCalls; }
   cacheSize(): number { return this.cache.size; }
 }
 

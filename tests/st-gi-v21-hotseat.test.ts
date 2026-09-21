@@ -99,8 +99,13 @@ describe("st-gi-v21-hotseat: the runtime seat's findings", () => {
     expect(cachedCount).toBe(N - 1);
     // every fire still leaves its own row (SC-8 holds under concurrency)
     expect(gate.rows().length).toBe(N);
-    // and the budget meter counted ONE fire, because one call was made
-    expect(gate.firesUsed()).toBe(1);
+    // ★ EN-076 — THE TWO METERS ARE SEPARATE AND BOTH HONEST. D017's hard stop bounds the
+    //   NUMBER OF FIRES (8 here — every judgment that reached the model path); the ECONOMIC
+    //   meter counts actual model calls (1 — the single-flight share). My first version
+    //   collapsed them into the call count, which made the hard stop bypassable by
+    //   concurrency.
+    expect(gate.firesUsed()).toBe(N);          // the D017 stop: N fires
+    expect(gate.modelCallsUsed()).toBe(1);     // the economic meter: 1 call
   });
 
   test("W2-1b: sequential identical fires still hit the long-lived cache", async () => {
@@ -124,6 +129,40 @@ describe("st-gi-v21-hotseat: the runtime seat's findings", () => {
     }));
     expect(calls.n).toBe(5);                    // five states, five calls
     expect(gate.rows().length).toBe(5);
+  });
+
+  // ══ EN-075 — A TIMED-OUT CALL IS ABANDONED (the shared-hang class) ═════════════
+  // ★ PASS-6 HIGH, AND THE SECOND TIME THIS SESSION I DESCRIBED A DEFECT WITHOUT FIXING
+  //   IT: I wrote it into a commit message as "REGRESSION 1" and my fix list omitted it.
+  //   The mechanism: judgeOnce evicted only when the JUDGE promise settled — and a hung
+  //   judge NEVER settles — so the entry persisted and EVERY later same-state fire
+  //   inherited the hung promise. H4-5 bounded ONE call; W2-1 SHARED the call; together
+  //   they made the hang SHARED.
+
+  test("EN-075: a TIMED-OUT call does not poison later fires with the same state", async () => {
+    const neverSettles = Promise.withResolvers<never>().promise;
+    const gate = new FireGate({
+      judge: { async evaluate() { return await neverSettles; } },
+      judgeTimeoutMs: 200,
+    });
+    const f = aFire({ evidence: "en075-same-state" });
+    const t0 = Date.now();
+    const d1 = await gate.judge(f, absorbContext(f, NEUTRAL));
+    const t1 = Date.now();
+    expect(degradationOf(d1.row.policyName)).toBe("TIMEOUT");
+
+    // ★ THE SAME STATE, AGAIN. Before the fix this inherited the hung in-flight promise
+    //   and hung for its own ceiling too (or forever, with a longer ceiling).
+    const d2 = await gate.judge(f, absorbContext(f, NEUTRAL));
+    const t2 = Date.now();
+    expect(degradationOf(d2.row.policyName)).toBe("TIMEOUT");
+    // ★ fire 2 made its OWN call: it paid its own ceiling, and it was not served from cache
+    expect(t2 - t1).toBeLessThan(1_500);
+    expect(d2.cached).toBe(false);
+    expect(t1 - t0).toBeLessThan(1_500);
+    // ★ and the two meters tell the story: 2 fires, 2 calls (each timed out on its own)
+    expect(gate.firesUsed()).toBe(2);
+    expect(gate.modelCallsUsed()).toBe(2);
   });
 
   // ══ R-D — THE CACHE IS VERSION-SCOPED ════════════════════════════════════════
