@@ -574,3 +574,85 @@ MEASUREMENT-OK fires=13 cache=13 rows=14
 - **The artifacts:** `/tmp/jev-fire-measurement.json` (mirrored into the checkpoint at
   `artifacts/jev-kernel/measurement-14-case.json`); DEBUG_LOG EN-047.
 - **★ CRITICAL:** the seeds were ~2x too high; the act band fired ZERO times.
+
+## [2026-09-21T14:05:00] — GI KERNEL v2.1: THE WAVE EVIDENCE (W1-W8)
+
+**BASELINE RE-MEASURED THIS SESSION** (the pin's FIRST REPLY law — inherited numbers are STALE):
+```
+HEAD 0fa9a50 [jarvis/gi-main] · dist 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
+battery 199/0/701/20 · tsc 191 · tree 94 src ts (23,079) + 34 test ts (5,949) = 29,028
+⚠ ONE DIVERGENCE, ROOT-CAUSED AND REPAIRED: node_modules was ABSENT → the battery read
+  166/1/1err and tsc read TS2688. An ENVIRONMENT loss, not a code regression.
+  `bun install` (8 packages, 25ms) → 199/0/701 EXACT and tsc 191 EXACT. (EN-048)
+```
+
+**THE WAVE LADDER — each closed on an orchestrator re-run, never on a claim:**
+```
+W1 LEDGER    7/0/36    battery 206/0/737/21   tsc 191   test_ledger_row_written ✓
+W2 ORACLE   12/0/37    battery 218/0/774/22   tsc 191   test_oracle_resolves ✓
+W3 POS-A     9/0/45    battery 227/0/819/23   tsc 191   test_advisory_open ✓
+W4 POS-B     9/0/46    battery 236/0/865/24   tsc 191   test_gate_fire ✓ test_gate_ignore ✓
+W5 POLICY    8/0/36    battery 244/0/901/25   tsc 191   test_policy_reload ✓
+W7 MEASURE   the live campaign, M1-M12 filled, 0 TBD
+W8 CONTAINER 244/0/905/25 in stupefied_morse (clean) · the Phase F artifact EXISTS
+W6 CALIB     ⛔ BLOCKED — M2 (the operator's cost matrix)
+W9 SEAL      the package audit below
+DELTA 199/0/701/20 → 244/0/901/25 = +45 tests, +200 expects, +5 files, ZERO regressions
+```
+
+**THE ANTI-PATTERN LEDGER, CLASS 3 ("THE UNWIRED KERNEL") — KILLED:**
+```
+FireGate references in src/omp/kernel-v2.ts        0 → 3
+gate.judge( call sites in the kernel               0 → 1
+FireGate references outside fire-gate.ts           0 → 27
+```
+At session start the gate had ZERO call sites: 370 lines of built, tested, completely unconnected enforcement.
+
+**THE RUNTIME TIER (L3/L4):**
+```
+container  stupefied_morse @ omp-ct:master · bun 1.4.2 · /work/gi
+artifact   .trident/container-test-results.json (4121 B, valid JSON, Phase F shape)
+★ HONEST SCOPE (recorded inside the artifact): this is the BATTERY run, not the
+  scenario-driver Phase F. The rig requirement is met; the full per-scenario
+  passToken/failToken contract with byte offsets is NOT.
+★ THE +4 DELTA ROOT-CAUSED BY MEASUREMENT: host 9 down vs container 11 down × 2
+  expects/entry at st-gi-v2-deps.test.ts:112. ABIDE + RSI_STORE probe ABSOLUTE HOST
+  PATHS. 901 is NOT a constant. The W1-W5 suites are IDENTICAL in both (200 expects).
+```
+
+**THE LIVE CAMPAIGN (W7) — 14 paired cases through the WIRED path, the LIVE judge:**
+```
+M1  best t=0.35 → F1=0.889 P=0.800 R=1.000 · per rule theatrical 3C/2R · dumb 3C/2R · destructive 2C/2R
+M6  p50=331/328ms across two runs · p95=748/1351ms  ← the p50 is stable to 3ms, the p95 nearly DOUBLED
+M7  trimmed 0/14 · 29 slots
+M8  MPSE settled 0/14 = 0.0%  ← the cheapest layer contributed NOTHING
+M9  degraded 0/14 = 0.0%      ← the failure path was never taken
+M12 act band 0/14 → STARVED=TRUE
+health ok=false (3 findings) — the kernel correctly REFUSES to calibrate at n=4/5 per rule
+★ the shipped seeds are ~2.5x too high: at the dumb seed act=0.75 only 2 of 8 REAL
+  violations fire (R=0.250) while the measured optimum is t≈0.35-0.40.
+```
+
+## AUDIT GATE: BLOCKED
+
+```
+THE RAIL IS DOWN, MEASURED — not assumed:
+  port 4097 (go-session-proxy upstream)   200  UP
+  go-session-proxy processes              6    RUNNING
+  port 4098 (the zen-free adapter)        REFUSED
+  /tmp/zen-free-adapter.mjs               GONE — the skill itself warns "/tmp dies on reboot"
+  ocr scan → all 3 files failed: dial tcp 127.0.0.1:4098: connect: connection refused
+
+RETRY CONDITION (exact):
+  1 rebuild the adapter per '/home/leviathan/.agents/skills/ocr-zen-free-adapter' (~80 lines: inject the 4-gate
+    fingerprint, stream:true, the 4 named tool stubs, Bearer public; forward to
+    127.0.0.1:4097/zen/v1/* STRIPPING the leading /zen/v1; return the response.completed
+    event's .response as one JSON body) and copy it somewhere DURABLE, not /tmp
+  2 ocr config set custom_providers.muse-free.url http://127.0.0.1:4098/zen/v1
+  3 ocr scan --provider muse-free --timeout 30 --concurrency 2 --format json --path <file>
+    ONE FILE PER SESSION, SERIAL (~4-5 min/file)
+
+★ BLOCKED IS NEVER PASS. Every ship-ready claim remains WITHHELD until this line reads
+  PASS or FAIL with an artifact on disk. No audit artifact exists: .audit/sg-ocr-v2.1.json
+  is 0 bytes.
+```

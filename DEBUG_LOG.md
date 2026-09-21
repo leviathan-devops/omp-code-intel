@@ -519,3 +519,40 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
 - **THE LESSON:** an abstract target becomes measurable the moment you build the instrument and
   write the expectation down FIRST. The delta between assumed and measured IS the finding —
   here it was a 2x error in the direction that silently disables the kernel.
+
+## [2026-09-21] — v2.1: THE DEBUG LEDGER (EN-048..EN-059, the ship-level record)
+
+The full entries with symptoms, root causes and evidence live in
+`context_management/RUNNING_DEBUG_LOG.md`. The index, and what each taught:
+
+```
+EN-048  node_modules absent → a false baseline divergence
+        ★ measure the ENVIRONMENT before concluding the code moved
+EN-049  `Judge` declared but not re-exported (TS2459, tsc 192→191)
+        ★ a type a module DEPENDS on is not a type the module OFFERS
+EN-050  "a firing is not a resolution" — my test asserted confirmed=12 without resolving
+        ★ the honesty law working: an unresolved row was never promoted to evidence
+EN-051  `bun test -t <selector>` unscoped scans 197 files (68 spurious fails)
+        ★ G3 selectors must be FILE-SCOPED or the output is noise
+EN-052  ★ resolveAll trusted the CALLER'S STALE ROW — could rewrite a resolution
+        ★ a guard reading a caller-passed COPY is an honour system
+EN-053  a fixture clock in the FUTURE inverted a time assertion
+        ★ a fixed clock must be anchored to the PAST unless every clock is injected
+EN-054  dismissed evidence vanished from the basis
+        ★ "no evidence" and "evidence that did not qualify" are DIFFERENT FACTS
+EN-055  the graph gate blocked a NEW-file write; how it clears
+        ★ query a symbol the new file WILL EXPORT — the filename does not work
+EN-056  an advisory returning NULL discarded the gate's own degradation record
+        ★ detect a degradation by the row's SUFFIX, never by reason prose
+EN-057  ★ CRITICAL: a fail-OPEN degradation would have DISMISSED a real violation
+        ★ "fail-open" is a property of a SURFACE — the same row is harmless on
+          position A and a dismissal on position B
+EN-058  a reload test constructed the store AFTER the edit (a tautology)
+        ★ a reload can only be tested ACROSS A CHANGE
+EN-059  the host/container +4 expects delta root-caused to host-absolute path probing
+        ★ a count that differs with IDENTICAL pass/fail is a data-dependent assertion
+```
+
+**THE PATTERN ACROSS ALL TWELVE:** every one was found by an ADVERSARIAL case, and the
+happy path passed in each instance before the adversarial case ran. The pin's
+ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052 and EN-057.

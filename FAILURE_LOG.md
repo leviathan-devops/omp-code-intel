@@ -395,3 +395,44 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **The standing rule this produced:** a rig named in the plan is part of the CONTRACT.
   Substituting a convenient rig for the named one is not a shortcut — it is a different
   experiment reported under the original's name.
+
+## [2026-09-21] — v2.1: THE FAILURE LEDGER (what went wrong, and what it cost)
+
+```
+F-54  THE BASELINE DIVERGED ON FIRST CONTACT. The pin's frozen numbers did not reproduce:
+      166/1/1err and TS2688 against 199/0/701 and 191.
+      CAUSE: node_modules was ABSENT (gitignored, so git records nothing).
+      COST: one diagnostic round. REPAIRED: bun install → exact match.
+      ★ THE LESSON: an environment loss reads EXACTLY like a code regression. Measure the
+        ENVIRONMENT before concluding the code moved.
+
+F-55  MY OWN TEST ASSERTED AN INFLATED COUNT. `test_ledger_feeds_calibration` fired 12 rows
+      and asserted confirmed=12 — never resolving them. The ledger correctly said 0.
+      COST: one round. ★ The failure was the HONESTY LAW WORKING: an unresolved row was
+      never silently promoted to evidence.
+
+F-56  A GUARD THAT READ A CALLER-PASSED COPY. resolveAll checked `row.laterTruth` on the
+      CALLER'S object while the ledger updated the TABLE — so a second pass could rewrite
+      a confirmed resolution. COST: one round. FIXED with the live read.
+
+F-57  ★ THE SHARPEST ONE. A fail-OPEN gate degradation would have DISMISSED a real
+      violation: `dumb` yields IGNORE on a down judge, and the wrapper applied it. A Jev
+      outage would have silently disabled every blind-edit steer.
+      CAUGHT BY: the second adversarial case, not the happy path.
+      COST: one round. FIXED: degraded rows can never dismiss.
+
+F-58  A FIXTURE CLOCK IN THE FUTURE. T0 sat ~2h ahead of the machine, inverting a
+      truth_at > at assertion. COST: one round. FIXED + a time-travel guard added.
+
+F-59  A RELOAD TEST THAT EDITED THE FILE BEFORE CONSTRUCTING THE STORE — a tautology.
+      COST: one round. FIXED by matching the production sequence.
+
+F-60  THE GRAPH GATE BLOCKED A NEW-FILE WRITE TWICE (T2 then T3). The natural instinct —
+      query the FILE — fails (`--edit-check oracle.ts` → "symbol not found").
+      COST: two rounds. RESOLVED: query a symbol the new file WILL EXPORT; the hook
+      records the query pre-execution, so even a FAILED ripwire call verifies the edit.
+
+F-61  THE AUDIT RAIL IS DOWN. ocr → 127.0.0.1:4098 refused; the adapter script died with
+      /tmp. NOT FIXED — recorded as AUDIT GATE: BLOCKED with the exact retry condition.
+      ★ COST: every ship-ready claim remains WITHHELD. That is the correct state.
+```

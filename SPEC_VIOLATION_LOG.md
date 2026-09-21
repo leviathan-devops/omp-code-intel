@@ -72,3 +72,40 @@ Append-only spec-section mapping. PASSED rows record verified compliance, not pa
 | V-01 | JEV_ENGINEERING_BIBLE §6.4.3 ("thresholds are policy, derived from your data") + §6.4.6 (the two traps) | the spec REQUIRES: "act/flag thresholds start from sane defaults and move only after calibration on your own labeled examples"; §6.4.6 names THRESHOLD STARVATION as "setting act so high that only perfect answers fire; the observable symptom is a decision ledger where the act band never triggers" | what actually happened: the v2.0 seeds (0.90/0.75/0.85) were CHOSEN, never calibrated; the first instrument run (14 labelled cases, live Jev) showed NO real violation above 0.65 and the act band firing ZERO times — the §6.4.6 starvation trap, verbatim, on a real corpus | **VIOLATED — HIGH** | the instrument output (real n=7 mean 0.581 min 0.490; fp n=7 mean 0.253 max 0.530; t=0.70 → recall 0.000); EN-047; the minted skill `derive-runtime-measurements` |
 | V-02 | JEV_ENGINEERING_BIBLE §6.4.7 ("what to record for calibration") | the spec REQUIRES every decision row to carry the thresholds in force and a `later_truth` slot filled when reality reports back | what actually happened: the fire-gate's `DecisionRow` carries `actThreshold`, `flagThreshold`, `policyName` and `laterTruth` from the first commit — COMPLIANT | **PASSED** | src/omp/fire-gate.ts:96-112 (the DecisionRow shape); `recordTruth()` at :331 |
 | P-01 | the container-testing law ("the container test IS the test") | the pin minted 7 RB rows against `omp-ct:master`; they were run HOST-side and marked PASS | the container then produced 136 pass / 9 fail / 3 errors and TWO real defects the host had hidden | recorded as F-53 + THEATRICALITY T-01; corrected (the container now reads 199/0) |
+
+## [2026-09-21] — v2.1: THE DECLARED DEVIATIONS (each a deliberate, reasoned departure)
+
+**THE LAW: "the spec is the BINDING AUTHORITY; the plan is its argument; conflicts resolve against it."** Every departure below is declared with its reason and its blast radius.
+
+```
+SV-1  §8.2's DDL HAS NO `target` / `tool` COLUMN, but W2's contract is to read "a later
+      edit to THE TARGET". The row cannot supply its own subject.
+      RESOLUTION: `resolveAll` takes the subject EXPLICITLY. The DDL was NOT silently
+      extended — an undeclared column would be a schema the spec does not have.
+      BLAST: every caller must hold the fire alongside the row. NAMED for the spec's owner.
+
+SV-2  06-WAVES.md says W3 ENTRY = "W2 green" and W3 FILES = fire-gate.ts + kernel-v2.ts;
+      THE PIN's table says W3 depends on W1 and owns fire-gate.ts only.
+      RESOLUTION: the PIN's table (the operative contract) was followed — W3 touched
+      fire-gate.ts only, and the file-disjointness law held across all five waves.
+      BLAST: none measured; the waves stayed disjoint, which is what the law protects.
+
+SV-3  The blueprint puts the W4 call site "inside runKernelV2, between :299 and :328".
+      runKernelV2 is SYNCHRONOUS; the judge is a model call and therefore async.
+      RESOLUTION: `runKernelV2Gated` WRAPS the stage machine instead of making it async.
+      REASON: making it async would break every existing caller and ~20 tests (a frozen
+      surface) and would conflate the pure stage machine with costly I/O.
+      BLAST: the gate still sits between the detector's VIOLATION and the verdict the
+      caller acts on. The blueprint's INTENT is met; its literal call-site wording is not.
+
+SV-4  The blueprint's §S6 band table gives FIRE/ESCALATE/IGNORE. It does not say what a
+      DEGRADED row (the fail-polarity path) should do on position B.
+      RESOLUTION: a degraded row may NEVER dismiss — the detector's verdict stands.
+      REASON: measured (EN-057) — the fail-OPEN `dumb` class yields IGNORE on a down
+      judge, and applying it would switch enforcement off during an outage.
+      BLAST: none; this is strictly MORE conservative than the spec's silence.
+
+SV-5  W8's artifact is the BATTERY run, not the scenario-driver Phase F with byte offsets.
+      RESOLUTION: recorded INSIDE the artifact's `method.honestScope` field so no reader
+      can over-claim it. The rig requirement is met; the full token contract is not.
+```

@@ -385,3 +385,41 @@ THE LESSON   a chosen constant printed beside a measured one borrows the measure
 ```
 
 **UPDATED METRICS:** 11 entries · 6 SELF-CORRECTED · **5 OPERATOR-CAUGHT**.
+
+## [2026-09-21] — v2.1 SESSION: the theatricality audit
+
+**OPERATOR-CAUGHT: 0.** No act in this session was caught by the operator as verification-in-form-without-substance. The entries below are SELF-CAUGHT, logged because the log's value is the pattern, not the score.
+
+```
+T-12  ★ THE NEAR-MISS THAT MATTERS MOST (SELF-CORRECTED, caught by an adversarial test).
+      The W4 wrapper applied the gate's action unconditionally. For a fail-OPEN class a
+      down judge yields `action: IGNORE` — so the shipped code would have DISMISSED real
+      violations whenever the model was unreachable, while every test still passed and the
+      battery stayed green. THE FORM: an enforcement layer that is present, wired, tested,
+      and silently DISABLED exactly when it is needed.
+      WHY IT IS THEATRICALITY AND NOT JUST A BUG: the artifact (a wired filter) stood in
+      for the substance (enforcement that holds under failure). It would have shipped with
+      a green battery and a "the kernel is wired" claim.
+      DISPOSITION: SELF-CORRECTED before commit (EN-057). The retest is
+      `test_gate_degraded_row_never_dismisses_on_a_FAIL_OPEN_class`.
+
+T-13  THE FIXTURE-CLOCK ASSERTION (SELF-CORRECTED). A test whose fixed clock sat in the
+      future inverted its own assertion. The test still PASSED its shape check — it failed
+      only because the assertion was specific. A vaguer assertion would have passed while
+      measuring nothing. DISPOSITION: SELF-CORRECTED (EN-053).
+
+T-14  THE TAUTOLOGICAL RELOAD TEST (SELF-CORRECTED). The test edited the file then
+      constructed the store, so the "reload" re-read the content it already had. It
+      asserted the SHAPE of a reload while observing nothing. DISPOSITION:
+      SELF-CORRECTED (EN-058).
+
+T-15  THE INFLATED COUNT (SELF-CORRECTED). A test asserted 12 confirmations from 12
+      FIRINGS. Had the ledger been less honest, the test would have passed and the
+      calibration would have reported perfect precision on zero evidence.
+      DISPOSITION: SELF-CORRECTED (EN-050). The implementation was right; the test was wrong.
+
+★ THE HONEST RESIDUAL: the AUDIT GATE is BLOCKED, so NOTHING in this session has been
+  machine-reviewed by an independent model. Every claim above rests on tests I wrote and
+  ran myself. That is a real limit on the confidence of this log, and it is recorded
+  rather than glossed.
+```

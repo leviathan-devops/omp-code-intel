@@ -484,3 +484,45 @@ v2.0 machinery (2563 L) it extends; the bible's D001-D026 + §6.4.
 **The honest residual (6 items):** E1 unruled · the ESCALATE target unpicked · M2 unanswered ·
 every M-row unmeasured except the baseline · the container RB re-run open · W3/W4 change the live
 path so the wiring order stands (engines before registration).
+
+## [2026-09-21] — GI KERNEL v2.1: THE JEV-IN-THE-LOOP RUNTIME KERNEL
+
+**WHAT WAS BUILT.** v2.0 DETECTS; v2.1 ADJUDICATES. Every detector fire now passes through a fire gate that spends at most one Noul's worth of judgment to decide whether the SHAPE is a REAL violation given the context around it — in BOTH positions the operator ruled ("1) both").
+
+```
+src/omp/fire-ledger.ts   337 L  the §8.2 fire_decisions table + the writer + the reader + 2 seams
+src/omp/oracle.ts        ~250 L the four evidence gatherers + the classification + the batch resolver
+src/omp/policy-store.ts  ~200 L versioned JSON recipes (D026) + atomic write + loud validation
+src/omp/fire-gate.ts     +127 L Intent · Advisory · intentFire() · advisory()  (position A)
+src/omp/kernel-v2.ts     +145 L worstOutcome (shared) · streamFromInput · runKernelV2Gated (position B)
+tests/st-gi-v21-*.ts     5 files · 45 tests · 200 expects
+packages/gi-kernel-v2.1/policies/policies.json   the shipped recipes (all 3 classes)
+packages/gi-kernel-v2.1/tools/measure-campaign.ts  the M1 instrument (~280 L)
+.trident/container-test-results.json             the Phase F artifact
+```
+
+**THE FIVE DEFECTS FOUND AND FIXED** (each caught by an adversarial case, not by the happy path):
+```
+EN-052 ★ resolveAll trusted the CALLER'S STALE ROW — a second pass could rewrite a
+        CONFIRMED resolution. A guard that reads a caller-passed COPY is an honour system.
+        FIX: FireLedger.truthOf() + the live check + the phantom-row skip.
+EN-057 ★ CRITICAL: a fail-OPEN gate degradation would have DISMISSED a real violation.
+        The `dumb` class is fail-OPEN, so a down judge yields a row reading IGNORE —
+        applying it would let a Jev OUTAGE silently switch enforcement OFF for every
+        blind edit. FIX: degraded rows are detected by their policy-name SUFFIX and can
+        never dismiss.
+EN-048  node_modules absent → a false baseline divergence (an environment loss read
+        exactly like a code regression).
+EN-049  `Judge` declared but not re-exported (TS2459) — a type a module DEPENDS on is
+        not a type the module OFFERS.
+EN-053  a fixture clock in the FUTURE inverted a time assertion (+ the GI_ORACLE_TIME_TRAVEL guard).
+EN-056  an advisory returning NULL discarded the gate's own degradation record.
+EN-054  dismissed evidence vanished from the basis — "no evidence" and "evidence that
+        did not qualify" rendered identically.
+EN-058  a reload test constructed the store AFTER the edit (a tautology).
+EN-059  the host/container +4 expects delta root-caused to host-absolute path probing.
+```
+
+**THE MEASURED OUTCOME.** 199/0/701 → **244/0/901** on the host and **244/0/905** in the clean container. tsc 191 throughout (0 new). The gate went from **0 call sites to being called by the kernel**. The live campaign produced the first real precision curve through the wired path: **best t=0.35 → F1=0.889**, against shipped seeds that fire on only 2 of 8 real violations.
+
+**WHAT IS NOT DONE, NAMED.** W6 (the calibration loop) is **BLOCKED on M2** — the operator's cost matrix. The AUDIT GATE is **BLOCKED** — the ocr rail's adapter died with /tmp. The kernel is **not registered** on the live tool path: the pin's ENGINES-BEFORE-REGISTRATION law forbids it while the register reads up=5/11, and registering first would refuse every tool call on this host.
