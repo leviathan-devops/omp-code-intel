@@ -11,7 +11,12 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { GraphifyAdapter, mapGraphifyToTyped, resolveGraphifyBinary, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
-import { writeGraphifyCheckout } from "../src/omp/populate-graphify.ts";
+import {
+  writeGraphifyCheckout,
+  graphHashSidecarPath,
+  graphifyOutPath,
+  computeSourceHashWithBudget,
+} from "../src/omp/populate-graphify.ts";
 import { loadProfile } from "../src/hunter/profile/loader.ts";
 import type { ProjectProfile } from "../src/hunter/profile/schema.ts";
 
@@ -131,4 +136,22 @@ console.log(`[graphify-build] adapter: nodes=${build.nodes.length} edges=${build
 console.log(`[graphify-build] node kinds: ${[...kinds].map(([k, v]) => `${k}=${v}`).join(" ") || "(none)"}`);
 console.log(`[graphify-build] edge kinds: ${[...preds].map(([k, v]) => `${k}=${v}`).join(" ") || "(none)"}`);
 console.log(`[graphify-build] typed store: ${storePath} nodes=${written.storeNodes} edges=${written.storeEdges} run=${written.runTag}`);
+
+// EN-041 CHICKEN-AND-EGG FIX: the build produced the graph, but the freshness
+// probe compares a .graph_hash SIDECAR (written only by the populate path)
+// against the current source fingerprint. Without a build-side mark the
+// sequence is a deadlock: build -> sidecar stale -> populate refuses
+// (GRAPHIFY_NOT_WARM:stale-content) -> the sidecar is never rewritten.
+// The build therefore MARKS ITS OWN OUTPUT fresh, using the same hash function
+// and the same sidecar path the probe reads. One reader, one writer, one truth.
+try {
+  const graphPath = graphifyOutPath(root, profile);
+  const excludes = profile.graph?.exclude ?? [];
+  const freshHash = computeSourceHashWithBudget(root, scopeDirs, excludes, 200_000);
+  const sidecar = graphHashSidecarPath(graphPath);
+  fs.writeFileSync(sidecar, freshHash, "utf8");
+  console.log(`[graphify-build] marked fresh: ${sidecar} = ${freshHash.slice(0, 16)}… (scope=${scopeDirs.join(",")})`);
+} catch (markErr) {
+  console.log(`[graphify-build] WARN: could not mark the graph fresh — ${markErr instanceof Error ? markErr.message.slice(0, 100) : "?"}`);
+}
 console.log(`[graphify-build] wall=${((wallMs - build.durationMs) / 1000).toFixed(1)}s overhead + ${(build.durationMs / 1000).toFixed(1)}s build = ${(wallMs / 1000).toFixed(1)}s total`);

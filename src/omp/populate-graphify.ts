@@ -20,6 +20,7 @@ import {
   resolveGraphifyOut,
 } from "../hunter/graph/graphify-adapter.ts";
 import {
+  migrateLayerColumns,
   type ForkEdge,
   type ForkNode,
   insertForkEdgesBatch,
@@ -496,6 +497,13 @@ export function writeGraphifyCheckout(
   try {
     db.exec("PRAGMA journal_mode = WAL;");
     for (const stmt of TYPED_STORE_DDL) db.run(stmt);
+    // EN-041-adjacent (found by the graphify-build re-run): TYPED_STORE_DDL is
+    // CREATE TABLE IF NOT EXISTS — against a PRE-EXISTING checkout it is a
+    // no-op, so a store laid down before the v2 columns never gains layer_id /
+    // derivation and the batch INSERT fails with
+    //   SQLiteError: table typed_nodes has no column named layer_id.
+    // The session path migrates on open; this path must too.
+    migrateLayerColumns(db);
     db.exec("BEGIN IMMEDIATE;");
     try {
       // V21 cleanup P4: per-table parity with the session helper — an
