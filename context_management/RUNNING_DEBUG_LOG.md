@@ -390,3 +390,29 @@
 - ★★ AND THE FAILING TEST WAS NEVER NAMED. The run's output did not identify which test failed — so this is not merely an unreproduced failure, it is an **UNATTRIBUTED** one. Both suites pass individually (tests/ alone: 0 fail; src/hydra/__tests__/ alone: 39 pass / 0 fail), so if it is real it is a CROSS-SUITE INTERACTION — and it cannot be chased without a name.
 - ★ THE HONEST STATE: **a residual, NOT a pass.** The pin's law: an unreproduced failure is named, never absorbed. What is named here: the RATE (~1 in 7), the ENVIRONMENT (host, combined run only — the container has shown no such failure), the ABSENCE of attribution, and the NEXT ACTION (capture the full output on the next occurrence and read the failing test's name from it).
 - ★ AND THIS IS THE SECOND FLAKE THIS SESSION (the first: EN-067's turn, a container 299/1 that did not reproduce). TWO unreproduced failures in one session, both in COMBINED runs, neither attributed. **A pattern worth watching is not yet a pattern worth claiming.** Logged as such.
+
+## [2026-09-22T04:00:00] — EN-086 ★★ FOUND BY THE HOST SUITE: THE DEGRADATION WAS CLASSIFIED BY PROSE, NOT BY CODE
+- THE SUITE: `scripts/host-suite.ts` — 13 scenarios, one common derailment pattern each, every
+  layer with a PRE-REGISTERED expectation and a NAMED channel. Final: **13/13 PASS** (stub),
+  artifact `.trident/host-suite-results.json`.
+- ★★ AND THE SUITE'S FIRST RUN WAS 8/13 — FIVE FAILURES, ALL WITH `jevCalls=0`, ALL ONE CAUSE:
+  **THE GRAPH RUNG SETTLED EVERY SCENARIO BEFORE THE RUNG UNDER TEST WAS REACHED.** The fixture
+  node's FILE contained the scenarios' target, and the rung matches `LIKE '%target%'` over
+  canonical_id AND file — so rung 1 answered and the cache/budget/ceiling scenarios proved the
+  GRAPH. **A LAYER YOU DID NOT ISOLATE IS A LAYER YOU DID NOT TEST.** Fixed: a schema-only store
+  for the rung scenarios (`isolateGraph`).
+- ★ AND TWO MORE CONSTRUCTION DEFECTS IT CAUGHT IN ITSELF: S9's "hung judge" used the STUB (which
+  resolves instantly — the ceiling never fired; 0ms, a FALSE PASS) and S12's budget scenario never
+  passed `budgetFires`. **THE SCENARIO OWNS ITS RIG** — a scenario whose precondition is not
+  constructed tests the DEFAULT rig.
+- ★★ EN-086 (THE REAL CODE FINDING): the 2 remaining skips existed but carried the GENERIC
+  `GI_GATE_UNAVAILABLE` — **the budget evidence lived only in the MESSAGE PROSE.** A caller could
+  not tell "the budget ran out" from "the model is broken" without parsing text. THE EN-056 LESSON
+  ("detect a degradation by the SUFFIX, never by reason prose") ONE LAYER UP. FIXED: the runner
+  classifies by the THROWING LAYER'S OWN NAMED TOKEN — `GI_GATE_BUDGET_EXHAUSTED` vs
+  `GI_GATE_UNAVAILABLE` — and a test asserts the two are distinguishable BY CODE ALONE.
+- ★ AND THE VOCABULARY IS TWO-TIERED, which my first test got wrong: a DOWN judge never throws out
+  of the gate (the gate catches its own judge and writes a `+fail-*` row), so the runner's
+  `degradationOf` branch names it `GI_GATE_UNAVAILABLE:JUDGE_UNAVAILABLE`; only the THROW path
+  (the budget = a refusal to call at all) reaches the runner's own catch.
+- EVIDENCE: host suite 13/13 · battery 351/0/1253/33 host · 351/0/1246/33 container · tsc 191.

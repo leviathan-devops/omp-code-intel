@@ -523,7 +523,18 @@ export async function runKernelV2Gated(
   } catch (e) {
     // A down judge, a spent budget (D017), any throw. The verdict STANDS.
     const message = e instanceof Error ? e.message : String(e);
-    return stands({ code: "GI_GATE_UNAVAILABLE", message });
+    // ★ EN-086 (FOUND BY THE HOST SUITE, S12): THE DEGRADATION IS CLASSIFIED BY CODE, NEVER
+    //   BY PROSE. My first version returned the generic GI_GATE_UNAVAILABLE for every
+    //   failure, so a caller could not tell "the budget ran out" from "the model is broken"
+    //   without parsing the message — the EN-056 lesson ("detect a degradation by the
+    //   SUFFIX, never by reason prose") one layer up. The suite surfaced it because its
+    //   assertion looked for BUDGET in the code and found only prose.
+    //   ★ The classification keys on the THROWING LAYER'S OWN named token, which is a
+    //   contract (`GI_FIREGATE_BUDGET`), not a reason string.
+    const code = message.includes("GI_FIREGATE_BUDGET") ? "GI_GATE_BUDGET_EXHAUSTED"
+      : message.includes("GI_FIREGATE_JUDGE_TIMEOUT") ? "GI_GATE_TIMEOUT"
+      : "GI_GATE_UNAVAILABLE";
+    return stands({ code, message });
   }
 
   const adjudication: GateAdjudication = {

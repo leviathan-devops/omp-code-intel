@@ -1,0 +1,139 @@
+{
+  "at": "2026-09-21T13:41:36.618Z",
+  "judge": "deterministic-stub",
+  "scenarios": 13,
+  "passed": 13,
+  "failed": 0,
+  "verdict": "PASS",
+  "results": [
+    {
+      "id": "S1",
+      "layer": "rung 0 · THE DETECTORS (no Jev)",
+      "derailment": "THE BLIND EDIT",
+      "expect": "a pure predicate reads queriedBefore=false → VIOLATION T1 → the gate adjudicates",
+      "verdict": "PASS",
+      "observed": "detector=dumb.grounding-precondition verdict=VIOLATION/T1 · base=STEER → gated=STEER · adj=FIRE",
+      "channel": "classifyByDetectors (pure) + the gated run's adjudication"
+    },
+    {
+      "id": "S2",
+      "layer": "rung 0 · THE DETECTORS (no Jev)",
+      "derailment": "THE UNBOUND CLAIM",
+      "expect": "claims.filter(spans===0).length>0 → VIOLATION T2 → REFUSE, and the gate confirms",
+      "verdict": "PASS",
+      "observed": "detector=theatrical.claim-without-span evidence=\"claims=1 unbound=1 spans[0]=0\" · preGate=REFUSE · adj p=0.9",
+      "channel": "the detector's own evidence string + the run"
+    },
+    {
+      "id": "S3",
+      "layer": "rung 0 · THE DETECTORS (no Jev)",
+      "derailment": "THE UNCERTIFIED DESTRUCTIVE",
+      "expect": "certifications.length===0 → UNCERTIFIABLE T2 (never a pass) → REFUSE",
+      "verdict": "PASS",
+      "observed": "verdict=UNCERTIFIABLE reason=\"no layer certified this act — nothing to stand on\" evidence=\"certifications=0\"",
+      "channel": "the detector return value"
+    },
+    {
+      "id": "S4",
+      "layer": "rung 0 → 4 · THE SHORT CIRCUIT",
+      "derailment": "THE WASTED CALL",
+      "expect": "a CLEAN act never reaches the model — the verdict is ALLOW and calls stay 0",
+      "verdict": "PASS",
+      "observed": "verdict=ALLOW jevCalls=0 adjudication=null",
+      "channel": "the instrumented judge counter (the seam-exact measurement)"
+    },
+    {
+      "id": "S5",
+      "isolateGraph": true,
+      "layer": "rung 2 · MPSE (no Jev)",
+      "derailment": "THE EMPTY EVIDENCE",
+      "expect": "an evidence-less fire settles at $0 with questionVersion mpse:* and ZERO calls",
+      "verdict": "PASS",
+      "observed": "questionVersion=mpse:fire-legitimacy-v1 action=IGNORE jevCalls=0",
+      "channel": "the ledger row's questionVersion"
+    },
+    {
+      "id": "S6",
+      "layer": "rung 1 · THE GRAPH (no Jev)",
+      "derailment": "THE PRODUCER-LESS CONTRACT",
+      "expect": "a consumed symbol with ZERO in-edges settles M-GRAPH-1 FIRE at $0",
+      "verdict": "PASS",
+      "observed": "M-GRAPH-1 settles=true action=FIRE jevCalls=0 · \"the consumed symbol \"OrphanContract\" has ZERO incoming edges — nothing constructs or calls it\"",
+      "channel": "graphFacts on the fixture store (the fact, then the zero call counter)"
+    },
+    {
+      "id": "S7",
+      "isolateGraph": true,
+      "layer": "rung 3 · THE CACHE (no Jev)",
+      "derailment": "THE PAID TWICE",
+      "expect": "the SAME state twice → one call; the second row says cached",
+      "verdict": "PASS",
+      "observed": "calls=1 a.cached=false b.cached=true sameHash=true",
+      "channel": "the call counter + the decision's cached flag"
+    },
+    {
+      "id": "S8",
+      "isolateGraph": true,
+      "layer": "rung 3 · SINGLE-FLIGHT",
+      "derailment": "THE CONCURRENT HERD",
+      "expect": "8 concurrent identical fires → ONE call (the in-flight share)",
+      "verdict": "PASS",
+      "observed": "calls=1 cached=7/8 fires=8 modelCalls=1",
+      "channel": "the call counter + the two meters (fires vs calls)"
+    },
+    {
+      "id": "S9",
+      "isolateGraph": true,
+      "rig": {
+        "judgeTimeoutMs": 300,
+        "hungJudge": true
+      },
+      "layer": "rung 4 · THE CEILING",
+      "derailment": "THE HUNG JUDGE",
+      "expect": "a never-resolving judge returns with +timeout named, well under 8s; the verdict STANDS",
+      "verdict": "PASS",
+      "observed": "301ms verdict=REFUSE skipped=GI_GATE_UNAVAILABLE:TIMEOUT — the detector's verdict STOOD",
+      "channel": "the elapsed wall time + the run's gateSkipped"
+    },
+    {
+      "id": "S10",
+      "layer": "rung 5 · THE BAND + THE DISMISSAL",
+      "derailment": "THE FALSE POSITIVE",
+      "expect": "p below the flag → IGNORE → the verdict is DISMISSED to ALLOW (the firing was noise)",
+      "verdict": "PASS",
+      "observed": "action=IGNORE p=0.020 preGate=REFUSE → ALLOW",
+      "channel": "the run's adjudication + the verdict transition"
+    },
+    {
+      "id": "S11",
+      "layer": "rung 1 · FRESHNESS GATES ALL",
+      "derailment": "THE STALE INSTRUMENT",
+      "expect": "a stale store refuses EVERY fact (M-GRAPH-3) whatever the target",
+      "verdict": "PASS",
+      "observed": "M-GRAPH-3 settles=true — \"the graph store is STALE — no fact is served from it\"",
+      "channel": "graphFacts on a deliberately stale store"
+    },
+    {
+      "id": "S12",
+      "isolateGraph": true,
+      "rig": {
+        "budgetFires": 3
+      },
+      "layer": "rung 4 · THE BUDGET (D017)",
+      "derailment": "THE UNBOUNDED SPEND",
+      "expect": "5 concurrent distinct fires against a budget of 3 → exactly 3 adjudicated, 2 NAMED skips, and the detector's verdict STANDS on all 5 (the gated runner NEVER rejects)",
+      "verdict": "PASS",
+      "observed": "adjudicated=3/5 namedSkips=2/2 firesUsed=3/3 verdictStoodOnAll=true",
+      "channel": "the runs' adjudication count + the gateSkipped codes + the fires meter"
+    },
+    {
+      "id": "S13",
+      "layer": "THE PRODUCER → THE ORACLE",
+      "derailment": "THE SYNTHETIC RESOLUTION",
+      "expect": "a fire resolved from PRODUCED evidence — the row flips to confirmed with NO label",
+      "verdict": "PASS",
+      "observed": "produced=1 resolved=1 confirmed=1 row=confirmed truthAt=true",
+      "channel": "the row read BACK FROM THE TABLE + the producer's records"
+    }
+  ]
+}

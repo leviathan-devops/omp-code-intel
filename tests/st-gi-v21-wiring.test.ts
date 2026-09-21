@@ -199,6 +199,37 @@ describe("st-gi-v21-wiring: W4 — the post-detector filter", () => {
     ledger.close();
   });
 
+  // ══ EN-086 — THE DEGRADATION IS CLASSIFIED BY CODE, NEVER BY PROSE ══════════════
+  // ★ FOUND BY THE HOST SUITE (S12). The gated runner returned the generic
+  //   GI_GATE_UNAVAILABLE for EVERY failure, so a caller could not tell "the budget ran out"
+  //   from "the model is broken" without parsing the message — the EN-056 lesson
+  //   ("detect a degradation by the SUFFIX, never by reason prose") one layer up.
+
+  test("EN-086: a spent budget is a DISTINCT named skip from a down judge", async () => {
+    const vi = aViolation();
+    // the budget is spent BEFORE the fire, so the gate throws its named D017 token
+    const broke = new FireGate({ judge: stubJudge(0.99), budgetFires: 0 });
+    const r1 = await runKernelV2Gated(vi, broke);
+    expect(r1.gateSkipped).not.toBeNull();
+    // ★ THE SPECIFIC CODE — not a generic unavailability, and not prose
+    expect(r1.gateSkipped!.code).toBe("GI_GATE_BUDGET_EXHAUSTED");
+    // and the detector's verdict STOOD (the gated runner never rejects)
+    expect(r1.verdict).toBe(r1.preGateVerdict);
+
+    // the SAME shape from a DOWN judge carries the OTHER code. ★ AND THE VOCABULARY IS
+    // TWO-TIERED, which the first version of this test got wrong: a down judge does NOT
+    // throw out of the gate (the gate catches its own judge and writes a `+fail-*` row), so
+    // the runner's `degradationOf` branch names it with its SUFFIX. Only the THROW path
+    // (the budget, which is a refusal to call at all) reaches the runner's own catch.
+    const down = new FireGate({ judge: { async evaluate() { throw new Error("jev is down"); } } });
+    const r2 = await runKernelV2Gated(vi, down);
+    expect(r2.gateSkipped!.code).toBe("GI_GATE_UNAVAILABLE:JUDGE_UNAVAILABLE");
+    // ★ THE TWO ARE DISTINGUISHABLE BY CODE ALONE — which is the whole point
+    expect(r1.gateSkipped!.code).not.toBe(r2.gateSkipped!.code);
+    expect(r1.gateSkipped!.code).toContain("BUDGET");
+    expect(r2.gateSkipped!.code).toContain("JUDGE_UNAVAILABLE");
+  });
+
   test("test_gate_wiring_is_present — the anti-pattern CLASS 3 detection", () => {
     // The wave's own exit gate: grep -c "FireGate" src/omp/kernel-v2.ts > 0.
     // Asserted HERE as a test so the wiring cannot be silently removed.
