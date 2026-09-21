@@ -131,3 +131,67 @@ evidence must carry the discriminator first.
 **THIS IS A MORE USEFUL ANSWER THAN A THRESHOLD WOULD HAVE BEEN.** A bar set from a pooled
 0.500 would have been a guess dressed as a derivation — the exact failure the pin's
 "CHOSEN CONSTANT" anti-derail names.
+
+---
+
+# ★★★ ADDENDUM: THE PROPOSED FIX IS MEASURED — AND IT WORKS
+
+**Run:** 2026-09-21 · 20 paired fires × 2 arms · live JevJudge
+**Instrument:** `packages/gi-kernel-v2.1/tools/theatrical-discriminator-probe.ts`
+**Report:** `packages/gi-kernel-v2.1/tools/theatrical-discriminator-report.json`
+
+The design fix above was recommended but NOT applied, because it "needs the operator's ruling
+on the theatrical semantics". **That framing was wrong: the ruling did not need to be a
+question.** The fix's EFFECT could be MEASURED without applying it.
+
+```
+METHOD: the SAME 20 paired fires (10 fabricated / 10 corroborated), run TWICE. The ONLY
+        difference between the arms is the evidence string — passed through `Fire.evidence`,
+        which `buildState` already places in the state's `detector_evidence`. The probe
+        therefore exercises the EXACT mechanism the fix would use.
+        ★ THE DETECTOR WAS NOT CHANGED.
+```
+
+**THE RESULT:**
+```
+ARM: CURRENT (counts only)     "claims=1 unbound=1 spans[0]=0"
+    REAL  [0.36 .. 0.44]   mean 0.406
+    FP    [0.40 .. 0.47]   mean 0.442
+    gap -0.036 · FULLY SEPARABLE: false      ← the W6 inversion, reproduced
+
+ARM: AUGMENTED (corroboration=present|absent)
+    REAL  [0.46 .. 0.53]   mean 0.490
+    FP    [0.36 .. 0.43]   mean 0.408
+    gap +0.082 · FULLY SEPARABLE: true       ← ★ CORRECT DIRECTION, SETS DO NOT OVERLAP
+                                              REAL min 0.46 > FP max 0.43
+```
+
+**★ ONE DISCRIMINATOR IN THE EVIDENCE FLIPS THE CLASS FROM INVERTED TO FULLY SEPARABLE.**
+
+## ★ WHAT THIS DOES NOT PROVE (stated, not glossed)
+
+```
+· n=20 (10 per class) — a small sample, one corpus, one model
+· the absolute gap (0.082) is modest; the STRENGTH is that the sets do not overlap at all
+· ★ THE FIX CHANGES EVERY THEATRICAL FIRE'S CACHE KEY (the state's detector_evidence is in
+  the hash), so applying it INVALIDATES the existing theatrical measurements and requires a
+  re-calibration run — a real cost the operator must accept WITH the change
+· the detector must COMPUTE `corroboration` from the stream; the probe ASSERTS it from the
+  corpus labels. "What counts as corroboration?" is the actual semantic question
+```
+
+## ★ WHY THIS MATTERS BEYOND THE ONE CLASS
+
+The W6 principle — **a detector's evidence must carry the DISCRIMINATOR** — is now backed by
+a **measurement of the REMEDY**, not only a diagnosis of the fault. `destructive` and `dumb`
+already carry theirs; `theatrical` is the one that does not, and the cost of fixing it is now
+known in both directions: **the separation gained, the cache-key invalidation paid.**
+
+## THE RULING REQUESTED (now a YES/NO, not an open question)
+
+```
+1  ACCEPT the evidence change — a theatrical fire's evidence carries corroboration=present|absent?
+2  WHAT COUNTS as corroboration — the probe asserted it; the detector must derive it from the
+   stream. THIS is the actual semantic question, and it is now the ONLY open one.
+3  ACCEPT the re-calibration cost — every theatrical cache key changes.
+```

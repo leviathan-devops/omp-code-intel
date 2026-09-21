@@ -92,6 +92,15 @@ T-6 ← W9 ← all of the above
      INSTRUCTION. The other two carry the DISCRIMINATOR in their evidence.
   ★★ CONCLUSION: THE COST MATRIX CANNOT FIX A NON-DISCRIMINATING CLASS. M2 is NECESSARY BUT
      NOT SUFFICIENT — a bar from the pooled 0.500 would be a guess dressed as a derivation.
+  ★★★ THE REMEDY IS NOW MEASURED (theatrical-discriminator-probe.ts, 20 paired fires x 2 arms):
+     CURRENT   (counts only)  REAL 0.406 vs FP 0.442 · gap -0.036 · NOT separable
+     AUGMENTED (corroboration=present|absent)  REAL 0.490 vs FP 0.408 · gap +0.082 · ★ FULLY
+     SEPARABLE (REAL min 0.46 > FP max 0.43). THE FIX WORKS. The detector was NOT changed —
+     the probe exercises the exact mechanism through Fire.evidence.
+     COST KNOWN BOTH WAYS: the separation gained; every theatrical CACHE KEY changes (a
+     re-calibration is owed).
+     ★ THE RULING IS NOW A YES/NO: (1) accept the evidence change? (2) what counts as
+     corroboration (the detector must DERIVE it)? (3) accept the re-calibration cost?
   ⛔ STILL BLOCKED ON M2 for the FINAL thresholds; the LOOP itself is proven.
   EVIDENCE: 48 live fires · 9 deterministic tests (st-gi-v21-w6calibration) · battery 309/0/1100/30 · tsc 191
 ### W7 — MEASUREMENT  MEASUREMENT_PLAN.md  [depends: W1..W6]  ☐ — M1..M12, zero TBD
