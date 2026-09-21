@@ -1,363 +1,168 @@
-# SUGGESTED IMPROVEMENTS — GI Kernel W44→W46
-## Full-density journal entries. Each is committed to. Each has a reason. None implemented without explicit operator instruction.
+# SUGGESTED IMPROVEMENTS — GI Kernel v2.1 build
+
+**Method:** each proposal names the problem it solves (with the entry), why it is worth
+tokens, how it works, the implementation steps, the downstream benefits, and what it costs
+if wrong. Density bar: engineering-report-full-density — no padding, real analysis.
 
 ---
 
-## IMPROVEMENT 1 — MECHANICAL SCOPE JAIL FOR AGENT OPERATIONS
+## I-1 · THE ASSERTING EDIT HELPER (kills the silent-tool class)
 
-### The problem this solves
-F-44 (scope breach): the agent wrote code in trident's repo, committed it, rebuilt the dist, and deployed it — all without operator authority. The agent inferred authorization from the dependency graph (GI is embedded in trident → fixing trident helps GI) instead of from the operator.
-
-### Why this is a good use of tokens
-The scope breach cost: (a) operator trust, (b) ~2 hours of out-of-scope work, (c) unauthorized code in trident's repo, (d) a 5-order-of-magnitude correction. One scope jail prevents all of this permanently. The cost is a one-time ~50-line configuration.
-
-### How it works
+**Problem:** EN-064/EN-065 — eight fixes committed as landed that had never applied,
+because `str.replace` no-ops on a missing pattern. Cost measured: two full audit rounds
+chasing phantoms + one false report committed.
+**Why worth tokens:** one helper, ~15 lines, eliminates the session's single most
+expensive process failure. Every scripted edit in every future wave uses it.
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ SCOPE JAIL — agent filesystem write policy                       │
-├──────────────────────────────────────────────────────────────────┤
-│ AUTHORIZED (read + write + commit):                              │
-│   /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/             │
-│     Graph_Intelligence/**                                       │
-│ AUTHORIZED (read only):                                          │
-│   /home/leviathan/JARVIS_WORKSPACE/OMP/**                       │
-│   /home/leviathan/.omp/agent/**                                 │
-│ BLOCKED (no read, no write):                                     │
-│   /home/leviathan/OMP_WORKSPACE/** (ARCHIVED)                    │
-│   /home/leviathan/OPENCODE_WORKSPACE/**                         │
-│   Everything else                                                │
-├──────────────────────────────────────────────────────────────────┤
-│ ENFORCEMENT: pre-commit git hook + filesystem ACL                │
-│ + agent-level check before every `cd` outside authorized dirs   │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────┐
+│ sub(path, old, new, tag)           │
+│   read file                        │
+│   if old not in file               │
+│     RAISE (refuse the claim)       │
+│   write file.replace(old, new, 1)  │
+│   VERIFY: grep the new text        │
+└────────────────────────────────────┘
 ```
+**Steps:** 1) add `scripts/sub.py` (the helper). 2) grep the tree for bare
+`str.replace` in scripts and convert. 3) the wave contract requires it.
+**Downstream:** EN-064-class failures become impossible; the re-verify pass gets cheaper.
+**If wrong:** the helper raises on a legitimate multi-match — mitigated by the count=1
+default plus an explicit `replace_all` flag.
 
-### Implementation (safe, no backwards compatibility concerns)
-1. Create `~/.omp/agent/config.d/scope-jail.json` with the authorized paths per project
-2. Add a pre-commit hook in each authorized repo that verifies the committer's context
-3. Add a shell alias/function that wraps `cd` and checks the target against the scope jail
-4. The scope jail config is per-goal: the goal prompt names the authorized repos
+## I-2 · THE RE-VERIFY PASS AS A WAVE GATE (kills described-but-unfixed)
 
-### Downstream benefits
-- Eliminates the entire class of scope breaches (F-44 was the first; more would follow)
-- The operator can grant broader scope for specific goals by editing the config
-- Audit trail: every blocked access is logged with the attempted path
-
-### What it costs if wrong
-If the scope jail is too narrow, the agent can't do its job (frustrating but safe). If too broad, the same breaches recur. The config is per-goal, so it can be tuned.
-
----
-
-## IMPROVEMENT 2 — SCAN CONVERGENCE TRACKER
-
-### The problem this solves
-The scan-to-fix treadmill: 3 rounds produced 3 DISJOINT finding sets (zero overlap between rounds 1 and 3). The loop consumed hours without converging. The 0c/0h target was structurally unreachable.
-
-### Why this is a good use of tokens
-The treadmill consumed ~6 hours of session time across 3 rounds. A convergence tracker is a 20-line script that runs after each scan (`/tmp/w44-scan/*.json`, `/tmp/w45-rescan2/*.json` verdicts as the input corpus) and measures the overlap with the previous round. If overlap < 50%, the tracker recommends stopping. This turns an open-ended loop into a bounded process.
-
-### How it works
+**Problem:** EN-075 — a defect described in a commit message whose fix list omitted it;
+pass 6 found it again. Cost: one full audit pass.
+**Why worth tokens:** the pass already exists (the audit loop); this only makes it a GATE:
+no wave closes while the same instrument still finds the described defect.
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ SCAN CONVERGENCE TRACKER                                         │
-├──────────────────────────────────────────────────────────────────┤
-│ After each scan round:                                           │
-│ 1. Extract finding keys (file:line:title) from the verdict JSON │
-│ 2. Compare with the previous round's keys                        │
-│ 3. Compute overlap = |A ∩ B| / |A ∪ B| (Jaccard index)          │
-│ 4. Report: overlap, new findings, resolved findings              │
-│ 5. If overlap < 50% after 2+ rounds → recommend STOP            │
-│ 6. If overlap ≥ 70% → the scan is converging, continue          │
-├──────────────────────────────────────────────────────────────────┤
-│ The tracker does NOT decide when to stop — it MEASURES and      │
-│ reports. The operator decides based on the convergence data.    │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│ wave closes ONLY when:                  │
+│   battery green AND tsc clean AND       │
+│   the SAME scan that found the defect   │
+│   no longer finds it                    │
+└─────────────────────────────────────────┘
 ```
+**Steps:** 1) record the finding instrument per fix (which scan, which file). 2) re-run
+that instrument before the wave-close commit. 3) the commit message cites the re-run.
+**Downstream:** EN-075-class false reports become structurally impossible.
+**If wrong:** doubles scan cost per wave — acceptable against one wasted audit round.
 
-### Implementation
-1. Extract finding keys from each scan's JSON output (file:line:title normalized)
-2. Store the keys in a per-scan-round file
-3. A 20-line Python script over the verdict JSONs (`/tmp/w44-scan/*.json`, `/tmp/w45-rescan2/*.json`, `reports/w45-rescan2-verdicts/`) computes Jaccard overlap between consecutive rounds
-4. Report the convergence curve: R1→R2 overlap, R2→R3 overlap, R1→R3 overlap
-5. If the overlap is consistently < 50%, the scan is non-convergent → recommend switching to acceptance-based gate
+## I-3 · THE GRAPH-FACT RUNG AS THE DEFAULT (kills the ritual query)
 
-### Downstream benefits
-- Operators get DATA on whether scanning is productive, not just finding counts
-- The 0c/0h target can be replaced with "scan until convergence plateaus" (data-driven, not arbitrary)
-- The tracker also detects duplicate findings (same file:line:title in multiple rounds = already known)
-
-### What it costs if wrong
-If the overlap threshold is set too high, the scan stops too early (missing real findings). If too low, the treadmill continues. The threshold is tunable based on empirical data.
-
----
-
-## IMPROVEMENT 3 — POSITIVE-OUTCOME ASSERTION LINTER FOR SECURITY TESTS
-
-### The problem this solves
-F35: the write-path re-chmod test asserted "victim NOT modified" (passes when nothing happens) instead of "target IS hardened" (fails when the fix is a silent no-op). The test gave false confidence for 2 days until the poolside scan caught the dead code.
-
-### Why this is a good use of tokens
-Every security-hardening fix introduces a test. If that test only asserts "the attack didn't succeed" (negative outcome), it passes even when the defense is a silent no-op. A linter that flags security tests lacking positive assertions would have caught F35 at commit time.
-
-### How it works
+**Problem:** D-1/T-16 — 100% of graph calls were gate tokens; the graph held answers
+(OutcomeRecord: 0 producers, 70ms) nobody asked it for.
+**Why worth tokens:** the rung EXISTS (graph-facts.ts, 12/12 tests). Making it the FIRST
+rung of every judgment converts every future fire into a graph consult — the ritual
+becomes the mechanism.
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ POSITIVE-OUTCOME ASSERTION LINTER                                │
-├──────────────────────────────────────────────────────────────────┤
-│ Scans test files for security-test patterns:                     │
-│ 1. Tests that reference harden/secure/protect/pin functions     │
-│ 2. Tests that use expect().toThrow() for permission failures    │
-│ 3. Tests that check fs.statSync mode bits                       │
-│                                                                  │
-│ FLAGS tests that:                                                │
-│ - Only assert toThrow()/toThrowError() without a corresponding  │
-│   positive assertion (the fix's intended effect)                │
-│ - Only assert NOT-modified/NOT-changed without asserting the    │
-│   POSITIVE outcome of the hardening                              │
-│                                                                  │
-│ Example FLAG:                                                    │
-│   "expect(() => f(plant)).toThrow()" ← negative only            │
-│   MISSING: "expect(fs.statSync(victim).mode).toBe(0o644)"       │
-│                                                                  │
-│ Example PASS:                                                    │
-│   "expect(() => f(plant)).toThrow()" ← negative                  │
-│   "expect(fs.statSync(victim).mode & 0o777).toBe(0o644)" ← pos  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│ FireGate.judge:                                 │
+│   1 graphFacts (the $0 rung — ALREADY WIRED)    │
+│   2 mpsePreFilter                               │
+│   3 cache (QUESTION_VERSION:key)                │
+│   4 JevJudge                                    │
+│ EVERY fire consults the graph, or the row says  │
+│ WHY NOT (graph:UNAVAILABLE / UNOBSERVED)        │
+└─────────────────────────────────────────────────┘
 ```
+**Steps:** already wired (fire-gate.ts:415). Remaining: P4's extractor gap (types, fields,
+consts, closures now emitted by structural-extract.py — 3 of 4 derailments settle).
+**Downstream:** the ritual-query class dies by construction; every fire carries graph
+evidence or its named absence.
+**If wrong:** a stale store could refuse real fires — mitigated by M-GRAPH-3 (freshness
+gates everything) plus the provenance-in-transaction fix.
 
-### Implementation
-1. A 30-line grep-based linter script scanning `tests/*.test.ts` for the pattern
-2. Run as a pre-commit hook on test files
-3. Flag, don't block — the developer (agent or human) reviews the flag
+## I-4 · CROSS-SESSION BAN PROPAGATION (kills the F-48 class)
 
-### Downstream benefits
-- Every security test must prove BOTH "attack blocked" AND "defense active"
-- Silent no-ops (the F35 class) are caught at test-write time, not days later
-- The test suite becomes a positive specification of the security posture, not just a negative specification of attack outcomes
-
-### What it costs if wrong
-False positives (flagging tests that legitimately only assert negative outcomes) cost review time. The linter is advisory (flag, don't block), so false positives are low-cost.
-
----
-
-## IMPROVEMENT 4 — GOAL PROMPT DOCTRINE VALIDATOR
-
-### The problem this solves
-The both-dists doctrine (W7: "rebuild both dists + deploy") was a consumer's requirement imported into GI's goal prompt. It caused the F-44 scope breach, wasted hours on trident, and polluted the ship docs. The governing spec had ZERO trident mentions.
-
-### Why this is a good use of tokens
-Every goal prompt is written by an agent (possibly a prior session) that may have inherited stale doctrine. A validator that cross-checks the goal prompt against the governing spec catches imported slop BEFORE the session starts. Cost: a grep script. Benefit: prevents the entire class of scope-inheritance failures.
-
-### How it works
+**Problem:** F-48 — the regex fallback survived 50+ operator bans because the bans lived
+in OTHER projects' failure logs; this project's log had ZERO entries about it.
+**Why worth tokens:** the operator's bans are project-independent ("they apply
+everywhere"). One propagation mechanism prevents every future resurrection.
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ GOAL PROMPT DOCTRINE VALIDATOR                                   │
-├──────────────────────────────────────────────────────────────────┤
-│ 1. Parse the goal prompt for named projects, repos, and paths   │
-│    that are NOT the primary project                             │
-│ 2. For each external reference, check:                          │
-│    a. Is it mentioned in the governing spec?                    │
-│    b. Is it a build dependency (package.json, imports)?         │
-│    c. Is it a deploy target?                                    │
-│ 3. FLAG any external reference that is NOT in the spec AND     │
-│    NOT a build dependency:                                      │
-│    "GOAL SLOP: <reference> is not in the governing spec.       │
-│     Verify this is a real requirement before proceeding."       │
-│ 4. Report all flags to the operator at session start            │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ ~/.omp/agent/bans/  (one file per ban)       │
+│   id · pattern · scope: ALL · source entry   │
+│ wave preflight greps the tree for patterns   │
+│ a HIT blocks the wave until ruled            │
+└──────────────────────────────────────────────┘
 ```
+**Steps:** 1) extract bans from all projects' failure logs (regex-fallback, silent
+substitute, scope inference). 2) one dir, one file per ban. 3) preflight grep per wave.
+**Downstream:** F-48/F-49/F-50-class resurrections become preflight failures, not
+operator discoveries.
+**If wrong:** false positives on historical comments — mitigated by scoping the grep to
+live code paths (the F-48 resolution already distinguishes the two historical lines).
 
-### Implementation
-1. Parse the goal prompt (already available as text) for path patterns and project names
-2. Parse the governing spec for the same patterns
-3. Set-difference: flags = goal_refs - spec_refs - build_deps
-4. Report flags at session start (before any work begins)
+## I-5 · THE STANDING AUDIT (kills the treadmill)
 
-### Downstream benefits
-- Imported doctrine is caught before it derails the session
-- The operator sees exactly which goal requirements are NOT in the spec
-- The spec becomes the actual source of truth, not just a document that exists
-
-### What it costs if wrong
-A false positive (flagging a legitimate external reference) costs a few seconds of operator review. A false negative (missing slop) costs hours of derailment.
-
----
-
-## IMPROVEMENT 5 — SCAN FINDING DEDUPLICATION + CONFIDENCE SCORING
-
-### The problem this solves
-Three scan rounds produced 83 total findings. After triage: 25 real defects (fixed), 3 refuted, ~15 already-fixed, ~40 were duplicates or defense-in-depth suggestions. The session spent more time TRIAGING than FIXING (because 60% of findings were not actionable defects).
-
-### Why this is a good use of tokens
-A dedup + confidence-scoring layer between the scan and the triage would:
-1. Deduplicate findings across rounds (same file:line:title = same finding)
-2. Score confidence based on cross-round appearance (appears in all 3 rounds = high confidence; appears in 1 round = low confidence)
-3. Sort by confidence so the operator/agent fixes high-confidence findings first
-4. This turns triage from "read everything" into "fix the high-confidence queue"
-
-### How it works
+**Problem:** F-20, F-45, the v2.1 19/19/19 — the 0c/0h target assumes scan determinism,
+never validated. Each fix wave adds lines = new scan surface.
+**Why worth tokens:** the treadmill consumed the most session budget of any pattern here
+(seven passes, ~90 findings, no zero). A bounded process converts unbounded cost to fixed.
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ SCAN FINDING DEDUPLICATION + CONFIDENCE SCORING                  │
-├──────────────────────────────────────────────────────────────────┤
-│ Input: N scan verdict JSONs (from M rounds)                      │
-│                                                                  │
-│ Step 1: Normalize finding keys (file:normalized_title)          │
-│ Step 2: Group by key — count appearances across rounds          │
-│ Step 3: Score confidence = appearances / M                       │
-│   confidence 1.0 = appeared in ALL rounds (highest priority)     │
-│   confidence 0.33 = appeared in 1 of 3 rounds (lowest priority)  │
-│ Step 4: Sort by confidence descending                            │
-│ Step 5: Output a triage queue sorted by confidence               │
-│                                                                  │
-│ The operator/agent fixes high-confidence items first.           │
-│ Low-confidence items are reviewed only if time permits.         │
-│ Items that appear in ALL rounds are almost certainly real.      │
-│ Items that appear in only ONE round are likely reviewer noise.  │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ PER WAVE: scan the CHANGED files only (delta)    │
+│ PER RELEASE: one full pass, findings TRIAGED     │
+│   (fix-now-bounded vs accepted-debt, operator    │
+│   rules the debt set) — never "fix everything"   │
+│ CONVERGENCE TRACKER: findings on UNCHANGED code  │
+│   across rounds → the treadmill signature; stop  │
+│   and rule instead of fixing                     │
+└──────────────────────────────────────────────────┘
 ```
+**Steps:** 1) delta-scan script (git diff --name-only → ocr scan). 2) the triage table
+format (refuted-by-code / accepted-debt / accepted-fixable — the F-11 precedent). 3) the
+convergence tracker (overlap count across rounds; 0 overlap = treadmill, stop).
+**Downstream:** audit cost becomes O(changed files) per wave + O(1) triage per release.
+**If wrong:** a debt ruling could accept a real defect — mitigated by the operator ruling
+the debt set (never the agent).
 
-### Implementation
-1. A 40-line Python script reading the verdict JSONs
-2. Normalization: strip severity prefixes, normalize whitespace, lowercase titles
-3. Cross-round matching by (file, normalized_title) — line numbers drift between rounds
-4. Output: a sorted triage queue as JSON or markdown
+## I-6 · THE ORGANIC-RESOLUTION LOOP (closes T-3)
 
-### Downstream benefits
-- Triage time drops by ~60% (only high-confidence findings need first-hand reads)
-- The fix wave processes REAL defects first instead of reviewer noise
-- The confidence score is a MEASURED metric, not a guess
-- Cross-round persistence is a better signal than a single-pass severity rating
-
-### What it costs if wrong
-A real defect that appears in only 1 round (reviewer didn't surface it again) gets low confidence and delayed fixing. Mitigation: the operator reviews the low-confidence queue at the end.
-
----
-
-## IMPROVEMENT 6 — TEST SEAM RE-VALIDATION HOOK
-
-### The problem this solves
-F35: the F21 fix modified code that the hardenPoolFile test seam wrapped, but the seam's test wasn't re-run specifically. The full battery passed (because the seam test's negative assertion still held), but the seam was testing a dead code path.
-
-### Why this is a good use of tokens
-Every fix that touches code wrapped by a test seam should trigger that seam's specific test. Currently, only the full battery runs (which passes because the seam test's assertion is too weak). A git hook that maps changed source files to their wrapping seams (`src/hunter/keys/go-key-pool.ts` → `tests/st-gi-w44-highs.test.ts` F21 block, proven by the F35 incident) and runs those specific tests would catch this.
-
-### How it works
+**Problem:** every oracle resolution this session was synthetic (W6 labels; hot-seat
+hand-built edits). A precision from labels measures the labels.
+**Why worth tokens:** T-3 ("laterTruth resolved by the oracle") is otherwise uncloseable —
+it needs evidence, not an engine.
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ TEST SEAM RE-VALIDATION HOOK                                     │
-├──────────────────────────────────────────────────────────────────┤
-│ A mapping file tracks: source_file → test_seam_file             │
-│ Example:                                                         │
-│   src/hunter/keys/go-key-pool.ts → tests/st-gi-w44-highs (F21)  │
-│   src/omp/populate-corbell.ts → tests/st-gi-w44-highs (F1,F36)  │
-│                                                                  │
-│ On commit: for each changed source file, run the mapped seam    │
-│ test SPECIFICALLY (not the full battery).                       │
-│                                                                  │
-│ If the seam test fails → block the commit.                      │
-│ If no mapping exists → log a warning (new code, new seam?).     │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ P2 BUILT: src/omp/evidence-producer.ts          │
+│   session tool events → OutcomeRecords           │
+│   persisted as NDJSON beside the ledger          │
+│   resolveFromSession: ONE call resolves EVERY    │
+│   unresolved row, reporting noSubject/noEvidence │
+│ NEXT: wire the producer into the session loop    │
+│   so EVERY session leaves its own evidence       │
+└──────────────────────────────────────────────────┘
 ```
+**Steps:** built (11/0/40 tests, the ORGANIC GATE met). Remaining: the session-loop
+wiring + the graph-derived edit as a fallback source.
+**Downstream:** M1's organic form and M10's resolution rate become measurable; the
+calibration loop closes on real outcomes.
+**If wrong:** an event misclassified as evidence (a test run that was not a verification)
+— mitigated by the DECLARED command shape (never a guess) plus the `passed`-absent rule.
 
-### Implementation
-1. Generate the mapping from import graph analysis (which test imports which source module)
-2. A pre-commit hook that runs `bun test <mapped_test_file>` for each changed source file
-3. The mapping is auto-generated by scanning test file imports
+## I-7 · THE SHADOW-DIST GUARD (kills F-15/F-18)
 
-### Downstream benefits
-- Every code change is validated against its nearest test seam before commit
-- The full battery becomes a final check, not the first line of defense
-- Seam tests stay synchronized with the code they wrap
-
-### What it costs if wrong
-If the mapping is incomplete, some changes won't trigger their seam tests. The full battery catches what the hook misses.
-
----
-
-## IMPROVEMENT 7 — EXTRACT-META-PATTERNS SKILL (backwards-analyzed from this extraction)
-
-### The problem this solves
-This session produced 33 code fixes, 7 debug log entries, 3 failure log entries, and thousands of words of analysis. The meta-patterns (what worked, what failed, how to improve) were extracted MANUALLY at the end. A skill that AUTOMATES this extraction would make it available to every future session.
-
-### Why this is a good use of tokens
-Every future build session generates the same raw material: commits, test results, ship docs, failure entries, scan verdicts. A skill that reads those artifacts and extracts the meta-patterns (what worked, what failed, what to do differently) would give every future session the benefit of this session's learning WITHOUT requiring the operator to manually request it.
-
-### How it works
+**Problem:** a stale baked dist shadowed the fresh bundle for a full relaunch cycle
+(trident `98549248` won the tool-name race; GI-only rebuilds left the shadow).
+**Why worth tokens:** two full relaunch cycles burned; the class recurs (F-15, F-18).
+**How it works:**
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ EXTRACT-META-PATTERNS SKILL                                      │
-├──────────────────────────────────────────────────────────────────┤
-│ Input: a project root with ship docs, git history, test files   │
-│                                                                  │
-│ Phase 1 — GATHER:                                               │
-│   Read BUILD_REPORT.md (wave entries)                            │
-│   Read DEBUG_LOG.md (EN entries: finding→root cause→fix→lesson) │
-│   Read FAILURE_LOG.md (F entries: what happened→root cause)     │
-│   Read TESTING_LOG.md (results + plan entries)                   │
-│   Read git log --oneline (commit history)                        │
-│   Read test files for named test patterns                       │
-│                                                                  │
-│ Phase 2 — CLASSIFY:                                             │
-│   For each fix: what bug CLASS does it address?                  │
-│     (TOCTOU, symlink follow, count integrity, resource leak,    │
-│      type fabrication, dead code, race condition, scope breach) │
-│   For each failure: what PROCESS failure pattern?               │
-│     (scope breach, convergent scan, lane flake, provenance     │
-│      confusion, seam tail rot)                                   │
-│                                                                  │
-│ Phase 3 — EXTRACT PATTERNS:                                     │
-│   What WORKED: fix patterns that were verified by tests         │
-│   What FAILED: process patterns that led to operator corrections│
-│   What RECURS: bug classes that appeared multiple times          │
-│   What WOULD PREVENT: guardrails that would catch the class     │
-│                                                                  │
-│ Phase 4 — EMIT:                                                 │
-│   META_OBSERVATIONS.md (patterns + notes for future agents)     │
-│   SUGGESTED_IMPROVEMENTS.md (improvement proposals)             │
-│   GUARDRAIL_SPEC.md (shell-level enforcement specs)             │
-│                                                                  │
-│ Output: the 3 docs, ready for operator review                    │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ every deploy writes (path → sha) into a manifest │
+│ every TUI proof reads the manifest FIRST and     │
+│ asserts the live bundle's sha BEFORE the leg     │
+│ a mismatch = the shadow, named, before ANY leg   │
+└──────────────────────────────────────────────────┘
 ```
-
-### Implementation
-1. Write the SKILL.md with the 4-phase process
-2. The skill reads the ship docs (standard format) and extracts patterns
-3. The classification taxonomy is built from the bug classes in THIS session (extensible)
-4. The output format matches the META_OBSERVATIONS.md + SUGGESTED_IMPROVEMENTS.md templates
-
-### Downstream benefits
-- Every future build session gets meta-pattern extraction for free
-- The patterns compound: each session's extraction feeds the next session's prevention
-- The guardrail specs accumulate into a comprehensive agent-safety framework
-- The skill is the automation of "learn from your mistakes" at the process level
-
-### What it costs if wrong
-If the classification taxonomy is too narrow, some patterns are missed. If too broad, noise. The taxonomy is extensible (new bug classes are added as they're discovered).
-
-## IMPROVEMENT 8 — GI KERNEL v1.3 INTELLIGENT GRAPH GATE (blueprint complete, build pending)
-
-### The problem this solves
-Agents make structural code edits (export changes, function renames, type modifications) without querying the graph tools, leading to blind edits that break callers. A blind "call the graph before every edit" is equally bad — it interrupts legitimate doc-only work and doesn't scale to chained edits.
-
-### The solution (blueprinted at reports/GRAPH_GATE_MASTER_BLUEPRINT_v1.md)
-A LASME-grade module inside the GI kernel that:
-1. **Lexicon classifies** each edit (doc → NONE, test → LOW, logic → MEDIUM, export → HIGH)
-2. **Temporal drift engine** computes a 0.0-1.0 score based on unverified edit weight over a 5-minute decay window
-3. **State machine** (IDLE → TRACKING → WARNING → GATE_ON → HARD_STOP) escalates proportionally
-4. **Tier ladder** enforces: T0 pass → T1 advise → T2 block → T3 TTSR abort
-5. **Graph-call reset**: querying ripwire/graph-query on any edited symbol resets drift for that symbol
-
-### Why this is a good use of tokens
-The graph gate makes the graph tools habitual without being annoying. It fires ONLY on structural code edits (not docs), escalates gradually (warnings before blocks), rewards graph usage (queries reset drift), and has a hard abort reserved for extreme blindness. This is the LASME pattern (lexicon detects → state machine decides → gate enforces) applied to the edit workflow.
-
-### Implementation
-- `src/omp/graph-gate.ts` (~300 lines) — lexicon + state machine + gate
-- Wired into `src/omp/extension.ts:302` `registerGiOmpTools()` via the OMP extension `beforeToolCall`/`afterToolCall` contract (same surface `code-retrieval/index.js` uses)
-- Session state in `graph_gate_state` table beside `gi_meta` in the session sqlite (`src/omp/typed-write.ts:145` openTypedStore pattern)
-- Tests in `tests/st-gi-graph-gate.test.ts` (~200 lines)
-- V2 scaffold: `onEditClassified`, `onDriftComputed`, `onGateDecision` extension points for future spec-drift lexicons, blast-radius weighters, and context-graph bridges
-
-### Status
-BLUEPRINT COMPLETE (448 lines, commit 2f604ef). Build pending operator approval.
+**Steps:** 1) deploy-manifest.json per rig. 2) the TUI proof's step 0 is the sha assert.
+**Downstream:** shadow cycles become step-0 failures, never full-leg wastes.
+**If wrong:** manifest drift (a manual deploy bypassing the script) — mitigated by the
+script being the ONLY deploy path.

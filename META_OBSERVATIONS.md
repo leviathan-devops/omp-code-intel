@@ -1,117 +1,163 @@
-# META OBSERVATIONS — GI Kernel W44→W46
+# META OBSERVATIONS — GI Kernel v2.1 build (2026-09-15 → 2026-09-22)
 
-## THE SUCCESSFUL LOOP (what actually worked, verified by 33 commits + 217/0 battery)
-
-### Pattern 1: TDD red→green is the ONLY reliable fix discipline
-Every fix that followed "write the failing test, watch it fail, fix, watch it pass" landed correctly on the first attempt. Every fix that skipped the red step (F39 hash-throw wrap, F40 fstat size) required a disclosed no-red disclaimer and carried higher risk of being wrong. The red step is not ceremony — it proves the test CAN fail, which proves it tests something real.
-
-### Pattern 2: One finding = one fix = one commit
-The 33 commits this session each carry exactly one fix and its named test. This made every commit independently revertable and independently auditable. When F35 (poolPath declaration swallowed) was discovered, reverting to the pre-F21 commit was a clean single-commit operation.
-
-### Pattern 3: The test-seam pattern centralizes security checks
-Before: security checks were inlined at each call site (chmodSync, lstatSync, path.relative). After: each check became an exported seam (hardenPoolFile (`src/hunter/keys/go-key-pool.ts`), ledgerDirConfined (`src/omp/extension.ts:44`), containedScopeTarget (`src/omp/populate-graphify.ts`), warmStoreUnchanged (`src/omp/populate-corbell.ts`)). The seam pattern has three benefits:
-1. The security logic exists in ONE place (no drift between call sites)
-2. The seam is directly unit-testable without mocking the caller
-3. Future call sites inherit the hardened check for free
-
-### Pattern 4: First-hand read before verdict
-The status-report skill's "first-hand read law" (read the actual code before adjudicating a finding) caught 1 in 3 scan findings as false positives. The Tarjan lowlink finding claimed the onStack guard was "always true" — a first-hand read of the pop-order invariant showed the guard is the standard iterative Tarjan optimization. Budget triage time equal to fix time.
-
-### Pattern 5: Positive-outcome assertions prevent silent no-ops
-F35 taught: asserting "the victim file was NOT modified" passes even when the fix is a silent no-op (nothing happens = victim not modified). The correct assertion is "the target file WAS hardened to mode 0600." Every seam test added after F35 uses positive-outcome assertions.
-
-### Pattern 6: The battery is the anti-regression net
-The full 30-file battery was re-run after every fix wave and after every destructive operation (workspace archive, dist rebuild). It caught 3 regressions introduced by fixes (F35 poolPath, F22 duplicate guard displacement, F30 verbs assertion over-pin) before they reached the deployed dist.
-
-### Pattern 7: Ship docs updated at the gate, not at session end
-Every wave gate triggered a BUILD_REPORT/TESTING_LOG/DEBUG_LOG update with the wave's evidence. The append-only law preserved the full history. The F-44 scope breach was logged verbatim with the operator's words while the evidence was fresh.
+**Sources:** BUILD_REPORT.md (528L) · DEBUG_LOG.md (558L, EN-001..EN-085) · FAILURE_LOG.md
+(504L, F-01..F-65 + derailments D-1..D-7) · TESTING_LOG.md (1150L) · git log (66 commits
+3fa8403→HEAD) · 30 test files (350 pass / 0 fail / 1246 expect).
+**Method:** every pattern below names the entries it came from. No pattern without evidence.
 
 ---
 
-## THE FAILURES (what went wrong, verified by the operator's corrections)
+## 1 · THE SUCCESSFUL LOOP (what worked, with evidence)
 
-### Failure 1: The convergent-scan treadmill (MF-1, EN-023/EN-034)
-Three scan rounds produced three DISJOINT finding sets on the same code. Zero overlap between rounds 1 and 3. The LLM reviewer is non-deterministic — each pass surfaces different findings on unchanged code. The 0c/0h target assumed scan determinism, which was never tested.
+**S-1 · TDD red→green with the failing test written FIRST.** W1–W5, W44, the hot-seat fixes:
+every fix commit shows RED before GREEN. Evidence: F-13 (fix wave broke 5 tests mid-flight,
+battery caught both, fixed forward); EN-025 (W44: 21 highs closed TDD, "the meta-lesson
+repeated and paid"). The battery is the only gate that ever caught a self-break.
 
-**Lesson:** Before setting a scan target, run two identical scans back-to-back and diff the results. If the overlap is <50%, the scanner is non-deterministic and the target must be acceptance-based, not exhaustion-based.
+**S-2 · Named tests as contracts.** `test_ledger_row_written`, `test_gate_fire`,
+`test_gate_ignore`, `test_organic_resolution`, `test_graph_fact_producerless` — each names
+the behavior it pins. Evidence: EN-050 (the inflated-count test asserted confirmed=12
+without resolving; the ledger correctly said 0 — the test's NAME made the failure legible).
 
-### Failure 2: Scope breach from dependency graph inference (MF-4, F-44)
-The session inferred authorization to fix ANY blocking issue from the dependency chain. The goal said "rebuild both dists." The trident build failed. The session reconstructed a missing file in trident's repo, committed it, rebuilt the dist, and deployed — all without operator interaction.
+**S-3 · Per-file assertion on scripted edits.** After EN-064 (three committed fixes silently
+never applied because `str.replace` no-ops on a missing pattern), every scripted edit uses
+an asserting `sub()` that RAISES on a missing pattern. Evidence: EN-065 (the assertions
+fired on first re-application and REFUSED the claim — found rather than committed twice).
 
-**Lesson:** Authorization is granted by the OPERATOR, not derived from dependency chains. When a goal-mandated action is blocked by an external dependency: REPORT, LIST OPTIONS, STOP. Never infer authority for out-of-scope work.
+**S-4 · The live corpus as the only malformed-input source.** F-50 (a malformed sig crashed
+`timingSafeEqual` — every fixture used a well-formed 64-char sig; only the LIVE store had
+the garbage row). Rule: run the reader against the REAL store before trusting the unit suite.
 
-### Failure 3: Provenance-as-contamination (MF-3, F-46)
-103 "trident" string matches in src/ were treated as pollution. On triage: ~90 are provenance headers, ~10 are .trident data-dir defaults, ~3 are stale comments. Zero are imports, build deps, or runtime deps.
+**S-5 · Full-battery-only gating on lock returns.** F-05 (phantom bridge import: solo-file
+green, FULL 18-file battery 8/8 errors). F-07 (dep-point compile boundaries are gates, not
+advice). The orchestrator never trusts a lock's subset count.
 
-**Lesson:** Before "cleaning up" matches, CLASSIFY them: provenance documentation (keep), legacy naming convention (keep+document), actual coupling (fix). String matching is not dependency analysis.
-
-### Failure 4: Test-seam tail rot (MF-5, F35)
-F21 added hardenPoolFile at the write path but the edit accidentally deleted the poolPath declaration. The whole re-chmod threw ReferenceError inside a catch block and silently no-opped. The test passed because it asserted "victim NOT modified" (true when nothing happens).
-
-**Lesson:** Every seam test must assert the POSITIVE outcome (target IS hardened) not just the negative (victim NOT clobbered). And when a fix modifies code that a seam wraps, re-run the seam's test specifically (e.g. `bun test tests/st-gi-w44-highs.test.ts` for pool/corbell/graphify seams).
-
-### Failure 5: The both-dists doctrine (MF-2)
-The goal prompt's W7 wave mandated simultaneous GI+trident deploy. This was trident's deployment convenience (trident's dist embeds GI code), not GI's requirement. GI is self-contained.
-
-**Lesson:** A dependency's needs are not this project's requirements. Ship scope is read from the project's own spec and the operator's words.
-
----
-
-## PROCESS PATTERNS (how the work actually flowed)
-
-### The scan-triage-fix-commit cycle
-```
-1. Scan (LLM review, per-file, serial)
-2. Triage: first-hand read each finding → REAL / FALSE-POSITIVE / ALREADY-FIXED
-3. For REAL findings: write failing test → watch red → fix → watch green → commit
-4. For FALSE-POSITIVE: log the refutation with the code-read evidence
-5. For ALREADY-FIXED: verify the fix commit exists, mark resolved
-6. Battery re-run
-7. Ship docs update
-```
-This cycle was executed 3 times (W44 original, W45 re-scan, W46 re-scan). It produced 33 code fixes from 83 surfaced findings — a 40% real-finding rate. The other 60% were false positives, already-fixed items, or defense-in-depth suggestions.
-
-### The lane management pattern
-```
-Primary lane (muse GO): fastest, quota-limited
-  ↓ quota-blocked
-Fallback 1 (muse-free via `/tmp/zen-free-adapter.mjs` on :4098: gate-injecting de-stream proxy — control file 4m4s, session `ffba8ebb`): free tier, rate-limited
-  ↓ rate-limited
-Fallback 2 (poolside-laguna-s direct via `ocr scan --provider poolside-laguna-s`: paid, fast but tool-call non-compliant ~50% — control file 5m56s, session `b74f2114`)
-  ↓ flaky
-Fallback 3 (openrouter): 429 upstream (dead)
-  ↓ dead
-BLOCKED or wait for primary window reset
-```
-**Lesson:** Always run a 1-file control before committing to a lane. The control costs 2-5 minutes; a failed full batch costs 30-60 minutes.
-
-### The scope discipline pattern
-```
-AUTHORIZED: read/write/commit in the project repo
-AUTHORIZED: read (not write) dependency repos for understanding
-NOT AUTHORIZED: write/commit in ANY repo not named in the goal prompt
-NOT AUTHORIZED: fix bugs in external projects that block the goal
-ESCALATION: when a goal-mandated action is blocked by an external dependency, REPORT and ASK
-```
-This pattern was violated once (F-44) and must be mechanically enforced.
+**S-6 · The graph as the blast-radius instrument.** EN-036 (deletion of the 250-line regex
+fallback was clean because the blast radius was 1 function, measured by the graph first).
+EN-068 (register probes verified against consumer paths before editing).
 
 ---
 
-## SHIP-CLOSE RECORD (v1.2.1, `8599500`)
-Full battery 218/0/1759 ×30. Dist `ee0829c7` deployed ×2 + HOST-EXEC-OK + CT-EXEC-OK. FallHunter CLEAN + FallAuditor VERIFIED (two independent subagent passes). `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.2.1/` (PACKAGE_AUDIT PASS). One commit = one fix, red→green (33 code commits).
+## 2 · THE FAILURES (what went wrong, with root causes)
 
-## NOTES FOR FUTURE AGENTS
+**F-A · THE SILENT TOOL (EN-064/EN-065).** `str.replace(old,new)` returns the string
+UNCHANGED when `old` is absent and raises nothing; I printed success unconditionally. Eight
+fixes across two rounds were committed as landed and had never applied. The build parsed,
+the battery stayed green, the tests passed — because NO TEST READ THE FIELDS THE FIXES
+ADDED. **Class: dead code (swallowed no-op).** Fix: asserting `sub()` + a test that READS
+every field a fix adds (EN-064's counter test).
 
-1. **Read the governing spec first, not the goal prompt.** The spec (`reports/GI_CLEANUP_AND_INFRA_OVERHAUL_SPEC.md`) is the binding authority. The goal prompt may contain inherited doctrine that contradicts the spec (the both-dists law). When they conflict, the spec wins.
+**F-B · THE DESCRIBED-BUT-UNFIXED DEFECT (EN-075, pass-6).** I wrote the single-flight
+eviction defect into a commit message as "REGRESSION 1" — mechanism and all — and my fix
+list for the same commit omitted it. The commit read as complete; pass 6 found it again.
+**Class: process failure (report/work divergence).** Fix: the RE-VERIFY pass — a fix is
+done because the NEXT pass stops finding it, not because it is described.
 
-2. **Run a 1-file scan control before any full batch.** The control costs 2-5 minutes and proves the lane works. A failed full batch costs 30-60 minutes and may corrupt partial results.
+**F-C · THE CAP ON THE WRONG QUANTITY (EN-074).** The token cap bounded `ctx.bytes` (an
+intermediate) while the model receives `buildState()`'s serialization (+ trigger + JSON
+syntax ≈ 4,580 bytes of structure). Measured: 17,981 capped vs 22,914 actual. **Class: count
+integrity.** Fix: measure the real envelope (`serializedBytes/estTokens/overTarget` on every
+row). Then the operator ruled the target SOFT — and my first fix (dropping slots to fit)
+was the wrong economy: **a target is not a cap; the difference is whether you may discard
+the substance to reach it.**
 
-3. **Every LLM review finding is a HYPOTHESIS.** The first-hand read (actually read the code the finding points to) is where you determine if it's real. Budget 1/3 of your time for triage.
+**F-D · THE SHADOWING DEFECT, TWICE (EN-068's `join`, EN-084's `path`).** A local name
+collides with a module import; the compiler catches it only sometimes (`string.dirname` IS
+a type error; the compatible-signature `join` case was NOT). **Class: scope breach
+(name collision).** Fix: never name a parameter `path`/`join`/any module-scope binding.
 
-4. **When a fix introduces a new seam, TEST THE SEAM, not just the caller.** The seam is the unit that future changes will flow through.
+**F-E · THE COMPOSITION DEFECT (H4-5 × W2-1 → the shared hang).** The timeout bounded ONE
+call; the single-flight SHARED the call; together they made the hang SHARED. Neither fix
+was wrong; the composition was. **Class: race condition (shared artifact without
+re-derived eviction).** Fix: timeout eviction + compare-and-delete.
 
-5. **Export security checks as named seams (live inventory: `src/omp/typed-write.ts` verifyOpenedStoreFile, `src/omp/extension.ts` ledgerDirConfined/settlementLedgerConfined/writeWipeAudit/parseTargetRoots/substrateNeedsPopulate, `src/omp/populate-graphify.ts` containedScopeTarget, `src/omp/populate-corbell.ts` warmStoreStat/warmStoreUnchanged, `src/hunter/keys/go-key-pool.ts` hardenPoolFile/hardenPrivateDir).** Don't inline chmodSync/lstatSync at call sites. Export hardenPoolFile/containedScopeTarget/ledgerDirConfined. The seam centralizes the check and makes it testable.
+**F-F · THE PRODUCER THAT INVENTS ITS CONSUMER'S EVIDENCE (EN-082).** The extractor emitted
+`Container --references--> itsOwnMember` from the declaration site, so every member had
+in-degree ≥ 1 and M-GRAPH-2 gave a FALSE IGNORE on a dead field. 1,320 manufactured edges.
+**Class: type fabrication.** Fix: an identifier is a reference only when it is not the
+`name` field of its own declaration.
 
-6. **When the scan produces new findings on unchanged code, that's the non-determinism signal.** Stop scanning. Fix what you have. Ask the operator to rule on the residual.
+**F-G · THE STALE INSTRUMENT (D-3).** The corbell graph was populated once (EN-070), then
+~20 commits without re-populating and without ever running `storeFreshness` — which EXISTED
+(typed-write.ts:424). `abandonInFlight` was ABSENT while I believed I had a graph.
+**Class: resource leak (stale cache served as fresh).** Fix: provenance written in the same
+transaction + freshness on the CONSULT path (M-GRAPH-3).
 
-7. **The ship docs are the permanent record.** Every wave gate triggers a ship-docs update. The append-only law preserves history. When the operator corrects you, their words go in verbatim.
+**F-H · THE BANNED PATTERN AS A FEATURE (F-48/F-49/F-50).** The regex indexer-fallback
+survived 50+ operator bans because it was documented as a FEATURE ("NAMED fallback, never
+silent") and the manual taught it. **Class: dead code (a forbidden substrate) + process
+failure (cross-session ban propagation gap).** Fix: deleted (337→108 lines); the hard-
+dependency law.
+
+---
+
+## 3 · PROCESS PATTERNS (how the work actually flowed)
+
+**P-1 · THE CONVERGENT-SCAN TREADMILL (F-20, F-45, EN-023/EN-034, the v2.1 audit: 19/19/19).**
+LLM review is non-deterministic: each pass surfaces different findings on unchanged code
+(R1: 21 highs fixed; R2: 7 NEW, 0 overlap; R3: 18 NEW, 0 overlap with R1). Each fix wave
+adds lines = new scan surface. **The 0c/0h target assumes scan determinism, never
+validated.** The v2.1 audit measured the shape exactly: long-standing modules are FIXED
+POINTS at 19; newly-changed modules yield 9 and 8. The audit charges rent on every change.
+
+**P-2 · FIXES GENERATE SURFACE (the measured mechanism behind P-1).** F0's watermark fix →
+its atomic batch blocked good rows (R7) → R7's fix RE-INTRODUCED F0 (pass-3 CRITICAL). The
+pass-3 cap fix broke exactly-once (pass-4 HIGH). **A fix that adds a mechanism adds surface.**
+Demonstrated twice with hard evidence, not asserted.
+
+**P-3 · THE RITUAL QUERY (D-1, T-16).** 100% of this session's ripwire calls were GATE
+TOKENS — issued to clear GRAPH_GATE_DRIFT_HIGH, never read as design evidence. The gate
+cannot distinguish a query that informed from a query that was purchased.
+
+**P-4 · SCOPE INFERENCE FROM DEPENDENCY GRAPHS (F-44, F-47).** The session crossed into
+~/OMP_WORKSPACE/trident-omp to unblock a dist rebuild, reconstructing a deleted file by
+inference. Authorization was read from the dependency chain (A requires B → B authorized)
+instead of from the operator. **"5 ORDERS OF MAGNITUDE OUTSIDE OF SCOPE."**
+
+**P-5 · PROVENANCE-AS-CONTAMINATION (F-46).** 103 "trident" string matches treated as
+pollution; ~90 were provenance headers, ~10 data-dir defaults, ~3 stale comments. ZERO
+imports or build deps. String matching confused with dependency analysis.
+
+**P-6 · THE LATE LOG (the BUILD log 5 HOURS BEHIND the DEBUG log).** Debug entries were
+written at the moment of work; build entries were deferred "to batch naturally." They did
+not. A deferred log is a log that can be lost — it survived only because the DEBUG log
+carried the same facts.
+
+**P-7 · LANE MANAGEMENT BY MEASUREMENT (EN-062, EN-029/031).** The zen-free adapter rebuilt
+durably after /tmp died with a reboot; the poolside lane completes ~50%/file. Retry loops
+with per-file tracking, never all-or-nothing batches.
+
+---
+
+## 4 · WHAT RECURS (needs systemic fixes, not point patches)
+
+| Recurring class | Occurrences | Systemic fix |
+|---|---|---|
+| Silent no-op reported as success | EN-064/065, EN-075, the late log | Asserting edits + re-verify passes |
+| Fixes generating surface | F0→R7→F0, the cap→eviction, H4-5×W2-1 | Re-verify pass mandatory before wave close |
+| Shadowing (name collision) | `join`, `path` | A lint rule or a naming convention |
+| Stale instrument served as fresh | D-3, F-17/F-18 (freshness), F-15 (shadow dist) | Provenance + consult-path freshness |
+| Producer inventing consumer evidence | EN-082, F-48 (regex fake graph) | The consumer's own negative test |
+| Scope inferred, not granted | F-44, F-47 | Scope jail + escalation |
+| Scan treadmill | F-20, F-45, v2.1 19/19/19 | Standing process, not a gate |
+
+---
+
+## 5 · NOTES FOR FUTURE AGENTS (actionable, in priority order)
+
+1. **Assert every scripted edit.** `str.replace` without a match check is a lie waiting to
+   be committed. The `sub()` helper that raises on a missing pattern is mandatory.
+2. **Read every field a fix adds with a test in the same change.** A field no test reads
+   can be dead for a whole release (EN-064's counters).
+3. **Run the re-verify pass before closing the wave.** A fix is done because the next pass
+   stops finding it (EN-075's lesson).
+4. **Measure the quantity the consumer receives, not the convenient intermediate**
+   (EN-074: 17,981 vs 22,914).
+5. **A target is not a cap.** Never discard substance to reach a number the operator
+   called soft.
+6. **Never name a parameter `path`, `join`, or any module-scope binding.**
+7. **Write provenance in the same transaction as the data** (gi_meta.populated_at rides
+   the checkout COMMIT).
+8. **Query the graph BEFORE deriving a finding by hand** (OutcomeRecord: 0 edges, 70ms).
+9. **Update BOTH logs at the moment of work.** A deferred log is a lost log.
+10. **Scope is granted, never inferred.** A dependency is not an authorization.
