@@ -15,6 +15,17 @@
 // single DOWN answer refuses the act with `GI_STACK_INCOMPLETE:<id>` — never a
 // degraded mode, never a substitute engine. UNCERTIFIABLE is NOT a pass.
 import * as fs from "node:fs";
+// ★ THE WIRING (W4). Before this line, FireGate had ZERO call sites outside its
+// own file — a 370-line gate that nothing called. The post-detector filter is
+// the whole point of v2.1: the detector says "this SHAPE is a violation"; the
+// gate says whether the shape is REAL.
+import {
+  FireGate,
+  absorbContext,
+  type DecisionRow,
+  type Fire,
+  type StreamRecord,
+} from "./fire-gate.ts";
 
 // ── the six graph layers (T-1 namespaces them in the store) ──────────────────
 export type LayerId =
@@ -258,6 +269,27 @@ export interface KernelInput {
 const TIER_ORDER: Record<Tier, number> = { T0: 0, T1: 1, T2: 2, T3: 3 };
 const VERDICT_RANK: Record<Verdict, number> = { PASS: 0, UNCERTIFIABLE: 1, VIOLATION: 2 };
 
+/** THE WORST VERDICT WINS, and a tie takes the worst class by the fixed order
+ *  destructive > theatrical > dumb (a safety tie never resolves toward the
+ *  lighter class). Extracted so the gated runner (W4) picks the SAME outcome
+ *  the kernel did — two implementations of this reduce would eventually
+ *  disagree, and the gate would then adjudicate a different detector than the
+ *  one that produced the verdict. */
+export function worstOutcome(
+  outcomes: readonly { detector: Detector; outcome: DetectorVerdict }[],
+): { detector: Detector; outcome: DetectorVerdict } {
+  return outcomes.reduce((a, b) => {
+    const va = VERDICT_RANK[a.outcome.verdict];
+    const vb = VERDICT_RANK[b.outcome.verdict];
+    if (vb > va) return b;
+    if (vb === va && a.outcome.verdict !== "PASS" && b.outcome.verdict !== "PASS") {
+      const order: Record<ActClass, number> = { destructive: 3, theatrical: 2, dumb: 1, benign: 0 };
+      if (order[b.detector.class] > order[a.detector.class]) return b;
+    }
+    return a;
+  });
+}
+
 /** Run STAGE 0..6 in order, cheapest first, and refuse the moment the stack
  *  cannot answer. Every stage's outcome is recorded so the refusal is
  *  explainable and a test can assert the stage ran. */
@@ -308,16 +340,7 @@ export function runKernelV2(input: KernelInput): KernelRun {
   // STAGE 4 — KERNEL: the worst verdict wins, and a tie takes the worst class
   // by the fixed order destructive > theatrical > dumb (a safety tie never
   // resolves toward the lighter class).
-  const worst = outcomes.reduce((a, b) => {
-    const va = VERDICT_RANK[a.outcome.verdict];
-    const vb = VERDICT_RANK[b.outcome.verdict];
-    if (vb > va) return b;
-    if (vb === va && a.outcome.verdict !== "PASS" && b.outcome.verdict !== "PASS") {
-      const order: Record<ActClass, number> = { destructive: 3, theatrical: 2, dumb: 1, benign: 0 };
-      if (order[b.detector.class] > order[a.detector.class]) return b;
-    }
-    return a;
-  });
+  const worst = worstOutcome(outcomes);
   stages.push({
     stage: 4,
     name: "KERNEL",
@@ -387,4 +410,163 @@ function finish(
   evidence: string,
 ): KernelRun {
   return { stages, verdict, code, class: cls, reason, evidence };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// POSITION B — THE POST-DETECTOR FILTER (W4). ★ THE WIRING.
+//
+// The detector answers "does this SHAPE match a rule?" — cheaply, by design,
+// and therefore sometimes wrongly. The gate answers the different question
+// "is the shape REAL given the context that surrounds it?", for at most one
+// Noul's worth of judgment. The band→action table is the blueprint's (§S6):
+//
+//     p >= policy.act   → FIRE      the v2.0 verdict APPLIES
+//     p >= policy.flag  → ESCALATE  flagged; the verdict still applies
+//     else              → IGNORE    the act proceeds; the firing was NOISE
+//
+// ★ THE SAFE DIRECTION OF THIS SURFACE IS THE OPPOSITE OF POSITION A'S. An
+//   advisory must never BLOCK; this filter must never DISMISS without a real
+//   adjudication. So when the gate is absent, down, or out of budget, the
+//   DETECTOR'S VERDICT STANDS and the degradation is NAMED. Failing to filter
+//   is a lost improvement; failing OPEN would be a lost enforcement.
+//
+// ★ WHY runKernelV2 STAYS SYNCHRONOUS. The judge is a model call — async by
+//   nature. Making runKernelV2 async would break every existing caller and the
+//   ~20 tests that call it synchronously, and it would conflate two separable
+//   things: the stage machine (pure, cheap, no I/O) and the adjudication
+//   (async, costly, I/O). The gate therefore WRAPS the stage machine. It still
+//   sits exactly where the blueprint puts it — between the detector's VIOLATION
+//   and the verdict the caller acts on.
+// ════════════════════════════════════════════════════════════════════════════
+
+export interface GateAdjudication {
+  ruleId: string;
+  cls: ActClass;
+  probability: number;
+  band: string;
+  action: "FIRE" | "ESCALATE" | "IGNORE";
+  reason: string;
+  /** The decision row — SC-8: every fire leaves a row. */
+  row: DecisionRow;
+}
+
+export interface GatedKernelRun extends KernelRun {
+  /** The detector's verdict BEFORE the gate. PRESERVED, never overwritten —
+   *  a filtered false positive must remain auditable as a detector firing. */
+  preGateVerdict: KernelRun["verdict"];
+  /** The gate's adjudication, when a non-ALLOW verdict was adjudicated. */
+  adjudication: GateAdjudication | null;
+  /** The NAMED degradation when the gate could not adjudicate. Non-null means
+   *  the detector's verdict STANDS on its own. */
+  gateSkipped: { code: string; message: string } | null;
+}
+
+/** The stream the gate absorbs when the caller supplies none: the kernel's OWN
+ *  input, rendered as records. Honest by construction — it adds nothing the
+ *  caller did not assert, so the gate cannot be fed evidence the kernel did
+ *  not see. A caller with the real session stream passes it via `opts`. */
+export function streamFromInput(input: KernelInput): StreamRecord[] {
+  const out: StreamRecord[] = [{ kind: "toolcall", text: `${input.toolName} ${input.target}`, offsetMs: -100 }];
+  for (const c of input.claims) out.push({ kind: "claim", text: c.text, offsetMs: -90 });
+  for (const c of input.certifications) {
+    out.push({ kind: "reasoning", text: `${c.layer} ${c.verdict} ${c.reason}`, offsetMs: -80 });
+  }
+  return out;
+}
+
+/** ★ RUN THE KERNEL, THEN ADJUDICATE ITS VIOLATION — position B.
+ *  A clean act is returned untouched and costs ZERO model calls: the filter
+ *  only ever looks at something a detector already flagged. */
+export async function runKernelV2Gated(
+  input: KernelInput,
+  gate: FireGate | undefined,
+  opts: { stream?: readonly StreamRecord[] } = {},
+): Promise<GatedKernelRun> {
+  const base = runKernelV2(input);
+  const stands = (skipped: { code: string; message: string } | null): GatedKernelRun => ({
+    ...base,
+    preGateVerdict: base.verdict,
+    adjudication: null,
+    gateSkipped: skipped,
+  });
+
+  // NOTHING TO FILTER. A clean act never reaches the model — the cheapest
+  // judgment is the one not made.
+  if (base.verdict === "ALLOW") return stands(null);
+
+  if (gate === undefined) {
+    return stands({
+      code: "GI_GATE_ABSENT",
+      message: "no gate wired — the detector's verdict stands; a missing filter never dismisses a violation",
+    });
+  }
+
+  // THE SAME WORST OUTCOME THE KERNEL CHOSE — via the shared helper, so the
+  // gate can never adjudicate a different detector than the one that refused.
+  const detectors = input.detectors ?? DEFAULT_DETECTORS;
+  const outcomes = classifyByDetectors(detectors, input);
+  const worst = worstOutcome(outcomes);
+  const fire: Fire = {
+    ruleId: `*${worst.detector.class}`,
+    cls: worst.detector.class,
+    shape: worst.outcome.reason,
+    tool: input.toolName,
+    target: input.target,
+    evidence: worst.outcome.evidence,
+  };
+  const ctx = absorbContext(fire, opts.stream ?? streamFromInput(input));
+
+  let d;
+  try {
+    d = await gate.judge(fire, ctx);
+  } catch (e) {
+    // A down judge, a spent budget (D017), any throw. The verdict STANDS.
+    const message = e instanceof Error ? e.message : String(e);
+    return stands({ code: "GI_GATE_UNAVAILABLE", message });
+  }
+
+  const adjudication: GateAdjudication = {
+    ruleId: fire.ruleId,
+    cls: worst.detector.class,
+    probability: d.probability,
+    band: d.band,
+    action: d.action as GateAdjudication["action"],
+    reason: d.reason,
+    row: d.row,
+  };
+
+  // ★ A DEGRADED ROW MUST NEVER DISMISS. The gate's own fail-polarity rows carry
+  //   a suffix on the policy name. On a fail-CLOSED class (theatrical) the
+  //   degraded row reads FIRE; on a fail-OPEN class (dumb) it reads IGNORE —
+  //   and APPLYING that IGNORE would let a down judge silently switch
+  //   enforcement off. That is the precise failure this surface's polarity
+  //   exists to prevent, so a degraded row is detected HERE and the detector's
+  //   verdict STANDS. The row is still in the gate's ledger (SC-8 holds) and
+  //   the degradation is NAMED.
+  const suffix = d.row.policyName.includes("+no-answer") ? "NO_ANSWER"
+    : d.row.policyName.includes("+fail-") ? "JUDGE_UNAVAILABLE"
+    : null;
+  if (suffix !== null) {
+    return stands({ code: `GI_GATE_UNAVAILABLE:${suffix}`, message: d.reason });
+  }
+
+  if (d.action === "IGNORE") {
+    // ★ THE FALSE POSITIVE IS DISMISSED. The detector fired on a shape; the
+    //   gate read the context and found the firing to be noise. The act
+    //   proceeds — and the dismissal is EXPLAINED on the run.
+    return {
+      ...base,
+      preGateVerdict: base.verdict,
+      verdict: "ALLOW",
+      code: null,
+      class: "benign",
+      reason: `gate IGNORE — the firing was noise: ${d.reason}`,
+      adjudication,
+      gateSkipped: null,
+    };
+  }
+
+  // FIRE and ESCALATE both keep the v2.0 verdict: the violation is REAL. The
+  // difference is that ESCALATE says so more quietly and marks the row.
+  return { ...base, preGateVerdict: base.verdict, adjudication, gateSkipped: null };
 }

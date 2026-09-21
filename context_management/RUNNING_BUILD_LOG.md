@@ -218,3 +218,17 @@
 - ★ IT COMPOSES, DOES NOT DUPLICATE (the ripwire lens found this): the v1.3 gate ALREADY has a pre-act advisory — `gateAdvisory` (typed-write.ts:1213, churn=39 amp=11) — a DETERMINISTIC $0 caller-listing that says WHICH callers a change would break. That one INFORMS; this one ADJUDICATES. Re-deriving the caller list here would have been duplicate machinery.
 - EVIDENCE: W3 suite 9 pass/0 fail/45 expect · battery 227/0/819/23 files (W2 baseline 218/0/774/22 → +9 tests/+45 expects/+1 file, ZERO regressions) · tsc 191 == baseline 0 new · `bun test -t test_advisory_open` PASS scoped.
 - NEXT: W4 (position B, THE WIRING — the gate between the detector's VIOLATION and the v2.0 verdict) · W5 (policy store).
+
+## [2026-09-21T13:10:00] — v2.1 W4 POSITION B: THE WIRING — the UNWIRED KERNEL is wired
+- WHAT: kernel-v2.ts +~145 L — `worstOutcome()` (extracted, shared), `streamFromInput()`, `GateAdjudication`, `GatedKernelRun`, `runKernelV2Gated()`. tests/st-gi-v21-wiring.test.ts (9 tests, 46 expects).
+- ★ THE ANTI-PATTERN LEDGER, CLASS 3 — MEASURED, BEFORE AND AFTER:
+    FireGate occurrences in src/omp/kernel-v2.ts   0 → 3
+    `gate.judge(` call sites                       0 → 1
+    FireGate references outside fire-gate.ts       0 → 27
+  At session start the gate had ZERO call sites: 370 lines of built, tested, and completely unconnected enforcement. It is now called by the kernel.
+- THE CALL SITE (blueprint §S5/S6): between the detector's VIOLATION and the verdict the caller acts on. The band→action table is the blueprint's verbatim: FIRE → the v2.0 verdict applies · ESCALATE → flagged, verdict applies · IGNORE → the firing was noise, the act proceeds.
+- ★ WHY runKernelV2 STAYS SYNCHRONOUS: the judge is a model call (async by nature). Making runKernelV2 async would break every existing caller and ~20 tests (a frozen surface) and would conflate the pure stage machine with the costly I/O adjudication. The gate WRAPS the stage machine — and still sits exactly where the blueprint puts it.
+- ★ THE SAFE DIRECTION IS OPPOSITE POSITION A'S: an advisory must never BLOCK; this filter must never DISMISS without a real adjudication. Absent gate / down judge / spent budget ⇒ the DETECTOR'S VERDICT STANDS, named.
+- EVIDENCE: W4 suite 9 pass/0 fail/46 expect · battery 236/0/865/24 files (W3 baseline 227/0/819/23 → +9 tests/+46 expects/+1 file, ZERO regressions on the MODIFIED core) · tsc 191 == baseline 0 new · `bun test -t test_gate_fire` PASS · `-t test_gate_ignore` PASS · the frozen surfaces: gate-hook.ts registerGraphGate UNTOUCHED, graph-gate.ts tier ladder 4 refs intact.
+- ★ THE BOUNDARY (do not over-claim): W4 wires the gate INTO THE KERNEL. The kernel is NOT yet called from the live tool path (runKernelV2 call sites outside its file = 0) — that is the REGISTRATION, and the pin's law forbids it while the register reads up=5/11. Two levels; only level 1 is done.
+- NEXT: W5 (policy store) · W6 BLOCKED on M2 · W8 needs the rig.

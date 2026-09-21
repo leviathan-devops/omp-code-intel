@@ -62,10 +62,15 @@ T-6 ← W9 ← all of the above
   ★ THE LAW IS IN THE TYPE: Advisory.block is the literal `false`
   ★ COMPOSES with the existing gateAdvisory (typed-write.ts:1213) — informs vs adjudicates
   EVIDENCE: 9/0/45 · battery 227/0/819/23 (W2 was 218/0/774/22 → +9 tests, no regressions) · tsc 191
-### W4 — POSITION B  src/omp/kernel-v2.ts  [depends: W1,W3]  ☐
-  Deliverable: the post-detector filter — THE WIRING
-  Gate: a real FIRE + a real IGNORE · test_gate_fire · test_gate_ignore
-  ★ Frozen: gate-hook.ts:117 (single call site = 1) · graph-gate.ts (the tier ladder)
+### W4 — POSITION B  src/omp/kernel-v2.ts  [depends: W1,W3]  ✅ CLOSED — ★ THE WIRING
+  Deliverable: worstOutcome (shared) + streamFromInput + GateAdjudication + runKernelV2Gated
+  Gate: a real FIRE + a real IGNORE · test_gate_fire ✓ · test_gate_ignore ✓
+  ★ CLASS 3 KILLED: FireGate refs in kernel-v2.ts 0 → 3 · gate.judge( 0 → 1 · refs outside its file 0 → 27
+  ★ Frozen VERIFIED: registerGraphGate UNTOUCHED · graph-gate.ts tier ladder 4 refs intact
+  EVIDENCE: 9/0/46 · battery 236/0/865/24 (W3 was 227/0/819/23 → +9 tests, no regressions) · tsc 191 (0 new)
+  ★ THE BOUNDARY: level 1 (gate→kernel) DONE. Level 2 (kernel→live tool path) NOT done —
+    runKernelV2 call sites outside its file = 0, and the ENGINES-BEFORE-REGISTRATION law
+    forbids registering while the register reads up=5/11.
 ### W5 — POLICY  src/omp/policy-store.ts  [depends: W1]  ☐
   Deliverable: versioned JSON policies (data, not code — D026)
   Gate: a reload without a rebuild · test_policy_reload
@@ -87,7 +92,8 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
 | W1 | 7/0/36 · 206/0/737/21 · tsc 191 | battery 206/0/737/21 ✓ · tsc 191 ✓ · 5 named selectors ✓ · derivePolicy+health ✓ | **CLOSED** |
 | W2 | 12/0/37 · 218/0/774/22 · tsc 191 | battery 218/0/774/22 ✓ · tsc 191 ✓ · test_oracle_resolves ✓ | **CLOSED** |
 | W3 | 9/0/45 · 227/0/819/23 · tsc 191 | battery 227/0/819/23 ✓ · tsc 191 ✓ · test_advisory_open ✓ | **CLOSED** |
-| W4 | — | — | OPEN |
+| W4 | 9/0/46 · 236/0/865/24 · tsc 191 | battery 236/0/865/24 ✓ · tsc 191 ✓ · test_gate_fire ✓ · test_gate_ignore ✓ | **CLOSED** |
+| W5 | — | — | OPEN |
 
 ## HARD STOPS ACTIVE
 - M2 (the cost matrix) — OPERATOR-OWNED. Blocks W6 only. W1/W2/W3/W5 build regardless.
