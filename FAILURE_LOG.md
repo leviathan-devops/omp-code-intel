@@ -317,3 +317,36 @@ Append-only derailment ledger. Operator verdicts verbatim. Every entry: what hap
 - **THE LESSON:** a test whose name claims "the test bites" must FAIL when the guarded
   property is removed. Asserting the MUTANT'S behaviour proves the seam is wired; it does
   not prove the guarded test bites. Both are worth having; they are different claims.
+
+## F-52 — the SC-8 driver fed its two engines DIFFERENT EVIDENCE (2026-09-21)
+
+- **THE FINDING:** in the SC-8 driver the kernel's theatrical detector saw `spans=0` and
+  fired while the close layer's stub load unit returned one span and PASSED — two layers,
+  two verdicts, one act.
+- **THE ROOT CAUSE (mine, in the fixture):** `stubLoad` returned a span UNCONDITIONALLY. The
+  driver's claim text said "tests pass" with `spans: 0` while the stub also declared evidence
+  for that exact claim. The fixture contradicted itself.
+- **THE FIX:** ONE evidence source (`SCOPE_EVIDENCE`), a load unit that binds a span only when
+  the scope actually holds one, and an ASSERTION that (a) the kernel's span count matches what
+  the load unit binds and (b) the two layers AGREE on refusal. The assertion caught the drift
+  immediately on its first run.
+- **THE VERIFICATION:** unsupported claim → kernel REFUSE + close REJECT (both
+  `GI_FABRICATED_CLAIM`); supported claim → kernel ALLOW + close PASS; precision moves
+  1.000 → 0.750 when a refuted outcome lands. `SC8-EXEC-OK`.
+- **THE LESSON:** a fixture that gives two compared systems different inputs tests nothing.
+  If a driver asserts agreement, it must supply one truth to both sides.
+
+## F-51 (UPDATED) — the mutation reading is CONTRADICTORY and the cause is NOT isolated (2026-09-21)
+
+- **WHAT IS FIXED:** T8's body asserted the MUTANT'S behaviour and never re-ran T2. It now
+  runs T2's own assertion under the mutation and expects it to THROW. The test bites. VERIFIED:
+  paragon battery 17 pass / 0 fail / 51 expect.
+- **WHAT IS OPEN:** the source-level gutting experiment gave CONTRADICTORY readings on the SAME
+  file with the SAME gutter: a standalone probe (`import "./src/index.ts"`) observed
+  `store.verify(forged) === true` (the gutter in effect), while the battery's T2 — instrumented
+  inside `verifyRow` — reported `cmp=false` with the file's gutter confirmed present by `grep`.
+  Same specifiers (`./signing` from both `index.ts` and `store.ts`); no duplicate file; not a
+  transpiler-cache artifact (a size-changing edit reproduced it).
+- **STATUS: UNRESOLVED.** Recorded with the exact experiments rather than guessed. The practical
+  impact is NIL — T8's fix makes the mutation claim true, and the battery is green — but the
+  reading conflict is a real unexplained observation.

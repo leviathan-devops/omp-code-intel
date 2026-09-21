@@ -347,3 +347,58 @@ Append-only. Every entry: symptom → root cause → fix → verification → le
   or a total drop is indistinguishable from a no-op.
 - **STATUS:** OPEN — a populate-path defect, NOT part of the confidence work. Recorded so
   the next populate does not read as clean.
+
+## EN-042 — EN-041 RESOLVED: TWO field-name mismatches against the real graphify schema (2026-09-21)
+
+- **THE FINDING:** the real corpus (9,814 nodes / 24,757 edges) produced **0 edges with a
+  line** and all 24,757 counted DANGLING; the typed store was populated from an older,
+  differently-shaped graph.
+- **THE ROOT CAUSE (two, independent):**
+  1. **`source_location` never reached the resolver.** The real schema records the position
+     on `source_location` (`"L1"` on nodes, `"L54"` on edges). Both line-resolution calls
+     passed only the node's `data`, so the resolver's `source_location` candidate was
+     unreachable → every node/edge read lineless.
+  2. **The TYPE disagreed with the DATA.** `GraphifyEdge` declares `src`/`dst`; the real JSON
+     emits `source`/`target`. So `graphify:${e.src}` resolved to `graphify:undefined` and
+     every edge was counted DANGLING. `build()` already read both (`:236`); the projector did
+     not.
+- **THE FIX:** `rawSourceLocation()` + threading it (and the raw edge) into all four
+  resolution sites; and reading `source ?? src` / `target ?? dst` in the projector — the same
+  dual read `build()` uses. ONE reader, one truth.
+- **THE VERIFICATION:** on the real corpus — was 0 lined edges + 24,757 dangling; now
+  **9,797/9,814 nodes with lines** and **23,086 edges survive** (1,671 genuinely dangling).
+  Battery 199 pass / 0 fail.
+- **THE LESSON:** a type is a CLAIM about the data, not the data. When a projection reads
+  `0` rows where the source has thousands, suspect a FIELD-NAME mismatch before a logic bug —
+  and check whether another code path already handles both spellings.
+
+## EN-043 — the graphify freshness DEADLOCK (build -> stale sidecar -> refuse forever) (2026-09-21)
+
+- **THE FINDING:** after every rebuild, the populate refused with
+  `GRAPHIFY_NOT_WARM:stale-content` and the graph could never be marked fresh.
+- **THE ROOT CAUSE:** the freshness probe compares `graph.graph_hash` (a sidecar written ONLY
+  by the populate path, at populate-graphify.ts:409) against the current source fingerprint.
+  The BUILD regenerates `graph.json` but never writes the sidecar. So: build → the sidecar is
+  stale → the populate refuses → the sidecar is never rewritten. A closed loop with no exit.
+- **THE FIX:** `scripts/graphify-build.ts` now MARKS ITS OWN OUTPUT fresh — it computes the
+  same hash with the same function over the same scope and writes the same sidecar path the
+  probe reads.
+- **THE VERIFICATION:** the build logs
+  `marked fresh: …/graphify-out/graph.graph_hash = 8cab4a2b8f9b8b62…`; the next populate
+  succeeded (1424 nodes / 3078 edges) and the baseline store's live distinct confidence is 2.
+- **THE LESSON:** a gate whose input is written only by the path it blocks is a deadlock.
+  When two stages share a freshness contract, the PRODUCER must satisfy it.
+
+## EN-044 — the phantom session id: every session shared ONE drift bucket (2026-09-21)
+
+- **THE FINDING:** `RB-IDENT` returned `sessionID: "default"` on every live call.
+- **THE ROOT CAUSE:** `ctx.sessionID ?? "default"` (extension.ts:338) and
+  `event.sessionId || event.sessionID || "default"` (gate-hook.ts:126) — the omp tool_call
+  ctx/event carry no session id, so BOTH resolved to the literal `"default"`. Every session in
+  every project shared one drift bucket and one probe identity. A phantom id is worse than
+  none: it looks like an identity and silently merges unrelated sessions.
+- **THE FIX:** `resolveSessionId()` / `resolveSessionIdFromEvent()` in `gi-session-path.ts` —
+  ctx → `GI_SESSION_ID` → the SCOPE ROOT (a real, stable, project-scoped identity, which IS
+  the gate's ownership boundary). The probe now reports `sessionIDSource`.
+- **THE VERIFICATION:** 6 resolver cases, **zero phantom "default"**; the store-path guard's
+  id shape is satisfied; battery 199 pass / 0 fail.
