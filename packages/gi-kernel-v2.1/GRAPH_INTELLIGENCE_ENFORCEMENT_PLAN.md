@@ -60,13 +60,58 @@ LAYER 3 — THE ONLY STRUCTURAL DETECTOR IN THE LOOP IS A MODEL PAID PER FILE.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
-│  P1  THE GRAPH-FACT SETTLEMENT LAYER      the $0 rung consults the graph               │
-│  P2  THE EVIDENCE PRODUCER               the oracle's missing input                   │
-│  P3  THE CONSULT-PATH FRESHNESS GATE      a verdict from a dead store is REFUSED       │
-│  P4  CLOSURE-LEVEL INDEXING               the graph learns to see inline guards         │
-│  P5  THE SELF-AUDIT                       the kernel checks its own author              │
+│  P1  THE GRAPH-FACT SETTLEMENT LAYER      ★ BUILT (a9a7a99) — src/omp/graph-facts.ts   │
+│  P3  THE CONSULT-PATH FRESHNESS GATE      ★ BUILT (same commit) + the provenance fix    │
+│  P2  THE EVIDENCE PRODUCER               the oracle's missing input                    │
+│  P4  CLOSURE-LEVEL INDEXING               ★ ELEVATED — THE MEASURED BOTTLENECK          │
+│  P5  THE SELF-AUDIT                       the kernel checks its own author               │
 └───────────────────────────────────────────────────────────────────────────────────────┘
+
+## ★★★ P1+P3 — SHIPPED, AND THE RUN MEASURED ITS OWN COVERAGE AT 0 OF 4
+
 ```
+WHAT SHIPPED:  the graph rung as the FIRST stage of FireGate.judge (the ladder is now
+               graph → MPSE → cache → Jev) · the freshness gate on the CONSULT path ·
+               12 corpus-fixture tests replaying the session's own derailments, each
+               asserting its SPECIFIC rule token with firesUsed() UNCHANGED.
+
+WHAT RUNNING IT PRODUCED (three findings, none readable):
+
+  ★★★ 1  M-GRAPH-4 ANSWERED CONFIDENTLY WRONG (CRITICAL). Against the real graph it settled
+         IGNORE "single call site" for `abandonInFlight` — which has TWO mutation sites; the
+         second is an inline closure the indexer cannot see. THE SILENT-DEGRADE CLASS.
+         ★ THE PRINCIPLE, NOW ENFORCED AND GENERALIZED: a rule may settle on a POSITIVE fact
+           (the node EXISTS — finding it proves the indexer covers that kind). A rule must
+           NEVER settle IGNORE on a COUNT: a count is a LOWER BOUND, and absence of evidence
+           is only evidence of absence when the extractor covers the space.
+
+  ★★ 2  THE CORBELL CHECKOUT HAD gi_meta WITH ZERO ROWS — the build wrote the graph and NOT
+        its provenance, so layerFreshness refused EVERY fact as STALE BY CONSTRUCTION. The
+        graph was unusable to the new rung the moment it was built, and nothing said so.
+        FIXED: writeCorbellCheckout writes populated_at + substrate + run tag INSIDE THE SAME
+        TRANSACTION — a graph whose provenance did not commit with it is a graph that lies
+        about its own age.
+
+  ★★★ 3  THE HONEST COVERAGE, MEASURED: **0 OF 4.**
+          D-2 OutcomeRecord    → NO NODE — the indexer emits methods/classes/flows, NOT TYPES
+          D-6 ledgerPath       → NO NODE — CONFIG FIELDS are not indexed
+          D-7 serializedBytes  → NO NODE — LOCAL CONSTS are not indexed
+          D-5 abandonInFlight  → was a FALSE IGNORE (inline CLOSURES invisible)
+        DECLARED IN CODE as GRAPH_FACTS_COVERAGE: only M-GRAPH-3 (freshness) settles today;
+        M-GRAPH-1/2/4/5 are implemented and BLOCKED ON THE EXTRACTOR.
+```
+
+## ★ THE PLAN'S CENTRE OF GRAVITY MOVED
+
+```
+BEFORE the build:  P1 looked like the hard part — six rules, real queries, a settled fire.
+AFTER  the build:  P1 is DONE and TESTED (12/12) and IT CANNOT SETTLE ANYTHING, because the
+                   EXTRACTOR does not emit the node kinds the rules read.
+                   ★ P4 IS NO LONGER "the indexer's own blindness" — IT IS THE WHOLE GATE.
+                     Not one rule beyond freshness earns its keep until the extractor
+                     emits types, fields, consts and closures.
+```
+
 
 ### P1 · THE GRAPH-FACT SETTLEMENT LAYER — `src/omp/graph-facts.ts` (NEW, ~250 L)
 

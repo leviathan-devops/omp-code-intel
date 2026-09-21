@@ -224,6 +224,25 @@ export function writeCorbellCheckout(
       db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
       insertForkNodesBatch(db, nodeRows);
       insertForkEdgesBatch(db, edgeRows);
+      // ★ P3 (2026-09-22) — THE WRITER RECORDS ITS OWN PROVENANCE, IN THE SAME TRANSACTION.
+      //   Measured: the corbell checkout carried gi_meta with ZERO ROWS — the graph existed
+      //   and had NO populated_at, so `layerFreshness` (typed-write.ts:424) refused EVERY
+      //   fact read from it as STALE BY CONSTRUCTION. The graph was unusable to the
+      //   graph-fact rung the moment it was built, and nothing said so.
+      //   ★ AND IT RIDES THE TRANSACTION DELIBERATELY: a graph whose provenance did not
+      //   commit with it is a graph that lies about its own age. Both land, or neither.
+      db.run(
+        "INSERT INTO gi_meta (key, value) VALUES ('populated_at', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [new Date().toISOString()],
+      );
+      db.run(
+        "INSERT INTO gi_meta (key, value) VALUES ('substrate', 'corbell') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [],
+      );
+      db.run(
+        "INSERT INTO gi_meta (key, value) VALUES ('corbell_checkout', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [runTag],
+      );
       db.exec("COMMIT;");
     } catch (e) {
       try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
