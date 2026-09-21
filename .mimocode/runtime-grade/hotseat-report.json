@@ -1,0 +1,158 @@
+{
+  "at": "2026-09-21T09:32:08.266Z",
+  "stance": "I am the driver of the GI Kernel v2.1 fire gate at dist sha 83eb7bba, driven through the live JevJudge against api.typesafe.ai.",
+  "ops": 24,
+  "breaks": 0,
+  "notes": 1,
+  "findings": [
+    {
+      "op": "OP-1 baseline fire",
+      "expected": "a probability in (0,1) and exactly one row",
+      "actual": "p=0.45 band=escalate action=ESCALATE 772ms",
+      "verdict": "OK"
+    },
+    {
+      "op": "OP-1b the row persisted",
+      "expected": "1 row",
+      "actual": "1 row(s)",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-1 8 fires at once (distinct states)",
+      "expected": "8 new rows; the ledger never loses one under concurrency",
+      "actual": "8 new rows (expected 8); 4 distinct probabilities",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-2 the legit path twice (same state)",
+      "expected": "the second judgment is a CACHE HIT and costs no fire",
+      "actual": "first cached=false · second cached=true · firesUsed 9→10 · sameHash=true",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-3 starve the budget (budgetFires=0)",
+      "expected": "a named throw: GI_FIREGATE_BUDGET",
+      "actual": "GI_FIREGATE_BUDGET: 0/0 fires used",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-4 hostile: a 200KB evidence string",
+      "expected": "a decision or a NAMED throw — never a hang or silence",
+      "actual": "p=0.42 band=escalate action=ESCALATE policy=dumb-seed",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-4 hostile: unicode + control chars",
+      "expected": "a decision or a NAMED throw — never a hang or silence",
+      "actual": "p=0.44 band=escalate action=ESCALATE policy=dumb-seed",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-4 hostile: an empty target",
+      "expected": "a decision or a NAMED throw — never a hang or silence",
+      "actual": "p=0.41 band=escalate action=ESCALATE policy=dumb-seed",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-4 hostile: a 10KB target",
+      "expected": "a decision or a NAMED throw — never a hang or silence",
+      "actual": "p=0.48 band=escalate action=ESCALATE policy=dumb-seed",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-4 hostile: an unknown class",
+      "expected": "a decision or a NAMED throw — never a hang or silence",
+      "actual": "p=0.34 band=ignore action=IGNORE policy=dumb-seed",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-5 kill mid-operation (a judge that never resolves)",
+      "expected": "the GATE's own ceiling fires — it returns with the timeout NAMED, well under the 8s probe window",
+      "actual": "returned: action=IGNORE policy=dumb-seed+timeout (waited 1500ms)",
+      "verdict": "OK",
+      "fix": "the gate's own ceiling fired and the degradation is named +timeout"
+    },
+    {
+      "op": "H4-6 the WIRED path, live (a real violation through position B)",
+      "expected": "preGate=REFUSE and a real adjudication from the live model",
+      "actual": "preGate=REFUSE verdict=REFUSE adj=ESCALATE p=0.69",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-7 resolve the whole battered ledger",
+      "expected": "every unresolved row is either resolved or counted — no silent skip",
+      "actual": "rows=17 resolved=16 leftUnresolved=0 alreadyResolved=1 phantom=0 contended=0 failed=0",
+      "verdict": "OK",
+      "mechanism": "the SIX counters must PARTITION the input — if they do not sum, a row was silently dropped"
+    },
+    {
+      "op": "H4-8 drain twice on the live ledger",
+      "expected": "0 on the second drain",
+      "actual": "first=0 second=0",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-9 reroute a stored probability under a new policy",
+      "expected": "the probability is UNCHANGED and only the band moves",
+      "actual": "p 0.4→0.4 · band escalate→ignore · costUsd=0",
+      "verdict": "OK"
+    },
+    {
+      "op": "H4-10 the advisory with a DOWN judge",
+      "expected": "verdict=pass, block=false, and a NAMED skip",
+      "actual": "verdict=pass block=false skipped=GI_ADVISORY_OPEN:JUDGE_UNAVAILABLE",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-1 24 fires at once over only 3 distinct states",
+      "expected": "every fire leaves a row (cache hits still record), and no row is lost",
+      "actual": "24 rows for 24 fires · cacheHits=21 · firesUsed=20",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-2 two ledger HANDLES on one file, two gates",
+      "expected": "the second drain is 0 and the other gate's rows are not re-written",
+      "actual": "handle1 drain=1 then 0 · the other gate's drain=0 · total rows=43",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-3 the oracle on an EMPTY ledger",
+      "expected": "zero of everything, no throw",
+      "actual": "resolved=0 leftUnresolved=0 phantom=0 failed=0",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-4 a policy nothing can pass (act=1.0)",
+      "expected": "the act band is unreachable and the row shows it — never a silent FIRE",
+      "actual": "p=0.42 band=ignore action=IGNORE",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-5 a DESTRUCTIVE intent through the advisory",
+      "expected": "classified destructive and STILL never blocks (fail-open by type)",
+      "actual": "verdict=pass block=false p=0.58 policy=destructive-seed",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-6 a record 48h in the future (beyond the 24h window)",
+      "expected": "it is NOT evidence — the window is bounded forward",
+      "actual": "truth=unresolved signals=[]",
+      "verdict": "OK"
+    },
+    {
+      "op": "W2-7 two CLASSES, the same evidence (a state-hash collision)",
+      "expected": "the cache must not serve one class's judgment to another — the state includes the fire",
+      "actual": "sameHash=false · A(p=0.39 dumb-seed) B(p=0.32 theatrical-seed)",
+      "verdict": "NOTE",
+      "mechanism": "the hashes differ, so the STATE carries the class — the cache cannot cross classes."
+    },
+    {
+      "op": "W2-8 a live batch with ONE corrupt row",
+      "expected": "the good row lands, the bad one is reported, and the count reflects reality",
+      "actual": "written=1 rows +1 persistFailures=1",
+      "verdict": "OK"
+    }
+  ],
+  "ledgerPath": "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/.mimocode/runtime-grade/hotseat-ledger.sqlite",
+  "ledgerRows": 47
+}
