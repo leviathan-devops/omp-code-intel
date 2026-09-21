@@ -16,6 +16,7 @@ import * as fs from "node:fs";
 import { Database } from "bun:sqlite";
 import type { GraphEdge, GraphNode } from "./interface.ts";
 import {
+  applyTypedDdl,
   countTypedEdges,
   countTypedNodes,
   insertForkEdgesBatch,
@@ -204,26 +205,15 @@ export function writeCorbellCheckout(
   const db = new Database(checkoutPath, { create: true });
   try {
     db.exec("PRAGMA journal_mode = WAL;");
-    db.run(`CREATE TABLE IF NOT EXISTS typed_nodes (
-    id INTEGER PRIMARY KEY,
-    canonical_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    label TEXT NOT NULL,
-    file TEXT,
-    line INTEGER,
-    created_run TEXT NOT NULL,
-    superseded_run TEXT
-  )`);
-    db.run(`CREATE TABLE IF NOT EXISTS typed_edges (
-    id INTEGER PRIMARY KEY,
-    src_canonical TEXT NOT NULL,
-    dst_canonical TEXT NOT NULL,
-    predicate TEXT NOT NULL,
-    evidence_quote TEXT NOT NULL,
-    confidence REAL NOT NULL DEFAULT 1.0,
-    created_run TEXT NOT NULL,
-    superseded_run TEXT
-  )`);
+    // ★ EN-070 — THE SCHEMA IS THE AUTHORITY'S, NOT A DUPLICATE. This function created
+    //   its OWN typed_nodes WITHOUT layer_id, while `insertForkNodesBatch` (imported from
+    //   the same module this imports) INSERTS layer_id — so every checkout write died with
+    //   SQLITE_ERROR "no such column: layer_id". Two CREATE TABLE typed_nodes existed and
+    //   the stale one won on a fresh database. `applyTypedDdl` is the single schema: it
+    //   carries layer_id, the CHECK constraints, the UNIQUE indexes AND the dedup-recovery
+    //   for legacy stores. A second copy of a schema is a second source of truth, and the
+    //   two WILL drift.
+    applyTypedDdl(db);
     // BLAST CRITICAL fix (qwen corbell-leg circuit): supersede + inserts ride
     // ONE transaction with ROLLBACK — the old split (supersede AUTOCOMMIT
     // before BEGIN, no rollback) left ZERO live rows with no replacements if
