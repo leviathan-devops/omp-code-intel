@@ -332,7 +332,7 @@ describe("st-gi-v21-redteam: P5 — the full corpus pass", () => {
     // ★ R-2, FIXED. The validator rejected `act < flag` while ACCEPTING `act == flag`,
     // which empties the SAME documented band. Both are now rejected, distinctly named.
     const p = path.join(tmpDir(), "k.json");
-    writePolicyFile(p, { version: 1, policies: { "*dumb": { name: "flat", act: 0.5, flag: 0.5, failPolarity: "open" } } });
+    fs.writeFileSync(p, JSON.stringify({ version: 1, policies: { "*dumb": { name: "flat", act: 0.5, flag: 0.5, failPolarity: "open" } } }));
     let threw = false;
     let msg = "";
     try { new PolicyStore(p); } catch (e) { threw = true; msg = e instanceof Error ? e.message : String(e); }
@@ -340,7 +340,7 @@ describe("st-gi-v21-redteam: P5 — the full corpus pass", () => {
     expect(msg).toContain("GI_POLICY_ZERO_WIDTH_BAND");
     // and the INVERTED case keeps its own distinct name
     const p2 = path.join(tmpDir(), "k2.json");
-    writePolicyFile(p2, { version: 1, policies: { "*dumb": { name: "inv", act: 0.2, flag: 0.9, failPolarity: "open" } } });
+    fs.writeFileSync(p2, JSON.stringify({ version: 1, policies: { "*dumb": { name: "inv", act: 0.2, flag: 0.9, failPolarity: "open" } } }));
     let msg2 = "";
     try { new PolicyStore(p2); } catch (e) { msg2 = e instanceof Error ? e.message : String(e); }
     expect(msg2).toContain("GI_POLICY_INVERTED");

@@ -29,9 +29,17 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { Policy } from "./fire-gate.ts";
 
+/** ★ P0 — THE SCHEMA VERSIONS THIS BUILD UNDERSTANDS. The module header promises a
+ *  reader "can refuse a shape it does not understand"; before this constant existed,
+ *  `version: 99` loaded silently and was then treated as the current shape. */
+export const SUPPORTED_POLICY_VERSIONS: readonly number[] = [1];
+
 export class PolicyError extends Error {
   constructor(code: string, detail: string, cause?: unknown) {
-    super(`GI_POLICY_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`);
+    // ★ P6 — CHAIN the cause rather than stringifying it into the message. The
+    // original stack was discarded, which made a load failure hard to diagnose.
+    // The message keeps the short form so the code stays greppable.
+    super(`GI_POLICY_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`, { cause });
     this.name = "PolicyError";
   }
 }
@@ -48,22 +56,55 @@ export interface PolicyFile {
  *  so the file the operator edits is COMPLETE rather than a partial overlay. A
  *  file that omitted a class would make the seed path the common case, and a
  *  common-case fallback is a fallback nobody notices. */
-export const DEFAULT_POLICY_FILE: PolicyFile = {
+export const DEFAULT_POLICY_FILE: PolicyFile = deepFreeze({
   version: 1,
   policies: {
     "*destructive": { name: "destructive-seed", act: 0.9, flag: 0.5, failPolarity: "closed" },
     "*dumb": { name: "dumb-seed", act: 0.75, flag: 0.35, failPolarity: "open" },
     "*theatrical": { name: "theatrical-seed", act: 0.85, flag: 0.45, failPolarity: "closed" },
   },
-};
+});
+
+/** ★ P5 — freeze the WHOLE graph, not just the top level. `Object.freeze` on the
+ *  outer object would leave the nested policy objects mutable, so an importer could
+ *  still write `DEFAULT_POLICY_FILE.policies["*dumb"].act = 0` and corrupt the
+ *  in-code reference for the whole process. (The audit2 test suite demonstrated the
+ *  leak accidentally: one test's mutation reached a LATER test's assertion.) */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/** ★ P1 — the shape a caller may SEE. Policies are handed out as frozen COPIES, so
+ *  a validated recipe can never be mutated into an unvalidated one. */
+function frozenCopy(policy: Policy): Policy {
+  return Object.freeze({ ...policy });
+}
 
 /** Write a policy file. Atomic (write-temp + rename) so a reader can never see
  *  a half-written recipe — a torn policy file would be a threshold that changed
  *  for no reason anyone can find. */
+/** A monotonic counter for temp-path uniqueness within this process (P2). */
+let writeSeq = 0;
+
 export function writePolicyFile(filePath: string, file: PolicyFile): void {
+  // ★ P4 — VALIDATE BEFORE WRITING. The writer used to atomically persist an
+  // inverted, out-of-range or nameless policy that PolicyStore would then refuse to
+  // load — deferring the failure to the NEXT RESTART instead of the faulty writer.
+  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {
+    throw new PolicyError("UNSUPPORTED_VERSION", `refusing to write version ${file.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(", ")}`);
+  }
+  validatePolicies(file);
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
-  const tmp = `${filePath}.tmp-${process.pid}`;
+  // ★ P2 — A UNIQUE TEMP PATH. `process.pid` alone collides for two writes from the
+  // SAME process (a retry, or concurrent callers), so they could interleave content
+  // or delete each other's temp in the catch below. A predictable path is also
+  // pre-creatable as a symlink. Counter + pid + a random suffix closes both.
+  const tmp = `${filePath}.tmp-${process.pid}-${++writeSeq}-${Math.random().toString(36).slice(2, 10)}`;
   try {
     fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, "utf8");
     fs.renameSync(tmp, filePath);
@@ -97,7 +138,18 @@ export function readPolicyFile(filePath: string): PolicyFile {
   if (obj.policies === null || typeof obj.policies !== "object") {
     throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no policies object`);
   }
-  return { version: obj.version, policies: obj.policies as Record<string, Policy> };
+  if (!SUPPORTED_POLICY_VERSIONS.includes(obj.version)) {
+    throw new PolicyError(
+      "UNSUPPORTED_VERSION",
+      `the policy file at ${filePath} declares version ${obj.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(", ")}`,
+    );
+  }
+  const file: PolicyFile = { version: obj.version, policies: obj.policies as Record<string, Policy> };
+  // ★ P3 — VALIDATE ON READ, not only inside PolicyStore. `readPolicyFile` is
+  // exported, so a direct caller could install an out-of-range or inverted bar
+  // without ever reaching the store's constructor.
+  validatePolicies(file);
+  return file;
 }
 
 /** ★ Validate every recipe. Called on load — a bad policy must never become
@@ -165,11 +217,17 @@ export class PolicyStore {
   /** The policy for a rule, or undefined so the caller falls to its class seed
    *  — the documented pre-calibration path. NOT a silent default from here. */
   get(ruleId: string): Policy | undefined {
-    return this.file.policies[ruleId];
+    const p = this.file.policies[ruleId];
+    // ★ P1 — A FROZEN COPY. Returning the live object let a caller write
+    // `store.get(id)!.act = 0` and silently move the enforcement bar, bypassing
+    // validatePolicies entirely. The validated object is now unreachable from outside.
+    return p === undefined ? undefined : frozenCopy(p);
   }
 
   all(): Record<string, Policy> {
-    return { ...this.file.policies };
+    const out: Record<string, Policy> = {};
+    for (const [k, v] of Object.entries(this.file.policies)) out[k] = frozenCopy(v);
+    return out;
   }
 
   version(): number {

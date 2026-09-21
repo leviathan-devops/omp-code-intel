@@ -81,7 +81,9 @@ describe("st-gi-v21-policy: W5 — the policy store", () => {
     // "above the flag" and "below the act" in an order the kernel never
     // expects. The kernel's own banding assumes act >= flag.
     const p = path.join(tmpDir(), "inverted.json");
-    writePolicyFile(p, aFile({ policies: { "*dumb": { ...A_POLICY, act: 0.2, flag: 0.9 } } }));
+    // ★ WRITTEN DIRECTLY — writePolicyFile now REFUSES to persist an inverted bar
+    //   (audit finding P4), so the READER's rejection is what this test must reach.
+    fs.writeFileSync(p, JSON.stringify(aFile({ policies: { "*dumb": { ...A_POLICY, act: 0.2, flag: 0.9 } } })));
     let threw = false;
     let msg = "";
     try {
@@ -97,7 +99,7 @@ describe("st-gi-v21-policy: W5 — the policy store", () => {
 
   test("test_policy_out_of_range_is_rejected — a threshold above 1 can never fire", () => {
     const p = path.join(tmpDir(), "range.json");
-    writePolicyFile(p, aFile({ policies: { "*dumb": { ...A_POLICY, act: 1.5 } } }));
+    fs.writeFileSync(p, JSON.stringify(aFile({ policies: { "*dumb": { ...A_POLICY, act: 1.5 } } })));
     let threw = false;
     let msg = "";
     try {
@@ -145,10 +147,15 @@ describe("st-gi-v21-policy: W5 — the policy store", () => {
     expect(d1.action).toBe("FIRE");
 
     // ── THE HUMAN EDITS THE FILE. No rebuild. No restart. ──────────────────
-    writePolicyFile(p, aFile({ version: 2, policies: { "*dumb": { ...A_POLICY, name: "dumb-tightened", act: 0.90 } } }));
+    // ★ THE VERSION IS A *SCHEMA* VERSION, NOT A CONTENT REVISION. The first version of
+    //   this test bumped it to 2 to signal "something changed" — and the P0 fix
+    //   (a reader must refuse a shape it does not understand) correctly rejected it.
+    //   A threshold edit changes the CONTENT; the schema is unchanged, so the version
+    //   stays 1 and `changed` is detected by comparing the content.
+    writePolicyFile(p, aFile({ version: 1, policies: { "*dumb": { ...A_POLICY, name: "dumb-tightened", act: 0.90 } } }));
     const r = store.reload();
     expect(r.changed).toBe(true);           // ★ the edit was SEEN
-    expect(r.version).toBe(2);
+    expect(r.version).toBe(1);              // the SCHEMA version is unchanged
     expect(store.get("*dumb")!.name).toBe("dumb-tightened");
 
     // ★ THE SAME STORED PROBABILITY, RE-BANDED UNDER THE NEW POLICY.

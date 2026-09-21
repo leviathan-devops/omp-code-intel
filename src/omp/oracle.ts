@@ -62,6 +62,10 @@ export interface OutcomeRecord {
   passed?: boolean;
   /** For a withdrawal: the bound evidence that makes the retraction real. */
   span?: string;
+  /** ★ WHICH TOOL produced the record (audit finding O3). `Subject.tool` was
+   *  declared and never consulted, so evidence from a DIFFERENT tool on the same
+   *  target could confirm or refute this fire. Absent = the record does not say. */
+  tool?: string;
   /** Who or what produced the record. */
   by?: string;
 }
@@ -72,6 +76,11 @@ export type SignalName = "laterEdit" | "testFailed" | "testPassed" | "withdrawn"
 export interface Evidence {
   laterEdit: boolean;
   testsAfter: number;
+  /** ★ ONLY tests that REPORTED a pass (audit finding O1). The first version
+   *  incremented `testsAfter` for every test — including the flag-less branch whose
+   *  own note says it "cannot corroborate anything" — and then pushed `testPassed`
+   *  from `testsAfter > 0`. A test with no verdict became a corroborating pass. */
+  testsPassed: number;
   testsFailed: number;
   withdrawn: boolean;
   permitted: boolean;
@@ -113,11 +122,20 @@ export function gather(
 ): Evidence {
   const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
   const from = Date.parse(row.at);
-  const to = from + windowMs;
   const ev: Evidence = {
-    laterEdit: false, testsAfter: 0, testsFailed: 0,
+    laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0,
     withdrawn: false, permitted: false, signals: [], notes: [],
   };
+
+  // ★ O0 (HIGH) — AN UNPARSEABLE STAMP MUST EMPTY THE WINDOW, NOT OPEN IT.
+  // With `from` NaN, `at <= from || at > to` is ALWAYS FALSE (every comparison
+  // against NaN is), so the filter admitted EVERY record — the exact inverse of its
+  // purpose. A bound that fails open is not a bound. Found by the oracle audit.
+  if (!Number.isFinite(from)) {
+    ev.notes.push(`row.at ${JSON.stringify(row.at)} is unparseable — no forward window exists, so NO evidence is gathered (an unbounded window would admit every record)`);
+    return ev;
+  }
+  const to = from + windowMs;
 
   for (const r of records) {
     const at = Date.parse(r.at);
@@ -125,19 +143,25 @@ export function gather(
     if (at <= from || at > to) continue;                // ★ FORWARD ONLY — before-the-fire is not evidence
     // absent target = global (applies); present = must match the subject exactly.
     if (r.target !== undefined && r.target !== subject.target) continue;
+    // ★ O3: and when BOTH sides name a tool, they must agree. A record that does
+    //   not name a tool cannot be excluded on tool grounds — that would silently
+    //   drop evidence the caller did not qualify.
+    if (subject.tool !== undefined && r.tool !== undefined && r.tool !== subject.tool) continue;
 
     if (r.kind === "edit") {
       ev.laterEdit = true;
       ev.notes.push(`laterEdit @${r.at} on ${r.target ?? "(global)"} — the act was revisited`);
     } else if (r.kind === "test") {
       ev.testsAfter += 1;
-      if (r.passed === false) {
+      if (r.passed === true) {
+        ev.testsPassed += 1;
+        ev.notes.push(`testPassed @${r.at} — the test REPORTED a pass`);
+      } else if (r.passed === false) {
         ev.testsFailed += 1;
         ev.notes.push(`testFailed @${r.at} — a test ran after the fire and did NOT pass`);
-      } else if (r.passed === true) {
-        ev.notes.push(`testPassed @${r.at} — one observation, on its own not corroboration`);
       } else {
-        ev.notes.push(`test @${r.at} — no pass/fail flag, so it cannot corroborate anything`);
+        // ★ O1: NO signal. The record says nothing, so it corroborates nothing.
+        ev.notes.push(`test @${r.at} — no pass/fail flag, so it cannot corroborate anything (no signal emitted)`);
       }
     } else if (r.kind === "withdraw") {
       // "withdrawn or restated WITH a span" — a bare retraction is noise.
@@ -155,7 +179,7 @@ export function gather(
 
   if (ev.laterEdit) ev.signals.push("laterEdit");
   if (ev.testsFailed > 0) ev.signals.push("testFailed");
-  else if (ev.testsAfter > 0) ev.signals.push("testPassed");
+  if (ev.testsPassed > 0) ev.signals.push("testPassed");   // ★ O1: ONLY real passes
   if (ev.withdrawn) ev.signals.push("withdrawn");
   if (ev.permitted) ev.signals.push("permitted");
   return ev;
@@ -171,37 +195,40 @@ export function gather(
  *  decision it explains. */
 export function classify(ev: Evidence): Classification {
   const tags = `[${ev.signals.join(",")}]`;
-  // the dismissed records, when there are any worth naming
-  const seen = ev.signals.length === 0 && ev.notes.length > 0
-    ? ` (presented but dismissed: ${ev.notes.join("; ")})`
-    : "";
+  // ★ O5 — THE DISCLOSURE RIDES EVERY PATH, not only the zero-signal one. The first
+  // version appended it only when NO signal survived, so a 1-signal unresolved (or any
+  // confirmed/refuted) silently dropped the span-less withdrawals and flag-less tests
+  // that `notes` had recorded — contradicting this function's own header. The notes
+  // that did NOT become signals are exactly the ones a reader needs to audit.
+  const dismissed = ev.notes.filter((n) => /dismissed|WITHOUT a span|cannot corroborate|unparseable/i.test(n));
+  const seen = dismissed.length > 0 ? ` (presented but dismissed: ${dismissed.join("; ")})` : "";
   if (ev.laterEdit || ev.testsFailed > 0 || ev.withdrawn) {
     const why = [
       ev.laterEdit ? "a later edit revisited the target" : "",
       ev.testsFailed > 0 ? `${ev.testsFailed} test(s) failed after the fire` : "",
       ev.withdrawn ? "the claim was withdrawn with a bound span" : "",
     ].filter((s) => s !== "").join("; ");
-    return { truth: "confirmed", basis: `confirmed ${tags} — ${why}`, signals: ev.signals };
+    return { truth: "confirmed", basis: `confirmed ${tags} — ${why}${seen}`, signals: ev.signals };
   }
   // NO HARM SIGNAL FROM HERE DOWN.
   if (ev.permitted) {
     return {
       truth: "refuted",
-      basis: `refuted ${tags} — a downstream gate permitted the act and nothing downstream contradicted it`,
+      basis: `refuted ${tags} — a downstream gate permitted the act and nothing downstream contradicted it${seen}`,
       signals: ev.signals,
     };
   }
   if (ev.signals.length >= 2) {
     return {
       truth: "refuted",
-      basis: `refuted ${tags} — ${ev.signals.length} independent corroborating signals, none of them a failure`,
+      basis: `refuted ${tags} — ${ev.signals.length} independent corroborating signals, none of them a failure${seen}`,
       signals: ev.signals,
     };
   }
   if (ev.signals.length === 1) {
     return {
       truth: "unresolved",
-      basis: `unresolved ${tags} — ONE signal is not corroboration; the second-signal law requires independent agreement`,
+      basis: `unresolved ${tags} — ONE signal is not corroboration; the second-signal law requires independent agreement${seen}`,
       signals: ev.signals,
     };
   }
@@ -230,6 +257,19 @@ export function resolveAll(
   const report: ResolveReport = {
     resolved: 0, confirmed: 0, refuted: 0, leftUnresolved: 0, decided: [],
   };
+  // ★ O4 (HIGH) — PRE-VALIDATE THE WHOLE BATCH BEFORE THE FIRST WRITE. The clock
+  // check used to run INSIDE the loop, so a single skewed stamp (or one bad row.at)
+  // aborted the batch after earlier rows were already resolved — a partial write with
+  // no rollback, and the caller received neither a report nor a clean state.
+  const stamp = now();
+  const stampMs = Date.parse(stamp);
+  for (const { row } of pairs) {
+    if (!Number.isFinite(stampMs) || !Number.isFinite(Date.parse(row.at)) || !(stampMs > Date.parse(row.at))) {
+      throw new Error(
+        `GI_ORACLE_TIME_TRAVEL: resolution stamp ${stamp} is not after the fire's at ${row.at} (state ${row.stateHash}) — refusing the WHOLE batch so no partial write can occur`,
+      );
+    }
+  }
   for (const { row, subject } of pairs) {
     // ★ THE LEDGER SPEAKS, NOT THE CALLER. `null` = the row is not in this
     //   ledger at all — resolving a phantom would write a truth for a fire that
@@ -241,16 +281,9 @@ export function resolveAll(
     const c = classify(gather(row, subject, records, opts));
     if (c.truth === "unresolved") { report.leftUnresolved += 1; continue; }
 
-    const when = now();
-    // ★ A RESOLUTION CANNOT PREDATE ITS FIRING. A caller-clock skew would
-    //   otherwise stamp a truth_at BEFORE the row it resolves, and every
-    //   downstream "how long until resolution" number would be nonsense.
-    if (!(Date.parse(when) > Date.parse(row.at))) {
-      throw new Error(
-        `GI_ORACLE_TIME_TRAVEL: resolution stamp ${when} is not after the fire's at ${row.at} (state ${row.stateHash})`,
-      );
-    }
-    ledger.recordTruth(row.stateHash, c.truth, when);
+    // the stamp was validated for the WHOLE batch above (O4) — one `now()` for the
+    // batch also means every row in it carries the SAME resolution time.
+    ledger.recordTruth(row.stateHash, c.truth, stamp);
     report.resolved += 1;
     if (c.truth === "confirmed") report.confirmed += 1;
     else report.refuted += 1;
