@@ -318,3 +318,22 @@ The tier ladder originally promoted on ONE firing — caught by the test; both p
 carry an evidence floor. **W3 IS NOT COMPLETE**: the TSG load unit and the Abide ALU are not yet
 wired (both need their external engines present), and the hard-dependency register (T-6) is not
 yet written. The reflex loop — the highest-value half — is done.
+
+## [2026-09-21] KERNEL v2.0 — T-6 THE HARD-DEPENDENCY REGISTER (the live audit)
+
+**The built:** `src/omp/hard-deps.ts` — every component declares its dependency + its own error
+code; `requireUp()` throws a named `HardDependencyError` on absence and NO code path substitutes.
+Fail-closed: a throwing probe is DOWN, an EMPTY file is DOWN, a dir where a file is required is
+DOWN. `assertRegisterComplete()` refuses a blank dependency or blank code.
+**THE LIVE AUDIT (the register run against this host — the honest state):**
+```
+ok=false  down=6/11  firstCode=GI_LAYER_SEMANTICA
+  DOWN L1_SEMANTICA / L2_ARSUMBRIS / L3_UA / L4_C2KG / L5_CORBELL   (ENOENT)
+  UP   L6_GRAPHIFY   graphify-out/graph.json (14,085,516 B)   ← the ONLY populated layer
+  UP   TSG (dir) · ABIDE (dir) · RSI_STORE (dir) · GI_STORE_DIR (dir)
+  DOWN JEV           TYPESAFE_AI_API_KEY ABSENT                ← the kernel cannot judge
+```
+**The why it matters:** with this register live, the v2.0 stack would REFUSE every act with
+`GI_STACK_INCOMPLETE:...` — which is the T-6 law working exactly as written. It also names the
+real blocker for T-5/SC-8: **no TypeSafe key on this host**, so the Jev-backed judging cannot run
+until one is provisioned. That is a dependency to report, not to route around.
