@@ -27,6 +27,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import type { Policy } from "./fire-gate.ts";
 
 /** ★ P0 — THE SCHEMA VERSIONS THIS BUILD UNDERSTANDS. The module header promises a
@@ -143,13 +144,23 @@ export function writePolicyFile(filePath: string, file: PolicyFile): void {
   // SAME process (a retry, or concurrent callers), so they could interleave content
   // or delete each other's temp in the catch below. A predictable path is also
   // pre-creatable as a symlink. Counter + pid + a random suffix closes both.
-  const tmp = `${filePath}.tmp-${process.pid}-${++writeSeq}-${Math.random().toString(36).slice(2, 10)}`;
+  // ★ pass-3: `Math.random` is a PREDICTABLE PRNG — a temp name an attacker can guess is
+  //   a temp name they can pre-plant. `randomUUID` is a CSPRNG and the name is already
+  //   exclusive-created below, so both layers agree on unpredictability.
+  const tmp = `${filePath}.tmp-${process.pid}-${++writeSeq}-${crypto.randomUUID()}`;
   try {
     // ★ "wx" — EXCLUSIVE CREATE. A plain write follows a SYMLINK at `tmp` and
     //   truncates its target, so a pre-planted symlink redirects the write (the
     //   re-verify's finding). `wx` fails if the path exists in ANY form, symlink
     //   included, and the unique name makes planting one impractical.
     fs.writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    // ★ pass-3: fsync the TEMP before the rename. Without it a crash between the write
+    //   and the rename can leave the rename visible with the DATA still unwritten — the
+    //   atomic-rename guarantee is only as strong as the durability of what it renames.
+    try {
+      const fd = fs.openSync(tmp, "r+");
+      try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    } catch { /* a filesystem that cannot fsync still gets the rename; the data is in the page cache */ }
     fs.renameSync(tmp, filePath);
   } catch (e) {
     try { fs.unlinkSync(tmp); } catch { /* the temp is already gone; nothing to clean */ }
@@ -163,7 +174,14 @@ export function readPolicyFile(filePath: string): PolicyFile {
   try {
     raw = fs.readFileSync(filePath, "utf8");
   } catch (e) {
-    throw new PolicyError("MISSING", `no policy file at ${filePath} — refusing to substitute the seeds silently`, e);
+    // ★ pass-3: ENOENT is MISSING; EACCES/EISDIR/ENOTDIR/EMFILE are DIFFERENT problems
+    //   and an operator debugging one must not be told "the file is not there".
+    const code = (e as NodeJS.ErrnoException)?.code;
+    const kind = code === "ENOENT" ? "MISSING"
+      : code === "EACCES" ? "UNREADABLE"
+      : code === "EISDIR" || code === "ENOTDIR" ? "NOT_A_FILE"
+      : "READ_FAILED";
+    throw new PolicyError(kind, `could not read the policy file at ${filePath} (${code ?? "unknown"})`, e);
   }
   let parsed: unknown;
   try {
@@ -203,6 +221,11 @@ export function validatePolicies(file: PolicyFile): void {
   }
   if (file.policies === null || typeof file.policies !== "object" || Array.isArray(file.policies)) {
     throw new PolicyError("MALFORMED", `the policies must be a map, not ${Array.isArray(file.policies) ? "an array" : typeof file.policies}`);
+  }
+  // ★ pass-3: `validatePolicies` IS EXPORTED, so it must check the version itself —
+  //   a direct caller validated a file whose shape this build does not understand.
+  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {
+    throw new PolicyError("UNSUPPORTED_VERSION", `version ${file.version} is not supported by this build (${SUPPORTED_POLICY_VERSIONS.join(", ")})`);
   }
   for (const [ruleId, p] of Object.entries(file.policies)) {
     assertSafeKey(ruleId);
@@ -287,7 +310,9 @@ export class PolicyStore {
       assertSafeKey(k);
       out[k] = frozenCopy(v);
     }
-    return out;
+    // ★ pass-3: the VALUES were frozen but the CONTAINER was not, so a caller could add
+    //   or delete entries and hand the result on as if it came from the store.
+    return Object.freeze(out);
   }
 
   version(): number {

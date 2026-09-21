@@ -136,7 +136,10 @@ describe("st-gi-v21-audit2: the oracle + policy-store findings", () => {
     const subject: Subject = { target: "src/omp/kernel-v2.ts" };
     const ev = gather({ at: T0 }, subject, [
       { kind: "test", passed: true, at: T1, target: subject.target },     // 1 real signal
-      { kind: "withdraw", at: T1 },                                        // no span → dismissed
+      // ★ the withdraw NAMES its target (pass-3: a withdraw without a subject cannot be
+      //   evidence about one) but carries NO SPAN — so it is dismissed for the span,
+      //   which is the dismissal this test asserts is disclosed.
+      { kind: "withdraw", at: T1, target: subject.target },               // no span → dismissed
     ]);
     expect(ev.signals).toEqual(["testPassed"]);
     const c = classify(ev);

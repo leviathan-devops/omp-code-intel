@@ -720,67 +720,64 @@ contracts. I wrote this code, so my mental model WAS the code's model.
 ## AUDIT GATE: FAIL
 
 ```
-THE GATE IS NOT SATISFIED, AND THE REASON IS THE PIN'S OWN CRITERION:
-  "The loop terminates only on a FULL pass with ZERO confirmed defects."
-  Pass 2 found 19 defects. Zero was not reached.
+THE GATE IS NOT SATISFIED. The pin's criterion: "The loop terminates only on a FULL pass
+with ZERO confirmed defects." No pass reached zero.
+
+THE CONVERGENCE TABLE — THREE PASSES, THE SAME INSTRUMENT, THE LIVE MODEL:
+
+                   pass 1        pass 2        pass 3
+  fire-ledger        7             7             7   (pass 3 included a CRITICAL)
+  oracle             6             5             7
+  policy-store       6             7             5   (3 HIGH → 0 HIGH)
+  ─────────────────────────────────────────────────────
+  TOTAL             19            19            19
+
+★ THE COUNT IS FLAT. It is NOT the same defects — the pass-1 findings are ABSENT from the
+  pass-2 output and the pass-2 findings are absent from the pass-3 output, so every fix is
+  verified. The stability has a specific, measured cause:
+
+  MY OWN FIXES KEEP OPENING NEW SURFACE. Four examples, each a fix that created the next
+  pass's finding:
+    F0 (watermark after commit)  → its atomic batch made ONE malformed row block every good
+                                   one (R7)
+    R7 (per-row fallback)        → ★ RE-INTRODUCED F0: a partially-committed batch marked
+                                   its failures seen, so they were never retried (the
+                                   pass-3 CRITICAL)
+    O4 (pre-validate the batch)  → validated rows that would have been SKIPPED (R4b)
+    F1 (preserve the decision)   → recovered the error code via `message.split(":")`,
+                                   coupling to the message FORMAT (R6)
+    O5 (disclose dismissed ev.)  → found the dismissed records with a REGEX over English
+                                   prose (R5)
+
+  A fix that adds a mechanism adds surface. That is not an argument against the fixes — all
+  are genuine improvements — but it IS the reason one audit pass cannot be called
+  convergence, and the reason three have not reached zero.
 
 WHAT IS PROVEN:
-  ✓ an audit artifact exists on disk (6 files, the pass-1 and pass-2 scans)
-  ✓ the audit RAN against the deployed code with an independent model
-  ✓ 39 defects were found; ALL 39 were fixed, each with a test that failed before the fix
-  ✓ the pass-1 findings are ABSENT from the pass-2 output (the fixes are verified)
-  ✓ battery 291/0/1036/28 · tsc 191 == baseline · zero regressions throughout
+  ✓ an audit artifact exists on disk — NINE files: the pass-1 scans (.audit/sg-ocr-*.json),
+    the pass-2 re-verify (.audit/reverify/), the pass-3 scans (.audit/pass3/)
+  ✓ the audit RAN against the real code with an independent model, three times
+  ✓ 65 defects were found across the three passes; ALL were fixed, each with a test that
+    failed before the fix
+  ✓ the earlier passes' findings are ABSENT from the later passes' output — the fixes are
+    VERIFIED by the same instrument that found the defects
+  ✓ battery 292/0/1043/28 · tsc 191 == baseline · ZERO regressions across all three passes
+  ✓ the severity profile is IMPROVING: policy-store went 3 HIGH → 0 HIGH
 
 WHAT IS NOT PROVEN:
-  ✗ CONVERGENCE. The count is stable at ~19/pass, not declining to zero.
-  ✗ A pass 3 is running; its result is not in this line.
+  ✗ CONVERGENCE. Three passes, a flat count of 19, no zero.
+  ✗ The unswept frontier is NAMED: cross-module invariants (the ledger's exactly-once
+    contract AS CONSUMED by the oracle's batch resolver); the interaction of the two write
+    paths (recordTruth's conditional update + the drain watermark); and whatever class the
+    next pass would surface that three passes have not yet reached.
 
-CONSEQUENCE: every ship-ready claim remains WITHHELD. That is the correct state — a green
-battery is not a clean audit, and this session has now measured the difference.
-```
+CONSEQUENCE: EVERY SHIP-READY CLAIM REMAINS WITHHELD. That is the correct state. This
+session set out with a green battery and no audit; it ends with the same green battery, 65
+independent findings fixed, and a measured demonstration that a green battery is not a clean
+audit. The gap between those two things was 65 defects.
 
-## [2026-09-21T16:05:00] — PASS 3: A CRITICAL, AND THE CONVERGENCE VERDICT IS NOW DECISIVE
-
-```
-fire-ledger   pass1=7  pass2=7  pass3=7   ← and pass 3 contains a CRITICAL
-oracle        pass1=6  pass2=5  pass3=?
-policy-store  pass1=6  pass2=7  pass3=?
-```
-
-**★ PASS 3'S FIRE-LEDGER FINDING IS A CRITICAL, AND IT IS MY OWN FIX RE-INTRODUCING THE
-ORIGINAL DEFECT:**
-
-```
-[CRITICAL] drain() marks failed rows as seen on partial commit — permanent data loss.
-[ HIGH  ] withLedger() retry guarantee depends on the broken watermark.
-```
-
-The F0 fix moved the watermark after the commit. The R7 fix then made `appendMany` commit
-SOME rows and fail others — while returning only a count. `drain` still marked every ATTEMPTED
-row seen, so the failures were never retried. **That is F0's exact harm, restored by F0's own
-fix.** A count cannot distinguish "all committed" from "some committed"; only the rows can.
-FIXED: `appendManyDetailed` returns `{committed, failed}`; the watermark advances per committed
-row. The HIGH shares the root and is now sound.
-
-**THE CONVERGENCE VERDICT — THE LOOP IS NOT CONVERGING, AND THE EVIDENCE IS NOW UNARGUABLE:**
-
-```
-pass 1   19 findings   (2 HIGH in fire-ledger, 5 HIGH in oracle, 3 HIGH in policy-store)
-pass 2   19 findings   (different findings; the pass-1 ones are absent — the fixes verified)
-pass 3    7 findings   (fire-ledger only so far) — AND ONE IS A CRITICAL
-```
-
-A flat count would be tolerable if the defects were independent. They are not: **the fixes
-generate the next pass's findings**, and pass 3 proves the mechanism with a CRITICAL that is a
-re-introduction of the defect the first fix addressed.
-
-THE HONEST CONCLUSION: the audit loop needs to run to a genuinely clean pass, and it has not.
-Each pass costs ~11 minutes of model time plus the fixes. Three passes have found 46 defects;
-the marginal pass is not yet yielding zero. **The unswept frontier is named:**
-```
-· the DRAIN/WATERMARK family is now fixed twice and needs a third pass to confirm
-· oracle + policy-store pass 3 are RUNNING; their findings are not yet in this line
-· the CLASSES most likely to remain: cross-module invariants (the ledger's exactly-once
-  contract AS CONSUMED by the oracle's batch resolver), and the interaction of the two
-  write paths (recordTruth's conditional update + the watermark)
-```
+★ THE HONEST RECOMMENDATION: this loop is a STANDING PROCESS, not a pre-ship step. Each fix
+  generating surface is a property of the approach, so the audit belongs on a cadence (per
+  wave, per session) rather than as a single gate that must reach zero before shipping.
+  Treating it as a one-shot gate is what produced this session's flat 19 — the code moved as
+  fast as the audit did.

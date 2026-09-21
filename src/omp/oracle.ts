@@ -75,6 +75,10 @@ export type SignalName = "laterEdit" | "testFailed" | "testPassed" | "withdrawn"
 
 export interface Evidence {
   laterEdit: boolean;
+  /** ★ pass-3: `testsAfter` was WRITE-ONLY — incremented for every test but read
+   *  nowhere once `testsPassed`/`testsFailed` existed. It is kept because the count of
+   *  tests OBSERVED (regardless of verdict) is the denominator for the flag-less rate,
+   *  and it is now READ: `classify` reports it when a test emitted no signal. */
   testsAfter: number;
   /** ★ ONLY tests that REPORTED a pass (audit finding O1). The first version
    *  incremented `testsAfter` for every test — including the flag-less branch whose
@@ -110,6 +114,14 @@ export interface ResolveReport {
   refuted: number;
   /** Rows the resolver deliberately left alone — silence is an outcome. */
   leftUnresolved: number;
+  /** ★ pass-3: rows whose state_hash is NOT in this ledger — a caller passing rows from
+   *  another store. Previously `continue`d with no counter, so a caller could not tell
+   *  "nothing to do" from "I gave you rows you do not own". */
+  phantom: number;
+  /** ★ pass-3: rows another writer resolved first (the conditional update lost). */
+  contended: number;
+  /** ★ pass-3: rows whose WRITE failed — named, never silent. */
+  failed: { stateHash: string; error: string }[];
   /** The rows the resolver touched, for the caller's own audit. */
   decided: { stateHash: string; truth: Truth; basis: string }[];
 }
@@ -127,6 +139,14 @@ export function gather(
   opts: { windowMs?: number; notAfter?: string } = {},
 ): Evidence {
   const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
+  // ★ PASS-3 HIGH — `windowMs` IS UNTRUSTED INPUT TOO. A NaN or negative window made
+  // `from + windowMs` NaN, and `Math.min(NaN, cap)` is NaN, so `at > to` was false for
+  // every record and the window admitted EVERYTHING — the same fail-open shape as O0,
+  // reached through a different parameter.
+  if (typeof windowMs !== "number" || !Number.isFinite(windowMs) || windowMs <= 0) {
+    const note = `windowMs ${JSON.stringify(windowMs)} is not a positive finite number — refusing to derive a window`;
+    return { laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0, withdrawn: false, permitted: false, signals: [], notes: [note], dismissed: [note] };
+  }
   const from = Date.parse(row.at);
   const ev: Evidence = {
     laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0,
@@ -146,13 +166,38 @@ export function gather(
   // ★ R4c (re-verify finding) — THE WINDOW IS ALSO CAPPED AT THE RESOLUTION TIME.
   // A fixed 24h window can reach PAST `now`, admitting evidence that has not happened
   // yet relative to the resolution — evidence the resolver is not entitled to use.
-  const cap = opts.notAfter === undefined ? Number.POSITIVE_INFINITY : Date.parse(opts.notAfter);
-  const to = Math.min(from + windowMs, Number.isFinite(cap) ? cap : Number.POSITIVE_INFINITY);
+  // ★ PASS-3 HIGH — AN UNPARSEABLE `notAfter` SILENTLY BECAME INFINITY. A caller that
+  // passed a malformed resolution stamp got an UNBOUNDED window instead of an error —
+  // the cap it asked for was silently not applied. A bound that cannot be established
+  // is not a bound.
+  let cap = Number.POSITIVE_INFINITY;
+  if (opts.notAfter !== undefined) {
+    cap = Date.parse(opts.notAfter);
+    if (!Number.isFinite(cap)) {
+      throw new Error(`GI_ORACLE_BAD_WINDOW: notAfter ${JSON.stringify(opts.notAfter)} is unparseable — refusing to run with an unbounded window`);
+    }
+  }
+  // `cap` is authoritative: a caller-supplied windowMs can only NARROW it, never
+  // widen past the resolution stamp (the R4c bypass the pass-3 scan found).
+  const to = Math.min(from + windowMs, cap);
 
   for (const r of records) {
     const at = Date.parse(r.at);
     if (!Number.isFinite(at)) continue;                 // an unparseable stamp is not evidence
     if (at <= from || at > to) continue;                // ★ FORWARD ONLY — before-the-fire is not evidence
+    // ★ PASS-3 HIGH — ABSENT IS NOT UNIVERSAL FOR EVERY KIND. A `test` run or a
+    // downstream `permit` legitimately has no single target (it is a whole-suite or a
+    // whole-act event). An `edit` or a `withdraw` WITHOUT a target is meaningless — it
+    // names no subject, so it cannot be evidence ABOUT one. Treating it as universal
+    // let an unqualified record confirm any fire.
+    if (r.kind === "edit" || r.kind === "withdraw") {
+      if (r.target === undefined) {
+        const note = `${r.kind} @${r.at} names NO target — an ${r.kind} without a subject cannot be evidence about one (ignored)`;
+        ev.notes.push(note);
+        ev.dismissed.push(note);
+        continue;
+      }
+    }
     // absent target = global (applies); present = must match the subject exactly.
     if (r.target !== undefined && r.target !== subject.target) continue;
     // ★ O3: and when BOTH sides name a tool, they must agree. A record that does
@@ -271,7 +316,7 @@ export function resolveAll(
 ): ResolveReport {
   const now = opts.now ?? (() => new Date().toISOString());
   const report: ResolveReport = {
-    resolved: 0, confirmed: 0, refuted: 0, leftUnresolved: 0, decided: [],
+    resolved: 0, confirmed: 0, refuted: 0, leftUnresolved: 0, phantom: 0, contended: 0, failed: [], decided: [],
   };
   // ★ O4 (HIGH) — PRE-VALIDATE THE WHOLE BATCH BEFORE THE FIRST WRITE. The clock
   // check used to run INSIDE the loop, so a single skewed stamp (or one bad row.at)
@@ -303,7 +348,7 @@ export function resolveAll(
     //   ledger at all — resolving a phantom would write a truth for a fire that
     //   was never recorded.
     const live = ledger.truthOf(row.stateHash);
-    if (live === null) continue;
+    if (live === null) { report.phantom += 1; continue; }
     if (live !== "unresolved") continue;         // already decided — never re-stamped
 
     const c = classify(gather(row, subject, records, opts));
