@@ -236,3 +236,10 @@
 - FIX: `writeCorbellCheckout` now calls the AUTHORITY — `applyTypedDdl(db)` from the module it already imports — instead of its own duplicate. The duplicate CREATE TABLEs are deleted. `applyTypedDdl` also carries the CHECK constraints, the UNIQUE indexes and the dedup-recovery for legacy stores, so the checkout inherits all three.
 - EVIDENCE: the scoped build went from SQLITE_ERROR to `nodes=961 edges=4207` in 6.7s wall. The checkout at `.omp/graph-intelligence/corbell-checkout/store.sqlite` holds 961 nodes / 4207 edges with `layer_id='corbell'` on every row.
 - ★ THE TSC CHECK (the 0-new law, done properly): tsc reads 191 before and after, but a total does not prove my edit added none — so the four `store-map` errors were compared PER-FILE: baseline and mine are the SAME 4 pre-existing `Database`-vs-`TxnDb` mismatches, only the line numbers shifted (171→172, 235→225) because my edit removed lines. 0 new.
+
+## [2026-09-21T21:00:00] — EN-071 ★ R-D: THE CACHE SERVED OLD ANSWERS UNDER A NEW QUESTION VERSION
+- SYMPTOM: the question probe's addendum named it (R-D): `buildState` has NO `questionVersion` field, so `stateHash` covers trigger+context only — and the cache was keyed by stateHash alone.
+- ROOT CAUSE: a question re-authoring changes what a probability MEANS (the probe measured gap −0.040 → +0.322 on the same states), but the cache would have served the OLD answer under the NEW name. The ledger row already recorded `questionVersion`; the cache disagreed with the ledger about what was asked.
+- FIX: the cache AND the single-flight map are keyed by `(QUESTION_VERSION, stateHash)`. The ledger and the cache now agree: both carry the version that produced the answer.
+- LESSON: any cache whose key omits a parameter that changes the answer's MEANING is a misattribution cache. The state hash covers WHAT was asked about; the version covers HOW it was asked. Both belong in the key.
+- EVIDENCE: battery 312/0/1107/30 host · 312/0/1113/30 container (the stable +6) · tsc 191 == baseline · 3 new tests (R-D, R-Db, R-Dc) pinning that the row and the cached repeat carry the producing version.

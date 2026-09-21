@@ -294,6 +294,11 @@ export function mpsePreFilter(fire: Fire, ctx: AbsorbedContext): { settle: FireD
 
 export class FireGate {
   private budgetUsed = 0;
+  /** ★ R-D (cache/version defect, exposed by the question probe): the cache is keyed by
+   *  (QUESTION_VERSION, stateHash) — NEVER by the state alone. A question re-authoring
+   *  changes what a probability MEANS, so serving an old answer under a new question
+   *  version is a silent misattribution. The ledger row already records questionVersion;
+   *  the cache must agree with the ledger, or the two disagree about what was asked. */
   private cache = new Map<string, { probability: number }>();
   /** ★ HOT-SEAT W2-1 (BREAK): SINGLE-FLIGHT. `cache.set` runs only AFTER a judgment
    *  returns, so N CONCURRENT fires with the same state all missed and all paid the
@@ -335,7 +340,11 @@ export class FireGate {
     }
 
     // CACHE (D013) — the same firing never pays twice.
-    const cached = this.cache.get(stateHash);
+    // ★ R-D: keyed by (QUESTION_VERSION, stateHash). The state hash covers trigger +
+    //   context but NOT the question, so a re-authored question must not be served the
+    //   old answer. The ledger row records questionVersion; the cache agrees with it.
+    const cacheKey = `${QUESTION_VERSION}:${stateHash}`;
+    const cached = this.cache.get(cacheKey);
     if (cached !== undefined) {
       const band = cached.probability >= policy.act ? "act" : cached.probability >= policy.flag ? "escalate" : "ignore";
       const row: DecisionRow = {
@@ -367,7 +376,7 @@ export class FireGate {
       const timer = Promise.withResolvers<never>();
       const handle = setTimeout(() => timer.reject(new FireGateTimeout(ceiling)), ceiling);
       // ★ W2-1: a concurrent identical fire SHARES the call already in flight.
-      const call = this.judgeOnce(stateHash, state);
+      const call = this.judgeOnce(cacheKey, state);
       sharedCall = call.shared;
       try {
         answers = await Promise.race([call.answers, timer.promise]);
@@ -435,7 +444,7 @@ export class FireGate {
     const p = a.probability;
     const band = p >= policy.act ? "act" : p >= policy.flag ? "escalate" : "ignore";
     const action = band === "act" ? "FIRE" : band === "escalate" ? "ESCALATE" : "IGNORE";
-    this.cache.set(stateHash, { probability: p });
+    this.cache.set(cacheKey, { probability: p });
     const row: DecisionRow = {
       at: new Date(t0).toISOString(), ruleId: fire.ruleId, cls: fire.cls,
       questionVersion: QUESTION_VERSION, probability: p, band, action,
@@ -457,15 +466,15 @@ export class FireGate {
    *  and whether this caller CREATED it: only the creator spends budget, because only
    *  the creator makes a call. The map entry is removed when the call settles, so the
    *  long-lived cache below takes over for later (non-concurrent) repeats. */
-  private judgeOnce(stateHash: string, state: Record<string, unknown>): { answers: Promise<readonly { id: string; probability: number }[]>; shared: boolean } {
-    const existing = this.inFlight.get(stateHash);
+  private judgeOnce(cacheKey: string, state: Record<string, unknown>): { answers: Promise<readonly { id: string; probability: number }[]>; shared: boolean } {
+    const existing = this.inFlight.get(cacheKey);
     if (existing !== undefined) return { answers: existing, shared: true };
     const answers = this.cfg.judge.evaluate(state, [fireQuestion()]);
-    this.inFlight.set(stateHash, answers);
+    this.inFlight.set(cacheKey, answers);
     // settle → evict, so the map holds only calls genuinely in flight.
     void answers.then(
-      () => this.inFlight.delete(stateHash),
-      () => this.inFlight.delete(stateHash),
+      () => this.inFlight.delete(cacheKey),
+      () => this.inFlight.delete(cacheKey),
     );
     return { answers, shared: false };
   }

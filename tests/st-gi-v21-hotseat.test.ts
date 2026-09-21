@@ -15,7 +15,7 @@
 
 import { describe, test, expect } from "bun:test";
 import {
-  FireGate, DEFAULT_JUDGE_TIMEOUT_MS, FireGateTimeout, absorbContext, degradationOf,
+  FireGate, DEFAULT_JUDGE_TIMEOUT_MS, FireGateTimeout, absorbContext, degradationOf, QUESTION_VERSION,
   type Fire,
 } from "../src/omp/fire-gate.ts";
 import type { Judge } from "../src/omp/enforcement.ts";
@@ -124,5 +124,40 @@ describe("st-gi-v21-hotseat: the runtime seat's findings", () => {
     }));
     expect(calls.n).toBe(5);                    // five states, five calls
     expect(gate.rows().length).toBe(5);
+  });
+
+  // ══ R-D — THE CACHE IS VERSION-SCOPED ════════════════════════════════════════
+  // The question probe exposed it: buildState has NO questionVersion field, so the state
+  // hash covers trigger+context only. Before this fix the cache was keyed by stateHash
+  // alone — a question re-authoring would serve OLD answers under a NEW name. Now the key
+  // is (QUESTION_VERSION, stateHash), and the ledger row (which already records
+  // questionVersion) agrees with the cache.
+
+  test("R-D: the ledger row records the question version that produced it", async () => {
+    const gate = new FireGate({ judge: judgeOf(0.9) });
+    const d = await gate.judge(aFire({ evidence: "rd-version-record" }), absorbContext(aFire(), NEUTRAL));
+    // ★ the row names the question that produced the probability — the cache must agree
+    expect(d.row.questionVersion).toBe("fire-legitimacy-v1");
+  });
+
+  test("R-Db: a cached answer carries the SAME question version as its row", async () => {
+    const calls = { n: 0 };
+    const gate = new FireGate({ judge: judgeOf(0.9, calls) });
+    const f = aFire({ evidence: "rd-version-agree" });
+    const a = await gate.judge(f, absorbContext(f, NEUTRAL));
+    const b = await gate.judge(f, absorbContext(f, NEUTRAL));
+    expect(calls.n).toBe(1);                    // one call, one cached repeat
+    expect(b.cached).toBe(true);
+    // ★ the cached repeat is stamped with the version that PRODUCED it — never a version
+    //   that did not ask. A re-authored question must not be served this answer.
+    expect(b.row.questionVersion).toBe(a.row.questionVersion);
+    expect(b.row.probability).toBe(a.row.probability);
+  });
+
+  test("R-Dc: questionVersion is a module constant the ledger and cache share", async () => {
+    expect(QUESTION_VERSION).toBe("fire-legitimacy-v1");
+    const gate = new FireGate({ judge: judgeOf(0.9) });
+    const d = await gate.judge(aFire({ evidence: "rd-version-const" }), absorbContext(aFire(), NEUTRAL));
+    expect(d.row.questionVersion).toBe(QUESTION_VERSION);
   });
 });
