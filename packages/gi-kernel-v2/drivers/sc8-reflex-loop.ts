@@ -24,7 +24,23 @@ fs.writeFileSync(path.join(dir, "g.json"), "{}");
 
 // the STUB model (declared): answers what it is asked
 const stubJudge: Judge = { evaluate: async (_s, qs) => qs.map((q) => ({ id: q.id, probability: 0.9 })) };
-const stubLoad: LoadUnit = { retrieve: async () => ({ spans: [{ quote: "ran 60 tests, exit 0", source: "ledger:1" }], coverage: "complete" }) };
+// SC-8 FIX (the two-engine disagreement): the OLD stub returned one span
+// UNCONDITIONALLY, so the kernel (which saw spans=0 on the claim) and the close
+// layer (which was handed a span anyway) disagreed — the two layers were fed
+// DIFFERENT EVIDENCE by MY fixture. The load unit is now HONEST: it returns a
+// span only when the evidence for that claim is actually in the scope. Both
+// layers then read the SAME evidence, and the driver ASSERTS they agree.
+const SCOPE_EVIDENCE: Record<string, string> = {
+  "tests pass": "bun test -> 195 pass / 0 fail (battery.log:1)",
+};
+const stubLoad: LoadUnit = {
+  retrieve: async (query: string) => {
+    const hit = Object.entries(SCOPE_EVIDENCE).find(([k]) => query.toLowerCase().includes(k));
+    return hit === undefined
+      ? { spans: [], coverage: "complete" as const }
+      : { spans: [{ quote: hit[1], source: "battery.log:1" }], coverage: "complete" as const };
+  },
+};
 const deps: EnforcementDeps = { judge: stubJudge, loadUnit: stubLoad, register };
 
 const store = new RsiStore({ storePath: path.join(dir, "rsi.sqlite"), keyPath: path.join(dir, ".kernel.key") });
@@ -42,10 +58,21 @@ async function firing(label: string, claims: Array<{ text: string; spans: number
   console.log(`  STAGES ${run.stages.map((s) => `${s.stage}:${s.name}=${s.outcome}`).join(" ")}`);
   console.log(`  KERNEL verdict=${run.verdict} class=${run.class} code=${run.code ?? "-"}`);
 
-  // 2 the enforcement kernel acts on the SAME act
+  // 2 the enforcement kernel acts on the SAME act — and with ONE evidence
+  //   source the kernel's span count and the close layer's must AGREE.
+  const claimText = claims[0]?.text ?? "";
+  const bound = (await stubLoad.retrieve(claimText, ".")).spans.length;
+  if (bound !== (claims[0]?.spans ?? 0)) {
+    throw new Error(`SC8-FIXTURE-DRIFT: the kernel was told spans=${claims[0]?.spans} but the load unit binds ${bound} — one evidence source, one truth`);
+  }
   const work = await runWorkLayer(deps, { diff: "- const a = 1", task: "t", rules: [{ id: "no-unused", instructions: "unused const?", whenTrue: "unused", whenFalse: "used" }] });
-  const close = await runCloseLayer(deps, { claim: claims[0]?.text ?? "", scope: "." });
-  console.log(`  ENFORCE work=${work.verdict} close=${close.verdict}${close.code ? ` code=${close.code}` : ""}`);
+  const close = await runCloseLayer(deps, { claim: claimText, scope: "." });
+  const kernelRefused = run.verdict === "REFUSE";
+  const closeRefused = close.verdict === "REJECT" || close.verdict === "FAIL_CLOSED";
+  if (kernelRefused !== closeRefused) {
+    throw new Error(`SC8-ENGINES-DISAGREE: kernel=${run.verdict} close=${close.verdict} — the two layers must agree on the same evidence`);
+  }
+  console.log(`  ENFORCE work=${work.verdict} close=${close.verdict}${close.code ? ` code=${close.code}` : ""}  [engines AGREE: kernel=${run.verdict} close=${close.verdict}]`);
 
   // 3 the RSI layer RECORDS the firing and adapts
   let live = store.liveIncludingForgedRetirement(REFLEX_ID);
@@ -63,10 +90,16 @@ async function firing(label: string, claims: Array<{ text: string; spans: number
   return d.tier;
 }
 
-// a real firing sequence: the same theatrical act, three times
-await firing("theatrical claim, zero spans", [{ text: "tests pass", spans: 0 }], true);
-await firing("theatrical claim, zero spans (again)", [{ text: "tests pass", spans: 0 }], true);
-const tier = await firing("theatrical claim, zero spans (third)", [{ text: "tests pass", spans: 0 }], true);
+// a real firing sequence: the same UNSUPPORTED claim, three times. The claim is
+// chosen so its span count is HONEST — nothing in the scope evidences an
+// out-of-band migration, so the load unit binds 0 spans and the kernel agrees.
+const UNSUPPORTED = "the database migration succeeded";
+await firing("unsupported claim, zero spans", [{ text: UNSUPPORTED, spans: 0 }], true);
+await firing("unsupported claim, zero spans (again)", [{ text: UNSUPPORTED, spans: 0 }], true);
+const tier = await firing("unsupported claim, zero spans (third)", [{ text: UNSUPPORTED, spans: 0 }], true);
+// and the OTHER side: a claim the scope DOES evidence — both layers must agree
+// that it is NOT refused (the quiet case, proven on the same machinery).
+await firing("supported claim, one bound span", [{ text: "tests pass", spans: 1 }], true);
 
 console.log("\n──── THE REFLEX ROW (the ledger showing it) ────");
 for (const r of store.allRows()) {
