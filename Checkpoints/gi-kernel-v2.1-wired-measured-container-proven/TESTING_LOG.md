@@ -633,7 +633,17 @@ health ok=false (3 findings) — the kernel correctly REFUSES to calibrate at n=
   violations fire (R=0.250) while the measured optimum is t≈0.35-0.40.
 ```
 
-## AUDIT GATE: BLOCKED
+## AUDIT GATE: BLOCKED  ← ★ SUPERSEDED — THE LIVE VERDICT IS LATER IN THIS FILE
+
+```
+★ THE SECOND OPERATOR FLAGGED THIS EXACT TENSION: two AUDIT GATE lines with no pointer
+between them, so a reader cannot tell which is live. This one is HISTORICAL — it was
+written while the ocr rail's adapter was dead. The rail was then REBUILT and the audit RAN.
+SCROLL TO THE **LATEST** `## AUDIT GATE:` LINE IN THIS FILE FOR THE LIVE VERDICT.
+(Chronologically: BLOCKED → the rail was rebuilt → FAIL. The log is append-only, so both
+entries stand; the LATEST is authoritative.)
+```
+
 
 ```
 THE RAIL IS DOWN, MEASURED — not assumed:
