@@ -82,8 +82,15 @@ T-6 ← W9 ← all of the above
   Gate: health.ok=true · test_calib_flips
   ⛔ BLOCKED: M2 (the operator's cost matrix). W1/W2/W3/W5 proceed independently.
 ### W7 — MEASUREMENT  MEASUREMENT_PLAN.md  [depends: W1..W6]  ☐ — M1..M12, zero TBD
-### W8 — CONTAINER  .trident/ct-v2.1/  [depends: all]  ☐ — 199+/0 in-container +
-  ★ THE PHASE F ARTIFACT (.trident/container-test-results.json) — the deliverable
+### W8 — CONTAINER  .trident/ct-v2.1/  [depends: all]  ✅ CLOSED
+  244/0/905/25 in the CLEAN container (host 244/0/901/25)
+  ★ THE PHASE F ARTIFACT NOW EXISTS: .trident/container-test-results.json (4121 B, valid JSON)
+    — this was residual #2 in the compaction prep; every prior "container tested" claim rested
+    on terminal output alone.
+  ★ THE +4 DELTA ROOT-CAUSED (measured): host 9 down vs container 11 down x 2 expects per entry.
+    ABIDE + RSI_STORE probe ABSOLUTE HOST PATHS. 901 is NOT a constant. W1-W5 = 200 expects in
+    BOTH environments → HERMETIC.
+  ★ HONEST SCOPE (in the artifact): the BATTERY run, not the scenario-driver Phase F.
 ### W9 — SEAL  packages/gi-kernel-v2.1/**  [depends: all]  ☐ — PACKAGE_AUDIT PASS
 
 ## COVERAGE MAP
@@ -98,6 +105,7 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
 | W4 | 9/0/46 · 236/0/865/24 · tsc 191 | battery 236/0/865/24 ✓ · tsc 191 ✓ · test_gate_fire ✓ · test_gate_ignore ✓ | **CLOSED** |
 | W5 | 8/0/36 · 244/0/901/25 · tsc 191 | battery 244/0/901/25 ✓ · tsc 191 ✓ · test_policy_reload ✓ | **CLOSED** |
 | W6 | — | BLOCKED on M2 (the operator's cost matrix) | BLOCKED |
+| W8 | 244/0/905/25 in-container | re-ran in stupefied_morse ✓ · the artifact validates as JSON ✓ · the delta root-caused by measurement ✓ | **CLOSED** |
 | W7 | — | — | OPEN |
 
 ## HARD STOPS ACTIVE

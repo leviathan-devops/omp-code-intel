@@ -241,3 +241,20 @@
 - ★ A POLICY THAT CANNOT BE LOADED IS LOUD: MISSING (no silent seed substitution) · MALFORMED (bad JSON / non-numeric / no name) · RANGE (outside 0..1) · INVERTED (act < flag would EMPTY the escalate band). The one non-silent fallback: a rule ABSENT from the file falls to its class seed in fire-gate.ts — the documented pre-calibration path.
 - EVIDENCE: W5 suite 8 pass/0 fail/36 expect · battery 244/0/901/25 files (W4 baseline 236/0/865/24 → +8 tests/+36 expects/+1 file, ZERO regressions) · tsc 191 == baseline 0 new · `bun test -t test_policy_reload` PASS.
 - NEXT: W6 BLOCKED on M2 · W7 the measurement plan · W8 the container rig.
+
+## [2026-09-21T13:35:00] — v2.1 W8 THE CONTAINER: the Phase F artifact EXISTS (the named residual CLOSED)
+- WHAT: .trident/ct-v2.1/ created · .trident/container-test-results.json (4121 B, valid JSON, Phase F shape).
+- WHY: EVERY prior "container tested" claim in this project rested on TERMINAL OUTPUT. The Phase F artifact — the per-scenario record the next session can verify — was named as residual #2 in the compaction prep. It now exists.
+- THE RUN: staged src/. tests/. packages/. into stupefied_morse:/work/gi (the TRAILING SLASH law — without it docker cp NESTS the directory), cleaned /tmp, and ran the battery with the container's own bun 1.4.2.
+- EVIDENCE: **244 pass / 0 fail / 905 expect / 25 files [1.55s]** in the CLEAN container. Host: 244/0/901/25.
+- ★ THE +4 DELTA — ROOT-CAUSED BY MEASUREMENT (it was an unexplained 701-vs-705 in the v2.0 run):
+    built the register with a cold tmp() scopeRoot and env:{} in BOTH environments, printed r.down:
+      HOST 9 down · CONTAINER 11 down · 2 expects per down entry → 2 × 2 = +4 — EXACTLY the delta.
+    the two extra: ABIDE and RSI_STORE probe ABSOLUTE HOST PATHS (/home/leviathan/...) that exist
+    on the host and cannot exist in a container. Combined with the data-dependent loop in
+    tests/st-gi-v2-deps.test.ts:112, the assertion count is a FUNCTION OF THE HOST'S FILESYSTEM.
+    ★ CONSEQUENCE FOR READERS: 901 is NOT a stable constant. My new suites are IDENTICAL in both
+    environments (ledger 36 / oracle 37 / advisory 45 / wiring 46 / policy 36 = 200), so W1-W5
+    contribute ZERO to the delta and are HERMETIC.
+- ★ HONEST SCOPE (recorded INSIDE the artifact): this is the BATTERY run, not the scenario-driver Phase F. The rig requirement (a real clean-container execution with a captured artifact) is met; the full per-scenario passToken/failToken contract with byte offsets is not. Named so no reader over-claims it.
+- NEXT: W7 (the measurement plan) · W9 (the seal).
