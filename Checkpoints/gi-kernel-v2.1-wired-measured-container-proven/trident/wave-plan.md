@@ -92,6 +92,24 @@ T-6 ← W9 ← all of the above
      INSTRUCTION. The other two carry the DISCRIMINATOR in their evidence.
   ★★ CONCLUSION: THE COST MATRIX CANNOT FIX A NON-DISCRIMINATING CLASS. M2 is NECESSARY BUT
      NOT SUFFICIENT — a bar from the pooled 0.500 would be a guess dressed as a derivation.
+  ★★★ ADDENDUM 2 (theatrical-question-probe.ts, 20 paired fires x 2 arms): THE QUESTION
+     RE-AUTHORING IS MEASURED — gap -0.040 → +0.322, FULLY SEPARABLE (REAL min 0.82 >
+     FP max 0.70). THE COMPARISON THAT DECIDES: option 1 (evidence) gap +0.082 AND changes
+     every theatrical cache key; option 2 (question) gap +0.322, touches NOTHING. Option 2
+     dominates ~4x on effectiveness and ~0 on cost.
+     ★ CACHE-KEY CORRECTION (verified in code): buildState has NO questionVersion field —
+     the hash covers trigger+context only. A question bump does NOT change the cache key;
+     it serves OLD answers under a NEW name (R-D, pre-existing, exposed by the probe).
+     THE RULING: (1) apply option 2? (2) also option 1? (3) fix the cache/version defect?
+  ★★★ THE REMEDY IS NOW MEASURED (theatrical-discriminator-probe.ts, 20 paired fires x 2 arms):
+     CURRENT   (counts only)  REAL 0.406 vs FP 0.442 · gap -0.036 · NOT separable
+     AUGMENTED (corroboration=present|absent)  REAL 0.490 vs FP 0.408 · gap +0.082 · ★ FULLY
+     SEPARABLE (REAL min 0.46 > FP max 0.43). THE FIX WORKS. The detector was NOT changed —
+     the probe exercises the exact mechanism through Fire.evidence.
+     COST KNOWN BOTH WAYS: the separation gained; every theatrical CACHE KEY changes (a
+     re-calibration is owed).
+     ★ THE RULING IS NOW A YES/NO: (1) accept the evidence change? (2) what counts as
+     corroboration (the detector must DERIVE it)? (3) accept the re-calibration cost?
   ⛔ STILL BLOCKED ON M2 for the FINAL thresholds; the LOOP itself is proven.
   EVIDENCE: 48 live fires · 9 deterministic tests (st-gi-v21-w6calibration) · battery 309/0/1100/30 · tsc 191
 ### W7 — MEASUREMENT  MEASUREMENT_PLAN.md  [depends: W1..W6]  ☐ — M1..M12, zero TBD
@@ -165,3 +183,25 @@ T-1 → W3 W4 · T-2 → W5 W6 · T-3 → W1 W2 · T-4 → W4 · T-5 → P5 · T
   ★ THE SCOPE LIMIT, NAMED: probes import the MODULE surface — v2.1 is not in the dist
     (sha 83eb7bba unchanged), so a probe against the dist would test v1.3.
   EVIDENCE: battery 268/0/958/26 (244/0/901/25 → +24 tests, ZERO regressions) · tsc 191
+
+## REGISTRATION — THE REGISTER MOVED (2026-09-21)
+
+```
+BEFORE (the pin froze it):  up=5/11
+AFTER EN-067 + EN-068:      the register was WRONG about JEV and its layer paths pointed
+                            at paths no code creates
+AFTER EN-070:               L5 UP — 4 down (L1, L2, L3, L4)
+
+★ THE REGISTER IS NOW CORRECT WHERE IT CAN BE: JEV reads UP (the judge answers) · L5 reads
+  UP (961 nodes / 4207 edges, layer_id='corbell') · L2 reads DOWN with the PRECISE reason
+  ("2 socket file(s), NONE listening — STALE") · L5's probe imports the consumer's constant.
+
+★ THE REMAINING 4 ARE GENUINELY DOWN:
+  L1  no semantica workspace exists (a cloned semantica REPO sits in research/ — source, not a store)
+  L2  the au daemon is dead (its sockets are stale corpses, ECONNREFUSED, and /proc/net/unix
+      has no au listener)
+  L3  no .ua/knowledge-graph.json exists; /usr/bin/ua is ubuntu-advantage, not
+      "understand-anything" — the tool is ABSENT
+  L4  no .c2kg/index.json exists; no c2kg binary exists
+  L1/L3/L4's probes remain UNVERIFIED (no consumer corroborates their paths) — recorded as a residual.
+```

@@ -190,3 +190,64 @@
 - ★ AND THE FIX MADE A REAL ENVIRONMENT FACT VISIBLE: the container/host expects delta GREW 4 → 6, because JEV is now UP on the host (the key file exists) and DOWN in the container (it does not). The model genuinely IS unavailable in the container, and the register now says so. Before the fix JEV read DOWN in BOTH environments — the register was CONSISTENTLY WRONG.
 - LESSON: a probe must read the SAME SOURCE the consumer reads, or it is measuring a DIFFERENT SYSTEM. The env-var probe and the file-reading judge were two systems wearing one name.
 - EVIDENCE: host 300/0/1072/29 · container 300/0/1078/29 (delta +6 = 3 components × 2) · tsc 191 == baseline.
+
+## [2026-09-21T19:15:00] — EN-068 ★★ THE REGISTER'S LAYER PROBES POINT AT PATHS NO CODE CREATES
+- HOW FOUND: EN-067 taught that the register can be WRONG about a component, so each of the five DOWN layers was verified against REALITY rather than accepted.
+- THE MEASURED STATE (before the fix):
+    L1_SEMANTICA  probes <scopeRoot>/.omp/graph-intelligence/layers/semantica   — created by NOBODY
+    L2_ARSUMBRIS  probes <scopeRoot>/.arsumbris                                — created by NOBODY
+                  ★ the real au runtime is ~/.arsumbris/au-host/run/*.instance.sock
+    L3_UA         probes <scopeRoot>/.ua/knowledge-graph.json                  — created by NOBODY
+    L4_C2KG       probes <scopeRoot>/.c2kg/index.json                          — created by NOBODY
+    L5_CORBELL    probes <scopeRoot>/corbell-out                              — created by NOBODY
+                  ★ the CONSUMER uses <scopeRoot>/.omp/graph-intelligence/corbell-checkout/store.sqlite
+                    (populate-corbell.ts:17, written by scripts/corbell-build.ts)
+    L6_GRAPHIFY   probes <scopeRoot>/graphify-out/graph.json                   — ✓ CREATED (the ONE
+                  layer that reads UP, because its probe matches its consumer)
+- ★ THE CONSEQUENCE: an operator told "L5 is down" would populate `corbell-out/` and the register would STILL say DOWN, forever — the substrate would be in the wrong place and the gate would never register. Same for L2 (`<scopeRoot>/.arsumbris` vs `~/.arsumbris/au-host/run`). THE REGISTER'S DIAGNOSIS WOULD HAVE SENT AN OPERATOR TO THE WRONG PATHS.
+- ★★ AND A SECOND CLASS INSIDE THE SAME DEFECT: **EXISTENCE IS NOT LIVENESS.** Two au socket FILES sat at the real runtime dir, dated Sep 16/17, and BOTH were DEAD (ECONNREFUSED — measured). Pointing the probe at the right DIRECTORY would have read UP over a corpse. The dependency is "the au daemon SOCKET", so the probe must test for a LISTENER.
+- THE FIXES:
+    1 a NEW component kind — `liveSocketComponent` — probes `/proc/net/unix`, the kernel's LISTENER table. Sync, cheap, precise: a path in the table has a listener; a socket file with no entry is stale. (Sanity-checked: /run/docker.sock and the X11 sockets DO appear in the table.)
+    2 L2 now uses it against the REAL runtime dir → evidence reads "2 socket file(s), NONE listening — STALE (the daemon is not running)".
+    3 L5 now probes the CONSUMER's constant, IMPORTED from populate-corbell.ts (no cycle — that module does not import this one), so they cannot drift.
+- ★★ THE HONEST NEGATIVE RESULT: **the register's VERDICT WAS CORRECT** — all five layers are GENUINELY down (L2's daemon is dead, the others' substrates are absent). So this is NOT an EN-067 false-DOWN. It is a TRUE-DOWN reported with WRONG PATHS AND WRONG REASONS. The count stayed 5 before and after the fix. That distinction matters: a correct verdict delivered with a misleading diagnosis is still a defect, because the operator's next action is chosen from the DIAGNOSIS.
+- ★ AND THE UNRESOLVED PART, NAMED NOT GUESSED: L1/L3/L4's probes still point at paths no code in this repo creates. They may be correct (external tools populate them) or wrong. I did NOT invent replacement paths — there is no consumer to import from. **Their probes are UNVERIFIED and that is recorded as a residual.**
+- AND A BUG I INTRODUCED AND THE REGISTER CAUGHT: my first `liveSocketComponent` called `join(...)`, but `join` in this module is a LOCAL helper inside `buildRegister` — invisible at module scope. The probe returned "join is not defined" at RUNTIME. Fixed with concatenation. A module-level helper shadowed by a function-local one is a trap the type system does not catch.
+- EVIDENCE: battery 309/0/1100/30 · tsc 191 == baseline 0 new · the register re-measured with precise per-layer evidence.
+
+## [2026-09-21T20:05:00] — EN-069 ★ TWO OBSTACLES TO BRINGING L5 (CORBELL) UP, BOTH MEASURED
+- CONTEXT: auditing the REGISTRATION blocker. `scripts/corbell-build.ts` writes EXACTLY the path the register now probes (`.omp/graph-intelligence/corbell-checkout/store.sqlite`), so L5 was the one layer that could plausibly be brought UP. It was attempted.
+- ★ OBSTACLE 1 — `corbell graph build --methods` DIES AT RecursionError WITH ITS OWN DEFAULT LIMIT OF 1000. The failure is inside corbell's OWN Python (`corbell/cli/commands/graph.py` → a recursive `traverse()` over the AST), on this repo's own source. `sys.getrecursionlimit()` defaults to 1000 and corbell exposes NO depth/limit option (`--workspace`, `--methods`, `--rebuild` only).
+  WORKAROUND (tested, works): a SCOPED `sitecustomize.py` on `PYTHONPATH` raising the limit to 50,000. With it, the recursion error DISAPPEARS and the build proceeds — so the limit, not the algorithm, was the obstacle.
+  ★ THE WORKAROUND IS SCOPED, NOT GLOBAL: it lives at `~/.omp/run/corbell-boost/sitecustomize.py` and is applied only by setting `PYTHONPATH` for a specific invocation. Nothing system-wide was changed.
+- ★ OBSTACLE 2 — THE BUILD IS IO-BOUND AND VERY SLOW BECAUSE IT WALKS THE WHOLE REPO. Measured: `Ds` (uninterruptible disk wait), 361MB RSS, 6min elapsed against 56s CPU. The tree it walks includes `Checkpoints/` (the largest directory), `research/` (a cloned semantica repo), `fork-v143/` and `Ship_Packages/` — none of which is the code the graph is for. `corbell graph build` takes no `--workspace` from the script, so it uses the cwd.
+  ★ THE OPERATIONAL FINDING: **bringing L5 up on this repo requires either PATIENCE or SCOPE.** The right fix is to run the build against `src/` (or a pruned tree) and place the checkout at the register's path, because the current invocation indexes a decade of checkpoints as if they were source.
+- ★ AND A SELF-INFLICTED ONE: the FIRST attempt failed with `database is locked` — because an earlier backgrounded corbell (my own, from the probe) still held the DB. `pkill` then a clean retry. Recorded because the symptom ("database is locked") pointed at a schema problem and the cause was a stale process of mine.
+- EVIDENCE: RecursionError reproduced at the default limit; the boosted run reached the graph-building stage and ran 6+ minutes IO-bound; the checkout path `.omp/graph-intelligence/corbell-checkout/` does NOT yet exist.
+
+## [2026-09-21T20:30:00] — EN-070 ★★★ A STALE DUPLICATE SCHEMA MADE EVERY CORBELL CHECKOUT WRITE FAIL
+- SYMPTOM: `bun scripts/corbell-build.ts --target /tmp/corbell-scoped --rebuild` — corbell scanned 97 ts files and produced a graph, then the checkout write died with SQLITE_ERROR.
+- ROOT CAUSE: THREE `CREATE TABLE IF NOT EXISTS typed_nodes` declarations existed, and the one that ran FIRST on a fresh database WON:
+    src/hunter/graph/store-map.ts:207  ← NO layer_id (the stale duplicate, in writeCorbellCheckout)
+    src/hunter/shared/migrations.ts:13 ← NO layer_id
+    src/omp/typed-write.ts:68          ← HAS layer_id (the authority, + an addCol migration)
+    `insertForkNodesBatch` (typed-write.ts:711) INSERTS layer_id. On a fresh checkout DB, store-map's CREATE ran first, so the INSERT hit "no such column: layer_id" and the whole write rolled back.
+- ★ THE PRINCIPLE IT VIOLATES: a second copy of a schema is a second source of truth, and the two WILL drift. `CREATE TABLE IF NOT EXISTS` makes it worse — the stale one wins silently on a fresh database, and on an existing one it is a no-op that LOOKS like agreement.
+- FIX: `writeCorbellCheckout` now calls the AUTHORITY — `applyTypedDdl(db)` from the module it already imports — instead of its own duplicate. The duplicate CREATE TABLEs are deleted. `applyTypedDdl` also carries the CHECK constraints, the UNIQUE indexes and the dedup-recovery for legacy stores, so the checkout inherits all three.
+- EVIDENCE: the scoped build went from SQLITE_ERROR to `nodes=961 edges=4207` in 6.7s wall. The checkout at `.omp/graph-intelligence/corbell-checkout/store.sqlite` holds 961 nodes / 4207 edges with `layer_id='corbell'` on every row.
+- ★ THE TSC CHECK (the 0-new law, done properly): tsc reads 191 before and after, but a total does not prove my edit added none — so the four `store-map` errors were compared PER-FILE: baseline and mine are the SAME 4 pre-existing `Database`-vs-`TxnDb` mismatches, only the line numbers shifted (171→172, 235→225) because my edit removed lines. 0 new.
+
+## [2026-09-21T21:00:00] — EN-071 ★ R-D: THE CACHE SERVED OLD ANSWERS UNDER A NEW QUESTION VERSION
+- SYMPTOM: the question probe's addendum named it (R-D): `buildState` has NO `questionVersion` field, so `stateHash` covers trigger+context only — and the cache was keyed by stateHash alone.
+- ROOT CAUSE: a question re-authoring changes what a probability MEANS (the probe measured gap −0.040 → +0.322 on the same states), but the cache would have served the OLD answer under the NEW name. The ledger row already recorded `questionVersion`; the cache disagreed with the ledger about what was asked.
+- FIX: the cache AND the single-flight map are keyed by `(QUESTION_VERSION, stateHash)`. The ledger and the cache now agree: both carry the version that produced the answer.
+- LESSON: any cache whose key omits a parameter that changes the answer's MEANING is a misattribution cache. The state hash covers WHAT was asked about; the version covers HOW it was asked. Both belong in the key.
+- EVIDENCE: battery 312/0/1107/30 host · 312/0/1113/30 container (the stable +6) · tsc 191 == baseline · 3 new tests (R-D, R-Db, R-Dc) pinning that the row and the cached repeat carry the producing version.
+
+## [2026-09-21T21:30:00] — L1/L3/L4 PROBES: ONE VERIFIED, TWO CONFIRMED UNVERIFIABLE
+- THE QUESTION: the register's L1/L3/L4 probes point at paths no code in this repo creates. Are the paths RIGHT (with absent substrates) or WRONG (like L2/L5 were)?
+- ★ L3 VERIFIED — CORRECT PATH, ABSENT SUBSTRATE. UA's own persistence module (`research/graph-infra-repos/Understand-Anything/.../persistence/index.ts`) writes `<projectRoot>/.ua/knowledge-graph.json` via `resolveUaDir: join(projectRoot, ".ua")`. The register probes `<scopeRoot>/.ua/knowledge-graph.json` — the SAME convention. The probe is RIGHT; the substrate is genuinely absent. Recorded in code at the probe site.
+- ★ L1 UNVERIFIABLE. The register probes `.omp/graph-intelligence/layers/semantica`. NO consumer in this repo reads that path. The semantica checkout in `research/` is SOURCE (docs, triplet_store/, vector_store/ code) — not a store to point at. There is nothing to import a constant from and no tool to run.
+- ★ L4 UNVERIFIABLE. The register probes `.c2kg/index.json`. Nothing named c2kg exists on this host outside /tmp test fixtures. No binary, no repo, no consumer.
+- ★ THE DISTINCTION FROM EN-068: L2 and L5 were fixable because a CONSUMER existed to import authority from (the au runtime dir, populate-corbell's constant). L1 and L4 have NO consumer, NO tool, NO substrate — so inventing replacement paths would be guessing, and the pin's law against blind edits forbids it. An unverified probe that reports DOWN is the CORRECT state until its substrate exists; the residual is that nobody has verified the PATH.
+- EVIDENCE: battery 312/0/1107/30 · tsc 191 == baseline.

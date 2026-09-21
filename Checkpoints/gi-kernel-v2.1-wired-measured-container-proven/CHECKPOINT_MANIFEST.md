@@ -2,7 +2,7 @@
 
 **Name:** `gi-kernel-v2.1-wired-measured-container-proven` (hyphens only)
 **Saved:** 2026-09-21
-**HEAD at save:** `af54ea9` (the seal) + this commit
+**HEAD at save:** `39cb846` (the audit + hot-seat + R-D lineage)
 **Repo:** `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence` @ `jarvis/gi-main`
 
 ---
@@ -14,9 +14,8 @@ DIST      extensions/graph-intelligence/index.js
           sha256 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
           613,039 bytes — UNCHANGED through this session (the v2.1 work is SOURCE; the
           dist is v1.3's and the v2.x modules are not bundled into it)
-BATTERY   309 pass / 0 fail / 1100 expect / 30 files  (host — after 65 audit + 2 hot-seat fixes
-                                                      + the W6 machinery tests)
-          300 pass / 0 fail / 1078 expect / 29 files  (clean container — the W6 suite is host-only)")
+BATTERY   312 pass / 0 fail / 1107 expect / 30 files  (host)
+          312 pass / 0 fail / 1113 expect / 30 files  (clean container — the stable +6 delta)")
 BATTERY_NOTE
           300 pass / 0 fail / 1074 expect / 29 files  (host — after 65 audit + 2 hot-seat fixes)
           300 pass / 0 fail / 1078 expect / 29 files  (clean container)
