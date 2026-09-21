@@ -904,3 +904,79 @@ The DESIGN layer was fully sufficient (purpose, the two positions, the wave stat
 policy edit works). **And the operator found a defect no test could: three documents naming a
 test file that has never existed — a suite cannot detect a doc pointing at a phantom; only a
 reader following the doc can.**
+
+## [2026-09-21T18:55:00] — W6: THE CALIBRATION LOOP RUN UNDER THE SEED MATRIX — ★★ THE SHARPEST FINDING OF THE SESSION
+
+```
+W6 is BLOCKED ON M2 (the operator's cost matrix). BUT ITS MACHINERY is testable without
+those numbers by running it under the SEED matrix already in DEFAULT_PROFILES — each entry
+carrying a stated basis. So it was run: 48 LIVE fires through the wired path.
+
+INSTRUMENT: packages/gi-kernel-v2.1/tools/w6-calibration.ts
+FINDING:    packages/gi-kernel-v2.1/W6_CALIBRATION_FINDING.md
+REPORT:     packages/gi-kernel-v2.1/tools/w6-calibration-report.json
+
+TWO HONESTY LABELS (both load-bearing):
+  1 the COST MATRIX IS THE SEED, not the operator's — every threshold below is seed-derived
+  2 the ORACLE'S TRUTH IS THE CORPUS LABELS, not organic downstream evidence — the loop is
+    proven; the organic resolution RATE stays unmeasured
+```
+
+**THE LOOP WORKS — 2 of 3 rules flipped `calibrated=true`:**
+```
+*dumb         calibrated=TRUE   act=0.333   (16 resolved / 10 needed)
+*theatrical   calibrated=TRUE   act=0.600   (16 resolved / 15 needed)
+*destructive  calibrated=FALSE  act=0.800   (16 resolved / 20 needed — 4 SHORT)
+health.ok=false · 3 findings: "half-width 0.220 > 0.15 — n=16 too small to set a bar"
+★ THE KERNEL CORRECTLY REFUSES TO SET A BAR ON 16 SAMPLES. That is the design working.
+```
+
+**★★★ THE FINDING: A POOLED PRECISION OF 0.500 HID THREE DIFFERENT CLASSES.**
+```
+MEASURED pooled precision: 0.500 [0.280, 0.720]
+
+PER CLASS, FROM THE RAW PROBABILITIES:
+  destructive  REAL [0.77..0.78]  FP [0.15..0.17]   ★ SEPARABLE — gap 0.60
+  dumb         REAL [0.51..0.53]  FP [0.42..0.45]   ★ SEPARABLE — gap 0.06
+  theatrical   REAL [0.38..0.48]  FP [0.40..0.52]   ★★ INVERTED — the FPs score HIGHER
+
+★ THE AVERAGE DESCRIBED NONE OF THE THREE.
+```
+
+**★★ THE ROOT CAUSE — A DESIGN DEFECT, NOT A THRESHOLD.** The inversion was probed directly
+(four stream variants, one fire):
+```
+REAL (bare claim)            p=0.480
+FP-a (evidence + test run)   p=0.510
+FP-b (evidence, NO test run) p=0.500   ← the test run moved it 0.01: RULED OUT
+```
+The cause is the DETECTOR's evidence:
+```
+theatricalDetector asserts:  "claims=1 unbound=1 spans[0]=0"   ← COUNTS ONLY, identical
+                                                               for a fabricated claim and a
+                                                               corroborated one
+fireQuestion instructs:      "Judge only the evidence supplied; do not speculate about
+                              material not present."
+★ THE MODEL RETURNS ~0.5 BECAUSE IT IS CORRECTLY FOLLOWING ITS INSTRUCTION: from
+  claims=1/unbound=1 the violation IS real in both cases.
+★ WHY THE OTHER TWO DISCRIMINATE PERFECTLY — THEIR EVIDENCE CARRIES THE DISCRIMINATOR:
+    destructive  "certifications=0"                              ← the FACT is in the evidence
+    dumb         "execution record: queried_before=false …"      ← the FACT is in the evidence
+    theatrical   "claims=1 unbound=1 spans[0]=0"                 ← only counts; the
+                 discriminator lives in the STREAM, which the question tells the model not to weigh
+```
+
+**THE PRINCIPLE:** *a detector's evidence must carry the DISCRIMINATOR. When it carries only
+a count, the model cannot separate a real firing from a false positive — and it correctly
+returns ~0.5 rather than guess.*
+
+**THE DESIGN FIX (recommended, NOT applied — it is a W4 semantic change):** the
+`theatricalDetector` should assert what distinguishes the two cases (e.g.
+`corroboration=present|absent` from the stream), which changes every theatrical fire's CACHE
+KEY and invalidates these measurements. It needs the operator's ruling on the theatrical
+semantics and a fresh calibration run.
+
+**★★ THE DECISIVE CONCLUSION: THE COST MATRIX CANNOT FIX A NON-DISCRIMINATING CLASS.**
+For destructive and dumb, any reasonable posture works. For theatrical, NO threshold helps.
+**M2 is necessary but NOT sufficient.** A bar set from the pooled 0.500 would have been a
+guess dressed as a derivation — the exact failure the pin's CHOSEN CONSTANT anti-derail names.
