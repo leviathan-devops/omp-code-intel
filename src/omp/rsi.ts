@@ -252,7 +252,15 @@ export class RsiStore {
       confirmed: r.confirmed, refuted: r.refuted, unresolved: r.unresolved,
       createdRun: r.createdRun, supersededRun: r.supersededRun, prevHash: r.prevHash,
     });
-    return crypto.timingSafeEqual(Buffer.from(expect, "hex"), Buffer.from(r.sig, "hex"));
+    // A MALFORMED signature must be REJECTED, not crash the verifier. The first
+    // live-store run hit `RangeError: Input buffers must have the same byte
+    // length` — crypto.timingSafeEqual THROWS on a length mismatch, so a
+    // hostile row carrying a short/garbage sig took the reader down instead of
+    // being treated as ABSENT. Length is checked BEFORE the comparison.
+    const a = Buffer.from(expect, "hex");
+    const b = Buffer.from(r.sig, "hex");
+    if (a.length !== b.length || a.length === 0) return false;
+    return crypto.timingSafeEqual(a, b);
   }
 
   /** THE KERNEL WRITE PATH. Signs and chains. */

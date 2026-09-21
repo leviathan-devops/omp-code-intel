@@ -80,6 +80,29 @@ describe("st-gi-v2-kernel: W3 — the RSI reflex layer", () => {
     }
   });
 
+  test("sc4_a_MALFORMED_sig_is_REJECTED_not_a_RangeError", () => {
+    // Found by the first live-store run: crypto.timingSafeEqual THROWS on a
+    // length mismatch, so a hostile row with a short sig crashed the verifier
+    // instead of being ABSENT. The unit tests missed it because every fixture
+    // used a well-formed 64-char sig.
+    const { store } = newStore();
+    try {
+      store.write(R("gi:reflex:malformed"), "rsi-1");
+      // the same two-step attack shape: the partial unique index requires the
+      // victim be retired before a second live row can exist.
+      store.forceSupersedeForTest("gi:reflex:malformed", "rsi-99");
+      store.forgeForTest({ canonicalId: "gi:reflex:malformed", kind: "RETIRED", createdRun: "rsi-99" }, "deadbeef");
+      const rows = store.allRows();
+      const short = rows.find((r) => r.sig.length < 64)!;
+      expect(short).toBeTruthy();
+      expect(() => store.verify(short)).not.toThrow();   // ← the defect
+      expect(store.verify(short)).toBe(false);           // and it is ABSENT
+      expect(() => store.live()).not.toThrow();          // the reader survives
+    } finally {
+      store.close();
+    }
+  });
+
   // ── SC-5: an unsigned supersede is IGNORED (the DISABLEMENT attack) ──────
   test("sc5_an_unsigned_supersede_is_IGNORED_the_row_STAYS_LIVE", () => {
     const { store } = newStore();
