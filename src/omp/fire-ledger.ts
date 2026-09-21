@@ -26,6 +26,7 @@
 //   not know about.
 
 import { Database } from "bun:sqlite";
+import * as path from "node:path";
 import type { DecisionRow, FireGate } from "./fire-gate.ts";
 import type { ResolvedCounts } from "./calibration.ts";
 
@@ -87,8 +88,11 @@ export interface PersistedFireRow extends DecisionRow {
 /** Every failure names itself. A ledger that cannot fail loudly is a ledger
  *  that silently loses rows, and a lost row is an uncalibratable fire. */
 export class LedgerError extends Error {
-  constructor(code: string, detail: string, cause?: unknown) {
-    super(`GI_LEDGER_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`);
+  /** ★ R6 — the CODE IS A PROPERTY, not only a prefix inside the message. The
+   *  message keeps the prefix so failures stay greppable, but a consumer must never
+   *  have to PARSE it back out (the F1 fix did exactly that, with a `split(":")`). */
+  constructor(readonly code: string, detail: string, cause?: unknown) {
+    super(`GI_LEDGER_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`, { cause });
     this.name = "LedgerError";
   }
 }
@@ -104,6 +108,12 @@ export class FireLedger {
   constructor(readonly path: string) {
     // A bad path must THROW — never degrade to an in-memory ledger that looks
     // like it is working and loses everything at exit (the silent-fallback ban).
+    // ★ R5 (re-verify finding) — `:memory:` and the empty string are the SAME
+    // silent fallback wearing a valid path: they open successfully and persist
+    // NOTHING. The ban has to name them, or it only bans the case it can detect.
+    if (path.trim() === "" || path.trim() === ":memory:" || path.trim().startsWith("file::memory:")) {
+      throw new LedgerError("NOT_PERSISTENT", `path ${JSON.stringify(path)} names an in-memory database — the ledger must survive the process or it is not a ledger`);
+    }
     let db: Database;
     try {
       db = new Database(path, { create: true });
@@ -207,6 +217,15 @@ export class FireLedger {
         throw new LedgerError("BAD_NUMBER", `${key} must be finite, got ${String(row[key])}`);
       }
     }
+    // ★ R1 (re-verify finding) — FINITE IS NOT ENOUGH FOR A PROBABILITY. `1.5` and
+    // `-0.2` are finite and would band as act/ignore respectively, writing a row that
+    // no calibration can interpret. The gate's own answers are a probability, so the
+    // range is part of the type's meaning.
+    for (const key of ["probability", "actThreshold", "flagThreshold"] as const) {
+      if (row[key] < 0 || row[key] > 1) {
+        throw new LedgerError("BAD_PROBABILITY", `${key}=${row[key]} is outside 0..1 — a probability that cannot band`);
+      }
+    }
     if (row.laterTruth !== "unresolved") {
       // §6.4.7 — written 'unresolved' AT FIRING TIME, never assumed. Only the
       // oracle changes it, through recordTruth.
@@ -224,7 +243,16 @@ export class FireLedger {
     }
   }
 
-  /** Bulk append inside ONE transaction — either all rows land or none do. */
+  /** Bulk append. FAST PATH: one transaction, all-or-nothing.
+   *  ★ R7 (re-verify finding) — AND A PER-ROW FALLBACK, because all-or-nothing has a
+   *  cost the first version did not weigh: ONE malformed row aborted the WHOLE batch,
+   *  so a single bad fire would block every good one behind it. In a ledger whose
+   *  purpose is "a row per fire", losing the good rows to protect against the bad one
+   *  is the wrong trade. The fallback writes each row individually, KEEPS the good
+   *  ones, and REPORTS the failures by name.
+   *
+   *  Returns the number of rows that committed. The caller's watermark logic must
+   *  still only advance for rows this method confirms (see `drain`). */
   appendMany(rows: readonly DecisionRow[]): number {
     this.ensureOpen();
     if (rows.length === 0) return 0;
@@ -236,8 +264,20 @@ export class FireLedger {
     try {
       return tx(rows);
     } catch (e) {
-      if (e instanceof LedgerError) throw e;
-      throw new LedgerError("APPEND_MANY_FAILED", `${rows.length} rows did not commit`, e);
+      if (!(e instanceof LedgerError)) {
+        throw new LedgerError("APPEND_MANY_FAILED", `${rows.length} rows did not commit`, e);
+      }
+      // THE FALLBACK: commit what CAN commit, name what cannot.
+      let committed = 0;
+      for (const r of rows) {
+        try { this.append(r); committed += 1; } catch (inner) {
+          const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
+          // the recorded code carries the greppable prefix, consistently with the
+          // withLedger path — a reader greps GI_LEDGER_*, not a bare suffix.
+          this.notePersistFailure(`GI_LEDGER_${err.code}`, err.message);
+        }
+      }
+      return committed;
     }
   }
 
@@ -273,10 +313,25 @@ export class FireLedger {
     if (truth === "unresolved") {
       throw new LedgerError("BAD_TRUTH", "the oracle resolves to confirmed|refuted — 'unresolved' is the ABSENCE of a resolution, not one");
     }
+    // ★ R2 (re-verify finding) — an empty stateHash matched ZERO rows and returned
+    //   `0` as if the resolution had been applied. A silent no-op is the exact class
+    //   this ledger exists to eliminate, so it is a named failure instead.
+    if (typeof stateHash !== "string" || stateHash.trim() === "") {
+      throw new LedgerError("BAD_STATE_HASH", `recordTruth needs a non-empty stateHash, got ${JSON.stringify(stateHash)}`);
+    }
+    if (typeof at !== "string" || !Number.isFinite(Date.parse(at))) {
+      throw new LedgerError("BAD_TRUTH_AT", `truth_at must be a parseable timestamp, got ${JSON.stringify(at)}`);
+    }
     return this.guard("recordTruth", () => {
       try {
+        // ★ R3b (re-verify finding) — THE UPDATE IS CONDITIONAL, SO CHECK-AND-WRITE IS
+        // ATOMIC. `resolveAll` used to read `truthOf()` and then write unconditionally:
+        // between the two, another writer could resolve the same row and this one would
+        // OVERWRITE it — the history-rewrite EN-052 fixed in the caller, re-opened here
+        // in the callee. `WHERE later_truth = 'unresolved'` makes the DATABASE the
+        // arbiter: a row already resolved yields 0 changes and is left untouched.
         const r = this.db
-          .prepare(`UPDATE fire_decisions SET later_truth = ?1, truth_at = ?2 WHERE state_hash = ?3`)
+          .prepare(`UPDATE fire_decisions SET later_truth = ?1, truth_at = ?2 WHERE state_hash = ?3 AND later_truth = 'unresolved'`)
           .run(truth, at, stateHash);
         return Number(r.changes);
       } catch (e) {
@@ -363,6 +418,12 @@ export class FireLedger {
   }
 }
 
+/** The ONLY place a stored later_truth becomes a Truth. Refuses to launder. */
+function persistedTruth(v: unknown, stateHash: unknown): DecisionRow["laterTruth"] {
+  if (v === "confirmed" || v === "refuted" || v === "unresolved") return v;
+  throw new LedgerError("UNKNOWN_TRUTH", `row ${String(stateHash)} has later_truth=${JSON.stringify(v)} — refusing to launder it into a Truth`);
+}
+
 function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
   return {
     id: Number(raw["id"]),
@@ -378,7 +439,9 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
     flagThreshold: Number(raw["flag_threshold"]),
     stateHash: String(raw["state_hash"]),
     costUsd: Number(raw["cost_usd"]),
-    laterTruth: String(raw["later_truth"]) as DecisionRow["laterTruth"],
+    // ★ R3 (re-verify finding) — `String(x) as Truth` laundered anything. A corrupt
+    //   value must not be handed out wearing the type of a valid one.
+    laterTruth: persistedTruth(raw["later_truth"], raw["state_hash"]),
     truthAt: raw["truth_at"] === null || raw["truth_at"] === undefined ? null : String(raw["truth_at"]),
   };
 }
@@ -389,15 +452,20 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
  *  exact watermark: a drain can be called any number of times and a fire is
  *  persisted exactly once. It also means a row the gate gains by ANY path is
  *  caught — the ledger reads the public `rows()` accessor, nothing private. */
-const drained = new WeakMap<FireLedger, WeakSet<object>>();
+// ★ R4 (re-verify finding) — THE WATERMARK IS KEYED BY THE FILE, NOT THE HANDLE.
+// Two `FireLedger` objects opened on the same path each had their OWN WeakSet, so
+// both would consider the same fire unseen and write it TWICE. Exactly-once must be
+// a property of the LEDGER (the file), not of whichever handle happens to call.
+const drained = new Map<string, WeakSet<object>>();
 
 /** Persist every row the gate has produced that this ledger has not seen.
  *  Returns the number of NEW rows written (0 on a repeat drain). */
 export function drain(gate: FireGate, ledger: FireLedger): number {
-  let seen = drained.get(ledger);
+  const key = path.resolve(ledger.path);
+  let seen = drained.get(key);
   if (seen === undefined) {
     seen = new WeakSet<object>();
-    drained.set(ledger, seen);
+    drained.set(key, seen);
   }
   const fresh: DecisionRow[] = [];
   for (const row of gate.rows()) {
@@ -443,7 +511,10 @@ export function withLedger(gate: FireGate, ledger: FireLedger): FireGate {
     try {
       drain(original, ledger);
     } catch (e) {
-      const code = e instanceof LedgerError ? e.message.split(":")[0]! : "GI_LEDGER_PERSIST_FAILED";
+      // ★ R6's consumer fix — the CODE is read off the error, never parsed out of its
+      // message. The F1 fix did `e.message.split(":")[0]`, which is exactly the kind
+      // of fragile coupling the re-verify scan flagged.
+      const code = e instanceof LedgerError ? `GI_LEDGER_${e.code}` : "GI_LEDGER_PERSIST_FAILED";
       const message = e instanceof Error ? e.message : String(e);
       ledger.notePersistFailure(code, message);
       // The row is STILL in the gate's memory, so a later drain will land it —

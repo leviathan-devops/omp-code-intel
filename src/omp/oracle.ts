@@ -88,6 +88,12 @@ export interface Evidence {
   signals: SignalName[];
   /** The records that counted, with why — the audit trail for this decision. */
   notes: string[];
+  /** ★ R5 (re-verify finding) — THE DISMISSED RECORDS, TAGGED STRUCTURALLY. The
+   *  first version recovered them by running a REGEX over `notes` for English words
+   *  like "dismissed" and "WITHOUT a span" — so the disclosure broke the moment a
+   *  note was reworded, and it would silently stop disclosing. A fact about the
+   *  evidence must not be coupled to the prose that describes it. */
+  dismissed: string[];
 }
 
 export interface Classification {
@@ -118,13 +124,13 @@ export function gather(
   row: Pick<PersistedFireRow, "at">,
   subject: Subject,
   records: readonly OutcomeRecord[],
-  opts: { windowMs?: number } = {},
+  opts: { windowMs?: number; notAfter?: string } = {},
 ): Evidence {
   const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
   const from = Date.parse(row.at);
   const ev: Evidence = {
     laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0,
-    withdrawn: false, permitted: false, signals: [], notes: [],
+    withdrawn: false, permitted: false, signals: [], notes: [], dismissed: [],
   };
 
   // ★ O0 (HIGH) — AN UNPARSEABLE STAMP MUST EMPTY THE WINDOW, NOT OPEN IT.
@@ -132,10 +138,16 @@ export function gather(
   // against NaN is), so the filter admitted EVERY record — the exact inverse of its
   // purpose. A bound that fails open is not a bound. Found by the oracle audit.
   if (!Number.isFinite(from)) {
-    ev.notes.push(`row.at ${JSON.stringify(row.at)} is unparseable — no forward window exists, so NO evidence is gathered (an unbounded window would admit every record)`);
+    const note = `row.at ${JSON.stringify(row.at)} is unparseable — no forward window exists, so NO evidence is gathered (an unbounded window would admit every record)`;
+    ev.notes.push(note);
+    ev.dismissed.push(note);
     return ev;
   }
-  const to = from + windowMs;
+  // ★ R4c (re-verify finding) — THE WINDOW IS ALSO CAPPED AT THE RESOLUTION TIME.
+  // A fixed 24h window can reach PAST `now`, admitting evidence that has not happened
+  // yet relative to the resolution — evidence the resolver is not entitled to use.
+  const cap = opts.notAfter === undefined ? Number.POSITIVE_INFINITY : Date.parse(opts.notAfter);
+  const to = Math.min(from + windowMs, Number.isFinite(cap) ? cap : Number.POSITIVE_INFINITY);
 
   for (const r of records) {
     const at = Date.parse(r.at);
@@ -161,7 +173,9 @@ export function gather(
         ev.notes.push(`testFailed @${r.at} — a test ran after the fire and did NOT pass`);
       } else {
         // ★ O1: NO signal. The record says nothing, so it corroborates nothing.
-        ev.notes.push(`test @${r.at} — no pass/fail flag, so it cannot corroborate anything (no signal emitted)`);
+        const note = `test @${r.at} — no pass/fail flag, so it cannot corroborate anything (no signal emitted)`;
+        ev.notes.push(note);
+        ev.dismissed.push(note);
       }
     } else if (r.kind === "withdraw") {
       // "withdrawn or restated WITH a span" — a bare retraction is noise.
@@ -169,7 +183,9 @@ export function gather(
         ev.withdrawn = true;
         ev.notes.push(`withdrawn @${r.at} with a bound span — the claim was retracted with proof`);
       } else {
-        ev.notes.push(`withdraw @${r.at} WITHOUT a span — ignored (a bare retraction proves nothing)`);
+        const note = `withdraw @${r.at} WITHOUT a span — ignored (a bare retraction proves nothing)`;
+        ev.notes.push(note);
+        ev.dismissed.push(note);
       }
     } else if (r.kind === "permit") {
       ev.permitted = true;
@@ -200,8 +216,7 @@ export function classify(ev: Evidence): Classification {
   // confirmed/refuted) silently dropped the span-less withdrawals and flag-less tests
   // that `notes` had recorded — contradicting this function's own header. The notes
   // that did NOT become signals are exactly the ones a reader needs to audit.
-  const dismissed = ev.notes.filter((n) => /dismissed|WITHOUT a span|cannot corroborate|unparseable/i.test(n));
-  const seen = dismissed.length > 0 ? ` (presented but dismissed: ${dismissed.join("; ")})` : "";
+  const seen = ev.dismissed.length > 0 ? ` (presented but dismissed: ${ev.dismissed.join("; ")})` : "";
   if (ev.laterEdit || ev.testsFailed > 0 || ev.withdrawn) {
     const why = [
       ev.laterEdit ? "a later edit revisited the target" : "",
@@ -218,13 +233,14 @@ export function classify(ev: Evidence): Classification {
       signals: ev.signals,
     };
   }
-  if (ev.signals.length >= 2) {
-    return {
-      truth: "refuted",
-      basis: `refuted ${tags} — ${ev.signals.length} independent corroborating signals, none of them a failure${seen}`,
-      signals: ev.signals,
-    };
-  }
+  // ★ R1b (re-verify finding) — A `>= 2 signals` BRANCH USED TO LIVE HERE AND IT
+  //   COULD NEVER EXECUTE. `signals` is a set of DISTINCT names; after the harm
+  //   early-return (laterEdit | testFailed | withdrawn) and the permit early-return,
+  //   the only name `gather` can still emit is `testPassed` — at most one element.
+  //   A documented rule with no reachable path is theatrical code, so it is REMOVED
+  //   rather than left as a comment claiming a capability the vocabulary cannot
+  //   produce. If the vocabulary ever gains a second non-harm signal, the branch
+  //   comes back WITH a test that reaches it.
   if (ev.signals.length === 1) {
     return {
       truth: "unresolved",
@@ -263,13 +279,25 @@ export function resolveAll(
   // no rollback, and the caller received neither a report nor a clean state.
   const stamp = now();
   const stampMs = Date.parse(stamp);
-  for (const { row } of pairs) {
+  // ★ R4b (re-verify finding) — VALIDATE ONLY THE ROWS THIS CALL COULD WRITE.
+  // The first version validated EVERY pair, so a row that would have been SKIPPED
+  // (already resolved) could abort the whole batch. A pre-validation must not be
+  // broader than the write it guards.
+  //
+  // ★ AND THE STAMP CHECK IS INDEPENDENT OF THE EVIDENCE WINDOW. Capping the window at
+  // the stamp (R4c) means a stamp BEFORE the fire yields no evidence — which would
+  // make the row SKIPPED and hide the caller's clock bug behind a silent no-op. The
+  // kernel's law is LOUD: a resolution that does not follow its fire is a caller
+  // error and it is named here, before any window logic can absorb it.
+  const unresolved = pairs.filter((p) => ledger.truthOf(p.row.stateHash) === "unresolved");
+  for (const { row } of unresolved) {
     if (!Number.isFinite(stampMs) || !Number.isFinite(Date.parse(row.at)) || !(stampMs > Date.parse(row.at))) {
       throw new Error(
         `GI_ORACLE_TIME_TRAVEL: resolution stamp ${stamp} is not after the fire's at ${row.at} (state ${row.stateHash}) — refusing the WHOLE batch so no partial write can occur`,
       );
     }
   }
+
   for (const { row, subject } of pairs) {
     // ★ THE LEDGER SPEAKS, NOT THE CALLER. `null` = the row is not in this
     //   ledger at all — resolving a phantom would write a truth for a fire that

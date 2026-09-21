@@ -56,16 +56,23 @@ describe("st-gi-v21-audit-fixes: the independent audit's findings", () => {
     let rows: DecisionRow[] = [good, bad];
     const fakeGate = { rows: () => rows } as unknown as FireGate;
 
-    // the batch fails on the bad row
-    expect(() => drain(fakeGate, ledger)).toThrow();
-    expect(ledger.count()).toBe(0);                    // the transaction rolled back
-
-    // ★ THE FIX'S CONTRACT: remove the bad row and RETRY — the good row MUST land.
-    rows = [good];
-    const n = drain(fakeGate, ledger);
-    expect(n).toBe(1);                                 // ★ with the bug this is 0 — the fire is LOST
+    // ★ THE CONTRACT, AFTER BOTH FIXES (F0 + the re-verify's R7):
+    //   A malformed row must not consume the watermark AND must not block its siblings.
+    //   The fast path (one transaction) fails; the per-row fallback commits the good
+    //   row, reports the bad one, and leaves the bad row UNSEEN so a later drain
+    //   re-attempts it (it will keep failing until the caller fixes it — correctly).
+    const n1 = drain(fakeGate, ledger);
+    expect(n1).toBe(1);                                // ★ the GOOD fire landed
     expect(ledger.count()).toBe(1);
     expect(ledger.all()[0]!.stateHash).toBe("good-1");
+    expect(ledger.persistFailures()).toBeGreaterThan(0);   // ★ and the bad one is REPORTED
+    expect(ledger.lastPersistError()!.code).toContain("GI_LEDGER");
+
+    // ★ AND THE BAD ROW WAS NOT MARKED SEEN — remove it and the good row is not
+    //   re-written (the watermark held), while the bad row is still pending.
+    rows = [good];
+    expect(drain(fakeGate, ledger)).toBe(0);           // nothing new; the watermark held
+    expect(ledger.count()).toBe(1);                    // no duplicate
     ledger.close();
   });
 

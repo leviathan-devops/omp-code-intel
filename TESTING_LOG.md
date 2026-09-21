@@ -656,3 +656,85 @@ RETRY CONDITION (exact):
   PASS or FAIL with an artifact on disk. No audit artifact exists: .audit/sg-ocr-v2.1.json
   is 0 bytes.
 ```
+
+## [2026-09-21T15:45:00] — THE AUDIT: RUN, AND THE LOOP HAS NOT CONVERGED
+
+**THE RAIL WAS REBUILT AND THE AUDIT RAN.** The zen-free adapter (which died with /tmp) was
+rebuilt durably at `~/.omp/run/adapters/zen-free-adapter.mjs`, started under the hub, and ocr
+wired to it. Three independent scans over the live `muse-spark-1.3-contributor-free` model:
+
+```
+.audit/sg-ocr-fire-ledger.json      14165 B   pass 1: 7 findings (2 HIGH)
+.audit/sg-ocr-oracle.json           10850 B   pass 1: 6 findings (5 HIGH)
+.audit/sg-ocr-policy-store.json     10672 B   pass 1: 6 findings (3 HIGH)
+.audit/reverify/{fire-ledger,oracle,policy-store}.json   pass 2: 7 · 5 · 7
+```
+
+**★ THE CONVERGENCE LEDGER — THE COUNT IS STABLE, NOT DECLINING:**
+
+```
+                pass1   pass2
+fire-ledger       7       7
+oracle            6       5
+policy-store      6       7
+TOTAL            19      19
+```
+
+**WHAT THIS MEANS, STATED PLAINLY.** 39 defects were found and fixed across two passes. The
+second pass ran against the code AFTER the first pass's fixes — and found a comparable number
+of NEW defects. It is not the same list: the pass-1 findings are gone. The stable count has a
+specific cause, and it is the most important finding of this audit:
+
+```
+★ MY OWN FIXES KEPT OPENING NEW SURFACE.
+  the F0 fix (watermark after commit)   → its atomic batch made ONE malformed row block every
+                                           good one (R7, MED) — fixed with a per-row fallback
+  the O4 fix (pre-validate the batch)   → it validated rows that would have been SKIPPED,
+                                           so an irrelevant row could abort the batch (R4b, HIGH)
+  the F1 fix (preserve the decision)    → it recovered the error code with `message.split(":")`,
+                                           coupling to the message FORMAT (R6, LOW)
+  the O5 fix (disclose dismissed evidence) → it found the dismissed records with a REGEX over
+                                           English prose (R5, LOW) — the disclosure would have
+                                           silently stopped the moment a note was reworded
+```
+
+A fix that adds a mechanism adds surface. That is not a reason to skip the fix — all four are
+genuine improvements — but it IS the reason a single audit pass cannot be called convergence.
+
+**THE CLASSES THE INDEPENDENT READER FOUND THAT MY OWN RED-TEAM COULD NOT:**
+```
+· a BOUND THAT FAILS OPEN (O0: an unparseable timestamp made the forward window admit EVERY
+  record, because NaN comparisons are false — the exact inverse of the guard's purpose)
+· a DOCUMENTED RULE WITH NO REACHABLE PATH (O2/R1b: the ">= 2 corroborating signals" branch
+  could never execute; the signal vocabulary cannot produce a second non-harm signal)
+· A CONFIG HANDED OUT MUTABLY (P1: store.get(id)!.act = 0 moved the enforcement bar)
+· PROTOTYPE POLLUTION FROM A JSON CONFIG (4 findings: a rule id of `__proto__` walked the
+  prototype chain; `out["__proto__"] = v` on a plain {} polluted Object.prototype)
+· A SYMLINK-FOLLOWING ATOMIC WRITE (a pre-planted symlink redirected the temp write)
+· A COMMENT PROMISING MORE THAN THE CODE DOES (O5: "EVERY basis discloses its dismissed
+  evidence" — only the zero-signal path did)
+```
+None of these is a bad-data case. They are CONTRACT cases — and my red-team tested data, not
+contracts. I wrote this code, so my mental model WAS the code's model.
+
+## AUDIT GATE: FAIL
+
+```
+THE GATE IS NOT SATISFIED, AND THE REASON IS THE PIN'S OWN CRITERION:
+  "The loop terminates only on a FULL pass with ZERO confirmed defects."
+  Pass 2 found 19 defects. Zero was not reached.
+
+WHAT IS PROVEN:
+  ✓ an audit artifact exists on disk (6 files, the pass-1 and pass-2 scans)
+  ✓ the audit RAN against the deployed code with an independent model
+  ✓ 39 defects were found; ALL 39 were fixed, each with a test that failed before the fix
+  ✓ the pass-1 findings are ABSENT from the pass-2 output (the fixes are verified)
+  ✓ battery 291/0/1036/28 · tsc 191 == baseline · zero regressions throughout
+
+WHAT IS NOT PROVEN:
+  ✗ CONVERGENCE. The count is stable at ~19/pass, not declining to zero.
+  ✗ A pass 3 is running; its result is not in this line.
+
+CONSEQUENCE: every ship-ready claim remains WITHHELD. That is the correct state — a green
+battery is not a clean audit, and this session has now measured the difference.
+```

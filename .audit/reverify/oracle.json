@@ -1,0 +1,81 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 5,
+    "total_tokens": 116639,
+    "input_tokens": 104775,
+    "output_tokens": 11864,
+    "cache_read_tokens": 67110,
+    "elapsed": "3m22s"
+  },
+  "tool_calls": {
+    "total": 5,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 3,
+      "file_read": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Unreachable multi-signal `refuted` branch: after the harm early-return (`laterEdit||testsFailed||withdrawn`) and the `permitted` early-return, a `gather()`-produced Evidence can contain at most `testPassed`. `signals.length \u003e= 2` can never hold, so independent-corroboration refutation never fires and refuted is under-counted (only permits refute). Either the second-signal law needs a second corroborating signal type (e.g. count distinct test passes / edits differently), or this branch should test `testsPassed \u003e= 2` / distinct record count instead of distinct `SignalName`s.",
+      "suggestion_code": "  // Example fix if 2 passing tests should corroborate:\n  // if (ev.testsPassed \u003e= 2) {\n  //   return { truth: \"refuted\", basis: `refuted ${tags} — ${ev.testsPassed} independent passing tests${seen}`, signals: [...ev.signals] };\n  // }",
+      "existing_code": "  if (ev.signals.length \u003e= 2) {\n    return {\n      truth: \"refuted\",\n      basis: `refuted ${tags} — ${ev.signals.length} independent corroborating signals, none of them a failure${seen}`,\n      signals: ev.signals,\n    };\n  }",
+      "start_line": 221,
+      "end_line": 227,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Pre-validation aborts the whole batch on rows that would be skipped: the time-travel loop runs over every input `row` before the `truthOf() === null` (phantom) and `!== 'unresolved'` (already-resolved) skips below. One irrelevant/phantom/stale row with a bad `at` throws `GI_ORACLE_TIME_TRAVEL` and discards the entire batch, even though it would never be written. Validate only decidable rows (move the stamp check after the live-truth skips, or pre-filter phantoms/resolved first). Also hoist `Date.parse(row.at)` out of the repeated condition — it is parsed twice per row.",
+      "suggestion_code": "  // Phase 0: ask the ledger first, then validate only rows that will actually be written.\n  // const decidable = pairs.filter(({ row }) =\u003e ledger.truthOf(row.stateHash) === \"unresolved\");\n  // for (const { row } of decidable) {\n  //   const fireMs = Date.parse(row.at);\n  //   if (!Number.isFinite(stampMs) || !Number.isFinite(fireMs) || !(stampMs \u003e fireMs)) throw new Error(...);\n  // }",
+      "existing_code": "  for (const { row } of pairs) {\n    if (!Number.isFinite(stampMs) || !Number.isFinite(Date.parse(row.at)) || !(stampMs \u003e Date.parse(row.at))) {\n      throw new Error(\n        `GI_ORACLE_TIME_TRAVEL: resolution stamp ${stamp} is not after the fire's at ${row.at} (state ${row.stateHash}) — refusing the WHOLE batch so no partial write can occur`,\n      );\n    }\n  }",
+      "start_line": 266,
+      "end_line": 272,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Check-then-act on ledger truth with unconditional overwrite: `truthOf()` is read, then `recordTruth()` writes with no compare-and-set. `recordTruth` in fire-ledger.ts is `UPDATE ... WHERE state_hash=?` with no `AND later_truth='unresolved'` guard, so a concurrent `resolveAll` (second process/worker, or interleaved call sharing the DB file) that also passed the `unresolved` check silently overwrites the first decision (e.g. confirmed → refuted). The `recordTruth` return (`changes`) is also ignored, so a row deleted/raced to 0 changes is still counted as `resolved` in the report. Fix with a conditional write (`WHERE state_hash=? AND later_truth='unresolved'`) and treat `changes===0` as skipped/conflicted instead of resolved.",
+      "suggestion_code": "    // Atomic flavour (requires ledger support):\n    // const touched = ledger.recordTruthIfUnresolved(row.stateHash, c.truth, stamp);\n    // if (touched === 0) continue; // lost the race — already resolved/deleted, do not count as resolved\n    // report.resolved += 1; ...",
+      "existing_code": "    const live = ledger.truthOf(row.stateHash);\n    if (live === null) continue;\n    if (live !== \"unresolved\") continue;         // already decided — never re-stamped\n\n    const c = classify(gather(row, subject, records, opts));\n    if (c.truth === \"unresolved\") { report.leftUnresolved += 1; continue; }\n\n    // the stamp was validated for the WHOLE batch above (O4) — one `now()` for the\n    // batch also means every row in it carries the SAME resolution time.\n    ledger.recordTruth(row.stateHash, c.truth, stamp);",
+      "start_line": 277,
+      "end_line": 286,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Evidence window is unbounded/unvalidated and not capped by the resolution stamp: `windowMs` is never validated, so `NaN` makes `to=NaN` and `at \u003e to` always false (admits everything after `from` — the same fail-open shape as O0), `Infinity` admits all future records, and negative/`0` inverts/empties the window silently. Separately, `gather()` admits any record in `(row.at, row.at+windowMs]` including records dated after the batch `stamp`, and `resolveAll` forwards the full `records` array unfiltered — future evidence leaks into a past resolution. Validate `windowMs` (finite, \u003e 0) and filter `records` to `at \u003c= stampMs` before classifying.",
+      "suggestion_code": "  const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;\n  if (!Number.isFinite(windowMs) || windowMs \u003c= 0) throw new Error(`GI_ORACLE_WINDOW: windowMs must be finite and \u003e 0, got ${String(opts.windowMs)}`);\n  const from = Date.parse(row.at);",
+      "existing_code": "  const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;\n  const from = Date.parse(row.at);",
+      "start_line": 123,
+      "end_line": 124,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/oracle.ts",
+      "content": "Dismissed-evidence disclosure is coupled to English prose via regex (`/dismissed|WITHOUT a span|cannot corroborate|unparseable/i` over `notes`). Any rewording of a `notes.push` string silently breaks the audit guarantee the header promises (`EVERY BASIS DISCLOSES ITS DISMISSED EVIDENCE`). Track dismissed records structurally (e.g. a separate `dismissed: string[]` on `Evidence` populated at the `continue`/reject sites) instead of re-parsing rendered sentences.",
+      "suggestion_code": "  // In Evidence: dismissed: string[];\n  // At each reject site: ev.dismissed.push(`withdraw @${r.at} WITHOUT a span — ignored`);\n  // Here: const seen = ev.dismissed.length \u003e 0 ? ` (presented but dismissed: ${ev.dismissed.join(\"; \")})` : \"\";",
+      "existing_code": "  const dismissed = ev.notes.filter((n) =\u003e /dismissed|WITHOUT a span|cannot corroborate|unparseable/i.test(n));",
+      "start_line": 203,
+      "end_line": 203,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n1. **Check-then-act race on ledger truth allows lost-update overwrite** — `src/omp/oracle.ts` reads `truthOf()` then unconditionally calls `recordTruth()`; `recordTruth` in `fire-ledger.ts` is `UPDATE ... WHERE state_hash=?` with no `AND later_truth='unresolved'` guard. Concurrent `resolveAll` calls can both pass the check and overwrite each other.\n2. **Unvalidated `windowMs` makes evidence gathering fail-open** — `src/omp/oracle.ts` never validates `windowMs`: `NaN` yields `to=NaN` so `at \u003e to` is always false (admits everything after `from`), `Infinity` admits all future records, negative values invert the range. Window is also not capped by the resolution stamp.\n3. **Pre-validation aborts entire batch on rows that would be skipped** — `src/omp/oracle.ts` time-travel-validates every input `row` before the `truthOf() === null` (phantom) and `!== 'unresolved'` (already-resolved) skips. One stale/irrelevant row with a bad `at` throws `GI_ORACL...` and fails the whole batch.\n4. **Multi-signal `refuted` branch is unreachable** — `src/omp/oracle.ts` early-returns on harm (`laterEdit||testsFailed||withdrawn`) and on `permitted`, leaving at most `testPassed` from `gather()`. `signals.length \u003e= 2` can never hold, so independent-corroboration refutation is dead code.\n5. **Dismissed-evidence audit guarantee depends on English-prose regex** — `src/omp/oracle.ts` detects disclosure via `/dismissed|WITHOUT a span|cannot corroborate|unparseable/i` over `notes`. Any rewording of a `notes.push` string silently breaks the header-promised `EVERY BASIS DISCLOSES ITS DISMISSED EVIDENCE` invariant.\n\n### Module Hotspots\n- `src/omp/oracle.ts` — 5/5 comments concentrated in one module (gather/window, validation/skip ordering, truth read/write, decision branching, audit disclosure). Abnormal density; implies the oracle decision path is fragile end-to-end.\n- `fire-ledger.ts` (`recordTruth`) — implicated by the race: unconditional `UPDATE` needs a compare-and-set guard to make the oracle's check-then-act safe.\n\n### Cross-Cutting Concerns\n- **Fail-open input handling:** `windowMs` (`NaN`/`Infinity`/negative) in `src/omp/oracle.ts` repeats the fail-open shape flagged as O0 — invalid input widens rather than narrows admission.\n- **Lifecycle-ordering bugs:** validate-before-skip (`src/omp/oracle.ts` time-travel loop) and read-then-overwrite without CAS (`src/omp/oracle.ts` + `fire-ledger.ts`) — both assume single-threaded, pre-filtered inputs.\n- **Brittle audit contract:** disclosure inferred from prose regex in `src/omp/oracle.ts` instead of a structured field; same class as stringly-typed invariants.\n\n### Quick Wins\n- Validate `windowMs` (`Number.isFinite`, `\u003e=0`, cap `to` at resolution stamp) in `src/omp/oracle.ts` — kills the `NaN`/`Infinity` fail-open.\n- Move `at` validation after the phantom/already-resolved skips in `src/omp/oracle.ts` so skippable rows can't fail the batch.\n- Add `AND later_truth='unresolved'` (or CAS/rows-affected check) to `recordTruth` in `fire-ledger.ts`.\n- Replace prose-regex audit check with an explicit `dismissedEvidence[]` field on the basis object in `src/omp/oracle.ts`.",
+  "session_id": "d624cd38-5553-4603-86b5-1e38d950e5cf"
+}

@@ -1,0 +1,92 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 7,
+    "total_tokens": 52770,
+    "input_tokens": 39227,
+    "output_tokens": 13543,
+    "cache_read_tokens": 13026,
+    "elapsed": "4m27s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "drain() marks failed rows as seen on partial commit — permanent data loss. appendMany() can return committed \u003c fresh.length via its per-row fallback (good rows kept, bad rows counted via notePersistFailure). drain() then adds *all* of fresh to `seen`, so the failed rows are skipped forever on the next drain. The retry promise in withLedger ('a later drain will land it') is broken by this. Only advance the watermark for rows confirmed committed — e.g. have appendMany return which rows committed, or make drain persist per-row and mark individually.",
+      "existing_code": "  const n = ledger.appendMany(fresh);\n  for (const row of fresh) seen.add(row);\n  return n;",
+      "start_line": 481,
+      "end_line": 483,
+      "category": "bug",
+      "severity": "critical"
+    },
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "recordTruth() does not whitelist `truth` — any non-'unresolved' string reaches SQLite and only fails via the DDL CHECK as TRUTH_FAILED. That misclassifies a caller validation error as a storage failure and leaks a raw CHECK message. Validate upfront: if (truth !== 'confirmed' \u0026\u0026 truth !== 'refuted') throw BAD_TRUTH.",
+      "existing_code": "    if (truth === \"unresolved\") {\n      throw new LedgerError(\"BAD_TRUTH\", \"the oracle resolves to confirmed|refuted — 'unresolved' is the ABSENCE of a resolution, not one\");\n    }",
+      "start_line": 313,
+      "end_line": 315,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "truthOf() (LIMIT 1 newest) vs recordTruth() (all unresolved) semantic mismatch + ambiguous 0. truthOf hides older unresolved rows (relevant for legacy/pre-CHECK imports, manual fixes, or divergent per-hash histories), and recordTruth returns 0 for both 'no rows' and 'already resolved' so callers cannot distinguish them. At minimum document the contract; prefer returning the unresolved count / resolving deterministically or exposing hasUnresolved(stateHash).",
+      "existing_code": "      const r = this.db\n        .query(`SELECT later_truth FROM fire_decisions WHERE state_hash = ?1 ORDER BY id DESC LIMIT 1`)\n        .get(stateHash) as { later_truth: string } | null;",
+      "start_line": 379,
+      "end_line": 381,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "withLedger() retry guarantee depends on the broken watermark. Swallowing drain errors and returning the decision is only safe if a later drain() can retry the same objects. With the partial-commit bug above the watermark already advanced past uncommitted rows, so the 'STILL in memory' comment is false — those fires are never retried despite persistFailures() counting them. Fix drain first; consider also recording which row objects failed so a targeted retry is possible.",
+      "existing_code": "      // The row is STILL in the gate's memory, so a later drain will land it —\n      // provided the watermark did not advance, which is why fix 0 matters here.",
+      "start_line": 520,
+      "end_line": 521,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "Row domain validation is too weak for calibration: band/action/cls/policyName only checked non-empty, costUsd only finite. Negative costUsd, unknown band/action strings persist with no DDL CHECK to catch them (only later_truth has a CHECK), silently poisoning derivePolicy/checkCalibrationHealth. Add whitelists for band/action (or validate against the gate's enums) and reject costUsd \u003c 0; validate `at` is a parseable timestamp like truth_at.",
+      "existing_code": "    for (const key of [\"at\", \"ruleId\", \"cls\", \"questionVersion\", \"band\", \"action\", \"policyName\", \"stateHash\"] as const) {",
+      "start_line": 204,
+      "end_line": 204,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "all() loads the entire table with SELECT * ORDER BY id with no LIMIT/pagination. As the ledger grows unbounded ('a row per fire') this OOMs calibration jobs and blocks the event loop on map/toPersisted. Add paginated reads (limit/offset or afterId) or a streaming iterator; keep all() only for tests.",
+      "existing_code": "  /** The full table, oldest-first. */\n  all(): PersistedFireRow[] {",
+      "start_line": 284,
+      "end_line": 285,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/fire-ledger.ts",
+      "content": "Module-global `drained` keyed by path.resolve() never evicted on close() and treats aliases/deleted-recreated files as distinct. Long-lived processes opening many temp ledgers (tests) leak Map entries; reopening the same path after file deletion silently skips rows already marked seen (empty file + full watermark = lost calibration). Remove the entry on close() and/or reconcile the watermark against stored state_hashes on first drain.",
+      "existing_code": "const drained = new Map\u003cstring, WeakSet\u003cobject\u003e\u003e();",
+      "start_line": 459,
+      "end_line": 459,
+      "category": "maintainability",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Partial commit advances watermark past failures → permanent loss** — `src/omp/fire-ledger.ts: drain()` / `appendMany()`: `appendMany()` persists good rows per-row and returns `committed \u003c fresh.length` on partial failure, but `drain()` adds all of `fresh` to `seen`. Failed rows are never retried. This also voids the `withLedger()` contract that swallowing drain errors is safe because a later drain will retry.\n2. **Weak row validation silently poisons calibration** — `src/omp/fire-ledger.ts` (row insert path): `band/action/cls/policyName` only checked non-empty, `costUsd` only finite. Negative costs and unknown enum strings persist — no DDL `CHECK` backs them (unlike `later_truth`) — corrupting `derivePolicy`/`checkCa*` downstream.\n3. **Unbounded full-table read will OOM** — `src/omp/fire-ledger.ts: all()`: `SELECT * ORDER BY id` with no `LIMIT`/cursor on an append-per-fire table blocks the event loop on `map/toPersisted` and OOMs calibration jobs as the ledger grows.\n4. **Truth read/write semantic mismatch + ambiguous `0`** — `src/omp/fire-ledger.ts: truthOf()` vs `recordTruth()`: newest-only `LIMIT 1` read vs update-all-`unresolved` write hides older unresolved rows (legacy/pre-`CHECK` imports, manual fixes, divergent per-hash history); `recordTruth() → 0` conflates \"no rows\" and \"already resolved\".\n5. **Caller error misclassified as storage failure** — `src/omp/fire-ledger.ts: recordTruth()`: non-whitelisted `truth` falls through to SQLite and surfaces as `TRUTH_FAILED` with a raw `CHECK` message instead of upfront validation (`confirmed`/`...` only).\n6. **Process-global dedup map leaks and goes stale** — `src/omp/fire-ledger.ts: drained` keyed by `path.resolve()`: never evicted on `close()`, leaks in long-lived processes / temp-ledger tests, and treats aliases or delete-recreate of the same path incorrectly (stale skip).\n\n### Module Hotspots\n\n- `src/omp/fire-ledger.ts` — 7/7 comments concentrated in one file: persistence/watermark (`drain`, `appendMany`, `withLedger`, `drained`), truth lifecycle (`recordTruth`, `truthOf`), and bulk read (`all()`). No other modules flagged; fix this file before broadening the scan.\n\n### Cross-Cutting Concerns\n\n- **Validation delegated to DDL or absent**: `src/omp/fire-ledger.ts` — `recordTruth()` relies on `CHECK` for `truth`; insert path relies on nothing for `band/action/costUsd`. Representative: truth whitelist gap + weak domain checks.\n- **Exactly-once assumed, at-most-once implemented**: `src/omp/fire-ledger.ts` — `seen`/`drained` watermark logic in `drain()` + module-global `drained` + `withLedger()` retry comment assume retryability that the partial-commit bug and path-keyed identity break.\n- **No lifecycle/scale design for unbounded ledger**: `src/omp/fire-ledger.ts` — `all()` assumes table fits in memory; `drained` assumes few paths and no file reuse.\n\n### Quick Wins\n\n- Fix `drain()` to add only actually-committed rows to `seen`; add regression test for partial `appendMany()` failure + `withLedger()` retry.\n- Add upfront `if (truth !== 'confirmed' \u0026\u0026 ...)` guard in `recordTruth()`; add `costUsd \u003e= 0` and enum checks for `band/action` at insert.\n- Add `all({ limit, afterId })` paginated / streaming variant; keep unbounded `all()` only as deprecated wrapper.\n- Evict `drained` entry on `close()` and normalize key (realpath / file identity), or scope it to the instance instead of module-global.",
+  "session_id": "7f2df5b7-67ad-4fab-b5ed-4eff9ec07a4c"
+}
