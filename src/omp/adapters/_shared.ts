@@ -38,11 +38,11 @@ export function probePath(p: string, mustBeFile = false): SubstrateProbe {
  *
  *  `probeSocketConnect` is the AUTHORITATIVE probe — it CONNECTS through a synchronous
  *  child process. `probeSocketDir` remains for callers that only need the file listing. */
-export function probeSocketDir(dir: string): SubstrateProbe {
+export function probeSocketDir(dir: string, match: RegExp = /^[0-9a-f]{16}\.sock$/): SubstrateProbe {
   try {
     const st = fs.statSync(dir);
     if (!st.isDirectory()) return { up: false, evidence: `${dir} is not a directory` };
-    const files = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
+    const files = fs.readdirSync(dir).filter((n) => match.test(n));
     if (files.length === 0) return { up: false, evidence: `${dir} — no *.instance.sock (the daemon is not running)` };
     // ★ a socket FILE is a HINT, never liveness. The authoritative answer is a CONNECT
     //   (probeSocketConnect).
@@ -68,10 +68,17 @@ export function probeSocketDir(dir: string): SubstrateProbe {
  *  (0, or an empty-reply code) means the connect SUCCEEDED — the daemon is live. This is the
  *  only liveness proof a synchronous consumer can make, and it never reports a stale file UP.
  */
-export function probeSocketConnect(dir: string, timeoutMs = 1200): SubstrateProbe {
+export function probeSocketConnect(dir: string, timeoutMs = 1200, match: RegExp = /^[0-9a-f]{16}\.sock$/): SubstrateProbe {
+  // ★ AUDIT-CLASS FIX #2 (found by the H-6 fix, 2026-09-23): the engine's sockets are
+  //   `<hash>.sock`; the HOST's are `<hash>.instance.sock` / `<hash>.host.sock`. The first
+  //   version filtered for `.instance.sock` UNCONDITIONALLY — so once the probe was pointed
+  //   at the engine dir (the H-6 fix) it found NOTHING and reported DOWN while the reader
+  //   happily connected to a live `<hash>.sock`. The caller now passes the naming convention
+  //   of the dir it probes: the ENGINE dir uses `<16hex>.sock`; the host dir uses
+  //   `<16hex>.instance.sock`.
   let files: string[];
   try {
-    files = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
+    files = fs.readdirSync(dir).filter((n) => match.test(n));
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} — ${code}` };

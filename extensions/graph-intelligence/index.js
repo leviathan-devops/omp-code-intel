@@ -185639,10 +185639,10 @@ function probePath(p, mustBeFile = false) {
     return { up: false, evidence: `${p} \u2014 ${code}` };
   }
 }
-function probeSocketConnect(dir, timeoutMs = 1200) {
+function probeSocketConnect(dir, timeoutMs = 1200, match = /^[0-9a-f]{16}\.sock$/) {
   let files;
   try {
-    files = fs20.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
+    files = fs20.readdirSync(dir).filter((n) => match.test(n));
   } catch (e) {
     const code = e.code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} \u2014 ${code}` };
