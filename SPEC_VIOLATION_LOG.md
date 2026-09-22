@@ -109,3 +109,506 @@ SV-5  W8's artifact is the BATTERY run, not the scenario-driver Phase F with byt
       RESOLUTION: recorded INSIDE the artifact's `method.honestScope` field so no reader
       can over-claim it. The rig requirement is met; the full token contract is not.
 ```
+
+---
+
+# §SV-DIST · THE SPEC-LEVEL ANALYSIS OF F-95
+## How the spec's success criteria, wave plan, and gates permitted an unbuilt dist
+**Date:** 2026-09-22 · **Class:** SPEC-PERMITTED-THEATRE · **Severity:** CRITICAL
+
+---
+
+## SV-95.0 · THE CHARGE
+
+> *"how this was even FUCKING ALLOWED and not caught AT ANY POINT on any checkpoints, commits, PRs, test"*
+
+**The spec did not merely fail to catch it — THE SPEC MADE IT POSSIBLE.** This entry maps every spec section that permitted an unbuilt dist, and states the amendment each requires.
+
+---
+
+## SV-95.1 · THE VIOLATED SPEC SECTIONS (the mapping)
+
+```
+THE AUTHORITY: packages/gi-kernel-v2.1/GI_KERNEL_V2.1_DPL1_SPEC.md (527 L)
+               + GI_KERNEL_V2.1_MASTER_BLUEPRINT_v1.md (903 L)
+               + 06-WAVES.md
+
+┌─────┬────────────────────────────┬──────────────────────────────────────────────┐
+│ §   │ THE SPEC SAYS              │ WHAT IT PERMITTED (the gap)                   │
+├─────┼────────────────────────────┼──────────────────────────────────────────────┤
+│ §4  │ the scope: 12 items, W1-W9 │ every item is a SOURCE artifact; NO item is   │
+│     │                            │ "the dist". The scope had no delivery.        │
+│ §5  │ SC-1..SC-13 mechanical     │ every SC is a SOURCE check (compiles, exit 0, │
+│     │ criteria                   │ tests green). NO SC is "the dist contains X". │
+│ §6  │ RB-GATE, 7 angles          │ the angles review SOURCE. None loads the dist.│
+│ §8  │ T1-T14 script tests        │ all T-n test SOURCE modules. T-n never asserts │
+│     │                            │ a symbol exists in the deployed artifact.     │
+│ §9  │ the container plan         │ the plan names scenarios but NOT the rule that │
+│     │                            │ the container's distSha == the build's dist.  │
+│ §11 │ the manager gate           │ the gate checks docs + battery. NOT the dist.  │
+│ §13 │ the interfaces (6 module   │ the interfaces are TS contracts. Whether they │
+│     │ contracts)                 │ reach the dist is unaddressed.                │
+│ §14 │ the failure modes table    │ the modes are SOURCE failures. "the source    │
+│     │                            │ was never compiled" is NOT a listed mode.     │
+└─────┴────────────────────────────┴──────────────────────────────────────────────┘
+★ SEVEN SECTIONS. EVERY ONE ASSUMED THE SOURCE IS THE ARTIFACT.
+```
+
+---
+
+## SV-95.2 · THE WAVE TABLE (root-cause layer 1, at the spec level)
+
+```
+06-WAVES.md, VERBATIM (the wave → deliverable column):
+  W1  fire-ledger.ts      NEW
+  W2  oracle.ts           NEW
+  W3  position A          (fire-gate intent path + kernel-v2 MODIFIED)
+  W4  position B          (gate on each VIOLATION; exit grep FireGate>0)
+  W5  policy-store.ts     NEW
+  W6  calibration.ts      BLOCKED (M2)
+  W7  MEASUREMENT_PLAN.md
+  W8  the container
+  W9  the seal
+★ EVERY WAVE'S DELIVERABLE IS A .ts FILE OR A .md FILE. NOT ONE IS THE DIST.
+★ W8 SAYS "THE CONTAINER" — BUT NAMES NO RULE THAT THE CONTAINER RUNS THE BUILT DIST.
+★ W4's "exit grep FireGate>0" IS THE CLOSEST ANY WAVE COMES TO AN ARTIFACT CHECK — AND IT
+  GREPS THE SOURCE (grep FireGate over src/), NOT THE DIST. THE ONE ARTIFACT-SHAPED GATE
+  WAS AIMED AT THE WRONG TARGET.
+THE SPEC'S OWN POST-MORTEM NAMED THIS ("the wave table is organized BY FILE, NOT BY
+INTELLIGENCE SOURCE") — AND THE v2.1 SPEC REPEATED IT WITH THE DIST.
+```
+
+---
+
+## SV-95.3 · THE SC ROWS (the success criteria that could not fail)
+
+```
+THE SPEC'S §5 SC-1..SC-13, and whether each could have caught F-95:
+
+  SC-1  TypeScript compiles (0 errors)              → SOURCE. Cannot catch it.
+  SC-2  the bundle exits 0                          → SOURCE. Cannot catch it.
+  SC-3  the plugin loads at runtime                 → ★ COULD catch it — IF it asserted
+                                                      the v2 symbols after load. It asserted
+                                                      LOAD, not CONTENT. MISSED.
+  SC-4  the tools return valid results              → the tools are v1.3's tools. MISSED.
+  SC-5  the fire ledger records rows                → ★ COULD catch it — IF it asserted rows
+                                                      in the LIVE ledger. The ledger rows were
+                                                      asserted against the SOURCE's ledger.
+                                                      MISSED.
+  SC-6  the oracle resolves laterTruth              → SOURCE. MISSED.
+  SC-7  the gate blocks a bad edit                  → ★ COULD catch it — IF it drove the LIVE
+                                                      extension. It drove the source module.
+                                                      MISSED.
+  SC-8  the container test passes                   → ★★ THE CLOSEST — and it recorded the
+                                                      v1.3 SHA and passed. MISSED (see §SV-95.4).
+  SC-9  the measurement campaign M1-M12 filled      → SOURCE. MISSED.
+  SC-10 the battery is green                        → SOURCE (0 dist imports). MISSED.
+  SC-11 the audit gate passes                       → SOURCE review. MISSED.
+  SC-12 the docs are current                        → doc presence. MISSED.
+  SC-13 the package audit passes                    → file + SHA presence. MISSED.
+
+★ 3 OF 13 SC ROWS *COULD* HAVE CAUGHT IT (SC-3, SC-5, SC-7) AND WERE WRITTEN AS SOURCE CHECKS.
+★ 10 OF 13 COULD NOT CATCH IT BY CONSTRUCTION.
+★ ZERO SC ROWS NAMED THE DIST. THAT IS THE SPEC-LEVEL ROOT CAUSE.
+```
+
+---
+
+## SV-95.4 · THE CONTAINER PLAN (the gate that ran green on the wrong binary)
+
+```
+THE SPEC'S §9 container plan + the ACTUAL results artifact:
+
+  .trident/container-test-results.json:
+    "distSha": "83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+    "verdict": "PASS"
+  ★ THE ARTIFACT RECORDS THE v1.3 SHA AND A PASS. THE PLAN NEVER REQUIRED THE SHA TO EQUAL
+    THE BUILD'S DIST. The container faithfully ran the binary it was given; the plan never
+    said WHICH binary.
+★ THE MISSING SCENARIO (the one line that would have caught it):
+    "the container's distSha MUST equal the sha256 of the artifact this build produced"
+  ★ WITHOUT THAT LINE, A CONTAINER PASS IS A PASS OF WHATEVER BINARY HAPPENS TO BE DEPLOYED.
+```
+
+---
+
+## SV-95.5 · THE AMENDMENTS (the exact spec changes required)
+
+```
+AMENDMENT 1 · §4 SCOPE — add a DIST item
+  "+ W10 THE DIST: every preceding wave's exported symbols verified present in
+   extensions/graph-intelligence/index.js (the dist-content gate)."
+
+AMENDMENT 2 · §5 SUCCESS CRITERIA — add the artifact rows
+  "SC-14 THE DIST CONTAINS THE BUILD: for each module this spec names, its exported symbols
+   are present in the deployed dist. COMMAND: grep -q <symbol> <dist>."
+  "SC-15 THE DIST IS FRESH: no src/*.ts is newer than the dist. COMMAND: find src -newer <dist>."
+  "SC-16 THE CONTAINER RAN THIS BUILD: container-results.distSha == the build's dist sha."
+
+AMENDMENT 3 · §6 RB-GATE — add the artifact angle
+  "ANGLE 8 · THE ARTIFACT: does the thing that RUNS contain the thing that was BUILT?"
+
+AMENDMENT 4 · §8 SCRIPT TESTS — add the artifact test
+  "T15 test_dist_contains_build: import the DEPLOYED artifact; assert one v2 symbol per
+   module. This is the ONLY test class that can catch F-95."
+
+AMENDMENT 5 · §9 CONTAINER PLAN — add the sha-match precondition
+  "PRECONDITION: container-results.distSha MUST equal sha256(build dist), or the run is VOID."
+
+AMENDMENT 6 · §14 FAILURE MODES — add the mode
+  "FM-DIST: the source was never compiled. DETECTION: any of the five F-95 detectors."
+
+AMENDMENT 7 · 06-WAVES.md — every wave's done-when gains the dist clause
+  "DONE WHEN: the wave's symbols are present in the deployed dist AND the dist is fresh."
+```
+
+---
+
+## SV-95.6 · THE SPEC-PERMITTED-THEATRE CLASS
+
+```
+THE CLASS:  SPEC-PERMITTED-THEATRE
+THE PATTERN: a spec whose every criterion is satisfied by SOURCE-LEVEL facts, over a system
+             whose delivery is an ARTIFACT. The spec is followed perfectly; the artifact is
+             unchanged; every gate is green.
+THE DETECTION (spec-level): grep the spec's §5 for any criterion naming the DELIVERED artifact.
+             ZERO = the spec cannot fail on non-delivery.
+THE INSTANCE: 13 SC rows, 0 naming the dist.
+THE FIX: every spec gains an ARTIFACT criterion. A spec without one is a source-review plan,
+             not a delivery plan.
+★ THE SAME CLASS AT EVERY LAYER:
+    the wave table   → deliverables are files, not edges
+    the SC rows      → criteria are source facts, not artifact facts
+    the checkpoints  → the gate is presence+consistency, not content
+    the tests        → the subject is the source, not the runtime
+  ★ FOUR LAYERS, ONE DEFECT: THE ARTIFACT IS NEVER THE SUBJECT.
+```
+
+---
+
+## SV-95.7 · THE VERDICT
+
+```
+SV-95.1  the spec's §4/§5/§6/§8/§9/§11/§13/§14 — all source-scoped        VIOLATED (by omission)
+SV-95.2  06-WAVES.md W1-W9 — no wave delivers the dist                     VIOLATED
+SV-95.3  SC-1..SC-13 — 10 cannot catch it, 3 could and were source-scoped  VIOLATED
+SV-95.4  the container plan — no sha-match precondition                    VIOLATED
+SV-95.5  the amendments — 7 required                                       PENDING
+★ THE SPEC DID NOT FAIL TO CATCH F-95. THE SPEC WAS BUILT SO THAT F-95 COULD NOT BE CAUGHT.
+★ THAT IS THE HARDEST FINDING IN THIS LOG: THE INSTRUMENT AND THE BLIND SPOT WERE THE SAME
+  DOCUMENT.
+```
+
+---
+
+# §SV-95.8 · THE SC-ROW AUTOPSY (each criterion, and why it was blind)
+
+**The spec's 13 success criteria, examined one at a time. For each: what it asserts, the subject it asserts about, and whether that subject can ever be the runtime.**
+
+## SC-1 · "TypeScript compiles (0 errors)"
+
+```
+THE ASSERTION:  `bunx tsc --noEmit` exits 0.
+THE SUBJECT:    the SOURCE TREE.
+CAN IT CATCH F-95?  NO — BY CONSTRUCTION.
+  A tsc pass is a property of .ts files. It says nothing about whether those files were
+  ever handed to a bundler.
+THE BLINDNESS:  tsc is the FIRST gate in every plan, and it is the most artifact-blind. A
+  perfectly compiling source tree that is never built passes SC-1 forever.
+★ NOTE: tsc ALSO exited 1 with 191 errors (SHIP_MANIFEST) — so SC-1 was not even green, and
+  the ship proceeded anyway. The criterion was both blind AND violated.
+```
+
+## SC-2 · "the bundle exits 0"
+
+```
+THE ASSERTION:  the build command exits 0.
+THE SUBJECT:    the BUILD COMMAND'S EXIT CODE.
+CAN IT CATCH F-95?  NO — AND IT IS THE MOST DECEPTIVE ROW IN THE SPEC.
+  A build command that exits 0 having produced NOTHING still exits 0. An exit code is a claim
+  about the command's own success, never about the artifact's content.
+THE BLINDNESS:  the exit code was treated as proof of the artifact. It is proof of the command.
+★ THE FIX: SC-2 must read "the build command exits 0 AND the artifact's sha changed AND the
+  artifact contains the built symbols." An exit code alone is a status field.
+```
+
+## SC-3 · "the plugin loads at runtime"
+
+```
+THE ASSERTION:  the extension loads.
+THE SUBJECT:    the LOAD, not the CONTENT.
+CAN IT CATCH F-95?  ★ IT COULD HAVE — AND IT DID NOT.
+  "the plugin loads" is satisfied by ANY loadable bundle. The v1.3 bundle loads perfectly.
+  To catch F-95 the criterion needed ONE more clause: "…and exports <the v2 symbols>".
+THE BLINDNESS:  the row stopped at LOAD. Load is a precondition, never a proof.
+★ THE AMENDED ROW: "the plugin loads AND a v2-only symbol is reachable through the loaded
+  module's exports."
+```
+
+## SC-4 · "the tools return valid results"
+
+```
+THE ASSERTION:  the registered tools answer.
+THE SUBJECT:    the tools the RUNTIME registered — which are v1.3's tools.
+CAN IT CATCH F-95?  NO — IT CONFIRMED THE WRONG TOOLS WORKED.
+  The tools answered validly. They were v1.3's tools. A criterion that checks "the tools work"
+  over a runtime whose tools were never replaced is a criterion that certifies the OLD build.
+THE BLINDNESS:  "valid results" without "from the tools this build added".
+```
+
+## SC-5 · "the fire ledger records rows"
+
+```
+THE ASSERTION:  the ledger records rows.
+THE SUBJECT:    the ledger the test constructed — in-process, from the source module.
+CAN IT CATCH F-95?  ★ IT COULD HAVE — AND IT DID NOT.
+  The row-count assertion ran against `src/omp/fire-ledger.ts` imported directly. The LIVE
+  runtime's ledger was never read.
+THE BLINDNESS:  the ledger was read from the SOURCE's instance, never from the DEPLOYED one.
+★ THE AMENDED ROW: "the DEPLOYED extension's ledger file gains rows after a live fire."
+```
+
+## SC-6 · "the oracle resolves laterTruth"
+
+```
+THE ASSERTION:  the oracle resolves.
+THE SUBJECT:    `src/omp/oracle.ts` imported by the test.
+CAN IT CATCH F-95?  NO.
+THE BLINDNESS:  oracle.ts (466 L) is in NO dist. The criterion proved a function in a file
+  the runtime cannot load.
+★ THIS ROW IS THE ARCHETYPE OF THE CLASS: it asserts the correct BEHAVIOR of code that has no
+  REACHABILITY. The test is real; the subject is unreachable.
+```
+
+## SC-7 · "the gate blocks a bad edit"
+
+```
+THE ASSERTION:  a bad edit is blocked.
+THE SUBJECT:    the source's gate module, driven by a synthetic harness.
+CAN IT CATCH F-95?  ★ IT COULD HAVE — AND IT DID NOT.
+  The test drove `registerGraphGate` from the SOURCE with a synthetic `pi`. The LIVE extension
+  registered v1.3's gate. Both "block a bad edit" — the test proved the SOURCE's gate does; the
+  RUNTIME's gate is the one that matters.
+THE BLINDNESS:  the harness stood in for the runtime. A synthetic `pi` is a fixture; the live
+  `pi` is the runtime.
+★ THE AMENDED ROW: "the LIVE session's registered handler blocks a real edit, observed in the
+  session stream."
+```
+
+## SC-8 · "the container test passes"
+
+```
+THE ASSERTION:  the container run's overallVerdict is PASS.
+THE SUBJECT:    ★ THE DEPLOYED DIST — the ONLY criterion that named the artifact.
+CAN IT CATCH F-95?  ★★ IT IS THE ONE ROW THAT TOUCHED THE ARTIFACT. IT STILL MISSED.
+  WHY: the criterion asserted the VERDICT, never the SHA-MATCH. The container faithfully ran
+  the v1.3 dist it was handed and passed. The results artifact RECORDS the v1.3 SHA
+  (.trident/container-test-results.json: distSha=83eb7bba…, verdict=PASS) — THE EVIDENCE OF
+  THE FAILURE WAS IN THE ARTIFACT AND THE CRITERION DID NOT READ IT.
+THE BLINDNESS:  the criterion read the verdict and not the sha. ONE FIELD.
+★ THE AMENDED ROW: "container-results.distSha == sha256(this build's dist) AND verdict == PASS."
+★ THIS IS THE SHARPEST FINDING IN THIS LOG: THE PROOF WAS ALREADY WRITTEN DOWN, IN THE
+  CONTAINER'S OWN RESULTS FILE, AND THE CRITERION NEVER COMPARED TWO NUMBERS.
+```
+
+## SC-9 · "the measurement campaign M1-M12 filled"
+
+```
+THE ASSERTION:  12 measurements have non-TBD values.
+THE SUBJECT:    the SOURCE's behavior, measured in-process.
+CAN IT CATCH F-95?  NO.
+THE BLINDNESS:  "the campaign is filled" is a completeness claim about a document. Twelve
+  measured numbers about unreachable code are twelve correct facts about nothing the runtime does.
+```
+
+## SC-10 · "the battery is green"
+
+```
+THE ASSERTION:  356 pass / 0 fail.
+THE SUBJECT:    the SOURCE (0 of 31 suites import the dist).
+CAN IT CATCH F-95?  NO — IT IS THE PRIMARY INSTRUMENT OF THE BLINDNESS.
+  A green battery of source-subject tests is the strongest possible evidence that the SOURCE is
+  correct and the weakest possible evidence about the RUNTIME. It was cited as the former and
+  believed as the latter.
+THE BLINDNESS:  the battery's SUBJECT was never examined. "356 green" was treated as a
+  property of the SYSTEM.
+★ THE AMENDED ROW: "the battery includes >= 1 dist-importing suite per delivered module."
+```
+
+## SC-11 · "the audit gate passes"
+
+```
+THE ASSERTION:  an independent model reviewed the change.
+THE SUBJECT:    the SOURCE DIFF.
+CAN IT CATCH F-95?  NO — AND THE RAIL WAS BLOCKED ANYWAY.
+  An LLM audit reads a diff. The diff was src/**. No reviewer, human or model, infers "and is
+  this in the binary?" from a source diff — it must be TOLD to check, which means a criterion
+  must say so.
+THE BLINDNESS:  the audit's scope was the diff; the artifact was not in it.
+```
+
+## SC-12 · "the docs are current"
+
+```
+THE ASSERTION:  the docs reflect the state.
+THE SUBJECT:    the docs' internal consistency.
+CAN IT CATCH F-95?  NO.
+THE BLINDNESS:  "current" was defined as doc-vs-doc agreement. The docs agreed with each other
+  about a runtime none of them had measured.
+```
+
+## SC-13 · "the package audit passes"
+
+```
+THE ASSERTION:  the ship package contains its declared files with matching SHAs.
+THE SUBJECT:    FILE PRESENCE + SHA CONSISTENCY.
+CAN IT CATCH F-95?  NO — IT CERTIFIED THE MISLABEL.
+  The package audit verified DIST_SHA.txt == dist/index.js. Both were v1.3. The audit confirmed
+  a consistent, correct, and WRONG package.
+THE BLINDNESS:  consistency was verified; CONTENT was not.
+★ THE AMENDED ROW: "the package's dist contains the package's src's symbols."
+```
+
+---
+
+# §SV-95.9 · THE SPEC-SHAPE ANTI-PATTERN
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│ THE SPEC-SHAPE ANTI-PATTERN (the class this log names)                      │
+├────────────────────────────────────────────────────────────────────────────┤
+│ A SPEC IS WRITTEN WITH N CRITERIA. EVERY CRITERION IS SATISFIED.            │
+│ THE DELIVERABLE IS NOT DELIVERED. NO CRITERION CAN DETECT THIS, BECAUSE     │
+│ NO CRITERION NAMED THE DELIVERABLE.                                        │
+│                                                                            │
+│ THE TEST: grep the spec's §5 for a criterion naming the DEPLOYED ARTIFACT.  │
+│ ZERO HITS = THE SPEC CANNOT FAIL ON NON-DELIVERY. IT IS A SOURCE-REVIEW     │
+│ PLAN WEARING A DELIVERY SPEC'S TITLE.                                      │
+└────────────────────────────────────────────────────────────────────────────┘
+★ THE PATTERN AT EVERY LAYER (the four-fold blindness):
+    the SPEC        → criteria are source facts
+    the WAVE TABLE  → deliverables are files
+    the TESTS       → subjects are source modules
+    the CHECKPOINTS → gates are presence + consistency
+  ★ FOUR INDEPENDENT LAYERS, EACH BLIND IN THE SAME DIRECTION. THE BLINDNESS WAS SYSTEMATIC,
+    NOT ACCIDENTAL.
+```
+
+---
+
+# §SV-95.10 · THE PRIOR SPECS (this was not the first)
+
+```
+THE BUILD PRODUCED SIX SPECS. EACH REPEATED THE SAME BLINDNESS:
+
+  1 GI_OMP_First_Class_Engineering_Report_v1/v2   — no artifact criterion
+  2 GI_OMP_PORT_Engineering_Report_v1/v2          — no artifact criterion
+  3 GI_Interim_Kernel_Engineering_Report_v1       — no artifact criterion
+  4 GI_KERNEL_REBUILD_DPL1_SPEC                   — no artifact criterion
+  5 GI_Graph_Gate_Engineering_Report_v1           — no artifact criterion
+  6 GI_KERNEL_V2.1_DPL1_SPEC                      — no artifact criterion
+
+★ SIX SPECS, ZERO ARTIFACT CRITERIA, ACROSS SEVEN DAYS.
+★ THE v1.3 SHIP PACKAGE'S OWN SHIP_MANIFEST DID RECORD THE DIST SHA ("dist/index.js
+  sha16=83eb7bba9c5e76db") — so the DATA existed. The CRITERION did not. A recorded number
+  that no gate compares is a fact, not a check.
+```
+
+---
+
+# §SV-95.11 · THE VERDICT, RESTATED
+
+```
+SPEC-LEVEL ROOT CAUSE:  the spec's success criteria are SOURCE-scoped, so the spec cannot fail
+                        on non-delivery. Seven sections, 13 SC rows, six specs, one blindness.
+THE PROOF ALREADY ON DISK: the container results recorded the v1.3 SHA beside a PASS verdict.
+                        The criterion read the verdict and never the SHA. ONE FIELD.
+THE AMENDMENTS:         7 required (§SV-95.5), each naming the artifact as a subject.
+THE CLASS:              SPEC-PERMITTED-THEATRE — the instrument and the blind spot are the
+                        same document.
+★ UNTIL EVERY SPEC CARRIES AN ARTIFACT CRITERION, THE NEXT BUILD REPEATS F-95 EXACTLY.
+```
+
+---
+
+# §SV-95.12 · THE GATE CHAIN (every spec gate, in order, and its blindness)
+
+```
+┌────┬──────────────────────┬─────────────────────────────┬──────────────────────────┐
+│ #  │ THE SPEC GATE        │ THE SUBJECT                 │ F-95 BLIND?              │
+├────┼──────────────────────┼─────────────────────────────┼──────────────────────────┤
+│ 1  │ tsc --noEmit         │ .ts files                   │ YES (by construction)    │
+│ 2  │ the build command    │ the command's exit code     │ YES (exit ≠ content)     │
+│ 3  │ the unit battery     │ src/omp/*.ts internals      │ YES (0 dist imports)     │
+│ 4  │ the script tests T1- │ src modules in-process      │ YES (no artifact test)   │
+│    │ T14                  │                             │                          │
+│ 5  │ the RB-GATE angles   │ the source review           │ YES (source-scoped)      │
+│ 6  │ the container run    │ ★ THE DIST — verdict only    │ PARTIAL (missed the sha) │
+│ 7  │ the measurement      │ source behavior             │ YES                      │
+│    │ campaign M1-M12      │                             │                          │
+│ 8  │ the manager gate     │ docs + battery presence     │ YES                      │
+│ 9  │ the audit (ocr)      │ the source diff             │ YES (+ it was BLOCKED)   │
+│ 10 │ the package audit    │ file presence + SHA match   │ YES (consistency ≠ content)│
+│ 11 │ the checkpoint seal  │ presence + project-consistency│ YES (both wrong)        │
+│ 12 │ the doc-current gate │ doc-vs-doc agreement        │ YES (they agreed on v1.3)│
+└────┴──────────────────────┴─────────────────────────────┴──────────────────────────┘
+★ 12 GATES. 1 TOUCHED THE ARTIFACT (the container) AND IT READ THE VERDICT, NOT THE SHA.
+★ 11 GATES WERE BLIND BY CONSTRUCTION. THE 12TH WAS ONE COMPARISON SHORT.
+```
+
+---
+
+# §SV-95.13 · THE SPEC AMENDMENT TEMPLATE (for every future spec)
+
+```
+MANDATORY — EVERY SPEC'S §5 MUST CARRY THESE FOUR ROWS (copy verbatim):
+
+  SC-A  THE DIST CONTAINS THE BUILD
+        for each module this spec names: its exported symbols are present in the deployed
+        artifact.
+        COMMAND:  for s in <symbols>; do grep -q "$s" <dist> || FAIL; done
+        PASS:     every symbol present.
+        FAIL:     any symbol absent → THE SOURCE WAS NOT BUILT.
+
+  SC-B  THE DIST IS FRESH
+        no source file is newer than the artifact.
+        COMMAND:  [ "$(find src -name '*.ts' -newer <dist> | wc -l)" -eq 0 ]
+        PASS:     0 newer files.   FAIL:  any → REBUILD.
+
+  SC-C  THE CONTAINER RAN THIS BUILD
+        the container results' distSha equals the sha256 of the artifact this build produced.
+        COMMAND:  [ "$(jq -r .distSha <results>)" = "$(sha256sum <dist> | cut -d' ' -f1)" ]
+        PASS:     the shas match.  FAIL:  any mismatch → THE CONTAINER PASS IS VOID.
+
+  SC-D  A TEST IMPORTS THE ARTIFACT
+        at least one test suite per delivered module imports the DEPLOYED artifact (not the
+        source) and asserts a module-specific symbol.
+        COMMAND:  grep -l "<dist-path>" tests/*.test.ts | wc -l   >= 1
+        PASS:     >= 1 dist-importing suite.  FAIL:  0 → ALL TESTS ARE SOURCE-SUBJECT.
+
+★ A SPEC WITHOUT SC-A..SC-D CANNOT FAIL ON NON-DELIVERY. ADD THEM OR THE SPEC IS INVALID.
+```
+
+---
+
+# §SV-95.14 · THE CLOSING STATEMENT
+
+```
+THE SPEC WAS NOT WRONG ABOUT ANYTHING IT ASSERTED.
+EVERY CRITERION WAS TRUE. EVERY TEST PASSED. EVERY DOC WAS CONSISTENT.
+AND THE RUNTIME WAS UNCHANGED, BECAUSE NOT ONE CRITERION NAMED THE RUNTIME.
+
+★ A SPEC THAT CANNOT FAIL ON NON-DELIVERY IS NOT A DELIVERY SPEC.
+★ THE FIX IS FOUR ROWS: SC-A, SC-B, SC-C, SC-D.
+★ THEY COST FOUR COMMANDS. THEY WOULD HAVE SAVED 48 HOURS.
+```
+
+---
+
+## SV-95.15 · THE ONE-LINE INDICTMENT
+
+```
+13 success criteria · 12 gates · 7 spec sections · 6 specs · 7 days.
+ZERO criteria named the deployed artifact.
+★ THE SPEC CERTIFIED A BUILD THAT WAS NEVER BUILT, BECAUSE IT ONLY EVER ASKED ABOUT THE SOURCE.
+```

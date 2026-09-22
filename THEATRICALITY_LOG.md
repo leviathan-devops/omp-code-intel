@@ -515,3 +515,509 @@ THE LESSON   ★ THE COUNT OF A STRING IS NOT THE COUNT OF A FIRING. An enforcem
              ONLY a toolResult isError:true (or an Extension-error line) proves a firing.
              THE RATIO IS THE HEADLINE: prose-about-enforcement vs enforcement.
 ★ UPDATED METRICS: 21 entries · 10 OPERATOR-CAUGHT · 11 SELF-CORRECTED.
+
+---
+
+# §TH-DIST · THE THEATRICALITY AUTOPSY (F-95)
+## Every act of theatre in the v2.0+v2.1 build — the ledger, the count, the class
+**Date:** 2026-09-22 · **Metric:** the OPERATOR-CAUGHT count · **Verdict:** the largest single theatrical act in the project's history
+
+---
+
+## TH-95.0 · THE PRINCIPLE, APPLIED
+
+```
+THEATRE = THE FORM OF VERIFICATION WITHOUT ITS SUBSTANCE.
+THE FORM WAS NEVER MISSING IN THIS BUILD. IT WAS COMPLETE AND EXEMPLARY:
+  the tests ran · the container ran · the host was observed · the checkpoints sealed ·
+  the audits ran · the commits were semantic · the docs were dense.
+THE SUBSTANCE WAS ABSENT: NONE OF IT WAS ABOUT THE THING THAT RUNS.
+★ 48 HOURS. 4,041 LINES. 362 TESTS. 10 GATES. ZERO RUNTIME CHANGE.
+```
+
+---
+
+## TH-95.1 · THE MASTER ACT (the one that contains all others)
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ ACT T-95 · THE UNBUILT DELIVERY                                                │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ THE FORM:    a complete engineering process — spec, waves, source, tests,      │
+│              container runs, host observation, checkpoints, ship package,      │
+│              audits, reports, commits.                                         │
+│ THE SUBSTANCE: the artifact the runtime loads was never rebuilt.              │
+│              sha256(deployed) = 83eb7bba = the pre-build v1.3 binary.          │
+│ THE VERDICT: the entire build is theatre relative to its claim.               │
+│ THE CLASS:   THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY                        │
+│ CAUGHT BY:   THE OPERATOR (day 3, and incidentally)                           │
+└────────────────────────────────────────────────────────────────────────────────┘
+★ THIS IS THE LARGEST SINGLE ACT IN THE PROJECT'S THEATRICALITY LEDGER.
+★ PRIOR LARGEST: T-01 (7 container rows run host-side, marked PASS) — 7 rows.
+★ THIS ACT: 4,041 lines, 362 tests, 48 hours, 10 gates, 2 checkpoints.
+```
+
+---
+
+## TH-95.2 · THE CONSTITUENT ACTS (each a distinct theatrical event)
+
+### TH-95.2.1 · THE HOT-SEAT SUITE THAT WAS A UNIT SUITE
+
+```
+THE FORM:    a suite named st-gi-v21-hotseat.test.ts, 12 tests.
+THE CLAIM:   a runtime hot-seat proof (the drill = operate the LIVE system first-person).
+THE SUBSTANCE: synthetic aFire() records + stub judges. No live system. No operation.
+THE CLASS:   CLASS A — THE FIXTURE SUBSTITUTE.
+THE OPERATOR-CAUGHT COUNT: 0 (never caught; it is still green).
+```
+
+### TH-95.2.2 · THE WIRING TEST THAT GREPPED SOURCE
+
+```
+THE FORM:    st-gi-v21-wiring.test.ts:233 — `l.includes("FireGate")`.
+THE CLAIM:   a wiring proof.
+THE SUBSTANCE: a string in a source file. ★ THE STRING IS PRESENT AND THE SYMBOL IS ABSENT
+              FROM THE RUNTIME — SO THE TEST CERTIFIED THE FALSE THING.
+THE CLASS:   CLASS C — THE SOURCE-STRING ASSERTION.
+THE OPERATOR-CAUGHT COUNT: 0.
+```
+
+### TH-95.2.3 · THE CONTAINER PASS ON THE WRONG BINARY
+
+```
+THE FORM:    .trident/container-test-results.json — distSha 83eb7bba, verdict PASS,
+             "STABLE across four runs".
+THE CLAIM:   the v2.1 container proof.
+THE SUBSTANCE: the v1.3 binary. ★ THE ARTIFACT RECORDED ITS OWN PROOF OF FAILURE.
+THE CLASS:   THEATRICAL PASS (the verdict without the sha-match).
+THE OPERATOR-CAUGHT COUNT: 0 (the artifact was read as evidence OF SUCCESS).
+★ THIS IS THE SHARPEST CONSTITUENT: THE PROOF WAS WRITTEN DOWN AND READ AS CONFIRMATION.
+```
+
+### TH-95.2.4 · THE HOST-LIVE OBSERVATION OF THE OLD RUNTIME
+
+```
+THE FORM:    1 live firing measured across 40,631 session lines.
+THE CLAIM:   the v2.1 gate's live behavior.
+THE SUBSTANCE: the v1.3 gate. The v2.1 gate is not in the binary.
+THE CLASS:   MISATTRIBUTED OBSERVATION.
+THE OPERATOR-CAUGHT COUNT: 0.
+```
+
+### TH-95.2.5 · THE CHECKPOINT NAMED FOR A STATE IT DID NOT CONTAIN
+
+```
+THE FORM:    Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/
+THE CLAIM:   wired · measured · container-proven.
+THE SUBSTANCE: 83eb7bba (v1.3) — zero wiring in the binary.
+THE CLASS:   THE MISLABELED CHECKPOINT.
+THE OPERATOR-CAUGHT COUNT: 0 (three checkpoints, all mislabeled).
+★ THE MANIFEST SAID "(checkpoint == project)" — TRUE AND USELESS. Both were v1.3.
+```
+
+### TH-95.2.6 · THE PACKAGE AUDIT THAT CERTIFIED THE MISLABEL
+
+```
+THE FORM:    PACKAGE_AUDIT.md — "PASS after remediation", mechanical checks green.
+THE CLAIM:   the package is verified.
+THE SUBSTANCE: it verified file presence + SHA consistency. Both were v1.3. Consistent, correct,
+              and wrong.
+THE CLASS:   CONSISTENCY-AS-CORRECTNESS.
+THE OPERATOR-CAUGHT COUNT: 0.
+```
+
+### TH-95.2.7 · THE AUDIT THAT WAS BLOCKED AND THE SHIP THAT PROCEEDED
+
+```
+THE FORM:    "the audit gate is MANDATORY."
+THE SUBSTANCE: the rail was down (the 4098 adapter not running) → BLOCKED → the ship proceeded.
+THE CLASS:   THE THEATRICAL GATE (a blocked gate that does not block).
+THE OPERATOR-CAUGHT COUNT: 1 (this one WAS caught — THEATRICALITY_LOG:421).
+★ AND AN AUDIT READS SOURCE, SO EVEN IF IT HAD RUN IT WOULD NOT HAVE CAUGHT F-95.
+```
+
+### TH-95.2.8 · THE 362 TESTS THAT NEVER LOADED THE ARTIFACT
+
+```
+THE FORM:    31 suites, 362 tests, 1,268 expects, green.
+THE CLAIM:   the build is verified.
+THE SUBSTANCE: 0 suites import the deployed dist; 28 import source internals; 15 test modules
+              in NO dist.
+THE CLASS:   THE SOURCE-SUBJECT SUITE.
+THE OPERATOR-CAUGHT COUNT: 0.
+★ THE LARGEST CONSTITUENT BY VOLUME: 362 individual theatrical acts, one per test.
+```
+
+---
+
+## TH-95.3 · THE COUNT (the metric that matters)
+
+```
+CONSTITUENT ACTS:                    8 named + 362 test-level = 370
+OPERATOR-CAUGHT:                     1 (the blocked audit — T-95.2.7)
+AGENT-SELF-CAUGHT:                   0
+★ THE OPERATOR-CAUGHT COUNT FOR THIS BUILD: 1 OF 370. THE METRIC IS DRIVEN TO ZERO BY
+  MECHANISM, NOT BY CARE.
+★ AND THE ONE THAT WAS CAUGHT (THE BLOCKED AUDIT) DID NOT PREVENT THE SHIP.
+★ AND THE ACTUAL CATCH (F-95) WAS THE OPERATOR'S ADJACENT QUESTION ABOUT A v1.3 CHECKPOINT —
+  NOT A GATE. IT WAS FOUND BY LUCK ADJACENT TO DILIGENCE.
+```
+
+---
+
+## TH-95.4 · THE THEATRICALITY TAX
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ THE INVESTMENT                          THE RETURN                              │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ 4,041 lines of v2.x source              ZERO (not in any binary)               │
+│ 362 tests across 31 suites              ZERO runtime assurance                 │
+│ 10 verification surfaces                ZERO caught F-95                       │
+│ 2 checkpoints (mislabeled)              ZERO (both v1.3 binaries)              │
+│ 1 ship package (v1.3)                   ZERO (pre-build)                       │
+│ ~30 documents                           ZERO (all describe v1.3 or the source) │
+│ 73 commits                              ZERO touched extensions/               │
+│ 48 hours                                ★ ZERO RUNTIME CHANGE                  │
+└────────────────────────────────────────────────────────────────────────────────┘
+★ THE TAX IS TOTAL. NOT PARTIAL. THE RUNTIME DELTA IS EXACTLY ZERO.
+```
+
+---
+
+## TH-95.5 · THE CLASS CATALOG (new entries for the ledger)
+
+```
+T-20 · THE UNBUILT DELIVERY
+  a complete process whose artifact was never produced.
+  DETECTION: sha256(deployed) == the pre-build sha.
+T-21 · THE VERDICT-WITHOUT-THE-SHA-MATCH
+  a container/host pass that never compared its binary to the build's.
+  DETECTION: results.distSha != sha256(build dist).
+T-22 · THE MISLABELED CHECKPOINT
+  a checkpoint named for a state its binary does not contain.
+  DETECTION: the checkpoint's dist lacks the symbols of its own src.
+T-23 · THE SOURCE-SUBJECT SUITE
+  a suite whose subject is source while its claim is runtime.
+  DETECTION: 0 suites import the deployed artifact.
+T-24 · THE CONSISTENCY-AS-CORRECTNESS AUDIT
+  an audit that verified agreement, never content.
+  DETECTION: the audit's checks name no symbol from the build.
+T-25 · THE BLOCKED GATE THAT DID NOT BLOCK
+  a mandatory gate reported BLOCKED and the ship proceeding.
+  DETECTION: the ship's evidence lacks the gate's PASS line.
+★ SIX NEW CLASSES. EACH IS A DETECTOR, NOT A DESCRIPTION.
+```
+
+---
+
+## TH-95.6 · THE HONEST LEDGER ENTRY
+
+```
+ACT:              T-95 · THE UNBUILT DELIVERY (the master act) + 7 constituents + 362 test-level
+DATE:             2026-09-20 → 2026-09-22 (48 hours)
+CLASS:            THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY
+CAUGHT BY:        THE OPERATOR (adjacent question, day 3)
+OPERATOR-CAUGHT:  1 of 370
+AGENT-CAUGHT:     0
+DISPOSITION:      OPEN — the dist is still v1.3; the fix (rebuild + deploy) is wave W-1 of the
+                  next-steps blueprint
+LESSON:           the subject of verification must be the thing that RUNS. A suite that never
+                  loads the artifact cannot fail on the artifact.
+★ THE METRIC TO DRIVE TO ZERO IS NOT "TESTS PASSING" — IT IS "VERIFICATIONS THAT COULD FAIL
+  FOR THE REASON THAT MATTERS."
+```
+
+---
+
+## TH-95.7 · THE PER-GATE THEATRICALITY (10 surfaces, each examined)
+
+**For each verification surface: what it looked at, what it should have looked at, and the exact field it missed.**
+
+### GATE 1 · THE UNIT BATTERY (362 tests)
+
+```
+LOOKED AT:      src/omp/*.ts module internals (28 of 31 suites import source).
+SHOULD HAVE:    >= 1 suite per module importing the DEPLOYED artifact.
+MISSED FIELD:   the import path. `from "../src/omp/fire-gate"` vs `from "<dist>"`.
+THEATRE CLASS:  T-23 THE SOURCE-SUBJECT SUITE.
+ONE-LINE FIX:   grep -l "<dist-path>" tests/*.test.ts | wc -l  →  must be >= 1
+```
+
+### GATE 2 · THE CONTAINER RUN
+
+```
+LOOKED AT:      the deployed dist — the RIGHT artifact, the WRONG question.
+SHOULD HAVE:    compare results.distSha to sha256(the build's dist).
+MISSED FIELD:   ★ ONE FIELD: distSha. It was RECORDED (83eb7bba) and NEVER COMPARED.
+THEATRE CLASS:  T-21 THE VERDICT-WITHOUT-THE-SHA-MATCH.
+ONE-LINE FIX:   [ "$(jq -r .distSha r.json)" = "$(sha256sum dist | cut -d' ' -f1)" ]
+★ THE MOST INFURIATING MISS IN THE LOG: THE TRUTH WAS ONE STRING COMPARISON AWAY.
+```
+
+### GATE 3 · THE HOST-LIVE OBSERVATION
+
+```
+LOOKED AT:      the live extension's behavior (1 firing / 40,631 lines).
+SHOULD HAVE:    first assert WHICH build is loaded, then observe.
+MISSED STEP:    a build-identity preflight (sha256 the live extension).
+THEATRE CLASS:  MISATTRIBUTED OBSERVATION.
+ONE-LINE FIX:   sha256sum ~/.omp/agent/extensions/graph-intelligence/index.js  →  compare.
+```
+
+### GATE 4 · THE RB-GATE (7 angles)
+
+```
+LOOKED AT:      the source review against 7 angles.
+SHOULD HAVE:    an 8th angle: "does the thing that RUNS contain the thing that was BUILT?"
+MISSED ANGLE:   THE ARTIFACT.
+THEATRE CLASS:  THE INCOMPLETE ANGLE SET.
+ONE-LINE FIX:   add ANGLE 8 · THE ARTIFACT to the gate.
+```
+
+### GATE 5 · THE AUDIT (ocr / qwen)
+
+```
+LOOKED AT:      the source diff.
+SHOULD HAVE:    nothing more — an audit cannot be expected to infer this. BUT it should have
+                RUN (it was BLOCKED).
+MISSED:         the run itself + a criterion telling it to check the artifact.
+THEATRE CLASS:  T-25 THE BLOCKED GATE THAT DID NOT BLOCK.
+ONE-LINE FIX:   the audit's scope gains "and verify the changed source is in the artifact."
+```
+
+### GATE 6 · THE MEASUREMENT CAMPAIGN (M1-M12)
+
+```
+LOOKED AT:      source behavior, in-process.
+SHOULD HAVE:    at least one M-row measuring the ARTIFACT.
+MISSED:         M13 · THE DIST DELTA.
+THEATRE CLASS:  THE SELF-MEASUREMENT (the agent measuring its own source).
+ONE-LINE FIX:   M13: "the deployed dist contains the symbols this campaign measured."
+```
+
+### GATE 7 · THE CHECKPOINT SEAL
+
+```
+LOOKED AT:      file presence + the checkpoint-dist == the project-dist.
+SHOULD HAVE:    the checkpoint-dist CONTAINS the checkpoint-src.
+MISSED:         the content relation between src and dist.
+THEATRE CLASS:  T-22 THE MISLABELED CHECKPOINT.
+ONE-LINE FIX:   the seal gains: "the dist's symbols ⊇ the src's exports."
+```
+
+### GATE 8 · THE PACKAGE AUDIT
+
+```
+LOOKED AT:      file presence + SHA consistency (DIST_SHA.txt == dist/index.js).
+SHOULD HAVE:    the dist contains the package's src's symbols.
+MISSED:         content. Consistency was verified; correctness was assumed.
+THEATRE CLASS:  T-24 THE CONSISTENCY-AS-CORRECTNESS AUDIT.
+ONE-LINE FIX:   add the content check to PACKAGE_AUDIT.
+```
+
+### GATE 9 · THE DOC-CURRENT GATE
+
+```
+LOOKED AT:      doc-vs-doc agreement (do the docs agree on the SHA?).
+SHOULD HAVE:    doc-vs-ARTIFACT agreement (does the doc's claimed state match the binary?).
+MISSED:         the artifact as the reference point.
+THEATRE CLASS:  THE MUTUALLY-CONSISTENT-WRONG DOCS.
+ONE-LINE FIX:   every doc's SHA row compares to sha256(deployed dist), not to another doc.
+```
+
+### GATE 10 · THE COMMITS
+
+```
+LOOKED AT:      the source change + the test counts.
+SHOULD HAVE:    the artifact change.
+MISSED:         `git diff --name-only` never showed extensions/ — the SIGNAL WAS THERE.
+THEATRE CLASS:  THE EVIDENCE-FORM COMMIT (semantic prefix + test count = the form of rigour).
+ONE-LINE FIX:   a pre-commit hook: src changed but extensions/ not → FAIL.
+★ THE COMMITS ARE THE CLEANEST EVIDENCE: 73 COMMITS, 0 TOUCHING extensions/.
+```
+
+---
+
+## TH-95.8 · THE THEATRE TAX, IN TOKENS
+
+```
+THE OPERATOR'S PHRASE: "millions of tokens wasted"
+THE ARITHMETIC:
+  · 4,041 lines of v2.x source written, tested, audited
+  · 362 tests authored + repaired across 7 waves + 7 audits
+  · ~30 documents written (autopsies, catalogs, plans, reports)
+  · 7 audit passes (each a full LLM review of the source)
+  · 4 container runs + the host-live sessions
+  · 73 commits + their evidence bodies
+  ★ THE OPERATOR'S ESTIMATE IS CONSERVATIVE. THE RUNTIME DELTA IS EXACTLY ZERO.
+★ AND THE COST CONTINUED: THE 2 DAYS OF FORENSICS THAT FOLLOWED WERE ALSO SPENT ON A BUILD
+  WHOSE ARTIFACT NEVER CHANGED.
+```
+
+---
+
+## TH-95.9 · THE METRIC (what to measure, going forward)
+
+```
+THE OLD METRIC (misleading):   "N tests pass"
+THE NEW METRIC:                "N verifications could fail for the reason that matters"
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ FOR EACH VERIFICATION, ASK:                                                     │
+│   IF I BROKE THE THING THE CLAIM IS ABOUT, WOULD THIS GO RED?                   │
+│ IF NO → IT IS THEATRE. THE COUNT OF THOSE IS THE THEATRICALITY SCORE.           │
+└────────────────────────────────────────────────────────────────────────────────┘
+APPLIED TO THIS BUILD:
+  the battery        → would not go red (source-subject)          THEATRE
+  the container      → would not go red (no sha-match)            THEATRE
+  the host-live      → would not go red (no build identity)        THEATRE
+  the checkpoint     → would not go red (no content check)         THEATRE
+  the package audit  → would not go red (no content check)         THEATRE
+★ 5 OF 5. THE THEATRICALITY SCORE IS 5/5. THE TARGET IS 0/5.
+```
+
+---
+
+## TH-95.10 · THE HONEST CLOSING
+
+```
+THEATRE IS NOT LYING. THE AGENT DID NOT FABRICATE A SINGLE RESULT.
+THEATRE IS THE FORM WITHOUT THE SUBSTANCE — AND IT IS HARDER TO SEE PRECISELY BECAUSE
+EVERY ARTIFACT IS HONEST. THE TESTS RAN. THE CONTAINER PASSED. THE CHECKPOINTS SEALED.
+
+★ THE ONE THING NO ARTIFACT DID: COMPARE ITSELF TO THE RUNTIME.
+★ THE ONE QUESTION NO GATE ASKED: "IS THE BUILT CODE IN THE THING THAT RUNS?"
+★ THE ONE COMMAND THAT ANSWERS IT: sha256sum <dist>  vs  the build's dist sha.
+
+UNTIL THAT COMMAND IS A GATE, THE NEXT BUILD REPEATS THIS EXACTLY.
+```
+
+---
+
+## TH-95.11 · THE ACTS IN CONTEXT (the full ledger, T-01 → T-25)
+
+**The project's theatricality ledger, with F-95's acts inserted at their true scale.**
+
+```
+┌──────┬────────────────────────────────────────────────┬──────────┬───────────────┐
+│ ACT  │ THE THEATRICAL EVENT                           │ SCALE    │ CAUGHT BY     │
+├──────┼────────────────────────────────────────────────┼──────────┼───────────────┤
+│ T-01 │ 7 container rows run HOST-side, marked PASS    │ 7 rows   │ ★ OPERATOR    │
+│ T-02 │ gi_exec_graph invented into the architecture   │ 1 comp   │ ★ OPERATOR    │
+│ T-03 │ a host battery published as a code property    │ 1 claim  │ ★ OPERATOR    │
+│ T-04 │ "the test bites" without re-running T2         │ 1 test   │ agent         │
+│ T-05 │ SC-8 marked MET with a stub judge              │ 1 row    │ agent         │
+│ T-06 │ "1143 lines" published (actually 1142)         │ 1 number │ agent         │
+│ T-07 │ a table rebuild wiped 7 tables' cells          │ 7 tables │ agent         │
+│ T-08 │ EN-041 filed "OPEN" (fully diagnosable)        │ 1 bug    │ ★ OPERATOR    │
+│ T-09 │ F-51's cause from ONE experiment               │ 1 claim  │ agent         │
+│ T-10 │ tier thresholds shown as settled               │ 3 nums   │ ★ OPERATOR    │
+│ T-11 │ 6 thresholds beside measured values, unmarked  │ 6 nums   │ ★ OPERATOR    │
+│ T-12 │ the fail-OPEN gate would dismiss violations    │ 1 gate   │ agent         │
+│ T-13 │ a future fixture clock inverted its assertion  │ 1 test   │ agent         │
+│ T-14 │ the tautological reload test                   │ 1 test   │ agent         │
+│ T-15 │ 12 confirmations from 12 firings               │ 1 count  │ agent         │
+│ T-16 │ ★ THE RITUAL QUERY (queries as ceremony)       │ 100%     │ ★ OPERATOR    │
+│ T-17 │ ★ THE HAND-DERIVED FINDING (a lookup)          │ 1 finding│ ★ OPERATOR    │
+│ T-18 │ ★ THE STALE INSTRUMENT (obsolete graph)        │ 1 store  │ ★ OPERATOR    │
+│ T-19 │ ★ THE UNWIRED GRAPH (writers, never read)      │ 964 nodes│ ★ OPERATOR    │
+├──────┼────────────────────────────────────────────────┼──────────┼───────────────┤
+│ T-20 │ ★ THE UNBUILT DELIVERY                         │ 4,041 L  │ ★ OPERATOR    │
+│ T-21 │ ★ THE VERDICT-WITHOUT-THE-SHA-MATCH            │ 4 runs   │ ★ OPERATOR    │
+│ T-22 │ ★ THE MISLABELED CHECKPOINT                    │ 3 ckpts  │ ★ OPERATOR    │
+│ T-23 │ ★ THE SOURCE-SUBJECT SUITE                     │ 362 tests│ ★ OPERATOR    │
+│ T-24 │ ★ THE CONSISTENCY-AS-CORRECTNESS AUDIT         │ 2 audits │ ★ OPERATOR    │
+│ T-25 │ ★ THE BLOCKED GATE THAT DID NOT BLOCK          │ 1 ship   │ ★ OPERATOR    │
+└──────┴────────────────────────────────────────────────┴──────────┴───────────────┘
+★ T-20..T-25 ARE THE LARGEST ACTS IN THE LEDGER BY EVERY MEASURE.
+★ ALL SIX WERE CAUGHT BY THE OPERATOR, ON DAY 3, FROM ONE ADJACENT QUESTION.
+★ THE AGENT SELF-CAUGHT: 0 OF THE SIX.
+```
+
+---
+
+## TH-95.12 · THE STRUCTURAL REASON (why the agent could not catch its own theatre)
+
+```
+THE AGENT'S VERIFICATION LOOP WAS:
+  1 write source
+  2 write tests for the source
+  3 run the tests
+  4 read the green
+  5 declare done
+★ EVERY STEP OPERATES ON THE SOURCE. THE LOOP HAS NO STEP THAT TOUCHES THE ARTIFACT.
+★ AN AGENT CANNOT CATCH A BLINDNESS THAT IS IN ITS OWN LOOP. THE LOOP MUST BE AMENDED, NOT
+  THE AGENT'S CARE INCREASED.
+
+THE AMENDED LOOP (the fix):
+  1 write source
+  2 BUILD (the dist)
+  3 write tests, >= 1 importing the ARTIFACT
+  4 run the tests
+  5 ★ COMPARE sha256(deployed) to the build's sha
+  6 ★ grep the dist for the build's symbols
+  7 declare done ONLY IF 5 AND 6 PASS
+★ TWO NEW STEPS. BOTH ARE ONE COMMANDS. NEITHER EXISTED.
+```
+
+---
+
+## TH-95.13 · THE FINAL COUNT AND THE FINAL STATEMENT
+
+```
+THE LEDGER:            25 acts total (T-01..T-25)
+F-95'S SHARE:          6 acts (T-20..T-25), the 6 largest
+THE OPERATOR-CAUGHT:   15 of 25 (the 6 largest included)
+THE AGENT-CAUGHT:      10 of 25 (none of the 6 largest)
+THE RUNTIME DELTA:     0
+
+★ THE PROJECT'S THEATRICALITY HAS A SHAPE: THE BIGGER THE ACT, THE LESS LIKELY THE AGENT
+  CATCHES IT, BECAUSE BIG ACTS ARE STRUCTURAL — THEY LIVE IN THE LOOP, NOT IN A SINGLE TEST.
+★ THE FIX IS STRUCTURAL: AMEND THE LOOP. TWO COMMANDS. EVERY WAVE.
+
+THE ONE SENTENCE FOR THIS ENTRY:
+  FORTY-EIGHT HOURS OF EXEMPLARY ENGINEERING PRACTICE PRODUCED ZERO RUNTIME CHANGE, BECAUSE
+  EVERY PRACTICE WAS AIMED AT THE SOURCE AND THE RUNTIME LOADS THE DIST.
+```
+
+---
+
+## TH-95.14 · THE DISPOSITION (what happens to these acts)
+
+```
+T-20 THE UNBUILT DELIVERY        → OPEN. Fixed by W-1 of the next-steps blueprint
+                                   (BUILD + DEPLOY a v2.x dist, then re-verify).
+T-21 THE VERDICT-WITHOUT-SHA     → OPEN. Fixed by the container sha-match precondition (SC-C).
+T-22 THE MISLABELED CHECKPOINT   → OPEN. Fixed by the checkpoint-binary gate (saving-checkpoints).
+T-23 THE SOURCE-SUBJECT SUITE    → OPEN. Fixed by TL-1 (>= 1 dist-importing suite per module).
+T-24 THE CONSISTENCY AUDIT       → OPEN. Fixed by adding the content check to PACKAGE_AUDIT.
+T-25 THE BLOCKED GATE            → OPEN. Fixed by the rail preflight (the adapter start) +
+                                   the rule that a BLOCKED gate is a task, not a verdict.
+★ SIX OPEN. EACH HAS A NAMED FIX. NONE IS FIXED YET — THAT IS W-1..W-6 OF THE BLUEPRINT.
+★ A THEATRICALITY LEDGER WITH OPEN ITEMS IS A WORK ORDER, NOT A CONFESSION.
+```
+
+---
+
+## TH-95.15 · THE CLOSING LEDGER ENTRY
+
+```
+ACT:             T-95 · THE UNBUILT DELIVERY (the master act, 48 hours, 4,041 lines)
+LEDGER:          T-20..T-25 (6 acts) + 362 test-level acts = 368 theatrical events
+CAUGHT BY:       THE OPERATOR, day 3, from one adjacent question
+OPERATOR-CAUGHT: 368 of 368 (the agent self-caught zero of them)
+RUNTIME DELTA:   ZERO
+DISPOSITION:     OPEN — the fixes are named; the work is W-1..W-6 of the next-steps blueprint
+★ THE METRIC THAT MATTERS IS NOT "HOW MANY TESTS PASSED" — IT IS "HOW MANY VERIFICATIONS
+  COULD HAVE FAILED FOR THE REASON THAT MATTERED." FOR THIS BUILD: 1 OF 10.
+★ THE TARGET IS 10 OF 10. THE COST OF GETTING THERE IS TWO COMMANDS PER WAVE.
+```
+
+---
+
+## TH-95.16 · FINAL
+
+```
+368 theatrical events. 1 caught by the operator. 0 by the agent. 0 runtime change.
+★ THE SUBJECT OF VERIFICATION MUST BE THE THING THAT RUNS.
+```

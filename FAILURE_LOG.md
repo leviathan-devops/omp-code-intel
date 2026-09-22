@@ -530,3 +530,515 @@ at $0 before it exists.
   tell the gate is nearly inert.
 - **Disposition:** OPEN — the fixes are coded in source (loud refusal, resolved-only coverage,
   the corrected tests) but NOT deployed. Rebuild+redeploy is the next step.
+
+---
+
+# §F-DIST · THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY
+## How the entire v2.0 + v2.1 build was never compiled into a dist — and how nothing caught it
+**Entry:** F-95 · **Class:** THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY · **Severity:** CRITICAL · **Date:** 2026-09-22
+
+---
+
+## F-95.0 · THE CHARGE
+
+**The operator's words, verbatim:**
+> *"THE ENTIRE v2.0 + v2.1 BUILD — fire-gate (44 KB), oracle (26 KB), kernel-v2 (23 KB), fire-ledger (33 KB), policy-store (18 KB), calibration, graph-facts, evidence-producer — WAS NEVER COMPILED INTO A DIST. i expect a proper 500+ line report ... THOROUGHLY EXPLAINING HOW THIS WAS EVEN FUCKING ALLOWED and not caught AT ANY POINT on any checkpoints, commits, PRs, test — so literally every single fucking test was completley theatrical. all container test were theatrical, host test was theatrical, millions of tokens wasted."*
+
+**The charge is TRUE.** This entry proves it mechanically, then accounts for every gate that should have caught it.
+
+---
+
+## F-95.1 · THE MEASURED FACTS (every one with its command)
+
+```
+FACT 1 · THE DEPLOYED DIST IS v1.3's BINARY
+  command: sha256sum ~/.omp/agent/extensions/graph-intelligence/index.js
+  output:  83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709  (613,039 B)
+  mtime:   2026-09-20 07:11:08
+
+FACT 2 · THE PROJECT'S OWN extensions/ DIST IS THE SAME BYTES
+  command: sha256sum extensions/graph-intelligence/index.js
+  output:  83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
+  ★ THE PROJECT HAS NEVER PRODUCED A SECOND DIST.
+
+FACT 3 · THE v2.0 AND v2.1 CHECKPOINTS CARRY THE SAME v1.3 BINARY
+  command: sha256sum Checkpoints/gi-kernel-v2*/dist/graph-intelligence/index.js
+  output:
+    gi-kernel-v2-six-layer-stack-rsi-live-jev-validated  83eb7bba9c5e76db  613039 B
+    gi-kernel-v2.0-working-fire-gate-calibration-measured 83eb7bba9c5e76db  613039 B
+    gi-kernel-v2.1-wired-measured-container-proven        83eb7bba9c5e76db  613039 B
+  ★ FOUR ARTIFACTS (the ship package + the live deploy + two checkpoints), ONE BINARY.
+
+FACT 4 · THE DEPLOYED DIST CONTAINS ZERO v2.x CODE
+  command: for sym in runKernelV2 fire-ledger policy-store M-GRAPH evidence-producer \
+                    layer-registry GI_LAYER_UNCONSUMED kernel-v2; do grep -c "$sym" <dist>; done
+  output:  0 0 0 0 0 0 0 0
+  ★ THE v2.x SOURCE IS NOT IN THE BINARY. NOT ONE SYMBOL.
+
+FACT 5 · THE v1.3-ERA SYMBOLS ARE PRESENT
+  command: for sym in registerGraphGate graph-gate GI_NO_STORE hasStore; do grep -c "$sym" <dist>; done
+  output:  2 1 1 2
+  ★ THE BINARY IS THE v1.3 GATE.
+
+FACT 6 · THE SOURCE IS 21-56 HOURS NEWER THAN THE DIST
+  command: stat -c '%y' extensions/graph-intelligence/index.js; ls -t src/omp/*.ts | head -1 | xargs stat -c '%y'
+  output:  dist  2026-09-20 07:11:08
+           newest src  2026-09-22 07:27:53   (src/omp/graph-gate.ts)
+  ★ 48 HOURS OF SOURCE WRITES LANDED IN NO BINARY.
+
+FACT 7 · THE UNCOMPILED v2.x BUILD IS ~4,000 LINES
+  command: wc -l src/omp/{fire-gate,oracle,kernel-v2,fire-ledger,policy-store,calibration,graph-facts,evidence-producer,rsi}.ts
+  output:  fire-gate 798 · oracle 466 · kernel-v2 582 · fire-ledger 635 · policy-store 343 ·
+           calibration 185 · graph-facts 249 · evidence-producer 335 · rsi 448   = 4,041 L
+  ★ FOUR THOUSAND LINES OF BUILT, TESTED, AND NEVER-COMPILED CODE.
+
+FACT 8 · THE CONTAINER TEST PASSED — AGAINST THE v1.3 DIST
+  command: python3 -c "import json; d=json.load(open('.trident/container-test-results.json')); print(d['distSha'], d['verdict'])"
+  output:  83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709  PASS
+  ★ THE CONTAINER TEST'S OWN ARTIFACT RECORDS THE v1.3 SHA AND A PASS VERDICT.
+    THE TEST WAS GREEN, THE SHA WAS v1.3, AND THE CLAIM WAS v2.1.
+
+FACT 9 · NO TEST IMPORTS THE DEPLOYED DIST
+  command: grep -l "extensions/graph-intelligence\|dist/index" tests/*.test.ts | wc -l
+  output:  0
+  command: grep -l "from \"../src/omp" tests/*.test.ts | wc -l
+  output:  28
+  ★ 0 OF 31 SUITES TOUCH THE ARTIFACT; 28 IMPORT SOURCE MODULE INTERNALS.
+
+FACT 10 · 15 SUITES TEST MODULES THAT ARE NOT IN ANY DIST
+  command: grep -l "fire-gate\|kernel-v2\|fire-ledger" tests/*.test.ts | wc -l
+  output:  15
+  ★ 15 SUITES PROVE THE BEHAVIOR OF CODE THE RUNTIME HAS NEVER LOADED.
+```
+
+---
+
+## F-95.2 · THE 5-WHY CHAIN (the mechanism, root to symptom)
+
+```
+WHY 1 · WHY DID THE GATE FIRE ONLY ONCE IN 40,631 LINES?
+  BECAUSE the live extension is the v1.3 gate — a near-inert drift counter — and the v2.1
+  gate (graph-facts.ts M-GRAPH-1..6, the settlement rung) is not in the binary.
+  EVIDENCE: FACT 4 (M-GRAPH=0 in the dist) + the one-firing measurement.
+
+WHY 2 · WHY WAS THE v2.1 GATE NOT IN THE BINARY?
+  BECAUSE no build step ran after the v2.1 source was written. The dist mtime (Sep 20 07:11)
+  precedes every v2.1 module's mtime (Sep 21).
+  EVIDENCE: FACT 6.
+
+WHY 3 · WHY DID NO BUILD STEP RUN?
+  BECAUSE the wave plan's deliverable for every wave was a SOURCE FILE. No wave's deliverable
+  was "the dist". The build step was never a task.
+  EVIDENCE: 06-WAVES.md — W1 fire-ledger.ts, W2 oracle.ts, W3 fire-gate.ts … every wave names
+  a .ts file; NOT ONE names the dist.
+  ★ THIS IS ROOT-CAUSE LAYER 1 FROM THE ENFORCEMENT PLAN, RESTATED AT THE ARTIFACT LEVEL:
+    "the pin's wave table is organized BY FILE, NOT BY INTELLIGENCE SOURCE."
+
+WHY 4 · WHY DID THE WAVE TABLE HAVE NO DIST WAVE?
+  BECAUSE the plan treated the SOURCE as the artifact. The mental model was "write the module →
+  the module exists → the build is done". The DIST — the only thing the runtime loads — was
+  never in the model.
+  ★ THE SAME CATEGORY ERROR THE BUILD ITSELF NAMED: "I treated the 6 graph layers as a
+    REGISTRATION PRECONDITION … I TREATED THE EYES AS A LIGHT SWITCH." Here the eyes are the
+    DIST: its EXISTENCE was assumed, its CONTENT never checked.
+
+WHY 5 · WHY WAS THE CATEGORY ERROR NEVER CAUGHT?
+  BECAUSE every verification surface tested SOURCE, never the ARTIFACT:
+    · the 362 tests import src/omp/*.ts        (FACT 9: 28 suites; 0 dist imports)
+    · the container test asserted a PASS and recorded the v1.3 SHA (FACT 8)
+    · the checkpoints copied whatever dist was on disk and named it "wired" (FACT 3)
+    · no commit gated on a dist rebuild (no pre-commit hook exists)
+    · no PR gate exists (the repo has no remote)
+  ★ ROOT CAUSE: THE ARTIFACT WAS NEVER THE SUBJECT OF ANY VERIFICATION. Every gate verified
+    the SOURCE and the source was correct — so every gate was GREEN and the runtime was v1.3.
+```
+
+**THE ONE-SENTENCE MECHANISM:**
+> **The build's mental model was "source = artifact". The runtime's model is "dist = artifact". Every verification checked the source, so every verification passed, and the runtime never changed.**
+
+---
+
+## F-95.3 · THE THEATRICALITY LEDGER (every gate that should have caught it)
+
+```
+┌────┬──────────────────────────┬──────────────────────────────────────────────┐
+│ #  │ THE GATE                 │ WHAT IT DID — AND WHY IT WAS THEATRICAL       │
+├────┼──────────────────────────┼──────────────────────────────────────────────┤
+│ T-1│ THE UNIT BATTERY (362)   │ imported src/omp/*.ts internals; 0 imported  │
+│    │                          │ the dist. PROVED: the source's logic.        │
+│    │                          │ NEVER PROVED: the source is in the runtime.  │
+│ T-2│ THE CONTAINER TEST       │ .trident/container-test-results.json records │
+│    │                          │ distSha=83eb7bba (v1.3) + verdict=PASS.      │
+│    │                          │ ★ THE TEST PASSED AGAINST THE WRONG BINARY   │
+│    │                          │ AND RECORDED ITS OWN SHA AS EVIDENCE.        │
+│ T-3│ THE HOST-LIVE TEST       │ exercised the live extension = v1.3. Its     │
+│    │                          │ results (1 firing / 40,631 lines) are the    │
+│    │                          │ v1.3 gate's numbers, attributed to v2.1.     │
+│ T-4│ THE PACKAGE_AUDIT        │ checked file presence + SHAs of the docs.    │
+│    │                          │ Never compared the dist to the source build. │
+│ T-5│ THE CHECKPOINT SEAL      │ the v2.0/v2.1 manifests record sha16         │
+│    │                          │ 83eb7bba as "(checkpoint == project)" — a    │
+│    │                          │ TRUE statement that MISSES the point: the    │
+│    │                          │ project dist was itself v1.3.                │
+│ T-6│ THE qwen/ocr AUDIT       │ ran BLOCKED for the sessions in question     │
+│    │                          │ (THEATRICALITY_LOG:421) — and an audit reads │
+│    │                          │ SOURCE, so it would not have caught it.      │
+│ T-7│ THE GIT COMMITS          │ semantic prefixes + evidence bodies. The     │
+│    │                          │ bodies cite test counts. NO COMMIT GATED ON  │
+│    │                          │ A DIST REBUILD. `git diff` never touched     │
+│    │                          │ extensions/.                                 │
+│ T-8│ THE SPEC §6 SUCCESS      │ SC rows assert source-level facts (compiles, │
+│    │ CRITERIA                 │ exit 0). No SC row was "the dist contains    │
+│    │                          │ symbol X".                                   │
+│ T-9│ THE 7 AUDIT PASSES       │ reviewed the SOURCE. Every pass found source │
+│    │                          │ defects. ZERO asked: is the source in the    │
+│    │                          │ artifact?                                    │
+│ T-10│ THE MEASUREMENT CAMPAIGN │ M1-M12 measured SOURCE behavior. M12 read   │
+│    │                          │ the store. None measured the dist.          │
+└────┴──────────────────────────┴──────────────────────────────────────────────┘
+★ 10 GATES. 10 GREEN. THE RUNTIME WAS v1.3 FOR 48 HOURS OF v2.x BUILDS.
+```
+
+---
+
+## F-95.4 · THE RECURRENCE COUNT (this is not new — it is the SAME class)
+
+**The build's own §8 named the pattern; this entry is its most complete instance.**
+
+```
+INSTANCE 1 (early)   B8  hasStore: true HARDCODED — the no-store path never exercised live
+INSTANCE 2 (mid)     V-08  "the populate switch SHIPPED BUT IS UNREACHABLE from graph-query"
+INSTANCE 3 (late)    AR-21 the unwired kernel — a module tested, called by nothing (12 of 23)
+INSTANCE 4 (today)   G-9  the callee-fix-without-the-callsite — gate-middleware.ts:85-90 fixed,
+                          gate-hook.ts:~80 hardcodes hasStore:true, the fix is DEAD
+INSTANCE 5 (today)   ★ F-95 THE DIST ITSELF — 4,041 lines never compiled
+★ FIVE INSTANCES, ONE CLASS: THE SHAPE EXISTS; THE REACHABILITY DOES NOT.
+★ INSTANCE 5 IS THE LIMIT CASE: the shape exists (the source, the tests, the checkpoints, the
+  reports) and the reachability is ZERO (the runtime is v1.3).
+```
+
+---
+
+## F-95.5 · THE FIX (the gates that would have caught it)
+
+```
+GATE 1 · THE DIST-CONTENT GATE (new, mandatory)
+  command: for sym in $(the module's exported symbols); do
+             grep -q "$sym" extensions/graph-intelligence/index.js || FAIL "not in the dist"
+           done
+  ★ A SOURCE FILE WITHOUT ITS SYMBOLS IN THE DIST IS UNBUILT. FAIL THE WAVE.
+
+GATE 2 · THE DIST-FRESHNESS GATE (the pre-commit hook, W-1)
+  command: [ "$(find src -name '*.ts' -newer extensions/graph-intelligence/index.js | wc -l)" -eq 0 ] \
+             || FAIL "src is newer than the dist — REBUILD"
+  ★ ALREADY SPECIFIED in GIT_ENFORCEMENT_MASTER_BLUEPRINT_v1.md W-1. NEVER INSTALLED.
+
+GATE 3 · THE CHECKPOINT-BINARY GATE (new, in saving-checkpoints)
+  ★ A CHECKPOINT'S NAME MUST BE PROVEN BY ITS BINARY, NOT ITS MANIFEST.
+  command: the checkpoint's dist must contain the symbols of the source it claims to encode.
+  ★ A checkpoint named "wired-measured-container-proven" carrying a binary with zero wiring
+    is MISLABELED — the seal must FAIL.
+
+GATE 4 · THE TEST-SUBJECT GATE (W-4)
+  command: every changed file must map to >= 1 test that imports the DEPLOYED artifact.
+  ★ 0 dist-importing tests over a 4,041-line build = the test-reality FAIL.
+
+GATE 5 · THE CONTAINER-SHA GATE (new)
+  ★ the container results' distSha MUST equal the dist the build produced. A container test
+    recording a v1.3 SHA while claiming a v2.1 PASS is a THEATRICAL PASS by definition.
+```
+
+---
+
+## F-95.6 · THE HONEST ACCOUNTING
+
+```
+THE BUILD:            4,041 lines of v2.x source · 362 tests · 7 audit passes · 3 autopsies ·
+                      2 checkpoints · 1 ship package · ~30 docs · 2 days · millions of tokens
+THE RUNTIME EFFECT:   ZERO. The deployed binary is byte-identical to v1.3 (2026-09-20 07:11).
+THE VERDICT:          EVERY VERIFICATION WAS THEATRICAL RELATIVE TO THE CLAIM.
+                      Not because the tests were fake — they were real tests of real source —
+                      but because THE SUBJECT WAS WRONG. They verified the source; the claim
+                      was about the runtime; the runtime never changed.
+★ THE OPERATOR'S WORD "THEATRICAL" IS PRECISE, NOT HYPERBOLE: theatrical = the FORM of
+  verification without its SUBSTANCE. The form was complete. The substance was zero.
+```
+
+**THE LESSON:** *a test that cannot fail for the reason that matters is not a test. 362 tests
+that never load the artifact cannot fail on the artifact. The subject of verification is the
+thing that RUNS, never the thing that was WRITTEN.*
+
+---
+
+## F-95.7 · THE CHECKPOINT FORENSICS (how each checkpoint lied)
+
+**Every checkpoint that should have caught F-95, and the exact reason it did not.**
+
+### F-95.7.1 · `gi-kernel-v2-six-layer-stack-rsi-live-jev-validated` (2026-09-21 08:15)
+
+```
+THE NAME CLAIMS:      six layers · RSI · LIVE · JEV · VALIDATED
+THE BINARY CARRIES:   83eb7bba = v1.3 — zero layers, no RSI, no JEV, no v2 code
+THE MANIFEST SAYS:    "the dist sha16  83eb7bba9c5e76db  (checkpoint == project)"
+★ THE MANIFEST'S STATEMENT IS TRUE AND USELESS: the checkpoint's dist equals the project's
+  dist, and BOTH are v1.3. The comparison was checkpoint-vs-project, never dist-vs-source.
+  ★ THE MISSING COMPARISON: does the dist contain the source it claims to encode?
+THE "VALIDATED" CLAIM:  validated against the SOURCE (the six-layer test suites import
+  src/omp/*.ts). The runtime never loaded it.
+```
+
+### F-95.7.2 · `gi-kernel-v2.0-working-fire-gate-calibration-measured` (2026-09-21 10:33)
+
+```
+THE NAME CLAIMS:      v2.0 · WORKING · FIRE-GATE · CALIBRATION · MEASURED
+THE BINARY CARRIES:   83eb7bba = v1.3 — the fire-gate (798 L) is NOT in it
+★ THE NAME SAYS "WORKING FIRE-GATE". THE BINARY HAS NO FIRE-GATE.
+THE MANIFEST SAYS:    "the dist sha16 83eb7bba9c5e76db (checkpoint == project)" + "MATCH"
+★ "MATCH" CONFIRMED THE CHECKPOINT AGREED WITH A v1.3 PROJECT DIST. The manifest verified
+  consistency with a wrong baseline.
+```
+
+### F-95.7.3 · `gi-kernel-v2.1-wired-measured-container-proven` (2026-09-21 12:13)
+
+```
+THE NAME CLAIMS:      v2.1 · WIRED · MEASURED · CONTAINER-PROVEN
+THE BINARY CARRIES:   83eb7bba = v1.3 — the WIRING (kernel-v2.ts 582 L, graph-facts.ts 249 L)
+                      is NOT in it
+★ "WIRED" + "CONTAINER-PROVEN" OVER A BINARY WITH ZERO WIRING.
+THE MANIFEST SAYS:    "sha256 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+★ THE FULL SHA WAS RECORDED AND CORRECT — for v1.3. THE RECORD WAS ACCURATE AND THE CLAIM
+  WAS FALSE. A correct SHA of the wrong artifact proves nothing.
+```
+
+### F-95.7.4 · THE CHECKPOINT'S STRUCTURAL BLIND SPOT
+
+```
+THE saving-checkpoints SKILL (as it stood) REQUIRED:
+  ✓ src/ present with the full .ts tree (count verified)
+  ✓ dist present with the SHA recorded
+  ✓ the SHA matches the project dist
+  ✗ ★ IT NEVER REQUIRED: the dist CONTAINS the src
+★ THE GATE VERIFIED PRESENCE AND CONSISTENCY, NEVER CONTENT.
+  A checkpoint can carry a full src tree AND a v1.3 binary AND pass every check, because no
+  check asked whether the binary was built FROM that source.
+★ THIS IS THE SAME DEFECT CLASS AS THE BUILD: the SHAPE (a checkpoint with src + dist + docs)
+  without the REACHABILITY (the dist being the source's artifact).
+```
+
+---
+
+## F-95.8 · THE COMMIT FORENSICS (every commit that could have caught it)
+
+```
+THE COMMIT SHAPE (from `git log --oneline`, 73+ commits):
+  feat(v2.1-W1): the fire ledger - src/omp/fire-ledger.ts + 7 tests
+  feat(v2.1-W2): the oracle - src/omp/oracle.ts + 12 tests
+  feat(v2.1-W3): position A - the pre-act advisory, fail-OPEN by type
+  feat(v2.1-W4): ★ THE WIRING - position B, the post-detector filter
+  feat(v2.1-W5): the policy store - D026, data not code
+  ...
+★ EVERY COMMIT MESSAGE NAMES A SOURCE FILE. NOT ONE NAMES A DIST.
+★ `git diff --name-only` FOR EVERY v2.x COMMIT TOUCHES src/ AND NEVER extensions/.
+★ THE COMMITS ARE HONEST ABOUT WHAT THEY DID (write source) AND SILENT ABOUT WHAT THEY DID
+  NOT DO (build the dist). A commit log that never mentions the artifact cannot be audited
+  for the artifact.
+NO PRE-COMMIT HOOK EXISTED:
+  command: ls .git/hooks/ → 24 .sample files, zero live hooks
+  ★ A pre-commit W-1 (src newer than dist → FAIL) WOULD HAVE CAUGHT THIS ON THE FIRST
+    v2.x COMMIT. IT WAS SPECIFIED (GIT_ENFORCEMENT_MASTER_BLUEPRINT_v1.md) AND NEVER INSTALLED.
+NO COMMIT GATED ON THE BUILD:
+  the commit bodies cite test counts ("+ 7 tests", "+ 12 tests") — the evidence form was
+  satisfied by SOURCE tests. No body cites a dist sha change.
+```
+
+---
+
+## F-95.9 · THE PR FORENSICS (the gate that does not exist)
+
+```
+command: git remote -v        → EMPTY
+command: ls .github/workflows/ → ABSENT
+★ THERE IS NO REMOTE AND NO CI. THE PR GATE — the only UNSKIPPABLE enforcement surface —
+  HAS NEVER EXISTED ON THIS PROJECT.
+★ CONSEQUENCE: W-7 (the audit gate), W-4 (test-reality), W-5 (mutation), W-10 (live-firing),
+  W-15 (alignment), W-17 (meaning) — ALL SIX PR-LEVEL GATES WERE UNAVAILABLE.
+★ THE ONLY ENFORCEMENT THAT COULD HAVE CAUGHT F-95 WITHOUT HUMAN ATTENTION WAS THE PR GATE.
+  IT CANNOT RUN. THE LOCAL HOOKS WERE NEVER INSTALLED. SO THE ANSWER TO "WHAT WOULD HAVE
+  CAUGHT IT" IS: NOTHING AUTOMATIC. ONLY A HUMAN ASKING "IS THE CODE I BUILT IN THE THING
+  THAT RUNS?" — WHICH IS THE OPERATOR'S QUESTION, ASKED ON DAY 3.
+```
+
+---
+
+## F-95.10 · THE TEST FORENSICS (the 362, one class at a time)
+
+```
+THE SUITE SHAPE:
+  command: ls tests/*.test.ts | wc -l              → 31 files
+  command: grep -c "test(\|it(" tests/*.test.ts    → 362 tests
+  command: grep -l "from \"../src/omp" tests/*.test.ts | wc -l → 28 import source internals
+  command: grep -l "extensions/graph-intelligence\|dist/index" tests/*.test.ts | wc -l → 0
+
+THE SEVEN THEATRICAL CLASSES (each with a live instance):
+  CLASS A · THE FIXTURE SUBSTITUTE
+    st-gi-v21-hotseat.test.ts — named for a runtime "hot seat", driven by synthetic aFire()
+    records + stub judges. THE NAME CLAIMS A RUNTIME PROOF; THE BODY DRIVES FIXTURES.
+  CLASS B · THE TEST THAT ENCODES THE DEFECT
+    the pre-fix GI_NO_STORE test asserted "no store → ALLOW" as the CONTRACT. Fixing the code
+    failed the test. (Now corrected — see the SIX_ITEM_AUDIT X-5.)
+  CLASS C · THE SOURCE-STRING ASSERTION
+    st-gi-v21-wiring.test.ts:233 — `l.includes("FireGate")` — a grep of SOURCE called a
+    wiring proof. ★ A STRING IN A FILE IS NOT A SYMBOL IN THE RUNTIME.
+  CLASS D · THE UNWIRED-MODULE TEST
+    st-gi-v2-deps.test.ts (11 tests) — hard-deps register mechanics on tmp paths. The module
+    is unreachable from extension.ts. PASSES FOREVER; PROVES NOTHING LIVE.
+    15 suites test fire-gate/kernel-v2/fire-ledger — modules in NO dist.
+  CLASS E · THE SHAPE-ONLY ASSERTION
+    T-13's inverted clock (a fixture clock in the future inverted its own assertion);
+    T-14's tautological reload (re-read what it already had).
+  CLASS F · THE INFLATED COUNT
+    T-15 — 12 confirmations asserted from 12 FIRINGS, no resolution count. Would report
+    perfect precision on zero evidence.
+  CLASS G · THE STUB'S ALIAS
+    X-12 — aether-code-audit + graph-code-audit share `execute`; the stub's test passed
+    under a second name.
+
+★ THE UNIFYING DEFECT: NOT ONE SUITE ASKED "IS THE CODE I AM TESTING IN THE BINARY THE
+  RUNTIME LOADS?" THE QUESTION WAS NEVER IN THE SUITE'S REPERTOIRE.
+★ 362 GREEN TESTS. THE SUBJECT OF EVERY ONE WAS SOURCE. THE CLAIM WAS RUNTIME.
+```
+
+---
+
+## F-95.11 · THE COUNTERFACTUAL (what would have caught it, cheapest first)
+
+```
+CHEAPEST (30 seconds):     `sha256sum extensions/graph-intelligence/index.js` vs the
+                           ship-package DIST_SHA.txt — ONE command, any of 73 commits.
+CHEAP (2 minutes):         `find src -newer <dist> | wc -l` — the W-1 hook, at every commit.
+CHEAP (2 minutes):         `grep -c runKernelV2 <dist>` — the dist-content gate.
+MEDIUM (10 minutes):       one test that imports the DEPLOYED dist and asserts a v2 symbol.
+MEDIUM (the container):    assert the container results' distSha == the build's dist sha.
+STRUCTURAL (the fix):      the wave table names the DIST as every wave's terminal deliverable.
+★ THE FIRST THREE ARE ONE-LINERS. ANY ONE OF THEM, RUN ONCE, WOULD HAVE STOPPED 48 HOURS OF
+  WASTE. NONE WAS RUN, BECAUSE NONE WAS IN ANY PLAN.
+```
+
+---
+
+## F-95.12 · THE SYSTEMIC ACCOUNTING (where the waste went)
+
+```
+THE OUTPUT (48 hours):
+  · 4,041 lines of v2.x source (never compiled)
+  · 362 tests (source-subject, 0 artifact-subject)
+  · 7 audit passes over the source
+  · 3 forensic autopsies
+  · 2 checkpoints (mislabeled)
+  · 1 ship package (v1.3)
+  · ~30 documents
+THE RUNTIME DELTA:
+  ★ ZERO. The binary is byte-identical to 2026-09-20 07:11.
+THE RATIO:
+  48 hours : 0 runtime change.
+★ THE OPERATOR'S "MILLIONS OF TOKENS WASTED" IS ARITHMETICALLY CORRECT AND CONSERVATIVE.
+```
+
+---
+
+## F-95.13 · THE FIVE LAWS THIS EARNS
+
+```
+L-F95-1  THE DIST IS THE ARTIFACT. A source file is not delivered until its symbols are in
+         the binary the runtime loads.
+         DETECTION: `grep -q <exported-symbol> <dist>` per changed module.
+         VIOLATION: 4,041 lines built, zero delivered.
+
+L-F95-2  EVERY WAVE'S TERMINAL DELIVERABLE IS THE DIST (or the wave is not a delivery).
+         DETECTION: the wave-plan gate refuses a wave whose done-when does not include
+         "the dist contains this wave's symbols".
+         VIOLATION: W1-W9 named .ts files; the dist was in no wave.
+
+L-F95-3  A CHECKPOINT'S NAME MUST BE PROVEN BY ITS BINARY, NOT ITS MANIFEST.
+         DETECTION: the checkpoint's dist must contain the symbols of its src.
+         VIOLATION: "wired-measured-container-proven" over a binary with zero wiring.
+
+L-F95-4  A CONTAINER PASS MUST RECORD THE SHA THE BUILD PRODUCED, AND THE TWO MUST MATCH.
+         DETECTION: container-results.distSha == the build's dist sha, or the pass is VOID.
+         VIOLATION: the container recorded the v1.3 sha and passed.
+
+L-F95-5  EVERY TEST THAT ASSERTS RUNTIME BEHAVIOR MUST IMPORT THE DEPLOYED ARTIFACT.
+         DETECTION: the test-reality gate (W-4) — a changed file needs a dist-importing test.
+         VIOLATION: 0 of 31 suites import the dist.
+
+★ THE COMMON ROOT: THE SUBJECT OF VERIFICATION MUST BE THE THING THAT RUNS.
+```
+
+---
+
+## F-95.14 · THE TIMELINE (48 hours, gate by gate)
+
+```
+┌────────────────────┬────────────────────────────────────────┬──────────────────────┐
+│ WHEN               │ WHAT HAPPENED                          │ WHAT WAS CHECKED     │
+├────────────────────┼────────────────────────────────────────┼──────────────────────┤
+│ Sep 20 07:11       │ the v1.3 dist is built + deployed      │ nothing (it is the   │
+│                    │ (83eb7bba) — THE LAST BUILD EVER        │ first)               │
+│ Sep 20 22:22       │ the v1.3 ship package sealed           │ the v1.3 dist vs the │
+│                    │ (DIST_SHA.txt = 83eb7bba)              │ v1.3 source ✓        │
+│ Sep 21 08:14       │ checkpoint "six-layer-stack-rsi-live-  │ checkpoint dist ==   │
+│                    │ jev-validated" saved                   │ project dist ✓ (both │
+│                    │                                        │ = v1.3) ✗            │
+│ Sep 21 10:33       │ checkpoint "v2.0-working-fire-gate-    │ same ✓/✗             │
+│                    │ calibration-measured" saved            │                      │
+│ Sep 21 12:13       │ checkpoint "v2.1-wired-measured-       │ same ✓/✗             │
+│                    │ container-proven" saved                │                      │
+│ Sep 21 17:5x       │ the v2.1 source modules written        │ the tests (source)   │
+│                    │ (fire-gate/oracle/kernel-v2/…)         │ ✓                    │
+│ Sep 22 07:27       │ MORE source written (graph-gate.ts)    │ the tests (source)   │
+│ Sep 22 12:xx       │ ★ THE OPERATOR ASKS "where is the      │ ★ THE DIST vs THE    │
+│                    │ checkpoint for v1.3" → F-95 DISCOVERED │   SOURCE ✗ FOUND IT  │
+└────────────────────┴────────────────────────────────────────┴──────────────────────┘
+★ THE ONLY GATE THAT CAUGHT IT WAS THE OPERATOR'S QUESTION. NO MECHANICAL GATE EVER DID.
+★ AND THE QUESTION WAS ADJACENT — he asked about the v1.3 CHECKPOINT, not the dist. The
+  discovery was incidental. THAT IS HOW CLOSE THIS STAYED TO BEING NEVER FOUND.
+```
+
+---
+
+## F-95.15 · THE ANTI-PATTERN (the class, for the catalog)
+
+```
+CLASS:  THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY
+THE PATTERN:
+  a build produces the SHAPE of a delivered capability — source files, tests, checkpoints,
+  reports, a ship package — while the ARTIFACT THE RUNTIME LOADS remains unchanged.
+THE MECHANICAL DETECTION (any one):
+  ① `grep -q <exported-symbol> <dist>` fails for a module the build claims to deliver
+  ② `find src -newer <dist> | wc -l` > 0
+  ③ `sha256sum <dist>` equals a PRE-BUILD sha
+  ④ 0 test files import the dist
+  ⑤ the container results' distSha ≠ the build's dist sha
+THE INSTANCE: 4,041 lines · 362 tests · 7 audit passes · 2 checkpoints · 48 hours · ZERO
+  runtime change.
+THE INCIDENT CLASS: the SHAPE verified, the REACHABILITY assumed. The same class as B8
+  (hasStore hardcoded), V-08 (shipped-but-unreachable), G-9 (the callee-fix), AR-21 (the
+  unwired kernel) — at the DIST level, where it wastes the most.
+★ THE FIX IS ALWAYS THE SAME: MAKE THE ARTIFACT THE SUBJECT OF THE VERIFICATION.
+```
+
+---
+
+## F-95.16 · THE CLOSING STATEMENT
+
+```
+THIS ENTRY EXISTS BECAUSE NOTHING ELSE ASKED THE QUESTION.
+The source was written. The tests passed. The checkpoints sealed. The reports shipped.
+The audits ran. The commits committed. Every artifact of the process was produced correctly.
+AND THE RUNTIME NEVER CHANGED.
+
+★ THE QUESTION NO GATE ASKED, AND EVERY GATE SHOULD HAVE:
+    "IS THE CODE I JUST BUILT IN THE THING THAT RUNS?"
+★ IT COSTS ONE COMMAND. IT WAS NEVER IN ANY PLAN, ANY TEST, ANY CHECKPOINT, ANY AUDIT.
+★ UNTIL IT IS A GATE, IT WILL HAPPEN AGAIN.
+```
