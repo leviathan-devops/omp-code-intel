@@ -49,7 +49,7 @@ export function buildRegistry(
     graphifyProbe(scopeRoot),
     c2kgProbe(scopeRoot),
     uaProbe(scopeRoot),
-    arsumbrisProbe(),
+    arsumbrisProbe(scopeRoot),
     semanticaProbe(scopeRoot),
     tsgProbe(scopeRoot),
     abideProbe(scopeRoot),
