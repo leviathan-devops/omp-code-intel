@@ -151,3 +151,104 @@ f6fca91 fix(6l2e): ★ THE L2 PROBE WAS LYING — a socket FILE is not a DAEMON
 1dfa41e test(6l2e): the TESTING_LOG entry + AUDIT GATE: BLOCKED
 6183924 test(6l2e-SC5): THE 7-CLASS DERAILMENT CORPUS — 14 pass
 ```
+
+---
+
+# §8 · THE ZERO-TRUST AUDIT (the adversarial verification of THIS report)
+
+**The audit is the last gate before this report becomes canon.** Its verdict on the first pass:
+**REFUTED** on the ship-gate claim.
+
+## 8.1 · What the audit REPRODUCED (11/11 code claims + 9/9 by a blind subagent)
+```
+tsc exit 0 · 349 pass / 0 fail · 26 pass / 0 fail · the corpus at $0
+sha256_16 406a01d12d16153f · 9,433,392 B · src_newer 0 · the dist-content gate PASS
+the container sha MATCH · consumed:7/8 (host) · consumed:6/8 (container)
+the blind subagent (zero context, forbidden to read this report):
+  VERDICT: 9 verified, 0 refuted, 0 unverified — and it INDEPENDENTLY found
+  20 tracked sqlite files / 85 MB without being told the expected answer.
+```
+
+## 8.2 · The THREE frauds the audit found (and their fixes)
+| # | the fraud | the evidence | the fix |
+|---|---|---|---|
+| 1 | **SHA DRIFT (CRITICAL)** | the TRUE dist `3e2c2207c247a069` appeared in NO canon doc; `a8583082` was two rebuilds stale; `THEATRICALITY_LOG` had no SHA | all 5 docs re-stamped (`e7989ec`) |
+| 2 | **SCOPE CREEP (HIGH)** | 64 files / 606,554 insertions; **92 MB of generated stores committed**; 20 tracked sqlite / 85 MB; `.ua`/`.c2kg`/`graphify-out`/`.omp/graph-intelligence` NOT ignored | `.gitignore` + `git rm --cached` → **85 MB → 15 MB** (`c96c5d6`) |
+| 3 | **NAPKIN DOCS (MEDIUM)** | `6L2E_COMPLETION_REPORT` 212 L vs the 2000 floor; `THE_RECEIPT` 153 L vs the 500 floor | expanded with the real material (this section is part of it) |
+
+## 8.3 · ★ THE GATE'S 8 HIGH — ALL REAL, ALL FIXED
+The mandatory gate (`ocr review`, muse-free, effort high) returned `status: partial`,
+**47 comments, 8 HIGH**. **All 8 adjudicated CONFIRMED** — every one a real defect in this build's
+own new code:
+
+| # | the defect | the fix |
+|---|---|---|
+| H-1 | any curl exit ≠7 read LIVE (28=timeout, 2=usage) | only 52/56 (an ACCEPTED connect) is LIVE |
+| H-2 | `liveEdgesFor`/`liveNodesFor` swallowed to `[]`/`0` — the SAME never-rows:0 class as F-2, left open | both THROW `GI_STORE_QUERY_FAILED` |
+| H-3 | the tsg subject rode argv without `--` (option injection) | `"--"` inserted |
+| H-4 | `JSON.parse` outside the try (a raw SyntaxError escaped) | moved inside |
+| H-5 | an empty/ambiguous result purchased drift coverage — the SAME T-16 class as F-7, left open | `resolved = !errored && hasRows` |
+| H-6 | **SPLIT-BRAIN**: `up()` probed `au-host/run`, the reader reads `au-engine/run` | both on the engine dir |
+| H-7 | the failure signal checked was the wrong one (`isError` vs `details.ok:false`) | both checked |
+| H-8 | one malformed adapter aborted the WHOLE audit | the shape is validated inside the try |
+
+**★ THE RECURSION:** H-2 and H-5 are the **same classes** the previous audit claimed to fix.
+**The fixes had hit ONE SITE each; the class was never swept.** That is the catalog's own entry —
+*"fixed the site, not the rule."*
+
+## 8.4 · ★ AND FIXING H-6 EXPOSED A THIRD BUG
+Pointing `up()` at the engine dir revealed that `probeSocketConnect` filtered for
+`*.instance.sock` **unconditionally** — while the ENGINE's sockets are `<hash>.sock`. So the probe
+found nothing and reported DOWN while the reader connected happily. **★ AND THE DEEPER FINDING:
+the ORIGINAL L2 probe was reading the app's PRESENCE socket (`*.instance.sock` in the HOST dir) —
+which is why L2 reported CONSUMED while the app was merely WARMED UP.** The gate's H-6 was real,
+and fixing it exposed this.
+
+---
+
+# §9 · THE COMMIT CHAIN (the run's history, 32 commits)
+
+```
+7397a8c fix(w0): GREEN THE TREE — 191 tsc errors -> 0
+42b1b5d docs(a-0): THE SUBSTRATE GATE MEASURED
+7bcb771 feat(6l2e): THE 8 EDGES + THE CONSUMPTION PROBE — consumed:2/8
+6764013 fix(gate): THE GRAPH GATE CAN NEVER BE SATISFIED (reported)
+f195bc0 feat(6l2e-D2): THE WIRING — the 8 modules REACHABLE
+f6fca91 fix(6l2e): THE L2 PROBE WAS LYING
+3b5f0e4 test(6l2e-E2): THE CONTAINER PROOF
+475c482 docs(6l2e-E3): THE COMPLETION REPORT AND SEAL
+888b919 docs(6l2e): the canon + the ship docs
+2007da0 build(6l2e): THE WIRED DIST
+1dfa41e test(6l2e): AUDIT GATE: BLOCKED
+6183924 test(6l2e-SC5): THE 7-CLASS DERAILMENT CORPUS
+b406d08 docs(6l2e): THE RECEIPT
+70b7131 fix(6l2e): THE AUDIT CLEARED (34 findings, 7 HIGH fixed)
+72a05e4 feat(6l2e-L3): L3 UA IS CONSUMED
+e423f73 feat(6l2e-L1): L1 SEMANTICA IS CONSUMED
+63513e2 feat(6l2e-L4): L4 C2KG IS CONSUMED
+357ba4c docs(6l2e): 7/8 — L4 PRODUCED
+395df25 docs(audit): ZERO-TRUST AUDIT — REFUTED + 3 frauds
+5226cac fix(6l2e): ALL 8 HIGH GATE FINDINGS FIXED
+ebd635b fix(6l2e): the socket FILTER was wrong (found by the fix itself)
+e7989ec docs(audit-fraud-1): re-stamp the canon docs
+c96c5d6 fix(audit-fraud-2): .gitignore the generated dirs
+```
+
+---
+
+# §10 · WHAT A FRESH AGENT MUST DO (the replication recipe)
+
+1. `bunx tsc --noEmit` → 0 · `bun test` → 349 pass / 0 fail. **If either fails, STOP.**
+2. Produce the substrates in this order (each is independent): **L3** (`pnpm install` UA core +
+   `bun scripts/ua-ingest.ts`) · **L1** (`pip install rdflib` + `python3 scripts/semantica-ingest.py`)
+   · **L4** (`apt install openjdk-21-jdk-headless` + the gradle build + `sh scripts/c2kg-produce/run.sh`)
+   · **L2** (Xvfb + `AU_ENTRY` + `pnpm --filter app dev`).
+3. `bun scripts/consumption-audit.ts <root> evidence` → expect `consumed:7/8` (TSG needs credits).
+4. Rebuild: `bun build src/omp/extension.ts --outfile extensions/graph-intelligence/index.js
+   --target bun --format esm --bundle`.
+5. **THE DIST-CONTENT GATE** (never deploy without it):
+   `for s in c2kgProbe semanticaProbe uaProbe arsumbrisProbe tsgProbe abideProbe gi-consumption; do
+   grep -q "$s" <the bundle> || exit 1; done`
+6. Deploy + sha-match + run the container probe.
+7. **RE-STAMP every canon doc to the new dist sha** (the fraud-1 lesson).
+8. **RE-RUN the gate** after any fix (the skill's law).

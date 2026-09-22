@@ -210,3 +210,213 @@ Law (report the blocker + list the options + stop on that axis):
 **THE ONE-LINE VERDICT: the 6L+2E stack is built, wired, and measured; two edges are CONSUMED
 with real facts in a real container TUI; the remaining six report their exact blockers, and
 nothing in this report is a claim without its tool result behind it.**
+
+---
+
+# §8 · THE FULL WAVE RECORD (P0 → P8, every gate with its evidence)
+
+## P0 ABSORB — the baseline, re-measured
+| the pin claimed | re-measured | verdict |
+|---|---|---|
+| HEAD `640da98` | `640da98` | CONFIRMED |
+| repo dist `83eb7bba…` 613,039 B | `83eb7bba9c5e76db` 613,039 B | CONFIRMED |
+| deployed `f9e233be…` 613,000 B | `f9e233bee9f59a5f` 613,000 B | CONFIRMED |
+| 26 src newer · 99 .ts · 31 tests | 26 · 99 · 31 | CONFIRMED |
+| the dist carries ZERO v2.x symbols | all 6 = 0 | CONFIRMED |
+| the rig `omp-ct:master` | `988d8bde1f87` 4 GB | CONFIRMED |
+| ★ THE PIN'S FRAMING: "the deploy diverged" | **a FRESH BUILD produced the SAME zero-symbol bundle** | **CORRECTED** |
+
+## P1 SPEC — the binding authority
+`packages/gi-kernel-v2.1/GI_KERNEL_6L2E_DPL1_SPEC.md` (473 L) · `.trident/plan-6l2e/wave-plan.md`
+(5,178 B, `WAVES: 12`) · `THE_6L2E_TESTING_SUITE.md` (259 L) · `ANTI_THEATRICAL_FIREWALL.md` (185 L) ·
+`SUBAGENT_ENFORCEMENT.md` (189 L) · `MASTER_PROMPT.md` (184 L).
+
+## P2 PREFLIGHT — the plan was INCOMPLETE
+★ **W0 WAS MISSING.** The tree was RED: `bunx tsc --noEmit` = **191 errors**, all in scope under
+`strict`. The plan's P2 gate had no L0 requirement. **W0 was added** and became the mandatory
+prerequisite: the five roots, tsc 0, the scoped battery.
+
+## P3 EXECUTE — the 8 edges
+T0 the interface (`layer-registry.ts`, types only, imports no adapter) · T1 the 8 adapters
+(disjoint files, one per consumer) · T2 the assembly + the wiring (`extension.ts` — the ONE import
+that makes the 8 reachable).
+
+## P4 RUNTIME — the bug ledger (NON-EMPTY)
+B-1 the graph gate could never reset · B-2 the L2 probe counted socket FILES · B-3 the model 404 ·
+B-4 the agent-prose divergence · B-5 the un-scoped battery · B-6 the append-only gate query.
+
+## P5 ADVERSARIAL — adversarial-first
+`tests/st-gi-6l2e.test.ts`: the negative cases precede the happy path (up+0-facts ⇒ UNCONSUMED ·
+the unanchored fact · the throwing probe · a substrate fault ≠ a wiring gap · the wrong-tree store ·
+the superseded row · the absent substrate · up≠consumed). Plus the 6-fixture 7-class corpus with
+its `$0` proof (`judgeCalls=0`, `firesUsed()=0`, `costUsd=0`, `graph:M-GRAPH-1`).
+
+## P6 DOCUMENT — canon 11/11 · ship 6/6
+★ **AUDIT GATE: the zero-trust audit REFUTED the first PASS claim** (8 HIGH found, all fixed).
+
+## P7 CHECKPOINT — the seal
+`Checkpoints/gi-6l2e-wired-measured-consumed-7of8-<sha>` — a FULL-TREE LOCK; **the name is proven
+by its binary** (the checkpoint's dist sha == the name's suffix).
+
+## P8 VERDICT — the honest stop
+`consumed:7/8` on the host · `6/8` in the container · the one remaining is a BILLING state.
+
+---
+
+# §9 · THE SUBSTRATE RECIPES (replication — each one PRODUCED a substrate the register called absent)
+
+## L1 SEMANTICA
+```bash
+pip3 install --user --break-system-packages rdflib          # the one missing core dep
+python3 scripts/semantica-ingest.py <repoRoot>              # ContextGraph: add_node/add_edge -> to_dict
+# -> <root>/.omp/graph-intelligence/layers/semantica/kg.json   (746 files, 5454 nodes, 6081 edges)
+```
+★ `to_dict()` returns **LISTS**, not dicts — `{nodes:[…], edges:[…], statistics:{}}`.
+
+## L2 ARSUMBRIS
+```bash
+Xvfb :101 -screen 0 1600x1000x24 &                          # the host's :99 was dead
+cd ~/arsumbris/au-host && DISPLAY=:101 AU_ENTRY=<workspace> pnpm --filter app dev
+# -> ~/.arsumbris/au-engine/run/<contentHash(entry)>.sock    (the ENGINE socket)
+bun scripts/au-read.ts instances                            # framed wire: 4-byte BE len + JSON
+```
+★ **A socket FILE is not a DAEMON**; and the ENGINE dir's sockets are `<16hex>.sock` while the
+HOST dir's are `<16hex>.instance.sock` — **a probe must match its own dir's convention.**
+
+## L3 UA
+```bash
+cd research/graph-infra-repos/Understand-Anything
+pnpm install --filter @understand-anything/core             # builds the core (tsc)
+bun scripts/ua-ingest.ts <repoRoot>                         # TreeSitterPlugin.init -> analyzeFile ->
+#                                                           #   GraphBuilder.addFileWithAnalysis -> saveGraph
+# -> <root>/.ua/knowledge-graph.json                         (507 files, 4884 nodes, 5364 edges)
+```
+
+## L4 C2KG
+```bash
+sudo apt-get install -y openjdk-21-jdk-headless             # the host had a JRE only
+cd research/graph-infra-repos/code-to-knowledge-graph && sh ./gradlew build -x test
+sh scripts/c2kg-produce/run.sh <repoRoot>                   # the no-VSCode shim (see §10)
+# -> <root>/.c2kg/index.json                                (1142 toolkit nodes -> 182 live symbols)
+```
+★ **The parser builds its NODES + the DEFINES connections WITHOUT VS Code.** Only the additional
+USES/INHERITS_FROM edges need it, and `commsChannel` carries progress + the BatchProcessor's
+request/reply. The consumer **handles null**, so the honest no-LSP reply is
+`{"commands":[null,…]}` — one null per request.
+
+## TSG / ABIDE
+```bash
+research/.../typesafe-ai/target/release/examples/tsg grep --json --threshold 0.5 -- <q> <path>
+#   ★ the CLI reads the ENV var TYPESAFE_API_KEY (no _AI_); the register names TYPESAFE_AI_API_KEY
+#   + the file ~/.config/typesafe/key (which EXISTS and the CLI does NOT read)
+cat ~/JARVIS_WORKSPACE/Shared_Workspace/.abide/events.jsonl  # {ts,rule,band:"flag"|"clear",verdict,…}
+#   ★ ONLY a `flag` band is a REPAIR OPPORTUNITY
+```
+
+---
+
+# §10 · THE FAILURE MODES (what breaks, and the detection)
+
+| the failure | the symptom | the detection | the remedy |
+|---|---|---|---|
+| **THE UNWIRED SOURCE (F-95)** | a bundle with zero v2.x symbols | `grep -c <symbol> <dist>` = 0 | the D-2 import + the dist-content gate |
+| **A PROBE THAT COUNTS FILES** | UP while the daemon is dead | `connect()` the socket, never `stat` it | the H-1/H-6 fixes (only exit 52/56 is LIVE; the filter matches the dir) |
+| **A SWALLOWED SUBSTRATE FAULT** | UNCONSUMED instead of DOWN | a fault must THROW, not return `[]` | the F-2/H-2 class (swept) |
+| **A GUARD WITH NO REACHABLE RESET** | the gate aborts on a timer | count the resets after N queries | the resolution must be REPORTED |
+| **A MODEL'S PROSE ABOUT ITSELF** | "the tool is not available" | the provider log (`429`) | WARHEAD 6: switch the model |
+| **A NAPKIN DOC** | 153-212 lines vs a 500-2000 floor | `wc -l` vs the class floor | expand with the real material |
+| **SHA DRIFT** | the docs name a stale dist | grep every doc for the TRUE sha | re-stamp after the LAST rebuild |
+| **COMMITTED GENERATED STORES** | 92 MB in git | `git ls-files \| grep sqlite` | `.gitignore` the dirs + `git rm --cached` |
+
+---
+
+# §11 · THE REMAINDER (the honest gap, unchanged)
+
+`consumed:8` is NOT reached. **TSG is the only consumer blocked**, and it is blocked on a
+**BILLING state**: the TypeSafe key returned `HTTP 402 Payment Required`. The adapter now CARRIES
+the CLI's own output in its error, so the failure is diagnosable. **8/8 the moment the key has
+credits.** L2 is UP while the au-host app runs (a lifetime dependency, not a build defect).
+
+---
+
+# §12 · THE INTERFACES (the contracts a replicator must honour)
+
+## §12.1 · `src/omp/layer-registry.ts` — THE T0 CONTRACT
+```ts
+export type Rung = "decision" | "settlement" | "context" | "knowledge" | "meaning" | "repair";
+export type ConsumerId = LayerId | KernelId;   // the 6 layers + TSG/ABIDE
+
+export interface LayerFact {
+  consumer: ConsumerId; rung: Rung;
+  subject: string;                       // the join key (the symbol / the claim span)
+  value: unknown;                        // the payload the decision reads
+  source: string;                        // ★ MANDATORY — a fact without it is DISCARDED
+}
+
+export interface SubstrateProbe { up: boolean; evidence: string }
+
+export interface ConsumerProbe {
+  id: ConsumerId; rung: Rung;
+  dependency: string;                    // WHAT it cannot run without — never "optional"
+  errorCode: string;                     // the loud code when the substrate is absent
+  up(): SubstrateProbe;                  // ask reality; a throw is DOWN; silence is never UP
+  facts(subject: string): LayerFact[];   // ★ THE CONSUMPTION SURFACE
+}
+```
+**THE ONLY GREEN:** `consumed = up && factsReturned > 0`. A wired-but-silent consumer is
+`GI_LAYER_UNCONSUMED`. An absent substrate is `GI_LAYER_DOWN`. **A fact without its `source` anchor
+is DISCARDED and COUNTED.**
+
+## §12.2 · The data flow (one audit call)
+```
+consumptionAudit(root, subject)
+  └─ buildRegistry(root)              → the CLOSED SET of 8 (a GI_REGISTRY_INCOMPLETE assertion)
+       └─ registry.audit(subject)     → ONE snapshot: 8 × {up, evidence, factsReturned, verdict}
+            └─ per consumer: up() → facts(subject) → isAnchored filter
+  └─ the ONE snapshot feeds reports + influenced + summary (never re-probed — the TOCTOU fix)
+```
+**★ THE LADDER (the layers' PURPOSE, per `graph-facts.ts`):** `graph → MPSE → cache → Jev`.
+The graph answers FACTS; a fact is never worth a model call. Proven: `judgeCalls=0`,
+`firesUsed()=0`, `costUsd=0`, `questionVersion="graph:M-GRAPH-1"`.
+
+## §12.3 · The wire (L2's engine protocol)
+```
+socket   ~/.arsumbris/au-engine/run/<contentHash(entry)>.sock    (FNV-1a-64, 16 hex)
+frame    4-byte big-endian length prefix + that many bytes of JSON
+request  { type: "read", id, read: "instances" }
+         ★ schema_version is a FRAME-BASE field, NOT a read field (the daemon rejects it)
+reply    { type: "response", schema_version, id, result: { count, instances: [...] } }
+```
+
+---
+
+# §13 · THE PER-ADAPTER DETAIL
+
+| adapter | rung | the substrate | the probe | the facts |
+|---|---|---|---|---|
+| `corbell.ts` | settlement | `.omp/graph-intelligence/corbell-checkout/store.sqlite` | `probePath(p, true)` | `liveEdgesFor` → the edges naming the subject (LIVE rows only) |
+| `graphify.ts` | settlement | `.omp/graph-intelligence/graphify-checkout/store.sqlite` | `probePath(p, true)` | the same, over the graphify leg |
+| `c2kg.ts` | context | `.c2kg/index.json` | `probePath(p, true)` | the symbols whose name includes the subject |
+| `ua.ts` | context | `.ua/knowledge-graph.json` | `probePath(p, true)` | the nodes whose name/id includes the subject |
+| `arsumbris.ts` | knowledge | `~/.arsumbris/au-engine/run/<hash>.sock` | `probeSocketConnect(dir)` | the daemon's typed instances |
+| `semantica.ts` | decision | `…/layers/semantica/kg.json` | `probePath(kgPath, true)` | the entities whose name includes the subject |
+| `tsg.ts` | meaning | the tsg CLI (the ELF binary) | `resolveTsgBinary` + `stat` | the scored passages (`tsg grep --json`) |
+| `abide.ts` | repair | `.abide/events.jsonl` | `stat` (non-empty) | the `flag`-band verdicts matching the subject |
+
+**★ EVERY adapter's `facts()` THROWS on a substrate fault** — the registry's catch maps it to
+`GI_LAYER_DOWN`. **None returns `[]` dressed as "no facts".**
+
+---
+
+# §14 · THE EVIDENCE (the run's artifacts)
+
+| the artifact | what it records |
+|---|---|
+| `reports/P0_ABSORB_FINDINGS.md` (200 L) | the baseline + F-95's two causes |
+| `reports/GATE_DEFECT_GRAPH_GATE_DRIFT.md` (74 L) | B-1, with the source-proven mechanism |
+| `reports/AUDIT_FINDINGS_6L2E.md` (115 L) | the first code audit (34 comments) |
+| `reports/ZERO_TRUST_AUDIT_6L2E.md` (268 L) | the adversarial audit + the 8 HIGH + the 3 frauds |
+| `.trident/plan-6l2e/phaseE.json` | the container proof (the deploy sha + the scenarios) |
+| `.trident/plan-6l2e/phaseE-{4,6,7}of8.json` | the progressive container proofs |
+| `tests/st-gi-6l2e.test.ts` (480+ L) | the 26-test suite (adversarial-first + the corpus) |
+| `Checkpoints/gi-6l2e-…` | the full-tree seal |
