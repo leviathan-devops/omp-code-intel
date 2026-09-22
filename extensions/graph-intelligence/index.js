@@ -185602,6 +185602,7 @@ import * as path24 from "path";
 
 // src/omp/adapters/_shared.ts
 import * as fs20 from "fs";
+import { execFileSync } from "child_process";
 import { Database as Database6 } from "bun:sqlite";
 function probePath(p, mustBeFile = false) {
   try {
@@ -185614,22 +185615,36 @@ function probePath(p, mustBeFile = false) {
     return { up: false, evidence: `${p} \u2014 ${code}` };
   }
 }
-function probeSocketDir(dir) {
+function probeSocketConnect(dir, timeoutMs = 1200) {
+  let files;
   try {
-    const st = fs20.statSync(dir);
-    if (!st.isDirectory())
-      return { up: false, evidence: `${dir} is not a directory` };
-    const files = fs20.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
-    if (files.length === 0)
-      return { up: false, evidence: `${dir} \u2014 no *.instance.sock (the daemon is not running)` };
-    return {
-      up: false,
-      evidence: `${dir} \u2014 ${files.length} socket file(s) present (${files.slice(0, 2).join(",")}) but a FILE is not a DAEMON: connect() is the only liveness proof`
-    };
+    files = fs20.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
   } catch (e) {
     const code = e.code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} \u2014 ${code}` };
   }
+  if (files.length === 0)
+    return { up: false, evidence: `${dir} \u2014 no *.instance.sock (the daemon is not running)` };
+  const attempts = [];
+  for (const f of files) {
+    const sock = `${dir}/${f}`;
+    try {
+      execFileSync("curl", ["-s", "--max-time", String(Math.ceil(timeoutMs / 1000)), "--unix-socket", sock, "http://localhost/"], {
+        stdio: "ignore",
+        timeout: timeoutMs
+      });
+      attempts.push(`${f}=LIVE`);
+      return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f}` };
+    } catch (e) {
+      const code = e.status;
+      if (code !== undefined && code !== 7) {
+        attempts.push(`${f}=LIVE(exit ${code} \u2014 connected, no HTTP reply)`);
+        return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f} (curl exit ${code})` };
+      }
+      attempts.push(`${f}=refused`);
+    }
+  }
+  return { up: false, evidence: `${dir} \u2014 every socket refused (stale files, no daemon): ${attempts.join(" ")}` };
 }
 function openReadOnly(storePath) {
   try {
@@ -185771,7 +185786,7 @@ function arsumbrisProbe(home = process.env.HOME ?? os6.homedir()) {
     rung: "knowledge",
     dependency: "the au daemon socket + its typed repo graph",
     errorCode: "GI_LAYER_ARSUMBRIS",
-    up: () => probeSocketDir(runDir),
+    up: () => probeSocketConnect(runDir),
     facts: () => []
   };
 }

@@ -8,7 +8,7 @@
 // no "if the store is missing, scan the tree". A consumer whose substrate does not
 // answer returns DOWN and the registry reports it. That is the whole point.
 import * as fs from "node:fs";
-import * as net from "node:net";
+import { execFileSync } from "node:child_process";
 import { Database } from "bun:sqlite";
 import type { LayerFact, SubstrateProbe } from "../layer-registry.ts";
 import type { ConsumerId, Rung } from "../layer-registry.ts";
@@ -36,10 +36,8 @@ export function probePath(p: string, mustBeFile = false): SubstrateProbe {
  *  on this host — 2 socket files, `curl --unix-socket` answered NOTHING, and the probe
  *  reported UP. **A stat is not a connection.** The probe now CONNECTS.
  *
- *  `probeSocketDirSync` cannot connect (connect is async), so the sync surface reports
- *  the FILES as a HINT and the async `probeSocketConnect` is the authoritative answer.
- *  A consumer that only has the sync surface gets `up:false` with the reason — never a
- *  false UP. */
+ *  `probeSocketConnect` is the AUTHORITATIVE probe — it CONNECTS through a synchronous
+ *  child process. `probeSocketDir` remains for callers that only need the file listing. */
 export function probeSocketDir(dir: string): SubstrateProbe {
   try {
     const st = fs.statSync(dir);
@@ -47,7 +45,7 @@ export function probeSocketDir(dir: string): SubstrateProbe {
     const files = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
     if (files.length === 0) return { up: false, evidence: `${dir} — no *.instance.sock (the daemon is not running)` };
     // ★ a socket FILE is a HINT, never liveness. The authoritative answer is a CONNECT
-    //   (probeSocketConnect); the sync surface refuses to call a file "up".
+    //   (probeSocketConnect).
     return {
       up: false,
       evidence: `${dir} — ${files.length} socket file(s) present (${files.slice(0, 2).join(",")}) but a FILE is not a DAEMON: connect() is the only liveness proof`,
@@ -58,9 +56,19 @@ export function probeSocketDir(dir: string): SubstrateProbe {
   }
 }
 
-/** ★ THE AUTHORITATIVE PROBE: actually CONNECT to each socket. The first socket that
- *  accepts is the live daemon; every socket that refuses is a stale file. */
-export async function probeSocketConnect(dir: string, timeoutMs = 1500): Promise<SubstrateProbe> {
+/** ★ THE AUTHORITATIVE PROBE — SYNCHRONOUS, and therefore actually reachable.
+ *
+ *  ★ DEFECT FIXED BY THE DIST-CONTENT GATE (2026-09-22): the first version of this probe was
+ *  `async` and nothing called it — `up()` is synchronous, so bun tree-shook it and the dist
+ *  carried ZERO copies. That is the F-95 class reproduced in this very file, caught by the
+ *  gate this build added. A probe nothing calls is not a probe.
+ *
+ *  THE FIX: probe liveness with a real CONNECT through a synchronous child process. `curl
+ *  --unix-socket` exits 7 (ECONNREFUSED) when the socket is a stale FILE, and anything else
+ *  (0, or an empty-reply code) means the connect SUCCEEDED — the daemon is live. This is the
+ *  only liveness proof a synchronous consumer can make, and it never reports a stale file UP.
+ */
+export function probeSocketConnect(dir: string, timeoutMs = 1200): SubstrateProbe {
   let files: string[];
   try {
     files = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
@@ -72,20 +80,26 @@ export async function probeSocketConnect(dir: string, timeoutMs = 1500): Promise
   const attempts: string[] = [];
   for (const f of files) {
     const sock = `${dir}/${f}`;
-    const ok = await new Promise<boolean>((resolve) => {
-      const c = net.connect(sock);
-      const done = (v: boolean) => { try { c.destroy(); } catch { /* already gone */ } resolve(v); };
-      c.setTimeout(timeoutMs);
-      c.once("connect", () => done(true));
-      c.once("error", () => done(false));
-      c.once("timeout", () => done(false));
-    });
-    attempts.push(`${f}=${ok ? "LIVE" : "refused"}`);
-    if (ok) return { up: true, evidence: `${dir} — connect() accepted on ${f}` };
+    try {
+      execFileSync("curl", ["-s", "--max-time", String(Math.ceil(timeoutMs / 1000)), "--unix-socket", sock, "http://localhost/"], {
+        stdio: "ignore",
+        timeout: timeoutMs,
+      });
+      attempts.push(`${f}=LIVE`);
+      return { up: true, evidence: `${dir} — connect() accepted on ${f}` };
+    } catch (e) {
+      // ★ curl exit 7 is ECONNREFUSED — a stale FILE, no daemon. Any OTHER exit (0 handled
+      //   above; 52 = empty reply; 56 = recv failure) means the CONNECT SUCCEEDED.
+      const code = (e as { status?: number }).status;
+      if (code !== undefined && code !== 7) {
+        attempts.push(`${f}=LIVE(exit ${code} — connected, no HTTP reply)`);
+        return { up: true, evidence: `${dir} — connect() accepted on ${f} (curl exit ${code})` };
+      }
+      attempts.push(`${f}=refused`);
+    }
   }
   return { up: false, evidence: `${dir} — every socket refused (stale files, no daemon): ${attempts.join(" ")}` };
 }
-
 /** Open a store READ-ONLY. A read-only open is the consumer's discipline: a
  *  consumer that could write is a consumer that could fabricate. */
 export function openReadOnly(storePath: string): Database | null {

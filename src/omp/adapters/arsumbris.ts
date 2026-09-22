@@ -8,7 +8,7 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ConsumerProbe, LayerFact } from "../layer-registry.ts";
-import { probeSocketDir } from "./_shared.ts";
+import { probeSocketConnect } from "./_shared.ts";
 
 export function arsumbrisProbe(home = process.env.HOME ?? os.homedir()): ConsumerProbe {
   const runDir = path.join(home, ".arsumbris/au-host/run");
@@ -17,7 +17,8 @@ export function arsumbrisProbe(home = process.env.HOME ?? os.homedir()): Consume
     rung: "knowledge",
     dependency: "the au daemon socket + its typed repo graph",
     errorCode: "GI_LAYER_ARSUMBRIS",
-    up: () => probeSocketDir(runDir),
+    // ★ THE CONNECT PROBE (synchronous + reachable): a socket FILE is not a DAEMON.
+    up: () => probeSocketConnect(runDir),
     // ★ THE KNOWLEDGE SURFACE IS THE DAEMON, not a file. This adapter deliberately
     // returns NO facts until a socket client is wired (the au-mcp adapter rail is a
     // SEPARATE deliverable). Reporting zero facts is the HONEST state: the layer is
