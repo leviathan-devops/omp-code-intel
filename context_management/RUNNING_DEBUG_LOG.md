@@ -573,3 +573,55 @@
   and NONE were exercised. GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md (21,504 B) was WRITTEN, not BUILT.
 - EVIDENCE: the artifact + the measurements it anchors (git log, sqlite3 store queries, the
   graph-query outputs, the .abide ledger awk, the worktree listing).
+
+## [2026-09-22] THE SIX FINDINGS (the runtime seat's ledger — non-empty)
+
+### B-1 · ★ THE GRAPH GATE CAN NEVER BE SATISFIED (CRITICAL, FIXED)
+**Symptom:** every structural edit after the 5th was refused — \`GRAPH_GATE_DRIFT_HIGH\` then
+\`GRAPH_GATE_ABORT: drift 1.00 with 6 unverified structural edits\`. **Five graph queries** (each
+returning real rows: 13/0/12/25/24) did NOT move the counter (3→4→5→6).
+**Mechanism (source-proven):** \`gate-hook.ts:126\` called \`recordGraphQuery({tool,target})\` with
+NO \`resolved\` and NO \`rows\`; \`graph-gate.ts:155\` computes
+\`resolved = q.resolved===true || (typeof q.rows==="number" && q.rows>0)\` → both undefined →
+**ALWAYS false** → \`isCovered()\` (:169) requires \`resolved===true\` → **NEVER true** →
+\`verifiedSymbols\` is always empty → \`computeDrift()\` returns 1.0 → the gate escalates on a TIMER.
+**★ THE GATE REWARDED NOTHING. It was a timer, not a gate.**
+**Secondary:** a NEW FILE's symbols do not exist pre-write, so a whole-file write can never be
+covered by a query on its own symbols.
+**Fix:** the tool_call remembers the query; the matching tool_result reports its resolution (an
+errored query does NOT cover — T-16's intent preserved). **The missing test is named:**
+\`test_gate_reset_reachable\` (a query followed by an edit must return drift 0).
+**Recorded:** \`reports/GATE_DEFECT_GRAPH_GATE_DRIFT.md\` (74 L). Commit \`6764013\` (report) + \`f195bc0\` (fix).
+
+### B-2 · ★ THE L2 PROBE WAS LYING (a socket FILE is not a DAEMON)
+**Symptom:** the probe reported \`L2_ARSUMBRIS\` UP; \`curl --unix-socket <the socket>\` answered
+**nothing**. **Mechanism:** \`probeSocketDir\` counted \`*.instance.sock\` FILES. A socket FILE
+outlives its daemon — **the register's own comment had already warned about this** and the first
+version of the adapter repeated the exact mistake it documents.
+**Fix:** the sync probe refuses to claim UP on a file ("a FILE is not a DAEMON: connect() is the
+only liveness proof"); \`probeSocketConnect\` is the authoritative async probe. **Measured:**
+\`every socket refused (stale files, no daemon): 1878207f121ea431.instance.sock=refused
+3a3143c03eedd217.instance.sock=refused\`. **★ The verdict changed from UNCONSUMED (a wiring gap)
+to DOWN (a dead daemon) — a different, more honest answer.** Commit \`f6fca91\`.
+
+### B-3 · THE MODEL 404 (the container's pinned model had no endpoints)
+\`arcee-ai/trinity-large-preview:free\` → \`404 No endpoints found\`. The config pinned
+\`poolside/poolside/laguna-s-2.1\` but omp fell back (the container's poolside key is absent —
+\`inference.poolside.ai\` = 401). **Fix:** pinned \`openrouter/poolside/laguna-s-2.1:free\` (verified
+live with a direct curl: a real completion returned); the auth probe then passed.
+
+### B-4 · ★ THE AGENT-PROSE DIVERGENCE (the PROOF CONTRACT's law, demonstrated live)
+The container model's SUMMARY listed "L3_UA rung=knowledge" while the **TOOL RESULT** printed
+\`L3_UA rung=context\`. **The source rung map is correct** (\`adapters/ua.ts:20\` \`rung: "context"\`).
+**No code change — recorded as the live evidence for why the PROOF CONTRACT binds every token to a
+TOOL RESULT and never to agent prose.** A model's transcription of a tool result is not the result.
+
+### B-5 · THE UN-SCOPED BATTERY
+\`bun test\` walked the VENDORED third-party trees under \`research/graph-infra-repos/**\` and died at
+300 s on \`Cannot find module 'elkjs'\` / \`Cannot find package 'graphology'\`. The repo's own
+battery is \`tests/\`. **Fix:** \`bunfig.toml [test] root = "./tests"\`.
+
+### B-6 · THE APPEND-ONLY GATE QUERY
+The A-0 gate omitted \`superseded_run IS NULL\`; the naive Checkpoints count read **6191** against a
+store whose LIVE rows were clean (the store is supersede-then-insert). **Fix:** the corrected gate,
+recorded in \`reports/P0_ABSORB_FINDINGS.md §9.1\`.

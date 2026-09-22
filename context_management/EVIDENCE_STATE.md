@@ -204,3 +204,23 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 ★ A rule whose precision is not yet sufficient keeps the seed AND SAYS SO (calibrated=false
   + the basis string). That string is the evidence: read it, do not infer.
 ```
+
+---
+
+# ★ THE 6L+2E EVIDENCE (per gate, all this-session tool results)
+
+| gate | the artifact | the verdict |
+|---|---|---|
+| **W0** | `bunx tsc --noEmit` → exit 0; `bun test` → 336 pass / 0 fail / 1186 expect() | GREEN |
+| **A-0** | `sqlite3 <corbell> "SELECT COUNT(*) ... superseded_run IS NULL"` → 5445 live / 63 oracle.ts / 0 Checkpoints | GREEN |
+| **A-0 (graphify)** | the rebuild dropped 9165 out-of-scope rows → 1424 live / 0 Checkpoints | GREEN |
+| **B/C/D** | `bunx tsc --noEmit` exit 0 with the 8 adapters + the registry + the wiring | GREEN |
+| **D-2 (the dist)** | the dist-content gate: 8/8 symbols present, 613 KB → 9.42 MB | GREEN |
+| **E-1** | `bun test tests/st-gi-6l2e.test.ts` → 13 pass / 0 fail / 82 expect() | GREEN |
+| **E-2 (deploy)** | local sha `53d27ac0f4184ade` == container sha | MATCH |
+| **E-2 (auth)** | the model answered; the status bar read "Laguna S 2.1 (free)" | PASS |
+| **E-2 (the tool)** | the TUI tool result: `consumed:2/8 rungs=settlement` with L5 facts=16 / L6 facts=8 | PASS |
+| **E-2 (the negative)** | scopeRoot=/tmp → `consumed:0/8`, every consumer DOWN; `consumed:8/8` ABSENT | PASS |
+| **E-2 (the rungs)** | settlement/context/knowledge/decision/meaning/repair — matches the DPL1 map | PASS |
+| **E-3** | `packages/gi-kernel-6l2e/6L2E_COMPLETION_REPORT.md` (212 L) + `.trident/plan-6l2e/phaseE.json` | SEALED |
+| **the bug ledger** | 6 findings (B-1..B-6), 4 fixed in place, 2 reported with mechanism | NON-EMPTY |

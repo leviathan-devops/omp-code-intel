@@ -233,3 +233,42 @@ derivePolicy(profile, counts) → { calibrated: false,
   A fresh agent should READ these two returns as the authoritative statement of the
   calibration state — not any prose anywhere, including this doc.
 ```
+
+---
+
+# ★ THE 6L+2E STATE (2026-09-22, HEAD f6fca91)
+
+## THE DIST (the artifact)
+`extensions/graph-intelligence/index.js` sha256_16 **`53d27ac0f4184ade`** · **9,424,478 B**
+★ 613 KB → 9.42 MB. **THE DIST-CONTENT GATE PASSES** — every v2.x symbol is present
+(`consumptionAudit` `createLayerRegistry` `corbellProbe` `graphifyProbe` `arsumbrisProbe`
+`tsgProbe` `abideProbe` `gi-consumption` all = 2). `find src -newer <dist>` = **0**.
+
+## THE TREE
+`bunx tsc --noEmit` → **exit 0, 0 errors** (was 191). `bun test` → ** 336 pass  0 fail **.
+
+## THE CONSUMPTION STATE (the register's REAL answer)
+```
+consumed:2/8 rungs=settlement
+  L5_CORBELL   CONSUMED             rung=settlement  facts=16
+  L6_GRAPHIFY  CONSUMED             rung=settlement  facts=8
+  L1_SEMANTICA GI_LAYER_DOWN        rung=decision    (no KG store exists on the host)
+  L2_ARSUMBRIS GI_LAYER_DOWN        rung=knowledge   (the daemon is DEAD — connect refused)
+  L3_UA        GI_LAYER_DOWN        rung=context     (no .ua/knowledge-graph.json)
+  L4_C2KG      GI_LAYER_DOWN        rung=context     (nothing named c2kg exists)
+  TSG          GI_LAYER_UNCONSUMED  rung=meaning     (a Rust SOURCE repo; no client)
+  ABIDE        GI_LAYER_UNCONSUMED  rung=repair      (a handover DOC set; no client)
+```
+**★ `consumed:8` IS BLOCKED on 6 substrates that DO NOT EXIST on this host** — each with its
+evidence and its unblock option in `packages/gi-kernel-6l2e/6L2E_COMPLETION_REPORT.md §6`.
+
+## THE FILES (the 6L+2E surface)
+```
+src/omp/layer-registry.ts          211 L  ★ the T0 interface (types only)
+src/omp/layer-consumption.ts        97 L  ★ the assembly (D-1) + the closed set
+src/omp/adapters/_shared.ts         128 L   probePath · probeSocketDir · probeSocketConnect ·
+                                            openReadOnly · liveEdgesFor · storeFacts
+src/omp/adapters/{corbell,graphify,c2kg,ua,arsumbris,semantica,tsg,abide}.ts
+scripts/consumption-audit.ts        24 L  the runnable verdict
+tests/st-gi-6l2e.test.ts           244 L  the 13-test adversarial-first suite
+```

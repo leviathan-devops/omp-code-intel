@@ -526,3 +526,58 @@ EN-059  the host/container +4 expects delta root-caused to host-absolute path pr
 **THE MEASURED OUTCOME.** 199/0/701 → **244/0/901** on the host and **244/0/905** in the clean container. tsc 191 throughout (0 new). The gate went from **0 call sites to being called by the kernel**. The live campaign produced the first real precision curve through the wired path: **best t=0.35 → F1=0.889**, against shipped seeds that fire on only 2 of 8 real violations.
 
 **WHAT IS NOT DONE, NAMED.** W6 (the calibration loop) is **BLOCKED on M2** — the operator's cost matrix. The AUDIT GATE is **BLOCKED** — the ocr rail's adapter died with /tmp. The kernel is **not registered** on the live tool path: the pin's ENGINES-BEFORE-REGISTRATION law forbids it while the register reads up=5/11, and registering first would refuse every tool call on this host.
+
+---
+
+# ★ THE 6L+2E BUILD (2026-09-22) — HEAD f6fca91 · DIST `53d27ac0f4184ade`
+
+## WHAT WAS BUILT
+The 6 graph layers + 2 Jev kernels, WIRED as inputs to the decision and MEASURED for
+consumption. Before this build the layers were DECLARED (a path probe, `up=5/11`) and nothing
+read them; 12 of 23 `src/omp` modules were unreachable and the deployed bundle carried ZERO
+v2.x symbols.
+
+| the artifact | lines | what it is |
+|---|---|---|
+| `src/omp/layer-registry.ts` | 211 | ★ THE T0 INTERFACE — types only, imports no adapter. The ONLY GREEN is `up && factsReturned>0`; a fact without its anchor is discarded + counted. |
+| `src/omp/layer-consumption.ts` | 97 | THE ASSEMBLY (D-1) — `buildRegistry` over a CLOSED SET (a `GI_REGISTRY_INCOMPLETE` assertion) + `consumptionAudit` |
+| `src/omp/adapters/_shared.ts` | 128 | `probePath` · `probeSocketDir` · `probeSocketConnect` · `openReadOnly` · `liveEdgesFor` · `storeFacts` |
+| `src/omp/adapters/{corbell,graphify,c2kg,ua,arsumbris,semantica,tsg,abide}.ts` | 8 files | THE 8 EDGES — one disjoint file each, each implementing the frozen `ConsumerProbe` |
+| `src/omp/extension.ts` | +37 | ★ THE WIRING (D-2) — the ONE import that makes the 8 modules reachable + the `gi-consumption` tool |
+| `scripts/consumption-audit.ts` | 24 | the runnable verdict |
+| `tests/st-gi-6l2e.test.ts` | 244 | the 13-test adversarial-first suite |
+
+## THE MEASURED RESULT
+```
+consumed:2/8 rungs=settlement
+  L5_CORBELL   CONSUMED  facts=16      L1_SEMANTICA GI_LAYER_DOWN  (no KG store exists)
+  L6_GRAPHIFY  CONSUMED  facts=8       L2_ARSUMBRIS GI_LAYER_DOWN  (the daemon is DEAD)
+  L4_C2KG  GI_LAYER_DOWN (no index)    L3_UA        GI_LAYER_DOWN  (no .ua graph)
+  TSG      GI_LAYER_UNCONSUMED (source) ABIDE       GI_LAYER_UNCONSUMED (source)
+```
+★ **`consumed:8` is BLOCKED on 6 substrates that do not exist on this host.** Each blocker, its
+evidence, and its unblock option are in `packages/gi-kernel-6l2e/6L2E_COMPLETION_REPORT.md §6`.
+
+## THE FIVE FIXES THAT MADE IT POSSIBLE
+1. **typescript 7.0.2 → 5.9.3** — 7.0.2 is Microsoft's GO-native CLI (`main: NONE`); the API
+   import resolved to an EMPTY STUB and the bug-hunt parser was DEAD in the dist. 73 tsc errors.
+   ★ A fresh build went 617 KB → 9.41 MB; `forEachChild` 0→317.
+2. **`TxnDb.run` params** `unknown[]` → `SQLQueryBindings[]` (16 errors; verified empirically
+   that bun binds an array 2nd-arg, so the call sites were runtime-correct).
+3. **bun:sqlite row generics** — the `as Record<string, SQLQueryBindings>[]` cast (41 errors).
+4. **the `?w1fd` cache-busting imports** → `tests/query-import.d.ts` (4 errors).
+5. **the un-scoped battery** — `bunfig.toml [test] root = "./tests"` (bare `bun test` walked the
+   vendored `research/**` trees and timed out at 300 s).
+
+## THE PROOF CHAIN
+```
+bunx tsc --noEmit                       → exit 0, 0 errors        (was 191)
+bun test                                → 336 pass / 0 fail / 1186 expect() / 32 files
+bun test tests/st-gi-6l2e.test.ts       → 13 pass / 0 fail / 82 expect()
+bun build ... --outfile <the dist>      → 9,424,478 B  sha 53d27ac0f4184ade
+the dist-content gate (8 symbols)       → PASS
+deploy sha match (repo == container)    → 53d27ac0f4184ade == 53d27ac0f4184ade
+the container TUI (gi-6l2e-ct)          → consumed:2/8 rungs=settlement, L5 facts=16, L6 facts=8
+the negative path (scopeRoot=/tmp)      → consumed:0/8, every consumer named DOWN
+the auth probe                          → the model answered; "Laguna S 2.1 (free)"
+```

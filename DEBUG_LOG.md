@@ -770,3 +770,37 @@ ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052
   (which REPLACES block-0 and deletes the default tool inventory/workflow rules).
 - ★ NOTHING IS LANDED. The standing law: writing a .md and ACTIVATING a behaviour are two
   separate acts. INERT until the explicit deploy order + the positive/negative matrix.
+
+---
+
+# ★ THE 6L+2E DEBUG ENTRIES (2026-09-22)
+
+## EN-6L2E-1 · F-95 IS AN UNWIRED SOURCE, NOT A BAD DEPLOY
+**Finding:** the pin framed F-95 as a 39-byte deploy divergence. **Root cause (measured):** a
+FRESH build from current source produced the SAME zero-symbol bundle. **Mechanism:** 12 of 23
+\`src/omp\` modules had ZERO importers (bun tree-shakes them) AND \`typescript@7.0.2\` stubbed the
+parser. **Fix:** pin 5.9.3 + the D-2 wiring import. **Verification:** 613 KB → 9.42 MB; the
+dist-content gate PASSES. **Lesson:** a "divergent deploy" is the SYMPTOM; measure a fresh build
+from HEAD before hunting the deploy.
+
+## EN-6L2E-2 · THE GRAPH GATE COULD NEVER BE SATISFIED
+**Finding:** every structural edit after the 5th was refused; 5 graph queries (13/0/12/25/24 rows)
+did not move the counter. **Root cause:** \`gate-hook.ts:126\` recorded \`{tool,target}\` without
+\`resolved\`; \`graph-gate.ts:155\` computed \`resolved = q.resolved===true || rows>0\` → ALWAYS false
+→ \`isCovered()\` never true → drift 1.0 → T3 abort on a timer. **Fix:** report the resolution on
+the matching tool_result. **Verification:** tsc 0 + 336 tests pass (no regression).
+**Lesson:** a guard with no test that its RESET fires is a timer, not a guard.
+
+## EN-6L2E-3 · THE L2 PROBE COUNTED FILES AND CALLED IT LIVENESS
+**Finding:** the probe reported the au daemon UP; \`curl --unix-socket\` answered NOTHING.
+**Root cause:** \`probeSocketDir\` counted \`*.instance.sock\` FILES. **The register's own comment
+had already warned about exactly this.** **Fix:** the sync probe refuses to claim UP on a file;
+\`probeSocketConnect\` CONNECTS. **Verification:** both sockets refused → the daemon is DEAD.
+**Lesson:** a stat is not a connection; liveness needs the protocol's own proof.
+
+## EN-6L2E-4 · THE AGENT'S PROSE DIVERGED FROM THE TOOL RESULT
+**Finding:** the container model summarised "L3_UA rung=knowledge"; the TOOL RESULT printed
+\`rung=context\` (and the source is correct). **Root cause:** the model transcribed the tool result
+incorrectly. **Fix:** none — no code defect. **Verification:** \`adapters/ua.ts:20\` \`rung: "context"\`.
+**Lesson:** ★ the live demonstration of the PROOF CONTRACT — bind every token to a TOOL RESULT,
+never to agent prose. A model's summary of a result is not the result.

@@ -373,3 +373,66 @@
 - CAUSE: each entry was written to the DEBUG log at the moment of work and the BUILD log was deferred, on the assumption that the wave-level entries would batch naturally. They did not: the work moved to fixes and probes that read as debug entries.
 - ★ THE LESSON: "update at the moment of work" means BOTH logs, at the moment — a deferred log is a log that can be lost, and this one nearly was (it survived only because the DEBUG log carried the same facts).
 - REMEDIATED: the missing entries above were reconstructed from the DEBUG log and the commit history, each carrying its own evidence line.
+
+## [2026-09-22 23:5x] THE 6L+2E BUILD — W0 → E-3 (the create-pin run)
+
+**HEAD** f6fca91 · **DIST** `53d27ac0f4184ade` · 9,424,478 B · **container** gi-6l2e-ct (omp-ct:master)
+
+### W0 — GREEN THE TREE (the mandatory prerequisite the pin lacked)
+The tree was RED: `bunx tsc --noEmit` = **191 errors**, all in scope (tsconfig strict, include
+src+tests). Five roots, all measured:
+- **RC-2 (73)** `typescript@7.0.2` is Microsoft's GO-native TypeScript — `main: NONE`,
+  `types: NONE`, `bin:{tsc}`. The API import (engine.ts:44, mechanical.ts:2) resolved to an
+  EMPTY STUB. **Pinned 5.9.3.** ★ RUNTIME IMPACT: a fresh build went 617 KB → 9.41 MB;
+  `forEachChild` 0→317, `isClassDeclaration` 0→35. **The bug-hunt parser was dead in the dist.**
+- **RC-1 (16)** `TxnDb.run: params unknown[]` → `SQLQueryBindings[]` (verified empirically that
+  bun binds an array 2nd-arg, so the call sites were runtime-correct — a type-only fix).
+- **RC-3 (41)** bun:sqlite rows typed `unknown` → the `as Record<string, SQLQueryBindings>[]` cast.
+- **RC-4 (4)** `?w1fd`/`?w3` cache-busting imports → `tests/query-import.d.ts`.
+- **RC-5 (10)** duplicate import lines in `st-gi-w44-highs.test.ts`.
+- **+ the un-scoped battery**: bare `bun test` walked the vendored `research/graph-infra-repos/**`
+  and timed out at 300 s on missing `elkjs`/`graphology` → `bunfig.toml [test] root = "./tests"`.
+**RESULT: tsc 0 errors; 336 pass / 0 fail / 1186 expect() across 32 files.** Commit `7397a8c`.
+
+### A-0 — THE SUBSTRATE (measured, + the gate-query defect)
+The wave-plan's A-0 gate `SELECT COUNT(*) ... WHERE file LIKE '%oracle.ts%'` **omits
+`superseded_run IS NULL`**. The store is APPEND-ONLY (supersede-then-insert), so the naive
+Checkpoints count read **6191** against a store whose LIVE rows were clean. **Corrected gate:**
+`WHERE superseded_run IS NULL AND ...`. Measured live: corbell 5445 nodes / 63 oracle.ts / 0
+Checkpoints; graphify 1424 / 0 / 0. The graphify store pre-dated the scope fix (mtime == the
+extract's) → rebuilt with `graphify-build --no-extract --scope src` (dropped 9165 out-of-scope
+rows). ★ The EXTRACT is still a whole-tree walk (26,710 Checkpoints refs) — A-0 holds at the
+STORE, not the extract. ★ `src/omp/oracle.ts` is ABSENT from the graphify extract. Commit `42b1b5d`.
+
+### B/C/D — THE 8 EDGES + THE WIRING (the central deliverable)
+- **T0** `src/omp/layer-registry.ts` (211 L) — TYPES ONLY, imports NO adapter. The ONLY GREEN:
+  `consumed = up && factsReturned > 0`. A fact without its `source` anchor is DISCARDED + counted.
+- **The 8 adapters** (disjoint): corbell/graphify (settlement) · c2kg/ua (context) ·
+  arsumbris (knowledge) · semantica (decision) · tsg (meaning) · abide (repair). Shared helpers in
+  `adapters/_shared.ts`; `liveEdgesFor` carries the `superseded_run IS NULL` live filter.
+- **D-1/D-2** `src/omp/layer-consumption.ts` (97 L) — `buildRegistry` (the CLOSED SET, with a
+  `GI_REGISTRY_INCOMPLETE` assertion) + `consumptionAudit`; `scripts/consumption-audit.ts`.
+- **★ THE WIRING (D-2)**: `extension.ts` imports the assembly and registers the `gi-consumption`
+  tool. **That ONE import is why the bundle now carries the 8 modules — without it, F-95 recurs.**
+Commits `7bcb771` (the edges) + `f195bc0` (the wiring).
+
+### F-95 — FULLY EXPLAINED (the build's central finding)
+The pin thought the deploy diverged. **Measured: a FRESH build from current source produced the
+SAME zero-symbol bundle.** Two causes: (1) **12 of 23 src/omp modules had ZERO importers** — bun
+tree-shook all of them; (2) **typescript@7.0.2** stubbed the parser. **THE FIX: 613 KB → 9.42 MB,
+and the DIST-CONTENT GATE passes (every v2.x symbol present).**
+
+### E-1/E-2 — THE PROOF
+- **E-1** `tests/st-gi-6l2e.test.ts` — 13 pass / 0 fail / 82 expect(), **adversarial-first**
+  (up+0-facts ⇒ UNCONSUMED · the unanchored fact · the throwing probe · a substrate fault ≠ a
+  wiring gap · the wrong-tree store · the superseded row · the absent substrate · up≠consumed).
+- **E-2** `gi-6l2e-ct` (omp-ct:master) — **deploy sha match 53d27ac0f4184ade**, the in-container
+  content gate PASSES, the **auth probe PASSES** (model pinned `openrouter/poolside/laguna-s-2.1:free`;
+  the status bar read "Laguna S 2.1 (free)"), **5/5 scenarios**, and **REAL facts in a HEADED TUI**:
+  `consumed:2/8 rungs=settlement` (L5 facts=16, L6 facts=8). Artifact: `.trident/plan-6l2e/phaseE.json`.
+
+### E-3 — THE SEAL
+`packages/gi-kernel-6l2e/6L2E_COMPLETION_REPORT.md` (212 L) + `.trident/plan-6l2e/phaseE.json`.
+**★ `consumed:2/8` IS THE HONEST NUMBER. The other 6 are BLOCKED on substrates that do not exist
+on this host** (3 absent stores, 1 dead daemon, 2 source-only dirs) — each with its evidence + its
+unblock option. **NOTHING was fabricated to reach 8.**

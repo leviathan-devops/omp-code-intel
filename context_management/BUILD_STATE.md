@@ -205,3 +205,22 @@ grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site ho
 ```
 
 **If any of those five disagree with this doc, THIS DOC IS STALE — trust the command.**
+
+---
+
+# ★ THE 6L+2E BUILD STATE (2026-09-22)
+
+| item | value |
+|---|---|
+| HEAD | `f6fca91` |
+| dist sha256_16 | **`53d27ac0f4184ade`** |
+| dist size | 9,424,478 B (was 613,000 B) |
+| dist-content gate | **PASS** (every v2.x symbol present) |
+| src newer than dist | **0** |
+| tsc | **exit 0 / 0 errors** (was 191) |
+| battery | ** 336 pass  0 fail ** |
+| the 6L+2E suite | 13 pass / 0 fail / 82 expect() |
+| container proof | `gi-6l2e-ct` (omp-ct:master) — deploy sha MATCH, 5/5 scenarios |
+| consumption | **consumed:2/8** (L5 corbell + L6 graphify) |
+| the gate defect | **FIXED** (the reset fires on a resolved query) |
+| the L2 probe defect | **FIXED** (a socket FILE is not a DAEMON; connect() is the proof) |
