@@ -1,7 +1,7 @@
 # THE 6L+2E RECEIPT — the run's evidence, in one place
 
 **Date:** 2026-09-22 · **Tree:** `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence`
-**Branch:** `graph-intelligence` · **HEAD:** `6183924` · **Dist sha256_16:** `53d27ac0f4184ade` (9,424,478 B)
+**Branch:** `graph-intelligence` · **HEAD:** `6183924` · **Dist sha256_16:** `727620d6ee782c7a` (9,425,167 B)
 
 ---
 
@@ -34,7 +34,7 @@ the parser). P0 corrected it. `reports/P0_ABSORB_FINDINGS.md`
 | **P4 RUNTIME** | the hot seat + a NON-EMPTY bug ledger | **6 findings (B-1..B-6), 4 fixed, 2 reported with mechanism** | **GREEN** |
 | **P5 ADVERSARIAL** | the black-hat corpus until a full pass is clean | the 8-test adversarial suite + the 6-fixture corpus; the negatives precede the happy path | **GREEN** |
 | **P6 DOCUMENT** | the 11 canon + the 6 ship docs + the AUDIT GATE | all updated; **★ AUDIT GATE: BLOCKED** (recorded, never assumed) | **GREEN (gate BLOCKED, declared)** |
-| **P7 CHECKPOINT** | round-zero + the seal | `Checkpoints/gi-6l2e-wired-measured-consumed-2of8-53d27ac0f4184ade` (13 M, the name proven by its binary) | **GREEN** |
+| **P7 CHECKPOINT** | round-zero + the seal | `Checkpoints/gi-6l2e-wired-measured-consumed-2of8-727620d6ee782c7a` (13 M, the name proven by its binary) | **GREEN** |
 | **P8 VERDICT** | the legal stop met in FULL | see §5 — **5 of 5 goal conditions NOT all met** | **OPEN** |
 
 ---
@@ -46,7 +46,7 @@ bunx tsc --noEmit                       → exit 0, 0 errors          (WAS 191)
 bun test                                →  337 pass  0 fail 
 bun test tests/st-gi-6l2e.test.ts       → 14 pass / 0 fail / 123 expect()
 the dist-content gate (8 symbols)       → PASS
-deploy sha match (repo == container)    → 53d27ac0f4184ade == 53d27ac0f4184ade
+deploy sha match (repo == container)    → 727620d6ee782c7a == 727620d6ee782c7a
 the container TUI (gi-6l2e-ct)          → consumed:2/8 rungs=settlement, L5 facts=16, L6 facts=8
 the negative path (scopeRoot=/tmp)      → consumed:0/8, every consumer named DOWN
 the $0 settlement                        → judgeCalls=0, firesUsed()=0, costUsd=0
@@ -127,7 +127,7 @@ reports/GATE_DEFECT_GRAPH_GATE_DRIFT.md  74 L  B-1
 packages/gi-kernel-6l2e/6L2E_COMPLETION_REPORT.md  212 L  the seal
 packages/gi-kernel-6l2e/THE_RECEIPT.md             this file
 .trident/plan-6l2e/phaseE.json             the container proof
-Checkpoints/gi-6l2e-wired-measured-consumed-2of8-53d27ac0f4184ade/   13 M  the checkpoint
+Checkpoints/gi-6l2e-wired-measured-consumed-2of8-727620d6ee782c7a/   13 M  the checkpoint
 context_management/ (11) · the 6 ship docs
 ```
 
@@ -145,7 +145,7 @@ f6fca91 fix(6l2e): ★ THE L2 PROBE WAS LYING — a socket FILE is not a DAEMON
 3b5f0e4 test(6l2e-E2): THE CONTAINER PROOF — 5/5 in a HEADED OMP TUI
 475c482 docs(6l2e-E3): THE COMPLETION REPORT AND SEAL
 888b919 docs(6l2e): the canon + the ship docs
-2007da0 build(6l2e): THE WIRED DIST — 9,424,478 B
+2007da0 build(6l2e): THE WIRED DIST — 9,425,167 B
 1dfa41e test(6l2e): the TESTING_LOG entry + AUDIT GATE: BLOCKED
 6183924 test(6l2e-SC5): THE 7-CLASS DERAILMENT CORPUS — 14 pass
 ```

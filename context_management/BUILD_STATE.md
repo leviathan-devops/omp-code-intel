@@ -213,8 +213,8 @@ grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site ho
 | item | value |
 |---|---|
 | HEAD | `f6fca91` |
-| dist sha256_16 | **`53d27ac0f4184ade`** |
-| dist size | 9,424,478 B (was 613,000 B) |
+| dist sha256_16 | **`727620d6ee782c7a`** |
+| dist size | 9,425,167 B (was 613,000 B) |
 | dist-content gate | **PASS** (every v2.x symbol present) |
 | src newer than dist | **0** |
 | tsc | **exit 0 / 0 errors** (was 191) |
