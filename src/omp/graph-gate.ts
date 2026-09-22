@@ -47,6 +47,8 @@ export interface GateQueryRecord {
   timestamp: number;
   tool: string;
   target: string;
+  /** ★ whether the query RETURNED a non-empty answer — only a resolved query covers an edit. */
+  resolved?: boolean;
 }
 
 export interface GraphGateSessionState {
@@ -133,20 +135,38 @@ export function recordEdit(c: EditClassification, state: GraphGateSessionState, 
   if (state.gateState === "IDLE") state.gateState = "TRACKING";
 }
 
-export function recordGraphQuery(q: { tool: string; target: string }, state: GraphGateSessionState, ts: number = Date.now()): void {
+/** ★★★ THE RITUAL-QUERY FIX (2026-09-22). MEASURED DEFECT: this recorded a query
+ *  whenever it carried a TARGET STRING — it NEVER checked whether the query RETURNED ROWS or
+ *  ERRORED. So `graph-query verb=who-calls target=classify` → `rows=0` + a ripwire error
+ *  STILL reset the drift. THE GATE REWARDED THE CALL, NOT THE ANSWER, which is why T-16
+ *  ("the ritual query") worked: the gate literally cannot tell a query that informed from one
+ *  that was purchased, because it only ever saw the target.
+ *  THE FIX: a query resets drift ONLY IF IT RESOLVED. `resolved` is the caller's report of a
+ *  non-empty answer; absent means UNRESOLVED, so the default is the honest one — an unverified
+ *  query cannot purchase coverage. (Rows=0 is a legitimate answer, but it is not COVERAGE of
+ *  the edit; the edit remains unverified.) */
+export function recordGraphQuery(
+  q: { tool: string; target: string; resolved?: boolean; rows?: number },
+  state: GraphGateSessionState,
+  ts: number = Date.now(),
+): void {
   const target = normTarget(q.target ?? "");
-  if (target.length > 0) state.graphQueries.push({ timestamp: ts, tool: q.tool, target });
+  if (target.length === 0) return;
+  const resolved = q.resolved === true || (typeof q.rows === "number" && q.rows > 0);
+  state.graphQueries.push({ timestamp: ts, tool: q.tool, target, resolved });
 }
 
 export function resetDriftForSymbol(target: string, state: GraphGateSessionState): void {
   const t = normTarget(target);
   if (t.length === 0) return;
-  state.graphQueries.push({ timestamp: Date.now(), tool: "reset", target: t });
+  state.graphQueries.push({ timestamp: Date.now(), tool: "reset", target: t, resolved: true });
 }
 
 function symbolVerified(sym: string, state: GraphGateSessionState): boolean {
   const t = normTarget(sym);
-  return state.graphQueries.some((q) => q.target === t);
+  // ★ A QUERY ONLY COVERS AN EDIT IF IT RESOLVED. An unresolved query (rows=0, an error, or
+  //   an unrecorded outcome) is not evidence, so it cannot purchase coverage (the T-16 fix).
+  return state.graphQueries.some((q) => q.target === t && q.resolved === true);
 }
 
 export function computeDrift(state: GraphGateSessionState, now: number = Date.now()): DriftResult {

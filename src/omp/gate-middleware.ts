@@ -64,8 +64,30 @@ export interface GateResult {
 }
 
 export function runGraphGate(input: GateInput): GateResult {
+  // ★★★ THE OPERATOR'S LAW, APPLIED (2026-09-22): NO FALLBACKS. A missing graph is a
+  //   LOUD, NAMED REFUSAL — never ALLOW+warn. THE DEFECT THIS CLOSES: the previous line
+  //   returned `cancel:false, advisory:"ALLOW+warn"`, so EVERY structural edit passed with
+  //   a warning nobody read. That is a SILENT FALLBACK wearing a token, and it is the exact
+  //   mechanism by which this build shipped 356 green tests over a graph that could not see
+  //   the code (reports/GI_kernel_v21_forensic_autopsy_context.md §4.2, D-9).
+  //   THE ESCAPE IS EXPLICIT AND NAMED: `GI_ALLOW_NO_STORE=1` for a deliberate bootstrap
+  //   (the first populate of a fresh scope). It is never the default, and it is never
+  //   silent — the advisory records that the gate was bypassed ON PURPOSE.
   if (!input.hasStore) {
-    return { cancel: false, token: "GI_NO_STORE", advisory: "GI_NO_STORE: ALLOW+warn" };
+    if ((process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+      return {
+        cancel: false,
+        token: "GI_NO_STORE",
+        advisory:
+          "GI_NO_STORE: BYPASSED BY EXPLICIT ENV (GI_ALLOW_NO_STORE=1) — the graph gate did NOT verify this edit.",
+      };
+    }
+    return {
+      cancel: true,
+      token: "GI_NO_STORE",
+      advisory:
+        "GI_NO_STORE: no graph store for this scope — the gate CANNOT verify this edit, so it REFUSES. Populate the store (a graph-query populates on demand) or set GI_DIAL=OFF to disable the gate deliberately. A missing substrate is never a pass.",
+    };
   }
   const before = parseExports(input.oldText);
   const after = new Set(parseExports(input.newText));

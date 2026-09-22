@@ -41,7 +41,7 @@ describe("st-gi-graph-gate: v1.3 intelligent graph gate", () => {
     for (const sym of ["aaa", "bbb", "ccc"]) {
       const c = classifyEdit("edit", { file: "src/omp/t.ts", oldString: `export function ${sym}() {}`, newString: `export function ${sym}X() {}` });
       recordEdit(c, st);
-      recordGraphQuery({ tool: "ripwire", target: sym }, st);
+      recordGraphQuery({ tool: "ripwire", target: sym, resolved: true }, st);
     }
     const d = computeDrift(st);
     expect(d.drift).toBeLessThan(0.3);
@@ -69,10 +69,10 @@ describe("st-gi-graph-gate: v1.3 intelligent graph gate", () => {
     const st = createEmptyState();
     const c1 = classifyEdit("edit", { file: "src/omp/t.ts", oldString: "export function solo() {}", newString: "export function solo2() {}" });
     recordEdit(c1, st);
-    recordGraphQuery({ tool: "graph-query", target: "solo2" }, st);
+    recordGraphQuery({ tool: "graph-query", target: "solo2", resolved: true }, st);
     const c2 = classifyEdit("edit", { file: "src/omp/t.ts", oldString: "export function solo2() {}", newString: "export function solo3() {}" });
     recordEdit(c2, st);
-    recordGraphQuery({ tool: "graph-query", target: "solo3" }, st);
+    recordGraphQuery({ tool: "graph-query", target: "solo3", resolved: true }, st);
     const d = computeDrift(st);
     expect(d.drift).toBe(0);
     expect(gateDecision(d, st).tier).toBe("T0");
@@ -115,7 +115,7 @@ describe("st-gi-graph-gate: v1.3 intelligent graph gate", () => {
     recordEdit(ca, st);
     const cb = classifyEdit("edit", { file: "src/omp/t.ts", oldString: "export function beta() {}", newString: "export function beta2() {}" });
     recordEdit(cb, st);
-    recordGraphQuery({ tool: "ripwire", target: "beta" }, st);
+    recordGraphQuery({ tool: "ripwire", target: "beta", resolved: true }, st);
     resetDriftForSymbol("beta", st);
     const d = computeDrift(st);
     expect(d.drift).toBeGreaterThan(0);
@@ -185,11 +185,41 @@ describe("st-gi-graph-gate: v1.3 intelligent graph gate", () => {
     const mk = (s: string) => classifyEdit("edit", { file: "src/omp/w.ts", oldString: `export function ${s}() {}`, newString: `export function ${s}X() {}` });
     recordEdit(mk("ra1"), st);
     recordEdit(mk("ra2"), st);
-    recordGraphQuery({ tool: "graph-query", target: "ra1" }, st);
-    recordGraphQuery({ tool: "graph-query", target: "ra2" }, st);
+    recordGraphQuery({ tool: "graph-query", target: "ra1", resolved: true }, st);
+    recordGraphQuery({ tool: "graph-query", target: "ra2", resolved: true }, st);
     const d = computeDrift(st);
     expect(d.drift).toBeLessThan(0.3);
     expect(gateDecision(d, st).tier).toBe("T0");
   });
 });
 
+
+// ══ ★★★ THE RITUAL-QUERY FIX (2026-09-22) — a query must RESOLVE, not merely FIRE ══
+//    THE MEASURED DEFECT: `recordGraphQuery` reset drift whenever a query carried a
+//    TARGET STRING, never checking whether it returned rows. So the exact call that
+//    produced `rows=0` + a ripwire error STILL purchased coverage. THAT is T-16.
+
+test("test_an_UNRESOLVED_query_does_NOT_cover_the_edit — the T-16 fix", () => {
+  const st = createEmptyState();
+  recordEdit(highEdit("alpha").classification, st);
+  // ★ a query that fired but did NOT resolve (rows=0 / an error)
+  recordGraphQuery({ tool: "graph-query", target: "alpha", resolved: false }, st);
+  const d = computeDrift(st);
+  // ★ the edit stays UNVERIFIED — an empty answer is not evidence
+  expect(d.unverifiedCount).toBeGreaterThan(0);
+});
+
+test("test_a_RESOLVED_query_DOES_cover_the_edit", () => {
+  const st = createEmptyState();
+  recordEdit(highEdit("alpha").classification, st);
+  recordGraphQuery({ tool: "graph-query", target: "alpha", resolved: true }, st);
+  const d = computeDrift(st);
+  expect(d.unverifiedCount).toBe(0);
+});
+
+test("test_rows>0_implies_resolved — the caller may report either way", () => {
+  const st = createEmptyState();
+  recordEdit(highEdit("alpha").classification, st);
+  recordGraphQuery({ tool: "graph-query", target: "alpha", rows: 7 }, st);
+  expect(computeDrift(st).unverifiedCount).toBe(0);
+});
