@@ -545,3 +545,31 @@
   current ledger — and now the reason is a stored fact, not a footnote.
 - EVIDENCE: battery 359/0/1272/34 host · 359/0/1265/34 container · tsc 191 · host suite 13/13 ·
   +7 tests (3 precedence/disclosure + 1 real-gate round-trip + 3 migration).
+
+## [2026-09-22T07:15:00] — ★★★ FORENSIC AUTOPSY (operator-ordered): THE GRAPH CANNOT SEE THE LIVE CODE
+- THE OPERATOR'S CHARGE, verbatim: "this is a complete fail and a huge theatrical dress up of a
+  completely broken codebase. complete waste of time and tokens this should have been addresed
+  and fixed hours ago."
+- THE AUTOPSY ARTIFACT: reports/GI_kernel_v21_forensic_autopsy_context.md (314 lines, ruler-clean).
+- ★★★ THE ROOT CAUSE (D-8), FOUND BY RUNNING THE GRAPH TOOLS, NOT BY READING:
+      session cwd = .omp/wt/graph-intelligence-66dfa4c  (a WORKTREE)
+        └─ src/hunter/  PRE-V2 layout   ← THE STORE DESCRIBES THIS (851 nodes)
+        └─ src/omp/     ABSENT (0 files)
+        └─ gi-project → a SYMLINK to the live tree (the intent existed, unwired)
+      live kernel  = .../Graph_Intelligence/src/omp/  (23 .ts)
+  THE GRAPH WAS POPULATED FROM THE WORKTREE, so it describes a tree the kernel no longer is.
+- ★★ D-9 THE FOURTH RETRIEVAL BRANCH IS DEAD AT BOTH ENDS: graph-query rows=0 AND its ripwire
+  fallback is RIPWIRE_PATH_DENIED (escapes cwd). ★ THE DEFECT THAT CAUSED F-66..F-69: AN EMPTY
+  ANSWER AND A WRONG-SCOPE ANSWER ARE INDISTINGUISHABLE. rows=0 read as "no callers".
+- ★★ D-10: the graph is 71.6% Checkpoints/ (7584 of 10589 source nodes); only 312 src/omp.
+- ★★ D-11: the 4 kernel modules (oracle/fire-ledger/fire-gate/evidence-producer) have 0 nodes each.
+- ★★ THE GATE HAS NEVER ARMED: graph_gate_state = 0 ROWS IN ALL SIX STORES; no store has >2 of 6
+  layers; TSG/abide/jev NOT ON PATH; L2 Jev ledger EMPTY; L1 Jev calls the model 10.4% of the time.
+- ★ THE WASTE, MEASURED: 73 commits = 29 docs + 16 fix + 11 feat + 7 test → 62% are repairs +
+  their paperwork; docs outnumber features 2.6:1; 3,316 ship-doc lines for 8,596 code lines.
+- ★ THE HONEST GRADE (not a blanket "broken"): the ENFORCEMENT CHAIN WORKS (356/0/1268, real-gate
+  proofs, named failures). THE INTELLIGENCE LAYER — the project's entire point — does not.
+- ★ AND THE DAMNING FACT: storeFreshness, graph_gate_state, and the pre-act seat PLAN all EXIST
+  and NONE were exercised. GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md (21,504 B) was WRITTEN, not BUILT.
+- EVIDENCE: the artifact + the measurements it anchors (git log, sqlite3 store queries, the
+  graph-query outputs, the .abide ledger awk, the worktree listing).
