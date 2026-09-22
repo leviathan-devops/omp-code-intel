@@ -530,3 +530,10 @@ the model) and the operator's order (**muse 1.3**): the container now runs
 ★ **A PROXY FINDING:** the go-model blacklist whitelists the WIRE name `muse-spark-1.3-contributor`
 while omp's catalog alias for it is `big-pickle` — so `opencode-go/muse-spark-1.3-contributor` is
 rejected 403; the container's free zen lane resolves correctly.
+
+## [2026-09-23] ★ THE TRUE DIST (post-audit re-stamp)
+
+**`extensions/graph-intelligence/index.js` sha256_16 `3e2c2207c247a069`** (9,434,756 B).
+★ The zero-trust audit found SHA DRIFT across the docs; this log records the TRUE sha AFTER the
+8 HIGH gate fixes + the socket-filter fix. Evidence: `sha256sum extensions/graph-intelligence/index.js`
+→ `3e2c2207c247a069`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.

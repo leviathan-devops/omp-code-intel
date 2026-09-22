@@ -625,3 +625,10 @@ battery is \`tests/\`. **Fix:** \`bunfig.toml [test] root = "./tests"\`.
 The A-0 gate omitted \`superseded_run IS NULL\`; the naive Checkpoints count read **6191** against a
 store whose LIVE rows were clean (the store is supersede-then-insert). **Fix:** the corrected gate,
 recorded in \`reports/P0_ABSORB_FINDINGS.md §9.1\`.
+
+## [2026-09-23] ★ THE TRUE DIST (post-audit re-stamp)
+
+**`extensions/graph-intelligence/index.js` sha256_16 `3e2c2207c247a069`** (9,434,756 B).
+★ The zero-trust audit found SHA DRIFT across the docs; this log records the TRUE sha AFTER the
+8 HIGH gate fixes + the socket-filter fix. Evidence: `sha256sum extensions/graph-intelligence/index.js`
+→ `3e2c2207c247a069`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.

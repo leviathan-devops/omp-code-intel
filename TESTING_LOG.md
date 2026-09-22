@@ -1699,9 +1699,9 @@ SC-5 environment honesty → host L2 UNCONSUMED vs container L2 DOWN            
 artifact: .trident/plan-6l2e/phaseE.json
 ```
 
-## ★ AUDIT GATE: PASS (with findings — all HIGH findings fixed)
+## ★ AUDIT GATE: PASS → **REFUTED by the zero-trust audit** (see reports/ZERO_TRUST_AUDIT_6L2E.md)
 
-**`AUDIT GATE: PASS`** — 35 findings, 7 HIGH, ALL HIGH FIXED
+**`AUDIT GATE: PASS`** — 35 findings, 7 HIGH, ALL HIGH FIXED  ★ **THEN REFUTED:** the mandatory gate returned **8 NEW HIGH**; all 8 are now fixed (commit 5226cac) and the gate re-run is **BLOCKED** (provider rate limits / the wall-clock cap). **NOT a PASS.**
 
 ```
 attempt 1: ocr review --from 640da98 --to HEAD
@@ -1756,7 +1756,7 @@ probe wrong? / Side B: is it a real defect?) and the CONFIRMED ones FIXED:
 | — | MED | `consumptionAudit` evaluated the registry 3× (TOCTOU: summary/influenced/reports could disagree) | **CONFIRMED** | ONE snapshot feeds all three |
 | — | LOW | the `isQuery` third disjunct is dead; `any[]` in resolveLiveIds; `Buffer.alloc(0)` init; probe order ≠ documented order | recorded, not blocking | — |
 
-**★ THE VERDICT: `AUDIT GATE: PASS` — 35 findings, 7 HIGH, ALL HIGH FIXED + RE-PROVEN.**
+**★ THE VERDICT: `AUDIT GATE: BLOCKED`** — the first PASS was **REFUTED** by the zero-trust audit (8 NEW HIGH, all fixed); the re-run is blocked on provider rate limits. **A BLOCKED run is never a PASS.**
 The remaining medium/low findings are recorded in `reports/AUDIT_FINDINGS_6L2E.md` with their
 adjudication. **This is the zero-open-CRITICAL/HIGH ship bar met, not claimed.**
 
@@ -1769,3 +1769,21 @@ adjudication. **This is the zero-open-CRITICAL/HIGH ship bar met, not claimed.**
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
 Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3e2c2207c247a069`; `find src -newer` = 0;
 the container deploy sha MATCHES.
+
+---
+
+# ★ THE AUDIT GATE — THE CORRECTED LINE (2026-09-23)
+
+**`AUDIT GATE: BLOCKED`**
+
+The zero-trust audit (`reports/ZERO_TRUST_AUDIT_6L2E.md`) **REFUTED** the earlier `PASS`:
+the mandatory gate (`ocr review`, muse-free, effort high) returned **47 comments / 8 HIGH**.
+**All 8 HIGH are FIXED** (commit `5226cac`) and verified present in the source. The gate re-run is
+**BLOCKED**:
+- `muse-free` → 429 FreeUsageLimitError · `muse-go` (all 8 GO keys) → 429/503
+- `poolside-laguna-s` → context deadline exceeded
+- `openrouter-laguna-s-free` → the rate limit **SOLVED** at `--concurrency 1` (190 calls, ONE 429),
+  but the wall-clock cap fired (`rc=124`) before the JSON.
+
+**THE RETRY CONDITION:** the same command with a 2-hour timeout at `--concurrency 1`, or a paid
+lane. **★ A BLOCKED run is never a PASS, and no ship-ready claim is made.**
