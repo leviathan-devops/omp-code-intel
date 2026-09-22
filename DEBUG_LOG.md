@@ -576,3 +576,54 @@ ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052
 - ★ L1 JEV: 4,301 true / 37,446 false of 41,747 (89.7% skip).
 - EVIDENCE: reports/GI_kernel_v21_deep_live_forensic.md (the artifact) · the scout digests ·
   commit follows.
+
+## [2026-09-22] — EN-092 ★★★ THE SIX-ITEM AUDIT + THE CATALOG + THE PLAN (a 6-desk wave)
+- THE CHARGE: the operator's 6-item message (session `01a09cde`, line 30805), located verbatim
+  after a session search: (1) the goal-loop flaws; (2) the code-review bypass + THE HOOK SURFACE;
+  (3) the build-package derailment; (4) the mechanical gates; (5) the test rip-apart; (6) the
+  testing framework + the git/GitHub rails + semantica + TSG. Plus: mint `extract-meta-patterns`
+  (ALREADY EXISTS, 166L, both modes) + spec-update the first autopsy.
+- THE METHOD: 6 read-only scout desks, the E1 template verbatim (the CT dispatch gate fired
+  first on the template fingerprint — the templates were loaded and filled, not hand-written).
+- ★★★ ITEM 2 — THE ANSWER THE OPERATOR DEMANDED: `pi.on("tool_call")` **CAN CANCEL
+  `goal(op=complete)`** — PROVEN with 3 evidences: (a) the goal tool is a normal AgentTool
+  (`goal-tool.ts:57 name="goal"`) wrapped by the same dispatch (`wrapper.ts:206-215`); (b) the
+  hook dispatcher filters NOTHING (`hooks/runner.ts:325 emitToolCall`); (c) the cancel path is
+  `{block:true, reason}` OR a throw → `wrapper.ts:217-219 if(callResult?.block) throw` (and
+  `runner.ts:1093-1143` converts a throw to `{block:true}`). `HIDDEN_TOOL_NAMES=["yield","goal"]`
+  hides them from the MODEL, NOT from the hook. **GT-1 IS BUILDABLE TODAY. NOTHING DOES IT.**
+- ★★ ITEM 1 — THE COMPLETION SINK: `completeGoalFromTool` (`goals/runtime.ts:470-494`) has
+  THREE preconditions, ALL status checks (`!state?.goal`, `status==="complete"`,
+  `status==="dropped"`), then `state.goal.status = "complete"`. **ZERO substantive checks. The
+  agent's prose is the only input.** G-1..G-8 all VERIFIED.
+- ★★ NEW FINDING G-9 — THE CALLEE-FIX-WITHOUT-THE-CALLSITE: `gate-middleware.ts:85-90` was FIXED
+  to `cancel:true` on `GI_NO_STORE`, but `gate-hook.ts:~80` **hardcodes `hasStore: true`** — so
+  the fail-closed refusal is DEAD from the live path. The fix landed in the callee; the call
+  site asserts sight. (Same shape as V-08 "shipped but unreachable".)
+- ★★ NEW FINDING AP-9 — THE NAME COLLISION: TWO exports named `registerGraphGate` —
+  `gate-hook.ts:118` (the real one the extension binds) and `graph-gate.ts:326` (a `void api`
+  NO-OP STUB). An import typo silently binds the stub.
+- ★ NEW FINDING AP-5 — THE HEADER-VS-BODY CONTRADICTION: `gate-middleware.ts:1-2` header says
+  "Fail-open when no store"; the body is fail-closed. The header is STALE (same class as D-9).
+- ★★ ITEM 5 — THE TEST RIP-APART: 31 suites / 362 tests / 1,268 expects; **0 import the deployed
+  bundle; 0 assert store scope vs the live tree.** 7 theatrical classes A..G. X-1/X-3/X-6/X-7/
+  X-8/X-9/X-10/X-11 CONFIRMED; ★ **X-4/X-5 CORRECTED — they were ALREADY FIXED before this audit;
+  the prior autopsy's claims about them were TRUE of the pre-fix file and are STALE.** (The
+  honest correction of my own prior work — the same class as the defects I am auditing.)
+- ★★ ITEM 3 — THE DERAILMENT MECHANICAL: the v2.1 adjudication loop (fire-gate 44KB, oracle
+  26KB, fire-ledger 33KB, calibration, kernel-v2, policy-store) is a TESTED LIBRARY **BESIDE** the
+  live path — `extension.ts` imports `gate-hook.ts` ONLY. **12 of 23 modules UNREACHABLE**;
+  `runKernelV2` ZERO call sites; `hard-deps.ts` is a DEAD-IMPORT-ROOT (imported only by
+  `enforcement.ts:18`, itself unreachable).
+- ★★ ITEM 6 — THE RAILS MEASURED: L-GIT-1..4 ABSENT (24 `.sample` hooks only, NO remote, NO
+  `.github/workflows/`); L-GIT-5 PARTIAL. Semantica: 15 MCP tools PRESENT, ZERO code callers.
+  TSG: interface-only (no LoadUnit impl). L2 Jev ledger EMPTY. TTSR: ABSENT live (parked 6 files).
+- THE DELIVERABLES (1,493 lines, box-law clean, commit `a16cd33`):
+  · `reports/GI_kernel_v21_SIX_ITEM_AUDIT.md` (597L) — the 6 answers
+  · `reports/GI_kernel_v21_ANTI_PATTERN_CATALOG.md` (399L) — 10 structural classes + 19
+    theatricality acts + 15 slop signatures + 7 test classes + G-1..G-9 + the cross-era
+    recurrence + a RUNNABLE detection kit (§8)
+  · `reports/GI_kernel_v21_HARDENING_PLAN.md` (497L) — 7 phases, 12 waves, W0=rebuild first
+- ★ THE LAW RE-AFFIRMED: the catalog's value is that EVERY anti-pattern now has a MECHANICAL
+  DETECTION (the commands in §8). An anti-pattern without a detection is a documented wish —
+  the same class as the audit that was blocked and the gate that was never called.
