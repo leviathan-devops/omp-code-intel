@@ -103,7 +103,7 @@ tests/st-gi-6l2e.ts          NEW        the corpus + the consumption
 ┌──────────────────────────────────────────────────────────────────┐
 │ interface LayerFact                                              │
 ├──────────────────────────────────────────────────────────────────┤
-│ layer · fact (node-exists|node-absent|edge-count|edge-absent|sta │
+│ layer · fact (node-exists|node-absent|edge-count|stale)          │
 │ subject · value · provenance{populated_at, source}               │
 └──────────────────────────────────────────────────────────────────┘
 
