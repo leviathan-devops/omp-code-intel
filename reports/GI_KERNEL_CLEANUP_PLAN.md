@@ -150,3 +150,304 @@ THE FIRST ACTION:    W-STOP (30 min): the honest banner + the Checkpoints exclus
 ★ AND THE SIBLING:   the chain (FREE_CHAIN_RESILIENCE.md) must land with W4 — the audit gate
                      is worthless if its rail is dead, which is EXACTLY what happened today.
 ```
+
+---
+
+# §8 · THE CHAT-DELIVERED BUILD PLAN (2026-09-22, preserved verbatim per the operator order)
+
+Using show-me skill. **THE PLAN — what gets built, exactly, in order.**
+
+---
+
+# THE 6L+2E BUILD PLAN
+## 8 components. 14 waves. Every wave carries its layer-edge or it is refused.
+
+**Baseline:** `jarvis/gi-main` @ `d986259` · dist `83eb7bba` (30h STALE) · 99 .ts / 25,928 L · 31 test files
+**Scope: L1 SEMANTICA · L2 ARSUMBRIS · L3 UA · L4 C2KG · L5 CORBELL · L6 GRAPHIFY · TSG · ABIDE — 8/8. NO SHRINK.**
+
+---
+
+# 1 · WHAT IS WRONG RIGHT NOW (the measured start state)
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ COMPONENT      THE PATH/DECLARATION          IS IT AN INPUT TO A DECISION│
+├────────────────────────────────────────────────────────────────────────┤
+│ L1 SEMANTICA   path-declared in hard-deps    ★ NO — 0 consumers         │
+│ L2 ARSUMBRIS   socket-declared               ★ NO — 0 consumers         │
+│ L3 UA          path-declared                 ★ NO — 0 consumers         │
+│ L4 C2KG        path-declared                 ★ NO — 0 consumers         │
+│ L5 CORBELL     ★ INSTALLED ~/.local/bin      ★ NO — 0 consumers         │
+│ L6 GRAPHIFY    ★ the store EXISTS (15 MB)    ★ NO — 0 consumers         │
+│ TSG            interface-declared            ★ NO — no LoadUnit impl    │
+│ ABIDE          interface-declared            ★ NO — 0 consumers         │
+└────────────────────────────────────────────────────────────────────────┘
+   THE REGISTER READS: up=5/11   ← A HEALTH CHECK ON FILES
+   THE STORE CONTAINS: 851 of 1266 nodes = src/hunter (the PRE-V2 tree)
+   ★ THE EYES EXIST. NOTHING LOOKS THROUGH THEM.
+```
+
+**THE CATEGORY ERROR, in the build's own words:**
+> *"I treated the 6 graph layers as a REGISTRATION PRECONDITION — a substrate to bring UP — instead of as THE INPUT TO EVERY DECISION. ★ I TREATED THE EYES AS A LIGHT SWITCH."*
+
+---
+
+# 2 · WHAT I WILL DO — the wave-by-wave plan
+
+```
+   T0 ─────────────► A-0  the STORE → THE LIVE TREE  (gates everything)
+                      │  + the REGISTRY INTERFACE frozen
+                      ▼
+   T1 ─────────────► ★ 9 WAVES IN PARALLEL
+                      │
+     ┌──────────────┬──────────────┬──────────────┐
+     ▼              ▼              ▼              ▼
+  B-1 L5 CORBELL  B-2 L6 GRAPH   B-3 L4 C2KG    B-4 L3 UA
+  B-5 L2 ARSUMB   B-6 L1 SEMAN   C-1 TSG        C-2 ABIDE
+  D-1 the REGISTER reports CONSUMPTION
+                      │
+                      ▼
+   T2 ─────────────► D-2  the DECISION consults the REGISTRY (serial)
+                      │
+                      ▼
+   T3 ─────────────► E-1 corpus · E-2 container · E-3 seal
+```
+
+| wave | I WILL BUILD | the files | DONE WHEN (the mechanical gate) | the test |
+|---|---|---|---|---|
+| **A-0** | the store, from the LIVE tree | `populate-graphify.ts`, `populate-corbell.ts` | `oracle.ts` has nodes; `Checkpoints/` = 0 | `test_store_scope_live` |
+| **B-1** | L5 CORBELL as a decision input | `adapters/corbell.ts`, `layer-registry.ts` | a corbell caller fact **flips a fire** | `test_consume_corbell` |
+| **B-2** | L6 GRAPHIFY as a decision input | `adapters/graphify.ts` | a graphify edge **flips a fire** | `test_consume_graphify` |
+| **B-3** | L4 C2KG as a context input | `adapters/c2kg.ts` | a c2kg fact OR `GI_LAYER_UNCONSUMED` | `test_consume_c2kg` |
+| **B-4** | L3 UA as a context input | `adapters/ua.ts` | a UA fact OR `GI_LAYER_UNCONSUMED` | `test_consume_ua` |
+| **B-5** | L2 ARSUMBRIS as a knowledge input | `adapters/arsumbris.ts` | a KG fact OR `GI_LAYER_UNCONSUMED` | `test_consume_arsumbris` |
+| **B-6** | L1 SEMANTICA as a decision input | `adapters/semantica.ts` | a precedent OR `GI_LAYER_UNCONSUMED` | `test_consume_semantica` |
+| **C-1** | TSG the meaning gate | `adapters/tsg.ts`, `enforcement.ts` | `"meaning":"match"` or `"drift"` | `test_consume_tsg` |
+| **C-2** | ABIDE the repair path | `adapters/abide.ts` | `"repaired":true` (never `blocked`) | `test_consume_abide` |
+| **D-1** | the register reports CONSUMPTION | `hard-deps.ts`, `layer-consumption.ts` | 0 consumers → `GI_LAYER_UNCONSUMED` | `test_register_reports_consumers` |
+| **D-2** | the decision consults the registry | `fire-gate.ts`, `extension.ts` | the rung reads the registry | `test_decision_consults_registry` |
+| **E-1** | the 7-class corpus replay | `tests/st-gi-6l2e.ts` | 7/7 settle with their SPECIFIC token | `test_derailment_corpus` |
+| **E-2** | the container proof | `.trident/plan-6l2e/phaseE.json` | 14/14 + the negative suite | `test_container_14of14` |
+| **E-3** | the seal | `packages/gi-kernel-6l2e/` | PACKAGE_AUDIT PASS | `test_package_audit` |
+
+**★ THE WAVE-PLAN GATE: a wave naming only a FILE and no LAYER-EDGE is REFUSED.**
+
+---
+
+# 3 · THE INTERFACES I WILL WRITE (the contracts, frozen at T0)
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ interface GraphLayer                                             │
+├──────────────────────────────────────────────────────────────────┤
+│ id            : 'L1_SEMANTICA' | 'L6_GRAPHIFY'                   │
+│ kind          : decision|knowledge|context|code|macro|micro      │
+│ probe()       : LayerHealth  ← EXISTS + FRESH + CONSUMED         │
+│ query(q)      : LayerFact|null ← THE INPUT · null = cannot answer│
+│ coveredKinds  : NodeKind[]   ← what it CAN answer (no silence)   │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│ ★ interface LayerConsumption — THE ANTI-REGISTER LAW             │
+├──────────────────────────────────────────────────────────────────┤
+│ layer                : LayerId                                   │
+│ consumers            : string[]  ← EVERY call site · NON-EMPTY   │
+│ decisionsInfluenced  : number    ← the verdicts it CHANGED       │
+└──────────────────────────────────────────────────────────────────┘
+   A LAYER IS VALID IFF consumers.length >= 1 AND decisionsInfluenced >= 1
+   else → GI_LAYER_UNCONSUMED (a LOUD down, never "up")
+```
+
+**THE QUERY PATH (pseudocode — the code I will write):**
+```
+QUERY A LAYER → A FACT
+  layer = registry.get(layerId)
+  if layer is null:              return GI_LAYER_UNCONSUMED:layerId
+  if layer.consumers is empty:   return GI_LAYER_UNCONSUMED:layerId
+  if layer.populatedAt < HEAD:   return GI_LAYER_STALE:age
+  if subject not in layer.roots: return GI_STORE_SCOPE_MISMATCH:subject
+  fact = layer.query(subject)
+  if fact is null:               return null   ← cannot answer (never rows=0)
+  layer.decisionsInfluenced += 1               ← ONLY when a verdict changed
+  return fact
+```
+
+---
+
+# 4 · HOW IT IS FORCED CORRECT (the anti-theatrical mechanism)
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ THE 14 ANTI-PATTERNS — each with a detector that FAILS THE WAVE        │
+├────────────────────────────────────────────────────────────────────────┤
+│ AA-1 THE REGISTER-WITHOUT-CONSUMERS  → layer-consumption.ts → FAIL     │
+│ AA-2 THE FILE-ORGANIZED WAVE         → the wave-plan gate → REFUSED    │
+│ AA-3 THE LIGHT-SWITCH LAYER          → GI_LAYER_ id only in the reg    │
+│ AA-4 THE UNCOVERED RULE              → a count-settled rule → FAIL     │
+│ AB-1 THE SILENT ABSENCE              → out-of-scope → SCOPE_MISMATCH   │
+│ AB-2 THE STALE SERVE                 → populated_at < HEAD → STALE     │
+│ AB-3 THE MANUFACTURED EVIDENCE       → a self-edge → FAIL              │
+│ AB-4 THE UNCOMMITTED PROVENANCE      → no gi_meta → POPULATE_FAILED    │
+│ AB-5 THE SILENT FALLBACK             → cancel:false → FAIL             │
+│ AP-1 THE UNWIRED KERNEL SHIP         → the import graph → FAIL         │
+│ AP-2 THE STALE DEPLOY                → src newer than dist → FAIL      │
+│ AP-3 THE PROSE CLAIM                 → no artifact → FAIL              │
+│ AP-4 THE SELF-MEASUREMENT            → the independent audit           │
+│ AP-5 THE CATEGORY ERROR              → ★ the pin: "the eyes are not    │
+│                                        a light switch"                 │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ THE 40 AUTO-REJECT DETECTORS — one command, exit nonzero = FAIL        │
+├────────────────────────────────────────────────────────────────────────┤
+│ PHANTOM (AR-01..05)       git diff --name-only → empty   → KICK BACK   │
+│ THEATRICAL TEST (06..13)  the fixture markers, the mutation → FAIL     │
+│ CIRCULAR TOKEN (14..17)   a token in prose, not a tool result → FAIL   │
+│ UNWIRED (18..23)          layer-consumption, the import graph → FAIL   │
+│ STALE/SUBSTRATE (24..30)  the file distribution, mtime → FAIL          │
+│ FALLBACK (31..35)         grep cancel:false, empty catches → FAIL      │
+│ CLAIM/DOC (36..40)        the artifact check, wc -l, SHA → FAIL        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# 5 · THE EXACT TESTS THAT PROVE IT (script · container · black-hat)
+
+**L2 SCRIPT (12 contracts, POSITIVE + NEGATIVE each):**
+```
+test_consume_corbell        a corbell caller fact flips a fire → settledBy:"graph"
+test_consume_graphify       a graphify edge flips a fire
+test_consume_c2kg/ua/arsumbris/semantica   a fact OR GI_LAYER_UNCONSUMED
+test_consume_tsg            "meaning":"match" / "drift"
+test_consume_abide          "repaired":true (never "blocked":true)
+test_register_reports_consumers   0 consumers → GI_LAYER_UNCONSUMED
+test_scope_mismatch         out-of-tree → GI_STORE_SCOPE_MISMATCH
+test_stale_store_refuses    populated_at < HEAD → GI_LAYER_STALE
+test_derailment_corpus      7/7 settle with their SPECIFIC token
+★ RUN: bun run tests/st-gi-6l2e.ts — the EXIT CODE is the verdict.
+```
+
+**L3 CONTAINER (14 scenarios, every passToken TOOL-RESULT-bound):**
+```
+C1  AUTH (FIRST)      → PROBE_TOOL_OK
+C2  L5 CORBELL        → "layer":"L5_CORBELL"          fail: "rows":0
+C3  L6 GRAPHIFY       → "layer":"L6_GRAPHIFY"         fail: "NO NODE"
+C4-C7  L4/L3/L2/L1    → "layer":"..." OR GI_LAYER_UNCONSUMED
+C8  TSG               → "meaning":"match"
+C9  ABIDE             → "repaired":true
+C10 ★ CONSUMPTION     → "consumed":8                  fail: "consumed":0
+C11 STATE             → GI_LAYER_STALE
+C12 BOUNDARY          → GI_STORE_SCOPE_MISMATCH
+C13 ★ INTEGRATION     → "settledBy":"graph"
+C14 ★ NEGATIVE        → "consumed":8 + 8 real answers
+★ A GENERIC gate preempting a layer's OWN token = UNOBSERVED, never PASS.
+```
+
+**BLACK-HAT (12 attacks + 8 legit cases):**
+```
+POSITIVE (must fire):  wrong-tree store · stale store · 0-consumer layer ·
+  count-settled rule · self-edge · no gi_meta · callee-fix-no-callsite ·
+  unwired module · goal-complete-no-audit · GI_NO_STORE · source-string · prose-token
+NEGATIVE (must NOT fire): in-tree query · fresh store · 8 consumed ·
+  legit edit · positive-fact rule · real completion WITH PASS · live-imported module · committed provenance
+★ A SUITE THAT FIRES EVERY ATTACK BUT NEVER PROVES THE LEGIT PATH IS HALF A SUITE.
+```
+
+---
+
+# 6 · HOW I POLICE IT (the forced-compliance loop, per wave)
+
+```
+   1 DISPATCH   task action=generate (the E1 template + the CONTRACT block)
+   2 POLL       trident-wave-read — the ONLY liveness truth
+                  stream → working · idle → kick · complete → AUDIT
+   3 AUDIT      a THE STREAM GATE   the return intact (no truncation)
+                b THE PHANTOM CHECK  sha256 before/after — a change MUST exist
+                c THE PER-HUNK       every hunk exists on disk
+                d THE MECHANICAL     I run tsc + the battery + the casts MYSELF
+                e THE FIREWALL       the 40 detectors → exit 0?
+                f THE ADVERSARIAL    the black-hat corpus
+   4 VERDICT    CORRECT|FLAWED|FITTED-TO-GOLDEN|FABRICATION|VIOLATION|CREEP
+   5 CLOSE      the ledger row + the canon/ship docs
+★ A WAVE CLOSES ONLY ON MY VERIFIED VERDICT. A subagent return closes NOTHING.
+```
+
+**THE ESCALATION LADDER:**
+```
+   VIOLATION 1 ──► the wave FAILS · the desk kicked, the detector NAMED
+   VIOLATION 2 ──► the wave FAILS · the desk REASSIGNED to a fresh subagent
+   VIOLATION 3 ──► ★ THE DESK IS RETIRED · I build it MYSELF
+   NEVER: a retry-as-erasure · "the fix landed" without the re-run · a soft pass
+```
+
+---
+
+# 7 · WHY THE LAST 3 DAYS WERE WASTED — AND WHY THESE WILL NOT BE
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ THE WASTE, MEASURED                                                    │
+├────────────────────────────────────────────────────────────────────────┤
+│ 7 audit passes · ~90 findings · the SAME structural classes recurring  │
+│ 29 docs commits vs 11 feat · 3,316 doc lines for 8,596 code            │
+│ 12 of 23 modules unreachable · the gate fired ONCE in 40,631 lines     │
+│ ★ THE ROOT: the only structural detector in the loop was a MODEL PAID  │
+│   PER FILE — because the graph returned rows=0 and was never wired.    │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────────────┐
+│ THE FIX — WHAT CHANGES THE ARITHMETIC                                  │
+├────────────────────────────────────────────────────────────────────────┤
+│ the graph answers in ~60ms what a model answers in minutes per file    │
+│ a layer not consumed reads GI_LAYER_UNCONSUMED — a LOUD fail           │
+│ the corpus REPLAYS the 7 derailments; each settles with its token      │
+│ the audit is INDEPENDENT (the ocr chain) and the ledger is its input   │
+│ ★ THE MEASURE: the audit's structural-finding rate DROPS because the   │
+│   structural defects never land — the pre-act rung kills them at $0.   │
+│ ★ THE PROOF IT WORKS ALREADY: P4 CLOSED at 3/4 derailments handled,    │
+│   2 settling FIRE at $0 — the mechanism works; it was never wired.     │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# 8 · THE OPEN DECISIONS (each with a default — no stalls)
+
+| # | the fork | the evidence | THE DEFAULT I WILL TAKE |
+|---|---|---|---|
+| Q1 | L1/L2/L3/L4 absent from PATH | `which` → absent | build to the INTERFACE; they read `GI_LAYER_UNCONSUMED` until their substrate lands |
+| Q2 | L5 corbell installed, unused | `~/.local/bin/corbell` exists | **WIRE L5 FIRST** — the only layer whose substrate is present |
+| Q3 | TSG has no LoadUnit impl | the interface only | wire against the interface |
+| Q4 | the store = 851/1266 nodes of `src/hunter` | the scope mismatch | **A-0 re-populates from the live tree** |
+| Q5 | 30s hook budget vs a full audit | `runner.ts:1090-1144` | the LEDGER pattern (pre-compute, the gate reads) |
+
+---
+
+# 9 · WHAT IS ALREADY ON DISK (so the build starts from a pinned package)
+
+```
+packages/gi-kernel-6l2e/
+├── MASTER_PROMPT.md              184 L  the depth: the one law, the 3 proofs, the workflow
+├── THE_6L2E_TESTING_SUITE.md     259 L  the script + container + black-hat suite
+├── ANTI_THEATRICAL_FIREWALL.md   185 L  the 40 detectors + the one-command gate
+├── SUBAGENT_ENFORCEMENT.md       189 L  the 7-layer police loop + the contract
+└── THE_PIN.txt                   152 L  ★ validator PASS (7/7 slots)
+packages/gi-kernel-v2.1/GI_KERNEL_6L2E_DPL1_SPEC.md   473 L  the binding authority (8/8)
+.trident/plan-6l2e/wave-plan.md                        90 L  WAVES: 12
+reports/PLAN_6L2E_ShowMe.md                           517 L  this plan + the blueprint
+```
+
+---
+
+# 10 · THE SELF-CHECK
+
+```
+mode applied        PLAN + BLUEPRINT
+ingredients loaded  show-me · ascii-diagrams
+visuals             ruler-passed · every box ≤ 76 · borders column-aligned
+claims anchored     hard-deps.ts:335-367 · 06-WAVES.md · fire-gate.ts · the counts
+open items          Q1-Q5 (each with a default) · the 12 unwired modules
+★ THE HANDOFF      paste packages/gi-kernel-6l2e/THE_PIN.txt into a fresh session
+                    → it re-measures the baseline and fires A-0 the same turn.
+```
