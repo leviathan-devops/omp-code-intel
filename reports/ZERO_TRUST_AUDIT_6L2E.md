@@ -531,3 +531,36 @@ budget remain.
 3. **The SHIP GATE had NOT been cleared** — the gate returned **8 HIGH**, all adjudicated CONFIRMED
    as real defects in this build's own new code; **all 8 are FIXED** and verified present in source.
 4. **The gate re-run is BLOCKED** on exhausted provider tiers — **never a PASS.**
+
+---
+
+# 13 · ★ THE CLOSING VERIFICATION (re-run this turn, verbatim)
+
+```
+HEAD                 9b522a7  (43 commits from the baseline 640da98)
+dist                 3e2c2207c247a069  (9,434,756 B)
+src newer than dist  0
+tsc                  exit 0            (was 191 errors at the baseline)
+battery              run1: 349 pass 0 fail · run2: 349 pass 0 fail · run3: 349 pass 0 fail
+                     ★ the earlier single red did NOT reproduce across 3 runs
+consumption          consumed:7/8 rungs=context,decision,knowledge,repair,settlement GI_LAYER_DOWN=TSG
+dist-content gate    PASS
+container deploy     3e2c2207c247a069  MATCH
+gate                 BLOCKED (every provider tier exhausted by an account-level state)
+```
+
+## ★ THE AUDIT'S CLOSING LEDGER
+
+| the class | the finding | the state |
+|---|---|---|
+| **the code** | 11/11 claims + 9/9 by a blind subagent | **VERIFIED** |
+| **the docs** | SHA drift + 92 MB of committed stores | **FOUND + FIXED** |
+| **the gate** | 8 HIGH (all real defects in this build's own code) | **FOUND + FIXED** |
+| **the recursion** | the prior audit's "7 HIGH, ALL FIXED" left 2 classes unswept | **REFUTED** |
+| **the flake** | 1 red, 3 greens, the name not captured | **UNVERIFIABLE (recorded)** |
+| **the gate re-run** | every provider lane exhausted | **BLOCKED — never a PASS** |
+
+**★ THE SKILL'S PURPOSE, EXECUTED:** the audit caught the embellishment BEFORE it became canon.
+Had it not run, `AUDIT GATE: PASS` would have been recorded as ground truth for every future agent —
+and it was false: the gate had found 8 real defects, two of them the SAME classes a prior audit
+claimed to have closed.
