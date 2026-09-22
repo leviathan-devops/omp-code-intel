@@ -16,8 +16,13 @@ import { ripwireCallers, ripwireDeadCode, ripwireEditCheck, ripwireImpact, ripwi
 import { createBugHuntTool } from "../hunter/tools/bug-hunt.ts";
 import { runQueryTool } from "../hunter/tools/query-registration.ts";
 import type { QueryVerb } from "../hunter/surface/query-tool.ts";
+// ★ D-2 (the 6L+2E WIRING): the registry assembly. THIS import is the edge that
+// makes the 8 adapters + the registry REACHABLE from the entry point. Without it
+// bun tree-shakes all of them and the bundle carries zero v2.x symbols — the
+// measured F-95 defect (12 of 23 src/omp modules unreachable, dist symbol count 0).
+import { consumptionAudit, SIX_L2E_CONSUMERS } from "./layer-consumption.ts";
 
-export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit"] as const;
+export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "gi-consumption"] as const;
 // Backwards-compatible alias: the pre-rename tool name. Registered alongside
 // aether-code-audit with the SAME execute (one shared handler, zero drift).
 // Removal: only on explicit operator order (never silently drop the alias).
@@ -588,6 +593,36 @@ createBugHuntTool(pi, { cwdOf });
     description: "ALIAS of aether-code-audit (pre-rename name, same execute, removal only on operator order).",
     parameters: aetherAuditParams,
     execute: aetherAuditExecute as (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>,
+  });
+
+  // ★ D-2: THE CONSUMPTION TOOL. The decision asks the REGISTRY, never a raw store.
+  // It reports `consumed:N/8` — which consumers actually contributed an ANCHORED fact
+  // about the subject — with every non-consumer named and its substrate evidence shown.
+  // `up=11/11` (a health check on files) is deliberately NOT this tool's answer.
+  const consumptionParams = obj({ i: zstr().optional(), subject: zstr().optional(), scopeRoot: zstr().optional() });
+  pi.registerTool({
+    name: "gi-consumption",
+    description: "THE 6L+2E CONSUMPTION PROBE. Reports `consumed:N/8` over the 8 consumers (6 graph layers L1 SEMANTICA/L2 ARSUMBRIS/L3 UA/L4 C2KG/L5 CORBELL/L6 GRAPHIFY + 2 Jev kernels TSG/ABIDE), each asked for an ANCHORED fact about `subject`. A layer is CONSUMED iff its substrate answers AND it contributed >=1 anchored fact; a wired-but-silent consumer is GI_LAYER_UNCONSUMED; an absent substrate is GI_LAYER_DOWN. NEVER reports a green on file existence alone.",
+    parameters: consumptionParams,
+    execute: (async (_id: unknown, params: unknown) => {
+      const p = (params ?? {}) as { subject?: string; scopeRoot?: string };
+      const root = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : cwdOf();
+      const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
+      try {
+        const audit = consumptionAudit(root, subject);
+        const lines = audit.reports.map(
+          (r) => `${r.consumer}\t${r.verdict}\trung=${r.rung}\tfacts=${r.factsReturned}`,
+        );
+        return textResult(
+          `${audit.summary}\nsubject=${subject}\nscopeRoot=${root}\n${lines.join("\n")}`,
+          { ok: audit.influenced.length > 0, summary: audit.summary, influenced: audit.influenced, offenders: audit.offenders, consumers: SIX_L2E_CONSUMERS },
+        );
+      } catch (e) {
+        // A registry that cannot build is a LOUD named failure — never an empty table.
+        const msg = e instanceof Error ? e.message : String(e);
+        return textResult(`GI_CONSUMPTION_FAILED: ${msg}`, { ok: false, error: "GI_CONSUMPTION_FAILED" });
+      }
+    }) as (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>,
   });
 
   return [...GI_TOOL_NAMES];
