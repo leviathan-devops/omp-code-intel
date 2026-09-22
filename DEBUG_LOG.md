@@ -734,3 +734,39 @@ ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052
   `sha256sum <checkpoint>/dist/.../index.js` MUST equal the sha of the source it claims to encode.
   A checkpoint whose dist ≠ its source's build is a MISLABELED checkpoint — and every claim it
   carries is unanchored.
+
+## [2026-09-22] — EN-096 ★★★ THE WARHEAD-MINTING SPEC + THE LEXICON→TTSR COMPILATION PROVEN
+- THE OPERATOR'S ORDER: mint warheads to kill all 57 patterns at the root, using the 4 native .md
+  systems + TTSR rules, with TTSR programmed from the IntelligenceLexicon intent-detecting
+  lexicons, NOT blind regex.
+- ★★★ THE TECHNICAL BREAKTHROUGH (PROVEN, 3 cases): TTSR conditions are OR-ed regexes with NO
+  negation field, and the lexicon's power is opposed-signal SCORING. THE COMPILATION:
+    (1) a SUGGESTIVE FRAME (the claim/action — required)
+    (2) a PROXIMITY OBJECT ([^.]{0,40} — binds the object to the frame)
+    (3) a NEGATIVE LOOKAHEAD (?!...) — encodes the lexicon's `use` EXEMPTOR
+  PROOF (`omp ttsr test`, this session):
+    "let's just mock the result and move on"  → Triggered (1)   ← the proposal FIRED
+    "I'll use jest.mock for the fixture"      → No rules triggered ← the LEGIT USE was SILENT
+    "we can skip the container test here"     → Triggered (1)
+  ★ THE LOOKAHEAD `(?!...)` WORKS IN TTSR — this is what turns a blind noun match into an
+    INTENT detector: the rule fires on the ACTION FRAME, and the lookahead exempts the legit use.
+  ★ THE CONTRAST: blind `\b(mock|stub|fake)\b` fires on jest.mock/docs/legit usage;
+    the intent frame fires ONLY on the proposal.
+- ★★ A LIVE FINDING: `~/.omp/agent/rules/` IS NOW EMPTY (0 files). The `allowed-models.md` rule
+  that existed EARLIER THIS SESSION is GONE. `omp ttsr list` shows only builtin-defaults rules.
+  Reported, not diagnosed — a live state change on the host.
+- THE DELIVERABLE (640 L, commit follows): reports/WARHEAD_MINTING_SPEC.md
+  · THE ROOT ANALYSIS: 57 patterns → 4 mechanisms → 7 warheads (M1 artifact · M2 subject ·
+    M3 edge · M4 predicate · M5 substrate · M6 gate · M7 record)
+  · THE 7 WARHEADS: A THE ARTIFACT LAW · B THE SUBJECT LAW · C THE EDGE LAW · D THE PREDICATE
+    LAW · E THE SUBSTRATE LAW · F THE GATE LAW · G THE RECORD LAW — each with the exact text,
+    each mapped to the surface, each with its pattern-coverage count
+  · THE 9 TTSR RULES: dist-not-built · theatrical-verification · scope-shrink · fallback-slop ·
+    phantom-and-claim · instruction-not-predicate · unwired-edge · stale-substrate · record-anchor
+    — EACH with the 3-part intent frame + the POSITIVE+NEGATIVE test matrix
+  · THE 16 RULES.md INVARIANTS · the AGENTS.md context block · the landing pipeline (9 steps)
+  · THE COVERAGE MAP: 57/57 = 100%
+- ★ THE SURFACE DECISION: all 7 warheads → APPEND_SYSTEM.md (additive), NEVER SYSTEM.md
+  (which REPLACES block-0 and deletes the default tool inventory/workflow rules).
+- ★ NOTHING IS LANDED. The standing law: writing a .md and ACTIVATING a behaviour are two
+  separate acts. INERT until the explicit deploy order + the positive/negative matrix.
