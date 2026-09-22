@@ -301,9 +301,31 @@ socket — which is why L2 reported CONSUMED while the app was merely WARMED UP.
 | 2 | SCOPE CREEP | `.gitignore` the 5 generated dirs + `git rm --cached` (`c96c5d6`) | **the tracked sqlite+ingest weight 85 MB → 0** |
 | 3 | NAPKIN DOCS | expanded with the real material (`87a6fcb`) | 6L2E_COMPLETION_REPORT 212 → **422 L**; THE_RECEIPT 153 → **254 L** |
 
-## 9.4 · ★ THE GATE RE-RUN — **PENDING**
+## 9.4 · ★ THE GATE RE-RUN — WAS PENDING (superseded by 9.5)
 `ocr review --from 640da98 --to HEAD --provider poolside-laguna-s --effort high --format json`
 was **STILL RUNNING when this audit closed** (169+ tool calls, 20+ minutes of real review work on
 the fixed source). **Its verdict is PENDING — this is NOT a PASS.** Per the skill: *"Fixes then a
 silent re-claim = theater; fixes then a re-run = the gate."* **The re-run is in flight; its
 verdict is the gate.**
+
+## 9.5 · ★ THE GATE RE-RUN — **BLOCKED (provider timeout)**, the retry condition stated
+
+```
+ocr review --from 640da98 --to HEAD --provider poolside-laguna-s --effort high --format json
+  → 219 tool calls (real review work on the FIXED source: _shared.ts, arsumbris.ts, tsg.ts,
+     gate-hook.ts, layer-registry.ts, typed-write.ts)
+  → "Round 2 failed for group src/omp/adapters/*.ts: LLM completion error:
+      context deadline exceeded (keeping earlier findings)"
+  → "Subtask error … main_task did not complete before stopping (round 1/3)"
+  → ★ NO JSON emitted — the run did not complete inside the provider's deadline.
+```
+**★ `GATE: BLOCKED`** — not PASS. The poolside provider timed out mid-review.
+**THE RETRY CONDITION:** re-run with rung 3/4/5 per the skill's chain —
+`--provider openrouter-laguna-s-free` · `--provider poolside-laguna-xs` ·
+`--provider openrouter-laguna-xs-free` — or re-run rung 1 (`muse-free`) once its daily free cap
+resets (it returned `429 FreeUsageLimitError` earlier this session).
+
+**★ WHAT THE BLOCKED RE-RUN STILL TELLS US (and what it does NOT):** it consumed **219 tool calls
+reviewing the FIXED files**, and in the rounds it completed it logged **"added no new findings"**
+— *consistent* with the 8 fixes landing. **But a BLOCKED run is not a PASS, and it is not reported
+as one.** The gate remains **uncleared**.
