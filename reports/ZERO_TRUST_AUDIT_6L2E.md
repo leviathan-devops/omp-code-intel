@@ -308,7 +308,40 @@ the fixed source). **Its verdict is PENDING — this is NOT a PASS.** Per the sk
 silent re-claim = theater; fixes then a re-run = the gate."* **The re-run is in flight; its
 verdict is the gate.**
 
-## 9.5 · ★ THE GATE RE-RUN — **BLOCKED (provider timeout)**, the retry condition stated
+## 9.5 · ★ THE GATE RE-RUN — **BLOCKED (every provider rung is rate-limited)**, the state named
+
+### 9.5.1 · ★ THE OPERATOR'S ORDER APPLIED (muse 1.3 on opencode-go)
+Per the operator (*"use muse 1.3 on opencode go for ocr if poolside is blocked"*), a `muse-go`
+provider was added to `~/.opencodereview/config.json`:
+```
+"muse-go": { "api_key_cmd": "~/.omp/agent/bin/go-key-3.sh",   # the live pool's key 3
+             "url": "http://127.0.0.1:4097/zen/go/v1",
+             "protocol": "openai", "model": "muse-spark-1.3-contributor" }
+```
+★ **THE WIRE-NAME FINDING:** the go-model blacklist (`go-session-proxy.mjs:155`) whitelists
+`muse-spark-1.3-contributor`, while omp's catalog alias for that model is **`big-pickle`** — so
+`opencode-go/muse-spark-1.3-contributor` is rejected `403 model_blacklisted`. The provider above
+sends the WIRE name, which the proxy accepts.
+
+### 9.5.2 · ★ EVERY RUNG'S MEASURED STATE (probed this session, verbatim)
+| the lane | the probe | the result |
+|---|---|---|
+| `muse-free` (zen-free) | `POST 127.0.0.1:4098/zen/v1/responses` | **429 `FreeUsageLimitError`** |
+| `muse-go` (the operator's order) | `POST 127.0.0.1:4097/zen/go/v1/chat/completions` | **429 `GoUsageLimitError`** |
+| **the GO POOL, all 8 keys** | a direct probe of each | go-1 **503** · go-2..go-5 **429** · go-6/7 **503** · go-8 **400** |
+| `poolside-laguna-s` | the ocr run | **`context deadline exceeded`** (the provider times out) |
+| `openrouter-laguna-s-free` | `POST openrouter.ai/api/v1` | **429 `free-models-per-min`** (20/min) |
+
+### 9.5.3 · ★ AND A REAL FIX FOUND ON THE WAY
+`~/.omp/agent/bin/openrouter-key.sh` returned **0 chars** on the host — it tried ONLY the
+sandbox-image docker extract, which fails when the image is absent → **every OpenRouter call
+401'd**. The host's own auth store carries the key (73 chars). **The resolver is fixed** (it reads
+the local store first, exactly as the in-container resolver does), and the OpenRouter free lane
+now returns **HTTP 200** on a direct probe.
+**★ The gate's OpenRouter rung then hit `free-models-per-min`** (20 req/min) — ocr's parallel
+groups burst past it. **A slow-retry or a paid lane would clear it; that is the retry condition.**
+
+## 9.6 · THE ORIGINAL BLOCKED RUN (superseded by 9.5)
 
 ```
 ocr review --from 640da98 --to HEAD --provider poolside-laguna-s --effort high --format json
@@ -330,7 +363,40 @@ reviewing the FIXED files**, and in the rounds it completed it logged **"added n
 — *consistent* with the 8 fixes landing. **But a BLOCKED run is not a PASS, and it is not reported
 as one.** The gate remains **uncleared**.
 
-## 9.5 · ★ THE GATE RE-RUN — **BLOCKED (provider timeout)**, the retry condition stated
+## 9.5 · ★ THE GATE RE-RUN — **BLOCKED (every provider rung is rate-limited)**, the state named
+
+### 9.5.1 · ★ THE OPERATOR'S ORDER APPLIED (muse 1.3 on opencode-go)
+Per the operator (*"use muse 1.3 on opencode go for ocr if poolside is blocked"*), a `muse-go`
+provider was added to `~/.opencodereview/config.json`:
+```
+"muse-go": { "api_key_cmd": "~/.omp/agent/bin/go-key-3.sh",   # the live pool's key 3
+             "url": "http://127.0.0.1:4097/zen/go/v1",
+             "protocol": "openai", "model": "muse-spark-1.3-contributor" }
+```
+★ **THE WIRE-NAME FINDING:** the go-model blacklist (`go-session-proxy.mjs:155`) whitelists
+`muse-spark-1.3-contributor`, while omp's catalog alias for that model is **`big-pickle`** — so
+`opencode-go/muse-spark-1.3-contributor` is rejected `403 model_blacklisted`. The provider above
+sends the WIRE name, which the proxy accepts.
+
+### 9.5.2 · ★ EVERY RUNG'S MEASURED STATE (probed this session, verbatim)
+| the lane | the probe | the result |
+|---|---|---|
+| `muse-free` (zen-free) | `POST 127.0.0.1:4098/zen/v1/responses` | **429 `FreeUsageLimitError`** |
+| `muse-go` (the operator's order) | `POST 127.0.0.1:4097/zen/go/v1/chat/completions` | **429 `GoUsageLimitError`** |
+| **the GO POOL, all 8 keys** | a direct probe of each | go-1 **503** · go-2..go-5 **429** · go-6/7 **503** · go-8 **400** |
+| `poolside-laguna-s` | the ocr run | **`context deadline exceeded`** (the provider times out) |
+| `openrouter-laguna-s-free` | `POST openrouter.ai/api/v1` | **429 `free-models-per-min`** (20/min) |
+
+### 9.5.3 · ★ AND A REAL FIX FOUND ON THE WAY
+`~/.omp/agent/bin/openrouter-key.sh` returned **0 chars** on the host — it tried ONLY the
+sandbox-image docker extract, which fails when the image is absent → **every OpenRouter call
+401'd**. The host's own auth store carries the key (73 chars). **The resolver is fixed** (it reads
+the local store first, exactly as the in-container resolver does), and the OpenRouter free lane
+now returns **HTTP 200** on a direct probe.
+**★ The gate's OpenRouter rung then hit `free-models-per-min`** (20 req/min) — ocr's parallel
+groups burst past it. **A slow-retry or a paid lane would clear it; that is the retry condition.**
+
+## 9.6 · THE ORIGINAL BLOCKED RUN (superseded by 9.5)
 
 ```
 ocr review --from 640da98 --to HEAD --provider poolside-laguna-s --effort high --format json
