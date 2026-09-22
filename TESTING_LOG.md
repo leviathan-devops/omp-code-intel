@@ -1653,3 +1653,85 @@ THE ONE-LINE TEST OF ANY SUITE:
 FOR THIS SUITE, THE THING WAS "IS THE BUILT CODE IN THE RUNTIME?" — AND THE ANSWER WAS NO,
 AND THE SUITE STAYED GREEN.
 ```
+
+---
+
+# ★ THE 6L+2E TEST RUN (2026-09-22) — HEAD f6fca91 · DIST `53d27ac0f4184ade`
+
+## L0 · THE TREE
+```
+bunx tsc --noEmit                    → exit 0, 0 errors        (was 191)
+bun test                             → 336 pass / 0 fail / 1186 expect() / 32 files
+bun test tests/st-gi-6l2e.test.ts    → 13 pass / 0 fail / 82 expect()
+bun run test:all                     → 31 pass / 0 fail / 90 expect() / 8 files
+```
+
+## L2 · THE CONSUMPTION SUITE (E-1) — ADVERSARIAL FIRST
+| the test | the assertion | verdict |
+|---|---|---|
+| `test_register_reports_consumers` | up=true + 0 facts ⇒ GI_LAYER_UNCONSUMED (NOT green) | PASS |
+| `test_unanchored_fact_is_discarded` | a fact without its `source` is discarded AND counted | PASS |
+| `test_probe_that_throws_is_down` | silence is never UP | PASS |
+| `test_consumer_that_throws_reading_is_down_not_unconsumed` | a substrate fault ≠ a wiring gap | PASS |
+| `test_duplicate_registration_replaces` | registration is idempotent by id | PASS |
+| `test_scope_mismatch` | a store about ANOTHER tree answers ZERO for an unknown subject | PASS |
+| `test_stale_store_refuses` | a SUPERSEDED row is never read as live | PASS |
+| `test_absent_substrate_is_down_not_empty` | ENOENT as evidence, never an empty table | PASS |
+| `test_register_reports_consumption_not_file_existence` | substrates UP + `consumed:0/8` for an unknown subject | PASS |
+| `test_registry_is_the_closed_set` | all 8 consumers | PASS |
+| `test_consume_corbell` | the LIVE store → anchored facts | PASS |
+| `test_consume_graphify` | the LIVE store → anchored facts | PASS |
+| `test_consumption_audit_names_every_non_consumer` | every offender carries a REASON | PASS |
+
+## L3/L4 · THE CONTAINER RIG (E-2)
+```
+container gi-6l2e-ct (omp-ct:master, image 988d8bde1f87) · tmux 220x50
+deploy sha match: local 53d27ac0f4184ade == remote 53d27ac0f4184ade (9,424,478 B)
+in-container content gate: consumptionAudit=2 createLayerRegistry=2 gi-consumption=2 corbellProbe=2
+auth probe: openrouter/poolside/laguna-s-2.1:free — status bar "Laguna S 2.1 (free)"; the model
+            answered and drove a tool call → PASS
+SC-1 the tool CALLABLE   → "• gi-consumption"                                  PASS
+SC-2 absent substrate    → scopeRoot=/tmp: consumed:0/8, all DOWN; fail token ABSENT  PASS
+SC-3 REAL stores         → scopeRoot=/root/gi-scope: consumed:2/8 rungs=settlement;
+                           L5_CORBELL facts=16, L6_GRAPHIFY facts=8               PASS
+SC-4 the rungs match     → settlement/context/knowledge/decision/meaning/repair  PASS
+SC-5 environment honesty → host L2 UNCONSUMED vs container L2 DOWN               PASS
+artifact: .trident/plan-6l2e/phaseE.json
+```
+
+## ★ AUDIT GATE: BLOCKED
+
+**`AUDIT GATE: BLOCKED`**
+
+```
+attempt 1: ocr review --from 640da98 --to HEAD
+  → 28 file(s) reviewed, 0 comment(s), 28 of 28 FAILED
+  → "LLM completion error: Post http://127.0.0.1:4098/zen/v1/responses: dial tcp 127.0.0.1:4098:
+     connect: connection refused"   (35 of 35 requests failed)
+  session e38f3dda (status: failed)
+
+  REMEDY APPLIED: started the zen-free adapter (bun ~/.omp/run/adapters/zen-free-adapter.mjs)
+  → "listening on http://127.0.0.1:4098/zen/v1 → http://127.0.0.1:4097/zen/v1"; 4097 was up;
+    a probe returned 200.
+
+attempt 2: ocr review --from 640da98 --to HEAD   (both ports up)
+  → 10 files, 0 comments, status: ABORTED  (the 420 s deadline hit mid-run)
+  session 617a1dfe (status: aborted)
+```
+
+**★ THE VERDICT IS BLOCKED, NOT PASS.** The chain was repaired once and the second run did not
+complete inside the deadline. Per the DOC CONTRACT: **BLOCKED is never PASS, and FAIL blocks
+every ship-ready claim.** No ship-ready claim is made in this report.
+
+### THE SUBSTITUTE (clearly labelled — NOT a code-audit artifact)
+A manual review of the 6L+2E surface was performed, focused on the defect classes the pin names:
+| the class | the finding |
+|---|---|
+| a guard with an unreachable reset | ★ **FOUND (B-1)** — the graph gate; reported + fixed |
+| a status field standing in for the artifact | ★ **FOUND (B-2)** — the L2 probe (a socket FILE ≠ a daemon); fixed |
+| a count-settled claim | ★ **GUARDED** — `liveEdgesFor` carries `superseded_run IS NULL` (the A-0 lesson) |
+| a fabricated green | ★ **GUARDED** — the registry's ONLY GREEN is `up && factsReturned>0`; `test_absent_substrate_is_down_not_empty` proves the DOWN path |
+| a fact without its anchor | ★ **GUARDED** — `isAnchored` discards + counts (`test_unanchored_fact_is_discarded`) |
+| an unwired module | ★ **GUARDED** — `buildRegistry`'s `GI_REGISTRY_INCOMPLETE` assertion + the dist-content gate |
+| a callee-fix-without-the-callsite | ★ **N/A** — the 8 adapters are new; the wiring is the callsite (D-2) |
+**★ THE SUBSTITUTE IS A REVIEW, NOT A TOOL RESULT. It does not clear the gate.**
