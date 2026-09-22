@@ -224,3 +224,13 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 | **E-2 (the rungs)** | settlement/context/knowledge/decision/meaning/repair — matches the DPL1 map | PASS |
 | **E-3** | `packages/gi-kernel-6l2e/6L2E_COMPLETION_REPORT.md` (212 L) + `.trident/plan-6l2e/phaseE.json` | SEALED |
 | **the bug ledger** | 6 findings (B-1..B-6), 4 fixed in place, 2 reported with mechanism | NON-EMPTY |
+
+---
+
+# ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
+
+** sha256_16 `3e2c2207c247a069`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `406a01d12d16153f` (two rebuilds
+stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3e2c2207c247a069`; `find src -newer` = 0;
+the container deploy sha MATCHES.

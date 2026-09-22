@@ -1759,3 +1759,13 @@ probe wrong? / Side B: is it a real defect?) and the CONFIRMED ones FIXED:
 **★ THE VERDICT: `AUDIT GATE: PASS` — 35 findings, 7 HIGH, ALL HIGH FIXED + RE-PROVEN.**
 The remaining medium/low findings are recorded in `reports/AUDIT_FINDINGS_6L2E.md` with their
 adjudication. **This is the zero-open-CRITICAL/HIGH ship bar met, not claimed.**
+
+---
+
+# ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
+
+** sha256_16 `3e2c2207c247a069`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `406a01d12d16153f` (two rebuilds
+stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3e2c2207c247a069`; `find src -newer` = 0;
+the container deploy sha MATCHES.
