@@ -627,3 +627,38 @@ ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052
 - ★ THE LAW RE-AFFIRMED: the catalog's value is that EVERY anti-pattern now has a MECHANICAL
   DETECTION (the commands in §8). An anti-pattern without a detection is a documented wish —
   the same class as the audit that was blocked and the gate that was never called.
+
+## [2026-09-22] — EN-093 ★★★ F-61 ROOT-CAUSED: THE RAIL WAS NEVER REFUSED — THE ADAPTER WAS DOWN
+- THE MISDIAGNOSIS (mine, in the prior autopsy): "F-61 — the audit rail at 127.0.0.1:4098 was
+  refused (BLOCKED)." ★ WRONG. The rail was fine. THE 4098 ADAPTER WAS NOT RUNNING.
+- THE MECHANICAL TRUTH:
+  · ocr config (~/.opencodereview/config.json) points muse-free at http://127.0.0.1:4098/zen/v1
+  · 4097 = the LIVE go-session-proxy (pid 2847) — answers 200
+  · 4098 = ★ NOTHING — connection refused
+  · the adapter (~/.omp/run/adapters/zen-free-adapter.mjs, 7486 B) EXISTS but was not started
+    (it died with a reboot — the ocr-zen-free-adapter skill warns about exactly this)
+- ★★ THE FIX (2 seconds): `hub op:start name:zen-free-adapter ready:{port:4098}` → ready
+  pid=2141352. PROOF: curl 4098 → output_text 'RAIL_OK'; then the REAL gate:
+  `ocr scan --provider muse-free --path src/omp/gate-hook.ts` → status:success, 9 findings,
+  30,352 tokens, 1m25s. ★ THE RAIL WORKS. THE GATE IS NO LONGER BLOCKED.
+- ★★★ THE LESSON (the anti-pattern class): A BLOCKED DEPENDENCY IS A STARTUP TASK, NEVER A
+  VERDICT. The whole session's independent audit was skipped over a missing `hub start`.
+  THE QUESTION IS ALWAYS "what starts it?" — never "it is blocked, ship anyway."
+- ★ THE FIRST REAL FINDING (the restored rail earning its keep): gate-hook.ts — "Shared
+  `pendingSteer` race: a single closure variable is overwritten by interleaved/concurrent
+  tool_calls, so a steer for file A can attach to file B's tool_result. Use a per-call
+  correlation map (sessionId + toolCallId)." A CONCURRENCY DEFECT IN THE LIVE GATE.
+- THE DELIVERABLES (1,152 lines, box-clean, commit 0e73d02):
+  · reports/GI_kernel_v21_GOAL_LIFECYCLE_HARDENING.md (462L) — the rail fix + the full goal
+    state machine (5 statuses, every transition) + the 24-event hook surface + the 4-layer
+    hardening + the exact audit-gate code
+  · reports/GI_kernel_v21_GIT_ENFORCEMENT_OVERHAUL.md (559L) — 17 workflows W-1..W-17, each a
+    command + pass condition + auto-reject, on git hooks + the CI PR gate + TTSR
+  · reports/GI_kernel_v21_DOC_AUDIT.md (131L) — my own 3 deliverables graded (A/A-/B) + the 1
+    stale claim + the honest frontier
+- ★ THE PROVENANCE (measured): omp NATIVE-PORTED Michaelliv/pi-goal (223★) into src/goals/
+  (not an extension). The completion sink completeGoalFromTool (runtime.ts:470-494) checks
+  STATUS ONLY; the "verification" is a SENTENCE IN A PROMPT (src/prompts/tools/goal.md).
+  THE CANCEL IS PROVEN: pi.on("tool_call") CAN block goal(complete) — 3 anchors re-verified.
+- ★ THE KEEP-vs-HARDEN VERDICT: the goal ENGINE is good (the state machine, the accounting,
+  the reload-pauses rule). ONE function is the hole. It needs a gate, not a replacement.
