@@ -502,3 +502,31 @@ THE FIX IS THE PLAN (packages/gi-kernel-v2.1/GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN
 graph-asserted MPSE rules at the PRE-ACT seat, so the edit that creates the defect is refused
 at $0 before it exists.
 ```
+
+### F-73 — THE GATE FIRED ONCE IN 40,631 LINES, AND ITS OWN RECORD IS EMPTY (2026-09-22)
+
+- **What happened:** the live forensic of this session's JSONL found **exactly ONE** true
+  graph-gate firing (bucket A LINE 30210: a `write`, `isError:true`,
+  `GRAPH_GATE_DRIFT_HIGH: 1 structural edits`), against **1,375** agent edit/write calls and
+  **0** agent graph-tool calls. `graph_gate_state` = **0 rows** despite the table existing.
+- **Found:** by the 4-desk parallel forensic (ScoutLiveFirings, ScoutOperationStream,
+  ScoutEvidenceChannels, ScoutFailureConsolidation).
+- **Root cause (multi-face, ONE mechanism):**
+  (a) THE GATE IS A FIXED COUNTER — caller-blind (a 0-caller helper and a 500-caller core fn
+      weigh identically), spec-blind, with its three "intelligence" hooks EMPTY STUBS
+      (`onEditClassified`/`onDriftComputed`/`onGateDecision` — `/* PROPOSED v2 — empty */`).
+  (b) IT REWARDS THE CALL NOT THE ANSWER — `recordGraphQuery` records any query with a target
+      string; `rows=0` + a ripwire error STILL resets the drift (the T-16 ritual, coded).
+  (c) IT FAILS OPEN WHEN BLIND — no store → `GI_NO_STORE` → `cancel:false, ALLOW+warn`.
+      A missing substrate is a SILENT PASS (the operator's NO-FALLBACK law violated).
+  (d) IT IS IN-MEMORY ONLY — `graph_gate_state` = 0 rows; the drift dies on restart and
+      cannot see a second session.
+  (e) THE SUBSTRATE IS BLIND — the store is graphify-only, 851 of 1,266 nodes are src/hunter
+      (PRE-V2), and oracle/fire-ledger/fire-gate/evidence-producer have 0 nodes each.
+  (f) THE DEPLOYED BUNDLE IS STALE — 2026-09-20 vs 2026-09-21 sources (21-35h); today's fixes
+      are UNLOADED.
+- **Impact:** the enforcement's most common appearance in the session is **prose about
+  itself** (2,178 prose mentions vs 1 live firing). An operator reading the session cannot
+  tell the gate is nearly inert.
+- **Disposition:** OPEN — the fixes are coded in source (loud refusal, resolved-only coverage,
+  the corrected tests) but NOT deployed. Rebuild+redeploy is the next step.

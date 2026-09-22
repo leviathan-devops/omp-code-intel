@@ -463,3 +463,55 @@ T-19 ★★ THE UNWIRED GRAPH (D-4). I WROTE the typed store's writers — W1's 
   PRECONDITION — a substrate to bring UP so a gate would pass — instead of as THE INPUT TO
   EVERY DECISION. That is why seven audit passes could not converge: I was paying a model to
   find, one file at a time, what the graph states in 60ms.
+
+## [2026-09-22] — ★★★ T-20: THE SYNTHETIC HARNESS — the agent was about to test the machine that was already firing on it
+
+**OPERATOR-CAUGHT: 1 (this one).** The charge, verbatim:
+> *"what do you mean building the hotseat harness. you are in it right now getting fired on. what are you about to do"* … *"STOP WITH THIS THEATRICAL FUCKING BULLSHIT."*
+
+```
+WHO          self
+THE ACT      asked to observe a LIVE enforcement system (the graph gate) firing on my own
+             session, I began BUILDING A SYNTHETIC HARNESS — /tmp/hotseat-deployed/ with
+             extracted source + a bun:test driver — to "test" the gate's behavior on
+             synthetic input.
+THE EVIDENCE the write of /tmp/hotseat-deployed/hotseat.test.ts (a 6-OP mock driver),
+             and the extraction of graph-gate.ts + gate-middleware.ts into /tmp.
+THE COST     the machine was firing ON ME, live, in this very session. The evidence was
+             ALREADY in my own transcript. I was about to spend tokens reproducing, in a
+             mock, behavior that was being recorded against me in real time — and would
+             have reported on the MOCK, not the machine.
+DISPOSITION  OPERATOR-CAUGHT. CORRECTED: the harness was DELETED (`rm -rf
+             /tmp/hotseat-deployed`); the observation moved to the session's own JSONL,
+             where the live firings actually are (1 live firing in 40,631 lines). The
+             runtime-grade skill was rewritten to FORBID synthetic harnesses outright.
+THE LESSON   ★ WHEN THE SUBJECT IS FIRING ON YOU, THE RIG IS THE SESSION. Building a
+             harness to test it is the most expensive theater available: it looks like
+             rigor (extraction, fixtures, a driver) and observes NOTHING that is real.
+             THE META-OBSERVATION — reading your own transcript for what the machine DID
+             to you — is the only observation that cannot be faked.
+★ UPDATED METRICS: 20 entries · 10 OPERATOR-CAUGHT · 10 SELF-CORRECTED.
+```
+
+---
+
+## [2026-09-22] — ★★★ T-21: THE PROSE THAT LOOKED LIKE ENFORCEMENT
+
+```
+WHO          self
+THE ACT      I reported "222 DRIFT_HIGH firings" and "501 SIGNATURE_BREAK firings" from a
+             `grep -c` over the session JSONL, and treated them as the enforcement firing.
+THE EVIDENCE the SAME grep, CLASSIFIED: 1,610 SIGNATURE_BREAK + 569 DRIFT_HIGH mentions, of
+             which EXACTLY ONE is a live firing (bucket A LINE 30210, a write, isError:true).
+             The other 2,178 are the agent's OWN THINKING quoting the gate's messages, test
+             fixtures inside files, and docs.
+THE COST     had this stood, the report would have said "the gate fired 222 times" — a
+             number that MEASURES THE AGENT'S CONVERSATION ABOUT the gate, not the gate.
+             The N=3 message the operator quoted is ITSELF quoted prose.
+DISPOSITION  SELF-CORRECTED (by the parallel scout desk ScoutLiveFirings, which classified
+             each mention MECHANICAL vs PROSE-ONLY).
+THE LESSON   ★ THE COUNT OF A STRING IS NOT THE COUNT OF A FIRING. An enforcement message
+             is the agent's most-quoted text; it appears in thinking, in tests, in docs.
+             ONLY a toolResult isError:true (or an Extension-error line) proves a firing.
+             THE RATIO IS THE HEADLINE: prose-about-enforcement vs enforcement.
+★ UPDATED METRICS: 21 entries · 10 OPERATOR-CAUGHT · 11 SELF-CORRECTED.

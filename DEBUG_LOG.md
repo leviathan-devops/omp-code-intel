@@ -556,3 +556,23 @@ EN-059  the host/container +4 expects delta root-caused to host-absolute path pr
 **THE PATTERN ACROSS ALL TWELVE:** every one was found by an ADVERSARIAL case, and the
 happy path passed in each instance before the adversarial case ran. The pin's
 ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052 and EN-057.
+
+## [2026-09-22] — EN-091 ★★★ THE DEEP LIVE FORENSIC: ONE FIRING IN 40,631 LINES
+- THE MEASUREMENT (4 parallel scout desks, read-only): the session JSONL (30,988 + 9,643
+  lines) carries **1,610 SIGNATURE_BREAK + 569 DRIFT_HIGH** mentions, of which **EXACTLY ONE**
+  is a live firing — bucket A LINE 30210, `toolName:"write"`, `isError:true`,
+  `GRAPH_GATE_DRIFT_HIGH: 1 structural edits without graph query`.
+- ★★ THE N=3 THE OPERATOR QUOTED IS QUOTED PROSE (assistant thinking, LINE 30952). The one
+  live firing said N=1. The N census: 14× N=1 · 27× N=3 · 4× N=6 — ALL prose but one.
+- ★★ `graph_gate_state` = **0 ROWS** (table exists: session_id, drift, state, edits_json,
+  queries_json, updated_ms). THE GATE'S OWN PERSISTENCE HAS NEVER WRITTEN.
+- ★★ THE RITUAL RATIO: **0 agent graph calls : 1,375 edit/write calls.** The gate fired once.
+- ★ THE MECHANICS (read from code): T2 ⇐ drift >= 0.60 AND n >= 3; drift = Σ(weight×decay) over
+  300s; weights NONE0/LOW1/MED2/HIGH3. CALLER-BLIND. The three "intelligence" hooks are EMPTY
+  STUBS. ★ AND THE BLOCK MESSAGE MISREPORTS THE TRIGGER — it prints `unverifiedCount` (1),
+  not the `n >= 3` that actually fired.
+- ★ THE SUBSTRATE: graphify-only; src/hunter 851 · src/omp 155 · the 4 kernel modules 0 nodes
+  each. DEPLOYED bundle 2026-09-20 vs sources 2026-09-21 → STALE; today's fixes UNLOADED.
+- ★ L1 JEV: 4,301 true / 37,446 false of 41,747 (89.7% skip).
+- EVIDENCE: reports/GI_kernel_v21_deep_live_forensic.md (the artifact) · the scout digests ·
+  commit follows.
