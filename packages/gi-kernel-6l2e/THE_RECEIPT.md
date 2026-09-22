@@ -33,7 +33,7 @@ the parser). P0 corrected it. `reports/P0_ABSORB_FINDINGS.md`
 | **P3 EXECUTE** | the layers land PARALLEL, per-hunk audits | the 8 adapters (disjoint) + the registry + the assembly + the wiring; tsc 0 | **GREEN** |
 | **P4 RUNTIME** | the hot seat + a NON-EMPTY bug ledger | **6 findings (B-1..B-6), 4 fixed, 2 reported with mechanism** | **GREEN** |
 | **P5 ADVERSARIAL** | the black-hat corpus until a full pass is clean | the 8-test adversarial suite + the 6-fixture corpus; the negatives precede the happy path | **GREEN** |
-| **P6 DOCUMENT** | the 11 canon + the 6 ship docs + the AUDIT GATE | all updated; **★ AUDIT GATE: BLOCKED** (recorded, never assumed) | **GREEN (gate BLOCKED, declared)** |
+| **P6 DOCUMENT** | the 11 canon + the 6 ship docs + the AUDIT GATE | all updated; **★ AUDIT GATE: PASS** — ocr session e04327cb: 28 files, 34 comments, 7 HIGH, ALL HIGH FIXED | **GREEN** |
 | **P7 CHECKPOINT** | round-zero + the seal | `Checkpoints/gi-6l2e-wired-measured-consumed-2of8-a8583082a24c3b38` (13 M, the name proven by its binary) | **GREEN** |
 | **P8 VERDICT** | the legal stop met in FULL | see §5 — **5 of 5 goal conditions NOT all met** | **OPEN** |
 
@@ -51,6 +51,7 @@ the container TUI (gi-6l2e-ct)          → consumed:2/8 rungs=settlement, L5 fa
 the negative path (scopeRoot=/tmp)      → consumed:0/8, every consumer named DOWN
 the $0 settlement                        → judgeCalls=0, firesUsed()=0, costUsd=0
 the corpus (6 fixtures)                 → M-GRAPH-1/2/4/5 each fire their SPECIFIC token
+the code audit (ocr)                    → 28 files, 34 comments, 7 HIGH — ALL FIXED + RE-PROVEN
 ```
 
 ---
