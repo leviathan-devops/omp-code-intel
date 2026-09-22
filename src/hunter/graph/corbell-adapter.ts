@@ -576,7 +576,7 @@ export class CorbellAdapter implements GraphAdapter {
     }
     const nodes: GraphNode[] = [];
     try {
-      for (const row of db.prepare('SELECT id, node_type, data FROM graph_nodes').all()) {
+      for (const row of db.prepare('SELECT id, node_type, data FROM graph_nodes').all() as Record<string, unknown>[]) {
         const id = String(row['id']);
         const nodeType = String(row['node_type']);
         let data: Record<string, unknown> = {};
@@ -707,7 +707,7 @@ export class CorbellAdapter implements GraphAdapter {
       // is dropped (the graph stays consistent — the machine's graph is the
       // node-validated projection, never a dangling-edge carrier).
       const nodeIds = new Set(nodes.map((n) => n.id));
-      for (const row of db.prepare('SELECT source_id, target_id, kind, metadata FROM graph_edges').all()) {
+      for (const row of db.prepare('SELECT source_id, target_id, kind, metadata FROM graph_edges').all() as Record<string, unknown>[]) {
         let meta: Record<string, unknown> = {};
         try {
           meta = JSON.parse(String(row['metadata'] ?? '{}')) as Record<string, unknown>;

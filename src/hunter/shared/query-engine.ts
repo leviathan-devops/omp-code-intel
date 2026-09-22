@@ -1,5 +1,5 @@
 // PORTED FROM fork-v143 live-tree/graph-intelligence/ (extraction chain / query-engine) — verbatim; SEAM: import path rewrites to ported siblings.
-import { Database } from 'bun:sqlite';
+import { type SQLQueryBindings, Database } from 'bun:sqlite';
 import type { DbClient } from './db.ts';
 
 export interface TypedNodeRow {
@@ -150,13 +150,13 @@ export class QueryEngine {
       if (predicateFilter && predicateFilter.length > 0) {
         params.splice(baseParams.length, 0, ...predicateFilter);
       }
-      const row = this.db.prepare(sql).get(...params) as Record<string, unknown> | null | undefined;
+      const row = this.db.prepare(sql).get(...(params as SQLQueryBindings[])) as Record<string, unknown> | null | undefined;
       if (!row) return [];
       const pathStr = (this.db.prepare(`WITH RECURSIVE search(src,dst,predicate,evidence_quote,confidence,created_run,superseded_run,depth,path) AS (
           SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run, 1, src_canonical || '->' || dst_canonical FROM typed_edges WHERE src_canonical = ? ${predClause} ${liveClause}
           UNION ALL
           SELECT e.src_canonical, e.dst_canonical, e.predicate, e.evidence_quote, e.confidence, e.created_run, e.superseded_run, s.depth+1, s.path || '->' || e.dst_canonical FROM typed_edges e JOIN search s ON e.src_canonical=s.dst WHERE s.depth < ? AND instr(','||s.path||',',','||e.dst_canonical||',')=0 ${predClause.replace('predicate','e.predicate')} ${liveOnly ? 'AND e.superseded_run IS NULL' : ''}
-        ) SELECT path FROM search WHERE dst=? ORDER BY depth ASC LIMIT 1`).get(...params) as Record<string, unknown> | null | undefined);
+        ) SELECT path FROM search WHERE dst=? ORDER BY depth ASC LIMIT 1`).get(...(params as SQLQueryBindings[])) as Record<string, unknown> | null | undefined);
       void pathStr;
       const full = this.buildPathEdges(from.trim(), to.trim(), maxDepth, liveOnly, predicateFilter);
       return full;
@@ -181,7 +181,7 @@ export class QueryEngine {
       const params: unknown[] = [cur.node, ...(predList ?? [])];
       let edges: TypedEdgeRow[] = [];
       try {
-        const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
+        const rows = this.db.prepare(sql).all(...(params as SQLQueryBindings[])) as Record<string, unknown>[];
         // THE ROW MAPPER (the ISE discipline — a runtime shape check, not a
         // blind cast): each SQL row is validated for the typed-edge required
         // fields before the typed shape is built. A malformed row yields a
@@ -277,7 +277,7 @@ export class QueryEngine {
           nodeParams.push(filter.supersededRun);
         }
       }
-      const nodeRows = this.db.prepare(nodeSql).all(...nodeParams) as Record<string, unknown>[];
+      const nodeRows = this.db.prepare(nodeSql).all(...(nodeParams as SQLQueryBindings[])) as Record<string, unknown>[];
       // THE NODE ROW MAPPER (the ISE discipline — a runtime shape check, not a
       // blind cast): each typed_nodes row is validated for the required fields.
       const nodes = nodeRows.map((r) => {
@@ -309,7 +309,7 @@ export class QueryEngine {
           edgeParams.push(filter.supersededRun);
         }
       }
-      const edgeRows = this.db.prepare(edgeSql).all(...edgeParams) as Record<string, unknown>[];
+      const edgeRows = this.db.prepare(edgeSql).all(...(edgeParams as SQLQueryBindings[])) as Record<string, unknown>[];
       // THE EDGE ROW MAPPER (the ISE discipline — a runtime shape check, not a
       // blind cast): each typed_edges row is validated for the required fields.
       const edges = edgeRows.map((r) => {

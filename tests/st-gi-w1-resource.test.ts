@@ -157,7 +157,6 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
     // THE CONTRACT: handle-injected variants exist and match the path-based
     // public API row-for-row; safeDelete rides the ONE outer connection.
     const qPath = safeDelete(storePath, "a");
-    // @ts-expect-error — the variants are introduced BY this fix (red first).
     // Dynamic import REQUIRED: the Db-variants are introduced BY the fix under
     // test — a static import of a not-yet-existing export would fail the whole
     // FILE at load and hide the other five reds. The boundary IS the module
@@ -198,7 +197,7 @@ INSERT INTO typed_nodes VALUES ('c-n1','function','n1','src/n1.ts',3,'warm',NULL
         let target = "";
         try { target = realReadlinkSync(`/proc/self/fd/${fd}`); } catch { /* transient */ }
         if (target.endsWith("fault.ts")) throw Object.assign(new Error("EIO: fault injection"), { code: "EIO" });
-        return realReadSync(fd, buffer, offset, length, position);
+        return realReadSync(fd, buffer, offset, length, position ?? null);
       },
     }));
     // Cache-busted import: THIS instance captures the mocked node:fs.

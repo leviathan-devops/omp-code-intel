@@ -201,7 +201,7 @@ export async function runScanChain(
       continue;
     }
 
-    const extraHeaders = rung.provider === 'go-union-alpha'
+    const extraHeaders: Record<string, string> = rung.provider === 'go-union-alpha'
       ? { 'x-opencode-session': `scan-chain-${Date.now()}` }
       : {};
 

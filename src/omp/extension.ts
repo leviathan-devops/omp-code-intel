@@ -9,7 +9,7 @@ import { GiScopeError, openSessionStore } from "./store-open.ts";
 import { GiPathError, resolveSessionId } from "../scoping/index.ts";
 import { attachGiGraphGate, registerGraphGate } from "./gate-hook.ts";
 import { clearGiRegistry, GiClearError } from "./gi-registry.ts";
-import { populateSessionStore } from "./populate.ts";
+import { populateSessionStore, type PopulateResult } from "./populate.ts";
 import { corbellCheckoutPath, isCorbellCheckoutFreshFor } from "./populate-corbell.ts";
 import { graphifyOutPath, isGraphifyCheckoutFreshFor } from "./populate-graphify.ts";
 import { ripwireCallers, ripwireDeadCode, ripwireEditCheck, ripwireImpact, ripwirePath, ripwireSafeDelete, ripwireVerify, type RipwireLeg } from "./ripwire-bridge.ts";
@@ -85,7 +85,7 @@ export function writeWipeAudit(giDir: string, note: string): void {
   const db = new Database(regPath);
   try {
     db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
-    db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", note);
+    db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [note]);
   } finally {
     db.close();
   }
@@ -318,7 +318,7 @@ pi.registerTool({
         return textResult("GI_CLEAR_REFUSED: action=wipe requires GI_OMP_ALLOW_CLEAR=1 in the environment", { ok: false, error: "GI_CLEAR_REFUSED" });
       }
       try {
-        const wipeAudit = graphProbeWipeAudited(ctx, cwdOf);
+        const wipeAudit = graphProbeWipeAudited(ctx as { cwd?: string; sessionID?: string } | undefined, cwdOf);
         // W11/W13 (frozen-scan HIGH) + W45/F24: the audit outcome comes from
         // the graphProbeWipeAudited seam — a skipped audit (confine failed)
         // is reported audited:false with the reason, never as success.
@@ -396,7 +396,7 @@ pi.registerTool({
       }
       scopeRoot = confined.real;
     } else {
-      const defaultConfined = confineTargetPath(cwdOf(ctx), cwdOf(ctx));
+      const defaultConfined = confineTargetPath(cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined), cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined));
       if (!defaultConfined.ok) {
         return textResult(defaultConfined.error, { ok: false, error: "GI_PATH_DENIED" });
       }
@@ -417,7 +417,7 @@ pi.registerTool({
           const reason = `GRAPHIFY_NOT_WARM:${fresh.reason}`;
           return textResult(`${reason}: no warm graphify graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
         }
-        const pop = await withPopulateLane(() => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
+        const pop = await withPopulateLane(async () => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
         if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
           const reason = pop.fallbackReason ?? "GRAPHIFY_NOT_WARM:miss";
           return textResult(`${reason}: graphify populate missed (graph=${graphPath}; rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
@@ -436,7 +436,7 @@ pi.registerTool({
       // BEFORE lane acquisition, so two queued queries both saw empty/stale
       // and double-populated. substrateNeedsPopulate is the authoritative
       // verdict, evaluated AFTER acquiring the lane.
-      const pop = await withPopulateLane(() => {
+      const pop = await withPopulateLane<PopulateResult | null>(async () => {
         if (!substrateNeedsPopulate(opened.storePath, scopeRoot)) return null;
         return populateSessionStore(opened.storePath, scopeRoot);
       });
@@ -598,7 +598,7 @@ export default function giOmpExtension(pi: GiExtensionAPI): void {
   if (typeof pi.on === "function") {
     // W2: registerGraphGate = attachGiGraphGate (per-edit middleware) + the
     // v1.3 drift layer (graph-gate.ts). One call site — grep count must stay 1.
-    registerGraphGate(pi as { on: (ev: string, h: (e: unknown, c: unknown) => unknown) => void });
+    registerGraphGate(pi as { on: (ev: string, h: (e: Record<string, unknown>, c: unknown) => unknown) => void });
   }
   console.error("[gi-omp] registered " + names.join(", "));
 }

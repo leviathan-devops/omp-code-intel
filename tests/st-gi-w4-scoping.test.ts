@@ -5,7 +5,8 @@
 import { describe, expect, test } from "bun:test";
 import * as path from "node:path";
 
-import { scopeBuildToProfile, type GraphNode, type GraphEdge } from "../src/hunter/graph/graphify-adapter.ts";
+import { scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
+import type { GraphNode, GraphEdge } from "../src/hunter/graph/interface.ts";
 
 // Real-directory root: scopeBuildToProfile is fail-CLOSED on unresolvable
 // roots (CONTAINMENT_ROOT_UNRESOLVABLE gate) — the fixture root must exist,

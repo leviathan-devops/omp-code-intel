@@ -15,12 +15,11 @@ import { populateSessionStore } from "../src/omp/populate.ts";
 import { goKeyDead, goPoolDbFile, hardenPoolFile, hardenPrivateDir, markGoKeyDead, reloadGoKeys } from "../src/hunter/keys/go-key-pool.ts";
 import { supersedeThenInsert } from "../src/omp/populate-graphify.ts";
 import { GraphifyAdapter } from "../src/hunter/graph/graphify-adapter.ts";
+import type { GraphNode, GraphEdge } from "../src/hunter/graph/interface.ts";
 import { graphProbeWipeAudited } from "../src/omp/extension.ts";
 import { sweep, writeBriefPinned } from "../src/hydra/auditor.ts";
 import { containedScopeTarget, populateFromGraphifyCheckout } from "../src/omp/populate-graphify.ts";
-import { normalizeGraphifyGraph, scopeBuildToProfile } from "../src/hunter/graph/graphify-adapter.ts";
 import { blastRadius, chainCalls, setMeta } from "../src/omp/typed-write.ts";
-import { describe, test, expect } from "bun:test";
 describe("st-gi-w44-highs: qwen scan tail", () => {
   // ---------- F1 (populate-corbell:111 LIMIT vs cap) ----------
   test("test_w44_corbell_sql_limit_matches_cap_over_20k_rows", () => {
@@ -192,11 +191,11 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
 
   // ---------- F9 (graphify-adapter:181 sync containment base) ----------
   test("test_w44_scope_sync_base_canonical_failclosed", () => {
-    const mkNode = (id: string, file: string): { id: string; label: string; type: string; file: string } => ({ id, label: id, type: "function", file });
+    const mkNode = (id: string, file: string): GraphNode => ({ id, kind: "function", name: id, file, lineage: "CODE_DERIVED", source: file });
     const nodes = [mkNode("n1", "src/a.ts"), mkNode("n2", "docs/b.md"), mkNode("n3", "src/c.ts")];
-    const edges = [
-      { sourceId: "n1", targetId: "n3", relation: "calls", confidence: "EXTRACTED" as const },
-      { sourceId: "n1", targetId: "n2", relation: "calls", confidence: "EXTRACTED" as const },
+    const edges: GraphEdge[] = [
+      { sourceId: "n1", targetId: "n3", kind: "calls", lineage: "CODE_DERIVED" },
+      { sourceId: "n1", targetId: "n2", kind: "calls", lineage: "CODE_DERIVED" },
     ];
     // Leg 1: unresolvable base = fail CLOSED (zero rows, full drop).
     const dead = scopeBuildToProfile(nodes, edges, path.join("/nonexistent", String(Date.now())), ["src"]);
@@ -258,10 +257,10 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
   test("test_w44_target_roots_split_keeps_colon_paths_whole", () => {
     // THE FIX: entries split on '|' ONLY — the old extra ':' split corrupted
     // legal colon-bearing Linux paths AND allowlisted their truncated prefix.
-    expect(parseTargetRoots(" /a | /b ", "/w")).toEqual(["/a", "/b"]); // whitespace + empties dropped
-    expect(parseTargetRoots("/a::/b", "/w")).toEqual(["/a::/b"]); // colons survive whole
-    expect(parseTargetRoots("", "/w")).toEqual([]); // caller falls back to [cwd, /tmp]
-    expect(parseTargetRoots("C:", "/w")).toEqual(["C:"]); // drive-letter root preserved whole
+    expect(parseTargetRoots(" /a | /b ")).toEqual(["/a", "/b"]); // whitespace + empties dropped
+    expect(parseTargetRoots("/a::/b")).toEqual(["/a::/b"]); // colons survive whole
+    expect(parseTargetRoots("")).toEqual([]); // caller falls back to [cwd, /tmp]
+    expect(parseTargetRoots("C:")).toEqual(["C:"]); // drive-letter root preserved whole
   });
 
   // ---------- F14 (extension:485 settlement reconfine base) ----------

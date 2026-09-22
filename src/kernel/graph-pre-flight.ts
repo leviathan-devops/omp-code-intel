@@ -58,7 +58,7 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
     const testTargets = getTestTargets(storePath, target, 5);
     return {
       target,
-      directCallers: q.callers.map((c) => ({ caller: c.caller, file: c.file, line: c.line, via: c.predicate })),
+      directCallers: q.callers.map((c) => ({ caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" })),
       blastRadius: { reaches: imp.reaches, byDepth },
       riskProfile: { callers: q.rows, uses, testCoverage: testTargets.length },
       commitStrategy,

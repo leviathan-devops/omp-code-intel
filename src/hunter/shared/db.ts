@@ -1,3 +1,4 @@
+import type { SQLQueryBindings } from "bun:sqlite";
 // PORTED FROM fork-v143 live-tree/graph-intelligence/shared/knowledge-graph/db.ts (864L) — verbatim bytes; the fork copy is ALREADY the DEV-1/DEV-2-decoupled variant (AETHER/EVENT DDL imports dropped).
 // SEAMS: triad import -> ../triad.ts (ported sibling); profile-schema import kept -> './profile-schema.ts' NEEDS a sibling alias (CorbellPort wrote ../profile/schema.ts — an alias file is created beside this one).
 // src/shared/knowledge-graph/db.ts
@@ -549,23 +550,23 @@ export class SharedDb implements DbClient {
     try {
       // the graph (the nodes + the edges)
       const nodeIns = mirror.prepare('INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)');
-      for (const row of this.handle.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all()) {
+      for (const row of this.handle.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[]) {
         nodeIns.run(row['id'], row['kind'], row['name'], row['file'], row['line'], row['lineage'], row['source'], row['data']);
       }
       const edgeIns = mirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)');
-      for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges').all()) {
+      for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges').all() as Record<string, SQLQueryBindings>[]) {
         edgeIns.run(row['source_id'], row['target_id'], row['kind'], row['lineage'], row['created_at']);
       }
       // the findings summaries (never the report_sections bodies — line 2229)
       const findIns = mirror.prepare(
         'INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       );
-      for (const row of this.handle.prepare('SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings').all()) {
+      for (const row of this.handle.prepare('SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings').all() as Record<string, SQLQueryBindings>[]) {
         findIns.run(row['rule_id'], row['severity'], row['file'], row['line'], row['range_start'], row['range_end'], row['evidence'], row['verdict'], row['week'], row['run_id'], row['created_at']);
       }
       // the events (the HUNT_DONE/BUILD_DONE/AUDIT_DONE bus + the report pointers)
       const evIns = mirror.prepare('INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)');
-      for (const row of this.handle.prepare('SELECT kind,payload,created_at FROM events').all()) {
+      for (const row of this.handle.prepare('SELECT kind,payload,created_at FROM events').all() as Record<string, SQLQueryBindings>[]) {
         evIns.run(row['kind'], row['payload'], row['created_at']);
       }
     } catch (e: unknown) {
@@ -714,12 +715,12 @@ export class FamilyGraphStore {
 
   getBranchUnion(): Array<GraphNode & { origin: string }> {
     try {
-      const rows = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data, origin FROM branch_union_view').all() as Record<string, unknown>[];
+      const rows = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data, origin FROM branch_union_view').all() as Record<string, SQLQueryBindings>[];
       if (rows.length > 0) return rows.map(r => ({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['data'] as string); } catch (pe) { console.debug('[kg-store] branch_union data parse failed — empty object:', pe instanceof Error ? pe.message : String(pe)); return {}; }})(), origin: r['origin'] as string }));
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #4:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     // fallback: manual union
-    const fam = this.familyDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM family_nodes').all() as Record<string, unknown>[];
-    const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record<string, unknown>[];
+    const fam = this.familyDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM family_nodes').all() as Record<string, SQLQueryBindings>[];
+    const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[];
     const out: Array<GraphNode & { origin: string }> = [];
     for (const r of fam) out.push({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['node_json'] as string); } catch (pe1) { try { return JSON.parse(r['data'] as string); } catch (pe2) { console.debug('[kg-store] family node parse failed (both forms) — empty object:', pe1 instanceof Error ? pe1.message : String(pe1), '/', pe2 instanceof Error ? pe2.message : String(pe2)); return {}; } }})(), origin: 'family' });
     // fix: family_nodes stores node_json not separate columns except id/content_hash

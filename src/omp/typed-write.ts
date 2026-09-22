@@ -3,7 +3,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { Database } from "bun:sqlite";
+import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { assertSessionStorePath } from "../scoping/index.ts";
 import { createHash } from "node:crypto";
 
@@ -201,7 +201,7 @@ export function openTypedStore(storePath: string): Database {
     // the fresh-store creation below) — the old `return db` referenced the
     // const declared LATER in this function: a TDZ ReferenceError crash.
     let treatAsFresh = false;
-    let head: Buffer;
+    let head: Buffer = Buffer.alloc(0);
     try {
       const fd = fs.openSync(storePath, "r");
       try {
@@ -693,7 +693,10 @@ export function insertForkEdge(storePath: string, edge: ForkEdge): void {
 
 // R2 batch writers: ONE connection for the whole pass (baseline bottleneck
 // was 3890 open/close cycles per populate). Caller owns open/close.
-export interface TxnDb { run: (sql: string, params: unknown[]) => void; inTransaction: boolean }
+// RC-1 (W0): params typed SQLQueryBindings[] — bun's Database.run is variadic over the
+// same union, so this is what makes a bun Database assignable to TxnDb. bun normalizes an
+// array 2nd-arg into the bindings (verified empirically), so the call sites are unchanged.
+export interface TxnDb { run: (sql: string, params: SQLQueryBindings[]) => void; inTransaction: boolean }
 export function insertForkNodesBatch(db: TxnDb, nodes: ForkNode[]): void {
   // V21 W3: a partial batch must never land — the writer refuses to run
   // outside a transaction (supersedeThenInsert / writeGraphifyCheckout own one).
@@ -772,7 +775,7 @@ export interface WhoCallsRow { caller: string; file: string; line: number; kind?
 /** V21 W1 (identity model): resolve a display label to its LIVE canonical_ids.
  *  Traversal keys on canonical_id — same-label functions in different files are
  *  DIFFERENT identities and must never conflate in whoCalls/impact/chain/blast. */
-function resolveLiveIds(db: { query: (sql: string) => { all: (v?: unknown) => unknown[] } }, label: string): string[] {
+function resolveLiveIds(db: { query: (sql: string) => { all: (...v: any[]) => unknown[] } }, label: string): string[] {
   const rows = db.query(
     "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501",
   ).all(label) as Array<{ canonical_id: string }>;

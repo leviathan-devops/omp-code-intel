@@ -228,7 +228,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   }
   if (dropped > 0) tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   let edgeDropped = 0;
-  const edges: GraphEdge[] = rawLinks.filter((e) => {
+  const edges: GraphifyEdge[] = rawLinks.filter((e) => {
     // W44: same null-row discipline for links — drop+count, never throw.
     if (e === null || typeof e !== "object" || Array.isArray(e)) { edgeDropped++; return false; }
     return true;
@@ -347,7 +347,7 @@ export function scopeBuildToProfile(
     if (rel.length === 0) return false;
     return scopes.some((s) => rel === s || rel.startsWith(`${s}/`));
   };
-  const nodesIn = nodes.filter((n) => inScope(n.file));
+  const nodesIn = nodes.filter((n) => inScope(n.file ?? undefined));
   const idSet = new Set(nodesIn.map((n) => n.id));
   const edgesIn = edges.filter((e) => idSet.has(e.sourceId) && idSet.has(e.targetId));
   return { nodes: nodesIn, edges: edgesIn, dropped: nodes.length - nodesIn.length };
