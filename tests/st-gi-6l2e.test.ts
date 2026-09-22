@@ -16,6 +16,8 @@ import { buildRegistry, consumptionAudit, SIX_L2E_CONSUMERS } from "../src/omp/l
 import { createLayerRegistry, isAnchored, type ConsumerProbe, type LayerFact } from "../src/omp/layer-registry.ts";
 import { corbellProbe } from "../src/omp/adapters/corbell.ts";
 import { graphifyProbe } from "../src/omp/adapters/graphify.ts";
+import { tsgProbe, tsgKey, tsgKeyPresent, resolveTsgBinary } from "../src/omp/adapters/tsg.ts";
+import { abideProbe } from "../src/omp/adapters/abide.ts";
 import { graphFacts, type GraphFactRule } from "../src/omp/graph-facts.ts";
 import { FireGate, absorbContext } from "../src/omp/fire-gate.ts";
 
@@ -153,6 +155,8 @@ describe("st-gi-6l2e: the 8 consumers against the live tree", () => {
     for (const f of facts) expect(f.consumer).toBe("L6_GRAPHIFY");
   });
 
+  // ★ the real TSG edge makes the audit a network round-trip (~19 s) — the bun default
+  //   of 5 s would fail a HEALTHY audit. The timeout is part of the contract here.
   test("test_consumption_audit_names_every_non_consumer", () => {
     // ★ THE LOUD REMAINDER: the audit must NAME each non-consumer and its reason —
     // a green/red count alone is not actionable.
@@ -165,7 +169,7 @@ describe("st-gi-6l2e: the 8 consumers against the live tree", () => {
     }
     // the two settlement legs are the live edges
     expect(audit.influenced).toContain("L5_CORBELL");
-  });
+  }, 120_000);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,15 +238,30 @@ describe("st-gi-6l2e: adversarial", () => {
   });
 
   test("test_register_reports_consumption_not_file_existence", () => {
-    // ★ THE CATEGORY ERROR, MADE MECHANICAL: a subject no consumer knows must yield
-    // consumed:0/8 even though several substrates are UP. `up` and `consumed` are
-    // DIFFERENT QUESTIONS and the audit must never conflate them.
+    // ★ THE CATEGORY ERROR, MADE MECHANICAL: `up` and `consumed` are DIFFERENT QUESTIONS.
+    //
+    // ★ CORRECTED 2026-09-22 (this test's FIRST version was wrong, not the code): it
+    //   asserted `consumed:0/8` for an unknown subject — true only while TSG was a stub
+    //   returning []. With TSG's REAL edge wired, TSG is a SEMANTIC judge: it scores
+    //   passages for ANY natural-language condition and will always return some. So the
+    //   invariant is not "0 consumed"; it is that a consumer whose SUBSTRATE IS ABSENT
+    //   reads GI_LAYER_DOWN even while its siblings are UP, and that every offender is
+    //   NAMED — a count alone is not actionable.
     const audit = consumptionAudit(REPO, "a-symbol-that-does-not-exist-anywhere-xyzzy");
     const upCount = audit.reports.filter((r) => r.up).length;
-    expect(upCount).toBeGreaterThan(0); // substrates ARE up
-    expect(audit.influenced.length).toBe(0); // but NOTHING is consumed
-    expect(audit.summary).toContain("consumed:0/8");
-  });
+    const consumedCount = audit.reports.filter((r) => r.consumed).length;
+    expect(upCount).toBeGreaterThan(0);            // substrates ARE up
+    expect(consumedCount).toBeLessThan(8);         // but NOT every consumer is consumed
+    // the DEEP substrates (L1-L4) are DOWN regardless of the subject — their absence is
+    // a property of the host, not of the query.
+    for (const id of ["L1_SEMANTICA", "L2_ARSUMBRIS", "L3_UA", "L4_C2KG"] as const) {
+      const r = audit.reports.find((x) => x.consumer === id)!;
+      expect(r.verdict).toBe("GI_LAYER_DOWN");
+      expect(r.evidence.length).toBeGreaterThan(0);
+    }
+    expect(audit.summary).toMatch(/consumed:\d\/8/);
+    expect(audit.offenders.length).toBeGreaterThan(0);
+  }, 120_000);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -372,5 +391,90 @@ describe("st-gi-6l2e: ★ SC-5 the 7-class derailment corpus", () => {
     expect(decision.row.costUsd).toBe(0);
     expect(decision.row.questionVersion).toBe("graph:M-GRAPH-1");
     expect(decision.reason).toContain("M-GRAPH-1");
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ★ THE 2 JEV KERNEL EDGES (TSG + ABIDE) — REAL MACHINERY, NO STUBS
+//
+// ★ NO-STUB LAW: both adapters first returned `facts: () => []` unconditionally.
+// The machinery exists and RUNS on this host; the stubs were replaced with the real
+// invocations (the tsg CLI + the Abide event ledger). These tests assert the real path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("st-gi-6l2e: the 2 Jev kernel edges (real machinery)", () => {
+  test("test_consume_tsg", () => {
+    // ★ THE SUBSTRATE IS THE BINARY (measured: ELF, 8.6 MB, target/release).
+    const bin = resolveTsgBinary(REPO);
+    expect(bin).not.toBeNull();
+    const probe = tsgProbe(REPO);
+    expect(probe.up().up).toBe(true);
+    expect(probe.rung).toBe("meaning");
+    // ★ THE KEY: the CLI's own env name (TYPESAFE_API_KEY) or the register's key file.
+    //   With a key, the meaning judgment runs and returns scored passages. Without one,
+    //   the adapter THROWS GI_JEV_NO_KEY — never an empty fact set dressed as "no facts".
+    if (tsgKeyPresent()) {
+      const facts = probe.facts("silently discard an error");
+      expect(facts.length).toBeGreaterThan(0);
+      for (const f of facts) {
+        expect(f.consumer).toBe("TSG");
+        expect(f.rung).toBe("meaning");
+        expect(f.source.length).toBeGreaterThan(0);
+      }
+    } else {
+      expect(() => probe.facts("x")).toThrow(/GI_JEV_NO_KEY/);
+    }
+  }, 120_000);
+
+  test("test_consume_abide", () => {
+    // ★ THE SUBSTRATE IS THE LIVE LEDGER (measured: .abide/events.jsonl, 22.8 MB).
+    const probe = abideProbe(REPO);
+    const up = probe.up();
+    expect(up.up).toBe(true);
+    expect(up.evidence).toContain("events.jsonl");
+    expect(probe.rung).toBe("repair");
+    // ★ ABIDE's facts are REPAIR OPPORTUNITIES keyed on CLAIM SPANS (the checker judges
+    //   agent text), not code symbols. A claim-shaped subject yields real facts.
+    const facts = probe.facts("evidence");
+    expect(facts.length).toBeGreaterThan(0);
+    for (const f of facts) {
+      expect(f.consumer).toBe("ABIDE");
+      expect(f.rung).toBe("repair");
+      expect((f.value as { repair?: string }).repair).toBeDefined();
+    }
+  });
+
+  test("test_abide_only_flags_are_repairs", () => {
+    // ★ A `clear` band is NOT a repair opportunity. Only `flag` rows are facts.
+    const probe = abideProbe(REPO);
+    const facts = probe.facts("evidence");
+    for (const f of facts) {
+      expect((f.value as { band?: string }).band).toBe("flag");
+    }
+  });
+
+  test("test_absent_abide_ledger_throws_not_empty", () => {
+    // ★ THE NO-FALLBACK LAW on the ABIDE edge: an absent ledger THROWS (the registry's
+    //   catch maps it to GI_LAYER_DOWN) — it never returns [] dressed as "no facts".
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gi-6l2e-noledge-"));
+    const probe = abideProbe(tmp, tmp);
+    expect(() => probe.facts("evidence")).toThrow(/GI_ENFORCE_ABIDE/);
+  });
+
+  test("test_tsg_key_resolution_never_logs_the_key", () => {
+    // the key resolves from the env or the file, and is NEVER on argv (it rides the child env)
+    const k = tsgKey();
+    if (k !== null) {
+      expect(k.length).toBeGreaterThan(0);
+      // the adapter's source must not interpolate the key into any argv string
+      const src = fs.readFileSync(path.join(REPO, "src/omp/adapters/tsg.ts"), "utf8");
+      // ★ the key rides the CHILD ENV, never argv: the execFileSync args array carries
+      //   only [grep, --json, --threshold, <t>, subject, srcRoot] — no key.
+      expect(src).toContain("env: { ...process.env, TYPESAFE_API_KEY: key }");
+      const argsLine = src.split("\n").find((l) => l.includes('execFileSync(bin, ["grep"')) ?? "";
+      expect(argsLine).toContain('"grep", "--json"');
+      expect(argsLine).not.toContain("key");
+    }
   });
 });

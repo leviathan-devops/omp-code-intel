@@ -176854,8 +176854,8 @@ function kindForLayer(layerId) {
 }
 
 // src/hydra/map-reader.ts
-import fs24 from "fs";
-import path31 from "path";
+import fs26 from "fs";
+import path32 from "path";
 function parseGraphJson(contents, size) {
   const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES2) {
@@ -176909,10 +176909,10 @@ async function readGraphJson(graphPath) {
   if (typeof graphPath !== "string" || graphPath.trim() === "") {
     throw new Error("GRAPHIFY_CONNECT_INVALID: graphPath must be non-empty string");
   }
-  const resolved = path31.resolve(graphPath);
+  const resolved = path32.resolve(graphPath);
   let stat;
   try {
-    stat = fs24.statSync(resolved);
+    stat = fs26.statSync(resolved);
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} \u2014 remedy: run the explicit graphify build for this target, then re-run the audit`);
   }
@@ -176925,7 +176925,7 @@ async function readGraphJson(graphPath) {
   }
   let raw;
   try {
-    raw = parseGraphJson(fs24.readFileSync(resolved, "utf-8"), gSize);
+    raw = parseGraphJson(fs26.readFileSync(resolved, "utf-8"), gSize);
   } catch (err) {
     const msg = String(err.message ?? err);
     if (msg.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
@@ -176949,7 +176949,7 @@ class GraphifyMapReader {
   }
   async load(graphPath) {
     const g = await readGraphJson(graphPath);
-    this.lastGraphPath = path31.resolve(graphPath);
+    this.lastGraphPath = path32.resolve(graphPath);
     return g;
   }
   async query(graph, question) {
@@ -177095,24 +177095,24 @@ var exports_auditor = {};
 __export(exports_auditor, {
   runTemplateAudit: () => runTemplateAudit
 });
-import fs25 from "fs";
-import path32 from "path";
+import fs27 from "fs";
+import path33 from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 function realResolve(p) {
-  const resolved = path32.resolve(p);
+  const resolved = path33.resolve(p);
   try {
-    return fs25.realpathSync(resolved);
+    return fs27.realpathSync(resolved);
   } catch {
     try {
-      return path32.join(fs25.realpathSync(path32.dirname(resolved)), path32.basename(resolved));
+      return path33.join(fs27.realpathSync(path33.dirname(resolved)), path33.basename(resolved));
     } catch {
       return resolved;
     }
   }
 }
 function isWithinRoot(realPath, realRoot) {
-  return realPath === realRoot || realPath.startsWith(realRoot + path32.sep);
+  return realPath === realRoot || realPath.startsWith(realRoot + path33.sep);
 }
 function makeCappedReadTool(targetRoot) {
   return {
@@ -177128,22 +177128,22 @@ function makeCappedReadTool(targetRoot) {
         return `READ_CAP_EXCEEDED: ${limit} > ${READ_CAP}`;
       if (!filePath)
         return "READ_INVALID: path required";
-      const rootReal = realResolve(path32.resolve(targetRoot));
-      const resolved = path32.isAbsolute(filePath) ? path32.resolve(filePath) : path32.resolve(targetRoot, filePath);
+      const rootReal = realResolve(path33.resolve(targetRoot));
+      const resolved = path33.isAbsolute(filePath) ? path33.resolve(filePath) : path33.resolve(targetRoot, filePath);
       const realFile = realResolve(resolved);
       if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal) {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
-        const fd = fs25.openSync(realFile, fs25.constants.O_RDONLY | fs25.constants.O_NOFOLLOW);
+        const fd = fs27.openSync(realFile, fs27.constants.O_RDONLY | fs27.constants.O_NOFOLLOW);
         try {
-          const size = fs25.fstatSync(fd).size;
+          const size = fs27.fstatSync(fd).size;
           if (size > 8 * 1024 * 1024)
             return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
           const buf = Buffer.alloc(size);
           let total = 0;
           while (total < size) {
-            const n = fs25.readSync(fd, buf, total, size - total, total);
+            const n = fs27.readSync(fd, buf, total, size - total, total);
             if (n <= 0)
               break;
             total += n;
@@ -177158,7 +177158,7 @@ function makeCappedReadTool(targetRoot) {
 [TRUNCATED]` : "");
           return out;
         } finally {
-          fs25.closeSync(fd);
+          fs27.closeSync(fd);
         }
       } catch (e) {
         return `READ_FAILED: ${String(e.message).slice(0, 300)}`;
@@ -177208,28 +177208,28 @@ function makeForceBoundWriteTool(pinnedPath, ledgerDir) {
     description: `Force-bound write to ${pinnedPath} (ONLY this path is writable)`,
     invoke: async (params) => {
       const attempted = String(params.path ?? "").trim();
-      const pinnedReal = realResolve(path32.resolve(pinnedPath));
+      const pinnedReal = realResolve(path33.resolve(pinnedPath));
       if (attempted !== "") {
-        const attemptedReal = realResolve(path32.resolve(attempted));
+        const attemptedReal = realResolve(path33.resolve(attempted));
         if (attemptedReal !== pinnedReal) {
           return JSON.stringify({ error: GRAPH_TOOL_VIOLATION, detail: `path ${attemptedReal} != pinned ${pinnedReal}`, recorded: true });
         }
       }
-      const ledgerReal = realResolve(path32.resolve(ledgerDir));
+      const ledgerReal = realResolve(path33.resolve(ledgerDir));
       if (!isWithinRoot(pinnedReal, ledgerReal) && pinnedReal !== ledgerReal) {
         return JSON.stringify({ error: WRITE_SCOPE_VIOLATION, detail: "pinned target outside ledger", recorded: true });
       }
       try {
-        fs25.mkdirSync(path32.dirname(pinnedReal), { recursive: true });
+        fs27.mkdirSync(path33.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
         if (content.length > 8 * 1024 * 1024) {
           return JSON.stringify({ error: "WRITE_TOO_LARGE: content exceeds the 8MiB write cap", recorded: true });
         }
-        const wfd = fs25.openSync(pinnedReal, fs25.constants.O_WRONLY | fs25.constants.O_CREAT | fs25.constants.O_TRUNC | fs25.constants.O_NOFOLLOW, 420);
+        const wfd = fs27.openSync(pinnedReal, fs27.constants.O_WRONLY | fs27.constants.O_CREAT | fs27.constants.O_TRUNC | fs27.constants.O_NOFOLLOW, 420);
         try {
-          fs25.writeFileSync(wfd, content, "utf-8");
+          fs27.writeFileSync(wfd, content, "utf-8");
         } finally {
-          fs25.closeSync(wfd);
+          fs27.closeSync(wfd);
         }
         return JSON.stringify({ path: pinnedReal, bytes: Buffer.byteLength(content, "utf-8") });
       } catch (e) {
@@ -177272,14 +177272,14 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
         created_run: layerId,
         confidence: 1
       };
-      const splicePath = path32.join(path32.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
-      fs25.mkdirSync(path32.dirname(splicePath), { recursive: true });
-      const sfd = fs25.openSync(splicePath, fs25.constants.O_WRONLY | fs25.constants.O_CREAT | fs25.constants.O_APPEND | fs25.constants.O_NOFOLLOW, 420);
+      const splicePath = path33.join(path33.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
+      fs27.mkdirSync(path33.dirname(splicePath), { recursive: true });
+      const sfd = fs27.openSync(splicePath, fs27.constants.O_WRONLY | fs27.constants.O_CREAT | fs27.constants.O_APPEND | fs27.constants.O_NOFOLLOW, 420);
       try {
-        fs25.writeFileSync(sfd, JSON.stringify(row) + `
+        fs27.writeFileSync(sfd, JSON.stringify(row) + `
 `, "utf-8");
       } finally {
-        fs25.closeSync(sfd);
+        fs27.closeSync(sfd);
       }
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
     }
@@ -177292,7 +177292,7 @@ function buildAuditorTools(ledgerDir, targetRoot, layerId, defaultPredicate) {
   if (!targetRoot || typeof targetRoot !== "string" || targetRoot.trim() === "") {
     throw new Error("AUDITOR_TOOLS_INVALID: targetRoot required");
   }
-  const reportPath = path32.join(path32.resolve(ledgerDir), "findings", "report.md");
+  const reportPath = path33.join(path33.resolve(ledgerDir), "findings", "report.md");
   const read = makeCappedReadTool(targetRoot);
   const grep = makeCappedGrepTool(targetRoot);
   const writeFindings = makeForceBoundWriteTool(reportPath, ledgerDir);
@@ -177380,11 +177380,11 @@ async function readFindingsReport(reportPath, schema) {
   }
   let stat;
   try {
-    stat = fs25.statSync(reportPath);
+    stat = fs27.statSync(reportPath);
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
   }
-  const raw = fs25.readFileSync(reportPath, "utf-8");
+  const raw = fs27.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0)
     throw new Error("REPORT_PARSE_FAILED: empty file");
   const { candidates, summary } = parseFindingsMarkdown(raw);
@@ -177419,36 +177419,36 @@ function nodeFile(targetRoot, node) {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
   let rel = raw.replace(/^\.\//, "");
   if (rel.length > 0)
-    rel = path32.normalize(rel);
-  if (rel && !path32.isAbsolute(rel)) {
-    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path32.sep}`))
+    rel = path33.normalize(rel);
+  if (rel && !path33.isAbsolute(rel)) {
+    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path33.sep}`))
       return "";
-    return rel.split(path32.sep).join("/");
+    return rel.split(path33.sep).join("/");
   }
   if (rel) {
-    const r = path32.relative(realResolve(path32.resolve(targetRoot)), realResolve(rel));
-    if (r === "" || r === ".." || r.startsWith(`..${path32.sep}`) || path32.isAbsolute(r))
+    const r = path33.relative(realResolve(path33.resolve(targetRoot)), realResolve(rel));
+    if (r === "" || r === ".." || r.startsWith(`..${path33.sep}`) || path33.isAbsolute(r))
       return "";
-    return r.split(path32.sep).join("/");
+    return r.split(path33.sep).join("/");
   }
   return "";
 }
 function sourceLineQuote(targetRoot, relFile, line) {
   try {
-    const abs = path32.resolve(targetRoot, relFile);
-    const rootReal = realResolve(path32.resolve(targetRoot));
+    const abs = path33.resolve(targetRoot, relFile);
+    const rootReal = realResolve(path33.resolve(targetRoot));
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal)
       return "";
-    const fd = fs25.openSync(realFile, fs25.constants.O_RDONLY | fs25.constants.O_NOFOLLOW);
+    const fd = fs27.openSync(realFile, fs27.constants.O_RDONLY | fs27.constants.O_NOFOLLOW);
     try {
-      const size = fs25.fstatSync(fd).size;
+      const size = fs27.fstatSync(fd).size;
       if (size > 8 * 1024 * 1024)
         return "";
       const buf = Buffer.alloc(size);
       let total = 0;
       while (total < size) {
-        const n = fs25.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        const n = fs27.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
         if (n <= 0)
           break;
         total += n;
@@ -177457,7 +177457,7 @@ function sourceLineQuote(targetRoot, relFile, line) {
 `);
       return (lines[line - 1] ?? "").trim().slice(0, 300);
     } finally {
-      fs25.closeSync(fd);
+      fs27.closeSync(fd);
     }
   } catch {
     return "";
@@ -177776,15 +177776,15 @@ async function sweep(template, graph, targetRoot, belt, calls) {
     let contained = false;
     if (hitPath) {
       try {
-        const realHit = realResolve(path32.isAbsolute(hitPath) ? hitPath : path32.resolve(targetRoot, hitPath));
-        contained = isWithinRoot(realHit, realResolve(path32.resolve(targetRoot)));
+        const realHit = realResolve(path33.isAbsolute(hitPath) ? hitPath : path33.resolve(targetRoot, hitPath));
+        contained = isWithinRoot(realHit, realResolve(path33.resolve(targetRoot)));
         if (contained)
           hitPath = realHit;
       } catch {
         contained = false;
       }
     }
-    const rel = flm && contained ? path32.relative(realResolve(path32.resolve(targetRoot)), hitPath) || hitPath : firstNodeFile;
+    const rel = flm && contained ? path33.relative(realResolve(path33.resolve(targetRoot)), hitPath) || hitPath : firstNodeFile;
     return [{
       subject: `${anchor} signal \u2014 "${probe}" present at ${rel}`,
       predicate: `${anchor}.signal`,
@@ -177802,11 +177802,11 @@ async function sweep(template, graph, targetRoot, belt, calls) {
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }
 function writeBriefPinned(briefPath, content) {
-  const fd = fs25.openSync(briefPath, fs25.constants.O_WRONLY | fs25.constants.O_CREAT | fs25.constants.O_TRUNC | fs25.constants.O_NOFOLLOW, 420);
+  const fd = fs27.openSync(briefPath, fs27.constants.O_WRONLY | fs27.constants.O_CREAT | fs27.constants.O_TRUNC | fs27.constants.O_NOFOLLOW, 420);
   try {
-    fs25.writeFileSync(fd, content, "utf-8");
+    fs27.writeFileSync(fd, content, "utf-8");
   } finally {
-    fs25.closeSync(fd);
+    fs27.closeSync(fd);
   }
 }
 function assertGraphShape(graph) {
@@ -177840,7 +177840,7 @@ async function runTemplateAudit(args) {
   const t0 = Date.now();
   const template = args.template;
   const layerId = template?.layerId ?? "unknown";
-  const ledgerDir = path32.resolve(args.ledgerDir ?? "");
+  const ledgerDir = path33.resolve(args.ledgerDir ?? "");
   const errors = [];
   const calls = { count: 0, names: [] };
   if (!template || typeof template.layerId !== "string" || template.layerId.trim() === "") {
@@ -177855,8 +177855,8 @@ async function runTemplateAudit(args) {
   if (!args.targetRoot || typeof args.targetRoot !== "string" || args.targetRoot.trim() === "") {
     return { layerId, status: "rejected", error: "HUNTER_TARGET_INVALID: targetRoot required", ledgerDir, durationMs: Date.now() - t0 };
   }
-  const targetRoot = path32.resolve(args.targetRoot);
-  if (!fs25.existsSync(targetRoot)) {
+  const targetRoot = path33.resolve(args.targetRoot);
+  if (!fs27.existsSync(targetRoot)) {
     return { layerId, status: "rejected", error: `HUNTER_TARGET_INVALID: targetRoot not found: ${targetRoot}`, ledgerDir, durationMs: Date.now() - t0 };
   }
   let graph;
@@ -177874,7 +177874,7 @@ async function runTemplateAudit(args) {
     return { layerId, status: "rejected", error: "HUNTER_TOOLS_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
   try {
-    fs25.mkdirSync(ledgerDir, { recursive: true });
+    fs27.mkdirSync(ledgerDir, { recursive: true });
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_LEDGER_MKDIR_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -177883,7 +177883,7 @@ async function runTemplateAudit(args) {
     `- anchorPredicate: ${template.anchorPredicate}`,
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
-    `- graphPath: ${path32.resolve(args.graphPath)}`,
+    `- graphPath: ${path33.resolve(args.graphPath)}`,
     `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${(graph.godNodes ?? []).slice(0, 5).join(", ")}]`,
     `- graphQueries: ${(template.graphQueries ?? []).join(" | ")}`,
     `- inputData: ${args.inputData ?? ""}`,
@@ -177893,7 +177893,7 @@ async function runTemplateAudit(args) {
   ].join(`
 `);
   try {
-    writeBriefPinned(path32.join(ledgerDir, "brief.md"), brief);
+    writeBriefPinned(path33.join(ledgerDir, "brief.md"), brief);
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_BRIEF_WRITE_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -177966,9 +177966,9 @@ ${summary}
       errors.push("GRAPH_TAG_FAILED: " + String(e.message).slice(0, 200));
     }
   }
-  const reportPath = path32.join(ledgerDir, "findings", "report.md");
+  const reportPath = path33.join(ledgerDir, "findings", "report.md");
   try {
-    const st = fs25.statSync(reportPath);
+    const st = fs27.statSync(reportPath);
     const REPORT_MTIME_SLACK_MS = 100;
     if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
@@ -178013,8 +178013,8 @@ var init_auditor = __esm(() => {
 });
 
 // src/omp/extension.ts
-import * as fs26 from "fs";
-import * as path33 from "path";
+import * as fs28 from "fs";
+import * as path34 from "path";
 import { Database as Database7 } from "bun:sqlite";
 
 // src/omp/typed-write.ts
@@ -185837,29 +185837,161 @@ function semanticaProbe(scopeRoot) {
 }
 
 // src/omp/adapters/tsg.ts
+import * as fs24 from "fs";
 import * as path30 from "path";
+import { execFileSync as execFileSync2 } from "child_process";
+
+// src/omp/jev.ts
+var KEY_FILE = `${process.env.HOME ?? "/home/leviathan"}/.config/typesafe/key`;
+
+// src/omp/adapters/tsg.ts
+var TSG_REL = "research/graph-infra-repos/typesafe-ai/target/release/examples/tsg";
+var TSG_SRC_REL = "research/graph-infra-repos/typesafe-ai/examples/tsg";
+function resolveTsgBinary(scopeRoot) {
+  const built = path30.join(scopeRoot, TSG_REL);
+  if (fs24.existsSync(built))
+    return built;
+  return null;
+}
+function tsgKey(env = process.env) {
+  for (const name of ["TYPESAFE_API_KEY", "TYPESAFE_AI_API_KEY"]) {
+    const v = env[name];
+    if (typeof v === "string" && v.trim().length > 0)
+      return v.trim();
+  }
+  try {
+    const v = fs24.readFileSync(KEY_FILE, "utf8").trim();
+    return v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
 function tsgProbe(scopeRoot, tsgRoot) {
-  const root = tsgRoot ?? path30.join(scopeRoot, "research/graph-infra-repos/typesafe-ai/examples/tsg");
+  const srcRoot = tsgRoot ?? path30.join(scopeRoot, TSG_SRC_REL);
+  const bin = resolveTsgBinary(scopeRoot);
   return {
     id: "TSG",
     rung: "meaning",
     dependency: "the tsg binary/repo \u2014 the load unit",
     errorCode: "GI_ENFORCE_TSG",
-    up: () => probePath(root),
-    facts: () => []
+    up: () => {
+      if (bin === null)
+        return { up: false, evidence: `${path30.join(scopeRoot, TSG_REL)} \u2014 ENOENT (the tsg binary is not built)` };
+      try {
+        const st = fs24.statSync(bin);
+        return { up: true, evidence: `${bin} (${st.size}B, ELF CLI)` };
+      } catch (e) {
+        const code = e.code ?? "UNKNOWN";
+        return { up: false, evidence: `${bin} \u2014 ${code}` };
+      }
+    },
+    facts: (subject) => {
+      if (bin === null)
+        throw new Error(`GI_ENFORCE_TSG: no tsg binary at ${path30.join(scopeRoot, TSG_REL)}`);
+      const key = tsgKey();
+      if (key === null) {
+        throw new Error(`GI_JEV_NO_KEY: the tsg meaning judgment needs TYPESAFE_API_KEY (env) or ${KEY_FILE}; the CLI segments without it but cannot judge`);
+      }
+      let out;
+      try {
+        out = execFileSync2(bin, ["grep", "--json", "--threshold", "0.5", subject, srcRoot], {
+          encoding: "utf8",
+          timeout: 180000,
+          maxBuffer: 32 * 1024 * 1024,
+          env: { ...process.env, TYPESAFE_API_KEY: key }
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message.slice(0, 200) : String(e);
+        throw new Error(`GI_ENFORCE_TSG: the tsg CLI failed \u2014 ${msg}`);
+      }
+      const rows = [];
+      for (const l of out.split(`
+`)) {
+        if (l.trim().length === 0)
+          continue;
+        try {
+          rows.push(JSON.parse(l));
+        } catch {}
+      }
+      const scored = rows.filter((r) => r.type === "routing" && r.path !== undefined && r.scores !== null && r.scores !== undefined);
+      if (scored.length === 0 && rows.some((r) => r.reason === "dry_run_routing_only")) {
+        throw new Error(`GI_JEV_NO_KEY: the tsg run was a DRY RUN (no scores) \u2014 the key is absent or rejected`);
+      }
+      return scored.map((r) => ({
+        consumer: "TSG",
+        rung: "meaning",
+        subject,
+        value: { path: r.path, scores: r.scores, windows: r.windows },
+        source: `${r.path}#tsg(threshold 0.7 \xB7 ${JSON.stringify(r.scores).slice(0, 80)})`
+      }));
+    }
   };
 }
 
 // src/omp/adapters/abide.ts
+import * as fs25 from "fs";
+import * as path31 from "path";
+var ABIDE_EVENTS_REL = ".abide/events.jsonl";
+function abideEventsPath(abideRoot) {
+  return path31.join(abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace", ABIDE_EVENTS_REL);
+}
+function tailEvents(eventsPath, limit) {
+  const raw = fs25.readFileSync(eventsPath, "utf8");
+  const lines = raw.split(`
+`).filter((l) => l.trim().length > 0);
+  const out = [];
+  for (const l of lines.slice(-limit)) {
+    try {
+      out.push(JSON.parse(l));
+    } catch {}
+  }
+  return out;
+}
 function abideProbe(scopeRoot, abideRoot) {
-  const root = abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/JARVIS/reports/handovers/JEV_ABIDE_CONTEXT_HANDOVER";
+  const eventsPath = abideEventsPath(abideRoot);
   return {
     id: "ABIDE",
     rung: "repair",
     dependency: "the Abide source \u2014 the ALU (repair, never block)",
     errorCode: "GI_ENFORCE_ABIDE",
-    up: () => probePath(root),
-    facts: () => []
+    up: () => {
+      try {
+        const st = fs25.statSync(eventsPath);
+        if (!st.isFile())
+          return { up: false, evidence: `${eventsPath} exists but is not a file` };
+        if (st.size === 0)
+          return { up: false, evidence: `${eventsPath} is EMPTY \u2014 the checker has emitted nothing` };
+        return { up: true, evidence: `${eventsPath} (${st.size}B, mtime ${new Date(st.mtimeMs).toISOString()})` };
+      } catch (e) {
+        const code = e.code ?? "UNKNOWN";
+        return { up: false, evidence: `${eventsPath} \u2014 ${code}` };
+      }
+    },
+    facts: (subject) => {
+      if (!fs25.existsSync(eventsPath)) {
+        throw new Error(`GI_ENFORCE_ABIDE: the Abide event ledger is absent at ${eventsPath}`);
+      }
+      const events = tailEvents(eventsPath, 4000);
+      const hits = events.filter((e) => {
+        if (e.band !== "flag")
+          return false;
+        const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
+        return hay.includes(subject);
+      });
+      return hits.map((e) => ({
+        consumer: "ABIDE",
+        rung: "repair",
+        subject,
+        value: {
+          repair: "the flagged claim needs its structured atom / evidence",
+          rule: e.rule,
+          band: e.band,
+          matchedSpan: e.matched_span,
+          verdict: e.verdict
+        },
+        source: `${eventsPath}#${e.ts ?? "?"}(${e.rule ?? "?"} \xB7 span "${e.matched_span ?? "-"}")`
+      }));
+    }
   };
 }
 
@@ -185935,8 +186067,8 @@ var withPopulateLane = async (fn) => {
   return run;
 };
 function ledgerDirConfined(ledgerReal, targetReal) {
-  const rel = path33.relative(targetReal, ledgerReal);
-  return rel !== "" && !rel.startsWith("..") && !path33.isAbsolute(rel);
+  const rel = path34.relative(targetReal, ledgerReal);
+  return rel !== "" && !rel.startsWith("..") && !path34.isAbsolute(rel);
 }
 function substrateNeedsPopulate(storePath, scopeRoot) {
   if (countTypedNodes(storePath) === 0)
@@ -185948,7 +186080,7 @@ function substrateNeedsPopulate(storePath, scopeRoot) {
 function settlementLedgerConfined(ledgerPath, targetReal) {
   let real = ledgerPath;
   try {
-    real = fs26.realpathSync(ledgerPath);
+    real = fs28.realpathSync(ledgerPath);
   } catch {
     return { ok: false, error: "GI_PATH_DENIED: settlement ledger does not exist" };
   }
@@ -185958,8 +186090,8 @@ function settlementLedgerConfined(ledgerPath, targetReal) {
   return { ok: true, real };
 }
 function writeWipeAudit(giDir, note) {
-  fs26.mkdirSync(giDir, { recursive: true });
-  const regPath = path33.join(giDir, "registry.sqlite");
+  fs28.mkdirSync(giDir, { recursive: true });
+  const regPath = path34.join(giDir, "registry.sqlite");
   const db = new Database7(regPath);
   try {
     db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
@@ -185970,12 +186102,12 @@ function writeWipeAudit(giDir, note) {
 }
 function graphProbeWipeAudited(ctx, cwdOf) {
   const wipeCwd = cwdOf(ctx);
-  const wipeConfined = confineTargetPath(path33.normalize(wipeCwd), wipeCwd);
+  const wipeConfined = confineTargetPath(path34.normalize(wipeCwd), wipeCwd);
   if (!wipeConfined.ok) {
     return { audited: false, text: `WIPE_AUDIT_FAILED: ${wipeConfined.error}` };
   }
   try {
-    writeWipeAudit(path33.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+    writeWipeAudit(path34.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
     return { audited: true, text: "" };
   } catch (auditErr) {
     return { audited: false, text: `WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}` };
@@ -185987,13 +186119,13 @@ function parseTargetRoots(raw) {
 var confineTargetPath = (normalized, callerCwd) => {
   let real = normalized;
   try {
-    real = fs26.realpathSync(normalized);
+    real = fs28.realpathSync(normalized);
   } catch {
     return { ok: false, error: `GI_PATH_DENIED: targetPath does not exist: '${normalized.slice(0, 120)}'` };
   }
   let st = null;
   try {
-    st = fs26.statSync(real);
+    st = fs28.statSync(real);
   } catch {
     st = null;
   }
@@ -186005,14 +186137,14 @@ var confineTargetPath = (normalized, callerCwd) => {
   const within = roots.some((root) => {
     let rootReal = null;
     try {
-      rootReal = fs26.realpathSync(root);
+      rootReal = fs28.realpathSync(root);
     } catch {
       rootReal = null;
     }
     if (rootReal === null)
       return false;
-    const rel = path33.relative(rootReal, real);
-    return rel === "" || !rel.split(/[\\/]/).includes("..") && !path33.isAbsolute(rel);
+    const rel = path34.relative(rootReal, real);
+    return rel === "" || !rel.split(/[\\/]/).includes("..") && !path34.isAbsolute(rel);
   });
   if (!within) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
@@ -186215,10 +186347,10 @@ function registerGiOmpTools(pi, cwdOf) {
       let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
       const callerCwd = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
       if (targetPathRaw.length > 0) {
-        if (!path33.isAbsolute(targetPathRaw)) {
+        if (!path34.isAbsolute(targetPathRaw)) {
           return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
         }
-        const confined = confineTargetPath(path33.normalize(targetPathRaw), callerCwd);
+        const confined = confineTargetPath(path34.normalize(targetPathRaw), callerCwd);
         if (!confined.ok) {
           return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
         }
@@ -186274,18 +186406,18 @@ function registerGiOmpTools(pi, cwdOf) {
     const p = params && typeof params === "object" ? params : {};
     const scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
     const targetRaw = String(p.targetPath ?? "").trim();
-    if (targetRaw !== "" && !path33.isAbsolute(targetRaw)) {
+    if (targetRaw !== "" && !path34.isAbsolute(targetRaw)) {
       return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
     }
     let targetRoot;
     if (targetRaw !== "") {
-      const confined = confineTargetPath(path33.normalize(targetRaw), scopeRoot);
+      const confined = confineTargetPath(path34.normalize(targetRaw), scopeRoot);
       if (!confined.ok) {
         return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
       }
       targetRoot = confined.real;
     } else {
-      const confined = confineTargetPath(path33.resolve(scopeRoot), scopeRoot);
+      const confined = confineTargetPath(path34.resolve(scopeRoot), scopeRoot);
       if (!confined.ok) {
         return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
       }
@@ -186311,14 +186443,14 @@ function registerGiOmpTools(pi, cwdOf) {
       }
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      fs26.mkdirSync(auditRoot, { recursive: true });
-      const auditRootReal = fs26.realpathSync(auditRoot);
-      const ledgerRel = path33.relative(targetReal, auditRootReal);
-      if (ledgerRel === "" || ledgerRel.startsWith("..") || path33.isAbsolute(ledgerRel)) {
+      fs28.mkdirSync(auditRoot, { recursive: true });
+      const auditRootReal = fs28.realpathSync(auditRoot);
+      const ledgerRel = path34.relative(targetReal, auditRootReal);
+      if (ledgerRel === "" || ledgerRel.startsWith("..") || path34.isAbsolute(ledgerRel)) {
         return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
-      const ledgerDir = fs26.mkdtempSync(join(auditRoot, `${layerId}-`));
-      const ledgerReal = fs26.realpathSync(ledgerDir);
+      const ledgerDir = fs28.mkdtempSync(join(auditRoot, `${layerId}-`));
+      const ledgerReal = fs28.realpathSync(ledgerDir);
       if (!ledgerDirConfined(ledgerReal, targetReal)) {
         return textResult2("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
       }
@@ -186372,7 +186504,7 @@ function registerGiOmpTools(pi, cwdOf) {
       const p = params ?? {};
       const callerCwd = cwdOf(ctx);
       const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
-      const confined = confineTargetPath(path33.normalize(rawRoot), callerCwd);
+      const confined = confineTargetPath(path34.normalize(rawRoot), callerCwd);
       if (!confined.ok) {
         return textResult2(`GI_PATH_DENIED: ${confined.error}`, { ok: false, error: "GI_PATH_DENIED" });
       }
