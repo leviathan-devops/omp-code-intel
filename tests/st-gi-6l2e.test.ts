@@ -18,6 +18,7 @@ import { corbellProbe } from "../src/omp/adapters/corbell.ts";
 import { graphifyProbe } from "../src/omp/adapters/graphify.ts";
 import { tsgProbe, tsgKey, tsgKeyPresent, resolveTsgBinary } from "../src/omp/adapters/tsg.ts";
 import { abideProbe } from "../src/omp/adapters/abide.ts";
+import { uaProbe } from "../src/omp/adapters/ua.ts";
 import { graphFacts, type GraphFactRule } from "../src/omp/graph-facts.ts";
 import { FireGate, absorbContext } from "../src/omp/fire-gate.ts";
 
@@ -256,14 +257,21 @@ describe("st-gi-6l2e: adversarial", () => {
     //   subject (no substrate exists). L2_ARSUMBRIS is the EXCEPTION — the au daemon was
     //   BROUGHT UP (the L2 wave), so it is UP and reads GI_LAYER_UNCONSUMED for a subject
     //   no instance names. Both are correct; neither is a green.
-    for (const id of ["L1_SEMANTICA", "L3_UA", "L4_C2KG"] as const) {
+    // ★ CORRECTED 2026-09-23 (again — the code is right; the SUBSTRATE came up): the
+    //   layers whose substrate EXISTS on this host (L2 the au daemon, L3 the UA graph) are
+    //   UP and read GI_LAYER_UNCONSUMED for a subject nothing names; only the layers with
+    //   NO substrate read GI_LAYER_DOWN. Asserting a fixed DOWN set would fail every time
+    //   a substrate is brought up — so the invariant is the CONTRACT, not the host state.
+    for (const id of ["L1_SEMANTICA", "L4_C2KG"] as const) {
       const r = audit.reports.find((x) => x.consumer === id)!;
       expect(r.verdict).toBe("GI_LAYER_DOWN");
       expect(r.evidence.length).toBeGreaterThan(0);
     }
-    const l2 = audit.reports.find((x) => x.consumer === "L2_ARSUMBRIS")!;
-    expect(["GI_LAYER_DOWN", "GI_LAYER_UNCONSUMED"]).toContain(l2.verdict);
-    expect(l2.consumed).toBe(false);
+    for (const id of ["L2_ARSUMBRIS", "L3_UA"] as const) {
+      const r = audit.reports.find((x) => x.consumer === id)!;
+      expect(["GI_LAYER_DOWN", "GI_LAYER_UNCONSUMED"]).toContain(r.verdict);
+      expect(r.consumed).toBe(false); // a substrate being UP is NOT consumption
+    }
     expect(audit.summary).toMatch(/consumed:\d\/8/);
     expect(audit.offenders.length).toBeGreaterThan(0);
   }, 120_000);
@@ -494,5 +502,40 @@ describe("st-gi-6l2e: the 2 Jev kernel edges (real machinery)", () => {
       expect(argsLine).toContain('"grep", "--json"');
       expect(argsLine).not.toContain("key");
     }
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ★ L3 UA — THE REAL INGEST (the substrate was PRODUCED, not declared absent)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("st-gi-6l2e: L3 UA (the real knowledge graph)", () => {
+  test("test_consume_ua", () => {
+    // ★ THE SUBSTRATE: <scopeRoot>/.ua/knowledge-graph.json, produced by scripts/ua-ingest.ts
+    //   (the real @understand-anything/core pipeline: TreeSitterPlugin.analyzeFile ->
+    //   GraphBuilder -> saveGraph). Measured: 507 files, 4,884 nodes, 5,364 edges.
+    const p = uaProbe(REPO);
+    const up = p.up();
+    expect(up.up).toBe(true);
+    expect(up.evidence).toContain("knowledge-graph.json");
+    expect(p.rung).toBe("context");
+    const facts = p.facts("populate");
+    expect(facts.length).toBeGreaterThan(0);
+    for (const f of facts) {
+      expect(f.consumer).toBe("L3_UA");
+      expect(f.rung).toBe("context");
+      expect(f.source.length).toBeGreaterThan(0); // every fact carries its anchor
+    }
+  });
+
+  test("test_ua_graph_is_a_real_graph", () => {
+    // ★ THE GRAPH MUST BE A GRAPH: nodes AND edges, not a file list. A "knowledge graph"
+    //   with zero edges is a directory listing wearing the name.
+    const g = JSON.parse(fs.readFileSync(path.join(REPO, ".ua/knowledge-graph.json"), "utf8")) as {
+      nodes?: unknown[]; edges?: unknown[]; project?: unknown;
+    };
+    expect((g.nodes ?? []).length).toBeGreaterThan(100);
+    expect((g.edges ?? []).length).toBeGreaterThan(100);
   });
 });
