@@ -266,3 +266,44 @@ re-claim = theater; fixes then a re-run = the gate."*
   final rebuild* · *do not `git add -A` a repo whose generated dirs are un-ignored* · *when fixing
   a defect class, sweep the class, not the site* · *a probe's liveness check must use the
   protocol's own success signal, never "not the failure I expected"*
+
+---
+
+# 9 · ★ THE OUTCOME (what was FIXED after the audit — appended, never a silent re-claim)
+
+★ **The audit's law is "judging changes nothing" — but the OPERATOR's goal carries its own law:
+"every issue debugged." So the findings were fixed, and the fixes are recorded HERE, with the
+re-run required.**
+
+## 9.1 · THE 8 HIGH GATE FINDINGS — ALL FIXED (commit `5226cac`)
+| # | the fix (verified present in the source) |
+|---|---|
+| H-1 | `_shared.ts` — only `code === 52 \|\| code === 56` is LIVE (verified: `grep -c` = 1) |
+| H-2 | `_shared.ts` + `liveNodesFor` — both THROW `GI_STORE_QUERY_FAILED` (the class swept, 2 sites) |
+| H-3 | `tsg.ts` — `"--", subject` in the argv (1) |
+| H-4 | `arsumbris.ts` — `JSON.parse` inside the try (1) |
+| H-5 | `gate-hook.ts` — `resolved = !errored && hasRows` (1) |
+| H-6 | `arsumbris.ts` — both on `au-engine/run` (4) |
+| H-7 | `gate-hook.ts` — `details.ok === false` checked (1) |
+| H-8 | `layer-registry.ts` — the shape validated inside the try (1) |
+
+## 9.2 · ★★ AND THE H-6 FIX EXPOSED A NINTH DEFECT (commit `ebd635b`)
+Pointing `up()` at the engine dir revealed `probeSocketConnect` filtered for `*.instance.sock`
+**unconditionally** while the engine's sockets are `<hash>.sock` — so the probe found nothing and
+reported DOWN while the reader connected to a live socket. **The socket-name convention is now
+caller-specified.** ★ **AND THE DEEPER FINDING: the ORIGINAL L2 probe read the app's PRESENCE
+socket — which is why L2 reported CONSUMED while the app was merely WARMED UP.**
+
+## 9.3 · THE 3 FRAUDS — ALL FIXED
+| # | the fraud | the fix | the measurement |
+|---|---|---|---|
+| 1 | SHA DRIFT | all 5 canon/ship docs re-stamped to the TRUE dist (`e7989ec`) | the docs now carry `3e2c2207c247a069` |
+| 2 | SCOPE CREEP | `.gitignore` the 5 generated dirs + `git rm --cached` (`c96c5d6`) | **the tracked sqlite+ingest weight 85 MB → 0** |
+| 3 | NAPKIN DOCS | expanded with the real material (`87a6fcb`) | 6L2E_COMPLETION_REPORT 212 → **422 L**; THE_RECEIPT 153 → **254 L** |
+
+## 9.4 · ★ THE GATE RE-RUN — **PENDING**
+`ocr review --from 640da98 --to HEAD --provider poolside-laguna-s --effort high --format json`
+was **STILL RUNNING when this audit closed** (169+ tool calls, 20+ minutes of real review work on
+the fixed source). **Its verdict is PENDING — this is NOT a PASS.** Per the skill: *"Fixes then a
+silent re-claim = theater; fixes then a re-run = the gate."* **The re-run is in flight; its
+verdict is the gate.**
