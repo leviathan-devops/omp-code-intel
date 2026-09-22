@@ -505,3 +505,28 @@ daemon inside the container).
 not a fabricated green.
 **★ AND TSG: the TypeSafe key returned HTTP 402 Payment Required** (quota spent) — the adapter
 now CARRIES the CLI's own output in its error, so the failure is diagnosable.
+
+### ★★★★★★★ 6/8 → 7/8 — L4 C2KG PRODUCED (the Kotlin/JVM toolkit, driven)
+Three blockers fell in sequence: **(1) no JDK** — the host had a JRE only (gradle: *"does not
+provide the required capabilities: [JAVA_COMPILER]"*); **passwordless sudo exists** →
+`apt-get install openjdk-21-jdk-headless` → **the toolkit BUILT** (10 s). **(2) no VS Code** —
+but `VsCodeParser.kt:70-78` shows the parser builds its **NODES + the DEFINES connections
+WITHOUT VS Code**; only the *additional* outbound edges need it. **(3) the comms protocol** —
+`BatchProcessor.kt:65-69` sends a `List<VsCodeCommand>` and **parses the reply**; the consumer
+**handles null**. ★ A first stub returned `""` and Jackson threw *"No content to map due to
+end-of-input"*; the stub now answers `{"commands":[null,…]}` — the honest no-LSP reply.
+**New:** `scripts/c2kg-produce/C2kgProduce.java` + `run.sh`. **Measured:** 1,142 toolkit nodes →
+`.c2kg/index.json`, filtered to **182 live symbols** (the first run carried `Checkpoints/` paths —
+the A-0 law applied to L4). **★ `consumed:7/8`.**
+
+### ★ THE MODEL HALLUCINATION (a finding worth recording)
+The container's model (laguna-s-2.1:free) hit **HTTP 429**; the turn ended with a provider error
+and **never called the tool** — yet it wrote a confident explanation that `gi-consumption` *"is
+not available in my current toolkit"*. **The log is the evidence** (`agent turn ended with
+provider error ... 429`). **★ A model's prose about its own capabilities is NOT evidence** —
+had it been believed, this would have been logged as a missing tool. Fixed per WARHEAD 6 (switch
+the model) and the operator's order (**muse 1.3**): the container now runs
+**Muse Spark 1.3 Contributor Free** and the probe returns **`consumed:6/8`** with real facts.
+★ **A PROXY FINDING:** the go-model blacklist whitelists the WIRE name `muse-spark-1.3-contributor`
+while omp's catalog alias for it is `big-pickle` — so `opencode-go/muse-spark-1.3-contributor` is
+rejected 403; the container's free zen lane resolves correctly.
