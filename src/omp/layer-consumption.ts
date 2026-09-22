@@ -79,17 +79,32 @@ export interface ConsumptionAudit {
   offenders: Array<{ consumer: ConsumerId; verdict: ConsumptionReport["verdict"]; evidence: string }>;
 }
 
-/** ★ THE PROBE (D-1). Ask every consumer for one subject and report CONSUMPTION. */
+/** ★ THE PROBE (D-1). Ask every consumer for one subject and report CONSUMPTION.
+ *
+ *  ★ AUDIT FINDING FIXED (2026-09-22): the first version evaluated the registry THREE
+ *  times (audit + decisionsInfluenced→factsFor + summary→audit), tripling the probe I/O
+ *  (each store-backed probe re-opens the DB) and letting the summary, the influenced set
+ *  and the reports DISAGREE if a substrate changed mid-call (TOCTOU). ONE snapshot now
+ *  feeds all three. */
 export function consumptionAudit(scopeRoot: string, subject: string): ConsumptionAudit {
   const registry = buildRegistry(scopeRoot);
   const reports = registry.audit(subject);
-  const influenced = registry.decisionsInfluenced(subject);
+  const influenced = reports.filter((r) => r.consumed).map((r) => r.consumer);
+  const consumed = reports.filter((r) => r.consumed);
+  const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
+  const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
+  const parts = [
+    `consumed:${consumed.length}/${reports.length}`,
+    `rungs=${[...new Set(consumed.map((r) => r.rung))].sort().join(",") || "none"}`,
+  ];
+  if (unconsumed.length > 0) parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.consumer).join(",")}`);
+  if (down.length > 0) parts.push(`GI_LAYER_DOWN=${down.map((r) => r.consumer).join(",")}`);
   return {
     scopeRoot,
     subject,
     reports,
     influenced,
-    summary: registry.summary(subject),
+    summary: parts.join(" "),
     offenders: reports
       .filter((r) => !r.consumed)
       .map((r) => ({ consumer: r.consumer, verdict: r.verdict, evidence: r.evidence })),

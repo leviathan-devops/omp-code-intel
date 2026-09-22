@@ -239,7 +239,7 @@ derivePolicy(profile, counts) → { calibrated: false,
 # ★ THE 6L+2E STATE (2026-09-22, HEAD f6fca91)
 
 ## THE DIST (the artifact)
-`extensions/graph-intelligence/index.js` sha256_16 **`727620d6ee782c7a`** · **9,425,167 B**
+`extensions/graph-intelligence/index.js` sha256_16 **`a8583082a24c3b38`** · **9,426,889 B**
 ★ 613 KB → 9.42 MB. **THE DIST-CONTENT GATE PASSES** — every v2.x symbol is present
 (`consumptionAudit` `createLayerRegistry` `corbellProbe` `graphifyProbe` `arsumbrisProbe`
 `tsgProbe` `abideProbe` `gi-consumption` all = 2). `find src -newer <dist>` = **0**.

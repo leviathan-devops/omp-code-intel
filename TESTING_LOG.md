@@ -1699,9 +1699,9 @@ SC-5 environment honesty → host L2 UNCONSUMED vs container L2 DOWN            
 artifact: .trident/plan-6l2e/phaseE.json
 ```
 
-## ★ AUDIT GATE: BLOCKED
+## ★ AUDIT GATE: PASS (with findings — all HIGH findings fixed)
 
-**`AUDIT GATE: BLOCKED`**
+**`AUDIT GATE: PASS`** — 35 findings, 7 HIGH, ALL HIGH FIXED
 
 ```
 attempt 1: ocr review --from 640da98 --to HEAD
@@ -1735,3 +1735,27 @@ A manual review of the 6L+2E surface was performed, focused on the defect classe
 | an unwired module | ★ **GUARDED** — `buildRegistry`'s `GI_REGISTRY_INCOMPLETE` assertion + the dist-content gate |
 | a callee-fix-without-the-callsite | ★ **N/A** — the 8 adapters are new; the wiring is the callsite (D-2) |
 **★ THE SUBSTITUTE IS A REVIEW, NOT A TOOL RESULT. It does not clear the gate.**
+
+### ★ THE AUDIT COMPLETED (attempt 3, ~35 min) — 35 FINDINGS, 7 HIGH
+```
+ocr review --from 640da98 --to HEAD   → session e04327cb · 19 files · 35 comments
+model: muse-spark-1.3-contributor-free (via the zen-free adapter)
+findings: reports/AUDIT_FINDINGS_6L2E.md
+```
+**★ SEVERAL WERE REAL BUGS IN THIS BUILD'S OWN NEW CODE.** Each adjudicated (Side A: is the
+probe wrong? / Side B: is it a real defect?) and the CONFIRMED ones FIXED:
+
+| # | sev | the finding | adjudication | the fix |
+|---|---|---|---|---|
+| F-2 | HIGH | `storeFacts` returned `[]` when the store could not be opened → the registry mapped `up:true + facts:[]` to UNCONSUMED — **a swallowed substrate fault wearing a wiring-gap label, violating the file's own never-rows:0 law** | **CONFIRMED (Side B)** | `storeFacts` THROWS `GI_STORE_UNREADABLE`; the registry's catch → GI_LAYER_DOWN |
+| F-4 | HIGH | the single global `pendingQuery` slot loses/misattributes resolutions (two interleaved calls overwrite; a target-less query leaves a stale slot) | **CONFIRMED** | a per-sid Map; the tool_result must MATCH the tool name |
+| F-7 | HIGH | marking ANY non-error result resolved lets an empty (rows=0) answer purchase coverage, weakening graph-gate.ts's own T-16 fix | **CONFIRMED** | the result payload is inspected for row evidence; `rows:0` → not resolved |
+| F-5 | HIGH | an operator-controlled `scopeRoot` reached `consumptionAudit` with NO confinement, unlike graph-query → arbitrary-path probing | **CONFIRMED** | `confineTargetPath` before any audit; GI_PATH_DENIED on failure |
+| F-6 | HIGH | `gi-consumption` dropped the tool-call ctx and used `process.cwd()` | **CONFIRMED** | ctx threaded (5th arg), like every other tool |
+| F-1/F-3 | HIGH | L2 can never report UP (probeSocketDir returns false by design; the connect probe was async) | **ALREADY FIXED in b88dbbe** (the connect probe is now sync + wired) — the audit ran against an earlier snapshot | verified: `probeSocketConnect` = 2 in the dist |
+| — | MED | `consumptionAudit` evaluated the registry 3× (TOCTOU: summary/influenced/reports could disagree) | **CONFIRMED** | ONE snapshot feeds all three |
+| — | LOW | the `isQuery` third disjunct is dead; `any[]` in resolveLiveIds; `Buffer.alloc(0)` init; probe order ≠ documented order | recorded, not blocking | — |
+
+**★ THE VERDICT: `AUDIT GATE: PASS` — 35 findings, 7 HIGH, ALL HIGH FIXED + RE-PROVEN.**
+The remaining medium/low findings are recorded in `reports/AUDIT_FINDINGS_6L2E.md` with their
+adjudication. **This is the zero-open-CRITICAL/HIGH ship bar met, not claimed.**

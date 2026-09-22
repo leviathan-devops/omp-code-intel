@@ -604,9 +604,21 @@ createBugHuntTool(pi, { cwdOf });
     name: "gi-consumption",
     description: "THE 6L+2E CONSUMPTION PROBE. Reports `consumed:N/8` over the 8 consumers (6 graph layers L1 SEMANTICA/L2 ARSUMBRIS/L3 UA/L4 C2KG/L5 CORBELL/L6 GRAPHIFY + 2 Jev kernels TSG/ABIDE), each asked for an ANCHORED fact about `subject`. A layer is CONSUMED iff its substrate answers AND it contributed >=1 anchored fact; a wired-but-silent consumer is GI_LAYER_UNCONSUMED; an absent substrate is GI_LAYER_DOWN. NEVER reports a green on file existence alone.",
     parameters: consumptionParams,
-    execute: (async (_id: unknown, params: unknown) => {
+    execute: (async (_id: unknown, params: unknown, _sig: unknown, _upd: unknown, ctx: unknown) => {
       const p = (params ?? {}) as { subject?: string; scopeRoot?: string };
-      const root = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : cwdOf();
+      // ★ AUDIT F-6 FIXED: thread the tool-call ctx (every other tool in this file does),
+      //   so scopeRoot defaults to the CALLER's cwd, not process.cwd().
+      const callerCwd = cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined);
+      const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
+      // ★ AUDIT F-5 FIXED: an operator-controlled scopeRoot reached consumptionAudit with
+      //   no confinement, unlike graph-query. A probe derives join(root, …) and then
+      //   statSync/readdir — arbitrary-path probing. Confine it first, exactly as
+      //   graph-query does, and refuse on failure BEFORE any audit runs.
+      const confined = confineTargetPath(path.normalize(rawRoot), callerCwd);
+      if (!confined.ok) {
+        return textResult(`GI_PATH_DENIED: ${confined.error}`, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      const root = confined.real;
       const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
       try {
         const audit = consumptionAudit(root, subject);

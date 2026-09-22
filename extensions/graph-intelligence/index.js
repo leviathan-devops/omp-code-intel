@@ -179285,7 +179285,7 @@ function attachGiGraphGate(pi) {
 function registerGraphGate(pi) {
   attachGiGraphGate(pi);
   const states = new Map;
-  let pendingQuery = null;
+  const pendingQueries = new Map;
   pi.on("tool_call", (event) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
@@ -179299,7 +179299,7 @@ function registerGraphGate(pi) {
     if (isQuery) {
       const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
       if (target) {
-        pendingQuery = { target, tool: name, sid };
+        pendingQueries.set(sid, { target, tool: name });
       }
       return;
     }
@@ -179319,18 +179319,27 @@ function registerGraphGate(pi) {
     return;
   });
   pi.on("tool_result", (event) => {
-    if (!pendingQuery)
-      return;
     const name = String(event.toolName ?? "").toLowerCase();
     if (name !== "graph-query" && name !== "ripwire")
       return;
-    const q = pendingQuery;
-    pendingQuery = null;
-    const st = states.get(q.sid);
+    const sid = resolveSessionIdFromEvent(event).id;
+    const q = pendingQueries.get(sid);
+    if (!q)
+      return;
+    if (q.tool !== name)
+      return;
+    pendingQueries.delete(sid);
+    const st = states.get(sid);
     if (!st)
       return;
     const errored = event.isError === true || typeof event.error === "string" && event.error.length > 0;
-    recordGraphQuery({ tool: q.tool, target: q.target, resolved: !errored }, st);
+    const content = Array.isArray(event.content) ? event.content : [];
+    const text = content.map((c) => typeof c === "object" && c !== null && ("text" in c) ? String(c.text) : "").join(`
+`);
+    const hasRows = /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
+    const noRows = /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
+    const resolved = !errored && (hasRows || !noRows);
+    recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
     return;
   });
 }
@@ -185667,8 +185676,9 @@ function liveEdgesFor(db, subject, limit = 200) {
 }
 function storeFacts(consumer, rung, storePath, subject, limit = 50) {
   const db = openReadOnly(storePath);
-  if (db === null)
-    return [];
+  if (db === null) {
+    throw new Error(`GI_STORE_UNREADABLE: ${storePath} could not be opened read-only (the substrate fault must not read as "no facts")`);
+  }
   try {
     const edges = liveEdgesFor(db, subject, limit);
     const out = edges.map((e) => ({
@@ -185680,7 +185690,9 @@ function storeFacts(consumer, rung, storePath, subject, limit = 50) {
     }));
     return out;
   } finally {
-    db.close();
+    try {
+      db.close();
+    } catch {}
   }
 }
 
@@ -185887,13 +185899,24 @@ function buildRegistry(scopeRoot, overrides) {
 function consumptionAudit(scopeRoot, subject) {
   const registry = buildRegistry(scopeRoot);
   const reports = registry.audit(subject);
-  const influenced = registry.decisionsInfluenced(subject);
+  const influenced = reports.filter((r) => r.consumed).map((r) => r.consumer);
+  const consumed = reports.filter((r) => r.consumed);
+  const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
+  const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
+  const parts = [
+    `consumed:${consumed.length}/${reports.length}`,
+    `rungs=${[...new Set(consumed.map((r) => r.rung))].sort().join(",") || "none"}`
+  ];
+  if (unconsumed.length > 0)
+    parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.consumer).join(",")}`);
+  if (down.length > 0)
+    parts.push(`GI_LAYER_DOWN=${down.map((r) => r.consumer).join(",")}`);
   return {
     scopeRoot,
     subject,
     reports,
     influenced,
-    summary: registry.summary(subject),
+    summary: parts.join(" "),
     offenders: reports.filter((r) => !r.consumed).map((r) => ({ consumer: r.consumer, verdict: r.verdict, evidence: r.evidence }))
   };
 }
@@ -186345,9 +186368,15 @@ function registerGiOmpTools(pi, cwdOf) {
     name: "gi-consumption",
     description: "THE 6L+2E CONSUMPTION PROBE. Reports `consumed:N/8` over the 8 consumers (6 graph layers L1 SEMANTICA/L2 ARSUMBRIS/L3 UA/L4 C2KG/L5 CORBELL/L6 GRAPHIFY + 2 Jev kernels TSG/ABIDE), each asked for an ANCHORED fact about `subject`. A layer is CONSUMED iff its substrate answers AND it contributed >=1 anchored fact; a wired-but-silent consumer is GI_LAYER_UNCONSUMED; an absent substrate is GI_LAYER_DOWN. NEVER reports a green on file existence alone.",
     parameters: consumptionParams,
-    execute: async (_id, params) => {
+    execute: async (_id, params, _sig, _upd, ctx) => {
       const p = params ?? {};
-      const root = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : cwdOf();
+      const callerCwd = cwdOf(ctx);
+      const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
+      const confined = confineTargetPath(path33.normalize(rawRoot), callerCwd);
+      if (!confined.ok) {
+        return textResult2(`GI_PATH_DENIED: ${confined.error}`, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      const root = confined.real;
       const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
       try {
         const audit = consumptionAudit(root, subject);

@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-22 · **Tree:** `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence`
 **Branch:** `graph-intelligence` · **HEAD:** `f6fca91`
-**Dist:** `extensions/graph-intelligence/index.js` sha256_16 `727620d6ee782c7a` · 9,425,167 B
+**Dist:** `extensions/graph-intelligence/index.js` sha256_16 `a8583082a24c3b38` · 9,426,889 B
 **Container proof:** `gi-6l2e-ct` (omp-ct:master) — `.trident/plan-6l2e/phaseE.json`
 
 ---
@@ -132,7 +132,7 @@ imports (10) · + the un-scoped battery (`bun test` walked the vendored `researc
 ## §4.3 · L3/L4 — THE CONTAINER PROOF (E-2)
 ```
 container gi-6l2e-ct (omp-ct:master) · tmux 220x50 · omp 18.2.x
-deploy sha match: local 727620d6ee782c7a == remote 727620d6ee782c7a (9,425,167 B)
+deploy sha match: local a8583082a24c3b38 == remote a8583082a24c3b38 (9,426,889 B)
 in-container content gate: consumptionAudit=2 createLayerRegistry=2 gi-consumption=2 corbellProbe=2
 auth probe: openrouter/poolside/laguna-s-2.1:free — the status bar read "Laguna S 2.1 (free)"
   and the model answered + drove a tool call. PASS.

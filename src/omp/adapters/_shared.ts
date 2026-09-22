@@ -156,7 +156,13 @@ export function liveNodesFor(db: Database, subject: string): number {
 }
 
 /** Compose the facts a store-backed consumer contributes for one subject.
- *  Every fact carries its anchor — a fact without one is discarded by the registry. */
+ *  Every fact carries its anchor — a fact without one is discarded by the registry.
+ *
+ *  ★ AUDIT F-2 FIXED (2026-09-22): a store that cannot be OPENED must be a THROW, not
+ *  an empty array. Returning [] let the registry map `up:true + facts:[]` to
+ *  GI_LAYER_UNCONSUMED — a swallowed substrate fault wearing a wiring-gap label, which
+ *  violates this file's own never-rows:0 law. The registry's `facts()` catch turns the
+ *  throw into GI_LAYER_DOWN with the cause as evidence. */
 export function storeFacts(
   consumer: ConsumerId,
   rung: Rung,
@@ -165,7 +171,9 @@ export function storeFacts(
   limit = 50,
 ): LayerFact[] {
   const db = openReadOnly(storePath);
-  if (db === null) return [];
+  if (db === null) {
+    throw new Error(`GI_STORE_UNREADABLE: ${storePath} could not be opened read-only (the substrate fault must not read as "no facts")`);
+  }
   try {
     const edges = liveEdgesFor(db, subject, limit);
     const out: LayerFact[] = edges.map((e) => ({
@@ -177,6 +185,7 @@ export function storeFacts(
     }));
     return out;
   } finally {
-    db.close();
+    // ★ AUDIT F-6-class fix: a close fault must never MASK the read result.
+    try { db.close(); } catch { /* the read already succeeded; a close fault is not the answer */ }
   }
 }
