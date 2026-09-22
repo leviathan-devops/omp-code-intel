@@ -151,3 +151,50 @@ structural query in this build.**
 - The 6 layer adapters do not exist (`src/omp/adapters/` is absent) — B-1..B-6 are greenfield.
 - The container rig `omp-ct:master` is confirmed present but was not booted this turn.
 - The 39-byte repo↔deploy delta was not diffed byte-for-byte (moot: the fresh build is the truth).
+
+---
+
+# §9 · A-0 — THE SUBSTRATE GATE, MEASURED
+
+## §9.1 · THE GATE (as the wave-plan wrote it, and WHY IT IS WRONG)
+```
+wave-plan A-0 gate:  SELECT COUNT(*) FROM typed_nodes WHERE file LIKE '%oracle.ts%' > 0; Checkpoints/ = 0
+```
+★ **THE QUERY OMITS `superseded_run IS NULL`.** The store is APPEND-ONLY (supersede-then-insert);
+a query without the live filter counts SUPERSEDED HISTORY. Measured consequence: the naive
+Checkpoints count reads **6191** and FALSELY FAILS a store whose live rows are clean.
+**THE CORRECTED GATE:**
+```
+SELECT COUNT(*) FROM typed_nodes WHERE superseded_run IS NULL AND file LIKE '%oracle.ts%'   -- > 0
+SELECT COUNT(*) FROM typed_nodes WHERE superseded_run IS NULL AND file LIKE '%Checkpoints%' -- = 0
+```
+
+## §9.2 · THE MEASUREMENT (live rows)
+| store | live total | live oracle.ts | live Checkpoints | live edges |
+|---|---|---|---|---|
+| `.omp/graph-intelligence/corbell-checkout/store.sqlite` | 5445 | **63** ✅ | **0** ✅ | 11885 |
+| `.omp/graph-intelligence/graphify-checkout/store.sqlite` | 1424 | 0 | **0** ✅ | 3077 |
+
+**★ A-0 SATISFIED: the stores describe the LIVE tree (`src/`), Checkpoints excluded, oracle.ts live > 0.**
+
+## §9.3 · THE REBUILD (the fix that produced it)
+```
+$ bun scripts/graphify-build.ts --target <the repo> --no-extract --scope src
+  [WARN] build: scope filter dropped 9165 out-of-scope row(s) (scope=src)
+  [graphify-build] scope filter: kept 1424/1424 nodes, dropped 0 out-of-scope rows
+  [graphify-build] typed store: .../graphify-checkout/store.sqlite nodes=1424 edges=3077
+  marked fresh: graphify-out/graph.graph_hash = b80c39b9b56a3395…
+```
+★ **THE STORE PRE-DATED THE SCOPE FIX** (mtime 2026-09-21 14:45 == the extract's mtime). The
+current adapter code (`graphify-adapter.ts:799`) DOES apply `scopeBuildToProfile`; the store
+carried 6191 un-superseded Checkpoints rows from the older run. The rebuild supersedes them.
+
+## §9.4 · THE TWO REMAINING FINDINGS (recorded, not gate-blocking)
+1. **THE EXTRACT IS A WHOLE-TREE WALK.** `graphify-out/graph.json` (15 MB, 2026-09-21) carries
+   26,710 `Checkpoints` refs · 4,653 `src` · 2,838 `extensions` · 1,699 `SHIP_PACKAGES` ·
+   751 `tests` · 341 `packages`. The store filters to `src/`; the EXTRACT still walks the archive.
+   **A-0's "Checkpoints excluded" holds at the STORE, not at the EXTRACT.** (Owner: E-2's rig pass.)
+2. **`src/omp/oracle.ts` IS ABSENT FROM THE EXTRACT** (16 of the 23 `src/omp` files are there;
+   oracle.ts is not). The corbell leg covers it (63 live nodes); the graphify leg cannot answer
+   about it. **The two legs have different coverage** — a consumer that reads only graphify is
+   blind to oracle.ts.
