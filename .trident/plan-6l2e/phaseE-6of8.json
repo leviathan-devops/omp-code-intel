@@ -1,0 +1,30 @@
+{
+  "wave": "E-2c",
+  "title": "THE 6-EDGE PROOF — six consumers CONSUMED on the host, five in the HEADED container",
+  "date": "2026-09-23",
+  "dist": { "sha256_16": "406a01d12d16153f", "size_bytes": 9433392, "deploy_sha_match": true },
+  "host_result": {
+    "consumed": "6/8",
+    "rungs": "context,decision,knowledge,repair,settlement",
+    "L5_CORBELL": "facts=50", "L6_GRAPHIFY": "facts=22", "L3_UA": "facts=27",
+    "L2_ARSUMBRIS": "facts=33", "L1_SEMANTICA": "facts=12", "ABIDE": "facts=721",
+    "down": "L4_C2KG (no substrate), TSG (the TypeSafe key quota: HTTP 402)"
+  },
+  "container_result": {
+    "consumed": "5/8",
+    "rungs": "context,decision,repair,settlement",
+    "L5_CORBELL": "facts=50", "L6_GRAPHIFY": "facts=22", "L3_UA": "facts=27",
+    "L1_SEMANTICA": "facts=12", "ABIDE": "facts=735",
+    "down": "L4_C2KG, L2_ARSUMBRIS (the container has no au daemon), TSG (no key)"
+  },
+  "the_substrates_produced_this_session": [
+    "L2 ARSUMBRIS — the au-host Electron app started (Xvfb :101 + AU_ENTRY) -> the engine socket; scripts/au-read.ts reads 844 instances",
+    "L3 UA — pnpm install --filter @understand-anything/core + scripts/ua-ingest.ts -> .ua/knowledge-graph.json (507 files, 4884 nodes, 5364 edges)",
+    "L1 SEMANTICA — pip install --user rdflib + scripts/semantica-ingest.py (ContextGraph) -> kg.json (746 files, 5454 nodes, 6081 edges)"
+  ],
+  "the_honest_remainder": {
+    "L4_C2KG": "the real producer IS on disk (research/graph-infra-repos/code-to-knowledge-graph — a Kotlin/JVM toolkit) BUT it needs (a) a JDK compiler (the host has a JRE only: 'does not provide the required capabilities: [JAVA_COMPILER]') AND (b) a RUNNING VS Code + the Bevel extension (the parser is VsCodeParser, wired to a REST port file). Neither exists on this host.",
+    "TSG": "the TypeSafe key returned HTTP 402 Payment Required (quota spent) — a NAMED, diagnosable state the adapter now surfaces."
+  },
+  "verdict": "PASS — SIX consumers CONSUMED on the host (was 2/8 at the start of this session), FIVE in the headed container; every remaining layer carries its measured blocker"
+}

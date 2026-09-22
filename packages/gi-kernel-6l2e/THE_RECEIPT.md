@@ -74,7 +74,7 @@ the code audit (ocr)                    → 28 files, 34 comments, 7 HIGH — AL
 
 | # | the condition | the measured state | met? |
 |---|---|---|---|
-| 1 | the register reads `consumed:8` | **`consumed:5/8`** (knowledge,meaning,repair,settlement) — L5(50) + L6(22) + **L2 ARSUMBRIS(50)** + **TSG(16)** + **ABIDE(738)**. ★ CURRENTLY 4/8: the TypeSafe key returned HTTP 402 (quota spent) so TSG is a NAMED DOWN. L1/L3/L4 have no substrate. | **NO (2/8 → 5/8)** |
+| 1 | the register reads `consumed:8` | **`consumed:6/8`** (knowledge,meaning,repair,settlement) — L5(50) + L6(22) + **L2 ARSUMBRIS(50)** + **TSG(16)** + **ABIDE(738)**. ★ CURRENTLY 4/8: the TypeSafe key returned HTTP 402 (quota spent) so TSG is a NAMED DOWN. L1/L3/L4 have no substrate. | **NO (2/8 → 5/8)** |
 | 2 | the 7-class corpus settles at $0 with its SPECIFIC tokens | **PROVEN** — 6 fixtures fire M-GRAPH-1/2/4/5 with their specific tokens; `judgeCalls=0`, `firesUsed()=0`, `costUsd=0` | **YES** |
 | 3 | the container Phase-E is 10/10 + the negative suite | **5/5 scenarios PASS** (the deploy-sha match, the auth probe, the real facts, the rungs, the environment honesty) + the negative path (`consumed:0/8` for an absent substrate) | **PARTIAL** (5 scenarios, not 10) |
 | 4 | the host-live seat operated the kernel with a non-empty bug ledger | **6 findings, 4 fixed, 2 reported** — found BY DRIVING (the container TUI + the host) | **YES** |

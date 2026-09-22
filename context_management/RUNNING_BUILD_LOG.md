@@ -482,3 +482,26 @@ it runs (a lifetime dependency, not a build defect).
 **★ THE TypeSafe KEY IS NOW QUOTA-BLOCKED (HTTP 402 Payment Required)** — the tsg CLI's own
 output reports it, and the adapter now CARRIES that output in its error (a named, diagnosable
 failure). So the current live number is 4/8 with TSG as a NAMED DOWN; 5/8 when the quota allows.
+
+### ★★★★★★ 5/8 → 6/8 — L1 SEMANTICA + L3 UA PRODUCED (the substrates were BUILDABLE)
+**L3 UA** — `pnpm install --filter @understand-anything/core` installed + built the core (tsc,
+10 s), then `scripts/ua-ingest.ts` ran the REAL pipeline (`TreeSitterPlugin.init()` →
+`analyzeFile` → `GraphBuilder.addFileWithAnalysis`/`addImportEdge` → `build()` → `saveGraph`).
+**Measured: 507 files, 4,884 nodes, 5,364 edges → `.ua/knowledge-graph.json` (3.25 MB).**
+**L1 SEMANTICA** — `pip install --user rdflib` (the one missing core dep) then
+`scripts/semantica-ingest.py` ran semantica's OWN `ContextGraph` (`add_node`/`add_edge` →
+`to_dict`). **Measured: 746 files, 5,454 nodes, 6,081 edges → `kg.json` (7.06 MB, 5,450
+entities).** ★ Its `to_dict()` returns LISTS, not dicts — the first mapping produced `entities=0`.
+**★ THE MEASURED AUDIT (host): `consumed:6/8 rungs=context,decision,knowledge,repair,settlement`**
+L5=50 · L6=22 · L3=27 · L2=33 · L1=12 · ABIDE=721.
+**★ THE CONTAINER: `consumed:5/8`** (L5=50 · L6=22 · L3=27 · L1=12 · ABIDE=735; L2 needs the
+daemon inside the container).
+**★ THE HONEST REMAINDER — L4 C2KG: THE PRODUCER IS ON DISK AND IS GENUINELY UNAVAILABLE.**
+`research/graph-infra-repos/code-to-knowledge-graph` is a **Kotlin/JVM toolkit** and it needs
+(a) a **JDK compiler** (the host has a JRE only: gradle fails with *"Toolchain installation
+'/usr/lib/jvm/java-21-openjdk-amd64' does not provide the required capabilities:
+[JAVA_COMPILER]"*) AND (b) a **RUNNING VS Code + the Bevel extension** (the parser is
+`VsCodeParser`, wired to a REST port file). **Neither exists.** That is a named, evidenced block —
+not a fabricated green.
+**★ AND TSG: the TypeSafe key returned HTTP 402 Payment Required** (quota spent) — the adapter
+now CARRIES the CLI's own output in its error, so the failure is diagnosable.
