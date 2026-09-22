@@ -8,6 +8,7 @@
 // no "if the store is missing, scan the tree". A consumer whose substrate does not
 // answer returns DOWN and the registry reports it. That is the whole point.
 import * as fs from "node:fs";
+import * as net from "node:net";
 import { Database } from "bun:sqlite";
 import type { LayerFact, SubstrateProbe } from "../layer-registry.ts";
 import type { ConsumerId, Rung } from "../layer-registry.ts";
@@ -25,19 +26,64 @@ export function probePath(p: string, mustBeFile = false): SubstrateProbe {
   }
 }
 
-/** A socket-backed substrate (the au daemon): liveness, not existence, is the
- *  dependency. A stale socket FILE is DOWN — the register's own lesson. */
+/** A socket-backed substrate (the au daemon): LIVENESS, not existence, is the
+ *  dependency.
+ *
+ *  ★ DEFECT FIXED BY DRIVING (2026-09-22): the first version of this probe read the
+ *  DIRECTORY and counted `*.instance.sock` FILES. Driving it in the container and on
+ *  the host exposed the hole the register's own comment had already warned about
+ *  ("two socket FILES sat there dated …"): a socket FILE outlives its daemon. Measured
+ *  on this host — 2 socket files, `curl --unix-socket` answered NOTHING, and the probe
+ *  reported UP. **A stat is not a connection.** The probe now CONNECTS.
+ *
+ *  `probeSocketDirSync` cannot connect (connect is async), so the sync surface reports
+ *  the FILES as a HINT and the async `probeSocketConnect` is the authoritative answer.
+ *  A consumer that only has the sync surface gets `up:false` with the reason — never a
+ *  false UP. */
 export function probeSocketDir(dir: string): SubstrateProbe {
   try {
     const st = fs.statSync(dir);
     if (!st.isDirectory()) return { up: false, evidence: `${dir} is not a directory` };
-    const live = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
-    if (live.length === 0) return { up: false, evidence: `${dir} — no *.instance.sock (the daemon is not running)` };
-    return { up: true, evidence: `${dir} — ${live.length} live socket(s): ${live.slice(0, 3).join(",")}` };
+    const files = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
+    if (files.length === 0) return { up: false, evidence: `${dir} — no *.instance.sock (the daemon is not running)` };
+    // ★ a socket FILE is a HINT, never liveness. The authoritative answer is a CONNECT
+    //   (probeSocketConnect); the sync surface refuses to call a file "up".
+    return {
+      up: false,
+      evidence: `${dir} — ${files.length} socket file(s) present (${files.slice(0, 2).join(",")}) but a FILE is not a DAEMON: connect() is the only liveness proof`,
+    };
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} — ${code}` };
   }
+}
+
+/** ★ THE AUTHORITATIVE PROBE: actually CONNECT to each socket. The first socket that
+ *  accepts is the live daemon; every socket that refuses is a stale file. */
+export async function probeSocketConnect(dir: string, timeoutMs = 1500): Promise<SubstrateProbe> {
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code ?? "UNKNOWN";
+    return { up: false, evidence: `${dir} — ${code}` };
+  }
+  if (files.length === 0) return { up: false, evidence: `${dir} — no *.instance.sock (the daemon is not running)` };
+  const attempts: string[] = [];
+  for (const f of files) {
+    const sock = `${dir}/${f}`;
+    const ok = await new Promise<boolean>((resolve) => {
+      const c = net.connect(sock);
+      const done = (v: boolean) => { try { c.destroy(); } catch { /* already gone */ } resolve(v); };
+      c.setTimeout(timeoutMs);
+      c.once("connect", () => done(true));
+      c.once("error", () => done(false));
+      c.once("timeout", () => done(false));
+    });
+    attempts.push(`${f}=${ok ? "LIVE" : "refused"}`);
+    if (ok) return { up: true, evidence: `${dir} — connect() accepted on ${f}` };
+  }
+  return { up: false, evidence: `${dir} — every socket refused (stale files, no daemon): ${attempts.join(" ")}` };
 }
 
 /** Open a store READ-ONLY. A read-only open is the consumer's discipline: a
