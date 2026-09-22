@@ -25,28 +25,28 @@ THE SUBAGENT WILL:
 # §1 · ★ THE SEVEN-LAYER ENFORCEMENT (each layer catches a different cheat)
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│ L1 · THE DISPATCH CONTRACT — the subagent CANNOT claim what it did not do   │
-│   every dispatch carries the CONTRACT block (§2) + the detectors inline     │
-├────────────────────────────────────────────────────────────────────────────┤
-│ L2 · THE WAVE-MANAGER — the ONLY dispatch path                             │
-│   task action=generate → auto-dispatch · trident-wave-read for liveness    │
-├────────────────────────────────────────────────────────────────────────────┤
-│ L3 · THE STREAM GATE — the return must be INTACT                           │
-│   the returnTruncated flag + the closing-structure read                    │
-├────────────────────────────────────────────────────────────────────────────┤
-│ L4 · ★ THE PHANTOM CHECK — sha256 before/after                              │
-│   "completed" + zero disk change = KICK BACK                               │
-├────────────────────────────────────────────────────────────────────────────┤
-│ L5 · ★ THE PER-HUNK AUDIT — WHAT/WHY/HOW + a verdict per hunk               │
-│   CORRECT | FLAWED | FITTED-TO-GOLDEN | FABRICATION | VIOLATION | CREEP    │
-├────────────────────────────────────────────────────────────────────────────┤
-│ L6 · ★ THE MECHANICAL RE-VERIFY — I run tsc + the battery + the casts       │
-│   the agent's exit codes are CLAIMS; MY runs are EVIDENCE                  │
-├────────────────────────────────────────────────────────────────────────────┤
-│ L7 · ★ THE FIREWALL — the 40 detectors (ANTI_THEATRICAL_FIREWALL.md)       │
-│   one command; exit nonzero = the wave FAILS ON SIGHT                      │
-└────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│ L1 · THE DISPATCH CONTRACT — the subagent cannot claim undone work       │
+│   every dispatch carries the CONTRACT block (§2) + the detectors inline  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ L2 · THE WAVE-MANAGER — the ONLY dispatch path                           │
+│   task action=generate → auto-dispatch · trident-wave-read for liveness  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ L3 · THE STREAM GATE — the return must be INTACT                         │
+│   the returnTruncated flag + the closing-structure read                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ L4 · ★ THE PHANTOM CHECK — sha256 before/after                           │
+│   "completed" + zero disk change = KICK BACK                             │
+├──────────────────────────────────────────────────────────────────────────┤
+│ L5 · ★ THE PER-HUNK AUDIT — WHAT/WHY/HOW + a verdict per hunk            │
+│   CORRECT | FLAWED | FITTED-TO-GOLDEN | FABRICATION | VIOLATION | CREEP  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ L6 · ★ THE MECHANICAL RE-VERIFY — I run tsc + the battery + the casts    │
+│   the agent exit codes are CLAIMS; MY runs are EVIDENCE                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│ L7 · ★ THE FIREWALL — the 40 detectors (ANTI_THEATRICAL_FIREWALL.md)     │
+│   one command; exit nonzero = the wave FAILS ON SIGHT                    │
+└──────────────────────────────────────────────────────────────────────────┘
 ★ A WAVE CLOSES ONLY ON THE ORCHESTRATOR'S VERIFIED VERDICT. NEVER ON A SUBAGENT'S WORD.
 ```
 
