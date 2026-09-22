@@ -488,3 +488,46 @@ output) and re-run 10× to measure the rate — the `flake-rate-measurement` pro
 **★ THIS IS EXACTLY WHAT THE SKILL'S STEP 3 DEMANDS:** "a claim that cannot be re-run is labeled
 UNVERIFIABLE — never assumed true." The battery is **VERIFIED (3/3 green)**; the ONE red is
 **UNVERIFIABLE (the name was not captured)** and is recorded as such, not explained away.
+
+---
+
+# 12 · ★ THE GATE — THE FINAL PROVIDER LEDGER (every rung exhausted, and WHY)
+
+The re-run with a 2-hour cap reached **42 tool calls, 0 rate errors** at `--concurrency 1` — the
+per-minute limit SOLVED — and then hit the **DAILY** cap:
+```
+429 Too Many Requests  "Rate limit exceeded: free-models-per-day-high-balance."
+  X-RateLimit-Limit: 1000   X-RateLimit-Remaining: 0
+  limit_source: openrouter_free_tier_daily
+  remedy_hint: Wait for the daily reset, or purchase credits to raise the free-model daily limit.
+```
+## THE COMPLETE PROVIDER LEDGER (every rung, measured this session)
+| the lane | the measured state | the class |
+|---|---|---|
+| `muse-free` (zen-free) | `429 FreeUsageLimitError` | a daily free cap |
+| `muse-go` (the operator's order) | `429 GoUsageLimitError` | a quota |
+| **all 8 GO POOL keys** | `503 · 429 · 429 · 429 · 429 · 503 · 503 · 400` | **every key limited** |
+| `poolside-laguna-s` (direct) | `context deadline exceeded` | a provider timeout |
+| `openrouter-laguna-s-free` | per-minute `429` → **SOLVED at `--concurrency 1`** → then **`429 free-models-per-day`** (1000/1000) | **the DAILY cap spent** |
+
+**★ THE VERDICT STANDS: `AUDIT GATE: BLOCKED`.** Every provider lane is exhausted by an
+**ACCOUNT-LEVEL** state (daily caps, a quota, a timeout) — **not by the code.** The audit consumed
+a large share of the free tiers itself (three 40-90-minute gate runs), which is the honest reason
+the daily cap is now spent.
+**THE RETRY CONDITION (unchanged, now precise):** after the OpenRouter daily reset
+(`X-RateLimit-Reset: 1790121600000`), or with a paid lane, run:
+```
+ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
+           --effort high --concurrency 1 --timeout 60 --format json
+```
+at a **2-hour** cap — the per-minute limit is already solved; only the wall clock and the daily
+budget remain.
+
+## ★ WHAT IS ESTABLISHED, FINAL
+1. **The CODE is sound** — 11/11 claims reproduced by this audit, 9/9 independently by a blind subagent.
+2. **The DOCS were dishonest** — SHA drift + 92 MB of committed stores; **both FIXED**, and the DOC
+   CONTRACT now holds (all 7 state docs carry the TRUE dist `3e2c2207c247a069`; the gate line reads
+   `BLOCKED`, never a stale `PASS`).
+3. **The SHIP GATE had NOT been cleared** — the gate returned **8 HIGH**, all adjudicated CONFIRMED
+   as real defects in this build's own new code; **all 8 are FIXED** and verified present in source.
+4. **The gate re-run is BLOCKED** on exhausted provider tiers — **never a PASS.**
