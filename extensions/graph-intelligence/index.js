@@ -179332,13 +179332,14 @@ function registerGraphGate(pi) {
     const st = states.get(sid);
     if (!st)
       return;
-    const errored = event.isError === true || typeof event.error === "string" && event.error.length > 0;
+    const details = typeof event.details === "object" && event.details !== null ? event.details : {};
+    const errored = event.isError === true || typeof event.error === "string" && event.error.length > 0 || details.ok === false || typeof details.error === "string" && details.error.length > 0;
     const content = Array.isArray(event.content) ? event.content : [];
     const text = content.map((c) => typeof c === "object" && c !== null && ("text" in c) ? String(c.text) : "").join(`
 `);
     const hasRows = /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
     const noRows = /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
-    const resolved = !errored && (hasRows || !noRows);
+    const resolved = !errored && hasRows;
     recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
     return;
   });
@@ -185514,7 +185515,8 @@ function createLayerRegistry() {
   const auditOne = (p, subject) => {
     let probe;
     try {
-      probe = p.up();
+      const raw = p.up();
+      probe = raw !== null && raw !== undefined && typeof raw.up === "boolean" ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" } : { up: false, evidence: "the probe returned a malformed shape (no boolean `up`) \u2014 DOWN by construction" };
     } catch (e) {
       probe = { up: false, evidence: e instanceof Error ? e.message : String(e) };
     }
@@ -185532,7 +185534,20 @@ function createLayerRegistry() {
     }
     let raw = [];
     try {
-      raw = p.facts(subject);
+      const got = p.facts(subject);
+      raw = Array.isArray(got) ? got.filter((f) => f !== null && typeof f === "object") : [];
+      if (!Array.isArray(got)) {
+        return {
+          consumer: p.id,
+          rung: p.rung,
+          up: true,
+          evidence: "facts() returned a NON-ARRAY \u2014 DOWN by construction",
+          factsReturned: 0,
+          factsDiscarded: 0,
+          consumed: false,
+          verdict: "GI_LAYER_DOWN"
+        };
+      }
     } catch (e) {
       return {
         consumer: p.id,
@@ -185646,7 +185661,7 @@ function probeSocketConnect(dir, timeoutMs = 1200) {
       return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f}` };
     } catch (e) {
       const code = e.status;
-      if (code !== undefined && code !== 7) {
+      if (code === 52 || code === 56) {
         attempts.push(`${f}=LIVE(exit ${code} \u2014 connected, no HTTP reply)`);
         return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f} (curl exit ${code})` };
       }
@@ -185670,8 +185685,15 @@ function liveEdgesFor(db, subject, limit = 200) {
             AND (src_canonical LIKE ? OR dst_canonical LIKE ?)
           ORDER BY id DESC LIMIT ?`).all(`%${subject}%`, `%${subject}%`, limit);
     return rows;
+  } catch (e) {
+    throw new Error(`GI_STORE_QUERY_FAILED: ${storePathOf(db)} \u2014 ${e instanceof Error ? e.message.slice(0, 160) : String(e)}`);
+  }
+}
+function storePathOf(db) {
+  try {
+    return db.query("PRAGMA database_list").all()[0]?.file ?? "<unknown>";
   } catch {
-    return [];
+    return "<unknown>";
   }
 }
 function storeFacts(consumer, rung, storePath, subject, limit = 50) {
@@ -185808,10 +185830,14 @@ function auEngineRead(repoRoot, read, subject) {
     const msg = e instanceof Error ? e.message.slice(0, 240) : String(e);
     throw new Error(`GI_LAYER_ARSUMBRIS: the engine read '${read}' failed \u2014 ${msg}`);
   }
-  return JSON.parse(out);
+  try {
+    return JSON.parse(out);
+  } catch (e) {
+    throw new Error(`GI_LAYER_ARSUMBRIS: the daemon returned unparseable JSON \u2014 ${e instanceof Error ? e.message.slice(0, 160) : String(e)}`);
+  }
 }
 function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
-  const runDir = path28.join(home, ".arsumbris/au-host/run");
+  const runDir = path28.join(home, ".arsumbris/au-engine/run");
   return {
     id: "L2_ARSUMBRIS",
     rung: "knowledge",
@@ -185927,7 +185953,7 @@ function tsgProbe(scopeRoot, tsgRoot) {
       }
       let out;
       try {
-        out = execFileSync3(bin, ["grep", "--json", "--threshold", "0.5", subject, srcRoot], {
+        out = execFileSync3(bin, ["grep", "--json", "--threshold", "0.5", "--", subject, srcRoot], {
           encoding: "utf8",
           timeout: 180000,
           maxBuffer: 32 * 1024 * 1024,

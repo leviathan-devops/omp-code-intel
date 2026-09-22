@@ -34,7 +34,13 @@ export function auEngineRead(repoRoot: string, read: string, subject: string): u
     const msg = e instanceof Error ? e.message.slice(0, 240) : String(e);
     throw new Error(`GI_LAYER_ARSUMBRIS: the engine read '${read}' failed — ${msg}`);
   }
-  return JSON.parse(out) as unknown;
+  // ★ AUDIT H-4 FIXED: the parse sits INSIDE the try so malformed daemon output becomes
+  //   the named GI_LAYER_ARSUMBRIS failure, never a raw SyntaxError.
+  try {
+    return JSON.parse(out) as unknown;
+  } catch (e) {
+    throw new Error(`GI_LAYER_ARSUMBRIS: the daemon returned unparseable JSON — ${e instanceof Error ? e.message.slice(0, 160) : String(e)}`);
+  }
 }
 
 /** ★ AUDIT-CLASS FIX (found by driving): the first wired version read `scopeRoot` from an
@@ -42,7 +48,11 @@ export function auEngineRead(repoRoot: string, read: string, subject: string): u
  *  args, so auEngineRead(undefined, …) threw and the edge reported 0 facts. The signature
  *  now takes the scope root (for scripts/au-read.ts) and the home (for the socket dir). */
 export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.homedir()): ConsumerProbe {
-  const runDir = path.join(home, ".arsumbris/au-host/run");
+  // ★ AUDIT H-6 FIXED: the probe and the reader must ask the SAME substrate. `up()` checked
+  //   `au-host/run` (the app's presence socket) while scripts/au-read.ts reads the ENGINE
+  //   socket at `au-engine/run` — a split-brain verdict where up() could be DOWN while
+  //   facts() would succeed. Both now point at the ENGINE run dir (the knowledge surface).
+  const runDir = path.join(home, ".arsumbris/au-engine/run");
   return {
     id: "L2_ARSUMBRIS",
     rung: "knowledge",

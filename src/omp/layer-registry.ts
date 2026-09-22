@@ -116,7 +116,14 @@ export function createLayerRegistry(): LayerRegistry {
   const auditOne = (p: ConsumerProbe, subject: string): ConsumptionReport => {
     let probe: SubstrateProbe;
     try {
-      probe = p.up();
+      // ★ AUDIT H-8 FIXED: the first version trusted the probe's return shape — a null/
+      //   undefined return threw OUTSIDE this try and aborted the WHOLE audit for all 8
+      //   consumers. The shape is now validated here: one malformed adapter marks ITSELF
+      //   DOWN instead of taking the registry with it.
+      const raw = p.up() as SubstrateProbe | null | undefined;
+      probe = raw !== null && raw !== undefined && typeof raw.up === "boolean"
+        ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" }
+        : { up: false, evidence: "the probe returned a malformed shape (no boolean `up`) — DOWN by construction" };
     } catch (e) {
       // A probe that THROWS is DOWN. Silence is never UP.
       probe = { up: false, evidence: e instanceof Error ? e.message : String(e) };
@@ -135,7 +142,17 @@ export function createLayerRegistry(): LayerRegistry {
     }
     let raw: LayerFact[] = [];
     try {
-      raw = p.facts(subject);
+      // ★ AUDIT H-8 (the class, swept): a non-array (or a null-containing array) threw at
+      //   `raw.filter(isAnchored)` OUTSIDE the try. The shape is normalized here.
+      const got = p.facts(subject) as unknown;
+      raw = Array.isArray(got) ? (got.filter((f) => f !== null && typeof f === "object") as LayerFact[]) : [];
+      if (!Array.isArray(got)) {
+        return {
+          consumer: p.id, rung: p.rung, up: true,
+          evidence: "facts() returned a NON-ARRAY — DOWN by construction",
+          factsReturned: 0, factsDiscarded: 0, consumed: false, verdict: "GI_LAYER_DOWN",
+        };
+      }
     } catch (e) {
       // A consumer that THROWS while reading is DOWN with the throw as evidence —
       // never "returned zero facts". The distinction matters: UNCONSUMED is a

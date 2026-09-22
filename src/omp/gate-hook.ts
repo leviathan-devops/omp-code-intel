@@ -181,7 +181,15 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     pendingQueries.delete(sid);
     const st = states.get(sid);
     if (!st) return undefined;
-    const errored = event.isError === true || (typeof event.error === "string" && event.error.length > 0);
+    // ★ AUDIT H-7 FIXED: every tool in extension.ts reports failure via `details:{ok:false}`,
+    //   NOT a top-level isError. Checking only the top level let a FAILED query purchase
+    //   drift coverage.
+    const details = (typeof event.details === "object" && event.details !== null ? event.details : {}) as { ok?: unknown; error?: unknown };
+    const errored =
+      event.isError === true ||
+      (typeof event.error === "string" && event.error.length > 0) ||
+      details.ok === false ||
+      (typeof details.error === "string" && details.error.length > 0);
     // ★ AUDIT F-7 FIXED: rows=0 is a legitimate ANSWER but NOT coverage. graph-gate.ts's
     //   own T-16 fix requires a RESOLVED query; an empty answer must not purchase coverage.
     //   The result payload is inspected for evidence of rows before coverage is granted.
@@ -189,7 +197,11 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     const text = content.map((c) => (typeof c === "object" && c !== null && "text" in c ? String((c as { text: unknown }).text) : "")).join("\n");
     const hasRows = /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
     const noRows = /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
-    const resolved = !errored && (hasRows || !noRows);
+    // ★ AUDIT H-5 FIXED: `|| !noRows` made an EMPTY/ambiguous result count as resolved
+    //   (neither marker present -> hasRows=false, noRows=false -> true). The T-16 intent is
+    //   explicit: rows=0 is a legitimate ANSWER but NOT coverage. Coverage now REQUIRES
+    //   positive row evidence.
+    const resolved = !errored && hasRows;
     recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
     return undefined;
   });

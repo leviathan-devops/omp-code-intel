@@ -100,7 +100,9 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
       }
       let out: string;
       try {
-        out = execFileSync(bin, ["grep", "--json", "--threshold", "0.5", subject, srcRoot], {
+        // ★ AUDIT H-3 FIXED: the `--` separator ends option parsing, so a subject beginning
+        //   with `-` can never become a CLI option (option injection).
+        out = execFileSync(bin, ["grep", "--json", "--threshold", "0.5", "--", subject, srcRoot], {
           encoding: "utf8",
           timeout: 180_000,
           maxBuffer: 32 * 1024 * 1024,

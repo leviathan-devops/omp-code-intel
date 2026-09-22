@@ -88,10 +88,14 @@ export function probeSocketConnect(dir: string, timeoutMs = 1200): SubstrateProb
       attempts.push(`${f}=LIVE`);
       return { up: true, evidence: `${dir} — connect() accepted on ${f}` };
     } catch (e) {
-      // ★ curl exit 7 is ECONNREFUSED — a stale FILE, no daemon. Any OTHER exit (0 handled
-      //   above; 52 = empty reply; 56 = recv failure) means the CONNECT SUCCEEDED.
+      // ★ AUDIT H-1 FIXED (2026-09-23): the first version treated ANY exit != 7 as LIVE —
+      //   but curl exits 28 on TIMEOUT and 2 on a usage error, so a hung/broken daemon read
+      //   UP. ONLY the codes that prove the CONNECT was ACCEPTED count: 52 (empty reply —
+      //   connected, no HTTP response) and 56 (recv failure — connected, then broke).
+      //   0 is handled by the success branch above; everything else (7 refused, 28 timeout,
+      //   2 usage, 6 no-host) is DOWN.
       const code = (e as { status?: number }).status;
-      if (code !== undefined && code !== 7) {
+      if (code === 52 || code === 56) {
         attempts.push(`${f}=LIVE(exit ${code} — connected, no HTTP reply)`);
         return { up: true, evidence: `${dir} — connect() accepted on ${f} (curl exit ${code})` };
       }
@@ -136,11 +140,19 @@ export function liveEdgesFor(db: Database, subject: string, limit = 200): EdgeRo
       )
       .all(`%${subject}%`, `%${subject}%`, limit) as EdgeRow[];
     return rows;
-  } catch {
-    // A schema mismatch is a DOWN condition the caller reports — never an empty
-    // answer dressed as "no facts".
-    return [];
+  } catch (e) {
+    // ★ AUDIT H-2 FIXED (2026-09-23): the first version returned [] here — the SAME
+    //   never-rows:0 violation the F-2 fix closed in storeFacts, left open at this site.
+    //   A schema/query fault is a DOWN condition: THROW, and the registry's facts() catch
+    //   maps it to GI_LAYER_DOWN with the cause as evidence.
+    throw new Error(`GI_STORE_QUERY_FAILED: ${storePathOf(db)} — ${e instanceof Error ? e.message.slice(0, 160) : String(e)}`);
   }
+}
+
+/** The store path a db handle was opened from (for the error evidence). */
+function storePathOf(db: Database): string {
+  try { return (db.query("PRAGMA database_list").all() as Array<{ file?: string }>)[0]?.file ?? "<unknown>"; }
+  catch { return "<unknown>"; }
 }
 
 /** The live node count for a subject (the node-side consumption surface). */
@@ -150,8 +162,9 @@ export function liveNodesFor(db: Database, subject: string): number {
       .query(`SELECT COUNT(*) AS c FROM typed_nodes WHERE superseded_run IS NULL AND canonical_id LIKE ?`)
       .get(`%${subject}%`) as { c: number } | null;
     return row?.c ?? 0;
-  } catch {
-    return 0;
+  } catch (e) {
+    // ★ AUDIT H-2 (the class, swept): a node-count fault is DOWN, never 0.
+    throw new Error(`GI_STORE_QUERY_FAILED: ${storePathOf(db)} — ${e instanceof Error ? e.message.slice(0, 160) : String(e)}`);
   }
 }
 
