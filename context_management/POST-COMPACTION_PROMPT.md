@@ -1,3 +1,52 @@
+
+
+---
+
+# ★★★ THE IMMUTABLE SHIP GATE (the operator's order, 2026-09-23) — READ THIS FIRST
+
+> **"EVERY SINGLE 'SHIP' ATTEMPT MUST HAVE A MANDATORY ZERO TRUST AUDIT + QWEN CODE REVIEW.
+> UNTIL THIS TANGIBLY FULLY CLEARS — THE GOAL IS NOT COMPLETE."**
+
+## THE LAW
+**NO ship-ready / production-grade / merge / "done and verified" claim without BOTH:**
+1. **a ZERO-TRUST AUDIT** (skill `zero-trust-audit`) — the claims table with REAL reproduction
+   rows, the fraud hunt, an **independent blind subagent** (contaminated context = disqualified),
+   the verdict VERIFIED / VERIFIED WITH CAVEATS / REFUTED; **AND**
+2. **a QWEN CODE REVIEW** (skill `qwen-code-audit`) — a **COMPLETED** run at **0 critical / 0 high**.
+
+## THE STATE MACHINE
+```
+BLOCKED  != PASS      PARTIAL != PASS      CLEARED == PASS (a COMPLETED 0-crit/0-high run)
+```
+
+## THE ORDER
+fix the findings → **RE-RUN the gate** → the re-run's verdict IS the gate.
+*Fixes then a silent re-claim = theater; fixes then a re-run = the gate.*
+
+## THE COMPLETION LAW
+The goal is **NOT complete** until the gate **tangibly fully clears**. FORBIDDEN: a scope shrink ·
+BLOCKED-as-done · a partial-scope close · "zero bugs" as success · a green battery as capability.
+
+## ★ THE CURRENT GATE STATE (2026-09-23)
+```
+qwen-code-audit:  ran → status=partial, 47 comments, ★ 8 HIGH / 27 MED / 12 LOW
+                  ★ ALL 8 HIGH ADJUDICATED CONFIRMED + FIXED (commit 5226cac)
+                  ★ THE RE-RUN: BLOCKED — every provider tier exhausted:
+                      muse-free 429 daily · muse-go + all 8 GO keys 429/503
+                      poolside-laguna-s context-deadline
+                      openrouter-laguna-s-free per-minute SOLVED (--concurrency 1)
+                        → then the DAILY cap (1000/1000)
+zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (566 L)
+                  11/11 claims + 9/9 by a blind subagent · 3 frauds FIXED · 8 HIGH FIXED
+★ THE GATE IS **NOT CLEARED**. THE GOAL IS **NOT COMPLETE**.
+
+## THE RETRY CONDITION
+```
+ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
+           --effort high --concurrency 1 --timeout 60 --format json
+```
+after the OpenRouter daily reset, or with a paid lane, at a **2-hour** cap.
+
 # POST-COMPACTION_PROMPT — the fresh agent's entry sequence
 
 **The dist SHA: 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709**
