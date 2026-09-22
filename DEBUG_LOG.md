@@ -662,3 +662,39 @@ ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052
   THE CANCEL IS PROVEN: pi.on("tool_call") CAN block goal(complete) — 3 anchors re-verified.
 - ★ THE KEEP-vs-HARDEN VERDICT: the goal ENGINE is good (the state machine, the accounting,
   the reload-pauses rule). ONE function is the hole. It needs a gate, not a replacement.
+
+## [2026-09-22] — EN-094 ★★★ THE 6L+2E DPL1 + THE TWO MASTER BLUEPRINTS + THE HYDRA PLAN
+- THE CORRECTION: I SHRANK THE SCOPE ("build a 2-layer graph that works"). ★ THAT WAS A WARHEAD-1
+  VIOLATION. The operator's scope is the FULL 6 LAYERS + 2 ENFORCEMENT KERNELS, unbridged since
+  the first charge. 1-of-6 populated is a BUILD FAILURE, not a smaller scope. CORRECTED.
+- ★★★ THE ROOT CAUSE (the build's OWN words, GRAPH_INTELLIGENCE_ENFORCEMENT_PLAN.md):
+    "I treated the 6 graph layers as a REGISTRATION PRECONDITION — a substrate to bring UP —
+     instead of as THE INPUT TO EVERY DECISION. ★ THE CATEGORY ERROR: I TREATED THE EYES AS A
+     LIGHT SWITCH."
+  PLUS the two mechanical layers: (1) the pin's wave table is organized BY FILE, not by
+  intelligence source — NOT ONE wave names the graph as an input; (2) the only structural
+  detector in the loop was a model paid per file.
+- ★★ THE THREE MECHANICAL PROOFS (measured this turn):
+  1 hard-deps.ts:335-367 declares the 11 components via `pathComponent`/`liveSocketComponent`/
+    `keyFileComponent` — a PATH-EXISTENCE CHECK, never a "does a decision read this layer's
+    data?" check. ★ `up=5/11` IS A HEALTH CHECK ON FILES.
+  2 the 6 layer ids (GI_LAYER_*) appear ONLY in hard-deps.ts, NOWHERE in the decision path.
+  3 06-WAVES.md W1-W9 name files; no wave names the LAYER→DECISION edge.
+- THE DELIVERABLES (1,150 lines total, box-clean, commit follows):
+  · packages/gi-kernel-v2.1/GI_KERNEL_6L2E_DPL1_SPEC.md (473 L) — ★ THE FORCE-CORRECT-ENGINEERING
+    SPEC: §2.3 the anti-register law (a layer's registration is valid IFF consumers.length>=1
+    AND decisionsInfluenced>=1; else GI_LAYER_UNCONSUMED); §8 the 14-entry anti-pattern ledger
+    (AA-1 the register-without-consumers · AA-2 the file-organized wave · AA-3 the light-switch
+    layer · AA-4 the uncovered rule + 5 behavioral + 5 process); §10 the wave plan where EVERY
+    WAVE CARRIES ITS LAYER-EDGE (a wave naming only a file is REFUSED).
+  · reports/INTERCEPTION_SURFACE_MASTER_BLUEPRINT_v1.md (374 L) — the goal loop's 2 intercept
+    points (① tool_call ② TTSR + ③ the patch), the full state machine, the cancel proof, the
+    pseudocode, the re-host guide.
+  · reports/GIT_ENFORCEMENT_MASTER_BLUEPRINT_v1.md (213 L) — the 17 workflows across 6 gates
+    (pre-commit · commit-msg · pre-push · PR · alignment · meaning) + the TTSR layer, each with
+    its command + pass + auto-reject; the measured state (24 sample hooks only, NO remote).
+  · .trident/plan-6l2e/wave-plan.md (90 L) — the HYDRA execution plan: WAVES: 12, 5 plans
+    (substrate · 6 layers parallel · 2 kernels · register+decision · proof), interface-first,
+    NINE WAVES AT T1, only A-0 and D-2 serial.
+- ★ AND THE CITED PROVEN PATH: P4 CLOSED at 3/4 derailments graph-handled (2 settle FIRE at $0).
+  THE MECHANISM WORKS. The 6 layers were never wired to it.
