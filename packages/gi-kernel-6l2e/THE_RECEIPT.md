@@ -51,6 +51,7 @@ the container TUI (gi-6l2e-ct)          → consumed:2/8 rungs=settlement, L5 fa
 the negative path (scopeRoot=/tmp)      → consumed:0/8, every consumer named DOWN
 the $0 settlement                        → judgeCalls=0, firesUsed()=0, costUsd=0
 the corpus (6 fixtures)                 → M-GRAPH-1/2/4/5 each fire their SPECIFIC token
+the real Jev edges (TSG + ABIDE)        → 2/8 -> 4/8 (the stubs replaced with real machinery)
 the code audit (ocr)                    → 28 files, 34 comments, 7 HIGH — ALL FIXED + RE-PROVEN
 ```
 
@@ -73,7 +74,7 @@ the code audit (ocr)                    → 28 files, 34 comments, 7 HIGH — AL
 
 | # | the condition | the measured state | met? |
 |---|---|---|---|
-| 1 | the register reads `consumed:8` | **`consumed:2/8`** — L5 CORBELL + L6 GRAPHIFY CONSUMED; the other 6 report their exact blockers | **NO** |
+| 1 | the register reads `consumed:8` | **`consumed:4/8`** — L5 CORBELL(50) + L6 GRAPHIFY(22) + **TSG(16)** + **ABIDE(738)**; the other 4 report their exact blockers | **NO (but 2/8 → 4/8)** |
 | 2 | the 7-class corpus settles at $0 with its SPECIFIC tokens | **PROVEN** — 6 fixtures fire M-GRAPH-1/2/4/5 with their specific tokens; `judgeCalls=0`, `firesUsed()=0`, `costUsd=0` | **YES** |
 | 3 | the container Phase-E is 10/10 + the negative suite | **5/5 scenarios PASS** (the deploy-sha match, the auth probe, the real facts, the rungs, the environment honesty) + the negative path (`consumed:0/8` for an absent substrate) | **PARTIAL** (5 scenarios, not 10) |
 | 4 | the host-live seat operated the kernel with a non-empty bug ledger | **6 findings, 4 fixed, 2 reported** — found BY DRIVING (the container TUI + the host) | **YES** |

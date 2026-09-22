@@ -436,3 +436,21 @@ and the DIST-CONTENT GATE passes (every v2.x symbol present).**
 **★ `consumed:2/8` IS THE HONEST NUMBER. The other 6 are BLOCKED on substrates that do not exist
 on this host** (3 absent stores, 1 dead daemon, 2 source-only dirs) — each with its evidence + its
 unblock option. **NOTHING was fabricated to reach 8.**
+
+### ★★ 2/8 → 4/8 — THE 2 JEV KERNEL EDGES WIRED (the no-stub law)
+`tsg.ts` and `abide.ts` both returned `facts: () => []` — **STUBS over working machinery.**
+Both substrates EXIST and RUN on this host:
+- **TSG**: `research/.../target/release/examples/tsg` (ELF, 8.6 MB). `tsg grep --json --threshold
+  0.5 '<question>' <src>` → JSONL routing rows with scores. ★ **A MEASURED KEY MISMATCH**: the CLI
+  reads the ENV var `TYPESAFE_API_KEY` (no `_AI_`), while the register names
+  `TYPESAFE_AI_API_KEY` + the file `~/.config/typesafe/key` (which EXISTS, 107 B, and the CLI
+  does NOT read). The adapter resolves the key from EITHER and injects it into the **child env**
+  (never argv, never logged). **facts=16.**
+- **ABIDE**: `.abide/events.jsonl` (22.8 MB, updated 23:35 the same day). Rows
+  `{ts,rule,band:"flag"|"clear",verdict,matched_span}`. ★ **only a `flag` band is a repair
+  opportunity.** **facts=738** for a claim-shaped subject.
+**★ THE MEASURED RESULT (host): `consumed:4/8 rungs=meaning,repair,settlement`** —
+L5=50, L6=22, TSG=16, ABIDE=738. **The container: `consumed:3/8`** (L5=50, L6=22, ABIDE=735;
+TSG needs its key resolved in-container). ★ **AND THE AUDIT'S F-5 FIX PROVED ITSELF LIVE**: the
+container's `confineTargetPath` **DENIED `scopeRoot=/root/gi-scope`** ("outside allowed roots")
+and the same call with `/tmp/gi-scope` ran — the security finding is demonstrably closed.
