@@ -1,0 +1,76 @@
+{
+  "wave": "E-2",
+  "title": "THE CONTAINER PROOF — the gi-consumption probe in a HEADED OMP TUI",
+  "date": "2026-09-22",
+  "container": {
+    "name": "gi-6l2e-ct",
+    "image": "omp-ct:master",
+    "image_id": "988d8bde1f87",
+    "transport": "tmux 220x50, send-keys + capture-pane",
+    "omp_version": "18.2.x"
+  },
+  "deploy": {
+    "source": "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/extensions/graph-intelligence/index.js",
+    "target": "/root/.omp/agent/extensions/graph-intelligence/index.js",
+    "sha256_16_local": "53d27ac0f4184ade",
+    "sha256_16_remote": "53d27ac0f4184ade",
+    "sha_match": true,
+    "size_bytes": 9424478,
+    "content_gate": {
+      "consumptionAudit": 2, "createLayerRegistry": 2, "gi-consumption": 2, "corbellProbe": 2,
+      "verdict": "PASS — every v2.x symbol is in the deployed bundle"
+    }
+  },
+  "auth_probe": {
+    "required": "a model-backed call must succeed (the silent-auth-failure green is the #1 false-green)",
+    "model_pinned": "openrouter/poolside/laguna-s-2.1:free",
+    "status_bar": "Laguna S 2.1 (free)",
+    "result": "PASS — the model answered and drove a tool call"
+  },
+  "scenarios": [
+    {
+      "id": "SC-1",
+      "name": "the tool is REGISTERED and CALLABLE",
+      "action": "natural-language prompt: 'Call the gi-consumption tool with no arguments'",
+      "pass_token": "gi-consumption",
+      "observed": "• gi-consumption  consumed:0/8 ...",
+      "verdict": "PASS"
+    },
+    {
+      "id": "SC-2",
+      "name": "the ABSENT-SUBSTRATE path is a LOUD named failure (never a fabricated green)",
+      "action": "gi-consumption with scopeRoot=/tmp (no store)",
+      "pass_token": "GI_LAYER_DOWN=L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA,TSG,ABIDE",
+      "fail_token_absent": "consumed:8/8",
+      "observed": "consumed:0/8 rungs=none  (every consumer DOWN with its evidence)",
+      "verdict": "PASS — the no-fallback law holds in the runtime"
+    },
+    {
+      "id": "SC-3",
+      "name": "the REAL stores produce REAL facts through the REAL tool",
+      "action": "gi-consumption subject=populateSessionStore scopeRoot=/root/gi-scope (the live stores copied in)",
+      "pass_token": "consumed:2/8 rungs=settlement",
+      "observed": "L5_CORBELL CONSUMED rung=settlement facts=16; L6_GRAPHIFY CONSUMED rung=settlement facts=8",
+      "verdict": "PASS"
+    },
+    {
+      "id": "SC-4",
+      "name": "THE RUNGS ARE THE DESIGNED RUNGS (the rung assertion)",
+      "pass_token": "rung=settlement rung=context rung=knowledge rung=decision rung=meaning rung=repair",
+      "observed": "L5/L6=settlement · L4/L3=context · L2=knowledge · L1=decision · TSG=meaning · ABIDE=repair",
+      "verdict": "PASS — matches the DPL1 layer→rung map exactly"
+    },
+    {
+      "id": "SC-5",
+      "name": "THE ENVIRONMENT HONESTY (the same probe, two environments)",
+      "observed": "host: L2_ARSUMBRIS=GI_LAYER_UNCONSUMED (2 live sockets present). container: L2_ARSUMBRIS=GI_LAYER_DOWN (no ~/.arsumbris).",
+      "verdict": "PASS — the probe reports its OWN environment, never a canned answer"
+    }
+  ],
+  "theatrical_finding": {
+    "class": "AGENT-PROSE DIVERGENCE (the model's summary, not the tool)",
+    "detail": "The model's prose listed 'L3_UA rung=knowledge' while the TOOL RESULT printed 'L3_UA rung=context'. The source rung map is correct (adapters/ua.ts:20 rung:'context').",
+    "law": "This is the pin's own law demonstrated live: a claim in agent prose is NOT evidence. The tool result is. No code change; recorded as evidence of why the PROOF CONTRACT binds tokens to tool results."
+  },
+  "verdict": "E-2 PASS — 5/5 scenarios, the deploy sha matches, the auth probe passed, and the tool produced REAL facts in a HEADED OMP TUI"
+}
