@@ -13,7 +13,6 @@
         (a fire · an edit · a completion claim)
                           │
                           ▼
-```
    ┌──────────────────────────────────────────────────────┐
    │ L1 SEMANTICA — decision  ("what we decided")         │
    ├──────────────────────────────────────────────────────┤
@@ -27,32 +26,27 @@
    ├──────────────────────────────────────────────────────┤
    │ L6 GRAPHIFY  — micro     (the graph.json leg)        │
    └──────────────────────────────────────────────────────┘
-```
    └──────────────────────────┬───────────────────────────┘
                               │ a FACT per layer (never a
                               │ registration; never rows=0)
                               ▼
-```
    ┌──────────────────────────────────────────────────────┐
-   │ ★ THE SETTLEMENT RUNG (graph-facts.ts · M-GRAPH-1..6 │
+   │ ★ THE SETTLEMENT RUNG — graph-facts.ts M-GRAPH-1..6  │
    │ settles at $0 — BEFORE the model is consulted        │
    └──────────────────────────────────────────────────────┘
-```
    └──────────────────────────┬───────────────────────────┘
                               │
                               ▼
-```
    ┌──────────────────────────────────────────────────────┐
    │ TSG (the meaning gate) · ABIDE (the repair path)     │
    │ both Jev-powered · both LOUD on absence              │
    └──────────────────────────────────────────────────────┘
-```
    └──────────────────────────┬───────────────────────────┘
                               │
                               ▼
                  THE VERDICT (FIRE / ESCALATE / IGNORE)
-
 ```
+
 **★ THE ONE LINE THAT MAKES IT WORK: A LAYER IS "UP" IFF ITS FACT CHANGED A VERDICT.**
 
 ```
