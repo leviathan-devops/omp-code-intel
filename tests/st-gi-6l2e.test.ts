@@ -20,6 +20,7 @@ import { tsgProbe, tsgKey, tsgKeyPresent, resolveTsgBinary } from "../src/omp/ad
 import { abideProbe } from "../src/omp/adapters/abide.ts";
 import { uaProbe } from "../src/omp/adapters/ua.ts";
 import { semanticaProbe } from "../src/omp/adapters/semantica.ts";
+import { c2kgProbe } from "../src/omp/adapters/c2kg.ts";
 import { graphFacts, type GraphFactRule } from "../src/omp/graph-facts.ts";
 import { FireGate, absorbContext } from "../src/omp/fire-gate.ts";
 
@@ -583,5 +584,42 @@ describe("st-gi-6l2e: L1 SEMANTICA (the typed KG store)", () => {
     const p = semanticaProbe(tmp);
     expect(p.up().up).toBe(false);
     expect(p.up().evidence).toContain("ENOENT");
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ★ L4 C2KG — THE REAL TOOLKIT (a Kotlin/JVM build, driven with a no-VSCode shim)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("st-gi-6l2e: L4 C2KG (the real code-to-knowledge-graph toolkit)", () => {
+  test("test_consume_c2kg", () => {
+    // ★ THE SUBSTRATE: <scopeRoot>/.c2kg/index.json, produced by scripts/c2kg-produce
+    //   (the Bevel Kotlin/JVM toolkit: createVsCodeParser + a no-op comms shim, because
+    //   the parser builds its nodes WITHOUT VS Code). Measured: 182 live symbols.
+    const p = c2kgProbe(REPO);
+    const up = p.up();
+    expect(up.up).toBe(true);
+    expect(up.evidence).toContain("index.json");
+    expect(p.rung).toBe("context");
+    const facts = p.facts("populate");
+    expect(facts.length).toBeGreaterThan(0);
+    for (const f of facts) {
+      expect(f.consumer).toBe("L4_C2KG");
+      expect(f.rung).toBe("context");
+      expect(f.source.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("test_c2kg_index_excludes_the_archive", () => {
+    // ★ THE A-0 LAW FOR L4: the toolkit's walker respects .gitignore, but Checkpoints/ is
+    //   not in this repo's .gitignore — so the FIRST run carried Checkpoints/ paths. The
+    //   producer drops them, exactly as the store-backed layers filter to the live tree.
+    const idx = JSON.parse(fs.readFileSync(path.join(REPO, ".c2kg/index.json"), "utf8")) as {
+      symbols?: Array<{ file?: string }>;
+    };
+    const syms = idx.symbols ?? [];
+    expect(syms.length).toBeGreaterThan(0);
+    expect(syms.filter((s) => (s.file ?? "").includes("Checkpoints/")).length).toBe(0);
   });
 });
