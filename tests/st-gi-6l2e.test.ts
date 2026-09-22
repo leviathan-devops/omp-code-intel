@@ -19,6 +19,7 @@ import { graphifyProbe } from "../src/omp/adapters/graphify.ts";
 import { tsgProbe, tsgKey, tsgKeyPresent, resolveTsgBinary } from "../src/omp/adapters/tsg.ts";
 import { abideProbe } from "../src/omp/adapters/abide.ts";
 import { uaProbe } from "../src/omp/adapters/ua.ts";
+import { semanticaProbe } from "../src/omp/adapters/semantica.ts";
 import { graphFacts, type GraphFactRule } from "../src/omp/graph-facts.ts";
 import { FireGate, absorbContext } from "../src/omp/fire-gate.ts";
 
@@ -257,21 +258,22 @@ describe("st-gi-6l2e: adversarial", () => {
     //   subject (no substrate exists). L2_ARSUMBRIS is the EXCEPTION — the au daemon was
     //   BROUGHT UP (the L2 wave), so it is UP and reads GI_LAYER_UNCONSUMED for a subject
     //   no instance names. Both are correct; neither is a green.
-    // ★ CORRECTED 2026-09-23 (again — the code is right; the SUBSTRATE came up): the
-    //   layers whose substrate EXISTS on this host (L2 the au daemon, L3 the UA graph) are
-    //   UP and read GI_LAYER_UNCONSUMED for a subject nothing names; only the layers with
-    //   NO substrate read GI_LAYER_DOWN. Asserting a fixed DOWN set would fail every time
-    //   a substrate is brought up — so the invariant is the CONTRACT, not the host state.
-    for (const id of ["L1_SEMANTICA", "L4_C2KG"] as const) {
-      const r = audit.reports.find((x) => x.consumer === id)!;
-      expect(r.verdict).toBe("GI_LAYER_DOWN");
-      expect(r.evidence.length).toBeGreaterThan(0);
+    // ★ CORRECTED A THIRD TIME (2026-09-23) — and the lesson is now the assertion itself:
+    //   ANY fixed DOWN set is a claim about the HOST, not about the CODE, and it breaks
+    //   every time a substrate is brought up (L2 the au daemon, L3 the UA graph, L1 the
+    //   semantica KG all came up this session). The invariant that survives is the
+    //   CONTRACT: every consumer answers with a NAMED verdict, a non-consumed consumer
+    //   always carries its evidence, and `up` is never conflated with `consumed`.
+    const VERDICTS = ["CONSUMED", "GI_LAYER_UNCONSUMED", "GI_LAYER_DOWN"];
+    for (const r of audit.reports) {
+      expect(VERDICTS).toContain(r.verdict);
+      expect(typeof r.up).toBe("boolean");
+      expect(r.consumed).toBe(r.verdict === "CONSUMED");
+      // ★ the ONLY-GREEN rule: consumption REQUIRES facts, and facts REQUIRE up.
+      if (r.consumed) expect(r.factsReturned).toBeGreaterThan(0);
+      else expect(r.evidence.length).toBeGreaterThan(0);
     }
-    for (const id of ["L2_ARSUMBRIS", "L3_UA"] as const) {
-      const r = audit.reports.find((x) => x.consumer === id)!;
-      expect(["GI_LAYER_DOWN", "GI_LAYER_UNCONSUMED"]).toContain(r.verdict);
-      expect(r.consumed).toBe(false); // a substrate being UP is NOT consumption
-    }
+    expect(consumedCount).toBeLessThan(8); // not every consumer is consumed
     expect(audit.summary).toMatch(/consumed:\d\/8/);
     expect(audit.offenders.length).toBeGreaterThan(0);
   }, 120_000);
@@ -537,5 +539,49 @@ describe("st-gi-6l2e: L3 UA (the real knowledge graph)", () => {
     };
     expect((g.nodes ?? []).length).toBeGreaterThan(100);
     expect((g.edges ?? []).length).toBeGreaterThan(100);
+  });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ★ L1 SEMANTICA — THE REAL KG (produced by semantica's own ContextGraph)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("st-gi-6l2e: L1 SEMANTICA (the typed KG store)", () => {
+  test("test_consume_semantica", () => {
+    // ★ THE SUBSTRATE: <scopeRoot>/.omp/graph-intelligence/layers/semantica/kg.json,
+    //   produced by scripts/semantica-ingest.py (semantica's OWN ContextGraph:
+    //   add_node/add_edge -> to_dict). Measured: 746 files, 5,454 nodes, 6,081 edges.
+    const p = semanticaProbe(REPO);
+    const up = p.up();
+    expect(up.up).toBe(true);
+    expect(up.evidence).toContain("kg.json"); // ★ the FILE it reads, not the dir
+    expect(p.rung).toBe("decision");
+    const facts = p.facts("populate");
+    expect(facts.length).toBeGreaterThan(0);
+    for (const f of facts) {
+      expect(f.consumer).toBe("L1_SEMANTICA");
+      expect(f.rung).toBe("decision");
+      expect(f.source.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("test_semantica_kg_is_a_real_kg", () => {
+    // ★ A KG WITH NO RELATIONSHIPS IS A FILE LIST. Both sides must be substantial.
+    const kg = JSON.parse(
+      fs.readFileSync(path.join(REPO, ".omp/graph-intelligence/layers/semantica/kg.json"), "utf8"),
+    ) as { entities?: unknown[]; relationships?: unknown[] };
+    expect((kg.entities ?? []).length).toBeGreaterThan(1000);
+    expect((kg.relationships ?? []).length).toBeGreaterThan(1000);
+  });
+
+  test("test_semantica_absent_kg_is_down_not_unconsumed", () => {
+    // ★ the dir-vs-file hole, pinned: a scope whose semantica DIR exists but whose kg.json
+    //   does not must read DOWN (a missing substrate), never UNCONSUMED (a wiring gap).
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gi-6l2e-sem-"));
+    fs.mkdirSync(path.join(tmp, ".omp/graph-intelligence/layers/semantica"), { recursive: true });
+    const p = semanticaProbe(tmp);
+    expect(p.up().up).toBe(false);
+    expect(p.up().evidence).toContain("ENOENT");
   });
 });

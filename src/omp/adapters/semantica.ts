@@ -21,7 +21,10 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
     rung: "decision",
     dependency: "the semantica workspace + its KG store",
     errorCode: "GI_LAYER_SEMANTICA",
-    up: () => probePath(dir),
+    // ★ AUDIT-CLASS FIX (the dir-vs-file hole): the first version probed the DIRECTORY, so
+    //   a dir present with no kg.json read UP and then reported UNCONSUMED — a wiring-gap
+    //   label over a missing substrate. The probe now asks for the FILE it actually reads.
+    up: () => probePath(kgPath, true),
     facts: (subject: string): LayerFact[] => {
       if (!fs.existsSync(kgPath)) return [];
       let kg: SemanticaKg;

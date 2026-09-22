@@ -185847,7 +185847,7 @@ function semanticaProbe(scopeRoot) {
     rung: "decision",
     dependency: "the semantica workspace + its KG store",
     errorCode: "GI_LAYER_SEMANTICA",
-    up: () => probePath(dir),
+    up: () => probePath(kgPath, true),
     facts: (subject) => {
       if (!fs24.existsSync(kgPath))
         return [];
