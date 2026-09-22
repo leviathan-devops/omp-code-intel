@@ -185619,10 +185619,13 @@ function probeSocketDir(dir) {
     const st = fs20.statSync(dir);
     if (!st.isDirectory())
       return { up: false, evidence: `${dir} is not a directory` };
-    const live = fs20.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
-    if (live.length === 0)
+    const files = fs20.readdirSync(dir).filter((n) => n.endsWith(".instance.sock"));
+    if (files.length === 0)
       return { up: false, evidence: `${dir} \u2014 no *.instance.sock (the daemon is not running)` };
-    return { up: true, evidence: `${dir} \u2014 ${live.length} live socket(s): ${live.slice(0, 3).join(",")}` };
+    return {
+      up: false,
+      evidence: `${dir} \u2014 ${files.length} socket file(s) present (${files.slice(0, 2).join(",")}) but a FILE is not a DAEMON: connect() is the only liveness proof`
+    };
   } catch (e) {
     const code = e.code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} \u2014 ${code}` };
