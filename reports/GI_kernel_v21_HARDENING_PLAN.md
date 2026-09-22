@@ -352,8 +352,8 @@ THE WORKTREE'S DIFF = THE PROGRESS RECORD. `git diff spec-base..wave/W3` is the 
 │          ↓          (a contradicting decision ⇒ FLAGGED)                 │
 │ GATE 5   MEANING    TSG: does the diff MEAN the spec wave?               │
 │          ↓                                                               │
-│ ROUND 2  REVIEW     the review DENIES with the findings; the agent cleans 
-│          ↓          EVERY flaw; LOOPS back to ROUND 1                    │
+│ ROUND 2  REVIEW     the review DENIES; the agent cleans EVERY flaw       │
+│          ↓          LOOPS back to ROUND 1                                │
 │ ...      LOOP       until audit PASS + alignment CLEAN + meaning MATCH + │
 │          ↓          live tests GREEN + the deploy bundle CURRENT         │
 │ SHIP     the four conditions all true, mechanically checked              │
