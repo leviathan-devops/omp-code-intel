@@ -417,3 +417,52 @@ files** (`_shared.ts`, `abserumbris.ts`, `tsg.ts`, `gate-hook.ts`, `layer-regist
 `typed-write.ts`) and, before the timeout, **produced no NEW findings in the round it completed**
 (the log's "Round 1/3 added no new findings" for the groups it finished). That is consistent with
 the 8 fixes landing — **but it is NOT a PASS, and it is not reported as one.**
+
+## 9.7 · ★ THE FINAL GATE ATTEMPT — **BLOCKED (wall-clock cap)**, and the RATE LIMIT SOLVED
+
+### The run
+```
+ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
+           --effort high --concurrency 1 --timeout 60 --format json
+  → 190 tool calls · only ★ 1 × 429 (the rate limit SOLVED) · elapsed 3084s
+  → DONE rc=124  ← the 3000s wall-clock cap killed it before the JSON was emitted
+```
+★ **THE RATE LIMIT WAS SOLVED.** The first OpenRouter attempt hit `free-models-per-min` (20/min)
+on ocr's DEFAULT `--concurrency 8`. At **`--concurrency 1`** the run made **190 tool calls with
+ONE 429** — the lane held. **The blocker is now the wall-clock cap, not the provider.**
+**THE RETRY CONDITION:** the same command with a **longer `timeout`** (the run needs ~4000-5000s
+at concurrency 1 for 34 files), or a **paid lane** (no per-minute cap), or **`--max-tokens-budget`
+to bound the work**.
+
+### ★ AND THE ONE SUBSTANTIVE OUTPUT THE RUN DID PRODUCE
+The run's own log records, for the groups it completed:
+```
+[ocr] Round 1/3 added no new findings for group "src/hunter/graph/corbell-adapter.ts,graphify-adapter.ts"
+[ocr] Round 1/3 added no new findings for group "src/kernel/graph-pre-flight.ts,scan-chain.ts"
+[ocr] No tool calls parsed for src/omp/adapters/*.ts, retrying...
+```
+★ **"added no new findings" on the completed groups is CONSISTENT with the 8 HIGH fixes landing**
+— the gate found nothing new in the files it finished. **But the run did NOT complete, so
+`GATE: BLOCKED` stands, and NO PASS is claimed.** A blocked run is never reported as a pass.
+
+---
+
+# 10 · ★ THE AUDIT'S FINAL VERDICT (the last word)
+
+## **`REFUTED`** — the ship-gate claim (the original `AUDIT GATE: PASS`) does not survive.
+
+| the question | the answer | the evidence |
+|---|---|---|
+| **Is the CODE sound?** | **YES** | 11/11 claims reproduced by this audit + 9/9 independently by a blind subagent (zero context) |
+| **Were the DOCS honest?** | **NO — and both frauds are FIXED** | SHA drift (the TRUE dist in no canon doc) + 92 MB of generated stores committed (85 MB → 15 MB) |
+| **Was the SHIP GATE cleared?** | **NO** | the gate returned **8 HIGH**, ALL adjudicated CONFIRMED real defects in this build's own code; all 8 are now FIXED and verified in source |
+| **Is the gate PASSING now?** | **BLOCKED — not PASS** | every provider rung is rate-limited or times out; the rate limit was SOLVED (concurrency 1) but the wall-clock cap fired (`rc=124`) |
+
+**★ THE RECURSION (the skill's core):** the previous audit's "7 HIGH, ALL FIXED" was **partially
+refuted** — **H-2 and H-5 are the SAME classes it claimed to close, fixed at one site each, the
+class never swept.** That is the catalog's own entry: *"fixed the site, not the rule."*
+
+**★ THE DEEPEST FINDING:** fixing the gate's H-6 revealed that **the original L2 probe was reading
+the app's PRESENCE socket** (`*.instance.sock` in the host dir) — **which is why L2 reported
+CONSUMED while the app was merely WARMED UP.** The gate's finding was real, and fixing it exposed
+the false green beneath it.
