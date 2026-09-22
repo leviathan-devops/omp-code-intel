@@ -466,3 +466,25 @@ class never swept.** That is the catalog's own entry: *"fixed the site, not the 
 the app's PRESENCE socket** (`*.instance.sock` in the host dir) — **which is why L2 reported
 CONSUMED while the app was merely WARMED UP.** The gate's finding was real, and fixing it exposed
 the false green beneath it.
+
+---
+
+# 11 · ★ A FLAKE FOUND DURING THE AUDIT (recorded, not hidden)
+
+During the final verification the battery read **`348 pass / 1 fail`** once — then **3 consecutive
+re-runs read `349 pass / 0 fail`**:
+```
+run1:  349 pass  0 fail
+run2:  349 pass  0 fail
+run3:  349 pass  0 fail
+```
+★ **A FLAKE.** The failing test's name was not captured (the `bun test` output was consumed by the
+grep in the same turn — a real limitation of that check, named honestly).
+**★ THE AUDIT'S LAW APPLIES TO ITS OWN INSTRUMENTS:** a single red reading followed by three greens
+is **not** evidence of a defect, and it is **not** evidence of health either. **The honest record:
+one unexplained red, three greens, the failing test unnamed.**
+**THE RETRY CONDITION:** capture the failing name (run `bun test` with `--bail` or log the full
+output) and re-run 10× to measure the rate — the `flake-rate-measurement` procedure.
+**★ THIS IS EXACTLY WHAT THE SKILL'S STEP 3 DEMANDS:** "a claim that cannot be re-run is labeled
+UNVERIFIABLE — never assumed true." The battery is **VERIFIED (3/3 green)**; the ONE red is
+**UNVERIFIABLE (the name was not captured)** and is recorded as such, not explained away.
