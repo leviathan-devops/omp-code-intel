@@ -185934,7 +185934,11 @@ function tsgProbe(scopeRoot, tsgRoot) {
           env: { ...process.env, TYPESAFE_API_KEY: key }
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message.slice(0, 200) : String(e);
+        const err = e;
+        const out = String(err.stdout ?? "").slice(-400);
+        const errOut = String(err.stderr ?? "").slice(-200);
+        const detail = [out, errOut].filter((x) => x.length > 0).join(" | ");
+        const msg = `${(err.message ?? String(e)).slice(0, 160)}${detail.length > 0 ? ` \u2014 CLI output: ${detail}` : ""}`;
         throw new Error(`GI_ENFORCE_TSG: the tsg CLI failed \u2014 ${msg}`);
       }
       const rows = [];

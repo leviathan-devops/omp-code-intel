@@ -108,7 +108,15 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
           env: { ...process.env, TYPESAFE_API_KEY: key },
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message.slice(0, 200) : String(e);
+        // ★ THE ERROR CARRIES THE CLI'S OWN OUTPUT. A bare "Command failed" hid the REASON
+        //   (measured: the TypeSafe API answered HTTP 402 Payment Required and the CLI
+        //   wrote it to STDOUT, which execFileSync's message does not include). A named
+        //   failure must be DIAGNOSABLE, so the tail of stdout/stderr rides the error.
+        const err = e as { message?: string; stdout?: unknown; stderr?: unknown };
+        const out = String(err.stdout ?? "").slice(-400);
+        const errOut = String(err.stderr ?? "").slice(-200);
+        const detail = [out, errOut].filter((x) => x.length > 0).join(" | ");
+        const msg = `${(err.message ?? String(e)).slice(0, 160)}${detail.length > 0 ? ` — CLI output: ${detail}` : ""}`;
         throw new Error(`GI_ENFORCE_TSG: the tsg CLI failed — ${msg}`);
       }
       const rows: TsgRow[] = [];

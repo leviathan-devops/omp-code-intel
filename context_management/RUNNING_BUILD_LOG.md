@@ -454,3 +454,31 @@ L5=50, L6=22, TSG=16, ABIDE=738. **The container: `consumed:3/8`** (L5=50, L6=22
 TSG needs its key resolved in-container). ★ **AND THE AUDIT'S F-5 FIX PROVED ITSELF LIVE**: the
 container's `confineTargetPath` **DENIED `scopeRoot=/root/gi-scope`** ("outside allowed roots")
 and the same call with `/tmp/gi-scope` ran — the security finding is demonstrably closed.
+
+### ★★★ 4/8 → 5/8 — L2 ARSUMBRIS BROUGHT UP (the daemon was NOT dead — it was not STARTED)
+The register's own comment said "the au runtime lives in HOME" and the sockets were stale FILES.
+**The source is at `/home/leviathan/arsumbris/`** (au-host, au-engine, au-ingest, au-mcp, 20+
+packages) and **the daemon is an ELECTRON APP**.
+**HOW IT WAS BROUGHT UP (driven, not guessed):** (1) `pnpm --filter app dev` (electron-vite)
+builds + launches it; (2) it needs a DISPLAY — `Xvfb :101` (the host's `:99` was dead); (3) it
+opens a workspace from **`AU_ENTRY`** (found in `instance-socket.ts:spawnInstance`:
+`env['AU_ENTRY']=entry`, read by the renderer via `app:initial-entry`).
+→ a NEW engine socket `3a3143c03eedd217.sock`, and `probeSocketConnect` → **up:true**.
+**THE WIRE (read from `@arsumbris/au-engine-sdk`):** socket
+`~/.arsumbris/au-engine/run/<contentHash(entry)>.sock` (FNV-1a-64, 16 hex) · frame = 4-byte BE
+length + JSON · request `{type:'read', id, read:'instances'}` (**★ `schema_version` is a
+FRAME-BASE field, not a read field — the daemon rejects it**) · reply `{type:'response',
+result:{count, instances:[…]}}`. **★ THE FIRST REAL READ RETURNED 844 INSTANCES.**
+**NEW:** `scripts/au-read.ts` (the framed sync/async bridge). **THE ADAPTER:** the stub
+`facts: () => []` REPLACED with the real read. **★ TWO DEFECTS FOUND BY DRIVING:** (1) the
+signature took `home` while `buildRegistry` called it with NO args → `auEngineRead(undefined,…)`
+threw; (2) the first replacement pass silently no-op'd (a text mismatch) — caught by RE-READING
+the file, not by trusting the edit.
+**★ THE MEASURED RESULT: `consumed:5/8 rungs=knowledge,meaning,repair,settlement`** —
+L2=50 · L5=50 · L6=22 · TSG=16 · ABIDE=738. **★ THE COUNT IS SUBJECT-DEPENDENT** (a fact is
+ABOUT a subject): `evidence`/`agent`/`type`/`repo`/`guard` → 5/8; `AGENTS.md` → 1/8.
+**★ A REAL LIMITATION:** the au daemon is an Electron app — it dies with the app. L2 is UP while
+it runs (a lifetime dependency, not a build defect).
+**★ THE TypeSafe KEY IS NOW QUOTA-BLOCKED (HTTP 402 Payment Required)** — the tsg CLI's own
+output reports it, and the adapter now CARRIES that output in its error (a named, diagnosable
+failure). So the current live number is 4/8 with TSG as a NAMED DOWN; 5/8 when the quota allows.

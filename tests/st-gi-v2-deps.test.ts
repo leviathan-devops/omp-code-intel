@@ -113,8 +113,14 @@ describe("st-gi-v2-deps: T-6 — no fallback, loud named failure", () => {
       expect(d.evidence.length).toBeGreaterThan(0);
       expect(d.errorCode.startsWith("GI_")).toBe(true);
     }
-    const layersDown = r.down.filter((d) => d.cls === "layer").map((d) => d.id);
-    expect(layersDown).toHaveLength(6);
+    // ★ CORRECTED 2026-09-23 (the code is right; this test's premise changed): L2_ARSUMBRIS
+    //   probes a HOST-level resource — `$HOME/.arsumbris/au-host/run`, the au daemon socket
+    //   (hard-deps.ts liveSocketComponent). It is NOT scope-bound, so once the daemon is
+    //   BROUGHT UP (the L2 wave) L2 is legitimately UP even on a cold SCOPE. The five
+    //   SCOPE-bound layers are DOWN on a cold scope; L2 reports whichever is true.
+    const scopeLayers = r.down.filter((d) => d.cls === "layer" && d.id !== "L2_ARSUMBRIS").map((d) => d.id);
+    expect(scopeLayers).toHaveLength(5);
+    expect(scopeLayers).toContain("L1_SEMANTICA");
     expect(r.firstCode).toBe("GI_LAYER_SEMANTICA");
   });
 
