@@ -698,3 +698,39 @@ ADVERSE-FIRST rule is not a formality — it is the only thing that found EN-052
     NINE WAVES AT T1, only A-0 and D-2 serial.
 - ★ AND THE CITED PROVEN PATH: P4 CLOSED at 3/4 derailments graph-handled (2 settle FIRE at $0).
   THE MECHANISM WORKS. The 6 layers were never wired to it.
+
+## [2026-09-22] — EN-095 ★★★ THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY: THE v2.0/v2.1 CHECKPOINTS CARRY THE v1.3 BINARY
+- THE QUESTION: "where is the checkpoint for the working v1.3?"
+- ★ THE ANSWER, PART 1 — THERE IS NO `Checkpoints/gi-*-v1.3*`. The v1.3 baseline is a SHIP
+  PACKAGE, not a checkpoint dir: `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.3`
+  (dist sha256 `83eb7bba9c5e76db…`, 613,039 B, source `@ e99ad8e jarvis/gi-main`, 2026-09-20).
+  It carries dist/ + src/ + tests/ + reports/ + scripts/ + BUILD_REPORT (50KB) + DEBUG_LOG (69KB)
+  + the 1142-line engineering report + DIST_SHA.txt + SHIP_MANIFEST.
+- ★★★ THE ANSWER, PART 2 — THE FINDING: the LIVE deployed extension
+  (`~/.omp/agent/extensions/graph-intelligence/index.js`) IS `83eb7bba9c5e76db` — the v1.3 binary
+  (mtime Sep 20 07:11). ★ AND SO ARE BOTH THE v2.0 AND THE v2.1 CHECKPOINTS:
+    Checkpoints/gi-kernel-v2-six-layer-stack-rsi-live-jev-validated/  → 83eb7bba (613,039 B)
+    Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/ → 83eb7bba (613,039 B)
+    Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/        → 83eb7bba (613,039 B)
+  ★ FOUR ARTIFACTS, ONE BINARY. The "six-layer-stack-rsi-live-jev-validated" and the
+  "wired-measured-container-proven" checkpoints ARE the v1.3 dist.
+- ★★★ THE MECHANICAL PROOF (grep the deployed dist for v2-only symbols):
+    runKernelV2 0 · fire-ledger 0 · policy-store 0 · M-GRAPH 0 · evidence-producer 0 ·
+    layer-registry 0 · GI_LAYER_UNCONSUMED 0 · kernel-v2 0
+  THE v1.3-ERA SYMBOLS ARE PRESENT: registerGraphGate 2 · graph-gate 1 · GI_NO_STORE 1 · hasStore 2.
+  ★ THE ENTIRE v2.0+v2.1 BUILD (fire-gate 44KB, oracle 26KB, kernel-v2 23KB, fire-ledger 33KB,
+    policy-store 18KB, calibration, graph-facts, evidence-producer) WAS NEVER COMPILED INTO A DIST.
+- ★★ WHY THIS EXPLAINS EVERY SYMPTOM AT ONCE:
+    · the gate fired ONCE in 40,631 lines        → the live dist is v1.3's near-inert gate
+    · graph_gate_state = 0 rows                  → v1.3 never wrote state
+    · the "wired" kernel never answered          → the wiring is in SOURCE, never in the dist
+    · the store describes src/hunter             → v1.3-era populate
+    · 12 of 23 modules unreachable               → the v2.x source is never loaded at all
+- ★ THE CLASS: THE DIST-LEVEL SHAPE-WITHOUT-REACHABILITY — the most complete instance of the
+  recurring pattern. The checkpoint NAME asserts a state the BINARY does not contain. A
+  checkpoint whose manifest says "wired-measured-container-proven" while carrying a binary with
+  ZERO of the wiring is the pattern at its most dangerous: the verification ran against v1.3.
+- ★ THE LAW (new): A CHECKPOINT'S NAME MUST BE PROVEN BY ITS BINARY, NOT BY ITS MANIFEST.
+  `sha256sum <checkpoint>/dist/.../index.js` MUST equal the sha of the source it claims to encode.
+  A checkpoint whose dist ≠ its source's build is a MISLABELED checkpoint — and every claim it
+  carries is unanchored.
