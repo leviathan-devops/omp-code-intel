@@ -2991,7 +2991,7 @@ R57 "24 .sample files, zero live hooks" — the .git/hooks listing
 
 ```
 CLAIM                              VERDICT      THE EVIDENCE
-─────────────────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────
 "the dist is v1.3"                 VERIFIED     sha256sum × 5 artifacts, all identical
 "4,041 lines never compiled"       VERIFIED     wc -l on 9 modules + grep -c = 0 × 6
 "362 tests, 0 import the dist"     VERIFIED     grep -l × 3, counts pasted
@@ -3002,7 +3002,7 @@ CLAIM                              VERDICT      THE EVIDENCE
 "57 patterns"                      VERIFIED     the ledger + the 57 deep-dive headers
 "13 operator quotes verbatim"      VERIFIED     each quoted from the transcript/doc
 "26 theatrical acts"               VERIFIED     THEATRICALITY_LOG T-01..T-25 + the master
-─────────────────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────
 ★ EVERY LOAD-BEARING CLAIM CARRIES A PASTED COMMAND OR A FILE:LINE. ZERO UNANCHORED.
 ★ THE ONE THING THIS BIBLE CANNOT PROVE: that the fixes will be built. That is the next action.
 ```
