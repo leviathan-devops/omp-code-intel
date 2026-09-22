@@ -329,3 +329,25 @@ resets (it returned `429 FreeUsageLimitError` earlier this session).
 reviewing the FIXED files**, and in the rounds it completed it logged **"added no new findings"**
 — *consistent* with the 8 fixes landing. **But a BLOCKED run is not a PASS, and it is not reported
 as one.** The gate remains **uncleared**.
+
+## 9.5 · ★ THE GATE RE-RUN — **BLOCKED (provider timeout)**, the retry condition stated
+
+```
+ocr review --from 640da98 --to HEAD --provider poolside-laguna-s --effort high --format json
+  → 212 tool calls (real review work on the FIXED source)
+  → "Round 2 failed for group src/omp/adapters/*.ts: LLM completion error:
+      context deadline exceeded (keeping earlier findings)"
+  → "Subtask error … main_task did not complete before stopping (round 1/3)"
+  → ★ NO JSON emitted — the run did not complete inside the provider's deadline.
+```
+**★ `GATE: BLOCKED`** — not PASS. The poolside provider timed out mid-review.
+**THE RETRY CONDITION:** re-run with rung 3/4/5 per the skill's chain —
+`--provider openrouter-laguna-s-free` · `--provider poolside-laguna-xs` ·
+`--provider openrouter-laguna-xs-free` — or re-run rung 1 (`muse-free`) once its daily free cap
+resets (it returned `429 FreeUsageLimitError` earlier this session).
+
+**★ WHAT THE BLOCKED RE-RUN STILL TELLS US:** it consumed **212 tool calls reviewing the FIXED
+files** (`_shared.ts`, `abserumbris.ts`, `tsg.ts`, `gate-hook.ts`, `layer-registry.ts`,
+`typed-write.ts`) and, before the timeout, **produced no NEW findings in the round it completed**
+(the log's "Round 1/3 added no new findings" for the groups it finished). That is consistent with
+the 8 fixes landing — **but it is NOT a PASS, and it is not reported as one.**
