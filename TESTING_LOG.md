@@ -2174,3 +2174,15 @@ the dist 82bad22c3687d21e
   `process.stdout.write` + `process.exitCode = 1` + `throw new Error("KEV_USAGE")`.
 - The artifacts: `reports/REDTEAM_KERNEL_2026-09-23.md` - the per-file JSON at `/tmp/w5r-*.json`
   - the dist `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663`.
+
+## TEST RESULT - 2026-09-23 - THE AUDIT GATE (the red-team close, all 3 W5 files)
+
+### SCRIPT
+- WHAT RAN: `ocr scan --path <file> --provider muse-go-mimo --format json`, per file, after the fixes.
+- THE OUTPUTS:
+  `scripts/kev-decide.ts`  -> status=success, 5 comments (medium 4, low 1)   -> HIGH=0  -> PASS
+  `src/omp/adapters/kev.ts`-> status=success, 4 comments (medium 2, low 2)   -> HIGH=0  -> PASS
+  `src/omp/decision.ts`    -> status=success, 5 comments (low 2, medium 3)   -> HIGH=0  -> PASS
+- THE VERDICT: AUDIT GATE: PASS (0 critical/high) on all three changed files, dist `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663`.
+- THE 5 HIGH OF THE FIRST RUN: 4 real (fixed + pinned) + 1 by design (the settles .some()).
+- The artifacts: the per-file JSON at /tmp/w5r-*.json and /tmp/w5r2-decision.json.
