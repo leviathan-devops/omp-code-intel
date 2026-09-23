@@ -646,3 +646,46 @@ claim was independently reproduced by an agent with no stake in the outcome.
 
 **★ THE GOAL'S GATE CONDITION IS MET: the ship gate has TANGIBLY FULLY CLEARED, and the
 zero-trust audit blessed the cleared output.**
+
+---
+
+# 16 · ★ THE POST-GATE WORK — THE DPL1's OWN TOKENS WERE MISSING (a real deviation)
+
+After the gate cleared, re-reading the BINDING AUTHORITY (the DPL1 §7) against the implementation
+found **two REQUIRED tokens that did not exist** — a real spec deviation the gate's model could
+not see (it reviews CODE, not spec-compliance).
+
+## 16.1 · A6 — `GI_LAYER_ERROR:<id>` (the distinct mid-query-fault token)
+The DPL1's A6 wants a THROW mid-query to read `GI_LAYER_ERROR:<id>`. The registry emitted a bare
+`GI_LAYER_DOWN`. **Fixed:** the three states are now distinct — **UNCONSUMED** (a wiring gap) ·
+**DOWN** (an absent substrate) · **ERROR:<id>** (the substrate answered but the read faulted).
+
+## 16.2 · A3 — `GI_LAYER_STALE` (the store-age gate)
+The DPL1's A3 wants a verdict from a store older than the TTL to read `GI_LAYER_STALE`. No adapter
+checked the store's AGE. **Fixed:** `_shared.ts:assertStoreFresh()` — wired into corbell + graphify.
+★ **THE REGRESSION FOUND BY RUNNING IT:** `storeFreshness()` wraps `openTypedStore()`, which
+**enforces the SESSION-path convention** and REFUSED the project-level checkout stores
+(`GI_SHARED_PROJECT_STORE`). The fix reads the freshness via `layerFreshness()` + the read-only
+handle `storeFacts` already uses.
+
+## 16.3 · ★★ AND THE A3 GATE IMMEDIATELY FOUND TWO REAL DEFECTS
+1. **THE GRAPHIFY BUILD NEVER WROTE `populated_at`.** Only the session-populate path wrote the
+   marker; the BUILD path did not — so a store the build had JUST produced read as STALE.
+   **Fixed:** `writeGraphifyCheckout` marks its own output fresh.
+2. **THE CORBELL STORE IS GENUINELY STALE** (`populated_at = 2026-09-21T12:41Z`, 130 M ms old,
+   TTL 24 h). The A3 gate REFUSED it — correctly. **A rebuild is running.**
+
+## 16.4 · ★ AND THE CORBELL CLI HAS ITS OWN BUG
+`corbell/core/graph/method_graph.py:744 traverse()` — a deep AST walk — overflows Python's default
+recursion limit: **`RecursionError: maximum recursion depth exceeded`**.
+**The workaround:** `/home/leviathan/corbell-venv/bin/corbell-deep` — a wrapper that raises the
+limit and calls the SAME CLI. **The graph is the tool's OWN output, never a substitute engine.**
+★ (And its own `database is locked` when two builds collide — one at a time.)
+
+## 16.5 · THE STATE AFTER THE A3/A6 WORK
+```
+tsc exit 0 · the 6L+2E suite 26 pass / 0 fail · the battery 349 pass / 0 fail
+consumed:6/8 — L5 CORBELL awaits its rebuild (the A3 gate refused the stale store, correctly)
+             — TSG awaits the TypeSafe key's credits (HTTP 402)
+★ THE A3 GATE IS THE FIRST MECHANISM IN THIS BUILD THAT REFUSED A REAL STALE ANSWER.
+```
