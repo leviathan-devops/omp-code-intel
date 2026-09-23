@@ -2111,3 +2111,27 @@ the dist 82bad22c3687d21e
 - **WHAT FAILED / WAS BLOCKED:** nothing this pass. The NEGATIVE CONTROL: a no-fact subject → \`C1 FAIL\` + \`GI_GOAL_NOT_MET\` + **exit 1**; an empty scope → **exit 1**.
 - **★ THE SUBJECT HONESTY:** the battery tests the **SOURCE**. Of 52 test files, **1 imports the DEPLOYED bundle** (\`tests/st-gi-audit-fixes.test.ts\`, 3 of its tests). The **DEPLOYMENT** is proven separately by the dist-content gate (\`sha256sum\` + \`grep -c\` on the deployed bundle: \`d4872b4814fc07c5\` · \`runKernelV2=2 · kevProbe=2 · isUniform=2 · gi-decide=3\`).
 - **The artifacts:** \`.trident/plan-6l2e/phaseE.json\` (14/14) · \`phaseE-kev.json\` (7/7 executed) · \`artifacts/AUDIT_GATE_F98.md\` (10 findings adjudicated) · \`artifacts/KEV_IN_PLACE_OF_JEV.md\`
+
+## TEST RESULT — 2026-09-23 — ★ THE FULL SUITE INVENTORY (the corrected count)
+
+### SCRIPT
+- **WHAT RAN (the exact commands):**
+  \`bunx tsc --noEmit\` → **exit 0**
+  \`bun test\` → **370 pass · 0 fail · 5580 expect() calls · Ran 370 tests across 34 files**
+  \`bun test ./tests/st-*.ts\` (the 17 files NOT matched by bun's default \`*.test.ts\` pattern) → **98 pass · 0 fail**
+  ★ **THE TOTAL: 468 pass · 0 fail across 51 files**
+- **★ THE INSTRUMENT BUG (measured, not a test failure):** \`bun test tests/x.ts\` (WITHOUT the \`./\`
+  prefix) is treated as a **FILTER**, not a path — it printed
+  \`note: Tests need ".test", "_test_", ".spec" or "_spec_" in the filename\` and produced NO output
+  for all 17 files. The FIRST measurement therefore read "0 pass / 0 fail across 17 files" — a
+  **probe error**, not a suite failure. The correct invocation is \`bun test ./tests/x.ts\`.
+- **★ THE SUBJECT (the SUBJECT LAW, measured):** of the 51 test files,
+  **1 MOUNTS the DEPLOYED bundle** — \`st-gi-audit-fixes.test.ts:24  const mod = await import(BUNDLE)\`
+  where \`BUNDLE = …/extensions/graph-intelligence/index.js\`; it registers the tools on a fake
+  \`pi\` and EXECUTES the wipe against the real artifact.
+  **1 checks its existence + size** — \`st-package-audit.test.ts:34  const DIST = "extensions/graph-intelligence/index.js"\`.
+  **The other 49 import \`../src/\` — the SOURCE.**
+- **★ THE DEPLOYMENT'S OWN PROOF (a different instrument):** \`sha256sum\` + \`grep -c\` on the
+  deployed bundle → \`d4872b4814fc07c5\` · \`runKernelV2=2 · FireLedger=2 · PolicyStore=2 ·
+  graphFacts=2 · decideFromRegistry=2 · decideFireFromGraph=2 · layerCertifications=2 ·
+  kevProbe=2 · isUniform=2 · gi-decide=3\` — every count > 0.

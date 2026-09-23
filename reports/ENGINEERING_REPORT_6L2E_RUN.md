@@ -3,7 +3,7 @@
 **Date:** 2026-09-23 · **The repo:** `JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence` @ `8ad2ea6`
 **The dist:** `extensions/graph-intelligence/index.js` sha256
 `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (9,478,634 B)
-**The run:** 82 commits · 112 `.ts` / 27,644 lines · 52 test files / 10,422 lines · 42 bug entries
+**The run:** 82 commits · 112 `.ts` / 27,644 lines · 51 test files · 468 passing tests · 42 bug entries
 
 ---
 
@@ -19,7 +19,7 @@
 | **the five DONE conditions?** | ★ **YES** — `goal-verify.ts` **5/5, exit 0** (the control exits 1) |
 | **the artifact proven?** | ★ **YES** — `consumed:8/8` · the dist-content gate · repo == deployed |
 | **"bug free"?** | ★ **NO — and it never is.** 42 bugs were FOUND and FIXED (F-95…F-103); **5 audit findings stand as DECLINED-WITH-REASONS** |
-| **"completely tested"?** | ★ **THE HONEST DISTINCTION:** the battery tests the **SOURCE**; **1 of 52 test files imports the DEPLOYED bundle**. The DEPLOYMENT is proven by the dist-content gate + the container, not by the battery |
+| **"completely tested"?** | ★ **THE HONEST DISTINCTION:** the battery tests the **SOURCE**; **1 of 51 test files MOUNTS the DEPLOYED bundle** and **1 more checks its existence**. The DEPLOYMENT is proven by the dist-content gate + the container, not by the battery |
 
 **THE PRECISE RESIDUALS (none hidden):**
 1. **5 declined audit findings** (of 10 adjudicated; 5 fixed) — each with its reason recorded.
@@ -250,7 +250,7 @@ OP-5  the KEV payload into the container (4 attempts)
 
 ## 7 · THE HONEST GAPS (the record, not a confession)
 
-1. **The battery's SUBJECT is the SOURCE.** Of 52 test files, **1 imports the DEPLOYED bundle**.
+1. **The battery's SUBJECT is the SOURCE.** Of 51 test files, **1 MOUNTS the DEPLOYED bundle** (`st-gi-audit-fixes.test.ts` — it runs the wipe on the real artifact) and **1 checks its existence** (`st-package-audit.test.ts`). **The other 49 import `../src/`.**
    The deployment is proven by the dist-content gate — a different instrument.
 2. **5 declined audit findings** — `buildRegistry` uncached (the probes must read LIVE state) ·
    the sync SQLite open (the row must land WITH the run) · the returned ledger handle (the RECORD
@@ -534,7 +534,7 @@ honest number.**
 
 **"COMPLETELY TESTED"?** — **THE PRECISE STATEMENT:** the source is covered by 52 files / 370
 passing tests; the **deployment** is proven by the dist-content gate (10 symbols, all > 0) and
-by the container's headed-TUI run; **1 of 52 test files exercises the deployed bundle directly.**
+by the container's headed-TUI run; **1 of 51 test files MOUNTS the deployed bundle and exercises it.**
 If you want the artifact covered the way the source is, that is the next wave — and it is NAMED
 here, not hidden.
 
