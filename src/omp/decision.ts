@@ -93,6 +93,18 @@ export function decideFromRegistry(
   act: DecisionAct,
   record?: (run: KernelRun) => void,
 ): DecisionEvidence {
+  // ★ AUDIT HIGH (W5, 2026-09-23): NO input validation — an empty/undefined scopeRoot or subject
+  //   silently propagated into buildRegistry + factsFor, producing a verdict about nothing.
+  //   FAIL FAST with a named error: a decision must name its inputs.
+  if (typeof scopeRoot !== "string" || scopeRoot.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: scopeRoot must be a non-empty string");
+  }
+  if (typeof subject !== "string" || subject.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: subject must be a non-empty string");
+  }
+  if (act === null || typeof act !== "object") {
+    throw new Error("GI_DECIDE_BAD_INPUT: act must be an object");
+  }
   const registry = buildRegistry(scopeRoot);
 
   // The registry's facts for this subject — the decision's evidence base. `factsFor`

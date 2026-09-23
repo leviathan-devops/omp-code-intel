@@ -51,8 +51,13 @@ try {
   //   assert what the decision REQUIRES: a non-empty state AND every question carrying options.
   const noOptions = questions.some((q) => q.options.length === 0);
   if (state.length === 0 || questions.length === 0 || noOptions) {
-    console.log(JSON.stringify({ ok: false, error: "KEV_USAGE: --state and a --question/--options (or --json) are required; every question needs >=1 option" }));
-    process.exit(1);
+    // ★ AUDIT HIGH (W5, 2026-09-23): `process.exit(1)` after `console.log()` can TRUNCATE the
+    //   error JSON — the write is buffered and the exit does not wait for the flush, so the
+    //   calling probe could read empty/partial output. `process.stdout.write` is SYNCHRONOUS
+    //   for a pipe/file, and `exitCode = 1` lets the process drain before exiting.
+    process.stdout.write(JSON.stringify({ ok: false, error: "KEV_USAGE: --state and a --question/--options (or --json) are required; every question needs >=1 option" }) + "\n");
+    process.exitCode = 1;
+    throw new Error("KEV_USAGE"); // ★ ESM-valid terminal unwind (a top-level `return` is a SYNTAX ERROR)
   }
   const res = await kevDecide(state, questions);
   const best = res.answers.map((dist) => dist.indexOf(Math.max(...dist)));
@@ -68,6 +73,10 @@ try {
     }),
   );
 } catch (e) {
-  console.log(JSON.stringify({ ok: false, error: `KEV_FAILED: ${e instanceof Error ? e.message : String(e)}` }));
-  process.exit(1);
+  // ★ the same flush-safety on the failure path — and the USAGE error is NOT re-printed
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg !== "KEV_USAGE") {
+    process.stdout.write(JSON.stringify({ ok: false, error: `KEV_FAILED: ${msg}` }) + "\n");
+  }
+  process.exitCode = 1;
 }

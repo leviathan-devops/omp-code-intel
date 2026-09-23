@@ -186138,7 +186138,12 @@ function kevProbe(scopeRoot) {
 `).reverse().find((l) => l.trim().startsWith("{"));
       if (line === undefined)
         throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON \u2014 output: ${out.slice(0, 200)}`);
-      const ans = JSON.parse(line);
+      let ans;
+      try {
+        ans = JSON.parse(line);
+      } catch (e) {
+        throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed invalid JSON \u2014 ${(e instanceof Error ? e.message : String(e)).slice(0, 120)} \xB7 the line: ${line.slice(0, 160)}`);
+      }
       if (!ans.ok)
         throw new Error(`GI_ENFORCE_KEV: ${ans.error ?? "the KEV decision failed"}`);
       const dist = ans.answers?.[0];
@@ -187083,6 +187088,15 @@ function layerCertifications(facts) {
   }));
 }
 function decideFromRegistry(scopeRoot, subject, act, record) {
+  if (typeof scopeRoot !== "string" || scopeRoot.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: scopeRoot must be a non-empty string");
+  }
+  if (typeof subject !== "string" || subject.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: subject must be a non-empty string");
+  }
+  if (act === null || typeof act !== "object") {
+    throw new Error("GI_DECIDE_BAD_INPUT: act must be an object");
+  }
   const registry = buildRegistry(scopeRoot);
   const facts = registry.factsFor(subject);
   const influenced = [...new Set(facts.map((f) => f.consumer))];

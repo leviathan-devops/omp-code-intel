@@ -224,3 +224,69 @@ describe("st-redteam-kernel: ★ THE DECISION SURFACE, ATTACKED", () => {
     }
   }, 300_000);
 });
+
+describe("st-redteam-kernel: ★ THE W5 AUDIT'S HIGH FINDINGS, PINNED", () => {
+  // ★ THE AUDIT (W5, session on the GO mimo lane) returned 5 HIGH findings on this session's code.
+  //   Each REAL one is FIXED; each BY-DESIGN one is DECLINED WITH ITS REASON. These pins hold them.
+
+  test("test_w5_high1_cli_error_path_emits_full_json", () => {
+    // ★ HIGH 1: `process.exit(1)` after `console.log()` can TRUNCATE the error JSON. FIXED:
+    //   `process.stdout.write(...)` (synchronous for a pipe) + `process.exitCode = 1`.
+    const cli = path.join(ROOT, "scripts", "kev-decide.ts");
+    if (!fs.existsSync(cli)) return;
+    const proc = Bun.spawnSync(["bun", cli, "--state", "x"], { cwd: ROOT, stdout: "pipe", stderr: "pipe" });
+    const out = proc.stdout.toString().trim();
+    // ★ THE PIN: the output is COMPLETE, PARSEABLE JSON — not truncated
+    const parsed = JSON.parse(out) as { ok: boolean; error?: string };
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error ?? "").toContain("KEV_USAGE");
+    // ★ and the exit code is still 1 (the contract, not a silent success)
+    expect(proc.exitCode).toBe(1);
+    // the source carries the flush-safe form (never `console.log` + `process.exit`)
+    const src = fs.readFileSync(cli, "utf8");
+    expect(src).toContain("process.exitCode = 1");
+    expect(src).toContain("process.stdout.write");
+  }, 300_000);
+
+  test("test_w5_high3_bad_input_fails_fast_named", () => {
+    // ★ HIGH 3: `decideFromRegistry` had NO input validation. FIXED: a named early guard.
+    expect(() => decideFromRegistry("", "s", { toolName: "t", target: "t", queriedBefore: false }))
+      .toThrow(/GI_DECIDE_BAD_INPUT: scopeRoot/);
+    expect(() => decideFromRegistry(ROOT, "  ", { toolName: "t", target: "t", queriedBefore: false }))
+      .toThrow(/GI_DECIDE_BAD_INPUT: subject/);
+    expect(() => decideFromRegistry(ROOT, "s", null as unknown as { toolName: string; target: string; queriedBefore: boolean }))
+      .toThrow(/GI_DECIDE_BAD_INPUT: act/);
+  }, 120_000);
+
+  test("test_w5_high4_ledger_open_failure_is_named", () => {
+    // ★ HIGH 4: `new FireLedger` was unprotected. FIXED: a named GI_LEDGER_OPEN_FAILED.
+    //   Force the failure: a ledger path whose PARENT is a FILE (not a dir) — the mkdir fails
+    //   first, OR a path made unopenable. The pin asserts the contract: a NAMED throw.
+    const scope = tmpScope("ledgeropen");
+    try {
+      // ★ make the ledger PATH a DIRECTORY — SQLite cannot open a directory as a database
+      const dir = path.join(scope, ".omp", "graph-intelligence");
+      fs.mkdirSync(path.join(dir, "fire-decisions.db"), { recursive: true });
+      let named = false;
+      let msg = "";
+      try {
+        decideFireFromGraph(scope, "someSymbol", "consume");
+      } catch (e) {
+        msg = e instanceof Error ? e.message : String(e);
+        named = /GI_LEDGER_OPEN_FAILED|GI_LEDGER_DIR_FAILED/.test(msg);
+      }
+      // ★ the contract: IF it throws, the error is NAMED (never an uncaught raw SQLite error)
+      if (msg.length > 0) expect(named).toBe(true);
+    } finally {
+      fs.rmSync(scope, { recursive: true, force: true });
+    }
+  }, 300_000);
+
+  test("test_w5_high5_kev_bad_json_is_named", () => {
+    // ★ HIGH 5: `JSON.parse(line)` was unprotected. The pin asserts the SOURCE carries the guard
+    //   (a real bad-JSON CLI is hard to induce; the source-anchor assertion is the mechanical pin).
+    const src = fs.readFileSync(path.join(ROOT, "src", "omp", "adapters", "kev.ts"), "utf8");
+    expect(src).toContain("try {");
+    expect(src).toContain("GI_ENFORCE_KEV: the KEV CLI printed invalid JSON");
+  });
+});

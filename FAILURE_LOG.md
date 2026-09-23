@@ -1395,3 +1395,37 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **A GATE THAT NAMES 8/8 WITHOUT MEASURING THE CEILING SETS AN IMPOSSIBLE BAR.**
   Measure what the environment CAN carry before naming the number — and when 2 of 7 are
   structurally unavailable, name them, do not fake them.
+
+---
+
+### F-111 — L2_ARSUMBRIS's SUBSTRATE IS AN au WORKSPACE, NOT A STANDALONE REPO (2026-09-23)
+
+- **What happened:** the register read `consumed:7/8` with
+  `L2_ARSUMBRIS:GI_LAYER_UNCONSUMED` — its daemon UP and its socket ACCEPTING reads, but **0
+  subject-matching facts** (`connect() accepted on 5066b…`).
+- **Found:** the red-team close's register re-measure (the W4 container work had proved 6/8 there).
+- **★ THE MECHANISM, ANCHORED (the daemon's own reply):**
+  `{"ok":true,"socket":"…/5066bda3d0a390b3.sock","read":"instances","reply":{…"ready":true,
+  "aborted_at_load":false,"count":2,"instances":[{"claim":["au.engine.repo::au-engine"]…}]}}`
+  — the daemon holds **`count:2`**: its OWN repo declaration and nothing else. **`au-engine`
+  models REPOS (a dependency graph of `au.engine.repo::au-engine` claims), NOT source files** —
+  so a STANDALONE repo yields 2 instances and NO subject can match.
+- **THE CHAIN OF CAUSES (each measured):**
+  1. the au daemon serving the GI repo had DIED (the socket dir held a stale `.pid` from Sep 16,
+     no `.sock`) — the probe correctly reported `GI_LAYER_DOWN`;
+  2. a daemon was started (pid 881596, `ready=true, engine=up`) → the state moved to
+     `GI_LAYER_UNCONSUMED` (the socket accepts, the read succeeds, no facts);
+  3. the GI repo needed a `.arsumbris/repo.yaml` folder-repo marker (`au daemon start` refuses
+     otherwise: *"a directory carrying a valid .arsumbris/repo.yaml is required"*) — created;
+  4. ★ AND it STILL yields 2 instances, because the engine's unit is a REPO, not a file.
+- **THE REMAINING REPAIR (a separate deliverable, named):** an **au WORKSPACE** — a folder-repo
+  whose `deps:` declare the member repos (the `~/.arsumbris/au-engine/config/workspaces.yaml`
+  index names ONE workspace, `Plutus`, whose path carries NO `.arsumbris/repo.yaml`). With a
+  populated workspace graph the daemon holds typed knowledge and L2 CONSUMED returns.
+- **Disposition:** **BLOCKED (named, with its remedy) — the code is CORRECT.** The probe reports
+  its substrate's REAL state: a socket that accepts but holds nothing is `UNCONSUMED`, never a
+  silent pass. ★ The test was NOT weakened.
+- **The lesson:** ★ **A CONNECT THAT SUCCEEDS IS NOT A SUBSTRATE.** `probeSocketConnect` proves a
+  LISTENER, not CONTENT — and the two-state ladder (`DOWN` → `UNCONSUMED` → `CONSUMED`) is
+  exactly what told the difference. And: the au-engine's UNIT (a repo) must match the question
+  being asked of it (the repo's code).

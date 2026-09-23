@@ -109,7 +109,15 @@ export function kevProbe(scopeRoot: string): ConsumerProbe {
       }
       const line = out.split("\n").reverse().find((l) => l.trim().startsWith("{"));
       if (line === undefined) throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON — output: ${out.slice(0, 200)}`);
-      const ans = JSON.parse(line) as KevCliAnswer;
+      // ★ AUDIT HIGH (W5, 2026-09-23): the parse was UNPROTECTED — a debug line
+      //   beginning with `{` or a truncated fragment threw a cryptic SyntaxError,
+      //   bypassing the uniform guard above.
+      let ans: KevCliAnswer;
+      try {
+        ans = JSON.parse(line) as KevCliAnswer;
+      } catch (e) {
+        throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed invalid JSON — ${(e instanceof Error ? e.message : String(e)).slice(0, 120)} · the line: ${line.slice(0, 160)}`);
+      }
       if (!ans.ok) throw new Error(`GI_ENFORCE_KEV: ${ans.error ?? "the KEV decision failed"}`);
       const dist = ans.answers?.[0];
       if (dist === undefined || dist.length === 0) throw new Error("GI_ENFORCE_KEV: the KEV decision carried no distribution");
