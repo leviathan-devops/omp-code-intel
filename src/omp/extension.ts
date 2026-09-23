@@ -157,6 +157,17 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
     //   form the parser rejects, and a single root printed as if it were two.
     return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join("|").slice(0, 120)}); set GI_TARGET_ROOTS to extend (separator '|')` };
   }
+  // ★ TOCTOU RE-VALIDATION (audit finding #10, 2026-09-23 — the conservative branch).
+  //   THE MECHANISM: `real` was resolved at step 1, statED at step 2, and CHECKED against the
+  //   roots at step 3. A swap of a path component between step 1 and step 3 leaves the check
+  //   comparing a STALE `real` while the consumer opens a different file. THE FIX: re-resolve
+  //   AFTER the check and require STABILITY — a path that changed during the check is DENIED,
+  //   so the window shrinks from "the whole check" to the re-resolve's own syscall.
+  let realAfter: string | null = null;
+  try { realAfter = fs.realpathSync(normalized); } catch { realAfter = null; }
+  if (realAfter !== real) {
+    return { ok: false, error: `GI_PATH_DENIED: the path changed during the confinement check (TOCTOU) — '${normalized.slice(0, 120)}'` };
+  }
   return { ok: true, real };
 };
 

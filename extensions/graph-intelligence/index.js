@@ -187240,6 +187240,15 @@ var confineTargetPath = (normalized, callerCwd) => {
   if (!within) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join("|").slice(0, 120)}); set GI_TARGET_ROOTS to extend (separator '|')` };
   }
+  let realAfter = null;
+  try {
+    realAfter = fs32.realpathSync(normalized);
+  } catch {
+    realAfter = null;
+  }
+  if (realAfter !== real) {
+    return { ok: false, error: `GI_PATH_DENIED: the path changed during the confinement check (TOCTOU) \u2014 '${normalized.slice(0, 120)}'` };
+  }
   return { ok: true, real };
 };
 function textResult2(text, details) {

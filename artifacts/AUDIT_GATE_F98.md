@@ -60,3 +60,31 @@ reason (silence reads as "never found").
 | 10 | MED | `confineTargetPath` TOCTOU | **DECLINED (documented, bounded risk)** | realpathSync→statSync can race a local attacker. The threat model here is a SINGLE-USER agent host with the operator as the only local user; the confinement is a scope guard against accidental cross-project reads, not a security boundary against a hostile local process. Recorded as a known bound, not silently dropped. |
 
 **THE TALLY: 4 FIXED (2 MED + 2 LOW) · 6 DECLINED WITH REASONS.**
+
+
+---
+
+## ★ W2 — THE 5 DECLINED, RESOLVED (2026-09-23)
+
+Per the red-team pin: each declined finding is either **FIXED+pin** or **PROVEN NOT-A-BUG with a
+test that would FAIL if the claim were true**. The suite:
+`tests/st-audit-findings.test.ts` (ST-AF-1..ST-AF-5) — **6 pass / 0 fail**.
+
+| # | sev | the claim | ★ THE RESOLUTION | the pinning test |
+|---|---|---|---|---|
+| 3 | MED | `buildRegistry` uncached | **NOT-A-BUG** — the decision RE-BUILDS per call, so a substrate appearing between calls IS seen (a cache would serve the stale answer the A3 gate exists to stop) | `test_declined_buildregistry_live_state` |
+| 5 | MED | the sync SQLite open blocks the event loop | **NOT-A-BUG** — the RECORD is part of the DECISION: the row must be on disk the instant the verdict returns (an async open would let a caller read a verdict with NO record of it) | `test_declined_sync_sqlite_row_lands_with_run` |
+| 6 | LOW | `decideFireFromGraph` returns the ledger handle | **NOT-A-BUG** — the handle IS the RECORD sink seam; without it the kernel's stage 6 reads `SKIPPED`. The test appends THROUGH the returned handle and counts the row | `test_declined_ledger_handle_is_the_sink` |
+| 9 | LOW | `GI_TOOL_NAMES_ALIASES` unused in-file | **NOT-A-BUG** — it is an **exported** constant (the public alias map) AND `graph-code-audit` is REGISTERED as its own tool (`extension.ts:618`); the artifact carries both | `test_declined_alias_is_registered` |
+| 10 | MED | `confineTargetPath` TOCTOU | ★ **FIXED (the conservative branch)** — a RE-RESOLVE after the check with a STABILITY requirement: a path that changed during the check is DENIED | `test_declined_toctou_scope_guard` |
+
+**★ THE TOCTOU FIX (mechanism):** `real` was resolved at step 1, statED at step 2, and CHECKED at
+step 3 — a swap between 1 and 3 leaves the check comparing a STALE `real` while the consumer opens
+a different file. `src/omp/extension.ts` now re-resolves AFTER the check and requires
+`realAfter === real`, else `GI_PATH_DENIED: the path changed during the confinement check (TOCTOU)`.
+
+**★ TWO PROBE ERRORS ADJUDICATED (recorded, never as defects):** the first run failed 2 tests —
+(a) the freshness probe asserted a LIVE re-read of ONE registry object, but `kevProbe` resolves its
+paths at CONSTRUCTION (the claim is "the DECISION re-builds", so the probe now uses a FRESH build);
+(b) the sink probe measured `statSync(db).size`, which does NOT grow on an append (SQLite writes to
+the WAL) — the probe now counts ROWS.
