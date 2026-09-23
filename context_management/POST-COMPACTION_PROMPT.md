@@ -53,7 +53,7 @@ after the OpenRouter daily reset, or with a paid lane, at a **2-hour** cap.
 
 # POST-COMPACTION_PROMPT — the fresh agent's entry sequence
 
-**The dist SHA: 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709**
+**The dist SHA: 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad**
 
 You are resuming the GI Kernel v2.1 build. Read this; then read the docs in the order below;
 then prove you read them; then execute. Do not ask questions the docs answer.
@@ -92,7 +92,7 @@ branch jarvis/gi-main · rig stupefied_morse @ omp-ct:master
 ```
 battery      199 pass / 0 fail / 701 expect / 20 files
 tsc          191 == the pre-session baseline, 0 NEW
-dist sha     83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
+dist sha     3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad
 container    199 pass / 0 fail / 705 expect (clean /tmp, no ambient keys)
 checkpoint   Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/ (175 files)
 register     ok=false up=5/11 first=GI_LAYER_SEMANTICA

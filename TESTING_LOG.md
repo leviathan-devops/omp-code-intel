@@ -1959,3 +1959,24 @@ the dist 82bad22c3687d21e
 - **★ THE HONEST READING:** the container carries ONLY L5/L6 substrates; L1-L4 are HOST-side
   and were never produced in the rig. The REFUSE is the CORRECT answer to the container's real
   state. The E-2 purpose — the DECISION MECHANISM in a headed TUI — is proven.
+
+## TEST RESULT — 2026-09-23 — E-2 EXTENDED: 14/14 (the kernel scenarios)
+
+### CONTAINER
+- **The run:** the `gi-6l2e-ct` headed TUI, after the F-98 fix. Scenarios SC-6..SC-14 added:
+  the decision runs in the artifact · the layer-edge reads the registry · the stale store is
+  refused · the ledger writes · the named refusal · the fresh scope · the negative path ·
+  the A3 store-age gate · the dist-content gate inside the rig.
+- **The verdict:** **PASS — 14/14.** The artifact: `.trident/plan-6l2e/phaseE.json`
+  (`"verdict": "E-2 PASS — 14/14 scenarios; the deploy sha matches; the tool produced REAL
+  facts and REAL refusals in a HEADED OMP TUI"`).
+- **★ THE HONEST READING:** the container carries ONLY L5/L6 substrates and is a MINIMAL
+  environment (no corbell, no java, no pnpm, a 1-file project tree) — so the kernel's REFUSE is
+  the CORRECT answer to the container's real state. SC-5 (the environment honesty) is the same
+  probe in two environments.
+
+### HOST
+- **The run:** `bun test ./tests/st-gi-6l2e.test.ts -t test_derailment_corpus` (the 7-class corpus).
+- **The raw output:** `1 pass · 0 fail` — the corpus is 7 fixtures (the 7th: TIER B · CLASS D,
+  the unwired module), with an explicit `fixtures.length === 7` assertion.
+- **The verdict:** **PASS.**

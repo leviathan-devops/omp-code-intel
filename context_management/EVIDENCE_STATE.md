@@ -1,11 +1,11 @@
 # EVIDENCE_STATE — the verified evidence + the honest gaps
 
-**The dist SHA (the deployment fingerprint): 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709**
+**The dist SHA (the deployment fingerprint): 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad**
 
 ## THE DIST SHA CHAIN
 
 ```
-deployed         83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709  613,039 B
+deployed         3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad  613,039 B
 v2.1 blueprint   242f52c556151449  (41,853 B, 862 L — the design of record)
 the measurement  jev-fire-measurement.json  bestT=0.40  bestF1=0.933  health.ok=false
 ```

@@ -193,7 +193,7 @@
 - WHAT: graph-gate.ts (308L) + wiring + TTSR rule + doctrine + agent bodies + 12 tests + container harness; dist 83eb7bba; ship package Graph_Intel_v1.3
 - WHY: operator's v1.3 mission — LASME enforcement, never blind
 - HOW: TDD module → wiring → doctrine → container angles (caught 2 real defects) → fixes → re-verify
-- EVIDENCE: 230/0/1786 ×31 [8.72s]; 12/12 gate; ALL-6-PASS container ×3; SHA 83eb7bba9c5e76db
+- EVIDENCE: 230/0/1786 ×31 [8.72s]; 12/12 gate; ALL-6-PASS container ×3; SHA 3fdcef25473e4b76
 - NEXT: tetris threshold tuning (operator order); V2 scaffold consumers
 
 ## [2026-09-21T12:05:00] — v2.1 W1 THE LEDGER: src/omp/fire-ledger.ts (the calibration substrate)
@@ -537,3 +537,50 @@ rejected 403; the container's free zen lane resolves correctly.
 ★ The zero-trust audit found SHA DRIFT across the docs; this log records the TRUE sha AFTER the
 8 HIGH gate fixes + the socket-filter fix. Evidence: `sha256sum extensions/graph-intelligence/index.js`
 → `3e2c2207c247a069`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.
+
+---
+
+## 2026-09-23 · THE F-98 WAVE — THE KERNEL VALUE-WIRED INTO THE DIST + THE CONTAINER PROOF
+
+**THE DEFECT FOUND (F-98, the F-95 class recurring):** the deployed bundle carried ZERO
+decision symbols (`runKernelV2=0 · FireGate=0 · FireLedger=0 · PolicyStore=0 · graphFacts=0 ·
+dumbDetector=0`) while the source had them all. **ROOT CAUSE:** the kernel was reached ONLY
+through `import type` across the production graph (`src/omp/layer-registry.ts:22`,
+`src/omp/evidence-producer.ts:29`, `src/omp/oracle.ts:72-73`) — TypeScript ERASES type-only
+imports, so the bundler never saw a VALUE edge. ★ AND `scripts/consumption-audit.ts` imports
+`../src/omp/layer-consumption.ts` — **the SOURCE** — so the register measured a tree the
+artifact did not contain.
+
+**THE FIX:** `src/omp/decision.ts` (NEW) — `decideFromRegistry` (D-2's layer-edge: the
+kernel's `LayerDeclaration[]` come FROM the registry) + `decideFireFromGraph` (the L5/L6
+rung: `graphFacts` + the `PolicyStore` + a persistent `FireLedger`). Both VALUE-imported by
+`src/omp/extension.ts` and exposed as the **`gi-decide`** tool.
+
+**THE EVIDENCE (dist `3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad`):**
+- the DIST-CONTENT GATE: `runKernelV2=2 · FireLedger=2 · PolicyStore=2 · graphFacts=2 ·
+  decideFromRegistry=2 · decideFireFromGraph=2 · dumbDetector=2 · classifyByDetectors=2 ·
+  preflight=2 · gi-decide=3` — every count > 0.
+- tsc exit 0 · the battery 357 pass / 0 fail · 6L2E 28 pass / 0 fail · the E-3 seal 5 pass ·
+  the redteam 27 pass.
+- ★ THE DEPLOYED-RUNTIME PROBE: `verdict=STEER class=dumb code=GI_BLIND_ACT`, stage 0
+  PREFLIGHT UP (6 layers), the graph rung settling M-GRAPH-1 — the kernel DECIDES in the artifact.
+- ★ THE REGISTER CONTROL: the DEPLOYED bundle and the SOURCE CLI AGREE on both subjects
+  (`evidence`=7/8, `populateSessionStore`=4/8) — so the artifact IS the measurement subject.
+  ★ AND `consumed:N/8` IS SUBJECT-DEPENDENT.
+- ★ THE RUNTIME LEDGER (P4): non-empty — `stage 6 RECORD WRITTEN`, the row
+  `kernel-v2:dumb:STEER · band=escalate · cost_usd=0.0`.
+- ★ THE CONTAINER (E-2): **14/14** — the headed TUI ran `gi-decide`, which REFUSED with
+  `GI_STACK_INCOMPLETE:L4_C2KG` naming every absent substrate by exact path, and `M-GRAPH-3`
+  refusing the stale store (`no fact is served from it`).
+
+**THE THREE RUNTIME FINDINGS (all logged, two fixed):**
+1. `EN-6L2E-9` — the extension loads at SESSION START, not on file drop (the TUI reported
+   `No such tool: xd://gi-decide` until the session was restarted).
+2. `EN-6L2E-10` — the ledger validates its domains (`band ∈ act|escalate|ignore`); the kernel's
+   verdict maps onto them.
+3. ★ `F-99` — `gi-decide` on a FRESH scope failed with `GI_LEDGER_OPEN_FAILED` (the ledger's
+   directory was never created). FIXED (`mkdirSync`) and RE-PROVEN in the container on the
+   exact failing call.
+
+**THE 7-CLASS CORPUS:** the 7th fixture added (TIER B · CLASS D — the unwired module) + an
+explicit `fixtures.length === 7` assertion.

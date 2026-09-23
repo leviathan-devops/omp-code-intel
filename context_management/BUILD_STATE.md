@@ -1,11 +1,11 @@
 # BUILD_STATE — the SHA chain + the module inventory
 
-**dist SHA: 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709** · 2026-09-21
+**dist SHA: 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad** · 2026-09-21
 
 ## THE SHA CHAIN (every checkpoint + what changed)
 
 ```
-v1.3 dist (DEPLOYED)          83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
+v1.3 dist (DEPLOYED)          3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad
   the frozen surface. 613,039 B. Unchanged since the v1.3 seal.
 v1.3 ship package             dist seg 83eb7bba (SHIP_PACKAGES/Graph_Intel_v1.3/)
 the v2.1 blueprint            242f52c556151449  (41,853 B, 862 L)
@@ -199,7 +199,7 @@ src/omp/populate.ts:21               the F-48 law (no 3rd substrate)  grep the c
 ```
 bun test ./tests/ ./src/hydra/__tests__/   → 199 / 0 / 701 / 20 files
 bunx tsc --noEmit -p tsconfig.json         → 191
-sha256sum extensions/.../index.js          → 83eb7bba9c5e76db...
+sha256sum extensions/.../index.js          → 3fdcef25473e4b76...
 grep -c FireGate src/omp/kernel-v2.ts      → 0        (the wiring is the build)
 grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site holds)
 ```

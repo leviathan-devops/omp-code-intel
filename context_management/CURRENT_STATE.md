@@ -1,6 +1,6 @@
 # CURRENT_STATE — GI Kernel v2.0 + v2.1 (the architecture AS IT ACTUALLY IS)
 
-**dist SHA: 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709** · 2026-09-21
+**dist SHA: 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad** · 2026-09-21
 
 ## THE ARCHITECTURE NOW (not as designed — as it is)
 

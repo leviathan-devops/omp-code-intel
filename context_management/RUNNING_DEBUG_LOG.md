@@ -679,3 +679,26 @@ handle `storeFacts` already uses.
 recursion limit (`RecursionError`). **The workaround:** `/home/leviathan/corbell-venv/bin/corbell-deep`
 — a wrapper that raises the limit and calls the SAME CLI (the graph is the tool's OWN output,
 never a substitute engine). ★ AND its own `database is locked` when two builds collide.
+
+---
+
+## 2026-09-23 · EN-6L2E-5..11 — THE KERNEL-IN-DIST DEBUG CHAIN
+
+**EN-6L2E-5** — the corbell scan target was the whole 2.1 GB repo; the adapter never read
+`profile.graph.scope`. FIXED: 90+ min STUCK → **17.2 s**; the store 530 MB → 2.29 MB.
+**EN-6L2E-6** — the graph gate's drift lockout: `reconstruct()` reads the WHOLE FILE (so one
+edit records all 8 exports), `TEST_HINTS` checks `/test/` which never matches `tests/`, and
+`symbols.length===0` can never be verified. Workaround: query ONE recorded export per edit.
+**EN-6L2E-7** — ★ THE KERNEL WAS TYPE-ONLY-IMPORTED (`layer-registry.ts:22`). ERASED at build.
+FIXED: `src/omp/decision.ts` VALUE-wires it; the dist now carries all 10 kernel symbols.
+**EN-6L2E-8** — the DEPLOYED register AGREES with the source (both 7/8 for `evidence`, both 4/8
+for `populateSessionStore`) — the artifact IS the measurement subject. ★ AND the register is
+SUBJECT-DEPENDENT: `consumed:N/8` without its subject is not a measurement.
+**EN-6L2E-9** — the extension loads at SESSION START; a file drop-in does not re-register a
+running session's tools. The proof is the RESTARTED session's registry.
+**EN-6L2E-10** — the ledger validates `band ∈ act|escalate|ignore` and `action ∈
+FIRE|ESCALATE|IGNORE`; the kernel's verdict vocabulary maps onto them. The RECORD failure was
+REPORTED on the run (the no-silent-catch law working).
+**EN-6L2E-11** — the ledger's DIRECTORY was never created, so a FRESH scope's decision died with
+`GI_LEDGER_OPEN_FAILED`. FIXED: `mkdirSync(path.dirname(ledgerPath), { recursive: true })`.
+★ a derived artifact's directory is part of its contract.

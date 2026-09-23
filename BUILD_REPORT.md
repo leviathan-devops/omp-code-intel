@@ -664,3 +664,28 @@ action; (2) the regression test edit was blocked by the live graph gate's drift 
 can never satisfy `symbolVerified`); (3) RESOLVED — the dist IS rebuilt and deployed: repo dist == deployed bundle == `27fa2460476f25abf722b75d57055006ffeb83cd852f0556d4c2da9961fb7c05`
 (9,437,344 B), the dist-content gate green (scopeRepoRef=3, writeWorkspaceConfig=3,
 emitWorkspaceConfig=1, CorbellAdapter=2), `find src -newer <bundle> | wc -l` = 0.
+
+
+---
+
+## 2026-09-23 — THE F-98 WAVE: THE KERNEL VALUE-WIRED + THE CONTAINER PROOF (14/14)
+
+**The built:** `src/omp/decision.ts` (NEW) — `decideFromRegistry` (D-2's layer-edge: the
+kernel's layer declarations come FROM the registry) + `decideFireFromGraph` (the L5/L6 rung:
+`graphFacts` + the `PolicyStore` + a persistent `FireLedger`); both VALUE-imported by
+`src/omp/extension.ts` and exposed as the `gi-decide` tool. Plus the 7th corpus fixture, the
+fresh-scope ledger-dir fix, and the `GI_PATH_DENIED` message fix.
+**The why:** the deployed bundle carried ZERO decision symbols — the kernel was reached ONLY
+through `import type` (erased at build), so the artifact that runs could not decide. The F-95
+class recurring under a new name.
+**The how:** found the erased edges (`layer-registry.ts:22`, `evidence-producer.ts:29`,
+`oracle.ts:72`), built the value-wired seam, verified the DIST-CONTENT GATE, probed the
+DEPLOYED bundle directly, and drove the container TUI.
+**The evidence:** dist `sha256 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad` · tsc 0 · the battery 357 pass / 0 fail · 6L2E 28 pass /
+0 fail · the E-3 seal 5 pass · the redteam 27 pass · the 7-class corpus 7 fixtures ·
+E-2 **14/14** · the runtime ledger non-empty (`stage 6 RECORD WRITTEN`).
+**The verification:** FAILURE_LOG F-96/97/98/99 · DEBUG_LOG EN-6L2E-5..11 · SPEC_VIOLATION_LOG
+V-96 + P-53 · TESTING_LOG (P4 + E-2 + the corpus) · THEATRICALITY_LOG TH-OC-01/02.
+**The honest notes:** (1) `consumed:8` is BLOCKED on the operator's TSG credits (HTTP 402);
+(2) ★ `consumed:N/8` IS SUBJECT-DEPENDENT (7/8 for `evidence`, 4/8 for `populateSessionStore`);
+(3) the container carries only L5/L6; (4) the post-fix code-audit is BLOCKED (F-97).
