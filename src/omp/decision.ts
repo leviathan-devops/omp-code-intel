@@ -21,6 +21,7 @@ import type { ConsumerId, LayerFact } from "./layer-registry.ts";
 import { runKernelV2, type KernelRun, type LayerDeclaration, type LayerId, type Verdict } from "./kernel-v2.ts";
 import * as path from "node:path";
 import { graphFacts, type GraphFactInput, type GraphFactVerdict } from "./graph-facts.ts";
+import type { DecisionRow } from "./fire-gate.ts";
 import { FireLedger } from "./fire-ledger.ts";
 import { PolicyStore, DEFAULT_POLICY_FILE } from "./policy-store.ts";
 import { corbellCheckoutPath } from "./populate-corbell.ts";
@@ -68,7 +69,12 @@ export interface DecisionEvidence {
  *
  *  A layer DOWN → `GI_STACK_INCOMPLETE:<id>` (the kernel's own refusal). A wired-but-silent
  *  layer → NO certification from it (it never inflates the decision). NEVER an empty pass. */
-export function decideFromRegistry(scopeRoot: string, subject: string, act: DecisionAct): DecisionEvidence {
+export function decideFromRegistry(
+  scopeRoot: string,
+  subject: string,
+  act: DecisionAct,
+  record?: (run: KernelRun) => void,
+): DecisionEvidence {
   const registry = buildRegistry(scopeRoot);
 
   // The registry's facts for this subject — the decision's evidence base. `factsFor`
@@ -105,6 +111,7 @@ export function decideFromRegistry(scopeRoot: string, subject: string, act: Deci
     claims: act.claims ?? [],
     certifications,
     layers,
+    record,
   });
 
   return {
