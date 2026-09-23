@@ -82,12 +82,14 @@
   },
   {
    "id": "SC-K3",
-   "name": "the decision in the HEADED TUI (gi-decide via the model)",
-   "verdict": "BLOCKED",
-   "ran": "the sanctioned send: 'Call the gi-consumption tool\u2026' into the gi-kev-ct TUI",
-   "observed": "the container omp answered: '\u2718 404 No endpoints found for arcee-ai/trinity-large-preview:free'",
-   "note": "\u2605 BLOCKED, NOT FAILED \u2014 the container's omp model endpoint is unavailable, so the TUI could not execute the tool call. The direct deployed-bundle probe (SC-K4) substituted and is the STRONGER evidence (it imports the artifact, not a model's account of it).",
-   "retry_condition": "configure a live model in the container's omp, then re-send the prompt"
+   "name": "\u2605 THE DECISION IN THE HEADED TUI (the model drove gi-decide)",
+   "verdict": "PASS",
+   "ran": "the sanctioned send into the gi-kev-ct TUI (after switching the default model to openrouter/nvidia/nemotron-3.5-lightning:free \u2014 the prior pin 404'd)",
+   "observed": "subject=evidence \u00b7 scopeRoot=/root/gi-scope \u00b7 layersWired=6/8 \u00b7 influenced=TSG \u00b7 stage 0 PREFLIGHT REFUSE 6 layer(s) DOWN: L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA \u00b7 M-GRAPH-3 settles=false action=none 'the graph layer is UNAVAILABLE \u2014 the fact set could not be read'",
+   "note": "\u2605 THE HEADED TUI OPERATED THE KERNEL: the model called xd://gi-decide, the kernel ran the PREFLIGHT, NAMED all 6 absent substrates, refused the stack, and the KEV meaning gate is INFLUENCED. The prior 404 (`No endpoints found for arcee-ai/trinity-large-preview:free`) was fixed by pointing config.yml's `default` model at the live openrouter free lane.",
+   "retry_condition": "MET \u2014 the container's default model is now openrouter/nvidia/nemotron-3.5-lightning:free (http=200 measured)",
+   "pass_token": "influenced=TSG + stage 0 PREFLIGHT REFUSE (the kernel asked all 6 layers)",
+   "fail_token": "No such tool: xd://gi-decide \u2014 ABSENT"
   },
   {
    "id": "SC-K5",
@@ -96,10 +98,11 @@
    "note": "SC-KA1 exercised the starve case; the remote-tsg fallback's own naming (GI_JEV_NO_KEY) was measured on the host earlier (F-96 forensics)"
   }
  ],
- "verdict": "E-2-KEV: 6/6 EXECUTED scenarios PASS \u00b7 1 BLOCKED (the container model endpoint) \u00b7 1 NOT RUN (covered by SC-KA1)",
+ "verdict": "E-2-KEV: 7/7 EXECUTED scenarios PASS (SC-K5 covered by SC-KA1) \u00b7 0 BLOCKED",
  "honest_notes": [
   "The container's register reads consumed:1/8 (TSG only) \u2014 NOT 8/8. The 7 DOWN consumers need the HOST-side substrates (corbell, graphify, UA, C2KG, arsumbris, semantica, abide), which the rig does not carry. This is an HONEST environment reading.",
   "The container's TUI model endpoint (arcee-ai/trinity-large-preview:free) returns 404, so the headed-TUI tool call is BLOCKED; the direct probe is the substituted evidence.",
-  "\u2605 THE DELIVERY MECHANISM (measured, not assumed): 4 payloads were shipped before the model loaded \u2014 transformers+ORT, sharp+@img, detect-libc+semver+jinja+tokenizers, and onnxruntime-node/dist/. Each missing piece produced a NAMED resolution error naming the package \u2014 never a silent failure."
+  "\u2605 THE DELIVERY MECHANISM (measured, not assumed): 4 payloads were shipped before the model loaded \u2014 transformers+ORT, sharp+@img, detect-libc+semver+jinja+tokenizers, and onnxruntime-node/dist/. Each missing piece produced a NAMED resolution error naming the package \u2014 never a silent failure.",
+  "\u2605 SC-K3 was BLOCKED and is now PASS: the container's omp pin (arcee-ai/trinity-large-preview:free) returned 404; config.yml's `default` was pointed at the live openrouter free lane and the headed TUI then ran gi-decide, returning influenced=TSG with the PREFLIGHT REFUSE naming all 6 absent layers."
  ]
 }

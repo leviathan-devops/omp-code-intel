@@ -2076,3 +2076,26 @@ the dist 82bad22c3687d21e
   1 NOT RUN (covered by SC-KA1).** The container's register reads `consumed:1/8` — TSG consumed,
   the other 7 DOWN because their substrates are host-side. **An honest environment reading.**
 - **The artifacts:** `.trident/plan-6l2e/phaseE-kev.json` · `artifacts/phaseE-kev.json`
+
+## TEST RESULT — 2026-09-23 — ★ SC-K3 now PASSES (the headed TUI operated the kernel)
+
+### CONTAINER
+- **The run:** the sanctioned `send` into the `gi-kev-ct` TUI, AFTER remediation: the container's
+  omp pin (`arcee-ai/trinity-large-preview:free`) returned `404 No endpoints found`, so
+  `config.yml`'s `default` model was pointed at the measured-live lane
+  `openrouter/nvidia/nemotron-3.5-lightning:free` (http=200), then the TUI was restarted.
+- **The raw output (the stream tail, verbatim):**
+  `subject=evidence` · `scopeRoot=/root/gi-scope` · `layersWired=6/8` · **`influenced=TSG`**
+  `reason=GI_LAYER_CORBELL (… store.sqlite — ENOENT) | GI_LAYER_GRAPHIFY (…) | GI_LAYER_C2KG (…) |
+  GI_LAYER_UA (…) | GI_LAYER_ARSUMBRIS (…) | GI_LAYER_SEMANTICA (…)`
+  `stage 0 PREFLIGHT   REFUSE   6 layer(s) DOWN: L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA`
+  `graph: store=…/corbell-checkout/store.sqlite   settles=false   fires=0`
+  `policy=3@the seed policy set (no policy.json on disk — the named fallback)`
+  `M-GRAPH-3   settles=false   action=none   the graph layer is UNAVAILABLE — the fact set could not be read`
+- **The verdict:** **PASS** — passToken `influenced=TSG` + `stage 0 PREFLIGHT REFUSE` observed in the
+  TUI's tool-result context; failToken `No such tool: xd://gi-decide` ABSENT.
+  ★ **THE HEADED TUI OPERATED THE KERNEL** — the model called `xd://gi-decide`, the kernel ran its
+  PREFLIGHT, NAMED all 6 absent substrates by exact path, refused the stack, and the KEV meaning
+  gate is INFLUENCED.
+- **The artifacts:** `.trident/plan-6l2e/phaseE-kev.json` (SC-K3 PASS; **verdict: 7/7 executed
+  scenarios PASS · 0 BLOCKED**)
