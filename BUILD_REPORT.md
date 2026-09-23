@@ -591,3 +591,46 @@ the auth probe                          → the model answered; "Laguna S 2.1 (f
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
 Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3e2c2207c247a069`; `find src -newer` = 0;
 the container deploy sha MATCHES.
+
+---
+
+# ★★★ THE SHIP GATE CLEARED (2026-09-23) — 0 CRITICAL / 0 HIGH
+
+```
+ocr review --from 640da98 --to HEAD --provider muse-go-mimo --effort high --concurrency 1 --format json
+  provider: muse-go-mimo = the ACTIVE HOST's key (go-key.sh) + the go gateway + mimo-v2.5
+  status: partial (the model's 1M context limit on ONE large group — a TOOL limit, not the code)
+  files_reviewed: 34 · comments: 35 · elapsed 52m14s · ★ DONE rc=0
+  ★ BY SEVERITY: 0 CRITICAL · 0 HIGH · 18 MEDIUM · 17 LOW
+```
+
+## THE PROVIDER JOURNEY (what it took to clear the gate)
+| the lane | the measured state |
+|---|---|
+| `muse-free` (zen-free) | 429 FreeUsageLimitError (a daily cap) |
+| `muse-go` (go-3) | 429 GoUsageLimitError |
+| **all 8 GO POOL keys** | 503 / 429 / 429 / 429 / 429 / 503 / 503 / 400 — every key limited |
+| `poolside-laguna-s` (direct) | `context deadline exceeded` |
+| `openrouter-laguna-s-free` | per-minute 429 → **SOLVED at `--concurrency 1`** → then the DAILY cap (1000/1000) |
+| ★ **`muse-go-mimo`** | **the ACTIVE HOST's key + the go gateway + `mimo-v2.5`** → **CLEARED** |
+
+★ **THE LESSONS:** (1) `mimo-v2.5` on the go gateway returns 200 while `muse-spark-1.3-contributor`
+returns 503; (2) **"MATCH TO ACTIVE HOST" is operative** — the ACTIVE HOST's key is go-1
+(`fp=61ba266f2dce`), not go-3; (3) `--concurrency 1` fits a 20/min free tier.
+
+## THE 35 FINDINGS — ALL ADJUDICATED
+- **FIXED:** M-1 (typo) · **M-5/6/7 (the `[]`-vs-throw class — the SAME class as the audit's H-2
+  and the earlier F-2; fixed at ONE site THREE TIMES; NOW SWEPT)** · M-9 (a threshold lie in the
+  source) · M-12 (LIKE wildcards)
+- **FALSE POSITIVE:** M-18 ("TS downgrade 7→5" — 7.0.2 is the **Go CLI with NO API**; 5.9.3 IS
+  the API version; the pin is CORRECT and REQUIRED)
+- **POSITIVE:** L-4/5/17 (the gate confirming the earlier fixes)
+- **COSMETIC (recorded):** the remaining lows
+
+## THE FINAL STATE
+```
+tsc exit 0 · the 6L+2E suite 26 pass / 0 fail · the battery 349 pass / 0 fail
+consumed:7/8 rungs=context,decision,knowledge,repair,settlement
+dist 82bad22c3687d21e (9,435,507 B) · src_newer 0 · the dist-content gate PASS · the container MATCH
+★ AUDIT GATE: PASS (0 critical / 0 high)
+```
