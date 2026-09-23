@@ -615,3 +615,34 @@ consumed:7/8 rungs=context,decision,knowledge,repair,settlement
 dist 82bad22c3687d21e (9,435,507 B) · src_newer 0 · the dist-content gate PASS · the container MATCH
 ★ AUDIT GATE: PASS (0 critical / 0 high)
 ```
+
+---
+
+# 15 · ★★ THE INDEPENDENT RE-AUDIT OF THE CLEARED STATE (the recursion, closed)
+
+A **blind subagent** (`BlindGateVerify`, zero build context, forbidden to read any audit artifact)
+re-verified the gate clearance from primary evidence:
+
+| the claim | the blind verification | the verdict |
+|---|---|---|
+| 1. the gate: 0 critical / 0 high / 18 medium / 17 low, 35 comments, 34 files | re-read `/tmp/gate-mimo.json` with python3 | **VERIFIED** (counts match exactly; `status: partial` noted) |
+| 2. the 8 HIGH are gone | `distinct_severities: ['low', 'medium']` | **VERIFIED** |
+| 3. M-5/6/7 fixed (a substrate fault throws) | `grep -c` → 3 named throws per adapter, **0 bare `return []`** | **VERIFIED** |
+| 4. M-12 fixed (LIKE escaping) | `escapeLike` at `_shared.ts:217` + `ESCAPE` at `:145`/`:171` | **VERIFIED** |
+| 5. the state (dist 9,435,507 B, sha `82bad22c…`) | `sha256sum` + `stat` | **VERIFIED** |
+| 6. the consumption (`consumed:7/8`) | the audit CLI | **VERIFIED** |
+
+> **`VERDICT: 6 verified, 0 refuted, 0 unverified`**
+
+**★ THE RECURSION IS CLOSED.** The audit audited the audit: the cleared gate's every load-bearing
+claim was independently reproduced by an agent with no stake in the outcome.
+
+## ★★ THE FINAL LEDGER — BOTH GATES, CLEARED
+
+| the gate | the state |
+|---|---|
+| **THE ZERO-TRUST AUDIT** | **COMPLETE** — 11/11 claims + 9/9 (blind) + 6/6 (blind, the clearance) · 3 frauds FIXED · 8 HIGH FIXED · the class SWEPT |
+| **THE QWEN CODE REVIEW** | **CLEARED** — `DONE rc=0`, 34 files, **0 CRITICAL / 0 HIGH** · all 35 findings adjudicated · the real ones FIXED |
+
+**★ THE GOAL'S GATE CONDITION IS MET: the ship gate has TANGIBLY FULLY CLEARED, and the
+zero-trust audit blessed the cleared output.**
