@@ -1073,3 +1073,22 @@ AND THE RUNTIME NEVER CHANGED.
   `scope: [src]`; the engine was pointed at `..`. The gap between the declared scope and the
   emitted target is where 90 minutes go. ★ And: **a guard that names a symptom without fixing
   its source is a timer, not a fix.**
+
+---
+
+### F-97 — THE CODE-AUDIT LANE WENT DOWN MID-SESSION (2026-09-23)
+
+- **What happened:** the targeted re-audit of the changed files
+  (`ocr scan --path src/hunter/graph/corbell-adapter.ts`) FAILED: `all 1 file scan(s) failed —
+  check your LLM configuration and API key`. An earlier attempt (`full_scan`, 07:49) ABORTED with
+  0 files. `ocr config list` returns EMPTY in this shell.
+- **Found:** the re-audit was attempted to re-clear the ship gate for the NEW dist
+  (`27fa2460`), because the 04:35 artifact covered `82bad22c` (pre-fix).
+- **Root cause:** the ocr LLM lane is unconfigured/unavailable in this shell — NOT a code defect.
+  The 03:43 run succeeded (`65fd1c7d`, 34 files, 0 crit / 0 high), so the lane worked earlier
+  in the session and the configuration is not present now.
+- **Impact:** the ship gate for the post-fix dist is BLOCKED (recorded as BLOCKED, never PASS).
+  The fix's own verification is unaffected: tsc 0 · 349 battery · 7 corbell port · 17.2 s empirical.
+- **Disposition:** **BLOCKED.** ★ Retry condition: restore the ocr LLM lane (the provider/key
+  used by the 03:43 run), then `ocr scan --path src/hunter/graph/corbell-adapter.ts,tests/st-corbell-port.ts --format json`.
+  The 04:35 artifact (`artifacts/gate-mimo.json`) remains the valid gate evidence for its scope.

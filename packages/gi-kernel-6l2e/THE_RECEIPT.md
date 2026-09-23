@@ -252,3 +252,58 @@ c96c5d6 fix(audit-fraud-2): .gitignore the generated dirs
 6. Deploy + sha-match + run the container probe.
 7. **RE-STAMP every canon doc to the new dist sha** (the fraud-1 lesson).
 8. **RE-RUN the gate** after any fix (the skill's law).
+
+---
+
+# §11 · THE CORBELL SCOPE FIX (2026-09-23) — `consumed:6/8 → 7/8`
+
+## THE DEFECT (F-96)
+The L5 CORBELL store refresh ran **90+ min across 4 attempts and never completed** — r1 `rc=124`,
+r2 `database is locked`, r3 `rc=1`, r4 DEAD in `D` state (`%cpu 0.0`, `0 B / 30 s`).
+**Root cause:** `corbell-data/workspace.yaml` declared `root: ".."` + `services[0].repo: ..` —
+**the whole 2.1 GB repo** — and the adapter's `writeWorkspaceConfig` NEVER read
+`profile.graph.scope` (`[src]` declared since W1). The walk covered `research/` (1012 MB),
+`Checkpoints/` (144 MB — 10 full repo copies), and **its own 531 MB store**. The stale-detector
+accepted `..` as valid, so the unscoped config was judged FRESH and never regenerated. A
+pre-existing guard (`CORBELL_STORE_BLOATED`) detected the symptom; its remedy was manual and the
+root cause was never fixed.
+
+## THE FIX (`src/hunter/graph/corbell-adapter.ts`)
+1. `scopeRepoRef(profile)` → `../${profile.graph.scope[0]}` (stripping `./` and a trailing `/`).
+2. the template emits `repo: ${repoRef}` instead of the literal `..`.
+3. the stale-check REQUIRES `declaredRepo === expectedRepo` — an unscoped `..`/`.` is now STALE.
+Tests: `(a)` REWRITTEN (it had ENCODED the defect — it asserted `repo: ..`), `(a2)` ADDED for the
+scope derivation.
+
+## THE EVIDENCE (this-turn, re-runnable)
+```
+the corbell build : 17.2 s   (was 90+ min stuck)   nodes=1013 edges=4328
+the store         : 2.29 MB  (was 530 MB)          populated_at=2026-09-23T03:36:32.402Z
+the register      : consumed:7/8 · influenced=L5_CORBELL,...,ABIDE
+L5_CORBELL        : CONSUMED  rung=settlement  facts=50
+tsc               : exit 0
+the battery       : 349 pass / 0 fail
+the 6L2E suite    : 26 pass / 0 fail
+the corbell port  : 7 pass / 0 fail
+the dist          : 27fa2460476f25abf722b75d57055006ffeb83cd852f0556d4c2da9961fb7c05  (repo == deployed, BYTE-IDENTICAL)
+dist-content gate : scopeRepoRef=3 · writeWorkspaceConfig=3 · emitWorkspaceConfig=1 · CorbellAdapter=2
+src newer than the bundle : 0
+```
+
+## THE CHECKPOINT
+`Checkpoints/gi-6l2e-corbell-scope-fixed-consumed-7of8-27fa2460476f25ab` — its dist carries
+`scopeRepoRef` (3 hits) and matches its own src. **THE NAME IS PROVEN BY ITS BINARY.**
+
+## ★ THE HONEST GAPS (updated)
+1. **`consumed:8`** — TSG (A9) remains BLOCKED on the vendor's billing. The key authenticates;
+   the org has NO TypeSafe credits (HTTP 402 `billing_error`, vendor-quoted). **An OPERATOR
+   action** — add credits at `console.typesafe.ai/settings/billing`.
+2. **The audit gate is BLOCKED for the post-fix dist** (F-97) — the ocr LLM lane went down
+   mid-session (`all 1 file scan(s) failed`; `ocr config list` empty). The 04:35 CLEARED artifact
+   (`artifacts/gate-mimo.json`, covering `corbell-adapter.ts`) stands for ITS SHA only.
+3. **E-3 PACKAGE_AUDIT** — ABSENT.
+
+## ★ THE LESSON
+**A scan target is a DECLARED SCOPE, not a directory.** The profile said `[src]`; the engine was
+pointed at `..`. The gap between the declared scope and the emitted target is where 90 minutes go.
+And: **a guard that names a symptom without fixing its source is a timer, not a fix.**

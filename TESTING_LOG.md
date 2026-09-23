@@ -1867,3 +1867,18 @@ the dist 82bad22c3687d21e
   `["src/"]`; the rewritten `(a)` asserts `repo: ../src` and NOT `repo: ..\n`.
   failToken `repo: ..\n` ABSENT.
 - **The artifacts:** `tests/st-corbell-port.ts` · `src/hunter/graph/corbell-adapter.ts`
+
+## TEST RESULT — 2026-09-23 — the audit gate (re-clear attempt for the post-fix dist)
+
+### SCRIPT
+- **The run:** `ocr scan --path src/hunter/graph/corbell-adapter.ts --format json`
+- **The raw output:** `Error: scan failed: all 1 file scan(s) failed — check your LLM configuration
+  and API key` · `rc=1` · session `04a4b9c1-aa98-98-... (aborted)` · a prior `full_scan` session
+  `50fd3d1e` ABORTED with 0 files · `ocr config list` → EMPTY
+- **The verdict:** **BLOCKED** — the audit lane is down; the gate is NOT re-cleared for the new
+  dist. ★ Retry condition: restore the ocr LLM lane, then re-run the scan on the two changed files.
+  The standing `AUDIT GATE: PASS (0 critical/high)` from the 03:43 run (`65fd1c7d`, 34 files,
+  covering `corbell-adapter.ts`) remains valid for ITS scope and SHA, and is NOT claimed for the
+  post-fix dist.
+- **The artifacts:** `/tmp/sg-ocr-27fa2460.json` (empty — the failed run) ·
+  `artifacts/gate-mimo.json` (the 04:35 CLEARED run)
