@@ -10,7 +10,7 @@ import { describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { layerCertifications } from "../src/omp/decision.ts";
+import { layerCertifications, decideFireFromGraph } from "../src/omp/decision.ts";
 import type { LayerFact } from "../src/omp/layer-registry.ts";
 
 const BUNDLE = path.resolve(import.meta.dir, "..", "extensions", "graph-intelligence", "index.js");
@@ -91,5 +91,51 @@ describe("st-gi-audit-fixes: the 2026-09-23 code-audit's HIGH findings", () => {
     expect(src).toContain("clearGiRegistry();");
     // and the false-success shape is gone
     expect(src).not.toContain('textResult("GI_CLEARED\\n" + wipeAudit.text, { ok: true');
+  });
+
+  test("AUDIT-MED-1: a MALFORMED policy.json is LOUD — the silent seed fallback is gone", () => {
+    // THE FAILURE THIS PREVENTS: the catch around `new PolicyStore(policyPath)` was EMPTY, so
+    // a malformed/unreadable policy.json silently fell back to the seed set and no caller
+    // could tell "no policy file" from "a broken one". The seed set is the NAMED fallback for
+    // the ABSENT case ONLY; any other failure must name itself.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-policy-bad-"));
+    try {
+      const dir = path.join(root, ".omp", "graph-intelligence");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "policy.json"), "{ this is not valid json");
+      const ev = decideFireFromGraph(root, "someSymbol", "consume");
+      // ★ the source NAMES the invalid policy — never the anonymous seed message
+      expect(ev.policySource).toContain("POLICY_INVALID");
+      expect(ev.policySource).not.toContain("no policy.json on disk");
+      // and the seed count still stands (the decision is not blocked by a bad policy file)
+      expect(ev.policyCount).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("AUDIT-MED-1b: an ABSENT policy.json keeps the documented seed fallback", () => {
+    // the control: with NO policy file, the seed message IS the correct, named fallback.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-policy-none-"));
+    try {
+      const ev = decideFireFromGraph(root, "someSymbol", "consume");
+      expect(ev.policySource).toContain("seed policy set");
+      expect(ev.policySource).not.toContain("POLICY_INVALID");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("AUDIT-MED-2: the ledger directory is CREATED (a fresh scope's decision never dies on its record)", () => {
+    // THE FAILURE THIS PREVENTS: `fs.mkdirSync` was unguarded and its parent absent on a fresh
+    // scope → GI_LEDGER_OPEN_FAILED took the whole verdict (F-99). The dir must exist after.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "gi-ledgerdir-"));
+    try {
+      const ev = decideFireFromGraph(root, "someSymbol", "consume");
+      expect(fs.existsSync(path.dirname(ev.ledgerPath))).toBe(true);
+      expect(fs.existsSync(ev.ledgerPath)).toBe(true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

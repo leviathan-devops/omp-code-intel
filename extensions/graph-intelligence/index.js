@@ -187028,9 +187028,19 @@ function decideFireFromGraph(scopeRoot, target, intent) {
     const store = new PolicyStore(policyPath);
     policyCount = Object.keys(store.all()).length;
     policySource = policyPath;
-  } catch {}
+  } catch (e) {
+    if (fs28.existsSync(policyPath)) {
+      const msg = e instanceof Error ? e.message : String(e);
+      policySource = `POLICY_INVALID: ${policyPath} (${msg}) \u2014 the seed set stands, LOUDLY`;
+    }
+  }
   const ledgerPath = path32.join(scopeRoot, ".omp", "graph-intelligence", "fire-decisions.db");
-  fs28.mkdirSync(path32.dirname(ledgerPath), { recursive: true });
+  const ledgerDir = path32.dirname(ledgerPath);
+  try {
+    fs28.mkdirSync(ledgerDir, { recursive: true });
+  } catch (e) {
+    throw new Error(`GI_LEDGER_DIR_FAILED: cannot create ${ledgerDir} (${e instanceof Error ? e.message : String(e)})`);
+  }
   const ledger = new FireLedger(ledgerPath);
   return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };
 }
@@ -187327,8 +187337,9 @@ ${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false 
       const sessionId = callerId;
       const substrate = typeof p.substrate === "string" ? p.substrate : "";
       const targetPathRaw = typeof p.targetPath === "string" ? p.targetPath : "";
-      let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
-      const callerCwd = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
+      const callerCtx = ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined;
+      let scopeRoot = cwdOf(callerCtx);
+      const callerCwd = scopeRoot;
       if (targetPathRaw.length > 0) {
         if (!path35.isAbsolute(targetPathRaw)) {
           return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
@@ -187339,7 +187350,7 @@ ${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false 
         }
         scopeRoot = confined.real;
       } else {
-        const defaultConfined = confineTargetPath(cwdOf(ctx), cwdOf(ctx));
+        const defaultConfined = confineTargetPath(callerCwd, callerCwd);
         if (!defaultConfined.ok) {
           return textResult2(defaultConfined.error, { ok: false, error: "GI_PATH_DENIED" });
         }

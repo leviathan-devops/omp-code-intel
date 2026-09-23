@@ -183,8 +183,18 @@ export function decideFireFromGraph(
     const store = new PolicyStore(policyPath);
     policyCount = Object.keys(store.all()).length;
     policySource = policyPath;
-  } catch {
-    // the seed set stands; `policySource` NAMES that, so the count is never anonymous
+  } catch (e) {
+    // ★ AUDIT MEDIUM #1 (2026-09-23): this catch was EMPTY — it swallowed EVERY error the
+    //   PolicyStore throws, so a MALFORMED or unreadable `policy.json` silently fell back to
+    //   the seed set and no caller could tell "no policy file" from "a broken one". The seed
+    //   set is the NAMED fallback for the ABSENT-FILE case ONLY; any OTHER failure is LOUD
+    //   (policySource carries the error), so an operator sees a broken policy, never a
+    //   silent substitution.
+    if (fs.existsSync(policyPath)) {
+      const msg = e instanceof Error ? e.message : String(e);
+      policySource = `POLICY_INVALID: ${policyPath} (${msg}) — the seed set stands, LOUDLY`;
+    }
+    // else: the file is genuinely absent → the seed set IS the documented fallback
   }
 
   const ledgerPath = path.join(scopeRoot, ".omp", "graph-intelligence", "fire-decisions.db");
@@ -194,7 +204,15 @@ export function decideFireFromGraph(
   //    /tmp/.omp/graph-intelligence/fire-decisions.db (unable to open database file)`
   //   — the ledger's DIRECTORY did not exist and FireLedger opens the path directly.
   //   A decision must never fail because its RECORD had nowhere to live: create the dir.
-  fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+  const ledgerDir = path.dirname(ledgerPath);
+  try {
+    fs.mkdirSync(ledgerDir, { recursive: true });
+  } catch (e) {
+    // ★ AUDIT MEDIUM #2 (2026-09-23): the call was unguarded, so a read-only filesystem or a
+    //   permission denial escaped this function as an UNCAUGHT throw — while its contract is
+    //   to return a `FireEvidence`. A named error keeps the contract.
+    throw new Error(`GI_LEDGER_DIR_FAILED: cannot create ${ledgerDir} (${e instanceof Error ? e.message : String(e)})`);
+  }
   const ledger = new FireLedger(ledgerPath);
 
   return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };

@@ -400,8 +400,12 @@ pi.registerTool({
     // TARGET-PATH SCOPE (graphify leg): an explicit absolute targetPath pins
     // the query root (the operator-built graph.json tree); otherwise the
     // caller cwd. A non-absolute targetPath is the named GI_PATH_DENIED.
-    let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx as { cwd?: string } : undefined);
-    const callerCwd = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx as { cwd?: string } : undefined);
+    // ★ AUDIT LOW (2026-09-23): `cwdOf(ctx)` was called TWICE with the identical argument
+    //   here AND twice more in the default branch below — four resolutions of one value.
+    //   Resolve the caller's context ONCE and reuse it.
+    const callerCtx = ctx && typeof ctx === "object" && "cwd" in ctx ? (ctx as { cwd?: string }) : undefined;
+    let scopeRoot = cwdOf(callerCtx);
+    const callerCwd = scopeRoot;
     if (targetPathRaw.length > 0) {
       if (!path.isAbsolute(targetPathRaw)) {
         return textResult(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
@@ -412,7 +416,7 @@ pi.registerTool({
       }
       scopeRoot = confined.real;
     } else {
-      const defaultConfined = confineTargetPath(cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined), cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined));
+      const defaultConfined = confineTargetPath(callerCwd, callerCwd);
       if (!defaultConfined.ok) {
         return textResult(defaultConfined.error, { ok: false, error: "GI_PATH_DENIED" });
       }

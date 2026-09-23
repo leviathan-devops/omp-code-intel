@@ -945,3 +945,24 @@ ignored the ctx, so the ghost cwd never reached the wipe) — fixed, then it wen
 **Lesson:** ★ a comment that contradicts its code is a defect with a receipt. "never as success"
 above an `ok: true` is the audit's cheapest find — and a DEAD IMPORT is the signature of a
 feature that was never wired.
+
+## EN-6L2E-14 · THE AUDIT'S MEDIUM/LOW SWEEP — 4 FIXED, 6 DECLINED WITH REASONS (2026-09-23)
+**Finding:** the post-fix audit (session `e0c136e3`) left 6 medium + 4 low findings.
+**Disposition (the goal's two-sided adjudication — every declined finding carries its reason):**
+- **FIXED (4):** the EMPTY policy catch (`decision.ts` — a malformed `policy.json` fell back
+  silently → now `POLICY_INVALID: …`, LOUD; pins `AUDIT-MED-1` + `AUDIT-MED-1b`); the unguarded
+  `fs.mkdirSync` (now `GI_LEDGER_DIR_FAILED`; pin `AUDIT-MED-2`); the `as LayerId` guard
+  (`layerCertifications()` keeps the filter + cast in one place); the double `cwdOf(ctx)` —
+  ★ which was FOUR calls of one value, not two (now one `callerCtx` resolution + reuse).
+- **DECLINED WITH REASONS (6):** `buildRegistry` uncached (the probes must read LIVE state —
+  caching would serve stale liveness, the A2/A3 class); the sync SQLite open in the decision
+  path (the ledger IS the record — the row must land WITH the run); the returned ledger handle
+  (the caller must append — the RECORD sink seam); `substrate` unused ★ **the finding is
+  INEXACT** — it IS referenced in `who-calls`; the true gap is 8 of 9 verbs dropping it, logged
+  as a follow-up; `GI_TOOL_NAMES_ALIASES` (it IS the registered alias surface — the audit
+  searched one file); the `confineTargetPath` TOCTOU (a single-user host; a scope guard, not a
+  security boundary — recorded as a known bound).
+**Verification:** tsc 0 · the battery 363 pass / 0 fail · the audit-fix pins 6 pass / 0 fail ·
+the dist rebuilt + deployed (`70f1d0fc2de6afe9`) with the dist-content gate green.
+**Lesson:** ★ a finding can be RIGHT about the code and WRONG about the claim — #7 named a dead
+param that IS live in one verb. Read the finding's EVIDENCE, not just its severity.

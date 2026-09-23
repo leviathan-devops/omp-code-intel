@@ -2016,3 +2016,14 @@ the dist 82bad22c3687d21e
   failToken: `'high': ` in the post-fix severity count — ABSENT.
 - **The artifacts:** `artifacts/AUDIT_GATE_F98.md` ·
   `artifacts/audit-session-2bced5f8-FAIL.jsonl` · `artifacts/audit-session-e0c136e3-PASS.jsonl`
+
+
+## TEST RESULT — 2026-09-23 — THE AUDIT'S MEDIUM/LOW SWEEP (4 fixed, 6 declined)
+
+### SCRIPT
+- **The run:** `bun test ./tests/st-gi-audit-fixes.test.ts` (now 6 pins: the 2 HIGH + 4 for the
+  medium fixes) + `bun test` (the battery).
+- **The raw output:** `6 pass · 0 fail · 19 expect() calls` · the battery `363 pass · 0 fail`.
+- **The verdict:** **PASS.**
+- **The artifacts:** `artifacts/AUDIT_GATE_F98.md` (the full adjudication table: 4 FIXED · 6
+  DECLINED WITH REASONS).
