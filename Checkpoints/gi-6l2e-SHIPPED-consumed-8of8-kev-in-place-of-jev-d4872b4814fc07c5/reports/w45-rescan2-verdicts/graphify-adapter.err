@@ -1,0 +1,8 @@
+[ocr] full-scan: 1 file(s) discovered, reviewing 1 in /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
+[ocr] estimated cost: ~1 file(s), est. 93K input + 5K output ≈ 98K total tokens (rough; actual reported after run)
+[ocr] scan dispatch: 1 batch(es) by by-language strategy
+[ocr] No tool calls parsed for src/hunter/graph/graphify-adapter.ts, retrying...
+[ocr]   ▶ code_comment
+[ocr]   ✘ code_comment failed: Error: failed to parse 'comments' JSON string: invalid character '\n' in string literal
+[ocr]   ▶ code_comment
+[ocr]   ✔ code_comment (8.447s)

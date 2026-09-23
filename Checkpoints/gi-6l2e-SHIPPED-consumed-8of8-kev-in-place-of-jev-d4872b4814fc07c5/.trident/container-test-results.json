@@ -1,0 +1,76 @@
+{
+  "phase": "F",
+  "wave": "W8",
+  "generatedAt": "2026-09-21T21:00:00Z",
+  "rig": {
+    "container": "stupefied_morse",
+    "image": "omp-ct:master",
+    "bun": "1.4.2",
+    "workdir": "/work/gi",
+    "hostSha": "R-D fix (uncommitted \u2014 see receipt)",
+    "distSha": "83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+  },
+  "method": {
+    "staging": "docker cp src/. <dest>/  + tests/. + packages/.  \u2014 the TRAILING SLASH: without it docker cp NESTS the directory",
+    "invocation": "docker exec stupefied_morse sh -lc 'cd /work/gi && /root/.bun/bin/bun test ./tests/ ./src/hydra/__tests__/'",
+    "honestScope": "THIS IS THE BATTERY RUN, not the scenario-driver Phase F. The container-testing skill's Phase F driver records a per-scenario passToken/failToken with byte offsets and tool-call-context verification. The battery was run DIRECTLY; the tokens below are the runner's own summary lines, captured verbatim. It satisfies the RIG requirement (a real clean-container execution) but NOT the full scenario-artifact contract. Named here so no reader over-claims it."
+  },
+  "scenarios": [
+    {
+      "id": "ct-v2.1-battery-post-RD",
+      "what": "the full battery in the clean container AFTER the R-D cache/version fix",
+      "passToken": "312 pass",
+      "failToken": "0 fail",
+      "expects": 1113,
+      "files": 30,
+      "wall": "3.54s",
+      "environment": {
+        "tmp": "cleaned",
+        "ambientKeyEnv": "absent"
+      },
+      "verdict": "PASS"
+    }
+  ],
+  "hostVsContainer": {
+    "host": {
+      "pass": 312,
+      "fail": 0,
+      "expects": 1107,
+      "files": 30
+    },
+    "container": {
+      "pass": 312,
+      "fail": 0,
+      "expects": 1113,
+      "files": 30
+    },
+    "deltaExpects": 6,
+    "deltaRootCause": {
+      "status": "ROOT-CAUSED \u2014 MEASURED; STABLE across four runs (pre-audit, post-audit, post-hotseat, post-RD)",
+      "components": [
+        "ABIDE",
+        "RSI_STORE",
+        "JEV"
+      ],
+      "perEntryExpects": 2,
+      "arithmetic": "3 differing components x 2 expects = +6",
+      "mechanism": "the register probes ABSOLUTE HOST PATHS; tests/st-gi-v2-deps.test.ts:112 asserts 2 expectations per down entry.",
+      "stability": "the delta has been +6 on the last three runs \u2014 an ENVIRONMENT property, unaffected by 70+ fixes."
+    }
+  },
+  "findings": [
+    {
+      "id": "CT-1",
+      "severity": "INFO",
+      "what": "the R-D fix is HERMETIC: 312/0 on host and container, 30 files each.",
+      "verdict": "HERMETIC"
+    },
+    {
+      "id": "CT-2",
+      "severity": "INFO",
+      "what": "the +6 expects delta is unchanged across four runs \u2014 an environment property, not a code effect.",
+      "verdict": "STABLE"
+    }
+  ],
+  "verdict": "PASS \u2014 312/0/1113 in the clean container after the R-D fix; hermetic; the delta is stable."
+}

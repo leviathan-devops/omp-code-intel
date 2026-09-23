@@ -1,0 +1,102 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 7,
+    "total_tokens": 130471,
+    "input_tokens": 118081,
+    "output_tokens": 12390,
+    "cache_read_tokens": 79157,
+    "elapsed": "3m35s"
+  },
+  "tool_calls": {
+    "total": 5,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 2,
+      "file_find": 1,
+      "file_read": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "containedScopeTarget canonicalization gap: `root` is never resolved via realpath, so `path.relative(root, real)` is wrong when `root` itself contains a symlink (e.g. /tmp -\u003e /private/tmp on macOS) — legitimate scopes falsely return null (fail-closed availability loss). Worse, the function returns unresolved `target` instead of `real`, so downstream `statSync/walk` operate on a symlink-containing path while the containment verdict was computed on the resolved path (TOCTOU/aliasing). Fix: `const canonRoot = fs.realpathSync(root)` (fallback to root) for the relative check and return `real` on success.",
+      "suggestion_code": "export function containedScopeTarget(root: string, rel: string): string | null {\n  const target = path.isAbsolute(rel) ? rel : path.join(root, rel);\n  let canonRoot: string = root;\n  try { canonRoot = fs.realpathSync(root); } catch { /* keep root */ }\n  try {\n    const real = fs.realpathSync(target);\n    const r = path.relative(canonRoot, real);",
+      "existing_code": "export function containedScopeTarget(root: string, rel: string): string | null {\n  const target = path.isAbsolute(rel) ? rel : path.join(root, rel);\n  try {\n    const real = fs.realpathSync(target);\n    const r = path.relative(root, real);",
+      "start_line": 62,
+      "end_line": 66,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "Unguarded content-hash recompute breaks fail-closed discipline: if `computeSourceHash` throws (fd open/read/close failure, EMFILE, EACCES race), the exception escapes `isGraphifyCheckoutFreshFor` instead of returning a named stale verdict, and bubbles through `populateFromGraphifyCheckout` as a rejected promise rather than `{ok:false, reason: GRAPHIFY_NOT_WARM:...}`. Wrap in try/catch and return `{fresh:false, reason:'stale-hash-error'}`.",
+      "suggestion_code": "  if (sidecarHash) {\n    let currentHash: string;\n    try {\n      currentHash = computeSourceHash(root, scope, excludes);\n    } catch {\n      return { fresh: false, reason: \"stale-hash-error\" };\n    }\n    if (currentHash !== sidecarHash) return { fresh: false, reason: \"stale-content\" };\n    return { fresh: true, reason: \"fresh\" };\n  }",
+      "existing_code": "  if (sidecarHash) {\n    const currentHash = computeSourceHash(root, scope, excludes);\n    if (currentHash !== sidecarHash) return { fresh: false, reason: \"stale-content\" };\n    return { fresh: true, reason: \"fresh\" };\n  }",
+      "start_line": 105,
+      "end_line": 109,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "TOCTOU size race can falsely report fresh: `size` comes from a pre-open `statSync`, then `Buffer.alloc(size)` + single `readSync` assumes it is still valid. If the file grows between stat and open (small-file branch), the new tail is silently ignored with no marker (read==size, no short-read marker) and collides with the pre-edit digest. Fix: `fstatSync(fd)` after open and hash the authoritative size, or loop reads and mark growth.",
+      "suggestion_code": "  const hashFile = (abs: string, anchor: string, sizeHint: number): void =\u003e {\n    let fd: number | null = null;\n    try {\n      fd = fs.openSync(abs, \"r\");\n      const size = fs.fstatSync(fd).size; // authoritative, post-open",
+      "existing_code": "  const hashFile = (abs: string, anchor: string, size: number): void =\u003e {\n    let fd: number | null = null;\n    try {\n      fd = fs.openSync(abs, \"r\");",
+      "start_line": 191,
+      "end_line": 194,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "First-run freshness bypass seeds a new store from a stale graph: when `storePath` is absent the probe is skipped (`first-run` =\u003e fresh) even if `graph.json`/sidecar is weeks old. \"Nothing to be stale\" is wrong — the new rows are stale. The warm-miss path should still run `isGraphifyCheckoutFreshFor` on first run (only the `absent` graph case already fails closed via the adapter's GRAPHIFY_NOT_WARM). Remove the bypass or treat first-run identical to the normal probe.",
+      "suggestion_code": "  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? [\"src\"], pinned.graph?.excludes ?? []);",
+      "existing_code": "  const storeExists = fs.existsSync(storePath);\n  const freshness = storeExists\n    ? isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, pinned.graph?.scope ?? [\"src\"], pinned.graph?.excludes ?? [])\n    : { fresh: true, reason: \"first-run\" };",
+      "start_line": 332,
+      "end_line": 335,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "Post-commit sidecar rehash introduces a stale-wins window: the hash is recomputed AFTER the DB COMMIT by re-walking the live tree. An edit landing between the pre-populate freshness check and this write makes the sidecar describe post-edit sources while `graph.json` is pre-edit, so the next probe matches and serves a stale graph as fresh. The sidecar must be written by the builder (scripts/graphify-build.ts) at build time, or the pre-check digest must be reused — never rehash mutable sources after commit.",
+      "suggestion_code": "    // Prefer reusing the pre-check digest or a builder-written sidecar.\n    // Do NOT rehash the live tree here: concurrent edits between check\n    // and commit would bind a post-edit hash to a pre-edit graph.\n    try {\n      const hash = computeSourceHash(path.resolve(root), pinned.graph?.scope ?? [\"src\"], pinned.graph?.excludes ?? []);\n      fs.writeFileSync(hashPath, hash, \"utf8\");",
+      "existing_code": "    try {\n      const hash = computeSourceHash(path.resolve(root), pinned.graph?.scope ?? [\"src\"], pinned.graph?.excludes ?? []);\n      fs.writeFileSync(hashPath, hash, \"utf8\");",
+      "start_line": 382,
+      "end_line": 384,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "Checkout/session parity drift: session `supersedeThenInsert` refuses only when BOTH tables are empty (edges-only allowed), but `writeGraphifyCheckout` throws on `nodeRows.length===0` even with non-empty edges. Checkout also skips `gi_meta` writes, omits `PRAGMA busy_timeout=5000` that `openTypedStore` sets, and uses `Date.now()` for the default runTag (same-ms collisions). Align the empty-guard, write the same meta keys, set busy_timeout, and use `randomUUID()`/counter for runTag.",
+      "suggestion_code": "  if (nodeRows.length === 0 \u0026\u0026 edgeRows.length === 0) throw new Error(\"GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)\");",
+      "existing_code": "  if (nodeRows.length === 0) throw new Error(\"GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)\");",
+      "start_line": 467,
+      "end_line": 467,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "content": "Byte-unbounded hashing + magic-number drift: `computeSourceHash` hardcodes `500` instead of `GRAPHIFY_FRESHNESS_BUDGET`, so changing the budget silently desyncs the mtime walk from the hash walk (stale-budget vs budget-exhausted marker mismatch). Worse, the budget counts files not bytes — 500 files x 8MB streamed whole = ~4GB I/O per probe, twice per populate (check + sidecar write). Use the exported constant and add a total-byte cap; also dedupe the repeated skip-list + extension regex into shared constants.",
+      "suggestion_code": "function computeSourceHash(root: string, scope: string[], excludes: string[]): string {\n  return hashSourceTree(root, scope, excludes, GRAPHIFY_FRESHNESS_BUDGET);\n}",
+      "existing_code": "function computeSourceHash(root: string, scope: string[], excludes: string[]): string {\n  return hashSourceTree(root, scope, excludes, 500);\n}",
+      "start_line": 274,
+      "end_line": 276,
+      "category": "performance",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "Fixing your single-hotspot freshness scan — extracting the key failure modes.",
+  "session_id": "b4de7941-d08d-4b8f-b250-9fee3df7f40d"
+}

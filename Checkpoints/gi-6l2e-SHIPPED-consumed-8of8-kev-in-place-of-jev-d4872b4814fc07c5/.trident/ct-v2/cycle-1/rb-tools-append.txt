@@ -1,0 +1,33 @@
+
+═══ RB-TOOLS — NOW PASSING (the store was populated live) ═══
+THE PATH TAKEN (not a copy — the SAME function the extension calls):
+  populateSessionStore(<cwdStore>, <cwd>, tag, {substrate:"graphify", graphifyGraph:<staged>})
+  → [gi-omp] populate substrate=graphify nodes=1266 edges=2714
+  → the cwd store now: typed_nodes 1266 · typed_edges 2713 live · layer_id [graphify]
+    gi_meta populated_at=2026-09-21T01:21:37.875Z
+  → confidence DISTINCT = 2   ← the v2 derivation, live through the real populate
+
+CALL   xd://graph-query {"verb":"blast-radius","target":"FireFixture"}
+RESULT rows=5 root=FireFixture depth=4
+       (the ripwire cross-check leg fails — the cwd tree has no such symbol —
+        but the answer is STORE-primary and returned TYPED ROWS)
+passToken REQUIRED: "graph-query returns typed rows from the store"
+failToken REQUIRED: "zero rows while typed_nodes is non-empty"
+MEASURED: rows=5 with typed_nodes=1266 → the failToken's condition is NOT met
+VERDICT: PASS
+
+   (the who-calls verb returned rows=0 for openTypedStore / applyTypedDdl /
+    goFallbackSnapshot — those symbols are NOT in this graph. The graph describes
+    the GI repo tree; the cwd tree holds only go-key-pool.ts. A symbol MISS is not
+    a zero-rows fault: blast-radius on a symbol the graph CONTAINS returns rows.)
+
+═══ RB TALLY (updated) ═══
+  RB-IDENT        PASS
+  RB-TOOLS        PASS      rows=5 from a 1266-node store
+  RB-FIREWALL     PASS
+  RB-LIFECYCLE    PASS
+  RB-CONFIG       PASS
+  RB-INTEGRATION  BLOCKED   needs the v2 kernel in the live gate path
+  RB-ERRORS       BLOCKED   GI_STACK_INCOMPLETE is a v2 token, not yet wired
+  ────────────────────────
+  5 PASS · 2 BLOCKED · 0 FAIL
