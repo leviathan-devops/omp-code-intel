@@ -1429,3 +1429,22 @@ AND THE RUNTIME NEVER CHANGED.
   LISTENER, not CONTENT — and the two-state ladder (`DOWN` → `UNCONSUMED` → `CONSUMED`) is
   exactly what told the difference. And: the au-engine's UNIT (a repo) must match the question
   being asked of it (the repo's code).
+
+### F-111b - THE au SUBSTRATE'S UNIT IS A REPO DECLARATION, NOT A SOURCE SYMBOL (2026-09-23)
+
+- **THE TEST:** declaring `deps: [name: au-mcp-sdk]` in `.arsumbris/repo.yaml` and restarting the
+  daemon. **MEASURED: `count` went 2 -> 6** — the daemon now holds the repo declarations PLUS
+  markdown notes (`body_events` with `kind: heading`).
+- **AND `instances evidence` STILL returns 6 with NONE matching the string `evidence`** — so the
+  probe's filter yields 0 facts and L2 stays `GI_LAYER_UNCONSUMED`.
+- **THE MECHANISM:** `au-engine`'s instance space is the **repo dependency graph + captured
+  notes/markdown**. Its claims are `au.engine.repo::au-engine` — a REPO, never a source symbol.
+  The GI probe asks it for facts about a CODE SUBJECT, so a populated-but-file-unaware daemon
+  answers `count:6` and matches nothing.
+- **THE HONEST CONCLUSION:** the remaining repair is a DESIGN task (populate the engine's
+  instance space with the repo's typed knowledge — e.g. an ingestion that emits `au.engine.*`
+  claims per module/symbol, or a probe that queries the engine's ACTUAL unit). It is NOT a
+  wiring fix, and NOT achievable by declaring more deps.
+- **Disposition:** **BLOCKED (named, with its remedy).** The code is CORRECT: a daemon that
+  holds nothing about the subject reports `UNCONSUMED`, never a silent pass. ★ NO TEST WAS
+  WEAKENED. The goal's gate correctly reads `consumed:7/8`.
