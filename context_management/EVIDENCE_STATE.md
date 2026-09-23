@@ -1,12 +1,12 @@
 # EVIDENCE_STATE — the verified evidence + the honest gaps
 
-**The dist SHA (the deployment fingerprint): 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad**
+**The dist SHA (the deployment fingerprint): 7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165**
 
 ## THE DIST SHA CHAIN
 
 ```
-deployed         3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad  613,039 B
-v2.1 blueprint   242f52c556151449  (41,853 B, 862 L — the design of record)
+deployed         7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165  613,039 B
+v2.1 blueprint   7d99a4f0aab46f00  (41,853 B, 862 L — the design of record)
 the measurement  jev-fire-measurement.json  bestT=0.40  bestF1=0.933  health.ok=false
 ```
 
@@ -217,7 +217,7 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 | **B/C/D** | `bunx tsc --noEmit` exit 0 with the 8 adapters + the registry + the wiring | GREEN |
 | **D-2 (the dist)** | the dist-content gate: 8/8 symbols present, 613 KB → 9.42 MB | GREEN |
 | **E-1** | `bun test tests/st-gi-6l2e.test.ts` → 13 pass / 0 fail / 82 expect() | GREEN |
-| **E-2 (deploy)** | local sha `53d27ac0f4184ade` == container sha | MATCH |
+| **E-2 (deploy)** | local sha `7d99a4f0aab46f00` == container sha | MATCH |
 | **E-2 (auth)** | the model answered; the status bar read "Laguna S 2.1 (free)" | PASS |
 | **E-2 (the tool)** | the TUI tool result: `consumed:2/8 rungs=settlement` with L5 facts=16 / L6 facts=8 | PASS |
 | **E-2 (the negative)** | scopeRoot=/tmp → `consumed:0/8`, every consumer DOWN; `consumed:8/8` ABSENT | PASS |
@@ -229,8 +229,8 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `3e2c2207c247a069`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `406a01d12d16153f` (two rebuilds
+** sha256_16 `7d99a4f0aab46f00`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `7d99a4f0aab46f00` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3e2c2207c247a069`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `7d99a4f0aab46f00`; `find src -newer` = 0;
 the container deploy sha MATCHES.

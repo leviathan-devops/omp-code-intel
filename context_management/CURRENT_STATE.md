@@ -1,6 +1,6 @@
 # CURRENT_STATE — GI Kernel v2.0 + v2.1 (the architecture AS IT ACTUALLY IS)
 
-**dist SHA: 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad** · 2026-09-21
+**dist SHA: 7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165** · 2026-09-21
 
 ## THE ARCHITECTURE NOW (not as designed — as it is)
 
@@ -239,7 +239,7 @@ derivePolicy(profile, counts) → { calibrated: false,
 # ★ THE 6L+2E STATE (2026-09-22, HEAD f6fca91)
 
 ## THE DIST (the artifact)
-`extensions/graph-intelligence/index.js` sha256_16 **`a8583082a24c3b38`** · **9,426,889 B**
+`extensions/graph-intelligence/index.js` sha256_16 **`7d99a4f0aab46f00`** · **9,426,889 B**
 ★ 613 KB → 9.42 MB. **THE DIST-CONTENT GATE PASSES** — every v2.x symbol is present
 (`consumptionAudit` `createLayerRegistry` `corbellProbe` `graphifyProbe` `arsumbrisProbe`
 `tsgProbe` `abideProbe` `gi-consumption` all = 2). `find src -newer <dist>` = **0**.
@@ -277,10 +277,10 @@ tests/st-gi-6l2e.test.ts           244 L  the 13-test adversarial-first suite
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `3e2c2207c247a069`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `406a01d12d16153f` (two rebuilds
+** sha256_16 `7d99a4f0aab46f00`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `7d99a4f0aab46f00` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3e2c2207c247a069`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `7d99a4f0aab46f00`; `find src -newer` = 0;
 the container deploy sha MATCHES.
 
 ---
@@ -326,7 +326,7 @@ zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (617 L)
 ★ THE GATE IS **CLEARED**: AUDIT GATE: PASS (0 critical / 0 high).
 ```
 **THE STATE:** tsc exit 0 · 26 pass / 0 fail · 349 pass / 0 fail · consumed:7/8 ·
-dist 82bad22c3687d21e · src_newer 0 · the dist-content gate PASS · the container MATCH.
+dist 7d99a4f0aab46f00 · src_newer 0 · the dist-content gate PASS · the container MATCH.
 ## THE RETRY CONDITION
 ```
 ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \

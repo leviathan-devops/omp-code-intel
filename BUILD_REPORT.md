@@ -689,3 +689,25 @@ V-96 + P-53 · TESTING_LOG (P4 + E-2 + the corpus) · THEATRICALITY_LOG TH-OC-01
 **The honest notes:** (1) `consumed:8` is BLOCKED on the operator's TSG credits (HTTP 402);
 (2) ★ `consumed:N/8` IS SUBJECT-DEPENDENT (7/8 for `evidence`, 4/8 for `populateSessionStore`);
 (3) the container carries only L5/L6; (4) the post-fix code-audit is BLOCKED (F-97).
+
+
+---
+
+## 2026-09-23 — THE AUDIT GATE WAVE: THE 2 HIGH FINDINGS FIXED (F-101) + THE GATE PASS
+
+**The built:** the fix for HIGH #1 (`layerCertifications()` — the pure filter that stops a
+KERNEL consumer's fact being cast as a `LayerId`) and HIGH #2 (the graph-probe wipe now returns
+`WIPE_AUDIT_FAILED` + `ok:false` on a failed audit, and CALLS `clearGiRegistry()` — it was a
+dead import). Plus `tests/st-gi-audit-fixes.test.ts` (3 pins, one mounting the DEPLOYED bundle).
+**The why:** the code-audit (ocr, the GO `mimo-v2.5` lane, session `2bced5f8`) returned
+`high: 2 · medium: 4 · low: 7` → **AUDIT GATE: FAIL**. Both HIGH findings were on the F-98 code.
+★ The operator's lane ruling honoured: **muse on GO, never verboo**.
+**The how:** read both findings in full, adjudicated BOTH as REAL (an invalid cast; a fabricated
+PASS + a dead import), fixed them, and RE-AUDITED.
+**The evidence:** the audit `2bced5f8` (before) `{'high': 2, 'low': 7, 'medium': 4}` →
+`e0c136e3` (after) `{'medium': 6, 'low': 4}` → **AUDIT GATE: PASS (0 critical/high)** · dist
+`sha256 7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165` · tsc 0 · the battery 360 pass / 0 fail · the audit-fix pins 3 pass / 0 fail.
+**The verification:** FAILURE_LOG F-101 · DEBUG_LOG EN-6L2E-12/13 · TESTING_LOG (the audit gate
+result) · `artifacts/AUDIT_GATE_F98.md` + the 2 session jsonl copies.
+**The honest notes:** (1) 6 medium + 4 low findings remain in the post-fix audit — recorded, not
+suppressed; (2) `consumed:8` is still BLOCKED on the operator's TSG credits.
