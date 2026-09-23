@@ -1860,6 +1860,10 @@ the dist 82bad22c3687d21e
   `corbell-data/workspace.yaml` (now `repo: ../src`) · `/tmp/corbell-nr.log`
 
 ### SCRIPT
-- **The run:** `bun test tests/st-corbell-port.ts`
-- **The verdict:** PENDING (the gate-drift lockout blocked the test edit; retried after the window)
-- **The artifacts:** `tests/st-corbell-port.ts`
+- **The run:** `bun test ./tests/st-corbell-port.ts`
+- **The raw output:** `7 pass` · `0 fail` · `33 expect() calls` · `Ran 7 tests across 1 file. [1169.00ms]`
+- **The verdict:** **PASS** — passToken `7 pass` / `0 fail` observed in the tool output; the new
+  `(a2)` asserts the scope derivation across `["src"]`, `["src","identity"]`, `["./src"]`,
+  `["src/"]`; the rewritten `(a)` asserts `repo: ../src` and NOT `repo: ..\n`.
+  failToken `repo: ..\n` ABSENT.
+- **The artifacts:** `tests/st-corbell-port.ts` · `src/hunter/graph/corbell-adapter.ts`
