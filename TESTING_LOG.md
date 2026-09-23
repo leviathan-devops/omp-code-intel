@@ -1980,3 +1980,39 @@ the dist 82bad22c3687d21e
 - **The raw output:** `1 pass · 0 fail` — the corpus is 7 fixtures (the 7th: TIER B · CLASS D,
   the unwired module), with an explicit `fixtures.length === 7` assertion.
 - **The verdict:** **PASS.**
+
+## TEST RESULT — 2026-09-23 — THE AUDIT GATE (the literal verdict line)
+
+### SCRIPT
+- **The run:** the code-audit artifact on disk is `/tmp/gate-mimo.json` (the 04:35 run,
+  `session_id 65fd1c7d-6a78-40b8-8bbe-7a272022e26b`, 34 files, **0 critical / 0 high** — the
+  full-workspace range review `640da98..HEAD`, which INCLUDED `src/hunter/graph/corbell-adapter.ts`).
+- **★ AUDIT GATE: BLOCKED (the post-fix re-audit lane)** — the targeted re-audit of the F-98
+  changed files could not complete: the ocr LLM lane is unconfigured for a fresh provider in
+  this cwd (`provider "openai" is set but not configured in providers section`), and the earlier
+  attempts aborted (`all 1 file scan(s) failed — check your LLM configuration and API key`).
+  A range re-review (`95d2fac..HEAD`, the 9 F-98 commits) was fired to retry the lane.
+- **The standing artifact's verdict (its own scope + SHA):**
+  **AUDIT GATE: PASS (0 critical/high)** for the 04:35 run — covering `corbell-adapter.ts` at
+  `82bad22c`. ★ NOT claimed for the post-fix dist (`3fdcef25473e4b76`).
+- **★ THE RETRY CONDITION:** restore the ocr provider config (the one the 03:43 run used), then
+  `ocr scan --path src/omp/decision.ts,src/omp/extension.ts --format json` from the REPO cwd.
+- **The artifacts:** `/tmp/gate-mimo.json` (the CLEARED run) · `/tmp/sg-ocr-f98.json` (the retry)
+
+
+## TEST RESULT — 2026-09-23 — THE AUDIT GATE: PASS (the F-98 code, post-fix)
+
+### SCRIPT
+- **The run:** `ocr scan --path src/omp/decision.ts,src/omp/extension.ts --provider muse-go-mimo
+  --format json` — **the operator's lane ruling honoured (muse on GO, never verboo)**. Measured
+  live: `mimo-v2.5` on the GO proxy = `http=200`; `muse-spark-1.3-contributor`'s GO endpoint
+  was `503`. ★ The operator's note: **muse needs the RESPONSES api; mimo works on chat
+  completions.**
+- **The two runs (the durable ocr session files):**
+  `2bced5f8` (BEFORE the fixes): `{'high': 2, 'low': 7, 'medium': 4}` → **AUDIT GATE: FAIL (2)**
+  `e0c136e3` (AFTER the fixes):  `{'medium': 6, 'low': 4}` → **AUDIT GATE: PASS (0 critical/high)**
+- **The verdict:** **PASS** — the 2 HIGH findings of the first run are GONE. The artifact:
+  `artifacts/AUDIT_GATE_F98.md` + the session jsonl copies.
+  failToken: `'high': ` in the post-fix severity count — ABSENT.
+- **The artifacts:** `artifacts/AUDIT_GATE_F98.md` ·
+  `artifacts/audit-session-2bced5f8-FAIL.jsonl` · `artifacts/audit-session-e0c136e3-PASS.jsonl`
