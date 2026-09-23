@@ -710,3 +710,34 @@ consumed:6/8 — L5 CORBELL awaits its rebuild (the A3 gate refused the stale st
 **★ 9 of 10 A-scenarios are green. A9 is BLOCKED on the TypeSafe key's credits.**
 ★ And A3/A6 — the two the gate's model could never have checked — were **MISSING** and are now
 IMPLEMENTED, each proven by the tests.
+
+---
+
+# 18 · ★★ A9/TSG — THE DEFINITIVE ANSWER (the vendor's own words)
+
+The operator supplied a **fresh TypeSafe key**. Applied (0600, never logged) and probed.
+
+## ★ THE KEY IS VALID — THE ORGANIZATION HAS NO CREDITS
+```
+curl https://api.typesafe.ai/v1/systemone  (Bearer <the fresh key>)
+  → HTTP 402
+  → {"detail": {"error_type": "billing_error",
+       "message": "Your organization has no available TypeSafe API credits. Please add more
+                   credits and/or set up auto-reload at
+                   https://console.typesafe.ai/settings/billing"}}
+```
+**★ THE AUTHENTICATION SUCCEEDED** (a bad key is `401`; this is `402` — a BILLING refusal).
+**THE ORGANIZATION HAS ZERO CREDITS.**
+
+## ★ THE VERDICT ON `consumed:8`
+**TSG is the ONLY consumer that cannot be produced on this host, and its blocker is now
+definitively characterized by the VENDOR's own message:**
+> *"Your organization has no available TypeSafe API credits."*
+
+**THE FIX IS AN OPERATOR ACTION, NAMED AND LINKED:**
+`https://console.typesafe.ai/settings/billing` — add credits or enable auto-reload.
+**★ THE MOMENT THE ORGANIZATION HAS CREDITS, TSG CONSUMES: the adapter, the key resolver, the
+argv shape, and the JSON parsing are all built, tested, and verified — the only missing input is
+the vendor's balance.**
+★ **NO SUBSTITUTE WAS SUBSTITUTED.** The tsg edge returns `GI_LAYER_ERROR:TSG` with the vendor's
+message — a NAMED, diagnosable state. It never fabricates a meaning verdict.
