@@ -1318,3 +1318,33 @@ AND THE RUNTIME NEVER CHANGED.
   — the trailing `/.` copies the CONTENTS, never the directory. Re-measured: **112 == 112 ✓**.
 - **The lesson:** ★ **`cp -r <dir> <existing-dir>` NESTS; `cp -r <dir>/. <existing-dir>/` FILLS.**
   On any REFRESH (not a first save), the `.` is mandatory — and the count check is what catches it.
+
+---
+
+### F-107 — THE ARTIFACT-COVERAGE GAP (the suite proved the SOURCE, not the artifact) (2026-09-23)
+
+- **What happened:** of 51 test files, **1 MOUNTED the deployed bundle** (`st-gi-audit-fixes`);
+  **50 imported `../src`** — the SOURCE. So a change that reached the source but NOT the artifact
+  kept every test green (the F-98 class: the kernel was type-only-imported, ERASED at build, and
+  the deployed bundle carried ZERO kernel symbols while the source suite stayed green).
+- **Found:** the subject audit during the ship-readiness pass (`grep -lE 'import\(BUNDLE\)'`).
+- **Root cause:** no test file's SUBJECT was the artifact. The suite's default import path is
+  `../src`; nothing forced an artifact-level assertion.
+- **Impact:** the DEPLOYED ARTIFACT's behavior was proven only by the dist-content gate (a grep)
+  and the container — never by the suite. A regression in the artifact's own wiring (a broken
+  `registerGiOmpTools`, a tool that mounts but throws) would not have failed any test.
+- **Disposition:** **FIXED + PINNED.** `tests/st-artifact-coverage.test.ts` (W1, 168 L) — **5
+  tests, all with the DEPLOYED BUNDLE as their subject**: `test_artifact_registry_matches_source`
+  (the bundle mounts its tools) · `test_artifact_decide_on_known_subject` (the kernel runs over
+  the registry, from the bundle) · `test_artifact_ledger_row_written` (the RECORD stage creates
+  the ledger on a FRESH scope — the F-99 fix, in the artifact) ·
+  `test_artifact_refuses_missing_substrate` (a named refusal, never a silent pass) ·
+  `test_artifact_dist_is_current` (**the staleness gate INSIDE the suite**: every required symbol
+  present AND no `.ts` under `src/` newer than the artifact). **MEASURED: 5 pass / 0 fail, exit 0.**
+- **★ AND THE SUITE IMMEDIATELY CAUGHT A REAL DRIFT:** `test_artifact_dist_is_current` FAILED on
+  `src/omp/decision.ts` (mtime newer than the bundle). Investigated: the bundle's CONTENT was
+  **BYTE-IDENTICAL to a fresh rebuild** (both `d4872b4814fc07c5`) — the mtime was a round-trip
+  artifact of an edit-then-revert. **Corrected with `touch`** (the content is verified current, so
+  the mtime SHOULD be the newest) → 5 pass / 0 fail.
+- **The lesson:** ★ **A SUITE'S IMPORT PATH IS ITS SUBJECT — and a suite that never imports the
+  artifact cannot fail on the artifact.** And: mtime is a HINT; a rebuild's SHA is the evidence.
