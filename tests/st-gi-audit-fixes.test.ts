@@ -139,3 +139,36 @@ describe("st-gi-audit-fixes: the 2026-09-23 code-audit's HIGH findings", () => {
     }
   });
 });
+
+describe("st-gi-audit-fixes: ★ THE PREDICATE LAW — consumed:N/8 must FAIL when violated", () => {
+  // ★ THE MEASURED DEFECT (2026-09-23): `scripts/consumption-audit.ts` exited 0 for a subject
+  // with NO facts AND for an empty scope — the goal's "DONE only when the register reads
+  // consumed:8" was DOCUMENTATION, not a predicate. THE EXIT TEST: does something exit NONZERO
+  // when the condition is violated? These pins assert it does.
+  const SCRIPT = path.resolve(import.meta.dir, "..", "scripts", "consumption-audit.ts");
+  const REPO = path.resolve(import.meta.dir, "..");
+
+  const run = (args: string[]): number => {
+    const r = Bun.spawnSync(["bun", SCRIPT, ...args], { cwd: REPO, stdout: "pipe", stderr: "pipe" });
+    return r.exitCode;
+  };
+
+  test("test_consumption_predicate: --gate PASSES at 8/8 (exit 0)", () => {
+    expect(run([REPO, "evidence", "--gate"])).toBe(0);
+  }, 300_000);
+
+  test("test_consumption_predicate: --gate FAILS below the bar (exit 1, a NAMED error)", () => {
+    // a subject no consumer knows ⇒ every consumer is UNCONSUMED ⇒ consumed < 8 ⇒ EXIT 1
+    expect(run([REPO, "ThisSubjectHasNoFactsAtAll", "--gate"])).toBe(1);
+  }, 300_000);
+
+  test("test_consumption_predicate: --expect is explicit (exit 1 for an impossible bar)", () => {
+    expect(run([REPO, "evidence", "--expect", "99"])).toBe(1);
+    expect(run([REPO, "evidence", "--expect", "8"])).toBe(0);
+  }, 300_000);
+
+  test("test_consumption_predicate: no flag keeps the plain read (exit 0)", () => {
+    // the predicate is OPT-IN so the operator's plain read never breaks a pipeline
+    expect(run([REPO, "ThisSubjectHasNoFactsAtAll"])).toBe(0);
+  }, 300_000);
+});

@@ -1038,3 +1038,13 @@ abide) are HOST-side. The register reports the container's REAL state, never a c
 substituted and is the STRONGER evidence (it imports the artifact, not a model's account of it).
 **Lesson:** ★ the container proof's subject is the DEPLOYED BUNDLE, not the model driving it —
 a dead model endpoint blocks the TUI path but not the artifact proof.
+
+## EN-6L2E-19 · THE DONE CONDITION BECOMES A PREDICATE (2026-09-23)
+**Finding:** `scripts/consumption-audit.ts` exited 0 for a no-fact subject and an empty scope —
+the goal's `consumed:8` DONE condition was DOCUMENTATION.
+**Fix:** `--expect <N>` (consumed < N ⇒ `GI_CONSUMPTION_BELOW_EXPECTED` + exit 1) and `--gate`
+(= `--expect 8`). The positional parsing skips the flag and its value.
+**Verification:** the exit test — `--gate` 8/8 → exit 0; a no-fact subject → exit 1; an empty
+scope → exit 1; no flag → exit 0. 4 pins added (`test_consumption_predicate*`).
+**Lesson:** ★ the exit test is the only proof a predicate exists — and the FIRST place to apply
+it is your own completion claim.

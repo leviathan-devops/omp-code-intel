@@ -1204,3 +1204,31 @@ AND THE RUNTIME NEVER CHANGED.
   reported clear that never cleared). Neither was visible to a green battery (357/0 at the time).
   ★ AND: a code-audit artifact's SHA going stale is a FEATURE — it forced the re-run that found
   these.
+
+---
+
+### F-102 — THE DONE CONDITION WAS DOCUMENTATION, NOT A PREDICATE (2026-09-23)
+
+- **What happened:** the goal's headline DONE condition — *"DONE only when the register reads
+  `consumed:8`"* — had **no mechanical enforcement**. Measured (the exit test):
+  `bun scripts/consumption-audit.ts <root> evidence` → **exit 0**;
+  `… <root> ThisSubjectHasNoFactsAtAll` (a subject no consumer knows) → **exit 0**;
+  `… /tmp/empty-scope-xyz evidence` (every consumer DOWN) → **exit 0**.
+  **NOTHING FAILED when the condition was violated.**
+- **Found:** applying the PREDICATE LAW to my own completion claim — the exit test on the
+  condition I was about to declare met.
+- **Root cause:** `scripts/consumption-audit.ts` had NO exit-code logic. It printed the summary
+  and returned 0 unconditionally. A `console.log` is not a gate.
+- **Impact:** every `consumed:N/8` claim in this build rested on an operator READING a number,
+  never on a command FAILING — the goal's own anti-theatrical law ("the gate must block") was
+  violated by the gate the goal's DONE condition depends on.
+- **Disposition:** **FIXED + PINNED.** `--expect <N>` makes it mechanical (consumed < N ⇒
+  `GI_CONSUMPTION_BELOW_EXPECTED: consumed:N/8 < expected:M — offenders=…` on stdout AND
+  **exit 1**); `--gate` is the shorthand for the goal's own bar (8). The flag is OPT-IN so the
+  operator's plain read is unchanged.
+  **RE-MEASURED (the exit test):** `--gate` at 8/8 → **exit 0** · a no-fact subject → **exit 1**
+  · an empty scope → **exit 1** · no flag → **exit 0**. Pinned by 4 tests
+  (`test_consumption_predicate*`, 10 pass / 0 fail in the suite).
+- **The lesson:** ★ **A PRINTED NUMBER IS NOT A GATE.** The exit test — *does something exit
+  NONZERO when this is violated?* — is the only proof a predicate exists. Apply it to your OWN
+  completion condition before claiming it.
