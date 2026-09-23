@@ -10,6 +10,7 @@
     "test:all": "bun test ./tests/st-gi-omp-scope.ts ./tests/st-gi-omp-refuse.ts ./tests/st-gi-omp-wipe.ts ./tests/st-gi-omp-tools.ts ./tests/st-gi-omp-isolate.ts ./tests/st-gi-omp-gate.ts ./tests/st-gi-omp-corrupt.ts ./tests/st-gi-omp-populate.ts --timeout 120000"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.0",
     "typescript": "5.9.3",
     "xstate": "^5.33.0",
     "zod": "4.1.8"
