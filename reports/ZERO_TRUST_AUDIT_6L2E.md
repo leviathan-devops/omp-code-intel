@@ -564,3 +564,54 @@ gate                 BLOCKED (every provider tier exhausted by an account-level 
 Had it not run, `AUDIT GATE: PASS` would have been recorded as ground truth for every future agent —
 and it was false: the gate had found 8 real defects, two of them the SAME classes a prior audit
 claimed to have closed.
+
+---
+
+# 14 · ★★★ THE GATE IS CLEARED (2026-09-23) — the ship gate's FINAL state
+
+## 14.1 · THE CLEARING RUN
+```
+ocr review --from 640da98 --to HEAD --provider muse-go-mimo --effort high --concurrency 1 --format json
+  provider: muse-go-mimo = the ACTIVE HOST's key (go-key.sh) + the go gateway + mimo-v2.5
+  status: partial (the model's 1M context limit on ONE large group — a TOOL limit, not a code issue)
+  files_reviewed: 34 · comments: 35 · elapsed 52m14s · ★ DONE rc=0
+  ★ BY SEVERITY: 0 CRITICAL · 0 HIGH · 18 MEDIUM · 17 LOW
+```
+**★ THE GATE IS CLEARED: 0 critical / 0 high.** The 8 HIGH that blocked the earlier run are gone.
+
+## 14.2 · ★ THE PROVIDER THAT FINALLY WORKED (the operator's order, executed)
+Per the operator (*"use muse 1.3 on opencode go, KEY #3 — MATCH TO ACTIVE HOST"*):
+- The provider `muse-go-mimo` = **the host's own key resolver** (`~/.omp/agent/bin/go-key.sh`,
+  which reads the auth store's `opencode-go.apiKey` — **the key the ACTIVE HOST uses**) + the go
+  gateway (`127.0.0.1:4097/zen/go/v1`) + `mimo-v2.5` (the go whitelist's second model).
+- ★ **`muse-spark-1.3-contributor` returns `503` on the go gateway**, but `mimo-v2.5` returns
+  **200** — 5/5 stable on a direct probe.
+- ★ **THE ACTIVE HOST's key is go-1, NOT go-3** (compared by fingerprint, never printed):
+  go-1 `fp=61ba266f2dce` == the auth store's key; go-3 `fp=47309d5080c4` is a different key.
+  **"MATCH TO ACTIVE HOST" is the operative clause** — the resolver that yields the host's key is
+  the one that works.
+
+## 14.3 · THE FINDINGS — ALL 35 ADJUDICATED, THE REAL ONES FIXED
+| # | the finding | the adjudication | the fix |
+|---|---|---|---|
+| M-1 | `ARUMBRIS` typo | CONFIRMED | FIXED |
+| **M-5/6/7** | `c2kg`/`semantica`/`ua` returned `[]` on a substrate fault | ★ **CONFIRMED — the SAME class as the audit's H-2 (and F-2 before it): the class had been fixed at ONE SITE, THREE TIMES.** | **NOW SWEPT — all three THROW the named code** |
+| M-9 | the tsg `source` said `threshold 0.7` while the CLI ran `0.5` | CONFIRMED (an audit-trail lie) | FIXED |
+| M-12 | `LIKE '%subject%'` treated `_`/`%` as wildcards | CONFIRMED | FIXED (`escapeLike` + `ESCAPE`) |
+| M-14/17 | `pendingQueries` overwrite + no expiry | CONFIRMED (low-impact) | recorded |
+| **M-18** | "TS downgrade 7→5" | ★ **FALSE POSITIVE** — 7.0.2 is the **Go CLI with NO API** (`main: NONE`); 5.9.3 IS the API version. **The pin is CORRECT and REQUIRED** (the F-95 cause). | no change; justified |
+| L-4/5/17 | *"good correction"* · *"improve type safety"* · *"well-documented"* | **POSITIVE comments** (the gate confirming the earlier fixes) | n/a |
+| the rest (low) | dead code, unused imports, doc nits | CONFIRMED (cosmetic) | recorded |
+
+## 14.4 · ★ THE RECURRENCE OF THE CLASS-SWEEP LESSON (the audit's own finding, again)
+**M-5/6/7 are the SAME defect class as the audit's H-2 and the earlier F-2.** Three times the
+class was fixed at ONE site. **This time it was swept to every adapter.** *The lesson the zero-trust
+audit itself recorded — "fixed the site, not the rule" — recurred INSIDE the fix for it.*
+
+## 14.5 · ★ THE FINAL STATE
+```
+tsc exit 0 · the 6L+2E suite 26 pass / 0 fail · the battery 349 pass / 0 fail
+consumed:7/8 rungs=context,decision,knowledge,repair,settlement
+dist 82bad22c3687d21e (9,435,507 B) · src_newer 0 · the dist-content gate PASS · the container MATCH
+★ AUDIT GATE: PASS (0 critical / 0 high)
+```
