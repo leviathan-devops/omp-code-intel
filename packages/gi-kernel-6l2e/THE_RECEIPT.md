@@ -379,3 +379,49 @@ not a measurement.
 4. **A REFUSAL MESSAGE MUST TEACH THE SYNTAX ITS PARSER ACCEPTS.** `GI_TARGET_ROOTS` splits on
    `'|'` (W44); the refusal joined with `':'` — the very separator W44 removed — so an
    operator wrote a form the parser rejects. FIXED (`roots.join("|")` + `(separator '|')`).
+
+---
+
+# §13 · THE LEGAL STOP — THE RECEIPT (2026-09-23)
+
+## ★ THE COMPLETION PREDICATE (the exit test for the claim)
+```
+$ bun scripts/goal-verify.ts <root> evidence
+  C1 PASS  the register reads consumed:8 (not up=11/11)
+  C2 PASS  the 7-class corpus settles at $0 with its SPECIFIC tokens
+  C3 PASS  the container Phase-E is 10/10 + the negative suite
+  C4 PASS  the host-live seat operated the kernel with a non-empty bug ledger
+  C5 PASS  the seal + receipt exist
+★ THE PREDICATE PASSED: 5/5 conditions met          ← EXIT 0
+```
+**AND THE NEGATIVE CONTROL:** a subject no consumer knows → `C1 FAIL` + `GI_GOAL_NOT_MET` +
+**exit 1**; an empty scope → **exit 1**. ★ BOTH DIRECTIONS MEASURED.
+
+## THE SIX ITEMS THE STOP NAMES
+| the STOP's item | the artifact | the measured value |
+|---|---|---|
+| the baseline diff | this session's FAILURE_LOG F-95…F-103 · the pinned numbers vs the measured |
+| the battery | `bun test` | **370 pass · 0 fail** |
+| the audit verdict | `ocr` (the GO mimo lane, sessions `2bced5f8`→`e0c136e3`) | **AUDIT GATE: PASS (0 critical/high)** |
+| the runtime ledger | `.omp/graph-intelligence/fire-decisions.db` | **1 row** (`kernel-v2:dumb:STEER`) |
+| the container Phase-E artifact | `.trident/plan-6l2e/phaseE.json` + `phaseE-kev.json` | **14/14** host · **7/7 executed, 0 BLOCKED** KEV |
+| the checkpoint path | `Checkpoints/gi-6l2e-complete-d4872b4814fc07c5` | dist byte-identical |
+
+## THE DIST (THE ARTIFACT)
+```
+sha256 d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5
+repo dist == the deployed bundle : YES · find src -newer <bundle> = 0
+runKernelV2 · decideFromRegistry · layerCertifications · kevProbe · isUniform · gi-decide — all > 0
+```
+
+## ★ THE GOAL'S HEADLINE
+`consumed:8/8` — all 6 graph layers (L1 SEMANTICA · L2 ARSUMBRIS · L3 UA · L4 C2KG ·
+L5 CORBELL · L6 GRAPHIFY) + both Jev kernels (TSG · ABIDE) WIRED as inputs to the decision.
+★ TSG is served by the LOCAL **KEV-0.6b-ONNX** model, in place of the blocked remote Jev.
+
+## THE HONEST REMAINDER
+1. The container's KEV rig consumes TSG only (`consumed:1/8` there) — the other 7 consumers need
+   the HOST-side substrates; the register reports the container's REAL state.
+2. 6 medium + 4 low audit findings remain — adjudicated (4 FIXED · 6 DECLINED WITH REASONS) in
+   `artifacts/AUDIT_GATE_F98.md`.
+3. KEV's out-of-domain accuracy is the 0.6B model's (~0.60 per its card).
