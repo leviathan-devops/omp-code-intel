@@ -1928,3 +1928,34 @@ the dist 82bad22c3687d21e
      GI_TARGET_ROOTS to extend`. A LOUD, NAMED refusal with the fix in the message — never a
      silent wrong answer. The rig was relaunched with `GI_TARGET_ROOTS=/root/gi-scope:/tmp`.
 - **The verdict:** PASS for the mount + the refusal; the tool then ran against the scoped root.
+
+## TEST RESULT — 2026-09-23 — E-2 THE CONTAINER PROOF (the kernel decides in a headed TUI)
+
+### CONTAINER
+- **The run:** `gi-6l2e-ct` (omp-ct:master, image `988d8bde1f87`). The dist
+  `87f10741b381f9c6` deployed byte-identical (`docker cp`; md5 agrees `720129ee907334bb`).
+  The TUI RESTARTED (the extension loads at session start). The model drove:
+  `Call the gi-decide tool with subject evidence and scopeRoot /root/gi-scope. Report its raw
+  output verbatim.`
+- **The raw output (capture-pane, verbatim):**
+  `● Read xd://gi-decide` · `• gi-decide` · `└─ subject="evidence", scopeRoot="/root/gi-scope"`
+  `verdict=REFUSE   class=benign   code=GI_STACK_INCOMPLETE:L4_C2KG`
+  `layersWired=6/8 · influenced=ABIDE`
+  `reason=GI_LAYER_C2KG (L4_C2KG needs the code-to-knowledge-graph LSP index;
+  /root/gi-scope/.c2kg/index.json — ENOENT) | GI_LAYER_UA (… .ua/knowledge-graph.json — ENOENT) |
+  GI_LAYER_ARSUMBRIS (… /root/.arsumbris/au-engine/run — ENOENT) | GI_LAYER_SEMANTICA (…
+  semantica/kg.json — ENOENT)`
+  `stage 0 PREFLIGHT   REFUSE   4 layer(s) DOWN: L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA`
+  `graph: store=…/corbell-checkout/store.sqlite   settles=true   fires=0`
+  `policy=3@the seed policy set (no policy.json on disk — the named fallback)`
+  `M-GRAPH-3   settles=true   action=IGNORE   the graph store is STALE — no fact is served from it`
+- **The verdict:** **PASS** — passTokens in the TUI's tool-result context: `• gi-decide`
+  (the tool MOUNTED and RAN), `stage 0 PREFLIGHT   REFUSE` (the kernel asked all 6 layers),
+  `GI_STACK_INCOMPLETE:L4_C2KG` (the kernel's named refusal), and `M-GRAPH-3 … the graph store
+  is STALE — no fact is served from it` (the stale-store law in runtime).
+  failToken: a silent pass / a `rows=0` answer — ABSENT (every absent substrate is NAMED).
+- **The artifacts:** `.trident/plan-6l2e/phaseE-kernel-decision.json.md` (75 L, the transcript)
+  · the rig's `.omp/graph-intelligence/fire-decisions.db` (16384 B)
+- **★ THE HONEST READING:** the container carries ONLY L5/L6 substrates; L1-L4 are HOST-side
+  and were never produced in the rig. The REFUSE is the CORRECT answer to the container's real
+  state. The E-2 purpose — the DECISION MECHANISM in a headed TUI — is proven.
