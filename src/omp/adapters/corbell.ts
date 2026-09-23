@@ -10,7 +10,7 @@
 import * as path from "node:path";
 import { CORBELL_CHECKOUT_REL } from "../populate-corbell.ts";
 import type { ConsumerProbe, LayerFact } from "../layer-registry.ts";
-import { probePath, storeFacts } from "./_shared.ts";
+import { assertStoreFresh, probePath, storeFacts } from "./_shared.ts";
 
 export function corbellProbe(scopeRoot: string): ConsumerProbe {
   const storePath = path.join(scopeRoot, CORBELL_CHECKOUT_REL);
@@ -20,6 +20,10 @@ export function corbellProbe(scopeRoot: string): ConsumerProbe {
     dependency: "the corbell parse-grade checkout (PRIMARY)",
     errorCode: "GI_LAYER_CORBELL",
     up: () => probePath(storePath, true),
-    facts: (subject: string): LayerFact[] => storeFacts("L5_CORBELL", "settlement", storePath, subject),
+    facts: (subject: string): LayerFact[] => {
+      // ★ DPL1 §7 A3: refuse a verdict from a STALE store.
+      assertStoreFresh(storePath);
+      return storeFacts("L5_CORBELL", "settlement", storePath, subject);
+    },
   };
 }

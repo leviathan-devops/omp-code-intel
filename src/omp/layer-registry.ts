@@ -86,7 +86,10 @@ export interface ConsumptionReport {
   factsDiscarded: number;
   /** ★ THE ONLY GREEN: up AND factsReturned > 0 */
   consumed: boolean;
-  verdict: "CONSUMED" | "GI_LAYER_UNCONSUMED" | "GI_LAYER_DOWN";
+  // ★ DPL1 §7 A6: a consumer that THROWS mid-query is GI_LAYER_ERROR:<id> — DISTINCT from
+  //   GI_LAYER_DOWN (a substrate ABSENCE). The DPL1 names both tokens; conflating them hides
+  //   a fault behind an absence.
+  verdict: "CONSUMED" | "GI_LAYER_UNCONSUMED" | "GI_LAYER_DOWN" | `GI_LAYER_ERROR:${string}`;
 }
 
 /** ★ THE REGISTRY. The decision asks IT; it never reaches a substrate directly. */
@@ -154,9 +157,10 @@ export function createLayerRegistry(): LayerRegistry {
         };
       }
     } catch (e) {
-      // A consumer that THROWS while reading is DOWN with the throw as evidence —
-      // never "returned zero facts". The distinction matters: UNCONSUMED is a
-      // wiring gap, a throw is a substrate fault.
+      // ★ DPL1 §7 A6: a consumer that THROWS while reading is GI_LAYER_ERROR:<id> — the
+      //   DISTINCT mid-query-fault token (never "returned zero facts", never a bare DOWN).
+      //   The three states are distinct on purpose: UNCONSUMED = a wiring gap · DOWN = an
+      //   absent substrate · ERROR:<id> = the substrate answered but the read faulted.
       return {
         consumer: p.id,
         rung: p.rung,
@@ -165,7 +169,7 @@ export function createLayerRegistry(): LayerRegistry {
         factsReturned: 0,
         factsDiscarded: 0,
         consumed: false,
-        verdict: "GI_LAYER_DOWN",
+        verdict: `GI_LAYER_ERROR:${p.id}`,
       };
     }
     const anchored = raw.filter(isAnchored);

@@ -11,6 +11,7 @@ import * as fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { Database } from "bun:sqlite";
 import type { LayerFact, SubstrateProbe } from "../layer-registry.ts";
+import { layerFreshness } from "../typed-write.ts";
 import type { ConsumerId, Rung } from "../layer-registry.ts";
 
 /** A path-backed substrate: a checkout, a store, a JSON index.
@@ -185,6 +186,34 @@ export function liveNodesFor(db: Database, subject: string): number {
  *  GI_LAYER_UNCONSUMED — a swallowed substrate fault wearing a wiring-gap label, which
  *  violates this file's own never-rows:0 law. The registry's `facts()` catch turns the
  *  throw into GI_LAYER_DOWN with the cause as evidence. */
+/** ★ DPL1 §7 A3: THE STORE-AGE GATE. A verdict read from a store OLDER than the code is
+ *  REFUSED — `GI_LAYER_STALE`, never an answer from a stale graph. The mechanism already
+ *  exists (`typed-write.storeFreshness`, the same one `graph-facts.ts` uses); the adapters
+ *  simply did not call it. A store with no `populated_at` marker is STALE by construction. */
+export function assertStoreFresh(storePath: string): void {
+  // ★ THE REGRESSION THIS AVOIDS (found by running it): `storeFreshness()` wraps
+  //   `openTypedStore()`, which ENFORCES the SESSION-store path convention
+  //   (`/sessions/{sessionId}/…`) and REFUSES a project-level checkout store with
+  //   `GI_SHARED_PROJECT_STORE`. The corbell/graphify CHECKOUT stores are project-level, so
+  //   the wrapper is the wrong door. The freshness read needs only a DB HANDLE — the same
+  //   read-only handle `storeFacts` already opens.
+  const db = openReadOnly(storePath);
+  if (db === null) return; // the caller's own probe owns the absent-store verdict
+  let f;
+  try {
+    f = layerFreshness(db);
+  } finally {
+    try { db.close(); } catch { /* the read already happened */ }
+  }
+  if (f.stale) {
+    throw new Error(
+      `${f.code ?? "GI_LAYER_STALE"} — the store at ${storePath} is STALE ` +
+      `(populatedAt=${f.populatedAt === null ? "NEVER" : new Date(f.populatedAt).toISOString()} · ` +
+      `ageMs=${f.ageMs ?? "?"} · ttlMs=${f.ttlMs}); no fact is served from it`,
+    );
+  }
+}
+
 export function storeFacts(
   consumer: ConsumerId,
   rung: Rung,

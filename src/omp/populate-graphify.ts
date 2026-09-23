@@ -514,6 +514,11 @@ export function writeGraphifyCheckout(
       insertForkEdgesBatch(db, taggedEdges);
       try {
     db.exec("COMMIT;");
+    // ★ GATE-A3 GAP FIXED (2026-09-23): the BUILD writer never wrote `populated_at`,
+    //   so a store the build had JUST produced read as STALE the moment the A3 freshness
+    //   gate looked at it (the session-populate path wrote the marker; the build path did
+    //   not). The build now marks its OWN output fresh — one reader, one writer, one truth.
+    db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
   } catch (commitErr) {
     try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
     throw commitErr;

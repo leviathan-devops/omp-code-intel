@@ -6,7 +6,7 @@
 // never the raw graph.json.
 import * as path from "node:path";
 import type { ConsumerProbe, LayerFact } from "../layer-registry.ts";
-import { probePath, storeFacts } from "./_shared.ts";
+import { assertStoreFresh, probePath, storeFacts } from "./_shared.ts";
 
 export const GRAPHIFY_CHECKOUT_REL = ".omp/graph-intelligence/graphify-checkout/store.sqlite";
 
@@ -18,6 +18,10 @@ export function graphifyProbe(scopeRoot: string): ConsumerProbe {
     dependency: "the graphify graph.json leg",
     errorCode: "GI_LAYER_GRAPHIFY",
     up: () => probePath(storePath, true),
-    facts: (subject: string): LayerFact[] => storeFacts("L6_GRAPHIFY", "settlement", storePath, subject),
+    facts: (subject: string): LayerFact[] => {
+      // ★ DPL1 §7 A3: refuse a verdict from a STALE store.
+      assertStoreFresh(storePath);
+      return storeFacts("L6_GRAPHIFY", "settlement", storePath, subject);
+    },
   };
 }
