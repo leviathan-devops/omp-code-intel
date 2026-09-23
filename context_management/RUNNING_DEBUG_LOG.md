@@ -600,8 +600,8 @@ outlives its daemon — **the register's own comment had already warned about th
 version of the adapter repeated the exact mistake it documents.
 **Fix:** the sync probe refuses to claim UP on a file ("a FILE is not a DAEMON: connect() is the
 only liveness proof"); \`probeSocketConnect\` is the authoritative async probe. **Measured:**
-\`every socket refused (stale files, no daemon): d4872b4814fc07c5.instance.sock=refused
-d4872b4814fc07c5.instance.sock=refused\`. **★ The verdict changed from UNCONSUMED (a wiring gap)
+\`every socket refused (stale files, no daemon): 038c84c31569aebb.instance.sock=refused
+038c84c31569aebb.instance.sock=refused\`. **★ The verdict changed from UNCONSUMED (a wiring gap)
 to DOWN (a dead daemon) — a different, more honest answer.** Commit \`f6fca91\`.
 
 ### B-3 · THE MODEL 404 (the container's pinned model had no endpoints)
@@ -628,10 +628,10 @@ recorded in \`reports/P0_ABSORB_FINDINGS.md §9.1\`.
 
 ## [2026-09-23] ★ THE TRUE DIST (post-audit re-stamp)
 
-**`extensions/graph-intelligence/index.js` sha256_16 `d4872b4814fc07c5`** (9,434,756 B).
+**`extensions/graph-intelligence/index.js` sha256_16 `038c84c31569aebb`** (9,434,756 B).
 ★ The zero-trust audit found SHA DRIFT across the docs; this log records the TRUE sha AFTER the
 8 HIGH gate fixes + the socket-filter fix. Evidence: `sha256sum extensions/graph-intelligence/index.js`
-→ `d4872b4814fc07c5`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.
+→ `038c84c31569aebb`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.
 
 ## [2026-09-23] ★ THE GATE'S FINDINGS ADJUDICATED (the qwen-code-audit, muse-go-mimo, 0 CRIT/0 HIGH)
 

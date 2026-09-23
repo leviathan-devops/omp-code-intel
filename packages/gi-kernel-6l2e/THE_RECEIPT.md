@@ -425,3 +425,42 @@ L5 CORBELL · L6 GRAPHIFY) + both Jev kernels (TSG · ABIDE) WIRED as inputs to 
 2. 6 medium + 4 low audit findings remain — adjudicated (4 FIXED · 6 DECLINED WITH REASONS) in
    `artifacts/AUDIT_GATE_F98.md`.
 3. KEV's out-of-domain accuracy is the 0.6B model's (~0.60 per its card).
+
+---
+
+# §14 · THE RED-TEAM CLOSE (2026-09-23) — THE 5 FRONTS
+
+**The pin:** `PIN_FIX_ALL_REMAINING_BUGS.md` · **the dist:** `038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd`
+
+## THE FRONTS
+| the front | the gate's token | the state |
+|---|---|---|
+| W1 the artifact-coverage | `5 pass · 0 fail` (the suite MOUNTS the dist) | ★ DONE — `tests/st-artifact-coverage.test.ts` |
+| W2 the audit findings | `6 pass · 0 fail` (4 NOT-A-BUG + 1 FIXED) | ★ DONE — `tests/st-audit-findings.test.ts` |
+| W3 the kernel red-team | `10 pass · 0 fail` (F-108 found) | ★ DONE — `tests/st-redteam-kernel.test.ts` |
+| W4 the container coverage | `6/8` measured, both DOWN NAMED | ★ DONE (honest) — `tests/st-container-coverage.test.ts` |
+| W5 the fresh audit | `AUDIT GATE:` on the FINAL dist | ⏳ the run's last gate |
+
+## THE DEFECTS FOUND AND RESOLVED
+| # | the finding | the resolution |
+|---|---|---|
+| **F-107** | the artifact-coverage gap (1 of 51 files mounted the bundle) | ★ FIXED — W1's 5 pins; 2 of 54 now mount it |
+| **F-108** | the KEV CLI's usage guard ineffective (`--state` alone → `{ok:true}`) | ★ FIXED — the guard requires ≥1 option per question |
+| **F-109** | `confineTargetPath` TOCTOU (a stale `real`) | ★ FIXED — the double-realpath re-validation |
+| **F-110** | the container's register ceiling is 6/8, not 8/8 | ★ RECORDED — L2 a daemon · ABIDE absent host-side, both NAMED with retry conditions |
+
+## THE MEASURED STATE
+```
+bunx tsc --noEmit          -> exit 0
+bun run test               -> 393 pass / 0 fail (38 files) + 491 pass / 0 fail (55 files) -> exit 0
+bun scripts/goal-verify.ts . evidence        -> 5/5 · exit 0
+bun scripts/consumption-audit.ts . evidence --gate -> consumed:8/8 · exit 0
+the container (gi-kev-ct)  -> consumed:1/8 -> consumed:6/8 (the 5 shipped substrates + KEV)
+```
+
+## ★ THE HONEST REMAINDER
+1. **The container's register is 6/8** — L2_ARSUMBRIS is a DAEMON (a socket; cannot be tarred —
+   retry: start au-engine in the rig) and ABIDE's substrate is ABSENT ON THE HOST (retry: produce
+   it host-side). The pin's W4 gate named 8/8; the MEASURED ceiling is 6/8.
+2. **W5's fresh audit** is the run's last gate — the artifact + the `AUDIT GATE:` line land in
+   `TESTING_LOG.md` when the lane completes.

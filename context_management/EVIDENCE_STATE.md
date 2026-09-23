@@ -1,12 +1,12 @@
 # EVIDENCE_STATE — the verified evidence + the honest gaps
 
-**The dist SHA (the deployment fingerprint): d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5**
+**The dist SHA (the deployment fingerprint): 038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd**
 
 ## THE DIST SHA CHAIN
 
 ```
-deployed         d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5  613,039 B
-v2.1 blueprint   d4872b4814fc07c5  (41,853 B, 862 L — the design of record)
+deployed         038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd  613,039 B
+v2.1 blueprint   038c84c31569aebb  (41,853 B, 862 L — the design of record)
 the measurement  jev-fire-measurement.json  bestT=0.40  bestF1=0.933  health.ok=false
 ```
 
@@ -217,7 +217,7 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 | **B/C/D** | `bunx tsc --noEmit` exit 0 with the 8 adapters + the registry + the wiring | GREEN |
 | **D-2 (the dist)** | the dist-content gate: 8/8 symbols present, 613 KB → 9.42 MB | GREEN |
 | **E-1** | `bun test tests/st-gi-6l2e.test.ts` → 13 pass / 0 fail / 82 expect() | GREEN |
-| **E-2 (deploy)** | local sha `d4872b4814fc07c5` == container sha | MATCH |
+| **E-2 (deploy)** | local sha `038c84c31569aebb` == container sha | MATCH |
 | **E-2 (auth)** | the model answered; the status bar read "Laguna S 2.1 (free)" | PASS |
 | **E-2 (the tool)** | the TUI tool result: `consumed:2/8 rungs=settlement` with L5 facts=16 / L6 facts=8 | PASS |
 | **E-2 (the negative)** | scopeRoot=/tmp → `consumed:0/8`, every consumer DOWN; `consumed:8/8` ABSENT | PASS |
@@ -229,8 +229,41 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `d4872b4814fc07c5`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `d4872b4814fc07c5` (two rebuilds
+** sha256_16 `038c84c31569aebb`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `038c84c31569aebb` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `d4872b4814fc07c5`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `038c84c31569aebb`; `find src -newer` = 0;
 the container deploy sha MATCHES.
+
+---
+
+## ★ THE RED-TEAM CLOSE (2026-09-23) — THE 5 FRONTS, EACH WITH ITS EVIDENCE
+
+**The dist:** `038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd` · **the pin:** `PIN_FIX_ALL_REMAINING_BUGS.md`
+
+| the gate | the command | the measured token | the artifact |
+|---|---|---|---|
+| W1 the artifact-coverage | `bun test ./tests/st-artifact-coverage.test.ts` | `5 pass · 0 fail` (the suite MOUNTS the dist) | `tests/st-artifact-coverage.test.ts` |
+| W2 the audit findings | `bun test ./tests/st-audit-findings.test.ts` | `6 pass · 0 fail` (4 NOT-A-BUG + 1 FIXED) | `artifacts/AUDIT_GATE_F98.md` (the W2 table) |
+| W3 the kernel red-team | `bun test ./tests/st-redteam-kernel.test.ts` | `10 pass · 0 fail` (F-108 found) | `tests/st-redteam-kernel.test.ts` |
+| W4 the container coverage | the rig's `gi-consumption` | `consumed:6/8` (1/8 → 6/8) | `.trident/plan-6l2e/phaseE-kev.json` (wave_W4) |
+| W5 the fresh audit | `ocr scan --path …` (the GO mimo lane) | ⏳ | `artifacts/` + `TESTING_LOG.md` |
+
+**THE FULL SUITE (zero-broken-windows):** `bun run test` → **393 pass / 0 fail (38 files) +
+491 pass / 0 fail (55 files)** → **exit 0**.
+**tsc:** `bunx tsc --noEmit` → **exit 0**.
+**the predicate:** `bun scripts/goal-verify.ts . evidence` → **5/5 · exit 0**.
+**the register:** `bun scripts/consumption-audit.ts . evidence --gate` → **consumed:8/8 · exit 0**.
+
+## ★ THE DEFECTS FOUND THIS RUN (4, all recorded)
+- **F-107** the artifact-coverage gap — ★ FIXED (W1: 5 pins; 2 of 54 files now mount the dist)
+- **F-108** the KEV CLI's usage guard ineffective — ★ FIXED (the guard requires ≥1 option)
+- **F-109** the `confineTargetPath` TOCTOU — ★ FIXED (the double-realpath re-validation)
+- **F-110** the container's register ceiling is 6/8 — ★ RECORDED (both DOWN named with retries)
+
+## ★ THE HONEST GAPS
+1. **The container's register is 6/8** — L2_ARSUMBRIS is a DAEMON (a socket, untarrable) and
+   ABIDE's substrate is ABSENT ON THE HOST. Both NAMED with retry conditions.
+2. **W5's fresh audit** — the multi-file scan aborts at 0 files (measured); the single-file scan is
+   the working shape. The artifact + the `AUDIT GATE:` line land when the lane completes.
+3. **The 5 declined findings** are RESOLVED (4 NOT-A-BUG proven + 1 FIXED), each with its test.

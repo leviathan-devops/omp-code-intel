@@ -1,6 +1,6 @@
 # DECISION_CHAIN — the operator's rulings, VERBATIM, with context + rejected alternatives
 
-**The dist SHA: d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5**
+**The dist SHA: 038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd**
 
 ## D-01 · THE THREE VIOLATION CLASSES (2026-09-21)
 
