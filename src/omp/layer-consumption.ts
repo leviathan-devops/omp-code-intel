@@ -22,6 +22,7 @@ import { uaProbe } from "./adapters/ua.ts";
 import { arsumbrisProbe } from "./adapters/arsumbris.ts";
 import { semanticaProbe } from "./adapters/semantica.ts";
 import { tsgProbe } from "./adapters/tsg.ts";
+import { kevProbe, resolveKevCli, resolveKevRuntime } from "./adapters/kev.ts";
 import { abideProbe } from "./adapters/abide.ts";
 
 /** ★ THE 8. The consumer set is CLOSED and named here — the registry cannot be
@@ -44,6 +45,13 @@ export function buildRegistry(
   overrides?: Partial<Record<ConsumerId, ConsumerProbe>>,
 ): LayerRegistry {
   const registry = createLayerRegistry();
+  // ★ THE MEANING GATE — KEV IN PLACE OF JEV (the operator's directive, 2026-09-23).
+  //   The remote Jev (the tsg binary + TYPESAFE_API_KEY) is BLOCKED: the org has no TypeSafe
+  //   credits (HTTP 402). KEV (`onnx-community/kev-0.6b-ONNX`) is the SAME CONTRACT, LOCALLY —
+  //   the 0.6B member of the Kev family. When the local model is present it SERVES the TSG
+  //   rung; the remote tsg probe remains the named fallback for a host without the model.
+  const kevAvailable = resolveKevCli(scopeRoot) !== null && resolveKevRuntime(scopeRoot) !== null;
+  const meaningProbe = kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot);
   const probes: ConsumerProbe[] = [
     corbellProbe(scopeRoot),
     graphifyProbe(scopeRoot),
@@ -51,7 +59,7 @@ export function buildRegistry(
     uaProbe(scopeRoot),
     arsumbrisProbe(scopeRoot),
     semanticaProbe(scopeRoot),
-    tsgProbe(scopeRoot),
+    meaningProbe,
     abideProbe(scopeRoot),
   ];
   for (const p of probes) {

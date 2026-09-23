@@ -2027,3 +2027,26 @@ the dist 82bad22c3687d21e
 - **The verdict:** **PASS.**
 - **The artifacts:** `artifacts/AUDIT_GATE_F98.md` (the full adjudication table: 4 FIXED · 6
   DECLINED WITH REASONS).
+
+## TEST RESULT — 2026-09-23 — ★ THE GOAL'S PRIMARY CONDITION: consumed:8/8 (KEV in place of Jev)
+
+### HOST
+- **The run:** `bun scripts/consumption-audit.ts <root> evidence` — THREE consecutive times.
+- **The raw output:** `[consumption] ★ consumed:8/8 rungs=context,decision,knowledge,meaning,repair,settlement`
+  `[consumption] influenced=L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA,TSG,ABIDE`
+  `TSG   CONSUMED   rung=meaning   facts=1`
+  the TSG fact: `{"meaning":"unclear","distribution":[0.4159,0.0012,0.5830],"labels":["match","drift","unclear"],"ms":1309,"model":"onnx-community/kev-0.6b-ONNX"}`
+- **The verdict:** **PASS** — passToken `consumed:8/8` in the tool output, STABLE over 3 runs.
+  failToken: `GI_LAYER_UNCONSUMED=TSG` / `GI_LAYER_ERROR:TSG` — ABSENT.
+- **The artifacts:** `artifacts/KEV_IN_PLACE_OF_JEV.md` · `.omp/kev-setup-status.json` (ready)
+- **★ THE KEV MODEL'S OWN RUN:** `[kev-probe] ★ THE MODEL DECIDED — 103 tokens in 1428ms` with
+  correct answers on all 3 questions. ★ THE MEASURED DEFECT (EN-6L2E-15): the model card applies
+  the caller-text sanitizer to the delimiters → all-zero logits → a uniform (25/25/25/25)
+  distribution. Fixed with `encRaw` for delimiters + `isUniform()` throwing on the class.
+
+### SUBAGENT (the operator's first ask)
+- **The actor:** `KevSubscriptionActor` (sonic) — 40 polls at a 30s cadence over ~20 min,
+  reading `.omp/kev-setup-status.json` on a TIMER and reporting the EVENT.
+- **Its report:** `event: timeout` · `progression: installing -> downloading` · 40 reads ·
+  ★ the honest note: the file was present and parseable on all 40 polls, and the `updated` field
+  did not advance — it observed only the file, and said so.

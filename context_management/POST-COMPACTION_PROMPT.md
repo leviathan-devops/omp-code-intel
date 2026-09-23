@@ -43,7 +43,7 @@ zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (617 L)
 ★ THE GATE IS **CLEARED**: AUDIT GATE: PASS (0 critical / 0 high).
 ```
 **THE STATE:** tsc exit 0 · 26 pass / 0 fail · 349 pass / 0 fail · consumed:7/8 ·
-dist 7d99a4f0aab46f00 · src_newer 0 · the dist-content gate PASS · the container MATCH.
+dist d4872b4814fc07c5 · src_newer 0 · the dist-content gate PASS · the container MATCH.
 ## THE RETRY CONDITION
 ```
 ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
@@ -53,7 +53,7 @@ after the OpenRouter daily reset, or with a paid lane, at a **2-hour** cap.
 
 # POST-COMPACTION_PROMPT — the fresh agent's entry sequence
 
-**The dist SHA: 7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165**
+**The dist SHA: d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5**
 
 You are resuming the GI Kernel v2.1 build. Read this; then read the docs in the order below;
 then prove you read them; then execute. Do not ask questions the docs answer.
@@ -92,7 +92,7 @@ branch jarvis/gi-main · rig stupefied_morse @ omp-ct:master
 ```
 battery      199 pass / 0 fail / 701 expect / 20 files
 tsc          191 == the pre-session baseline, 0 NEW
-dist sha     7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165
+dist sha     d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5
 container    199 pass / 0 fail / 705 expect (clean /tmp, no ambient keys)
 checkpoint   Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/ (175 files)
 register     ok=false up=5/11 first=GI_LAYER_SEMANTICA

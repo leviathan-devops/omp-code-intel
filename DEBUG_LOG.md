@@ -966,3 +966,40 @@ feature that was never wired.
 the dist rebuilt + deployed (`70f1d0fc2de6afe9`) with the dist-content gate green.
 **Lesson:** ★ a finding can be RIGHT about the code and WRONG about the claim — #7 named a dead
 param that IS live in one verb. Read the finding's EVIDENCE, not just its severity.
+
+## EN-6L2E-15 · THE MODEL CARD'S OWN EXAMPLE HAS A DELIMITER-SANITIZER DEFECT (2026-09-23)
+**Finding:** the KEV-0.6b-ONNX probe returned a UNIFORM distribution (25/25/25/25, 50/50,
+20×5) — which looks like a confident "no signal" but is a FAILURE.
+**Root cause:** ★ THE MODEL CARD'S EXAMPLE applies the CALLER-TEXT SANITIZER to the DELIMITERS.
+`enc("<|fim_prefix|>")` runs `replace(/<\|([A-Za-z0-9_]+)\|>/g, "<¦$1¦>")` — turning the REAL
+delimiter token `151659` into `<¦fim_prefix¦>` = token `27`. The graph then finds NO delimiter
+ids, derives NO segments, and the pointer head emits **ALL ZEROS** (`n=38, min=0, max=0, sd=0`).
+`softmax([0,0,0,0]) = [0.25 × 4]` — the uniform distribution. **The card's own comment says
+the sanitizer is for "caller text"; its code applies it to the delimiters too.**
+**Fix:** TWO encoders — `encRaw` for the 5 delimiters (NEVER sanitized) and `encUser` for all
+caller text. Measured after: the END scores are `5.3281 (no) · 6.4102 (yes)` → `p(yes)=0.7469`
+→ the model answers CORRECTLY on all 3 probe questions (billing 85.3% · refund yes 74.2% ·
+very-negative 71.8%). ★ AND the wall time fell from 69,253ms to **1,428ms** — the zero-logit
+path had been burning the full graph for nothing.
+**Lesson:** ★ **AN ALL-ZERO OUTPUT IS A DEFECT SIGNAL, NEVER A NEUTRAL ANSWER.** A uniform
+distribution from a pointer head means the graph found nothing to point AT. And: a reference
+example is EVIDENCE, not authority — the model card's code contradicted its own comment.
+
+## EN-6L2E-16 · KEV IN PLACE OF JEV — THE TSG RUNG CONSUMED (2026-09-23)
+**The directive:** the operator: "connect it to your kernel in place of jev."
+**The finding:** the TSG meaning gate called TypeSafe's REMOTE /v1/systemone and was BLOCKED
+(HTTP 402 — the org has no credits). KEV (`onnx-community/kev-0.6b-ONNX`) is the SAME CONTRACT,
+LOCALLY — the 0.6B member of the Kev family.
+**The fix:** `src/omp/adapters/kev.ts` — `kevProbe(scopeRoot)` returns a ConsumerProbe with
+**id "TSG"** (it IS the meaning gate), invoking the sync CLI `scripts/kev-decide.ts` (the tsg
+probe's own `execFileSync` pattern), with an `isUniform()` guard that THROWS on the all-zero
+class instead of reporting a verdict. `buildRegistry` prefers KEV when the model + runtime are
+present; the remote tsg probe is the named fallback.
+**Verification:** ★ **`consumed:8/8`** — three consecutive audits. The TSG fact:
+`{"meaning":"unclear","distribution":[0.4159,0.0012,0.5830],"ms":1309,"model":"onnx-community/kev-0.6b-ONNX"}`
+— NON-UNIFORM, anchored, a genuine decision. tsc 0 · the battery 363 pass / 0 fail · the dist
+`d4872b4814fc07c5` carries kevProbe/resolveKevCli/isUniform.
+**Lesson:** ★ **A BLOCKED REMOTE IS NOT A BLOCKED CAPABILITY.** The meaning gate was never
+blocked on *meaning* — it was blocked on a vendor's billing. The local model serves the same
+contract. And: the operator's framing ("in place of jev") NAMED the substitution that unblocked
+the goal's headline condition.

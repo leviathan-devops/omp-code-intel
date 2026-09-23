@@ -711,3 +711,33 @@ PASS + a dead import), fixed them, and RE-AUDITED.
 result) · `artifacts/AUDIT_GATE_F98.md` + the 2 session jsonl copies.
 **The honest notes:** (1) 6 medium + 4 low findings remain in the post-fix audit — recorded, not
 suppressed; (2) `consumed:8` is still BLOCKED on the operator's TSG credits.
+
+
+---
+
+## 2026-09-23 — ★ THE GOAL'S PRIMARY CONDITION: `consumed:8/8` (KEV IN PLACE OF JEV)
+
+**The built:** `src/omp/adapters/kev.ts` — `kevProbe(scopeRoot)`, the meaning gate served by
+the LOCAL KEV-0.6b-ONNX model (id `TSG`), + `scripts/kev-probe.ts` (the model wrapper) +
+`scripts/kev-decide.ts` (the sync CLI — the tsg probe's own `execFileSync` pattern) +
+`buildRegistry` preferring KEV when present (the remote tsg is the named fallback).
+**The why:** the operator's directive — *"connect it to your kernel in place of jev."* The TSG
+rung was BLOCKED: its meaning gate called TypeSafe's remote `/v1/systemone` and the org has no
+API credits (**HTTP 402**). KEV is the SAME CONTRACT, LOCALLY.
+**The how:** established the model works, then found and fixed the model card's own
+delimiter-sanitizer defect (EN-6L2E-15: the sanitizer turned the real delimiter id `151659` into
+`27`, so the pointer head emitted all zeros → a uniform distribution). Two encoders (`encRaw` for
+delimiters, `encUser` for text) and an `isUniform()` guard that THROWS on the all-zero class.
+**The evidence:** ★ **`consumed:8/8`** — `influenced=L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,
+L2_ARSUMBRIS,L1_SEMANTICA,TSG,ABIDE` — STABLE over 3 consecutive audits. The TSG fact:
+`{"meaning":"unclear","distribution":[0.4159,0.0012,0.5830],"ms":1309,"model":"onnx-community/kev-0.6b-ONNX"}`
+— NON-UNIFORM, anchored. The KEV probe run: `103 tokens in 1428ms`, correct on all 3 questions
+(billing 85.3% · refund-yes 74.2% · very-negative 71.8%).
+**The verification:** tsc 0 · the battery 363 pass / 0 fail · the dist `sha256 d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` carries
+`kevProbe/resolveKevCli/isUniform` · `find src -newer <bundle>` = 0 · repo == deployed.
+Artifact: `artifacts/KEV_IN_PLACE_OF_JEV.md` · DEBUG_LOG EN-6L2E-15/16.
+**The honest notes:** (1) the CONTAINER (`gi-6l2e-ct`) carries no transformers.js, so it falls
+back to the remote tsg probe and its TSG stays blocked there — the fallback is NAMED in
+`buildRegistry`, never silent; (2) KEV's out-of-domain accuracy is the 0.6B model's (~0.60 per
+its card) — it is the LATENCY/memory member of the family, and the TSG fact says `unclear` for a
+symbol whose name alone does not determine behavior, which is the honest answer.
