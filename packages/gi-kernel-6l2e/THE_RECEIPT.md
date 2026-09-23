@@ -307,3 +307,75 @@ src newer than the bundle : 0
 **A scan target is a DECLARED SCOPE, not a directory.** The profile said `[src]`; the engine was
 pointed at `..`. The gap between the declared scope and the emitted target is where 90 minutes go.
 And: **a guard that names a symptom without fixing its source is a timer, not a fix.**
+
+---
+
+# §12 · F-98 — THE KERNEL WAS NOT IN THE DIST (2026-09-23)
+
+## THE DEFECT
+The deployed bundle carried ZERO decision symbols — `dumbDetector=0 · theatricalDetector=0 ·
+destructiveDetector=0 · classifyByDetectors=0 · runKernelV2=0 · preflight=0 · FireGate=0 ·
+FireLedger=0 · PolicyStore=0 · graphFacts=0` — while the SOURCE contained them all. The
+artifact that runs could not decide. (The F-95 class, recurring.)
+
+## THE ROOT CAUSE
+The kernel was reached ONLY through **type-only imports** across the production graph —
+`src/omp/layer-registry.ts:22  import type { LayerId } from "./kernel-v2.ts"`;
+`src/omp/evidence-producer.ts:29  import type { FireLedger, PersistedFireRow } from
+"./fire-ledger.ts"`. TypeScript ERASES type-only imports, so the bundler never saw a VALUE
+edge to `kernel-v2.ts` (582 L), `fire-gate.ts`, `fire-ledger.ts`, `policy-store.ts`, or
+`graph-facts.ts`. The extension exposed the REGISTRY but never the DECISION.
+★ AND `scripts/consumption-audit.ts` imports `../src/omp/layer-consumption.ts` — **the SOURCE**
+— so the register measured a tree the artifact did not contain.
+
+## THE FIX
+`src/omp/decision.ts` (NEW) — two VALUE-wired seams:
+- `decideFromRegistry(scopeRoot, subject, act, record?)` — **D-2's layer-edge**: the kernel's
+  `LayerDeclaration[]` come FROM the registry's consumers (`up()`/`evidence`/`dependency`/
+  `errorCode`), the registry's ANCHORED facts become the certifications, and `runKernelV2`
+  returns the verdict.
+- `decideFireFromGraph(scopeRoot, target, intent)` — **the L5/L6 rung**: `graphFacts` over the
+  corbell store + the `PolicyStore` + a persistent `FireLedger`.
+Both are VALUE-imported by `src/omp/extension.ts` and exposed as the **`gi-decide`** tool, so
+the bundler KEEPS the kernel.
+
+## THE EVIDENCE (the dist-content gate on `87f10741b381f9c6acd35af75bd2dd9652a79ff9c50fd1c14fc70582ce62721a`)
+```
+runKernelV2=2 · FireLedger=2 · PolicyStore=2 · graphFacts=2 · layer-registry=1 ·
+decideFromRegistry=2 · decideFireFromGraph=2 · dumbDetector=2 · classifyByDetectors=2 ·
+preflight=2 · gi-decide=3      — every count > 0
+tsc exit 0 · 6L2E 28 pass / 0 fail · the battery 356 pass / 0 fail
+find src -newer <bundle> | wc -l = 0 · repo dist == the deployed bundle
+```
+
+## ★ THE DEPLOYED-RUNTIME PROOFS (source-import BANNED)
+**The decision runs in the artifact** (`artifacts/RUNTIME_DECISION_PROBE.md`):
+```
+verdict=STEER  class=dumb  code=GI_BLIND_ACT
+  stage 0 PREFLIGHT  UP      6 layer(s) up
+  stage 3 DETECT     dumb:VIOLATION theatrical:PASS destructive:PASS
+  stage 5 VERDICT    STEER   no graph query on '<target>' before the act — the edit is blind
+graph: settles=true  M-GRAPH-1 settles=true action=IGNORE
+```
+**The register AGREES with the source** (`artifacts/DEPLOYED_REGISTER_CONTROL.md`):
+`evidence` → `consumed:7/8` (both) · `populateSessionStore` → `consumed:4/8` (both).
+★ **THE FINDING: `consumed:N/8` IS SUBJECT-DEPENDENT.** Without its subject the number is
+not a measurement.
+
+**P4 — THE RUNTIME LEDGER is NON-EMPTY**: the kernel's RECORD stage (6) writes —
+`stage 6 RECORD WRITTEN`, `fire_decisions` holds the row
+(`rule_id=kernel-v2:dumb:STEER · band=escalate · target=<subject> · cost_usd=0.0`).
+
+**The container** (`gi-6l2e-ct`): the dist deployed (byte-identical), the TUI restarted, the
+`gi-decide` tool mounted and invoked in the headed session.
+
+## ★ THE LESSONS
+1. **A TYPE-ONLY IMPORT IS AN ERASED EDGE.** A kernel reachable only through `import type` is
+   a kernel the bundler deletes.
+2. **THE GREP ON THE DEPLOYED BUNDLE IS THE ONLY GREEN.** A register that imports the SOURCE
+   reports a tree the artifact may not contain.
+3. **A FILE DROP-IN IS NOT AN ENFORCEMENT.** The extension loads at SESSION START; the proof is
+   the RESTARTED session's tool registry.
+4. **A REFUSAL MESSAGE MUST TEACH THE SYNTAX ITS PARSER ACCEPTS.** `GI_TARGET_ROOTS` splits on
+   `'|'` (W44); the refusal joined with `':'` — the very separator W44 removed — so an
+   operator wrote a form the parser rejects. FIXED (`roots.join("|")` + `(separator '|')`).

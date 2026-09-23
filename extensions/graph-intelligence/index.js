@@ -186960,7 +186960,7 @@ var LAYER_IDS = [
   "L5_CORBELL",
   "L6_GRAPHIFY"
 ];
-function decideFromRegistry(scopeRoot, subject, act) {
+function decideFromRegistry(scopeRoot, subject, act, record) {
   const registry = buildRegistry(scopeRoot);
   const facts = registry.factsFor(subject);
   const influenced = [...new Set(facts.map((f) => f.consumer))];
@@ -186984,7 +186984,8 @@ function decideFromRegistry(scopeRoot, subject, act) {
     queriedBefore: act.queriedBefore,
     claims: act.claims ?? [],
     certifications,
-    layers
+    layers,
+    record
   });
   return {
     subject,
@@ -187108,7 +187109,7 @@ var confineTargetPath = (normalized, callerCwd) => {
     return rel === "" || !rel.split(/[\\/]/).includes("..") && !path35.isAbsolute(rel);
   });
   if (!within) {
-    return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
+    return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join("|").slice(0, 120)}); set GI_TARGET_ROOTS to extend (separator '|')` };
   }
   return { ok: true, real };
 };
@@ -187507,14 +187508,35 @@ ${lines.join(`
       const root = confined.real;
       const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
       try {
-        const ev = decideFromRegistry(root, subject, {
-          toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
-          target: p.target && p.target.length > 0 ? p.target : subject,
-          queriedBefore: false
-        });
-        const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}	${s.outcome}	${s.detail}`);
         const fireTarget = p.target && p.target.length > 0 ? p.target : subject;
         const fire = decideFireFromGraph(root, fireTarget, "consume");
+        const recordSink = (run) => {
+          const band = run.verdict === "REFUSE" || run.verdict === "ABORT" ? "act" : run.verdict === "STEER" ? "escalate" : "ignore";
+          const action = band === "act" ? "FIRE" : band === "escalate" ? "ESCALATE" : "IGNORE";
+          const row = {
+            at: new Date().toISOString(),
+            ruleId: `kernel-v2:${run.class}:${run.verdict}`,
+            cls: run.class,
+            questionVersion: "kernel-v2",
+            probability: band === "act" ? 1 : band === "escalate" ? 0.5 : 0,
+            band,
+            action,
+            policyName: `kernel-v2.${run.class}`,
+            actThreshold: 0.5,
+            flagThreshold: 0.25,
+            stateHash: (run.reason || run.evidence || "kernel-v2").slice(0, 16),
+            target: fireTarget,
+            costUsd: 0,
+            laterTruth: "unresolved"
+          };
+          fire.ledger.append(row);
+        };
+        const ev = decideFromRegistry(root, subject, {
+          toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
+          target: fireTarget,
+          queriedBefore: false
+        }, recordSink);
+        const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}	${s.outcome}	${s.detail}`);
         const fireLines = fire.verdicts.map((v) => `  ${v.rule}	settles=${v.settles}	action=${v.action ?? "none"}	${v.reason}`);
         return textResult2(`verdict=${ev.run.verdict}	class=${ev.run.class}	code=${ev.run.code ?? "none"}
 subject=${subject}

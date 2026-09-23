@@ -22,6 +22,8 @@ import type { QueryVerb } from "../hunter/surface/query-tool.ts";
 // measured F-95 defect (12 of 23 src/omp modules unreachable, dist symbol count 0).
 import { consumptionAudit, SIX_L2E_CONSUMERS } from "./layer-consumption.ts";
 import { decideFromRegistry, decideFireFromGraph } from "./decision.ts";
+import type { KernelRun } from "./kernel-v2.ts";
+import type { DecisionRow } from "./fire-gate.ts";
 
 export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "gi-consumption", "gi-decide"] as const;
 // Backwards-compatible alias: the pre-rename tool name. Registered alongside
@@ -149,7 +151,11 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
     return rel === "" || (!rel.split(/[\\/]/).includes("..") && !path.isAbsolute(rel));
   });
   if (!within) {
-    return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
+    // ★ the message TEACHES the syntax: the parser splits on '|' ONLY (W44), so the
+    //   roots must be shown joined with '|'. The first version joined with ':' —
+    //   the very separator W44 REMOVED — so the error told an operator to write a
+    //   form the parser rejects, and a single root printed as if it were two.
+    return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join("|").slice(0, 120)}); set GI_TARGET_ROOTS to extend (separator '|')` };
   }
   return { ok: true, real };
 };
@@ -667,16 +673,43 @@ createBugHuntTool(pi, { cwdOf });
       const root = confined.real;
       const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
       try {
-        const ev = decideFromRegistry(root, subject, {
-          toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
-          target: p.target && p.target.length > 0 ? p.target : subject,
-          queriedBefore: false,
-        });
-        const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}\t${s.outcome}\t${s.detail}`);
         // ★ THE L5/L6 GRAPH RUNG: the decision ALSO reads the parse-grade graph. A fact
         //   the graph settles is never worth a model call — this is that rung, reported.
         const fireTarget = p.target && p.target.length > 0 ? p.target : subject;
         const fire = decideFireFromGraph(root, fireTarget, "consume");
+        // ★ P4 — THE RUNTIME LEDGER. The kernel's RECORD stage (6) writes every run. The
+        //   sink is the FireLedger the graph rung opened — stage 6 goes from SKIPPED to
+        //   WRITTEN, so the ledger that RUNNING produced is non-empty.
+        const recordSink = (run: KernelRun): void => {
+          // ★ the ledger's domains are validated (BAD_DOMAIN): band ∈ act|escalate|ignore,
+          //   action ∈ FIRE|ESCALATE|IGNORE. The kernel's verdict maps onto them:
+          //   REFUSE/ABORT → a FIRE (the act is refused), STEER → ESCALATE, ALLOW → IGNORE.
+          const band = run.verdict === "REFUSE" || run.verdict === "ABORT" ? "act" : run.verdict === "STEER" ? "escalate" : "ignore";
+          const action = band === "act" ? "FIRE" : band === "escalate" ? "ESCALATE" : "IGNORE";
+          const row: DecisionRow = {
+            at: new Date().toISOString(),
+            ruleId: `kernel-v2:${run.class}:${run.verdict}`,
+            cls: run.class,
+            questionVersion: "kernel-v2",
+            probability: band === "act" ? 1 : band === "escalate" ? 0.5 : 0,
+            band,
+            action,
+            policyName: `kernel-v2.${run.class}`,
+            actThreshold: 0.5,
+            flagThreshold: 0.25,
+            stateHash: (run.reason || run.evidence || "kernel-v2").slice(0, 16),
+            target: fireTarget,
+            costUsd: 0,
+            laterTruth: "unresolved",
+          };
+          fire.ledger.append(row);
+        };
+        const ev = decideFromRegistry(root, subject, {
+          toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
+          target: fireTarget,
+          queriedBefore: false,
+        }, recordSink);
+        const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}\t${s.outcome}\t${s.detail}`);
         const fireLines = fire.verdicts.map((v) => `  ${v.rule}\tsettles=${v.settles}\taction=${v.action ?? "none"}\t${v.reason}`);
         return textResult(
           `verdict=${ev.run.verdict}\tclass=${ev.run.class}\tcode=${ev.run.code ?? "none"}\nsubject=${subject}\nscopeRoot=${root}\nlayersWired=${ev.layersWired}/${ev.consumersTotal}\ninfluenced=${ev.influenced.join(",") || "none"}\nreason=${ev.run.reason}\n${stageLines.join("\n")}\ngraph: store=${fire.storePath}\tsettles=${fire.settles}\tfires=${fire.fires}\tpolicy=${fire.policyCount}@${fire.policySource}\tledger=${fire.ledgerPath}\n${fireLines.join("\n")}`,

@@ -263,6 +263,18 @@ INSERT INTO typed_edges VALUES ('c-a','c-b','drift-probe','q',1.0,'warm',NULL);`
     expect(parseTargetRoots("C:")).toEqual(["C:"]); // drive-letter root preserved whole
   });
 
+  test("the GI_PATH_DENIED message teaches '|', never ':'", () => {
+    // ★ THE MESSAGE-VS-PARSER DEFECT (2026-09-23, found in the omp-ct TUI): the refusal
+    //   joined the allowed roots with ':' — the very separator W44 REMOVED — so an operator
+    //   reading the error wrote a form the parser rejects, and ONE root printed as if it
+    //   were two (`/root/gi-scope:/tmp` from the single root `/root/gi-scope:/tmp`).
+    //   The message must TEACH the syntax the parser accepts.
+    const src = fs.readFileSync(path.join(import.meta.dir, "..", "src", "omp", "extension.ts"), "utf8");
+    expect(src).toContain('roots.join("|")');
+    expect(src).not.toContain('roots.join(":")');
+    expect(src).toContain("separator '|'");
+  });
+
   // ---------- F14 (extension:485 settlement reconfine base) ----------
   test("test_w44_settlement_reconfine_checks_target_root_not_general_allowlist", () => {
     const real = fs.mkdtempSync(path.join(os.tmpdir(), "gi-w44-tgt-"));
