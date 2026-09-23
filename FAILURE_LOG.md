@@ -1232,3 +1232,32 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **A PRINTED NUMBER IS NOT A GATE.** The exit test — *does something exit
   NONZERO when this is violated?* — is the only proof a predicate exists. Apply it to your OWN
   completion condition before claiming it.
+
+---
+
+### F-103 — THE COMPLETION CLAIM ITSELF HAD NO EXIT TEST (2026-09-23)
+
+- **What happened:** auditing my own readiness to declare the goal met, I applied the PREDICATE
+  LAW to the FIVE DONE CONDITIONS and measured which had a mechanical enforcement:
+  `consumed:8` → **had one** (added as F-102); the 7-class corpus → `bun test -t` exits nonzero;
+  the container Phase-E → the artifacts + the redteam suite; the seal + receipt →
+  `test_package_audit`; **BUT "the host-live seat operated the kernel with a non-empty bug
+  ledger" had NO EXIT TEST — nothing failed on an EMPTY ledger**, and the seal check was only a
+  file listing.
+- **Found:** the last verification pass before declaring the goal complete — the exit test applied
+  to my own claim.
+- **Root cause:** the five conditions lived in the PIN's prose and in my reports. Three had tests
+  by accident (they happened to be testable); condition 4 had none, and no single command asserted
+  the CONJUNCTION.
+- **Impact:** "the goal is met" rested on my reading of several outputs — a claim, not a gate.
+- **Disposition:** **FIXED + PINNED.** `scripts/goal-verify.ts` is the exit test for all five:
+  each condition is a check returning PASS or the NAMED failure; ANY failure prints
+  `GI_GOAL_NOT_MET` + the failing condition and **exits 1**.
+  **MEASURED BOTH DIRECTIONS:** the real conditions → **5/5 PASS, exit 0**; a subject no consumer
+  knows (C1 violated) → **exit 1** with `C1 FAIL` + the offender list; an empty scope → **exit 1**.
+  Pinned by 3 tests (`test_goal_predicate`, the suite 13 pass / 0 fail).
+- **★ AND THE PREDICATE CAUGHT A BUG IN ITSELF:** the first C3 check used a bare `/BLOCKED/`,
+  which matched the SUCCESS string `"0 BLOCKED"` — a false FAIL. Two-sided adjudication: the probe
+  was wrong, not the artifact. Fixed to `/([1-9]\d*)\s+BLOCKED/`.
+- **The lesson:** ★ **APPLY THE EXIT TEST TO YOUR COMPLETION CLAIM, NOT JUST TO THE CODE.** A
+  finish line with no command that fails is a wish.

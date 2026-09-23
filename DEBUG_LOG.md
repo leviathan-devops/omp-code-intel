@@ -1048,3 +1048,15 @@ the goal's `consumed:8` DONE condition was DOCUMENTATION.
 scope → exit 1; no flag → exit 0. 4 pins added (`test_consumption_predicate*`).
 **Lesson:** ★ the exit test is the only proof a predicate exists — and the FIRST place to apply
 it is your own completion claim.
+
+## EN-6L2E-20 · THE COMPLETION CLAIM GETS AN EXIT TEST (2026-09-23)
+**Finding:** of the goal's five DONE conditions, condition 4 (a non-empty runtime ledger) had NO
+mechanical enforcement, and no command asserted the CONJUNCTION.
+**Fix:** `scripts/goal-verify.ts` — each condition is a check returning PASS or a NAMED failure;
+any failure → `GI_GOAL_NOT_MET` + exit 1.
+**Verification:** the real conditions → 5/5 PASS exit 0 · a no-fact subject → exit 1 (`C1 FAIL`) ·
+an empty scope → exit 1. 3 pins.
+**★ THE SELF-CAUGHT DEFECT:** the first C3 check's `/BLOCKED/` matched `"0 BLOCKED"` — a false
+FAIL, caught by running the predicate on a state KNOWN to pass. Fix: `/([1-9]\d*)\s+BLOCKED/`.
+**Lesson:** ★ a predicate must be run against a KNOWN-PASS state before it is trusted — the same
+control-medicine discipline a detector needs.

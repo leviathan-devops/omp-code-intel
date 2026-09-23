@@ -172,3 +172,33 @@ describe("st-gi-audit-fixes: ★ THE PREDICATE LAW — consumed:N/8 must FAIL wh
     expect(run([REPO, "ThisSubjectHasNoFactsAtAll"])).toBe(0);
   }, 300_000);
 });
+
+describe("st-gi-audit-fixes: ★★ THE GOAL PREDICATE — the five DONE conditions as an exit test", () => {
+  // ★ THE PREDICATE LAW applied to the COMPLETION CLAIM: if no command exits nonzero when a
+  // done condition is violated, the condition is documentation. `scripts/goal-verify.ts` is the
+  // exit test for all five. This pin asserts BOTH directions.
+  const REPO = path.resolve(import.meta.dir, "..");
+  const run = (args: string[]): { code: number; out: string } => {
+    const r = Bun.spawnSync(["bun", path.join(REPO, "scripts", "goal-verify.ts"), ...args], { cwd: REPO, stdout: "pipe", stderr: "pipe" });
+    return { code: r.exitCode, out: r.stdout.toString() };
+  };
+
+  test("test_goal_predicate: 5/5 on the real conditions (exit 0)", () => {
+    const r = run([REPO, "evidence"]);
+    expect(r.out).toContain("[goal-verify] ★ THE PREDICATE PASSED: 5/5 conditions met");
+    expect(r.code).toBe(0);
+  }, 600_000);
+
+  test("test_goal_predicate: a VIOLATED condition exits 1 with the named failure", () => {
+    // a subject no consumer knows ⇒ C1 fails ⇒ the whole gate FAILS
+    const r = run([REPO, "ThisSubjectHasNoFactsAtAll"]);
+    expect(r.out).toContain("GI_GOAL_NOT_MET");
+    expect(r.out).toContain("C1 FAIL");
+    expect(r.code).toBe(1);
+  }, 600_000);
+
+  test("test_goal_predicate: an empty scope exits 1", () => {
+    const r = run(["/tmp/gi-goal-verify-empty-scope", "evidence"]);
+    expect(r.code).toBe(1);
+  }, 600_000);
+});
