@@ -27,19 +27,23 @@ fix the findings → **RE-RUN the gate** → the re-run's verdict IS the gate.
 The goal is **NOT complete** until the gate **tangibly fully clears**. FORBIDDEN: a scope shrink ·
 BLOCKED-as-done · a partial-scope close · "zero bugs" as success · a green battery as capability.
 
-## ★ THE CURRENT GATE STATE (2026-09-23)
+## ★ THE CURRENT GATE STATE (2026-09-23) — ★★★ CLEARED
 ```
-qwen-code-audit:  ran → status=partial, 47 comments, ★ 8 HIGH / 27 MED / 12 LOW
-                  ★ ALL 8 HIGH ADJUDICATED CONFIRMED + FIXED (commit 5226cac)
-                  ★ THE RE-RUN: BLOCKED — every provider tier exhausted:
-                      muse-free 429 daily · muse-go + all 8 GO keys 429/503
-                      poolside-laguna-s context-deadline
-                      openrouter-laguna-s-free per-minute SOLVED (--concurrency 1)
-                        → then the DAILY cap (1000/1000)
-zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (566 L)
+qwen-code-audit:  ★ COMPLETED — DONE rc=0
+                  provider: muse-go-mimo (the ACTIVE HOST's key + the go gateway + mimo-v2.5)
+                  files_reviewed: 34 · comments: 35 · elapsed 52m14s
+                  ★ BY SEVERITY: 0 CRITICAL · 0 HIGH · 18 MEDIUM · 17 LOW
+                  ★ THE 8 HIGH THAT BLOCKED THE EARLIER RUN ARE CLEARED.
+                  ★ ALL 35 ADJUDICATED: the real ones FIXED (M-1/M-5/M-6/M-7/M-9/M-12);
+                    M-18 was a FALSE POSITIVE (7.0.2 is the Go CLI with NO API);
+                    L-4/5/17 were POSITIVE comments.
+zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (617 L)
                   11/11 claims + 9/9 by a blind subagent · 3 frauds FIXED · 8 HIGH FIXED
-★ THE GATE IS **NOT CLEARED**. THE GOAL IS **NOT COMPLETE**.
-
+                  + §14 the gate clearance + the independent re-audit of the cleared state
+★ THE GATE IS **CLEARED**: AUDIT GATE: PASS (0 critical / 0 high).
+```
+**THE STATE:** tsc exit 0 · 26 pass / 0 fail · 349 pass / 0 fail · consumed:7/8 ·
+dist 82bad22c3687d21e · src_newer 0 · the dist-content gate PASS · the container MATCH.
 ## THE RETRY CONDITION
 ```
 ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
