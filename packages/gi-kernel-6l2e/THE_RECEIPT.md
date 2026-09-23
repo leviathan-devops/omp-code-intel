@@ -301,7 +301,7 @@ src newer than the bundle : 0
 2. **The audit gate is BLOCKED for the post-fix dist** (F-97) — the ocr LLM lane went down
    mid-session (`all 1 file scan(s) failed`; `ocr config list` empty). The 04:35 CLEARED artifact
    (`artifacts/gate-mimo.json`, covering `corbell-adapter.ts`) stands for ITS SHA only.
-3. **E-3 PACKAGE_AUDIT** — ABSENT.
+3. **E-3 PACKAGE_AUDIT** — ★ **RESOLVED (2026-09-23):** built — `packages/gi-kernel-6l2e/PACKAGE_AUDIT.md` (58 L, PASS 5/0) + the gate `tests/st-package-audit.test.ts` (`test_package_audit`).
 
 ## ★ THE LESSON
 **A scan target is a DECLARED SCOPE, not a directory.** The profile said `[src]`; the engine was

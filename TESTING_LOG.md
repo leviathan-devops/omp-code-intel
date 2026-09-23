@@ -1882,3 +1882,15 @@ the dist 82bad22c3687d21e
   post-fix dist.
 - **The artifacts:** `/tmp/sg-ocr-27fa2460.json` (empty — the failed run) ·
   `artifacts/gate-mimo.json` (the 04:35 CLEARED run)
+
+## TEST RESULT — 2026-09-23 — E-3 the seal (test_package_audit)
+
+### SCRIPT
+- **The run:** `bun test ./tests/st-package-audit.test.ts`
+- **The raw output:** `5 pass` · `0 fail` · `7 expect() calls` · `Ran 5 tests across 1 file. [8.00ms]`
+- **The verdict:** **PASS** — the package artifacts exist at/above their floors, the binding
+  authority (the DPL1 spec · the corpus · the wave plan with `WAVES:`) is present, the receipt
+  names its checkpoint + dist SHA, and the sealed dist is non-trivial (>100 KB). passToken
+  `5 pass` / `0 fail` observed in the tool output.
+- **The artifacts:** `packages/gi-kernel-6l2e/PACKAGE_AUDIT.md` (58 L) ·
+  `tests/st-package-audit.test.ts`
