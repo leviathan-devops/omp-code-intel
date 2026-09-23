@@ -21,8 +21,9 @@ import type { QueryVerb } from "../hunter/surface/query-tool.ts";
 // bun tree-shakes all of them and the bundle carries zero v2.x symbols — the
 // measured F-95 defect (12 of 23 src/omp modules unreachable, dist symbol count 0).
 import { consumptionAudit, SIX_L2E_CONSUMERS } from "./layer-consumption.ts";
+import { decideFromRegistry, decideFireFromGraph } from "./decision.ts";
 
-export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "gi-consumption"] as const;
+export const GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "gi-consumption", "gi-decide"] as const;
 // Backwards-compatible alias: the pre-rename tool name. Registered alongside
 // aether-code-audit with the SAME execute (one shared handler, zero drift).
 // Removal: only on explicit operator order (never silently drop the alias).
@@ -633,6 +634,57 @@ createBugHuntTool(pi, { cwdOf });
         // A registry that cannot build is a LOUD named failure — never an empty table.
         const msg = e instanceof Error ? e.message : String(e);
         return textResult(`GI_CONSUMPTION_FAILED: ${msg}`, { ok: false, error: "GI_CONSUMPTION_FAILED" });
+      }
+    }) as (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>,
+  });
+
+  // ★ D-2: THE DECISION TOOL — THE LAYER-EDGE. The KERNEL decides, and its layer
+  // declarations come FROM THE REGISTRY (never a raw store, never a file check).
+  // ★ WHY THIS TOOL EXISTS (the measured defect): the deployed bundle carried ZERO
+  // kernel symbols (dumbDetector=0 · classifyByDetectors=0 · runKernelV2=0 · FireGate=0)
+  // because the kernel was reached ONLY through type-only imports — erased at build.
+  // This tool VALUE-imports `decideFromRegistry`, so the bundler keeps the kernel, and
+  // the DECISION consults the REGISTRY on every call.
+  const decideParams = obj({
+    i: zstr().optional(),
+    subject: zstr().optional(),
+    scopeRoot: zstr().optional(),
+    target: zstr().optional(),
+    toolName: zstr().optional(),
+  });
+  pi.registerTool({
+    name: "gi-decide",
+    description: "THE 6L+2E DECISION. Runs the KERNEL over the layer REGISTRY: the registry's 6 graph layers become the kernel's PREFLIGHT declarations, its ANCHORED facts become the certifications the detectors read, and the kernel returns the verdict (ALLOW/STEER/REFUSE/ABORT) with the class (dumb/theatrical/destructive/benign). A layer DOWN refuses the stack with `GI_STACK_INCOMPLETE:<id>` — never an empty pass. The decision consults the REGISTRY, never a raw store.",
+    parameters: decideParams,
+    execute: (async (_id: unknown, params: unknown, _sig: unknown, _upd: unknown, ctx: unknown) => {
+      const p = (params ?? {}) as { subject?: string; scopeRoot?: string; target?: string; toolName?: string };
+      const callerCwd = cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined);
+      const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
+      const confined = confineTargetPath(path.normalize(rawRoot), callerCwd);
+      if (!confined.ok) {
+        return textResult(`GI_PATH_DENIED: ${confined.error}`, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      const root = confined.real;
+      const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
+      try {
+        const ev = decideFromRegistry(root, subject, {
+          toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
+          target: p.target && p.target.length > 0 ? p.target : subject,
+          queriedBefore: false,
+        });
+        const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}\t${s.outcome}\t${s.detail}`);
+        // ★ THE L5/L6 GRAPH RUNG: the decision ALSO reads the parse-grade graph. A fact
+        //   the graph settles is never worth a model call — this is that rung, reported.
+        const fireTarget = p.target && p.target.length > 0 ? p.target : subject;
+        const fire = decideFireFromGraph(root, fireTarget, "consume");
+        const fireLines = fire.verdicts.map((v) => `  ${v.rule}\tsettles=${v.settles}\taction=${v.action ?? "none"}\t${v.reason}`);
+        return textResult(
+          `verdict=${ev.run.verdict}\tclass=${ev.run.class}\tcode=${ev.run.code ?? "none"}\nsubject=${subject}\nscopeRoot=${root}\nlayersWired=${ev.layersWired}/${ev.consumersTotal}\ninfluenced=${ev.influenced.join(",") || "none"}\nreason=${ev.run.reason}\n${stageLines.join("\n")}\ngraph: store=${fire.storePath}\tsettles=${fire.settles}\tfires=${fire.fires}\tpolicy=${fire.policyCount}@${fire.policySource}\tledger=${fire.ledgerPath}\n${fireLines.join("\n")}`,
+          { ok: ev.run.verdict === "ALLOW", verdict: ev.run.verdict, class: ev.run.class, code: ev.run.code, layersWired: ev.layersWired, influenced: ev.influenced, graphSettles: fire.settles, graphFires: fire.fires, policyCount: fire.policyCount },
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return textResult(`GI_DECIDE_FAILED: ${msg}`, { ok: false, error: "GI_DECIDE_FAILED" });
       }
     }) as (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>,
   });

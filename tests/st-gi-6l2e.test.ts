@@ -23,6 +23,7 @@ import { semanticaProbe } from "../src/omp/adapters/semantica.ts";
 import { c2kgProbe } from "../src/omp/adapters/c2kg.ts";
 import { graphFacts, type GraphFactRule } from "../src/omp/graph-facts.ts";
 import { FireGate, absorbContext } from "../src/omp/fire-gate.ts";
+import { decideFromRegistry } from "../src/omp/decision.ts";
 
 const REPO = path.resolve(import.meta.dir, "..");
 
@@ -638,5 +639,58 @@ describe("st-gi-6l2e: L4 C2KG (the real code-to-knowledge-graph toolkit)", () =>
     const syms = idx.symbols ?? [];
     expect(syms.length).toBeGreaterThan(0);
     expect(syms.filter((s) => (s.file ?? "").includes("Checkpoints/")).length).toBe(0);
+  });
+});
+
+describe("st-gi-6l2e: ★ D-2 — THE DECISION CONSULTS THE REGISTRY", () => {
+  test("test_decision_consults_registry", () => {
+    // ★ THE D-2 LAYER-EDGE. The kernel's layer declarations come FROM THE REGISTRY —
+    //   never a hardcoded list, never a file check — and the registry's anchored facts are
+    //   the decision's inputs. This is the value-wired seam: the extension calls
+    //   `decideFromRegistry`, so the bundler KEEPS the kernel (before it, the deployed bundle
+    //   carried dumbDetector=0 · classifyByDetectors=0 · runKernelV2=0 — the F-95 class).
+    const subject = "populateSessionStore";
+    const ev = decideFromRegistry(REPO, subject, {
+      toolName: "gi-decide",
+      target: subject,
+      queriedBefore: false,
+    });
+
+    // 1. THE LAYERS COME FROM THE REGISTRY: all 6 graph layers, out of the closed set of 8.
+    expect(ev.layersWired).toBe(6);
+    expect(ev.consumersTotal).toBe(8);
+
+    // 2. THE KERNEL RAN: stage 0 is PREFLIGHT (the kernel asks every layer), and the run
+    //    carries the kernel's own verdict vocabulary — never a boolean "works".
+    expect(ev.run.stages.length).toBeGreaterThan(0);
+    expect(ev.run.stages[0].name).toBe("PREFLIGHT");
+    expect(["ALLOW", "STEER", "REFUSE", "ABORT"]).toContain(ev.run.verdict);
+    expect(["dumb", "theatrical", "destructive", "benign"]).toContain(ev.run.class);
+
+    // 3. THE DECISION'S INPUTS ARE THE REGISTRY'S FACTS (anchored only — the registry
+    //    discards an empty `source`, so every fact here carries its anchor).
+    expect(Array.isArray(ev.facts)).toBe(true);
+    expect(ev.facts.every((f) => typeof f.source === "string" && f.source.trim().length > 0)).toBe(true);
+    // `influenced` is exactly the distinct consumers behind those facts.
+    const fromFacts = ev.facts.map((f) => f.consumer).filter((c, i, a) => a.indexOf(c) === i);
+    expect([...ev.influenced].sort()).toEqual([...fromFacts].sort());
+  });
+
+  test("test_decision_preflight_names_the_layers", () => {
+    // ★ THE NEGATIVE HALF: the preflight's detail NAMES what it found — either "N layer(s)
+    //   up" or the offenders with their codes. A preflight that says neither is UNOBSERVED.
+    const ev = decideFromRegistry(REPO, "populateSessionStore", {
+      toolName: "gi-decide",
+      target: "populateSessionStore",
+      queriedBefore: true,
+    });
+    const pre = ev.run.stages[0];
+    expect(pre.name).toBe("PREFLIGHT");
+    const names = /(\d+ layer\(s\) up)|(\d+ layer\(s\) DOWN: )/.test(pre.detail);
+    expect(names).toBe(true);
+    // A REFUSE must carry the kernel's named code — never a bare refusal.
+    if (ev.run.verdict === "REFUSE") {
+      expect(ev.run.code ?? "").toMatch(/^GI_STACK_INCOMPLETE/);
+    }
   });
 });

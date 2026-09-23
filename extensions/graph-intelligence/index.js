@@ -176854,8 +176854,8 @@ function kindForLayer(layerId) {
 }
 
 // src/hydra/map-reader.ts
-import fs27 from "fs";
-import path32 from "path";
+import fs28 from "fs";
+import path33 from "path";
 function parseGraphJson(contents, size) {
   const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES2) {
@@ -176909,10 +176909,10 @@ async function readGraphJson(graphPath) {
   if (typeof graphPath !== "string" || graphPath.trim() === "") {
     throw new Error("GRAPHIFY_CONNECT_INVALID: graphPath must be non-empty string");
   }
-  const resolved = path32.resolve(graphPath);
+  const resolved = path33.resolve(graphPath);
   let stat;
   try {
-    stat = fs27.statSync(resolved);
+    stat = fs28.statSync(resolved);
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} \u2014 remedy: run the explicit graphify build for this target, then re-run the audit`);
   }
@@ -176925,7 +176925,7 @@ async function readGraphJson(graphPath) {
   }
   let raw;
   try {
-    raw = parseGraphJson(fs27.readFileSync(resolved, "utf-8"), gSize);
+    raw = parseGraphJson(fs28.readFileSync(resolved, "utf-8"), gSize);
   } catch (err) {
     const msg = String(err.message ?? err);
     if (msg.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
@@ -176949,7 +176949,7 @@ class GraphifyMapReader {
   }
   async load(graphPath) {
     const g = await readGraphJson(graphPath);
-    this.lastGraphPath = path32.resolve(graphPath);
+    this.lastGraphPath = path33.resolve(graphPath);
     return g;
   }
   async query(graph, question) {
@@ -177095,24 +177095,24 @@ var exports_auditor = {};
 __export(exports_auditor, {
   runTemplateAudit: () => runTemplateAudit
 });
-import fs28 from "fs";
-import path33 from "path";
+import fs29 from "fs";
+import path34 from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 function realResolve(p) {
-  const resolved = path33.resolve(p);
+  const resolved = path34.resolve(p);
   try {
-    return fs28.realpathSync(resolved);
+    return fs29.realpathSync(resolved);
   } catch {
     try {
-      return path33.join(fs28.realpathSync(path33.dirname(resolved)), path33.basename(resolved));
+      return path34.join(fs29.realpathSync(path34.dirname(resolved)), path34.basename(resolved));
     } catch {
       return resolved;
     }
   }
 }
 function isWithinRoot(realPath, realRoot) {
-  return realPath === realRoot || realPath.startsWith(realRoot + path33.sep);
+  return realPath === realRoot || realPath.startsWith(realRoot + path34.sep);
 }
 function makeCappedReadTool(targetRoot) {
   return {
@@ -177128,22 +177128,22 @@ function makeCappedReadTool(targetRoot) {
         return `READ_CAP_EXCEEDED: ${limit} > ${READ_CAP}`;
       if (!filePath)
         return "READ_INVALID: path required";
-      const rootReal = realResolve(path33.resolve(targetRoot));
-      const resolved = path33.isAbsolute(filePath) ? path33.resolve(filePath) : path33.resolve(targetRoot, filePath);
+      const rootReal = realResolve(path34.resolve(targetRoot));
+      const resolved = path34.isAbsolute(filePath) ? path34.resolve(filePath) : path34.resolve(targetRoot, filePath);
       const realFile = realResolve(resolved);
       if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal) {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
-        const fd = fs28.openSync(realFile, fs28.constants.O_RDONLY | fs28.constants.O_NOFOLLOW);
+        const fd = fs29.openSync(realFile, fs29.constants.O_RDONLY | fs29.constants.O_NOFOLLOW);
         try {
-          const size = fs28.fstatSync(fd).size;
+          const size = fs29.fstatSync(fd).size;
           if (size > 8 * 1024 * 1024)
             return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
           const buf = Buffer.alloc(size);
           let total = 0;
           while (total < size) {
-            const n = fs28.readSync(fd, buf, total, size - total, total);
+            const n = fs29.readSync(fd, buf, total, size - total, total);
             if (n <= 0)
               break;
             total += n;
@@ -177158,7 +177158,7 @@ function makeCappedReadTool(targetRoot) {
 [TRUNCATED]` : "");
           return out;
         } finally {
-          fs28.closeSync(fd);
+          fs29.closeSync(fd);
         }
       } catch (e) {
         return `READ_FAILED: ${String(e.message).slice(0, 300)}`;
@@ -177208,28 +177208,28 @@ function makeForceBoundWriteTool(pinnedPath, ledgerDir) {
     description: `Force-bound write to ${pinnedPath} (ONLY this path is writable)`,
     invoke: async (params) => {
       const attempted = String(params.path ?? "").trim();
-      const pinnedReal = realResolve(path33.resolve(pinnedPath));
+      const pinnedReal = realResolve(path34.resolve(pinnedPath));
       if (attempted !== "") {
-        const attemptedReal = realResolve(path33.resolve(attempted));
+        const attemptedReal = realResolve(path34.resolve(attempted));
         if (attemptedReal !== pinnedReal) {
           return JSON.stringify({ error: GRAPH_TOOL_VIOLATION, detail: `path ${attemptedReal} != pinned ${pinnedReal}`, recorded: true });
         }
       }
-      const ledgerReal = realResolve(path33.resolve(ledgerDir));
+      const ledgerReal = realResolve(path34.resolve(ledgerDir));
       if (!isWithinRoot(pinnedReal, ledgerReal) && pinnedReal !== ledgerReal) {
         return JSON.stringify({ error: WRITE_SCOPE_VIOLATION, detail: "pinned target outside ledger", recorded: true });
       }
       try {
-        fs28.mkdirSync(path33.dirname(pinnedReal), { recursive: true });
+        fs29.mkdirSync(path34.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
         if (content.length > 8 * 1024 * 1024) {
           return JSON.stringify({ error: "WRITE_TOO_LARGE: content exceeds the 8MiB write cap", recorded: true });
         }
-        const wfd = fs28.openSync(pinnedReal, fs28.constants.O_WRONLY | fs28.constants.O_CREAT | fs28.constants.O_TRUNC | fs28.constants.O_NOFOLLOW, 420);
+        const wfd = fs29.openSync(pinnedReal, fs29.constants.O_WRONLY | fs29.constants.O_CREAT | fs29.constants.O_TRUNC | fs29.constants.O_NOFOLLOW, 420);
         try {
-          fs28.writeFileSync(wfd, content, "utf-8");
+          fs29.writeFileSync(wfd, content, "utf-8");
         } finally {
-          fs28.closeSync(wfd);
+          fs29.closeSync(wfd);
         }
         return JSON.stringify({ path: pinnedReal, bytes: Buffer.byteLength(content, "utf-8") });
       } catch (e) {
@@ -177272,14 +177272,14 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
         created_run: layerId,
         confidence: 1
       };
-      const splicePath = path33.join(path33.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
-      fs28.mkdirSync(path33.dirname(splicePath), { recursive: true });
-      const sfd = fs28.openSync(splicePath, fs28.constants.O_WRONLY | fs28.constants.O_CREAT | fs28.constants.O_APPEND | fs28.constants.O_NOFOLLOW, 420);
+      const splicePath = path34.join(path34.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
+      fs29.mkdirSync(path34.dirname(splicePath), { recursive: true });
+      const sfd = fs29.openSync(splicePath, fs29.constants.O_WRONLY | fs29.constants.O_CREAT | fs29.constants.O_APPEND | fs29.constants.O_NOFOLLOW, 420);
       try {
-        fs28.writeFileSync(sfd, JSON.stringify(row) + `
+        fs29.writeFileSync(sfd, JSON.stringify(row) + `
 `, "utf-8");
       } finally {
-        fs28.closeSync(sfd);
+        fs29.closeSync(sfd);
       }
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
     }
@@ -177292,7 +177292,7 @@ function buildAuditorTools(ledgerDir, targetRoot, layerId, defaultPredicate) {
   if (!targetRoot || typeof targetRoot !== "string" || targetRoot.trim() === "") {
     throw new Error("AUDITOR_TOOLS_INVALID: targetRoot required");
   }
-  const reportPath = path33.join(path33.resolve(ledgerDir), "findings", "report.md");
+  const reportPath = path34.join(path34.resolve(ledgerDir), "findings", "report.md");
   const read = makeCappedReadTool(targetRoot);
   const grep = makeCappedGrepTool(targetRoot);
   const writeFindings = makeForceBoundWriteTool(reportPath, ledgerDir);
@@ -177380,11 +177380,11 @@ async function readFindingsReport(reportPath, schema) {
   }
   let stat;
   try {
-    stat = fs28.statSync(reportPath);
+    stat = fs29.statSync(reportPath);
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
   }
-  const raw = fs28.readFileSync(reportPath, "utf-8");
+  const raw = fs29.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0)
     throw new Error("REPORT_PARSE_FAILED: empty file");
   const { candidates, summary } = parseFindingsMarkdown(raw);
@@ -177419,36 +177419,36 @@ function nodeFile(targetRoot, node) {
   const raw = node.file || String(node.data?.["source_file"] ?? "");
   let rel = raw.replace(/^\.\//, "");
   if (rel.length > 0)
-    rel = path33.normalize(rel);
-  if (rel && !path33.isAbsolute(rel)) {
-    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path33.sep}`))
+    rel = path34.normalize(rel);
+  if (rel && !path34.isAbsolute(rel)) {
+    if (rel === ".." || rel.startsWith("../") || rel.startsWith(`..${path34.sep}`))
       return "";
-    return rel.split(path33.sep).join("/");
+    return rel.split(path34.sep).join("/");
   }
   if (rel) {
-    const r = path33.relative(realResolve(path33.resolve(targetRoot)), realResolve(rel));
-    if (r === "" || r === ".." || r.startsWith(`..${path33.sep}`) || path33.isAbsolute(r))
+    const r = path34.relative(realResolve(path34.resolve(targetRoot)), realResolve(rel));
+    if (r === "" || r === ".." || r.startsWith(`..${path34.sep}`) || path34.isAbsolute(r))
       return "";
-    return r.split(path33.sep).join("/");
+    return r.split(path34.sep).join("/");
   }
   return "";
 }
 function sourceLineQuote(targetRoot, relFile, line) {
   try {
-    const abs = path33.resolve(targetRoot, relFile);
-    const rootReal = realResolve(path33.resolve(targetRoot));
+    const abs = path34.resolve(targetRoot, relFile);
+    const rootReal = realResolve(path34.resolve(targetRoot));
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal)
       return "";
-    const fd = fs28.openSync(realFile, fs28.constants.O_RDONLY | fs28.constants.O_NOFOLLOW);
+    const fd = fs29.openSync(realFile, fs29.constants.O_RDONLY | fs29.constants.O_NOFOLLOW);
     try {
-      const size = fs28.fstatSync(fd).size;
+      const size = fs29.fstatSync(fd).size;
       if (size > 8 * 1024 * 1024)
         return "";
       const buf = Buffer.alloc(size);
       let total = 0;
       while (total < size) {
-        const n = fs28.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        const n = fs29.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
         if (n <= 0)
           break;
         total += n;
@@ -177457,7 +177457,7 @@ function sourceLineQuote(targetRoot, relFile, line) {
 `);
       return (lines[line - 1] ?? "").trim().slice(0, 300);
     } finally {
-      fs28.closeSync(fd);
+      fs29.closeSync(fd);
     }
   } catch {
     return "";
@@ -177776,15 +177776,15 @@ async function sweep(template, graph, targetRoot, belt, calls) {
     let contained = false;
     if (hitPath) {
       try {
-        const realHit = realResolve(path33.isAbsolute(hitPath) ? hitPath : path33.resolve(targetRoot, hitPath));
-        contained = isWithinRoot(realHit, realResolve(path33.resolve(targetRoot)));
+        const realHit = realResolve(path34.isAbsolute(hitPath) ? hitPath : path34.resolve(targetRoot, hitPath));
+        contained = isWithinRoot(realHit, realResolve(path34.resolve(targetRoot)));
         if (contained)
           hitPath = realHit;
       } catch {
         contained = false;
       }
     }
-    const rel = flm && contained ? path33.relative(realResolve(path33.resolve(targetRoot)), hitPath) || hitPath : firstNodeFile;
+    const rel = flm && contained ? path34.relative(realResolve(path34.resolve(targetRoot)), hitPath) || hitPath : firstNodeFile;
     return [{
       subject: `${anchor} signal \u2014 "${probe}" present at ${rel}`,
       predicate: `${anchor}.signal`,
@@ -177802,11 +177802,11 @@ async function sweep(template, graph, targetRoot, belt, calls) {
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }
 function writeBriefPinned(briefPath, content) {
-  const fd = fs28.openSync(briefPath, fs28.constants.O_WRONLY | fs28.constants.O_CREAT | fs28.constants.O_TRUNC | fs28.constants.O_NOFOLLOW, 420);
+  const fd = fs29.openSync(briefPath, fs29.constants.O_WRONLY | fs29.constants.O_CREAT | fs29.constants.O_TRUNC | fs29.constants.O_NOFOLLOW, 420);
   try {
-    fs28.writeFileSync(fd, content, "utf-8");
+    fs29.writeFileSync(fd, content, "utf-8");
   } finally {
-    fs28.closeSync(fd);
+    fs29.closeSync(fd);
   }
 }
 function assertGraphShape(graph) {
@@ -177840,7 +177840,7 @@ async function runTemplateAudit(args) {
   const t0 = Date.now();
   const template = args.template;
   const layerId = template?.layerId ?? "unknown";
-  const ledgerDir = path33.resolve(args.ledgerDir ?? "");
+  const ledgerDir = path34.resolve(args.ledgerDir ?? "");
   const errors = [];
   const calls = { count: 0, names: [] };
   if (!template || typeof template.layerId !== "string" || template.layerId.trim() === "") {
@@ -177855,8 +177855,8 @@ async function runTemplateAudit(args) {
   if (!args.targetRoot || typeof args.targetRoot !== "string" || args.targetRoot.trim() === "") {
     return { layerId, status: "rejected", error: "HUNTER_TARGET_INVALID: targetRoot required", ledgerDir, durationMs: Date.now() - t0 };
   }
-  const targetRoot = path33.resolve(args.targetRoot);
-  if (!fs28.existsSync(targetRoot)) {
+  const targetRoot = path34.resolve(args.targetRoot);
+  if (!fs29.existsSync(targetRoot)) {
     return { layerId, status: "rejected", error: `HUNTER_TARGET_INVALID: targetRoot not found: ${targetRoot}`, ledgerDir, durationMs: Date.now() - t0 };
   }
   let graph;
@@ -177874,7 +177874,7 @@ async function runTemplateAudit(args) {
     return { layerId, status: "rejected", error: "HUNTER_TOOLS_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
   try {
-    fs28.mkdirSync(ledgerDir, { recursive: true });
+    fs29.mkdirSync(ledgerDir, { recursive: true });
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_LEDGER_MKDIR_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -177883,7 +177883,7 @@ async function runTemplateAudit(args) {
     `- anchorPredicate: ${template.anchorPredicate}`,
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
-    `- graphPath: ${path33.resolve(args.graphPath)}`,
+    `- graphPath: ${path34.resolve(args.graphPath)}`,
     `- graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges / godNodes [${(graph.godNodes ?? []).slice(0, 5).join(", ")}]`,
     `- graphQueries: ${(template.graphQueries ?? []).join(" | ")}`,
     `- inputData: ${args.inputData ?? ""}`,
@@ -177893,7 +177893,7 @@ async function runTemplateAudit(args) {
   ].join(`
 `);
   try {
-    writeBriefPinned(path33.join(ledgerDir, "brief.md"), brief);
+    writeBriefPinned(path34.join(ledgerDir, "brief.md"), brief);
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_BRIEF_WRITE_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -177966,9 +177966,9 @@ ${summary}
       errors.push("GRAPH_TAG_FAILED: " + String(e.message).slice(0, 200));
     }
   }
-  const reportPath = path33.join(ledgerDir, "findings", "report.md");
+  const reportPath = path34.join(ledgerDir, "findings", "report.md");
   try {
-    const st = fs28.statSync(reportPath);
+    const st = fs29.statSync(reportPath);
     const REPORT_MTIME_SLACK_MS = 100;
     if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
@@ -178013,9 +178013,9 @@ var init_auditor = __esm(() => {
 });
 
 // src/omp/extension.ts
-import * as fs29 from "fs";
-import * as path34 from "path";
-import { Database as Database7 } from "bun:sqlite";
+import * as fs30 from "fs";
+import * as path35 from "path";
+import { Database as Database9 } from "bun:sqlite";
 
 // src/omp/typed-write.ts
 import * as fs2 from "fs";
@@ -186177,8 +186177,845 @@ function consumptionAudit(scopeRoot, subject) {
   };
 }
 
+// src/omp/graph-facts.ts
+import { Database as Database7 } from "bun:sqlite";
+var LIKE = (target) => `%${target.replace(/[%_]/g, "")}%`;
+function freshnessGate(db, input) {
+  const f = layerFreshness(db, { derivation: input.derivation ?? "explicit", now: input.now });
+  if (!f.stale)
+    return null;
+  return {
+    rule: "M-GRAPH-3",
+    settles: true,
+    action: "IGNORE",
+    reason: "the graph store is STALE \u2014 no fact is served from it",
+    evidence: `${f.code ?? "GI_LAYER_STALE"} \xB7 populatedAt=${f.populatedAt === null ? "NEVER" : new Date(f.populatedAt).toISOString()} \xB7 ageMs=${f.ageMs ?? "?"} \xB7 ttlMs=${f.ttlMs}`
+  };
+}
+function inDegree(db, target, predicate) {
+  const rows = predicate === undefined ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 LIMIT 5`).all(LIKE(target)) : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 LIMIT 5`).all(LIKE(target), predicate);
+  return { n: rows.length, sample: rows.map((r) => r.src_canonical) };
+}
+function graphFacts(input) {
+  let db;
+  try {
+    db = new Database7(input.storePath, { readonly: true });
+  } catch (e) {
+    return [{
+      rule: "M-GRAPH-3",
+      settles: false,
+      action: null,
+      reason: "the graph layer is UNAVAILABLE \u2014 the fact set could not be read",
+      evidence: `GI_GRAPH_FACTS_UNAVAILABLE: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`
+    }];
+  }
+  try {
+    const verdicts = [];
+    const stale = freshnessGate(db, input);
+    if (stale !== null)
+      return [stale];
+    const known = db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1`).get(LIKE(input.target)).n;
+    if (known === 0) {
+      return [{
+        rule: "M-GRAPH-1",
+        settles: false,
+        action: null,
+        reason: `the graph has NO NODE for "${input.target}" \u2014 no fact exists to settle on`,
+        evidence: "node absent \xB7 UNOBSERVED (a fall-through, never a pass)"
+      }];
+    }
+    const inD = inDegree(db, input.target);
+    const outD = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1`).get(LIKE(input.target)).n;
+    if (input.intent === "consume") {
+      const producers = inDegree(db, input.target, "calls");
+      verdicts.push(producers.n === 0 ? {
+        rule: "M-GRAPH-1",
+        settles: true,
+        action: "FIRE",
+        reason: `the consumed symbol "${input.target}" has ZERO incoming edges \u2014 nothing constructs or calls it`,
+        evidence: `in-degree 0 (calls) \xB7 out-degree ${outD}`
+      } : {
+        rule: "M-GRAPH-1",
+        settles: true,
+        action: "IGNORE",
+        reason: `the consumed symbol "${input.target}" has producers`,
+        evidence: `in-degree ${producers.n} \xB7 sample: ${producers.sample.slice(0, 3).join(", ")}`
+      });
+    }
+    if (input.intent === "declare") {
+      verdicts.push(outD === 0 && inD.n === 0 ? {
+        rule: "M-GRAPH-2",
+        settles: true,
+        action: "FIRE",
+        reason: `the declared symbol "${input.target}" has ZERO edges in or out \u2014 declared, never consumed`,
+        evidence: "in-degree 0 \xB7 out-degree 0"
+      } : {
+        rule: "M-GRAPH-2",
+        settles: true,
+        action: "IGNORE",
+        reason: `the declared symbol "${input.target}" is referenced`,
+        evidence: `in-degree ${inD.n} \xB7 out-degree ${outD}`
+      });
+    }
+    if (input.intent === "mutate") {
+      const sites = inDegree(db, input.target, "calls");
+      verdicts.push({
+        rule: "M-GRAPH-4",
+        settles: false,
+        action: null,
+        reason: sites.n > 1 ? `the mutation "${input.target}" has ${sites.n} call sites \u2014 their guards must agree` : `the mutation "${input.target}" shows ${sites.n} call site \u2014 A LOWER BOUND, not a proof of one (the indexer cannot see inline closures)`,
+        evidence: sites.n > 1 ? `call sites: ${sites.sample.join(", ")}` : `in-degree ${sites.n} \u2014 UNOBSERVED, never IGNORE: the extractor's coverage is incomplete`
+      });
+    }
+    if (input.intent === "measure") {
+      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1`).get(LIKE(input.target)).n;
+      verdicts.push(self2 > 0 ? {
+        rule: "M-GRAPH-5",
+        settles: true,
+        action: "FIRE",
+        reason: `"${input.target}" appears on BOTH ends of an edge \u2014 a self-referential measurement`,
+        evidence: `self-edges: ${self2}`
+      } : {
+        rule: "M-GRAPH-5",
+        settles: true,
+        action: "IGNORE",
+        reason: `"${input.target}" has no self-edge`,
+        evidence: `self-edges: 0`
+      });
+    }
+    return verdicts;
+  } finally {
+    db.close();
+  }
+}
+
+// src/omp/kernel-v2.ts
+function preflight(layers) {
+  const offenders = [];
+  const up = [];
+  for (const l of layers) {
+    let probe;
+    try {
+      probe = l.probe();
+    } catch (e) {
+      probe = { up: false, evidence: e instanceof Error ? e.message : String(e) };
+    }
+    if (probe.up)
+      up.push(l.id);
+    else
+      offenders.push({ id: l.id, dependency: l.dependency, errorCode: l.errorCode, evidence: probe.evidence });
+  }
+  if (offenders.length > 0) {
+    return { ok: false, code: `GI_STACK_INCOMPLETE:${offenders[0].id}`, offenders, up };
+  }
+  return { ok: true, code: null, offenders, up };
+}
+var PASS = { verdict: "PASS", tier: "T0", reason: "no signal", evidence: "" };
+var dumbDetector = {
+  id: "dumb.grounding-precondition",
+  class: "dumb",
+  detect(ctx) {
+    if (ctx.queriedBefore)
+      return { ...PASS, reason: "target was queried before the act" };
+    return {
+      verdict: "VIOLATION",
+      tier: "T1",
+      reason: `no graph query on '${ctx.target}' before the act \u2014 the edit is blind`,
+      evidence: `execution record: queried_before=false for target='${ctx.target}' tool='${ctx.toolName}'`
+    };
+  }
+};
+var theatricalDetector = {
+  id: "theatrical.claim-without-span",
+  class: "theatrical",
+  detect(ctx) {
+    const unbound = ctx.claims.filter((c) => c.spans === 0);
+    if (unbound.length === 0)
+      return { ...PASS, reason: "every claim carries at least one bound span" };
+    const first = unbound[0];
+    return {
+      verdict: "VIOLATION",
+      tier: "T2",
+      reason: `claim has ZERO bound evidence spans: "${first.text.slice(0, 80)}"`,
+      evidence: `claims=${ctx.claims.length} unbound=${unbound.length} spans[0]=0`
+    };
+  }
+};
+var destructiveDetector = {
+  id: "destructive.layer-certification",
+  class: "destructive",
+  detect(ctx) {
+    if (ctx.certifications.length === 0) {
+      return {
+        verdict: "UNCERTIFIABLE",
+        tier: "T2",
+        reason: "no layer certified this act \u2014 nothing to stand on",
+        evidence: "certifications=0"
+      };
+    }
+    const v = ctx.certifications.find((c) => c.verdict !== "PASS");
+    if (v === undefined)
+      return { ...PASS, reason: `all ${ctx.certifications.length} layers certified` };
+    if (v.verdict === "VIOLATION") {
+      return {
+        verdict: "VIOLATION",
+        tier: "T2",
+        reason: `${v.layer}: ${v.reason}`,
+        evidence: `certifications=${ctx.certifications.length} first_non_pass=${v.layer}:${v.verdict}`
+      };
+    }
+    return {
+      verdict: "UNCERTIFIABLE",
+      tier: "T2",
+      reason: `${v.layer} could not certify: ${v.reason}`,
+      evidence: `certifications=${ctx.certifications.length} first_non_pass=${v.layer}:UNCERTIFIABLE`
+    };
+  }
+};
+var DEFAULT_DETECTORS = [dumbDetector, theatricalDetector, destructiveDetector];
+function classifyByDetectors(detectors, ctx) {
+  return detectors.map((d) => {
+    let outcome;
+    try {
+      outcome = d.detect(ctx);
+    } catch (e) {
+      outcome = {
+        verdict: "UNCERTIFIABLE",
+        tier: "T2",
+        reason: `detector ${d.id} threw`,
+        evidence: e instanceof Error ? e.message : String(e)
+      };
+    }
+    return { detector: d, outcome };
+  });
+}
+var TIER_ORDER = { T0: 0, T1: 1, T2: 2, T3: 3 };
+var VERDICT_RANK = { PASS: 0, UNCERTIFIABLE: 1, VIOLATION: 2 };
+function worstOutcome(outcomes) {
+  return outcomes.reduce((a, b) => {
+    const va = VERDICT_RANK[a.outcome.verdict];
+    const vb = VERDICT_RANK[b.outcome.verdict];
+    if (vb > va)
+      return b;
+    if (vb === va && a.outcome.verdict !== "PASS" && b.outcome.verdict !== "PASS") {
+      const order = { destructive: 3, theatrical: 2, dumb: 1, benign: 0 };
+      if (order[b.detector.class] > order[a.detector.class])
+        return b;
+    }
+    return a;
+  });
+}
+function runKernelV2(input) {
+  const stages = [];
+  const detectors = input.detectors ?? DEFAULT_DETECTORS;
+  const pre = preflight(input.layers);
+  stages.push({
+    stage: 0,
+    name: "PREFLIGHT",
+    outcome: pre.ok ? "UP" : "REFUSE",
+    detail: pre.ok ? `${pre.up.length} layer(s) up` : `${pre.offenders.length} layer(s) DOWN: ${pre.offenders.map((o) => o.id).join(",")}`
+  });
+  if (!pre.ok) {
+    const reason = pre.offenders.map((o) => `${o.errorCode} (${o.id} needs ${o.dependency}; ${o.evidence})`).join(" | ");
+    return finish(stages, "REFUSE", pre.code, "benign", reason, `offenders=${pre.offenders.length}`);
+  }
+  const outcomes = classifyByDetectors(detectors, input);
+  stages.push({
+    stage: 1,
+    name: "CLASSIFY",
+    outcome: "OK",
+    detail: `3 classes asked (dumb|theatrical|destructive)`
+  });
+  stages.push({
+    stage: 2,
+    name: "BIND+INDEX",
+    outcome: "OK",
+    detail: `claims=${input.claims.length} bound=${input.claims.filter((c) => c.spans > 0).length}`
+  });
+  stages.push({
+    stage: 3,
+    name: "DETECT",
+    outcome: outcomes.some((o) => o.outcome.verdict !== "PASS") ? "SIGNAL" : "CLEAN",
+    detail: outcomes.map((o) => `${o.detector.class}:${o.outcome.verdict}`).join(" ")
+  });
+  const worst = worstOutcome(outcomes);
+  stages.push({
+    stage: 4,
+    name: "KERNEL",
+    outcome: worst.outcome.verdict,
+    detail: `${worst.detector.id} (${worst.detector.class})`
+  });
+  let verdict;
+  if (worst.outcome.verdict === "VIOLATION") {
+    verdict = TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] ? "REFUSE" : "STEER";
+  } else if (worst.outcome.verdict === "UNCERTIFIABLE") {
+    verdict = "REFUSE";
+  } else {
+    verdict = "ALLOW";
+  }
+  stages.push({
+    stage: 5,
+    name: "VERDICT",
+    outcome: verdict,
+    detail: worst.outcome.reason
+  });
+  const cleanRun = worst.outcome.verdict === "PASS";
+  const code = cleanRun ? null : worst.detector.class === "destructive" ? "GI_VIOLATION" : worst.detector.class === "theatrical" ? "GI_FABRICATED_CLAIM" : "GI_BLIND_ACT";
+  const run = finish(stages, verdict, code, cleanRun ? "benign" : worst.detector.class, worst.outcome.reason, worst.outcome.evidence);
+  stages.push({ stage: 6, name: "RECORD", outcome: input.record ? "WRITTEN" : "SKIPPED", detail: input.record ? "enforcement ledger" : "no sink supplied" });
+  if (input.record) {
+    try {
+      input.record(run);
+    } catch (e) {
+      run.stages.push({ stage: 6, name: "RECORD", outcome: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return run;
+}
+function finish(stages, verdict, code, cls, reason, evidence) {
+  return { stages, verdict, code, class: cls, reason, evidence };
+}
+
+// src/omp/decision.ts
+import * as path32 from "path";
+
+// src/omp/fire-ledger.ts
+import { Database as Database8 } from "bun:sqlite";
+var FIRE_DECISIONS_DDL = `
+CREATE TABLE IF NOT EXISTS fire_decisions (
+  id               INTEGER PRIMARY KEY,
+  at               TEXT NOT NULL,
+  rule_id          TEXT NOT NULL,
+  cls              TEXT NOT NULL,
+  question_version TEXT NOT NULL,
+  probability      REAL NOT NULL,
+  band             TEXT NOT NULL,
+  action           TEXT NOT NULL,
+  policy_name      TEXT NOT NULL,
+  act_threshold    REAL NOT NULL,
+  flag_threshold   REAL NOT NULL,
+  state_hash       TEXT NOT NULL,
+  -- \u2605 EN-090 \u2014 nullable BY CONSTRUCTION: rows written before the migration have no target
+  --   and never can (it was hashed away). NULL is the honest value for them.
+  target           TEXT,
+  cost_usd         REAL NOT NULL DEFAULT 0,
+  later_truth      TEXT NOT NULL DEFAULT 'unresolved'
+                   CHECK (later_truth IN ('confirmed','refuted','unresolved')),
+  truth_at         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_fd_rule_truth ON fire_decisions(rule_id, later_truth);
+CREATE INDEX IF NOT EXISTS idx_fd_hash ON fire_decisions(state_hash);
+`;
+
+class LedgerError extends Error {
+  code;
+  constructor(code, detail, cause) {
+    super(`GI_LEDGER_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`, { cause });
+    this.code = code;
+    this.name = "LedgerError";
+  }
+}
+
+class FireLedger {
+  path;
+  db;
+  insertStmt;
+  closed = false;
+  persistFailureCount = 0;
+  lastPersist = null;
+  constructor(path) {
+    this.path = path;
+    if (path.trim() === "" || path.trim() === ":memory:" || path.trim().startsWith("file::memory:")) {
+      throw new LedgerError("NOT_PERSISTENT", `path ${JSON.stringify(path)} names an in-memory database \u2014 the ledger must survive the process or it is not a ledger`);
+    }
+    let db;
+    try {
+      db = new Database8(path, { create: true });
+      db.exec(FIRE_DECISIONS_DDL);
+    } catch (e) {
+      throw new LedgerError("OPEN_FAILED", `cannot open or migrate the fire ledger at ${path}`, e);
+    }
+    this.db = db;
+    try {
+      const cols = this.db.query("PRAGMA table_info(fire_decisions)").all();
+      if (!cols.some((c) => c.name === "target")) {
+        this.db.exec("ALTER TABLE fire_decisions ADD COLUMN target TEXT");
+      }
+    } catch (e) {
+      throw new LedgerError("MIGRATION_FAILED", `cannot add the target column to the ledger at ${path} \u2014 the DDL and the insert would disagree`, e);
+    }
+    try {
+      this.db.exec("PRAGMA journal_mode = WAL;");
+    } catch {}
+    this.insertStmt = this.db.prepare(`
+      INSERT INTO fire_decisions (
+        at, rule_id, cls, question_version, probability, band, action,
+        policy_name, act_threshold, flag_threshold, state_hash, target, cost_usd,
+        later_truth, truth_at
+      ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,NULL)
+    `);
+  }
+  rawDb() {
+    this.ensureOpen();
+    return this.db;
+  }
+  ensureOpen() {
+    if (this.closed) {
+      throw new LedgerError("CLOSED", `the ledger at ${this.path} is closed \u2014 reopen it rather than reading a closed handle`);
+    }
+  }
+  guard(op, fn) {
+    this.ensureOpen();
+    try {
+      return fn();
+    } catch (e) {
+      if (e instanceof LedgerError)
+        throw e;
+      throw new LedgerError("QUERY_FAILED", `${op} failed on ${this.path}`, e);
+    }
+  }
+  persistFailures() {
+    return this.persistFailureCount;
+  }
+  lastPersistError() {
+    return this.lastPersist;
+  }
+  notePersistFailure(code, message) {
+    this.persistFailureCount += 1;
+    this.lastPersist = { code, message, at: new Date().toISOString() };
+  }
+  append(row) {
+    this.ensureOpen();
+    if (row === null || typeof row !== "object") {
+      throw new LedgerError("MALFORMED_ROW", `append requires a row object, got ${String(row)}`);
+    }
+    for (const key of ["at", "ruleId", "cls", "questionVersion", "band", "action", "policyName", "stateHash"]) {
+      if (typeof row[key] !== "string" || row[key].trim() === "") {
+        if (key === "stateHash") {
+          throw new LedgerError("EMPTY_STATE_HASH", "a row without a state_hash cannot be resolved later");
+        }
+        throw new LedgerError("MALFORMED_ROW", `${key} must be a non-empty string, got ${JSON.stringify(row[key])}`);
+      }
+    }
+    for (const key of ["probability", "actThreshold", "flagThreshold", "costUsd"]) {
+      if (typeof row[key] !== "number" || !Number.isFinite(row[key])) {
+        if (key === "probability") {
+          throw new LedgerError("BAD_PROBABILITY", `probability must be finite, got ${String(row[key])}`);
+        }
+        throw new LedgerError("BAD_NUMBER", `${key} must be finite, got ${String(row[key])}`);
+      }
+    }
+    for (const key of ["probability", "actThreshold", "flagThreshold"]) {
+      if (row[key] < 0 || row[key] > 1) {
+        throw new LedgerError("BAD_PROBABILITY", `${key}=${row[key]} is outside 0..1 \u2014 a probability that cannot band`);
+      }
+    }
+    if (!["act", "escalate", "ignore"].includes(row.band)) {
+      throw new LedgerError("BAD_DOMAIN", `band='${row.band}' is not act|escalate|ignore`);
+    }
+    if (!["FIRE", "ESCALATE", "IGNORE"].includes(row.action)) {
+      throw new LedgerError("BAD_DOMAIN", `action='${row.action}' is not FIRE|ESCALATE|IGNORE`);
+    }
+    if (row.laterTruth !== "unresolved") {
+      throw new LedgerError("TRUTH_AT_FIRING", `a row must be inserted 'unresolved', got '${String(row.laterTruth)}' \u2014 the oracle resolves it later`);
+    }
+    try {
+      const r = this.insertStmt.run(row.at, row.ruleId, row.cls, row.questionVersion, row.probability, row.band, row.action, row.policyName, row.actThreshold, row.flagThreshold, row.stateHash, row.target ?? null, row.costUsd, row.laterTruth);
+      return Number(r.lastInsertRowid);
+    } catch (e) {
+      throw new LedgerError("APPEND_FAILED", `row for ${row.ruleId} (${row.stateHash}) was not written`, e);
+    }
+  }
+  appendMany(rows) {
+    return this.appendManyDetailed(rows).committed.length;
+  }
+  appendManyDetailed(rows) {
+    this.ensureOpen();
+    if (rows.length === 0)
+      return { committed: [], failed: [] };
+    const tx = this.db.transaction((rs) => {
+      for (const r of rs)
+        this.append(r);
+      return rs.length;
+    });
+    try {
+      tx(rows);
+      return { committed: [...rows], failed: [] };
+    } catch (e) {
+      if (!(e instanceof LedgerError)) {
+        throw new LedgerError("APPEND_MANY_FAILED", `${rows.length} rows did not commit`, e);
+      }
+      const committed = [];
+      const failed = [];
+      for (const r of rows) {
+        try {
+          this.append(r);
+          committed.push(r);
+        } catch (inner) {
+          const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
+          failed.push({ row: r, error: err });
+          this.notePersistFailure(`GI_LEDGER_${err.code}`, err.message);
+        }
+      }
+      return { committed, failed };
+    }
+  }
+  all(limit) {
+    if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
+      throw new LedgerError("BAD_LIMIT", `all(limit) needs a positive integer, got ${String(limit)}`);
+    }
+    return this.guard("all", () => {
+      const raw = limit === undefined ? this.db.query(`SELECT * FROM fire_decisions ORDER BY id ASC`).all() : this.db.query(`SELECT * FROM fire_decisions ORDER BY id DESC LIMIT ?1`).all(limit);
+      const rows = raw.map(toPersisted);
+      return limit === undefined ? rows : rows.reverse();
+    });
+  }
+  byRule(ruleId, limit) {
+    if (typeof ruleId !== "string" || ruleId.trim() === "") {
+      throw new LedgerError("BAD_RULE_ID", `byRule needs a non-empty ruleId, got ${JSON.stringify(ruleId)}`);
+    }
+    if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
+      throw new LedgerError("BAD_LIMIT", `byRule(limit) needs a positive integer, got ${String(limit)}`);
+    }
+    return this.guard("byRule", () => {
+      const raw = limit === undefined ? this.db.query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id ASC`).all(ruleId) : this.db.query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id DESC LIMIT ?2`).all(ruleId, limit);
+      const rows = raw.map(toPersisted);
+      return limit === undefined ? rows : rows.reverse();
+    });
+  }
+  count() {
+    return this.guard("count", () => {
+      const r = this.db.query(`SELECT COUNT(*) AS n FROM fire_decisions`).get();
+      return r.n;
+    });
+  }
+  recordTruth(stateHash, truth, at = new Date().toISOString()) {
+    if (truth !== "confirmed" && truth !== "refuted") {
+      throw new LedgerError("BAD_TRUTH", `the oracle resolves to confirmed|refuted; got ${JSON.stringify(truth)}`);
+    }
+    if (typeof stateHash !== "string" || stateHash.trim() === "") {
+      throw new LedgerError("BAD_STATE_HASH", `recordTruth needs a non-empty stateHash, got ${JSON.stringify(stateHash)}`);
+    }
+    if (typeof at !== "string" || !Number.isFinite(Date.parse(at))) {
+      throw new LedgerError("BAD_TRUTH_AT", `truth_at must be a parseable timestamp, got ${JSON.stringify(at)}`);
+    }
+    return this.guard("recordTruth", () => {
+      try {
+        const r = this.db.prepare(`UPDATE fire_decisions SET later_truth = ?1, truth_at = ?2 WHERE state_hash = ?3 AND later_truth = 'unresolved'`).run(truth, at, stateHash);
+        return Number(r.changes);
+      } catch (e) {
+        throw new LedgerError("TRUTH_FAILED", `could not resolve state ${stateHash}`, e);
+      }
+    });
+  }
+  countsByRule() {
+    return this.guard("countsByRule", () => {
+      const raw = this.db.query(`SELECT rule_id, later_truth, COUNT(*) AS n
+           FROM fire_decisions
+          GROUP BY rule_id, later_truth`).all();
+      const out = {};
+      for (const r of raw) {
+        const slot = out[r.rule_id] ??= { confirmed: 0, refuted: 0, unresolved: 0 };
+        if (r.later_truth === "confirmed")
+          slot.confirmed += r.n;
+        else if (r.later_truth === "refuted")
+          slot.refuted += r.n;
+        else if (r.later_truth === "unresolved")
+          slot.unresolved += r.n;
+        else {
+          throw new LedgerError("UNKNOWN_TRUTH", `row has later_truth='${r.later_truth}' for ${r.rule_id} \u2014 refusing to misclassify it`);
+        }
+      }
+      return out;
+    });
+  }
+  truthOf(stateHash) {
+    return this.guard("truthOf", () => {
+      const r = this.db.query(`SELECT later_truth FROM fire_decisions WHERE state_hash = ?1 ORDER BY id DESC LIMIT 1`).get(stateHash);
+      if (r === null)
+        return null;
+      if (r.later_truth !== "confirmed" && r.later_truth !== "refuted" && r.later_truth !== "unresolved") {
+        throw new LedgerError("UNKNOWN_TRUTH", `row has later_truth='${r.later_truth}' for ${stateHash} \u2014 refusing to launder it into a Truth`);
+      }
+      return r.later_truth;
+    });
+  }
+  columns() {
+    return this.guard("columns", () => {
+      const r = this.db.query(`PRAGMA table_info(fire_decisions)`).all();
+      return r.map((x) => x.name);
+    });
+  }
+  indices() {
+    return this.guard("indices", () => {
+      const r = this.db.query(`PRAGMA index_list(fire_decisions)`).all();
+      return r.map((x) => x.name);
+    });
+  }
+  close() {
+    if (this.closed)
+      return;
+    this.closed = true;
+    try {
+      this.insertStmt.finalize();
+    } catch {}
+    try {
+      this.db.close();
+    } catch {}
+  }
+}
+function persistedTruth(v, stateHash) {
+  if (v === "confirmed" || v === "refuted" || v === "unresolved")
+    return v;
+  throw new LedgerError("UNKNOWN_TRUTH", `row ${String(stateHash)} has later_truth=${JSON.stringify(v)} \u2014 refusing to launder it into a Truth`);
+}
+function toPersisted(raw) {
+  return {
+    id: Number(raw["id"]),
+    at: String(raw["at"]),
+    ruleId: String(raw["rule_id"]),
+    cls: String(raw["cls"]),
+    questionVersion: String(raw["question_version"]),
+    probability: Number(raw["probability"]),
+    band: String(raw["band"]),
+    action: String(raw["action"]),
+    policyName: String(raw["policy_name"]),
+    actThreshold: Number(raw["act_threshold"]),
+    flagThreshold: Number(raw["flag_threshold"]),
+    stateHash: String(raw["state_hash"]),
+    ...raw["target"] === null || raw["target"] === undefined ? {} : { target: String(raw["target"]) },
+    costUsd: Number(raw["cost_usd"]),
+    laterTruth: persistedTruth(raw["later_truth"], raw["state_hash"]),
+    truthAt: raw["truth_at"] === null || raw["truth_at"] === undefined ? null : String(raw["truth_at"])
+  };
+}
+var drained = new Map;
+
+// src/omp/policy-store.ts
+import * as fs27 from "fs";
+var SUPPORTED_POLICY_VERSIONS = [1];
+var FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+function assertSafeKey(key) {
+  if (FORBIDDEN_KEYS.has(key)) {
+    throw new PolicyError("FORBIDDEN_KEY", `the rule id ${JSON.stringify(key)} collides with Object.prototype \u2014 refusing to load a prototype-pollution vector`);
+  }
+}
+function nullProtoRecord() {
+  return Object.create(null);
+}
+function canonical(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value))
+    return `[${value.map(canonical).join(",")}]`;
+  const entries = Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+}
+
+class PolicyError extends Error {
+  code;
+  constructor(code, detail, cause) {
+    super(`GI_POLICY_${code}: ${detail}${cause instanceof Error ? ` (${cause.message})` : ""}`, { cause });
+    this.code = code;
+    this.name = "PolicyError";
+  }
+}
+function deepFreeze(value) {
+  if (value !== null && typeof value === "object") {
+    for (const v of Object.values(value))
+      deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
+var DEFAULT_POLICY_FILE = deepFreeze({
+  version: 1,
+  policies: {
+    "*destructive": { name: "destructive-seed", act: 0.9, flag: 0.5, failPolarity: "closed" },
+    "*dumb": { name: "dumb-seed", act: 0.75, flag: 0.35, failPolarity: "open" },
+    "*theatrical": { name: "theatrical-seed", act: 0.85, flag: 0.45, failPolarity: "closed" }
+  }
+});
+function frozenCopy(policy) {
+  return Object.freeze({ ...policy });
+}
+function readPolicyFile(filePath) {
+  let raw;
+  try {
+    raw = fs27.readFileSync(filePath, "utf8");
+  } catch (e) {
+    const code = e?.code;
+    const kind = code === "ENOENT" ? "MISSING" : code === "EACCES" ? "UNREADABLE" : code === "EISDIR" || code === "ENOTDIR" ? "NOT_A_FILE" : "READ_FAILED";
+    throw new PolicyError(kind, `could not read the policy file at ${filePath} (${code ?? "unknown"})`, e);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new PolicyError("MALFORMED", `the policy file at ${filePath} is not valid JSON`, e);
+  }
+  if (parsed === null || typeof parsed !== "object") {
+    throw new PolicyError("MALFORMED", `the policy file at ${filePath} is not an object`);
+  }
+  const obj = parsed;
+  if (typeof obj.version !== "number" || !Number.isFinite(obj.version)) {
+    throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no numeric version`);
+  }
+  if (obj.policies === null || typeof obj.policies !== "object" || Array.isArray(obj.policies)) {
+    throw new PolicyError("MALFORMED", `the policy file at ${filePath} has no policies object (an array is not a map)`);
+  }
+  if (!SUPPORTED_POLICY_VERSIONS.includes(obj.version)) {
+    throw new PolicyError("UNSUPPORTED_VERSION", `the policy file at ${filePath} declares version ${obj.version}; this build understands ${SUPPORTED_POLICY_VERSIONS.join(", ")}`);
+  }
+  const policies = nullProtoRecord();
+  for (const [ruleId, pol] of Object.entries(obj.policies)) {
+    assertSafeKey(ruleId);
+    policies[ruleId] = pol;
+  }
+  const file = deepFreeze({ version: obj.version, policies });
+  validatePolicies(file);
+  return file;
+}
+function validatePolicies(file) {
+  if (file === null || typeof file !== "object" || Array.isArray(file)) {
+    throw new PolicyError("MALFORMED", `validatePolicies needs a PolicyFile object`);
+  }
+  if (file.policies === null || typeof file.policies !== "object" || Array.isArray(file.policies)) {
+    throw new PolicyError("MALFORMED", `the policies must be a map, not ${Array.isArray(file.policies) ? "an array" : typeof file.policies}`);
+  }
+  if (!SUPPORTED_POLICY_VERSIONS.includes(file.version)) {
+    throw new PolicyError("UNSUPPORTED_VERSION", `version ${file.version} is not supported by this build (${SUPPORTED_POLICY_VERSIONS.join(", ")})`);
+  }
+  for (const [ruleId, p] of Object.entries(file.policies)) {
+    assertSafeKey(ruleId);
+    if (p === null || typeof p !== "object") {
+      throw new PolicyError("MALFORMED", `the policy for ${ruleId} is not an object`);
+    }
+    for (const key of ["act", "flag"]) {
+      const v = p[key];
+      if (typeof v !== "number" || !Number.isFinite(v)) {
+        throw new PolicyError("MALFORMED", `the policy for ${ruleId} has a non-numeric ${key}`);
+      }
+      if (v < 0 || v > 1) {
+        throw new PolicyError("RANGE", `the policy for ${ruleId} has ${key}=${v}, outside 0..1 \u2014 it could never band`);
+      }
+    }
+    if (p.act <= p.flag) {
+      const kind = p.act < p.flag ? "INVERTED" : "ZERO_WIDTH_BAND";
+      const detail = p.act < p.flag ? `act=${p.act} sits BELOW flag=${p.flag} \u2014 the flag would never be consulted` : `act=${p.act} EQUALS flag=${p.flag} \u2014 the ESCALATE band has zero width`;
+      throw new PolicyError(kind, `the policy for ${ruleId} has ${detail}; ESCALATE would be unreachable`);
+    }
+    if (p.failPolarity !== "open" && p.failPolarity !== "closed") {
+      throw new PolicyError("MALFORMED", `the policy for ${ruleId} has failPolarity='${String(p.failPolarity)}' \u2014 must be open|closed`);
+    }
+    if (typeof p.name !== "string" || p.name.trim() === "") {
+      throw new PolicyError("MALFORMED", `the policy for ${ruleId} has no name \u2014 a threshold must be able to say what it is called`);
+    }
+  }
+}
+
+class PolicyStore {
+  path;
+  file;
+  constructor(path) {
+    this.path = path;
+    this.file = readPolicyFile(path);
+    validatePolicies(this.file);
+  }
+  reload() {
+    const next = readPolicyFile(this.path);
+    validatePolicies(next);
+    const changed = canonical(next) !== canonical(this.file);
+    this.file = next;
+    return { changed, version: next.version, policies: Object.keys(next.policies).length };
+  }
+  get(ruleId) {
+    if (!Object.hasOwn(this.file.policies, ruleId))
+      return;
+    const p = this.file.policies[ruleId];
+    return p === undefined ? undefined : frozenCopy(p);
+  }
+  all() {
+    const out = nullProtoRecord();
+    for (const [k, v] of Object.entries(this.file.policies)) {
+      assertSafeKey(k);
+      out[k] = frozenCopy(v);
+    }
+    return Object.freeze(out);
+  }
+  version() {
+    return this.file.version;
+  }
+  validate() {
+    validatePolicies(this.file);
+  }
+}
+
+// src/omp/decision.ts
+var LAYER_IDS = [
+  "L1_SEMANTICA",
+  "L2_ARSUMBRIS",
+  "L3_UA",
+  "L4_C2KG",
+  "L5_CORBELL",
+  "L6_GRAPHIFY"
+];
+function decideFromRegistry(scopeRoot, subject, act) {
+  const registry = buildRegistry(scopeRoot);
+  const facts = registry.factsFor(subject);
+  const influenced = [...new Set(facts.map((f) => f.consumer))];
+  const layers = registry.consumers().filter((c) => LAYER_IDS.includes(c.id)).map((c) => ({
+    id: c.id,
+    dependency: c.dependency,
+    errorCode: c.errorCode,
+    probe: () => {
+      const s = c.up();
+      return { up: s.up, evidence: s.evidence };
+    }
+  }));
+  const certifications = facts.map((f) => ({
+    layer: f.consumer,
+    verdict: "PASS",
+    reason: `${f.source}`
+  }));
+  const run = runKernelV2({
+    toolName: act.toolName,
+    target: act.target,
+    queriedBefore: act.queriedBefore,
+    claims: act.claims ?? [],
+    certifications,
+    layers
+  });
+  return {
+    subject,
+    scopeRoot,
+    layersWired: layers.length,
+    consumersTotal: SIX_L2E_CONSUMERS.length,
+    facts,
+    influenced,
+    run
+  };
+}
+function decideFireFromGraph(scopeRoot, target, intent) {
+  const storePath = corbellCheckoutPath(scopeRoot);
+  const verdicts = graphFacts({ storePath, target, intent });
+  const settles = verdicts.some((v) => v.settles);
+  const fires = verdicts.filter((v) => v.action === "FIRE").length;
+  const policyPath = path32.join(scopeRoot, ".omp", "graph-intelligence", "policy.json");
+  let policyCount = Object.keys(DEFAULT_POLICY_FILE.policies).length;
+  let policySource = "the seed policy set (no policy.json on disk \u2014 the named fallback)";
+  try {
+    const store = new PolicyStore(policyPath);
+    policyCount = Object.keys(store.all()).length;
+    policySource = policyPath;
+  } catch {}
+  const ledgerPath = path32.join(scopeRoot, ".omp", "graph-intelligence", "fire-decisions.db");
+  const ledger = new FireLedger(ledgerPath);
+  return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };
+}
+
 // src/omp/extension.ts
-var GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "gi-consumption"];
+var GI_TOOL_NAMES = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "gi-consumption", "gi-decide"];
 var GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" };
 var populateLane = Promise.resolve();
 var withPopulateLane = async (fn) => {
@@ -186191,8 +187028,8 @@ var withPopulateLane = async (fn) => {
   return run;
 };
 function ledgerDirConfined(ledgerReal, targetReal) {
-  const rel = path34.relative(targetReal, ledgerReal);
-  return rel !== "" && !rel.startsWith("..") && !path34.isAbsolute(rel);
+  const rel = path35.relative(targetReal, ledgerReal);
+  return rel !== "" && !rel.startsWith("..") && !path35.isAbsolute(rel);
 }
 function substrateNeedsPopulate(storePath, scopeRoot) {
   if (countTypedNodes(storePath) === 0)
@@ -186204,7 +187041,7 @@ function substrateNeedsPopulate(storePath, scopeRoot) {
 function settlementLedgerConfined(ledgerPath, targetReal) {
   let real = ledgerPath;
   try {
-    real = fs29.realpathSync(ledgerPath);
+    real = fs30.realpathSync(ledgerPath);
   } catch {
     return { ok: false, error: "GI_PATH_DENIED: settlement ledger does not exist" };
   }
@@ -186214,9 +187051,9 @@ function settlementLedgerConfined(ledgerPath, targetReal) {
   return { ok: true, real };
 }
 function writeWipeAudit(giDir, note) {
-  fs29.mkdirSync(giDir, { recursive: true });
-  const regPath = path34.join(giDir, "registry.sqlite");
-  const db = new Database7(regPath);
+  fs30.mkdirSync(giDir, { recursive: true });
+  const regPath = path35.join(giDir, "registry.sqlite");
+  const db = new Database9(regPath);
   try {
     db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
     db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [note]);
@@ -186226,12 +187063,12 @@ function writeWipeAudit(giDir, note) {
 }
 function graphProbeWipeAudited(ctx, cwdOf) {
   const wipeCwd = cwdOf(ctx);
-  const wipeConfined = confineTargetPath(path34.normalize(wipeCwd), wipeCwd);
+  const wipeConfined = confineTargetPath(path35.normalize(wipeCwd), wipeCwd);
   if (!wipeConfined.ok) {
     return { audited: false, text: `WIPE_AUDIT_FAILED: ${wipeConfined.error}` };
   }
   try {
-    writeWipeAudit(path34.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
+    writeWipeAudit(path35.join(wipeConfined.real, ".omp", "graph-intelligence"), `${ctx?.sessionID ?? "unknown-session"}@${new Date().toISOString()}`);
     return { audited: true, text: "" };
   } catch (auditErr) {
     return { audited: false, text: `WIPE_AUDIT_FAILED: ${auditErr instanceof Error ? auditErr.message : String(auditErr)}` };
@@ -186243,13 +187080,13 @@ function parseTargetRoots(raw) {
 var confineTargetPath = (normalized, callerCwd) => {
   let real = normalized;
   try {
-    real = fs29.realpathSync(normalized);
+    real = fs30.realpathSync(normalized);
   } catch {
     return { ok: false, error: `GI_PATH_DENIED: targetPath does not exist: '${normalized.slice(0, 120)}'` };
   }
   let st = null;
   try {
-    st = fs29.statSync(real);
+    st = fs30.statSync(real);
   } catch {
     st = null;
   }
@@ -186261,14 +187098,14 @@ var confineTargetPath = (normalized, callerCwd) => {
   const within = roots.some((root) => {
     let rootReal = null;
     try {
-      rootReal = fs29.realpathSync(root);
+      rootReal = fs30.realpathSync(root);
     } catch {
       rootReal = null;
     }
     if (rootReal === null)
       return false;
-    const rel = path34.relative(rootReal, real);
-    return rel === "" || !rel.split(/[\\/]/).includes("..") && !path34.isAbsolute(rel);
+    const rel = path35.relative(rootReal, real);
+    return rel === "" || !rel.split(/[\\/]/).includes("..") && !path35.isAbsolute(rel);
   });
   if (!within) {
     return { ok: false, error: `GI_PATH_DENIED: targetPath '${real.slice(0, 120)}' is outside the allowed roots (${roots.join(":").slice(0, 120)}); set GI_TARGET_ROOTS to extend` };
@@ -186471,10 +187308,10 @@ function registerGiOmpTools(pi, cwdOf) {
       let scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
       const callerCwd = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
       if (targetPathRaw.length > 0) {
-        if (!path34.isAbsolute(targetPathRaw)) {
+        if (!path35.isAbsolute(targetPathRaw)) {
           return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetPathRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
         }
-        const confined = confineTargetPath(path34.normalize(targetPathRaw), callerCwd);
+        const confined = confineTargetPath(path35.normalize(targetPathRaw), callerCwd);
         if (!confined.ok) {
           return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
         }
@@ -186530,18 +187367,18 @@ function registerGiOmpTools(pi, cwdOf) {
     const p = params && typeof params === "object" ? params : {};
     const scopeRoot = cwdOf(ctx && typeof ctx === "object" && "cwd" in ctx ? ctx : undefined);
     const targetRaw = String(p.targetPath ?? "").trim();
-    if (targetRaw !== "" && !path34.isAbsolute(targetRaw)) {
+    if (targetRaw !== "" && !path35.isAbsolute(targetRaw)) {
       return textResult2(`GI_PATH_DENIED: targetPath must be absolute, got '${targetRaw.slice(0, 120)}'`, { ok: false, error: "GI_PATH_DENIED" });
     }
     let targetRoot;
     if (targetRaw !== "") {
-      const confined = confineTargetPath(path34.normalize(targetRaw), scopeRoot);
+      const confined = confineTargetPath(path35.normalize(targetRaw), scopeRoot);
       if (!confined.ok) {
         return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
       }
       targetRoot = confined.real;
     } else {
-      const confined = confineTargetPath(path34.resolve(scopeRoot), scopeRoot);
+      const confined = confineTargetPath(path35.resolve(scopeRoot), scopeRoot);
       if (!confined.ok) {
         return textResult2(confined.error, { ok: false, error: "GI_PATH_DENIED" });
       }
@@ -186567,14 +187404,14 @@ function registerGiOmpTools(pi, cwdOf) {
       }
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      fs29.mkdirSync(auditRoot, { recursive: true });
-      const auditRootReal = fs29.realpathSync(auditRoot);
-      const ledgerRel = path34.relative(targetReal, auditRootReal);
-      if (ledgerRel === "" || ledgerRel.startsWith("..") || path34.isAbsolute(ledgerRel)) {
+      fs30.mkdirSync(auditRoot, { recursive: true });
+      const auditRootReal = fs30.realpathSync(auditRoot);
+      const ledgerRel = path35.relative(targetReal, auditRootReal);
+      if (ledgerRel === "" || ledgerRel.startsWith("..") || path35.isAbsolute(ledgerRel)) {
         return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
-      const ledgerDir = fs29.mkdtempSync(join(auditRoot, `${layerId}-`));
-      const ledgerReal = fs29.realpathSync(ledgerDir);
+      const ledgerDir = fs30.mkdtempSync(join(auditRoot, `${layerId}-`));
+      const ledgerReal = fs30.realpathSync(ledgerDir);
       if (!ledgerDirConfined(ledgerReal, targetReal)) {
         return textResult2("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
       }
@@ -186628,7 +187465,7 @@ function registerGiOmpTools(pi, cwdOf) {
       const p = params ?? {};
       const callerCwd = cwdOf(ctx);
       const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
-      const confined = confineTargetPath(path34.normalize(rawRoot), callerCwd);
+      const confined = confineTargetPath(path35.normalize(rawRoot), callerCwd);
       if (!confined.ok) {
         return textResult2(`GI_PATH_DENIED: ${confined.error}`, { ok: false, error: "GI_PATH_DENIED" });
       }
@@ -186645,6 +187482,54 @@ ${lines.join(`
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return textResult2(`GI_CONSUMPTION_FAILED: ${msg}`, { ok: false, error: "GI_CONSUMPTION_FAILED" });
+      }
+    }
+  });
+  const decideParams = obj({
+    i: zstr().optional(),
+    subject: zstr().optional(),
+    scopeRoot: zstr().optional(),
+    target: zstr().optional(),
+    toolName: zstr().optional()
+  });
+  pi.registerTool({
+    name: "gi-decide",
+    description: "THE 6L+2E DECISION. Runs the KERNEL over the layer REGISTRY: the registry's 6 graph layers become the kernel's PREFLIGHT declarations, its ANCHORED facts become the certifications the detectors read, and the kernel returns the verdict (ALLOW/STEER/REFUSE/ABORT) with the class (dumb/theatrical/destructive/benign). A layer DOWN refuses the stack with `GI_STACK_INCOMPLETE:<id>` \u2014 never an empty pass. The decision consults the REGISTRY, never a raw store.",
+    parameters: decideParams,
+    execute: async (_id, params, _sig, _upd, ctx) => {
+      const p = params ?? {};
+      const callerCwd = cwdOf(ctx);
+      const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
+      const confined = confineTargetPath(path35.normalize(rawRoot), callerCwd);
+      if (!confined.ok) {
+        return textResult2(`GI_PATH_DENIED: ${confined.error}`, { ok: false, error: "GI_PATH_DENIED" });
+      }
+      const root = confined.real;
+      const subject = p.subject && p.subject.length > 0 ? p.subject : "populateSessionStore";
+      try {
+        const ev = decideFromRegistry(root, subject, {
+          toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
+          target: p.target && p.target.length > 0 ? p.target : subject,
+          queriedBefore: false
+        });
+        const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}	${s.outcome}	${s.detail}`);
+        const fireTarget = p.target && p.target.length > 0 ? p.target : subject;
+        const fire = decideFireFromGraph(root, fireTarget, "consume");
+        const fireLines = fire.verdicts.map((v) => `  ${v.rule}	settles=${v.settles}	action=${v.action ?? "none"}	${v.reason}`);
+        return textResult2(`verdict=${ev.run.verdict}	class=${ev.run.class}	code=${ev.run.code ?? "none"}
+subject=${subject}
+scopeRoot=${root}
+layersWired=${ev.layersWired}/${ev.consumersTotal}
+influenced=${ev.influenced.join(",") || "none"}
+reason=${ev.run.reason}
+${stageLines.join(`
+`)}
+graph: store=${fire.storePath}	settles=${fire.settles}	fires=${fire.fires}	policy=${fire.policyCount}@${fire.policySource}	ledger=${fire.ledgerPath}
+${fireLines.join(`
+`)}`, { ok: ev.run.verdict === "ALLOW", verdict: ev.run.verdict, class: ev.run.class, code: ev.run.code, layersWired: ev.layersWired, influenced: ev.influenced, graphSettles: fire.settles, graphFires: fire.fires, policyCount: fire.policyCount });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return textResult2(`GI_DECIDE_FAILED: ${msg}`, { ok: false, error: "GI_DECIDE_FAILED" });
       }
     }
   });

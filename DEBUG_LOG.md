@@ -853,3 +853,19 @@ recorded symbol per edit. And the two gate defects (the `/test/` vs `/tests/` hi
 whole-file symbol extraction) are logged here for the kernel's next pass.
 **Note:** `ripwire` is cwd-confined — the session cwd is a worktree that does not contain the GI
 repo, so the working path is `path=gi-link` (a symlink to the repo inside the worktree).
+
+## EN-6L2E-7 · THE KERNEL WAS TYPE-ONLY-IMPORTED (2026-09-23)
+**Finding:** the rebuilt dist carried zero kernel symbols while the source had them.
+**Root cause:** the entire production graph reached the kernel via `import type`
+(`layer-registry.ts:22`, `evidence-producer.ts:29`, `oracle.ts:72-73`) — erased at build. No
+value edge existed from `src/omp/extension.ts` to `kernel-v2.ts` / `fire-gate.ts` /
+`fire-ledger.ts` / `policy-store.ts` / `graph-facts.ts`.
+**Fix:** `src/omp/decision.ts` — `decideFromRegistry` (registry → the kernel's layer
+declarations) + `decideFireFromGraph` (the graph rung) — VALUE-imported by `extension.ts` and
+exposed as the `gi-decide` tool.
+**Verification:** the dist-content gate on `3bffc09947b440ec`:
+`runKernelV2=2 · FireLedger=2 · PolicyStore=2 · graphFacts=2 · decideFromRegistry=2 ·
+decideFireFromGraph=2 · dumbDetector=2 · classifyByDetectors=2 · preflight=2 · gi-decide=3`.
+tsc exit 0 · 6L2E 28/0 · the battery 356/0 · `test_decision_consults_registry` PASS.
+**Lesson:** ★ the greps that matter are on the bundle, never the tree. A source-importing
+register cannot see a tree-shaken kernel.

@@ -1092,3 +1092,41 @@ AND THE RUNTIME NEVER CHANGED.
 - **Disposition:** **BLOCKED.** ★ Retry condition: restore the ocr LLM lane (the provider/key
   used by the 03:43 run), then `ocr scan --path src/hunter/graph/corbell-adapter.ts,tests/st-corbell-port.ts --format json`.
   The 04:35 artifact (`artifacts/gate-mimo.json`) remains the valid gate evidence for its scope.
+
+---
+
+### F-98 — THE UNBUILT DELIVERY, AGAIN: THE KERNEL WAS NOT IN THE DIST (2026-09-23)
+
+- **What happened:** the goal's baseline flagged the deployed bundle as carrying ZERO v2.x
+  symbols. That was carried forward as fixed. **It was NOT fixed** — the freshly rebuilt dist
+  (`27fa2460`) carried `dumbDetector=0 · theatricalDetector=0 · destructiveDetector=0 ·
+  classifyByDetectors=0 · runKernelV2=0 · preflight=0 · FireGate=0 · FireLedger=0 ·
+  PolicyStore=0 · graphFacts=0`. The deployed artifact could NOT decide.
+- **Found:** the DIST-IS-THE-ARTIFACT check (the goal's own law) — `grep -c <symbol> <the
+  bundle>` on the reloaded dist. The consumption register read `consumed:7/8` while the
+  artifact that runs contained none of the decision machinery.
+- **Root cause:** ★ the kernel was reached ONLY through **type-only imports** across the whole
+  production graph — `src/omp/layer-registry.ts:22  import type { LayerId } from
+  "./kernel-v2.ts"`; `src/omp/evidence-producer.ts:29  import type { FireLedger,
+  PersistedFireRow } from "./fire-ledger.ts"`. TypeScript ERASES type-only imports, so the
+  bundler never saw a value edge to `kernel-v2.ts` (582 L), `fire-gate.ts`, `fire-ledger.ts`,
+  `policy-store.ts`, or `graph-facts.ts`. **The extension exposed the REGISTRY
+  (`consumptionAudit`) but never the DECISION.** ★ And `consumption-audit.ts` imports
+  `../src/omp/layer-consumption.ts` — **the SOURCE** — so the register measured the source
+  tree, never the deployed artifact. THE SOURCE-SUBJECT SUITE, exactly as the goal's
+  anti-derail names it.
+- **Impact:** the `consumed:N/8` green was a claim about source modules that the shipped
+  artifact did not contain — the F-95 class (4,041 L, 0 in the dist) recurring under a new name.
+- **Disposition:** **FIXED + PROVEN.** Built the value-wired seam `src/omp/decision.ts`:
+  `decideFromRegistry` (the kernel's layer declarations come FROM the registry — D-2's
+  layer-edge) and `decideFireFromGraph` (the L5/L6 parse-grade-graph rung via `graphFacts` +
+  the `PolicyStore` + a persistent `FireLedger`). Wired both into `src/omp/extension.ts` as
+  the `gi-decide` tool. Measured on the rebuilt dist: `runKernelV2=2 · FireLedger=2 ·
+  PolicyStore=2 · graphFacts=2 · layer-registry=1 · decideFromRegistry=2 ·
+  decideFireFromGraph=2 · dumbDetector=2 · classifyByDetectors=2 · gi-decide=3` — every count
+  > 0. Deployed `3bffc09947b440ec` (9,472,404 B), repo dist == the host bundle, `find src
+  -newer <bundle> | wc -l` = 0. The D-2 test `test_decision_consults_registry` added and green
+  (6L2E 28 pass / 0 fail; the battery 356 pass / 0 fail).
+- **The lesson:** ★ **A TYPE-ONLY IMPORT IS AN ERASED EDGE.** A kernel reachable only through
+  `import type` is a kernel the bundler deletes — and the register that imports the SOURCE
+  will report it green forever. **THE GREP ON THE DEPLOYED BUNDLE IS THE ONLY GREEN.**
