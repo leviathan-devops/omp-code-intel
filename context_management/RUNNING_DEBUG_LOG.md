@@ -653,3 +653,29 @@ limit on one large group). **★ 0 CRITICAL / 0 HIGH** — the 8 HIGH it found b
 **★ THE RECURRENCE OF THE CLASS-SWEEP LESSON:** M-5/6/7 are the SAME defect class as the audit's
 H-2 and the earlier F-2. **Three times the class was fixed at ONE site.** This time it was swept
 to every adapter.
+
+## [2026-09-23] ★ DPL1 §7 A3/A6 — THE SPEC'S OWN TOKENS WERE MISSING (a real deviation found)
+
+The DPL1 §7's container plan names **A6 `GI_LAYER_ERROR:<id>`** and **A3 `GI_LAYER_STALE`** as
+REQUIRED tokens. **Neither existed in the code.** A real spec deviation, found by re-reading the
+binding authority against the implementation.
+
+### A6 — THE DISTINCT MID-QUERY-FAULT TOKEN
+`layer-registry.ts`: the consumer catch now returns `GI_LAYER_ERROR:<id>`, NOT a bare
+`GI_LAYER_DOWN`. The three states stay distinguishable: **UNCONSUMED** (a wiring gap) ·
+**DOWN** (an absent substrate) · **ERROR:<id>** (the substrate answered but the read faulted).
+
+### A3 — THE STORE-AGE GATE
+`_shared.ts:assertStoreFresh()` refuses a verdict from a store older than the TTL —
+`GI_LAYER_STALE`, never an answer from a stale graph. Wired into `corbell.ts` + `graphify.ts`.
+★ **THE REGRESSION FOUND BY RUNNING IT:** `storeFreshness()` wraps `openTypedStore()`, which
+**ENFORCES the session-path convention** and REFUSED the project-level checkout stores with
+`GI_SHARED_PROJECT_STORE`. The fix reads the freshness via `layerFreshness()` + the read-only
+handle `storeFacts` already uses.
+★ **AND THE REAL FINDING IT EXPOSED:** the **graphify BUILD never wrote `gi_meta.populated_at`**
+(only the session-populate path did) — so a store the build had JUST produced read as STALE.
+**Fixed:** `writeGraphifyCheckout` now marks its own output fresh.
+★ **AND THE CORBELL CLI's OWN BUG:** `method_graph.py:744 traverse()` overflows Python's
+recursion limit (`RecursionError`). **The workaround:** `/home/leviathan/corbell-venv/bin/corbell-deep`
+— a wrapper that raises the limit and calls the SAME CLI (the graph is the tool's OWN output,
+never a substitute engine). ★ AND its own `database is locked` when two builds collide.
