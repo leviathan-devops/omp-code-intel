@@ -329,7 +329,13 @@ export class CorbellAdapter implements GraphAdapter {
           // the service repo points away from this project (the
           // '../my-service' template default). The '..'/'.' forms match.
           const rootOk = declaredRoot === '.' || declaredRoot === '..' || actual.endsWith(declaredRoot.replace(/\/+$/, ''));
-          const repoOk = declaredRepo === '.' || declaredRepo === '..' || actual.endsWith(declaredRepo.replace(/\/+$/, ''));
+          // ★ THE SCOPE-STALENESS RULE (2026-09-23): the repo MUST be the
+          // profile's scoped ref (`../src`). A declared `..`/`.` (the whole-tree
+          // root) is the 90-min D-state stall — NOT a valid config. Without
+          // this the unscoped template is judged fresh and never regenerated.
+          const expectedRepo = this.scopeRepoRef(profile);
+          const repoOk = declaredRepo === expectedRepo
+            || (declaredRepo !== '.' && declaredRepo !== '..' && actual.endsWith(declaredRepo.replace(/\/+$/, '')));
           wsConfigStale = !(rootOk && repoOk);
         } else {
           wsConfigStale = true;   // unparseable — regenerate
@@ -491,9 +497,24 @@ export class CorbellAdapter implements GraphAdapter {
    *  WORKING fixture shape is `root: ..` + `repo: ..` (the parent = the project
    *  root — corbell registered the service at the PROJECT root). THE EMISSION
    *  uses `..` — the parent of the config_dir, the project root. */
+  /** THE SCOPE REF (2026-09-23 — the 90-min D-state stall): the corbell `repo:`
+   *  value derived from the profile's `graph.scope`. The config_dir IS
+   *  corbell-data/, so `repo: ../src` resolves to <root>/src and `repo: ..` to
+   *  the project root. MEASURED: `repo: ..` walks the WHOLE tree (2.1 GB —
+   *  research/ 1012 MB, Checkpoints/ 144 MB, its own 531 MB store) and
+   *  D-state-stalls 90+ min; `repo: ../src` completes in 53 s (939 methods,
+   *  4,327 edges). The scope was declared in profile.yaml since W1 and NEVER
+   *  reached the config — this is the wiring. */
+  private scopeRepoRef(profile: ProjectProfile): string {
+    const first = profile.graph.scope.length > 0 ? String(profile.graph.scope[0]) : '';
+    const dir = first.replace(/^\.\/+|\/+$/g, '');
+    return dir.length > 0 ? `../${dir}` : '..';
+  }
+
   private writeWorkspaceConfig(profile: ProjectProfile, wsConfigPath: string): void {
     const slug = profile.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service';
     const languages = profile.project.languages.length > 0 ? profile.project.languages[0] : 'typescript';
+    const repoRef = this.scopeRepoRef(profile);
     const config = [
       'version: "1"',
       '',
@@ -503,7 +524,7 @@ export class CorbellAdapter implements GraphAdapter {
       '',
       'services:',
       `  - id: ${slug}`,
-      '    repo: ..',
+      `    repo: ${repoRef}`,
       `    language: ${languages}`,
       '    tags: [core]',
       '',

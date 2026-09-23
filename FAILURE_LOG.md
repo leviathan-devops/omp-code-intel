@@ -1042,3 +1042,34 @@ AND THE RUNTIME NEVER CHANGED.
 ★ IT COSTS ONE COMMAND. IT WAS NEVER IN ANY PLAN, ANY TEST, ANY CHECKPOINT, ANY AUDIT.
 ★ UNTIL IT IS A GATE, IT WILL HAPPEN AGAIN.
 ```
+
+---
+
+### F-96 — THE UNBOUNDED SCAN TARGET: 90+ MINUTES ON A 2.1 GB TREE (2026-09-23)
+
+- **What happened:** the L5 CORBELL store refresh ran 90+ minutes across 4 attempts and never
+  completed. r1 `rc=124` (30-min cap) · r2 `database is locked` · r3 `rc=1` (90-min cap) · r4
+  (a 4-hour cap) sat at `CPU 0.0% / TIME 00:00` in `D` (uninterruptible I/O wait) with
+  **0 B growth in 30 s** — a DEAD process the agent then waited on for ~2.5 further hours.
+- **Found:** the operator asked, verbatim: **"youve been waiting for hours what is going on.
+  report."** The measurement that settled it: `ps -o %cpu,time,stat` → `0.0 00:00 D`.
+- **Root cause:** ★ **corbell's own config was NEVER SCOPED.** `corbell-data/workspace.yaml`
+  declared `workspace.root: ".."` and `services[0].repo: ..` — **the repo root (2.1 GB)** — with
+  `storage.model: all-MiniLM-L6-v2` EMBEDDING every scanned file. The walk covered `research/`
+  (1012 MB), `Checkpoints/` (144 MB — 10 full repo copies), **and its own 531 MB store** (a
+  feedback loop). `writeWorkspaceConfig` emitted `repo: ..` from a hardcoded template and NEVER
+  read `profile.graph.scope` (declared `[src]` since W1). `profile.graph.excludes` reached only
+  the git-coupling walk (`CORBELL_WALK_EXCLUDE_DIRS`), never the graph scan. The stale-detector
+  then ACCEPTED `..` as valid — the unscoped config was judged fresh and never regenerated.
+- **Impact:** ~3 hours of the session (4 attempts + monitoring); the L5 rung stayed
+  `GI_LAYER_STALE` so `consumed` was pinned at 6/8; the operator's trust cost.
+- **Disposition:** **FIXED + PROVEN.** `scopeRepoRef()` derives `../<scope[0]>` from
+  `profile.graph.scope`; the template emits it; the stale-check now REQUIRES it. Measured after
+  the fix: **17.2 s total** (`nodes=1013 edges=4328`, `durationMs=16820`), store **2.29 MB**
+  (was 530 MB), `populated_at=2026-09-23T03:36:32Z` → `L5_CORBELL CONSUMED` → **`consumed:7/8`**.
+  A pre-existing guard (`CORBELL_STORE_BLOATED: 530MB (>512MB) — the build escaped its scope`)
+  had ALREADY detected the symptom; its remedy was manual and the root cause was never fixed.
+- **The lesson:** ★ **A SCAN TARGET IS A DECLARED SCOPE, NOT A DIRECTORY.** The profile declared
+  `scope: [src]`; the engine was pointed at `..`. The gap between the declared scope and the
+  emitted target is where 90 minutes go. ★ And: **a guard that names a symptom without fixing
+  its source is a timer, not a fix.**

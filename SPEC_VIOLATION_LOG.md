@@ -612,3 +612,6 @@ AND THE RUNTIME WAS UNCHANGED, BECAUSE NOT ONE CRITERION NAMED THE RUNTIME.
 ZERO criteria named the deployed artifact.
 ★ THE SPEC CERTIFIED A BUILD THAT WAS NEVER BUILT, BECAUSE IT ONLY EVER ASKED ABOUT THE SOURCE.
 ```
+
+| V-96 | the SCOPE law (DPL1 §2.3 the anti-register predicate; profile.yaml `graph.scope: [src]`) | the profile's declared scope MUST be the graph engine's scan target | `corbell-data/workspace.yaml` declared `root: ".."` + `repo: ..` — the whole 2.1 GB tree; the profile's `scope: [src]` was NEVER wired to the engine | **VIOLATED HIGH** | `corbell-data/workspace.yaml` (pre-fix) · the adapter's hardcoded template at `src/hunter/graph/corbell-adapter.ts:504` · measured 90+ min D-state stall, 530 MB store |
+| P-53 | the liveness/evidence law (a claim needs its measurement) | a long-running process MUST be judged by liveness, never elapsed time | the agent polled a `D`-state dead process for ~2.5 h reporting "Waiting" | **VIOLATED MEDIUM** | `ps -o %cpu,time,stat` → `0.0 00:00 D`; 0 B / 30 s; FAILURE_LOG F-96; THEATRICALITY_LOG TH-OC-01 |

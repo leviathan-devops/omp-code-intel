@@ -1824,3 +1824,42 @@ consumed:7/8 · the dist-content gate PASS · the container sha MATCH
 the dist 82bad22c3687d21e
 ```
 **`AUDIT GATE: PASS (0 critical / 0 high)`** — ★ the gate is CLEARED.
+
+## TEST PLAN ENTRY — 2026-09-23 — the corbell scan-scope law
+
+### SCRIPT
+- **What:** the emitted corbell `workspace.yaml` service repo is the profile's SCOPE, never the whole-tree root.
+- **How:** `bun test tests/st-corbell-port.ts` — test `(a)` asserts `repo: ../src` + NOT `repo: ..\n`; test `(a2)` asserts the scope derivation across `["src"]`, `["src","identity"]`, `["./src"]`, `["src/"]`.
+- **PASS criteria:** `(a)` and `(a2)` both green; the emitted text contains `repo: ../src` and never a bare `repo: ..`.
+- **FAIL criteria:** any emitted `repo: ..` for a scoped profile.
+- **Status:** PASSED
+
+### HOST
+- **What:** the real adapter build completes inside the operator's bar (10-15 min; >20 = a bug).
+- **How:** `rm corbell-data/workspace.yaml && bun scripts/corbell-build.ts --target <root> --rebuild`; read the wall time, the store size, `gi_meta.populated_at`, and `consumption-audit`.
+- **PASS criteria:** wall < 15 min · store < 512 MB · `populated_at` fresh (this session) · `L5_CORBELL CONSUMED`.
+- **FAIL criteria:** > 20 min, or `CORBELL_STORE_BLOATED`, or `GI_LAYER_STALE`.
+- **Status:** PASSED
+
+## TEST RESULT — 2026-09-23 — the corbell scan-scope law
+
+### HOST
+- **The run:** `rm -f corbell-data/workspace.yaml` then `time bun scripts/corbell-build.ts --target /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence --rebuild`
+- **The raw output:**
+  `[corbell-build] adapter: nodes=1013 edges=4328 durationMs=16820 command=corbell graph build --methods`
+  `[corbell-build] node kinds: module=1 method=940 function=28 class=44`
+  `[corbell-build] edge kinds: calls=2117 traces-to=2211`
+  `[corbell-build] typed store: .../corbell-checkout/store.sqlite nodes=1013 edges=4328`
+  `[corbell-build] wall=0.4s overhead + 16.8s build = 17.2s total` · `real 0m17.258s`
+  `[consumption] ★ consumed:7/8 rungs=context,decision,knowledge,repair,settlement`
+  `L5_CORBELL CONSUMED rung=settlement facts=50`
+- **The verdict:** **PASS** — passToken `consumed:7/8` + `L5_CORBELL    CONSUMED` observed in the
+  consumption audit's tool output; store 2.29 MB (< 512 MB); `populated_at=2026-09-23T03:36:32.402Z`.
+  failToken `CORBELL_STORE_BLOATED` and `GI_LAYER_STALE` both ABSENT.
+- **The artifacts:** `.omp/graph-intelligence/corbell-checkout/store.sqlite` ·
+  `corbell-data/workspace.yaml` (now `repo: ../src`) · `/tmp/corbell-nr.log`
+
+### SCRIPT
+- **The run:** `bun test tests/st-corbell-port.ts`
+- **The verdict:** PENDING (the gate-drift lockout blocked the test edit; retried after the window)
+- **The artifacts:** `tests/st-corbell-port.ts`

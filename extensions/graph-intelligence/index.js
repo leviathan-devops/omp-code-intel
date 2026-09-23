@@ -178447,6 +178447,32 @@ var LAYER_TTL_MS = {
   heuristic: 7 * 24 * 60 * 60 * 1000,
   unknown: 60 * 60 * 1000
 };
+function layerFreshness(db, opts = {}) {
+  const derivation = opts.derivation ?? "explicit";
+  const ttlMs = opts.ttlMs ?? LAYER_TTL_MS[derivation] ?? LAYER_TTL_MS["unknown"];
+  const now = opts.now ?? Date.now();
+  let populatedAt = null;
+  try {
+    const row = db.query("SELECT value FROM gi_meta WHERE key = 'populated_at'").get();
+    if (row?.value !== undefined) {
+      const t = Date.parse(row.value);
+      populatedAt = Number.isFinite(t) ? t : null;
+    }
+  } catch {}
+  if (populatedAt === null) {
+    return { stale: true, code: `GI_LAYER_STALE:${derivation}`, populatedAt: null, ageMs: null, ttlMs, derivation };
+  }
+  const ageMs = now - populatedAt;
+  const stale = ageMs > ttlMs;
+  return {
+    stale,
+    code: stale ? `GI_LAYER_STALE:${derivation}` : null,
+    populatedAt,
+    ageMs,
+    ttlMs,
+    derivation
+  };
+}
 function applyTypedDdl(db) {
   let dedupRecovered = 0;
   for (const stmt of TYPED_STORE_DDL) {
@@ -179577,7 +179603,8 @@ class CorbellAdapter {
           const declaredRepo = svcMatch[1].trim();
           const actual = profile.project.root.replace(/^\.\/+/, "");
           const rootOk = declaredRoot === "." || declaredRoot === ".." || actual.endsWith(declaredRoot.replace(/\/+$/, ""));
-          const repoOk = declaredRepo === "." || declaredRepo === ".." || actual.endsWith(declaredRepo.replace(/\/+$/, ""));
+          const expectedRepo = this.scopeRepoRef(profile);
+          const repoOk = declaredRepo === expectedRepo || declaredRepo !== "." && declaredRepo !== ".." && actual.endsWith(declaredRepo.replace(/\/+$/, ""));
           wsConfigStale = !(rootOk && repoOk);
         } else {
           wsConfigStale = true;
@@ -179667,9 +179694,15 @@ class CorbellAdapter {
       command: "corbell graph build --methods"
     };
   }
+  scopeRepoRef(profile) {
+    const first = profile.graph.scope.length > 0 ? String(profile.graph.scope[0]) : "";
+    const dir = first.replace(/^\.\/+|\/+$/g, "");
+    return dir.length > 0 ? `../${dir}` : "..";
+  }
   writeWorkspaceConfig(profile, wsConfigPath) {
     const slug = profile.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "service";
     const languages = profile.project.languages.length > 0 ? profile.project.languages[0] : "typescript";
+    const repoRef = this.scopeRepoRef(profile);
     const config = [
       'version: "1"',
       "",
@@ -179679,7 +179712,7 @@ class CorbellAdapter {
       "",
       "services:",
       `  - id: ${slug}`,
-      "    repo: ..",
+      `    repo: ${repoRef}`,
       `    language: ${languages}`,
       "    tags: [core]",
       "",
@@ -185557,7 +185590,7 @@ function createLayerRegistry() {
         factsReturned: 0,
         factsDiscarded: 0,
         consumed: false,
-        verdict: "GI_LAYER_DOWN"
+        verdict: `GI_LAYER_ERROR:${p.id}`
       };
     }
     const anchored = raw.filter(isAnchored);
@@ -185696,6 +185729,22 @@ function storePathOf(db) {
     return "<unknown>";
   }
 }
+function assertStoreFresh(storePath) {
+  const db = openReadOnly(storePath);
+  if (db === null)
+    return;
+  let f;
+  try {
+    f = layerFreshness(db);
+  } finally {
+    try {
+      db.close();
+    } catch {}
+  }
+  if (f.stale) {
+    throw new Error(`${f.code ?? "GI_LAYER_STALE"} \u2014 the store at ${storePath} is STALE ` + `(populatedAt=${f.populatedAt === null ? "NEVER" : new Date(f.populatedAt).toISOString()} \xB7 ` + `ageMs=${f.ageMs ?? "?"} \xB7 ttlMs=${f.ttlMs}); no fact is served from it`);
+  }
+}
 function storeFacts(consumer, rung, storePath, subject, limit = 50) {
   const db = openReadOnly(storePath);
   if (db === null) {
@@ -185730,7 +185779,10 @@ function corbellProbe(scopeRoot) {
     dependency: "the corbell parse-grade checkout (PRIMARY)",
     errorCode: "GI_LAYER_CORBELL",
     up: () => probePath(storePath, true),
-    facts: (subject) => storeFacts("L5_CORBELL", "settlement", storePath, subject)
+    facts: (subject) => {
+      assertStoreFresh(storePath);
+      return storeFacts("L5_CORBELL", "settlement", storePath, subject);
+    }
   };
 }
 
@@ -185745,7 +185797,10 @@ function graphifyProbe(scopeRoot) {
     dependency: "the graphify graph.json leg",
     errorCode: "GI_LAYER_GRAPHIFY",
     up: () => probePath(storePath, true),
-    facts: (subject) => storeFacts("L6_GRAPHIFY", "settlement", storePath, subject)
+    facts: (subject) => {
+      assertStoreFresh(storePath);
+      return storeFacts("L6_GRAPHIFY", "settlement", storePath, subject);
+    }
   };
 }
 

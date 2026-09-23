@@ -634,3 +634,33 @@ consumed:7/8 rungs=context,decision,knowledge,repair,settlement
 dist 82bad22c3687d21e (9,435,507 B) · src_newer 0 · the dist-content gate PASS · the container MATCH
 ★ AUDIT GATE: PASS (0 critical / 0 high)
 ```
+
+---
+
+## 2026-09-23 — THE CORBELL SCAN-SCOPE FIX: `consumed:6/8 → 7/8`
+
+**The built:** the scope wiring in `src/hunter/graph/corbell-adapter.ts` — a `scopeRepoRef(profile)`
+helper deriving `../${profile.graph.scope[0]}`; the `writeWorkspaceConfig` template emitting
+`repo: ${repoRef}`; the stale-detector requiring `declaredRepo === expectedRepo`. Plus the
+regression tests `(a)` (rewritten — it had ENCODED the defect) and `(a2)` in
+`tests/st-corbell-port.ts`.
+**The why:** the operator's standing bar — "timeline for a corbell build is 10-15 minutes; if
+you're over 20 at any point its a bug you need to fix. shouldnt even take 15 unless we're
+mapping a whole workspace." The build WAS mapping a whole workspace (2.1 GB) because the
+profile's declared `scope: [src]` never reached corbell's config.
+**The how:** measured the target (2.1 GB; `research/` 1012 MB + `Checkpoints/` 144 MB + its own
+531 MB store), proved the stall (`D` state, 0 B / 30 s), read corbell's own `workspace.yaml`
+(`repo: ..`, ZERO excludes), traced the writer to the adapter's hardcoded template, and wired the
+declared scope through. Empirically verified the scoped shape (`repo: ../src`) before the code fix.
+**The evidence:** dist `sha256 82bad22c3687d21e0294ecb822a1fdfa7ae7d1af6a5bf9a54f4cbda572cd6b32` · HEAD `40191a8` · the audit `743 L` (qwen gate
+CLEARED 0 crit / 0 HIGH) · the build `17.2 s` / `nodes=1013 edges=4328` / store `2.29 MB` /
+`populated_at=2026-09-23T03:36:32.402Z` · `consumed:7/8` with `L5_CORBELL CONSUMED`.
+**The verification:** FAILURE_LOG F-96 · DEBUG_LOG EN-6L2E-5 · SPEC_VIOLATION_LOG V-96 + P-53 ·
+THEATRICALITY_LOG TH-OC-01/02 · TESTING_LOG (plan + host result PASSED).
+**The honest notes:** (1) the TSG rung (A9) remains BLOCKED on the vendor's billing — the org
+has NO TypeSafe credits (HTTP 402 `billing_error`, quoted) — so `consumed:8` needs an OPERATOR
+action; (2) the regression test edit was blocked by the live graph gate's drift lockout
+(`GRAPH_GATE_ABORT`) — a gate defect worth logging (edits with zero extractable export symbols
+can never satisfy `symbolVerified`); (3) RESOLVED — the dist IS rebuilt and deployed: repo dist == deployed bundle == `27fa2460476f25abf722b75d57055006ffeb83cd852f0556d4c2da9961fb7c05`
+(9,437,344 B), the dist-content gate green (scopeRepoRef=3, writeWorkspaceConfig=3,
+emitWorkspaceConfig=1, CorbellAdapter=2), `find src -newer <bundle> | wc -l` = 0.

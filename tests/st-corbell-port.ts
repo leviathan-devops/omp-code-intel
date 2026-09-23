@@ -61,7 +61,7 @@ function isolateRegistry(): string {
 }
 
 describe("st-corbell-port: adapter + store-map + CLI proof", () => {
-  test("(a) emitted workspace.yaml contains version 1 + root .. + repo ..", () => {
+  test("(a) emitted workspace.yaml contains version 1 + root .. + the SCOPED repo", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-ws-"));
     try {
       const profile = makeProfile(root, "WsProbe");
@@ -71,12 +71,37 @@ describe("st-corbell-port: adapter + store-map + CLI proof", () => {
       const text = fs.readFileSync(wsPath, "utf8");
       expect(text).toContain('version: "1"');
       expect(text).toContain('root: ".."');
-      expect(text).toContain("repo: ..");
+      // ★ THE SCOPE LAW (2026-09-23): the service repo MUST point at the
+      // profile's scope (`../src`), NEVER the whole-tree root (`..`). Measured:
+      // `repo: ..` walked 2.1 GB and D-state-stalled 90+ min; `repo: ../src`
+      // completes in 17 s. This assertion previously encoded the defect.
+      expect(text).toContain("repo: ../src");
+      expect(text).not.toContain("repo: ..\n");
       expect(text).toContain("language: typescript");
       expect(text).toContain("path: .corbell/workspace.db");
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  test("(a2) the emitted repo is the profile's scope — never the whole-tree root", () => {
+    // The 90-min D-state stall: an unscoped `repo: ..` walks the entire repo
+    // (research/ + Checkpoints/ + the store itself). The emitted repo must be
+    // `../<scope[0]>`, and an empty scope falls back to `..` (explicitly asked).
+    const mk = (scope: string[]): string => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-scope-ref-"));
+      const profile = makeProfile(root, "ScopeProbe", { scope });
+      const adapter = new CorbellAdapter(profile);
+      const wsPath = path.join(root, "corbell-data", "workspace.yaml");
+      adapter.emitWorkspaceConfig(profile, wsPath);
+      const text = fs.readFileSync(wsPath, "utf8");
+      fs.rmSync(root, { recursive: true, force: true });
+      return text;
+    };
+    expect(mk(["src"])).toContain("repo: ../src");
+    expect(mk(["src", "identity"])).toContain("repo: ../src");
+    expect(mk(["./src"])).toContain("repo: ../src");
+    expect(mk(["src/"])).toContain("repo: ../src");
   });
 
   test("(b) real corbell build on the fixture yields nodes>0 with a calls edge", async () => {

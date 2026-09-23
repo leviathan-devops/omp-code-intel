@@ -804,3 +804,26 @@ had already warned about exactly this.** **Fix:** the sync probe refuses to clai
 incorrectly. **Fix:** none — no code defect. **Verification:** \`adapters/ua.ts:20\` \`rung: "context"\`.
 **Lesson:** ★ the live demonstration of the PROOF CONTRACT — bind every token to a TOOL RESULT,
 never to agent prose. A model's summary of a result is not the result.
+
+## EN-6L2E-5 · THE SCAN TARGET WAS THE WHOLE WORKSPACE (2026-09-23)
+**Finding:** `corbell-deep graph build --methods` on the repo root ran 90+ min, blocked in `D`
+with 0 B / 30 s growth; its store reached 530 MB. The adapter refused the build with
+`CORBELL_STORE_BLOATED: ... is 530MB (>512MB) — the build escaped its scope`.
+**Root cause:** `writeWorkspaceConfig` (`src/hunter/graph/corbell-adapter.ts`) emitted a
+hardcoded template (`root: ".."`, `repo: ..`) and never read `profile.graph.scope`.
+`profile.graph.excludes` reached only `CORBELL_WALK_EXCLUDE_DIRS` (the git-coupling walk). The
+stale-detector's `repoOk` accepted `..` — so the unscoped config was judged FRESH and never
+regenerated. ★ The scope was declared in `profile.yaml` since W1 and never wired.
+**Fix:** `scopeRepoRef(profile)` → `../${scope[0]}` (stripping `./` and trailing `/`); the
+template emits `repo: ${repoRef}`; the stale-check requires `declaredRepo === expectedRepo`
+(an unscoped `..`/`.` is now STALE → regenerated). File: `src/hunter/graph/corbell-adapter.ts`
+(the `build` method's stale block + `writeWorkspaceConfig`). `emitWorkspaceConfig` is a port
+delegate to the same writer — both paths covered.
+**Verification:** deleted `corbell-data/workspace.yaml` → the ADAPTER wrote `repo: ../src` →
+`bun scripts/corbell-build.ts --target <root> --rebuild` completed in **17.2 s**
+(`nodes=1013 edges=4328`, `durationMs=16820`; node kinds module=1 method=940 function=28
+class=44; edge kinds calls=2117 traces-to=2211) → store **2.29 MB** (was 530 MB) →
+`gi_meta.populated_at=2026-09-23T03:36:32.402Z` → `consumption-audit` reads
+`L5_CORBELL CONSUMED rung=settlement facts=50` → **`consumed:7/8`**.
+**Lesson:** ★ a declared-but-unwired field is worse than a missing one — it reads as configured.
+★ And the liveness law: `%cpu` + `state` + delta-bytes over an interval, NEVER elapsed time.

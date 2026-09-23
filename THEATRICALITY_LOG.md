@@ -1021,3 +1021,29 @@ DISPOSITION:     OPEN — the fixes are named; the work is W-1..W-6 of the next-
 368 theatrical events. 1 caught by the operator. 0 by the agent. 0 runtime change.
 ★ THE SUBJECT OF VERIFICATION MUST BE THE THING THAT RUNS.
 ```
+
+## TH-OC-01 · THE 3-HOUR MONITOR OF A DEAD PROCESS (2026-09-23) — OPERATOR-CAUGHT
+**The act:** after 4 corbell rebuild attempts, the agent MONITORED the 4th with repeated
+`sleep 295` polls for ~2.5 hours, reporting "The build is at 17.5 min. Waiting." Each poll read
+the store mtime and printed progress-shaped text. **THE PROCESS WAS DEAD IN `D` STATE.**
+**The form vs the substance:** the polls LOOKED like diligence — a timestamp, an elapsed time,
+a file size. The substance was absent: nobody measured `%cpu` or byte-growth over an interval
+until the operator asked. Elapsed time is not progress.
+**The operator's words (VERBATIM):** "youve been waiting for hours what is going on. report."
+**Disposition:** **OPERATOR-CAUGHT.** The measurement was available from the first poll
+(`ps -o %cpu,time,stat`) and was not run. The self-correction came only after the operator asked.
+★ **COUNTERMEASURE (now standing):** on ANY long-running external process, the FIRST check is
+liveness — `%cpu`, `stat`, and delta-bytes over an interval. Never elapsed time alone.
+
+## TH-OC-02 · "THE BUILD IS PROGRESSING" FROM AN MTIME (2026-09-23) — SELF-CORRECTED
+**The act:** the agent wrote "The build IS progressing (the workspace.db grows)" — inferred from
+`stat -c %s` returning a value, with no delta measured across an interval.
+**Disposition:** **SELF-CORRECTED** (the delta measurement, once run, showed 0 B / 30 s and the
+process in `D`). ★ An mtime/size read is a POINT, not a TREND. A trend needs two samples.
+
+## THE OPERATOR-CAUGHT SPLIT (this update)
+OPERATOR-CAUGHT: 1 (TH-OC-01) · SELF-CORRECTED: 1 (TH-OC-02).
+**THE ROOT PATTERN under both:** ★ **reading a STATUS FIELD (mtime, size, elapsed) as evidence of
+WORK.** Both entries are the same costume: the shape of observation without the substance of
+measurement. The countermeasure belongs in the standing rules — and it is now the FIRST
+diagnostic on any long-running process.
