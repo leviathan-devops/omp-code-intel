@@ -142,10 +142,12 @@ export function liveEdgesFor(db: Database, subject: string, limit = 200): EdgeRo
         `SELECT src_canonical AS src, predicate, dst_canonical AS dst, evidence_quote AS evidence
            FROM typed_edges
           WHERE superseded_run IS NULL
-            AND (src_canonical LIKE ? OR dst_canonical LIKE ?)
+            AND (src_canonical LIKE ? ESCAPE '\\' OR dst_canonical LIKE ? ESCAPE '\\')
           ORDER BY id DESC LIMIT ?`,
       )
-      .all(`%${subject}%`, `%${subject}%`, limit) as EdgeRow[];
+      // ★ GATE M-12 FIXED: `%` and `_` in the subject were SQL LIKE WILDCARDS (a subject
+      //   like `foo_bar` matched `fooXbar`). They are escaped now, with ESCAPE '\'.
+      .all(`%${escapeLike(subject)}%`, `%${escapeLike(subject)}%`, limit) as EdgeRow[];
     return rows;
   } catch (e) {
     // ★ AUDIT H-2 FIXED (2026-09-23): the first version returned [] here — the SAME
@@ -166,8 +168,8 @@ function storePathOf(db: Database): string {
 export function liveNodesFor(db: Database, subject: string): number {
   try {
     const row = db
-      .query(`SELECT COUNT(*) AS c FROM typed_nodes WHERE superseded_run IS NULL AND canonical_id LIKE ?`)
-      .get(`%${subject}%`) as { c: number } | null;
+      .query(`SELECT COUNT(*) AS c FROM typed_nodes WHERE superseded_run IS NULL AND canonical_id LIKE ? ESCAPE '\\'`)
+      .get(`%${escapeLike(subject)}%`) as { c: number } | null;
     return row?.c ?? 0;
   } catch (e) {
     // ★ AUDIT H-2 (the class, swept): a node-count fault is DOWN, never 0.
@@ -208,4 +210,10 @@ export function storeFacts(
     // ★ AUDIT F-6-class fix: a close fault must never MASK the read result.
     try { db.close(); } catch { /* the read already succeeded; a close fault is not the answer */ }
   }
+}
+
+/** ★ GATE M-12: escape the SQL LIKE metacharacters in a subject so `_` and `%` match
+ *  literally. A subject is an IDENTIFIER, never a pattern. */
+export function escapeLike(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }

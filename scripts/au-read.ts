@@ -100,6 +100,6 @@ try {
   const reply = await request(sock, readName, subject.length > 0 ? { query: subject, limit: 50 } : { limit: 50 });
   process.stdout.write(JSON.stringify({ ok: true, socket: sock, read: readName, reply }));
 } catch (e) {
-  console.error(`GI_LAYER_ARUMBRIS: the engine read failed — ${e instanceof Error ? e.message : String(e)}`);
+  console.error(`GI_LAYER_ARSUMBRIS: the engine read failed — ${e instanceof Error ? e.message : String(e)}`);
   process.exit(4);
 }

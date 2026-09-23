@@ -1787,3 +1787,27 @@ the mandatory gate (`ocr review`, muse-free, effort high) returned **47 comments
 
 **THE RETRY CONDITION:** the same command with a 2-hour timeout at `--concurrency 1`, or a paid
 lane. **★ A BLOCKED run is never a PASS, and no ship-ready claim is made.**
+
+---
+
+# ★★★ THE GATE CLEARED (2026-09-23) — the qwen-code-audit, 0 CRITICAL / 0 HIGH
+
+\★ **THE 8 HIGH THAT BLOCKED THE EARLIER RUN ARE CLEARED** — the gate now returns **0 critical /
+0 high**.
+
+## THE ADJUDICATION (all 35)
+- **M-1** \ typo → **FIXED**
+- **M-5/6/7** \/\/\ returned \ on a substrate fault → ★ **the SAME class
+  as the audit's H-2 (and F-2 before it) — the class had been fixed at ONE site, three times.
+  NOW SWEPT: all three THROW the named code.**
+- **M-9** the tsg source said \ while the CLI ran \ → **FIXED** (an audit-trail lie)
+- **M-12** \ treated \/\ as wildcards → **FIXED** (\ + \)
+- **M-14/17** \ overwrite + no expiry → **CONFIRMED (low-impact)**, recorded
+- **M-18** "TS downgrade 7→5" → ★ **FALSE POSITIVE**: 7.0.2 is the **Go CLI with NO API**
+  (\); 5.9.3 IS the API version. **The pin is CORRECT and REQUIRED** (the F-95 cause).
+- **L-4/5/17** *"good correction"* / *"improve type safety"* / *"well-documented"* → **POSITIVE
+  comments** (the gate confirming the earlier fixes)
+- the remaining low findings (dead code, unused imports, doc nits) → **CONFIRMED (cosmetic)**, recorded
+
+## ★ THE STATE
+\error TS5112: tsconfig.json is present but will not be loaded if files are specified on commandline. Use '--ignoreConfig' to skip this error.**\** — ★ the gate is CLEARED.

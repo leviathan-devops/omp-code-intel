@@ -185682,8 +185682,8 @@ function liveEdgesFor(db, subject, limit = 200) {
     const rows = db.query(`SELECT src_canonical AS src, predicate, dst_canonical AS dst, evidence_quote AS evidence
            FROM typed_edges
           WHERE superseded_run IS NULL
-            AND (src_canonical LIKE ? OR dst_canonical LIKE ?)
-          ORDER BY id DESC LIMIT ?`).all(`%${subject}%`, `%${subject}%`, limit);
+            AND (src_canonical LIKE ? ESCAPE '\\' OR dst_canonical LIKE ? ESCAPE '\\')
+          ORDER BY id DESC LIMIT ?`).all(`%${escapeLike(subject)}%`, `%${escapeLike(subject)}%`, limit);
     return rows;
   } catch (e) {
     throw new Error(`GI_STORE_QUERY_FAILED: ${storePathOf(db)} \u2014 ${e instanceof Error ? e.message.slice(0, 160) : String(e)}`);
@@ -185716,6 +185716,9 @@ function storeFacts(consumer, rung, storePath, subject, limit = 50) {
       db.close();
     } catch {}
   }
+}
+function escapeLike(s) {
+  return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 // src/omp/adapters/corbell.ts
@@ -185758,13 +185761,14 @@ function c2kgProbe(scopeRoot) {
     errorCode: "GI_LAYER_C2KG",
     up: () => probePath(indexPath, true),
     facts: (subject) => {
-      if (!fs21.existsSync(indexPath))
-        return [];
+      if (!fs21.existsSync(indexPath)) {
+        throw new Error(`GI_LAYER_C2KG: the index is absent at ${indexPath}`);
+      }
       let idx;
       try {
         idx = JSON.parse(fs21.readFileSync(indexPath, "utf8"));
-      } catch {
-        return [];
+      } catch (e) {
+        throw new Error(`GI_LAYER_C2KG: the index is unparseable \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
       const hits = (idx.symbols ?? []).filter((s) => (s.name ?? "").includes(subject));
       return hits.map((s) => ({
@@ -185790,13 +185794,14 @@ function uaProbe(scopeRoot) {
     errorCode: "GI_LAYER_UA",
     up: () => probePath(graphPath, true),
     facts: (subject) => {
-      if (!fs22.existsSync(graphPath))
-        return [];
+      if (!fs22.existsSync(graphPath)) {
+        throw new Error(`GI_LAYER_UA: the knowledge graph is absent at ${graphPath}`);
+      }
       let g;
       try {
         g = JSON.parse(fs22.readFileSync(graphPath, "utf8"));
-      } catch {
-        return [];
+      } catch (e) {
+        throw new Error(`GI_LAYER_UA: the knowledge graph is unparseable \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
       const hits = (g.nodes ?? []).filter((n) => (n.name ?? "").includes(subject) || (n.id ?? "").includes(subject));
       return hits.map((n) => ({
@@ -185875,13 +185880,14 @@ function semanticaProbe(scopeRoot) {
     errorCode: "GI_LAYER_SEMANTICA",
     up: () => probePath(kgPath, true),
     facts: (subject) => {
-      if (!fs24.existsSync(kgPath))
-        return [];
+      if (!fs24.existsSync(kgPath)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent at ${kgPath}`);
+      }
       let kg;
       try {
         kg = JSON.parse(fs24.readFileSync(kgPath, "utf8"));
-      } catch {
-        return [];
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
       const hits = (kg.entities ?? []).filter((e) => (e.name ?? "").includes(subject));
       return hits.map((e) => ({
@@ -185985,7 +185991,7 @@ function tsgProbe(scopeRoot, tsgRoot) {
         rung: "meaning",
         subject,
         value: { path: r.path, scores: r.scores, windows: r.windows },
-        source: `${r.path}#tsg(threshold 0.7 \xB7 ${JSON.stringify(r.scores).slice(0, 80)})`
+        source: `${r.path}#tsg(threshold 0.5 \xB7 ${JSON.stringify(r.scores).slice(0, 80)})`
       }));
     }
   };

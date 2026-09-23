@@ -26,12 +26,15 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
     //   label over a missing substrate. The probe now asks for the FILE it actually reads.
     up: () => probePath(kgPath, true),
     facts: (subject: string): LayerFact[] => {
-      if (!fs.existsSync(kgPath)) return [];
+      // ★ GATE M-6 FIXED (the H-2 class, swept): a substrate fault THROWS.
+      if (!fs.existsSync(kgPath)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent at ${kgPath}`);
+      }
       let kg: SemanticaKg;
       try {
         kg = JSON.parse(fs.readFileSync(kgPath, "utf8")) as SemanticaKg;
-      } catch {
-        return [];
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
       const hits = (kg.entities ?? []).filter((e) => (e.name ?? "").includes(subject));
       return hits.map((e) => ({

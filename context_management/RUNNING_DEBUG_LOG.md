@@ -632,3 +632,24 @@ recorded in \`reports/P0_ABSORB_FINDINGS.md §9.1\`.
 ★ The zero-trust audit found SHA DRIFT across the docs; this log records the TRUE sha AFTER the
 8 HIGH gate fixes + the socket-filter fix. Evidence: `sha256sum extensions/graph-intelligence/index.js`
 → `3e2c2207c247a069`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.
+
+## [2026-09-23] ★ THE GATE'S FINDINGS ADJUDICATED (the qwen-code-audit, muse-go-mimo, 0 CRIT/0 HIGH)
+
+The gate COMPLETED (`DONE rc=0`, 34 files, 52m14s, `status=partial` — the model's 1M context
+limit on one large group). **★ 0 CRITICAL / 0 HIGH** — the 8 HIGH it found before are CLEARED.
+35 findings (18 medium / 17 low) adjudicated:
+
+| # | the finding | adjudication | the fix |
+|---|---|---|---|
+| M-1 | `ARUMBRIS` typo in `au-read.ts:103` | **CONFIRMED** (a log-searchability bug) | fixed |
+| M-5/6/7 | `c2kg`/`semantica`/`ua` return `[]` on absent/parse-fail | ★ **CONFIRMED — the H-2 CLASS WAS NOT FULLY SWEPT** (I fixed `_shared.ts` only) | all 3 now THROW the named code |
+| M-9 | the tsg `source` says `threshold 0.7` while the CLI runs `0.5` | **CONFIRMED** (an audit-trail lie) | fixed to 0.5 |
+| M-12 | `LIKE '%subject%'` treats `_`/`%` as wildcards | **CONFIRMED** | `escapeLike()` + `ESCAPE '\\'` |
+| M-14/17 | `pendingQueries` overwrite + no expiry | **CONFIRMED (low-impact)** — the host delivers one query at a time | recorded |
+| M-18 | "TS downgrade 7→5" | ★ **FALSE POSITIVE** — 7.0.2 is the **Go CLI with NO programmatic API** (`main: NONE`); 5.9.3 IS the API version. The pin is CORRECT and REQUIRED (the F-95 cause). | no change; justified |
+| L-4/5/17 | *"Good correction"* · *"consistent and improve type safety"* · *"well-documented"* | **POSITIVE comments** (the gate confirming the fixes) | n/a |
+| the rest (low) | dead code, unused imports, doc nits | **CONFIRMED (cosmetic)** | recorded |
+
+**★ THE RECURRENCE OF THE CLASS-SWEEP LESSON:** M-5/6/7 are the SAME defect class as the audit's
+H-2 and the earlier F-2. **Three times the class was fixed at ONE site.** This time it was swept
+to every adapter.

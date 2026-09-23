@@ -24,12 +24,16 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
     errorCode: "GI_LAYER_C2KG",
     up: () => probePath(indexPath, true),
     facts: (subject: string): LayerFact[] => {
-      if (!fs.existsSync(indexPath)) return [];
+      // ★ GATE M-5 FIXED: a substrate fault THROWS (GI_LAYER_DOWN), never []. This is the
+      //   SAME class as the audit's H-2 — fixed in _shared.ts then, SWEPT to every adapter now.
+      if (!fs.existsSync(indexPath)) {
+        throw new Error(`GI_LAYER_C2KG: the index is absent at ${indexPath}`);
+      }
       let idx: C2kgIndex;
       try {
         idx = JSON.parse(fs.readFileSync(indexPath, "utf8")) as C2kgIndex;
-      } catch {
-        return [];
+      } catch (e) {
+        throw new Error(`GI_LAYER_C2KG: the index is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
       const hits = (idx.symbols ?? []).filter((s) => (s.name ?? "").includes(subject));
       return hits.map((s) => ({

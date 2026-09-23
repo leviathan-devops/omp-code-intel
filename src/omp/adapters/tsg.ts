@@ -135,7 +135,9 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
         rung: "meaning" as const,
         subject,
         value: { path: r.path, scores: r.scores, windows: r.windows },
-        source: `${r.path}#tsg(threshold 0.7 · ${JSON.stringify(r.scores).slice(0, 80)})`,
+        // ★ GATE M-9 FIXED: the source string said "threshold 0.7" while the CLI runs 0.5 — an
+        //   audit-trail lie. It now reports the THRESHOLD ACTUALLY USED.
+        source: `${r.path}#tsg(threshold 0.5 · ${JSON.stringify(r.scores).slice(0, 80)})`,
       }));
     },
   };

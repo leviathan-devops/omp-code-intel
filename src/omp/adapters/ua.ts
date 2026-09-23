@@ -22,12 +22,15 @@ export function uaProbe(scopeRoot: string): ConsumerProbe {
     errorCode: "GI_LAYER_UA",
     up: () => probePath(graphPath, true),
     facts: (subject: string): LayerFact[] => {
-      if (!fs.existsSync(graphPath)) return [];
+      // ★ GATE M-7 FIXED (the H-2 class, swept): a substrate fault THROWS.
+      if (!fs.existsSync(graphPath)) {
+        throw new Error(`GI_LAYER_UA: the knowledge graph is absent at ${graphPath}`);
+      }
       let g: UaGraph;
       try {
         g = JSON.parse(fs.readFileSync(graphPath, "utf8")) as UaGraph;
-      } catch {
-        return [];
+      } catch (e) {
+        throw new Error(`GI_LAYER_UA: the knowledge graph is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
       const hits = (g.nodes ?? []).filter((n) => (n.name ?? "").includes(subject) || (n.id ?? "").includes(subject));
       return hits.map((n) => ({
