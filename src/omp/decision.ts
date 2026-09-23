@@ -20,6 +20,7 @@ import { buildRegistry, SIX_L2E_CONSUMERS } from "./layer-consumption.ts";
 import type { ConsumerId, LayerFact } from "./layer-registry.ts";
 import { runKernelV2, type KernelRun, type LayerDeclaration, type LayerId, type Verdict } from "./kernel-v2.ts";
 import * as path from "node:path";
+import * as fs from "node:fs";
 import { graphFacts, type GraphFactInput, type GraphFactVerdict } from "./graph-facts.ts";
 import type { DecisionRow } from "./fire-gate.ts";
 import { FireLedger } from "./fire-ledger.ts";
@@ -170,6 +171,13 @@ export function decideFireFromGraph(
   }
 
   const ledgerPath = path.join(scopeRoot, ".omp", "graph-intelligence", "fire-decisions.db");
+  // ★ THE FRESH-SCOPE FIX (2026-09-23, found in the omp-ct TUI): `gi-decide` with a
+  //   scopeRoot that had never hosted the kernel FAILED with
+  //   `GI_LEDGER_OPEN_FAILED: cannot open or migrate the fire ledger at
+  //    /tmp/.omp/graph-intelligence/fire-decisions.db (unable to open database file)`
+  //   — the ledger's DIRECTORY did not exist and FireLedger opens the path directly.
+  //   A decision must never fail because its RECORD had nowhere to live: create the dir.
+  fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
   const ledger = new FireLedger(ledgerPath);
 
   return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };

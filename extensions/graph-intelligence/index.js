@@ -176854,7 +176854,7 @@ function kindForLayer(layerId) {
 }
 
 // src/hydra/map-reader.ts
-import fs28 from "fs";
+import fs29 from "fs";
 import path33 from "path";
 function parseGraphJson(contents, size) {
   const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
@@ -176912,7 +176912,7 @@ async function readGraphJson(graphPath) {
   const resolved = path33.resolve(graphPath);
   let stat;
   try {
-    stat = fs28.statSync(resolved);
+    stat = fs29.statSync(resolved);
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} \u2014 remedy: run the explicit graphify build for this target, then re-run the audit`);
   }
@@ -176925,7 +176925,7 @@ async function readGraphJson(graphPath) {
   }
   let raw;
   try {
-    raw = parseGraphJson(fs28.readFileSync(resolved, "utf-8"), gSize);
+    raw = parseGraphJson(fs29.readFileSync(resolved, "utf-8"), gSize);
   } catch (err) {
     const msg = String(err.message ?? err);
     if (msg.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
@@ -177095,17 +177095,17 @@ var exports_auditor = {};
 __export(exports_auditor, {
   runTemplateAudit: () => runTemplateAudit
 });
-import fs29 from "fs";
+import fs30 from "fs";
 import path34 from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 function realResolve(p) {
   const resolved = path34.resolve(p);
   try {
-    return fs29.realpathSync(resolved);
+    return fs30.realpathSync(resolved);
   } catch {
     try {
-      return path34.join(fs29.realpathSync(path34.dirname(resolved)), path34.basename(resolved));
+      return path34.join(fs30.realpathSync(path34.dirname(resolved)), path34.basename(resolved));
     } catch {
       return resolved;
     }
@@ -177135,15 +177135,15 @@ function makeCappedReadTool(targetRoot) {
         return `${READ_SCOPE_VIOLATION}: read outside targetRoot ${filePath}`;
       }
       try {
-        const fd = fs29.openSync(realFile, fs29.constants.O_RDONLY | fs29.constants.O_NOFOLLOW);
+        const fd = fs30.openSync(realFile, fs30.constants.O_RDONLY | fs30.constants.O_NOFOLLOW);
         try {
-          const size = fs29.fstatSync(fd).size;
+          const size = fs30.fstatSync(fd).size;
           if (size > 8 * 1024 * 1024)
             return `READ_TOO_LARGE: ${size} bytes > 8MiB window cap (narrow offset/limit)`;
           const buf = Buffer.alloc(size);
           let total = 0;
           while (total < size) {
-            const n = fs29.readSync(fd, buf, total, size - total, total);
+            const n = fs30.readSync(fd, buf, total, size - total, total);
             if (n <= 0)
               break;
             total += n;
@@ -177158,7 +177158,7 @@ function makeCappedReadTool(targetRoot) {
 [TRUNCATED]` : "");
           return out;
         } finally {
-          fs29.closeSync(fd);
+          fs30.closeSync(fd);
         }
       } catch (e) {
         return `READ_FAILED: ${String(e.message).slice(0, 300)}`;
@@ -177220,16 +177220,16 @@ function makeForceBoundWriteTool(pinnedPath, ledgerDir) {
         return JSON.stringify({ error: WRITE_SCOPE_VIOLATION, detail: "pinned target outside ledger", recorded: true });
       }
       try {
-        fs29.mkdirSync(path34.dirname(pinnedReal), { recursive: true });
+        fs30.mkdirSync(path34.dirname(pinnedReal), { recursive: true });
         const content = String(params.content ?? "");
         if (content.length > 8 * 1024 * 1024) {
           return JSON.stringify({ error: "WRITE_TOO_LARGE: content exceeds the 8MiB write cap", recorded: true });
         }
-        const wfd = fs29.openSync(pinnedReal, fs29.constants.O_WRONLY | fs29.constants.O_CREAT | fs29.constants.O_TRUNC | fs29.constants.O_NOFOLLOW, 420);
+        const wfd = fs30.openSync(pinnedReal, fs30.constants.O_WRONLY | fs30.constants.O_CREAT | fs30.constants.O_TRUNC | fs30.constants.O_NOFOLLOW, 420);
         try {
-          fs29.writeFileSync(wfd, content, "utf-8");
+          fs30.writeFileSync(wfd, content, "utf-8");
         } finally {
-          fs29.closeSync(wfd);
+          fs30.closeSync(wfd);
         }
         return JSON.stringify({ path: pinnedReal, bytes: Buffer.byteLength(content, "utf-8") });
       } catch (e) {
@@ -177273,13 +177273,13 @@ function makeGraphTagTool(ledgerDir, layerId, defaultPredicate) {
         confidence: 1
       };
       const splicePath = path34.join(path34.resolve(ledgerDir), "evidence", "typed-edges.jsonl");
-      fs29.mkdirSync(path34.dirname(splicePath), { recursive: true });
-      const sfd = fs29.openSync(splicePath, fs29.constants.O_WRONLY | fs29.constants.O_CREAT | fs29.constants.O_APPEND | fs29.constants.O_NOFOLLOW, 420);
+      fs30.mkdirSync(path34.dirname(splicePath), { recursive: true });
+      const sfd = fs30.openSync(splicePath, fs30.constants.O_WRONLY | fs30.constants.O_CREAT | fs30.constants.O_APPEND | fs30.constants.O_NOFOLLOW, 420);
       try {
-        fs29.writeFileSync(sfd, JSON.stringify(row) + `
+        fs30.writeFileSync(sfd, JSON.stringify(row) + `
 `, "utf-8");
       } finally {
-        fs29.closeSync(sfd);
+        fs30.closeSync(sfd);
       }
       return JSON.stringify({ tagged: true, canonical_id, predicate, kind });
     }
@@ -177380,11 +177380,11 @@ async function readFindingsReport(reportPath, schema) {
   }
   let stat;
   try {
-    stat = fs29.statSync(reportPath);
+    stat = fs30.statSync(reportPath);
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
   }
-  const raw = fs29.readFileSync(reportPath, "utf-8");
+  const raw = fs30.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0)
     throw new Error("REPORT_PARSE_FAILED: empty file");
   const { candidates, summary } = parseFindingsMarkdown(raw);
@@ -177440,15 +177440,15 @@ function sourceLineQuote(targetRoot, relFile, line) {
     const realFile = realResolve(abs);
     if (!isWithinRoot(realFile, rootReal) && realFile !== rootReal)
       return "";
-    const fd = fs29.openSync(realFile, fs29.constants.O_RDONLY | fs29.constants.O_NOFOLLOW);
+    const fd = fs30.openSync(realFile, fs30.constants.O_RDONLY | fs30.constants.O_NOFOLLOW);
     try {
-      const size = fs29.fstatSync(fd).size;
+      const size = fs30.fstatSync(fd).size;
       if (size > 8 * 1024 * 1024)
         return "";
       const buf = Buffer.alloc(size);
       let total = 0;
       while (total < size) {
-        const n = fs29.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        const n = fs30.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
         if (n <= 0)
           break;
         total += n;
@@ -177457,7 +177457,7 @@ function sourceLineQuote(targetRoot, relFile, line) {
 `);
       return (lines[line - 1] ?? "").trim().slice(0, 300);
     } finally {
-      fs29.closeSync(fd);
+      fs30.closeSync(fd);
     }
   } catch {
     return "";
@@ -177802,11 +177802,11 @@ async function sweep(template, graph, targetRoot, belt, calls) {
   return [confirmedEmpty(anchor, template.layerId, measured, firstNodeFile)];
 }
 function writeBriefPinned(briefPath, content) {
-  const fd = fs29.openSync(briefPath, fs29.constants.O_WRONLY | fs29.constants.O_CREAT | fs29.constants.O_TRUNC | fs29.constants.O_NOFOLLOW, 420);
+  const fd = fs30.openSync(briefPath, fs30.constants.O_WRONLY | fs30.constants.O_CREAT | fs30.constants.O_TRUNC | fs30.constants.O_NOFOLLOW, 420);
   try {
-    fs29.writeFileSync(fd, content, "utf-8");
+    fs30.writeFileSync(fd, content, "utf-8");
   } finally {
-    fs29.closeSync(fd);
+    fs30.closeSync(fd);
   }
 }
 function assertGraphShape(graph) {
@@ -177856,7 +177856,7 @@ async function runTemplateAudit(args) {
     return { layerId, status: "rejected", error: "HUNTER_TARGET_INVALID: targetRoot required", ledgerDir, durationMs: Date.now() - t0 };
   }
   const targetRoot = path34.resolve(args.targetRoot);
-  if (!fs29.existsSync(targetRoot)) {
+  if (!fs30.existsSync(targetRoot)) {
     return { layerId, status: "rejected", error: `HUNTER_TARGET_INVALID: targetRoot not found: ${targetRoot}`, ledgerDir, durationMs: Date.now() - t0 };
   }
   let graph;
@@ -177874,7 +177874,7 @@ async function runTemplateAudit(args) {
     return { layerId, status: "rejected", error: "HUNTER_TOOLS_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
   try {
-    fs29.mkdirSync(ledgerDir, { recursive: true });
+    fs30.mkdirSync(ledgerDir, { recursive: true });
   } catch (e) {
     return { layerId, status: "rejected", error: "HUNTER_LEDGER_MKDIR_FAILED: " + String(e.message ?? e).slice(0, 400), ledgerDir, durationMs: Date.now() - t0 };
   }
@@ -177968,7 +177968,7 @@ ${summary}
   }
   const reportPath = path34.join(ledgerDir, "findings", "report.md");
   try {
-    const st = fs29.statSync(reportPath);
+    const st = fs30.statSync(reportPath);
     const REPORT_MTIME_SLACK_MS = 100;
     if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
@@ -178013,7 +178013,7 @@ var init_auditor = __esm(() => {
 });
 
 // src/omp/extension.ts
-import * as fs30 from "fs";
+import * as fs31 from "fs";
 import * as path35 from "path";
 import { Database as Database9 } from "bun:sqlite";
 
@@ -186478,6 +186478,7 @@ function finish(stages, verdict, code, cls, reason, evidence) {
 
 // src/omp/decision.ts
 import * as path32 from "path";
+import * as fs28 from "fs";
 
 // src/omp/fire-ledger.ts
 import { Database as Database8 } from "bun:sqlite";
@@ -187011,6 +187012,7 @@ function decideFireFromGraph(scopeRoot, target, intent) {
     policySource = policyPath;
   } catch {}
   const ledgerPath = path32.join(scopeRoot, ".omp", "graph-intelligence", "fire-decisions.db");
+  fs28.mkdirSync(path32.dirname(ledgerPath), { recursive: true });
   const ledger = new FireLedger(ledgerPath);
   return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };
 }
@@ -187042,7 +187044,7 @@ function substrateNeedsPopulate(storePath, scopeRoot) {
 function settlementLedgerConfined(ledgerPath, targetReal) {
   let real = ledgerPath;
   try {
-    real = fs30.realpathSync(ledgerPath);
+    real = fs31.realpathSync(ledgerPath);
   } catch {
     return { ok: false, error: "GI_PATH_DENIED: settlement ledger does not exist" };
   }
@@ -187052,7 +187054,7 @@ function settlementLedgerConfined(ledgerPath, targetReal) {
   return { ok: true, real };
 }
 function writeWipeAudit(giDir, note) {
-  fs30.mkdirSync(giDir, { recursive: true });
+  fs31.mkdirSync(giDir, { recursive: true });
   const regPath = path35.join(giDir, "registry.sqlite");
   const db = new Database9(regPath);
   try {
@@ -187081,13 +187083,13 @@ function parseTargetRoots(raw) {
 var confineTargetPath = (normalized, callerCwd) => {
   let real = normalized;
   try {
-    real = fs30.realpathSync(normalized);
+    real = fs31.realpathSync(normalized);
   } catch {
     return { ok: false, error: `GI_PATH_DENIED: targetPath does not exist: '${normalized.slice(0, 120)}'` };
   }
   let st = null;
   try {
-    st = fs30.statSync(real);
+    st = fs31.statSync(real);
   } catch {
     st = null;
   }
@@ -187099,7 +187101,7 @@ var confineTargetPath = (normalized, callerCwd) => {
   const within = roots.some((root) => {
     let rootReal = null;
     try {
-      rootReal = fs30.realpathSync(root);
+      rootReal = fs31.realpathSync(root);
     } catch {
       rootReal = null;
     }
@@ -187405,14 +187407,14 @@ function registerGiOmpTools(pi, cwdOf) {
       }
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      fs30.mkdirSync(auditRoot, { recursive: true });
-      const auditRootReal = fs30.realpathSync(auditRoot);
+      fs31.mkdirSync(auditRoot, { recursive: true });
+      const auditRootReal = fs31.realpathSync(auditRoot);
       const ledgerRel = path35.relative(targetReal, auditRootReal);
       if (ledgerRel === "" || ledgerRel.startsWith("..") || path35.isAbsolute(ledgerRel)) {
         return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
       }
-      const ledgerDir = fs30.mkdtempSync(join(auditRoot, `${layerId}-`));
-      const ledgerReal = fs30.realpathSync(ledgerDir);
+      const ledgerDir = fs31.mkdtempSync(join(auditRoot, `${layerId}-`));
+      const ledgerReal = fs31.realpathSync(ledgerDir);
       if (!ledgerDirConfined(ledgerReal, targetReal)) {
         return textResult2("GI_LEDGER_DENIED: evidence dir escaped the target root (symlink plant?)", { ok: false, error: "GI_LEDGER_DENIED" });
       }

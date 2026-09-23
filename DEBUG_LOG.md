@@ -905,3 +905,12 @@ STEER→escalate/ESCALATE, ALLOW→ignore/IGNORE).
 **Lesson:** ★ the record stage failing DID NOT silently drop the verdict — it reported `FAILED`
 on the run itself (the T-6 no-silent-catch law working). Two vocabularies meeting is a mapping
 job, and the validator naming the exact domain is what made the fix one line.
+
+## EN-6L2E-11 · THE LEDGER DIRECTORY WAS NEVER CREATED (2026-09-23)
+**Finding:** `gi-decide` on a fresh scope → `GI_LEDGER_OPEN_FAILED … unable to open database file`.
+**Root cause:** `decideFireFromGraph` opened the FireLedger without creating its parent dir.
+**Fix:** `fs.mkdirSync(path.dirname(ledgerPath), { recursive: true })` (decision.ts).
+**Verification:** the fresh scope `/tmp/fresh-scope-test` → `verdict=REFUSE … code=GI_STACK_INCOMPLETE:L5_CORBELL`,
+no open failure; re-proven in the container's TUI on the exact failing call.
+**Lesson:** ★ a derived artifact's DIRECTORY is part of its contract — an opener that assumes
+the path exists works on the machine that made it and fails on every fresh one.

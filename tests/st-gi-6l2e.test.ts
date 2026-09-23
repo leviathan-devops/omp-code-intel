@@ -354,6 +354,9 @@ function corpusStore(dir: string): string {
   edge("t::someCaller", "t::producedThing", "calls");
   node("t::referencedField", "field");
   edge("t::referencedField", "t::other", "references");
+  // ★ THE 7TH CLASS (TIER B · CLASS D — THE UNWIRED-MODULE TEST): a module present in the
+  //   store with NO edges at all — it exists, nothing wires to it, nothing reads it.
+  node("t::unwiredModule", "module");
   // ★ a FRESH marker — otherwise M-GRAPH-3 gates every other rule
   db.run(`INSERT INTO gi_meta (key,value) VALUES ('populated_at', ?)`, [new Date().toISOString()]);
   db.close();
@@ -378,6 +381,8 @@ describe("st-gi-6l2e: ★ SC-5 the 7-class derailment corpus", () => {
         why: "a consumed symbol WITH producers — the rule must not fire on a healthy shape" },
       { id: "NEG-2", intent: "declare", target: "referencedField", expectRule: "M-GRAPH-2", expectSettles: true, expectAction: "IGNORE",
         why: "a declared symbol WITH references" },
+      { id: "D-4", intent: "consume", target: "unwiredModule", expectRule: "M-GRAPH-1", expectSettles: true, expectAction: "FIRE",
+        why: "★ THE 7TH CLASS (TIER B · CLASS D — THE UNWIRED-MODULE TEST): the module IS in the store, with NO edges — nothing constructs it, nothing reads it, nothing wires to it" },
     ];
 
     const seen: string[] = [];
@@ -395,6 +400,9 @@ describe("st-gi-6l2e: ★ SC-5 the 7-class derailment corpus", () => {
     }
     // 6 fixtures, 4 distinct SPECIFIC rule tokens + the 2 negatives on the same rules
     expect([...new Set(seen)].sort()).toEqual(["M-GRAPH-1", "M-GRAPH-2", "M-GRAPH-4", "M-GRAPH-5"] as GraphFactRule[]);
+    // ★ THE 7-CLASS COUNT — the corpus IS seven fixtures (TIER B's classes A-G), and the
+    //   count is ASSERTED so "the 7-class corpus" is a checkable claim, never prose.
+    expect(fixtures.length).toBe(7);
 
     // ── M-GRAPH-3 · STORE-FRESH (D-3) — a SEPARATE, STALE store ──────────────
     const staleDir = fs.mkdtempSync(path.join(os.tmpdir(), "gi-6l2e-stale-"));

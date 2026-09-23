@@ -1130,3 +1130,27 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **A TYPE-ONLY IMPORT IS AN ERASED EDGE.** A kernel reachable only through
   `import type` is a kernel the bundler deletes — and the register that imports the SOURCE
   will report it green forever. **THE GREP ON THE DEPLOYED BUNDLE IS THE ONLY GREEN.**
+
+---
+
+### F-99 — THE DECISION FAILED BECAUSE ITS RECORD HAD NOWHERE TO LIVE (2026-09-23)
+
+- **What happened:** `gi-decide` with `scopeRoot=/tmp` returned
+  `GI_DECIDE_FAILED: GI_LEDGER_OPEN_FAILED: cannot open or migrate the fire ledger at
+  /tmp/.omp/graph-intelligence/fire-decisions.db (unable to open database file)` — **the whole
+  decision failed** because the ledger's DIRECTORY did not exist.
+- **Found:** in the `gi-6l2e-ct` headed TUI, driving the SECOND-OPERATOR scenario (a scope that
+  never hosted the kernel) — the runtime-seat law (H4: "starve it / the wrong-tree store").
+- **Root cause:** `decideFireFromGraph` opened `new FireLedger(ledgerPath)` with no
+  `mkdirSync(path.dirname(ledgerPath))`. On a scope that had hosted the kernel before
+  (`/root/gi-scope`) the dir existed by luck; on a FRESH scope the ledger threw and took the
+  verdict with it. ★ A DECISION MUST NEVER FAIL BECAUSE ITS RECORD HAD NOWHERE TO LIVE.
+- **Impact:** the tool was unusable on any fresh scope — the exact "second operator, zero
+  context" case the goal names as mandatory.
+- **Disposition:** **FIXED + RE-PROVEN IN THE SAME SEAT (H5).** `fs.mkdirSync(path.dirname(
+  ledgerPath), { recursive: true })` before the `FireLedger`. Re-tested the EXACT failing call
+  in the container: `verdict=REFUSE class=benign code=GI_STACK_INCOMPLETE:L5_CORBELL` ·
+  `stage 0 PREFLIGHT REFUSE 6 layer(s) DOWN` · `M-GRAPH-3 settles=false action=none the graph
+  layer is UNAVAILABLE — the fact set could not be read` · **no `GI_LEDGER_OPEN_FAILED`**.
+- **The lesson:** ★ a fix in the function is not a fix until the CALLER's worst case is tried.
+  The happy scope hid it; the fresh scope exposed it. THE SECOND OPERATOR IS THE TEST.
