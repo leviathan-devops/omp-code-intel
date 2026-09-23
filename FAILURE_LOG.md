@@ -1374,3 +1374,24 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **A GUARD THAT CHECKS A PROXY QUANTITY IS NOT A GUARD.** `questions.length`
   was a proxy for "there are options"; the construction made it always-1. Assert the quantity the
   contract NEEDS.
+
+---
+
+### F-110 — THE CONTAINER'S REGISTER CEILING IS 6/8, AND WHY (2026-09-23)
+
+- **What happened:** W4 shipped the host-side substrates into `gi-kev-ct` (5 of the 7) and the
+  container's register went **`consumed:1/8` → `consumed:6/8`**.
+- **Found:** the container-coverage front of the red-team pin.
+- **★ THE MEASURED CEILING — 2 consumers cannot reach CONSUMED in this rig, and both are NAMED:**
+  1. **`L2_ARSUMBRIS` — a DAEMON, not a file.** Its substrate is a socket dir
+     (`~/.arsumbris/au-engine/run/<hash>.sock`); the payload pattern cannot carry it. **BLOCKED** —
+     retry: install + START the au-engine inside the rig.
+  2. **`ABIDE` — its substrate is ABSENT ON THE HOST.** `.abide/events.jsonl` does not exist in the
+     repo tree either. **BLOCKED** — retry: produce the abide event log on the HOST first.
+- **Impact:** the pin's W4 gate named `consumed:8/8` in the container; the measured ceiling is
+  **6/8**. The gate's target was NOT achievable as written.
+- **Disposition:** **RECORDED HONESTLY, both with retry conditions** — never a fabricated PASS
+  (the pin's own HARD STOP). The 5 shipped + KEV = 6 CONSUMED, each with its fact count.
+- **The lesson:** ★ **A GATE THAT NAMES 8/8 WITHOUT MEASURING THE CEILING SETS AN IMPOSSIBLE BAR.**
+  Measure what the environment CAN carry before naming the number — and when 2 of 7 are
+  structurally unavailable, name them, do not fake them.

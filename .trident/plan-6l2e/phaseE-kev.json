@@ -104,5 +104,55 @@
   "The container's TUI model endpoint (arcee-ai/trinity-large-preview:free) returns 404, so the headed-TUI tool call is BLOCKED; the direct probe is the substituted evidence.",
   "\u2605 THE DELIVERY MECHANISM (measured, not assumed): 4 payloads were shipped before the model loaded \u2014 transformers+ORT, sharp+@img, detect-libc+semver+jinja+tokenizers, and onnxruntime-node/dist/. Each missing piece produced a NAMED resolution error naming the package \u2014 never a silent failure.",
   "\u2605 SC-K3 was BLOCKED and is now PASS: the container's omp pin (arcee-ai/trinity-large-preview:free) returned 404; config.yml's `default` was pointed at the live openrouter free lane and the headed TUI then ran gi-decide, returning influenced=TSG with the PREFLIGHT REFUSE naming all 6 absent layers."
- ]
+ ],
+ "wave_W4": {
+  "title": "W4 \u2014 THE CONTAINER-COVERAGE FRONT (the 7 absent substrates)",
+  "date": "2026-09-23",
+  "script": "scripts/container-substrate-payload.sh",
+  "shipped": [
+   "L1_SEMANTICA (.omp/graph-intelligence/layers/semantica/kg.json, 6.8M)",
+   "L3_UA (.ua/knowledge-graph.json, 3.2M)",
+   "L4_C2KG (.c2kg/index.json, 28K)",
+   "L5_CORBELL (.omp/.../corbell-checkout/store.sqlite, 12M)",
+   "L6_GRAPHIFY (.omp/.../graphify-checkout/store.sqlite, 34M)"
+  ],
+  "the_payload": "55M tar -> container-testing action=cp -> tar -xf -C /",
+  "\u2605 THE RESULT": "the container's register went consumed:1/8 -> consumed:6/8",
+  "observed": "consumed:6/8 rungs=context,decision,meaning,settlement \u00b7 GI_LAYER_DOWN=L2_ARSUMBRIS,ABIDE",
+  "consumed": [
+   "L5_CORBELL facts=50",
+   "L6_GRAPHIFY facts=22",
+   "L4_C2KG facts=2",
+   "L3_UA facts=27",
+   "L1_SEMANTICA facts=12",
+   "TSG facts=1 (the LOCAL KEV)"
+  ],
+  "\u2605 THE 2 DOWN \u2014 NAMED, WITH RETRY CONDITIONS": {
+   "L2_ARSUMBRIS": {
+    "verdict": "BLOCKED",
+    "mechanism": "a DAEMON (a socket at ~/.arsumbris/au-engine/run/<hash>.sock) \u2014 it cannot be tarred",
+    "retry_condition": "install + START the au-engine daemon inside the rig, then re-probe"
+   },
+   "ABIDE": {
+    "verdict": "BLOCKED",
+    "mechanism": ".abide/events.jsonl is ABSENT ON THE HOST too \u2014 not a container gap",
+    "retry_condition": "produce the abide event log on the HOST, then re-run the payload script"
+   }
+  },
+  "honest_note": "\u2605 the pin's W4 gate named consumed:8/8; the MEASURED ceiling is 6/8 because 1 substrate is a daemon and 1 does not exist on the host. Both are NAMED with their retry conditions \u2014 never fabricated.",
+  "scenarios": [
+   {
+    "id": "ST-CT-1",
+    "name": "test_container_register_reads_eight_of_eight",
+    "verdict": "PARTIAL (6/8)",
+    "observed": "consumed:6/8 \u2014 the 5 shipped substrates + KEV; the 2 DOWN NAMED"
+   },
+   {
+    "id": "ST-CT-2",
+    "name": "test_container_substrate_absent_is_named",
+    "verdict": "PASS",
+    "observed": "GI_LAYER_DOWN=L2_ARSUMBRIS,ABIDE \u2014 a NAMED list, never a silent rows:0"
+   }
+  ]
+ }
 }
