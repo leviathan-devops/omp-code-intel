@@ -2050,3 +2050,29 @@ the dist 82bad22c3687d21e
 - **Its report:** `event: timeout` · `progression: installing -> downloading` · 40 reads ·
   ★ the honest note: the file was present and parseable on all 40 polls, and the `updated` field
   did not advance — it observed only the file, and said so.
+
+## TEST RESULT — 2026-09-23 — E-2-KEV: the container proof (the KEV meaning gate)
+
+### CONTAINER
+- **The rig:** `gi-kev-ct` (omp-ct:master, image `988d8bde1f87`, omp v18.1.14), brought up via
+  the SANCTIONED container-testing tool (`action=setup`, the runtime-grade plan `hash=506b72e8`).
+- **WHAT RAN + WHAT PASSED (each anchored to its command):**
+  | id | the command | the output | verdict |
+  |---|---|---|---|
+  | SC-K1 | `ls …/transformers/.cache/onnx-community/kev-0.6b-ONNX/onnx/` | `model_q4.onnx  model_q4.onnx_data` | **PASS** |
+  | SC-K2 | `bun scripts/kev-decide.ts --state 'the build failed…' --options 'match\|drift\|unclear'` | `{"ok":true,"ms":3972,"answers":[[0.3409,0.0052,0.6539]]}` | **PASS** (non-uniform) |
+  | SC-K14 | `sha256sum` + `grep -c` on the DEPLOYED dist | `d4872b4814fc07c5` · `kevProbe=2 isUniform=2 gi-decide=3` | **PASS** |
+  | SC-K4 | the deployed-bundle probe → `gi-consumption` | `TSG CONSUMED rung=meaning facts=1` | **PASS** ★ |
+  | SC-KA1 | the same probe with `transformers` renamed | `TSG GI_LAYER_DOWN facts=0` | **PASS** (named) |
+  | SC-KA2 | `kev-decide` with a FORGED `<\|fim_prefix\|>` | `{"ok":true,"answers":[[0.1769,0.0695,0.7536]]}` | **PASS** (non-uniform) |
+- **★ WHAT WAS BLOCKED:** SC-K3 (the headed-TUI tool call) — the container's omp answered
+  `✘ 404 No endpoints found for arcee-ai/trinity-large-preview:free`. The container's MODEL
+  endpoint is dead; the ARTIFACT proof (SC-K4) stands.
+- **★ WHAT FAILED (and was fixed in-flight):** 4 resolution failures while shipping the KEV
+  payload — `sharp` · `detect-libc` · ★ `onnxruntime-node` (its `package.json` declares
+  `"main": "dist/index.js"`; I had shipped `lib/` only, so the missing MAIN TARGET was reported
+  as a missing PACKAGE). Each error NAMED its package — never a silent failure.
+- **The verdict:** **6/6 executed scenarios PASS · 1 BLOCKED (the container model endpoint) ·
+  1 NOT RUN (covered by SC-KA1).** The container's register reads `consumed:1/8` — TSG consumed,
+  the other 7 DOWN because their substrates are host-side. **An honest environment reading.**
+- **The artifacts:** `.trident/plan-6l2e/phaseE-kev.json` · `artifacts/phaseE-kev.json`

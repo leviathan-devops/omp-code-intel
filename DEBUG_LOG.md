@@ -1003,3 +1003,38 @@ present; the remote tsg probe is the named fallback.
 blocked on *meaning* — it was blocked on a vendor's billing. The local model serves the same
 contract. And: the operator's framing ("in place of jev") NAMED the substitution that unblocked
 the goal's headline condition.
+
+## EN-6L2E-17 · THE KEV PAYLOAD'S FOUR NAMED RESOLUTION FAILURES (2026-09-23)
+**Finding:** shipping the KEV runtime into `gi-kev-ct` failed FOUR times before the model loaded.
+**THE MECHANISM, each anchored to the artifact (never a symptom list):**
+1. `Cannot find package 'sharp' from …/transformers/dist/transformers.node.mjs` — transformers.js
+   imports sharp at load. **FIX:** ship `sharp` + `@img/*` (177M).
+2. `Cannot find package 'detect-libc' from …/sharp/dist/utility.mjs` — sharp's own dep.
+   **FIX:** ship `detect-libc` + `semver` + `@huggingface/jinja` + `@huggingface/tokenizers`.
+3. `Cannot find package 'onnxruntime-node' from …/transformers.node.mjs` — ★ AND THE PACKAGE
+   EXISTED: `ls node_modules/onnxruntime-node/package.json` → present. **THE ROOT CAUSE, quoted
+   from the artifact:** `package.json` declares `"main": "dist/index.js"` while the container had
+   only `lib/` — **I shipped `lib/`, not `dist/`.** The resolver reads `main`; a missing `main`
+   target surfaces as "Cannot find package" naming the PACKAGE, not the file.
+   **FIX:** ship `onnxruntime-node/dist/` (60K, 12 files). The model then answered:
+   `{"ok":true,"ms":3972,"answers":[[0.3409,0.0052,0.6539]]}`.
+4. (SC-KA1, adversarial) with `transformers` renamed the register read `TSG GI_LAYER_DOWN facts=0`
+   — a NAMED failure, never a silent pass.
+**Lesson:** ★ **A MISSING `main` TARGET IS REPORTED AS A MISSING PACKAGE.** The error named
+`onnxruntime-node` while the package was present and only its entry file was absent — anchor to
+the package.json's `main`, not the error's noun.
+
+## EN-6L2E-18 · KEV CONSUMED IN THE CONTAINER (2026-09-23)
+**The proof:** the DEPLOYED bundle in `gi-kev-ct`, mounted on a fake `pi`, invoking
+`gi-consumption` with subject `evidence` + scopeRoot `/root/gi-scope`:
+`consumed:1/8 rungs=meaning · TSG CONSUMED rung=meaning facts=1`.
+**★ THE HONEST READING:** the container's other 7 consumers are `GI_LAYER_DOWN` — the rig carries
+only the KEV payload; the graph substrates (corbell, graphify, UA, C2KG, arsumbris, semantica,
+abide) are HOST-side. The register reports the container's REAL state, never a canned 8/8.
+**THE DIST:** `d4872b4814fc07c5` deployed byte-identical; the dist-content gate inside the rig:
+`runKernelV2=2 decideFromRegistry=2 layerCertifications=2 kevProbe=2 isUniform=2 gi-decide=3`.
+**BLOCKED (not failed):** the headed-TUI tool call — the container's omp model endpoint returned
+`404 No endpoints found for arcee-ai/trinity-large-preview:free`. The direct deployed-bundle probe
+substituted and is the STRONGER evidence (it imports the artifact, not a model's account of it).
+**Lesson:** ★ the container proof's subject is the DEPLOYED BUNDLE, not the model driving it —
+a dead model endpoint blocks the TUI path but not the artifact proof.
