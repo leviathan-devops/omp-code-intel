@@ -187130,6 +187130,12 @@ function decideFromRegistry(scopeRoot, subject, act, record) {
   };
 }
 function decideFireFromGraph(scopeRoot, target, intent) {
+  if (typeof scopeRoot !== "string" || scopeRoot.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: scopeRoot must be a non-empty string");
+  }
+  if (typeof target !== "string" || target.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: target must be a non-empty string");
+  }
   const storePath = corbellCheckoutPath(scopeRoot);
   const verdicts = graphFacts({ storePath, target, intent });
   const settles = verdicts.some((v) => v.settles);

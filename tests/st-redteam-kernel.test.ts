@@ -290,3 +290,14 @@ describe("st-redteam-kernel: ★ THE W5 AUDIT'S HIGH FINDINGS, PINNED", () => {
     expect(src).toContain("GI_ENFORCE_KEV: the KEV CLI printed invalid JSON");
   });
 });
+
+describe("st-redteam-kernel: ★ THE W5 RE-AUDIT'S HIGH — the SYMMETRIC guard", () => {
+  test("test_w5r_fire_decision_validates_its_inputs", () => {
+    // ★ THE FIND (the W5 re-audit): `decideFireFromGraph` lacked the validation its sibling
+    //   `decideFromRegistry` got. Both entry points must now name their inputs.
+    expect(() => decideFireFromGraph("", "t", "consume")).toThrow(/GI_DECIDE_BAD_INPUT: scopeRoot/);
+    expect(() => decideFireFromGraph(ROOT, "  ", "consume")).toThrow(/GI_DECIDE_BAD_INPUT: target/);
+    // and the sibling still holds (the symmetry, both directions)
+    expect(() => decideFromRegistry("", "s", { toolName: "t", target: "t", queriedBefore: false })).toThrow(/GI_DECIDE_BAD_INPUT: scopeRoot/);
+  }, 120_000);
+});

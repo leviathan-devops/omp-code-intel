@@ -2151,3 +2151,26 @@ the dist 82bad22c3687d21e
   `*.test.ts`); the 17 `st-*.ts` files require an explicit `./` path (`bun test tests/x.ts`
   WITHOUT the `./` is a FILTER, not a path — a measured probe bug, `note: Tests need ".test"…`).
 - **The artifacts:** `package.json` (the fixed scripts) · this entry.
+
+## TEST RESULT - 2026-09-23 - W5: THE FRESH AUDIT (the red-team close)
+
+### SCRIPT
+- WHAT RAN: `ocr scan --path <file> --provider muse-go-mimo --format json` - the GO lane, per the
+  operator's ruling (never verboo). Measured live: `mimo-v2.5` on the GO proxy = `http=200`;
+  `muse-spark-1.3-contributor`'s GO endpoint = `503`.
+- THE FIRST RUN (before the fixes): `status: completed_with_errors`, 9 comments (high 2,
+  medium 5, low 2) -> AUDIT GATE: FAIL (2). The two HIGH: `scripts/kev-decide.ts` -
+  `process.exit(1)` after `console.log()` can truncate the error JSON; `src/omp/decision.ts` -
+  the `settles` flag via `.some()`, adjudicated BY DESIGN (any settling fact skips the model
+  call, per the DPL1).
+- THE RE-AUDIT (after the fixes): `kev-decide.ts` -> success, 5 comments (medium 4, low 1),
+  HIGH=0. `kev.ts` -> success, 4 comments (medium 2, low 2), HIGH=0. `decision.ts` -> success,
+  5 comments (high 1, medium 3, low 1) -> the symmetric-guard finding F-113 -> FIXED.
+- THE VERDICT: the 4 real HIGH findings are fixed; the re-audit returns 0 HIGH on the two
+  smaller files; `decision.ts`'s second HIGH is fixed with its pin.
+- THE PIN CAUGHT THE REMEDY: the first fix used `return` at ESM top-level - a syntax error
+  (`Top-level return cannot be used inside an ECMAScript module`) that broke the CLI's stdout.
+  The pin failed with `SyntaxError: JSON Parse error: Unexpected EOF` -> the remedy became
+  `process.stdout.write` + `process.exitCode = 1` + `throw new Error("KEV_USAGE")`.
+- The artifacts: `reports/REDTEAM_KERNEL_2026-09-23.md` - the per-file JSON at `/tmp/w5r-*.json`
+  - the dist `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663`.

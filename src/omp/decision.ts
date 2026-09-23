@@ -184,6 +184,16 @@ export function decideFireFromGraph(
   target: string,
   intent: GraphFactInput["intent"],
 ): FireEvidence {
+  // ★ AUDIT HIGH (W5 re-audit, 2026-09-23): the SAME missing-validation class as
+  //   `decideFromRegistry` — found by the re-audit AFTER the sibling was guarded. An empty
+  //   scopeRoot/target silently propagated into the store path + the ledger path. A guard here
+  //   keeps the two entry points SYMMETRIC: every public decision names its inputs.
+  if (typeof scopeRoot !== "string" || scopeRoot.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: scopeRoot must be a non-empty string");
+  }
+  if (typeof target !== "string" || target.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: target must be a non-empty string");
+  }
   const storePath = corbellCheckoutPath(scopeRoot);
   const verdicts = graphFacts({ storePath, target, intent });
   const settles = verdicts.some((v) => v.settles);
