@@ -178918,6 +178918,20 @@ function findGiSessionByStorePath(storePath) {
   const hit = db.query("SELECT session_id, scope_root, store_path FROM gi_sessions WHERE store_path = ?").get(storePath);
   return hit ?? null;
 }
+class GiClearError extends Error {
+  code = "GI_CLEAR_REFUSED";
+  constructor(message) {
+    super(message);
+    this.name = "GiClearError";
+  }
+}
+function clearGiRegistry() {
+  if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
+    throw new GiClearError("GI_CLEAR_REFUSED: set GI_OMP_ALLOW_CLEAR=1 to wipe the registry (never default)");
+  }
+  const db = openGiRegistry();
+  db.run("DELETE FROM gi_sessions");
+}
 
 // src/omp/store-open.ts
 class GiScopeError extends Error {
@@ -186961,6 +186975,14 @@ var LAYER_IDS = [
   "L5_CORBELL",
   "L6_GRAPHIFY"
 ];
+function layerCertifications(facts) {
+  const layerIdList = [...LAYER_IDS];
+  return facts.filter((f) => layerIdList.includes(f.consumer)).map((f) => ({
+    layer: f.consumer,
+    verdict: "PASS",
+    reason: `${f.source}`
+  }));
+}
 function decideFromRegistry(scopeRoot, subject, act, record) {
   const registry = buildRegistry(scopeRoot);
   const facts = registry.factsFor(subject);
@@ -186974,11 +186996,7 @@ function decideFromRegistry(scopeRoot, subject, act, record) {
       return { up: s.up, evidence: s.evidence };
     }
   }));
-  const certifications = facts.map((f) => ({
-    layer: f.consumer,
-    verdict: "PASS",
-    reason: `${f.source}`
-  }));
+  const certifications = layerCertifications(facts);
   const run = runKernelV2({
     toolName: act.toolName,
     target: act.target,
@@ -187258,9 +187276,10 @@ function registerGiOmpTools(pi, cwdOf) {
         try {
           const wipeAudit = graphProbeWipeAudited(ctx, cwdOf);
           if (!wipeAudit.audited) {
-            return textResult2(`GI_CLEARED
-` + wipeAudit.text, { ok: true, token: "GI_CLEARED", wipeAudited: false });
+            return textResult2(`WIPE_AUDIT_FAILED
+${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false });
           }
+          clearGiRegistry();
           return textResult2("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
         } catch (e) {
           let code = "GI_CLEAR_REFUSED";

@@ -331,12 +331,16 @@ pi.registerTool({
       }
       try {
         const wipeAudit = graphProbeWipeAudited(ctx as { cwd?: string; sessionID?: string } | undefined, cwdOf);
-        // W11/W13 (frozen-scan HIGH) + W45/F24: the audit outcome comes from
-        // the graphProbeWipeAudited seam — a skipped audit (confine failed)
-        // is reported audited:false with the reason, never as success.
+        // ★ AUDIT HIGH #2 (2026-09-23): the first version returned `GI_CLEARED` with
+        //   `ok: true` when the audit had FAILED (wipeAudited:false) — a false success —
+        //   AND never called `clearGiRegistry()` at all (it was imported but DEAD), so the
+        //   tool reported `GI_CLEARED` without ever clearing. A failed audit is a LOUD
+        //   failure; a reported clear is an ACTUAL clear.
         if (!wipeAudit.audited) {
-          return textResult("GI_CLEARED\n" + wipeAudit.text, { ok: true, token: "GI_CLEARED", wipeAudited: false });
+          return textResult(`WIPE_AUDIT_FAILED\n${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false });
         }
+        // ★ THE ACTUAL WIPE — the deep gate (GI_OMP_ALLOW_CLEAR) lives inside this call.
+        clearGiRegistry();
         return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
       } catch (e) {
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —

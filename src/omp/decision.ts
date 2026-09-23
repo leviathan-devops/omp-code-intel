@@ -62,6 +62,23 @@ export interface DecisionEvidence {
   run: KernelRun;
 }
 
+/** ★ AUDIT HIGH #1 (2026-09-23) — the certification FILTER, as a pure function so the rule is
+ *  testable without a substrate. `registry.factsFor` returns facts from EVERY consumer,
+ *  including the 2 KERNEL consumers (TSG, ABIDE) which are NOT `LayerId`s. Only a LAYER may
+ *  certify a layer: a kernel's fact, cast as a LayerId, is an invalid certification. */
+export function layerCertifications(
+  facts: readonly LayerFact[],
+): Array<{ layer: LayerId; verdict: Verdict; reason: string }> {
+  const layerIdList: string[] = [...LAYER_IDS];
+  return facts
+    .filter((f) => layerIdList.includes(f.consumer))
+    .map((f) => ({
+      layer: f.consumer as LayerId,
+      verdict: "PASS" as Verdict,
+      reason: `${f.source}`,
+    }));
+}
+
 /** ★ THE DECISION. It consults the REGISTRY — never a raw store, never a file check.
  *
  *  Chain: registry (8 consumers) → the 6 layers become the kernel's LayerDeclaration[]
@@ -99,11 +116,11 @@ export function decideFromRegistry(
     }));
 
   // The registry's anchored facts become the certifications the detectors weigh.
-  const certifications = facts.map((f) => ({
-    layer: f.consumer as LayerId,
-    verdict: "PASS" as Verdict,
-    reason: `${f.source}`,
-  }));
+  // ★ AUDIT HIGH (2026-09-23): `factsFor` iterates EVERY consumer — including the 2 KERNEL
+  //   consumers TSG + ABIDE, which are NOT `LayerId`s. The first version cast `f.consumer as
+  //   LayerId` for all of them, so a TSG/ABIDE fact produced a certification with an INVALID
+  //   layer value. ONLY layer consumers may certify a layer.
+  const certifications = layerCertifications(facts);
 
   const run = runKernelV2({
     toolName: act.toolName,

@@ -914,3 +914,34 @@ job, and the validator naming the exact domain is what made the fix one line.
 no open failure; re-proven in the container's TUI on the exact failing call.
 **Lesson:** ★ a derived artifact's DIRECTORY is part of its contract — an opener that assumes
 the path exists works on the machine that made it and fails on every fresh one.
+
+## EN-6L2E-12 · THE AUDIT'S HIGH #1: A KERNEL FACT CAST AS A LAYER (2026-09-23)
+**Finding:** the audit returned `high` on `src/omp/decision.ts:101-106`.
+**Root cause:** `registry.factsFor(subject)` iterates EVERY consumer — including TSG + ABIDE,
+which are KERNEL consumers, not `LayerId`s — and the code cast `f.consumer as LayerId` for all
+of them. A TSG fact therefore produced a certification with an INVALID layer value.
+**Fix:** `layerCertifications(facts)` — a pure, exported helper that filters to `LAYER_IDS`
+before the cast. `decideFromRegistry` now calls it.
+**Verification:** `AUDIT-HIGH-1` (a 4-fact list: 2 layers + TSG + ABIDE → exactly 2 certs, every
+layer id in the closed set). tsc 0 · the battery 360/0.
+**Lesson:** ★ an `as` cast on a union of consumers is a lie until the SET is checked. The types
+said `ConsumerId` (8 values); the annotation said `LayerId` (6). The filter is the missing step.
+
+## EN-6L2E-13 · THE AUDIT'S HIGH #2: A FABRICATED PASS IN THE WIPE (2026-09-23)
+**Finding:** the audit returned `high` on `src/omp/extension.ts` — the `graph-probe` wipe
+reported `GI_CLEARED` (`ok: true`) without clearing.
+**Root cause (TWO defects in one handler):**
+1. On a FAILED audit (`wipeAudit.audited === false`) the handler returned
+   `textResult("GI_CLEARED\n" + wipeAudit.text, { ok: true, token: "GI_CLEARED", wipeAudited: false })`
+   — a false success; the comment above it said "never as success" while the code said `ok: true`.
+2. `clearGiRegistry` was IMPORTED (line 11) and **never called anywhere in `src/`** — the wipe
+   wrote an AUDIT RECORD and called it a wipe.
+**Fix:** the failed-audit branch returns `WIPE_AUDIT_FAILED` + `ok:false`; the success branch
+calls `clearGiRegistry()` (whose own deep `GI_OMP_ALLOW_CLEAR` gate still applies).
+**Verification:** `AUDIT-HIGH-2` (mounts the DEPLOYED bundle, wipes with an unreachable cwd →
+`WIPE_AUDIT_FAILED` + ok:false, and NO `GI_CLEARED`) + `AUDIT-HIGH-2b` (the call site exists;
+the false-success shape is gone). ★ The test caught a bug in ITSELF first (the `cwdOf` shim
+ignored the ctx, so the ghost cwd never reached the wipe) — fixed, then it went red→green.
+**Lesson:** ★ a comment that contradicts its code is a defect with a receipt. "never as success"
+above an `ok: true` is the audit's cheapest find — and a DEAD IMPORT is the signature of a
+feature that was never wired.

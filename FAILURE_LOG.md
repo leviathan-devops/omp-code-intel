@@ -1154,3 +1154,53 @@ AND THE RUNTIME NEVER CHANGED.
   layer is UNAVAILABLE — the fact set could not be read` · **no `GI_LEDGER_OPEN_FAILED`**.
 - **The lesson:** ★ a fix in the function is not a fix until the CALLER's worst case is tried.
   The happy scope hid it; the fresh scope exposed it. THE SECOND OPERATOR IS THE TEST.
+
+---
+
+### F-100 — THE AUDIT LANE WAS DOWN ON EVERY PROVIDER BUT ONE (2026-09-23)
+
+- **What happened:** the post-fix code-audit (F-98's changed files) could not run. Measured, per
+  lane: OpenRouter `poolside/laguna-s-2.1:free` → **429** (`temporarily rate-limited upstream`);
+  Poolside direct → **429** (`usage limit exceeded`); the GO proxy `muse-spark-1.3-contributor` →
+  **503** (`Upstream request failed: Endpoint is unavailable`); the muse-free proxy (:4098) →
+  **500**; the Google lane → **400** (`Please pass a valid API key`); zen-free direct → **500**.
+- **Found:** while trying to re-clear the audit gate for the post-fix dist
+  (`3fdcef25473e4b76`), after the 04:35 artifact's SHA went stale.
+- **Root cause:** ★ NOT the model, NOT the environment — **the lanes' own upstreams**: two
+  free-tier rate limits, one model endpoint unavailable, one proxy internal error, one stale
+  key. Each is a provider-side state, each measured with a direct curl (never inferred).
+- **Disposition:** **RESOLVED by LANE SWITCH** (the operator's ruling: muse on GO, or laguna on
+  zen/openrouter — never verboo). The measured-live lane is **`mimo-v2.5` on the GO proxy**
+  (`http=200`); the audit was re-run through it. ★ `muse-spark-1.3-contributor`'s GO endpoint
+  was 503-down at that moment while its sibling `mimo-v2.5` on the SAME proxy answered 200.
+- **The lesson:** ★ a provider is not a lane. When the audit will not run, MEASURE each lane
+  with a direct call and read the STATUS — the fix is usually a sibling model on a live proxy,
+  not a wait.
+
+---
+
+### F-101 — THE CODE AUDIT FOUND 2 HIGH FINDINGS ON THE F-98 CODE (2026-09-23)
+
+- **What happened:** the post-fix code-audit (ocr, the GO `mimo-v2.5` lane, session
+  `2bced5f8`) returned **`high: 2 · medium: 4 · low: 7`** → **AUDIT GATE: FAIL**. Both HIGH
+  findings were on the code I had just written.
+- **Found:** the audit gate was re-run because the 04:35 artifact's SHA had gone stale.
+- **Root cause + disposition (both adjudicated REAL, not probe errors):**
+  1. **`src/omp/decision.ts:101-106`** — `certifications` was built from ALL of
+     `registry.factsFor(subject)`, which includes the **2 KERNEL consumers (TSG, ABIDE)** that
+     are NOT `LayerId`s, and cast `f.consumer as LayerId` — an **invalid layer value** on every
+     kernel fact. **FIXED:** extracted the pure helper `layerCertifications()` (filters to layer
+     consumers), pinned by `AUDIT-HIGH-1`.
+  2. **`src/omp/extension.ts` (the `graph-probe` wipe)** — the tool returned **`GI_CLEARED` with
+     `ok: true`** when the audit had FAILED (`wipeAudited:false`) — a **FALSE SUCCESS** — AND
+     **`clearGiRegistry()` was imported but NEVER CALLED anywhere in `src/`** (a dead import),
+     so the tool reported `GI_CLEARED` **without ever clearing**. **FIXED:** a failed audit now
+     returns `WIPE_AUDIT_FAILED` + `ok:false`; the wipe now CALLS `clearGiRegistry()`.
+     Pinned by `AUDIT-HIGH-2` + `AUDIT-HIGH-2b`.
+- **Impact:** the ship gate was legitimately FAILED; the F-98 wave could not be declared
+  ship-ready while they stood.
+- **The lesson:** ★ **THE AUDIT IS THE POINT, NOT THE RITUAL.** Both findings are exactly the
+  classes the goal names — an invalid cast (the `as LayerId` lie) and a fabricated PASS (a
+  reported clear that never cleared). Neither was visible to a green battery (357/0 at the time).
+  ★ AND: a code-audit artifact's SHA going stale is a FEATURE — it forced the re-run that found
+  these.
