@@ -1060,3 +1060,21 @@ an empty scope → exit 1. 3 pins.
 FAIL, caught by running the predicate on a state KNOWN to pass. Fix: `/([1-9]\d*)\s+BLOCKED/`.
 **Lesson:** ★ a predicate must be run against a KNOWN-PASS state before it is trusted — the same
 control-medicine discipline a detector needs.
+
+## EN-6L2E-21 · THE PARTIAL TEST GATE (2026-09-23)
+**Finding:** `package.json`'s `test` script ran ONE file (`st-gi-omp-scope.ts`) → 7 pass, while
+the suite is 468 across 51 files. AND `bun test` alone runs only 34 (its default is `*.test.ts`,
+silently skipping the 17 `st-*.ts`).
+**Root cause:** the script was set to a single early probe and never updated; bun's default glob
+never matched the `st-` prefix.
+**Fix:** `test` → `bun test && bun test ./tests/st-*.ts` (+ `test:unit`/`test:st`/`test:goal`).
+**Verification:** `bun run test` → `370 pass · 0 fail` + `468 pass · 0 fail` → **exit 0**.
+**Lesson:** ★ a test script is a GATE — its SCOPE is the claim, not its color. And: a harness's
+default pattern is a silent filter; name the files you mean.
+
+## EN-6L2E-22 · THE PREDICATE'S MESSAGE NAMED THE WRONG MECHANISM (2026-09-23)
+**Finding:** C2 on an absent scope returned `the check THREW: ENOENT …` — a raw FS error.
+**Fix:** an existence assertion first → `the 7-class corpus suite is ABSENT at <path>`.
+**Verification:** `bun scripts/goal-verify.ts /nonexistent-xyz evidence` → the named precondition.
+**Lesson:** ★ a failure message is part of the predicate — "the check threw" is a symptom, the
+missing precondition is the mechanism.

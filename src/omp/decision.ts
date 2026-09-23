@@ -98,6 +98,7 @@ export function decideFromRegistry(
   // The registry's facts for this subject — the decision's evidence base. `factsFor`
   // already filters to ANCHORED facts (an empty `source` is discarded by the registry).
   const facts = registry.factsFor(subject);
+  // the distinct consumers behind the facts (dynamic membership → Set, per the project rule)
   const influenced = [...new Set(facts.map((f) => f.consumer))];
 
   // ★ THE LAYER-EDGE: the kernel's layer declarations come FROM THE REGISTRY.

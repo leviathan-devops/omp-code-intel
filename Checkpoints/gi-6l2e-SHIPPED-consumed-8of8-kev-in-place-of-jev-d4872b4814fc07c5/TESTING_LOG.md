@@ -2135,3 +2135,19 @@ the dist 82bad22c3687d21e
   deployed bundle → \`d4872b4814fc07c5\` · \`runKernelV2=2 · FireLedger=2 · PolicyStore=2 ·
   graphFacts=2 · decideFromRegistry=2 · decideFireFromGraph=2 · layerCertifications=2 ·
   kevProbe=2 · isUniform=2 · gi-decide=3\` — every count > 0.
+
+
+## TEST RESULT — 2026-09-23 — ★ RED-TEAM: THE PARTIAL TEST GATE (F-104)
+
+### SCRIPT
+- **WHAT RAN:** `bun run test` (the canonical) BEFORE and AFTER the fix.
+- **BEFORE:** `"test": "bun test ./tests/st-gi-omp-scope.ts"` → `7 pass · 0 fail · Ran 7 tests
+  across 1 file. [9.00ms]` — **ONE file of 51, 7 tests of 468.**
+- **AFTER:** `"test": "bun test && bun test ./tests/st-*.ts"` → `370 pass · 0 fail (34 files)` +
+  `468 pass · 0 fail across 51 files` → **exit 0**.
+- **The verdict:** **PASS** — passToken `468 pass · 0 fail` observed in the tool output;
+  failToken `Ran 7 tests across 1 file` — ABSENT.
+- **★ THE HARNESS FACTS:** `bun test` alone runs **34 files** (its default pattern is
+  `*.test.ts`); the 17 `st-*.ts` files require an explicit `./` path (`bun test tests/x.ts`
+  WITHOUT the `./` is a FILTER, not a path — a measured probe bug, `note: Tests need ".test"…`).
+- **The artifacts:** `package.json` (the fixed scripts) · this entry.

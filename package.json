@@ -5,9 +5,12 @@
   "private": true,
   "description": "First-class session-scoped Graph Intelligence for OMP. Fork of GI v1.4.3 + workspace-scoped-state boilerplate.",
   "scripts": {
-    "test": "bun test ./tests/st-gi-omp-scope.ts",
+    "test": "bun test && bun test ./tests/st-*.ts",
     "test:w0": "bun test ./tests/st-gi-omp-scope.ts",
-    "test:all": "bun test ./tests/st-gi-omp-scope.ts ./tests/st-gi-omp-refuse.ts ./tests/st-gi-omp-wipe.ts ./tests/st-gi-omp-tools.ts ./tests/st-gi-omp-isolate.ts ./tests/st-gi-omp-gate.ts ./tests/st-gi-omp-corrupt.ts ./tests/st-gi-omp-populate.ts --timeout 120000"
+    "test:all": "bun test ./tests/st-gi-omp-scope.ts ./tests/st-gi-omp-refuse.ts ./tests/st-gi-omp-wipe.ts ./tests/st-gi-omp-tools.ts ./tests/st-gi-omp-isolate.ts ./tests/st-gi-omp-gate.ts ./tests/st-gi-omp-corrupt.ts ./tests/st-gi-omp-populate.ts --timeout 120000",
+    "test:unit": "bun test",
+    "test:st": "bun test ./tests/st-*.ts",
+    "test:goal": "bun scripts/goal-verify.ts . evidence"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.0",

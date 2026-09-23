@@ -1261,3 +1261,60 @@ AND THE RUNTIME NEVER CHANGED.
   was wrong, not the artifact. Fixed to `/([1-9]\d*)\s+BLOCKED/`.
 - **The lesson:** ★ **APPLY THE EXIT TEST TO YOUR COMPLETION CLAIM, NOT JUST TO THE CODE.** A
   finish line with no command that fails is a wish.
+
+---
+
+### F-104 — THE CANONICAL `bun run test` WAS A PARTIAL GATE (2026-09-23)
+
+- **What happened:** the project's `package.json` `test` script was
+  `"bun test ./tests/st-gi-omp-scope.ts"` — **ONE file of 51**. Measured:
+  `bun run test` → **7 pass / 0 fail** while the real suite is **468 pass / 0 fail across 51
+  files**. The canonical command reported a green that meant **1.5% of the suite**.
+- **Found:** the red-team sweep, grepping `package.json`'s scripts after discovering that
+  `bun test` alone runs only 34 of the 51 files (its default pattern is `*.test.ts`).
+- **Root cause:** the script was set to a single probe file (an early scope test) and never
+  updated when the suite grew to 51 files. ★ AND `bun test`'s default pattern silently ignores
+  the 17 `st-*.ts` files — so BOTH the script AND the default invocation under-reported.
+- **Impact:** ★ THE THEATRICAL-GREEN CLASS — an operator (or CI) running `bun run test` would
+  see 7/0 green and believe the suite passed while 461 tests never ran.
+- **Disposition:** **FIXED + MEASURED.** `test` → `bun test && bun test ./tests/st-*.ts`
+  (**468 pass / 0 fail, exit 0**); plus `test:unit`, `test:st`, `test:goal` for the parts.
+- **The lesson:** ★ **A TEST SCRIPT IS A GATE — CHECK ITS SCOPE, NOT ITS COLOR.** A green from a
+  partial gate is a theatrical pass. The count of tests RUN belongs beside the count of tests
+  PASSED.
+
+### F-105 — THE PREDICATE'S FAILURE MESSAGE NAMED A FALSE MECHANISM (2026-09-23)
+
+- **What happened:** `goal-verify.ts`'s C2 (the 7-class corpus) reported, on an absent scope:
+  `the check THREW: ENOENT: no such file or directory, open '/nonexistent-xyz/tests/st-gi-6l2e.test.ts'`
+  — a RAW filesystem error, not the condition's own named reason.
+- **Found:** the red-team edge probe (`goal-verify.ts /nonexistent-scope-xyz evidence`).
+- **Root cause:** C2 read the suite file with `readFileSync` inside the generic try/catch, which
+  renders ANY throw as "the check THREW" — so an ABSENT suite (a real, nameable precondition
+  failure) was indistinguishable from a genuine bug in the check.
+- **Impact:** an operator reading the failure could not tell "the suite is missing" from "the
+  predicate is broken" — the diagnosis was one step removed from the mechanism.
+- **Disposition:** **FIXED + MEASURED.** C2 now asserts the suite's existence first:
+  `the 7-class corpus suite is ABSENT at /nonexistent-xyz/tests/st-gi-6l2e.test.ts` — the
+  precondition, named.
+- **The lesson:** ★ **A FAILURE MESSAGE IS PART OF THE PREDICATE.** "The check threw" is a
+  symptom; the condition's own name for what is missing is the mechanism.
+
+---
+
+### F-106 — THE CHECKPOINT'S src DOUBLED (the `cp -r src` INTO-EXISTING trap) (2026-09-23)
+
+- **What happened:** refreshing the SHIPPED checkpoint, `cp -r src "$C/src"` **nested a second
+  tree** — `$C/src/src/` — taking the checkpoint's `.ts` count to **224** against the repo's **112**.
+- **Found:** the structure gate — `find $C/src -name '*.ts' | wc -l` → 224, and
+  `find $C/src -maxdepth 1 -type d` showed a `src/src/` entry.
+- **Root cause:** ★ **`cp -r src DEST` copies INTO DEST when DEST exists as a directory** — it
+  becomes `DEST/src`. The checkpoint's `src/` already existed (from the first save), so the
+  refresh created `src/src`.
+- **Impact:** the checkpoint's source tree was DOUBLED (a ~50% size bloat) and the canonical
+  `src/omp/…` path was ambiguous — the exact class the skill's STEP 3 warns about ("the count
+  MUST match the project's .ts count").
+- **Disposition:** **FIXED + GATED.** `rm -rf $C/src && mkdir -p $C/src && cp -r src/. $C/src/`
+  — the trailing `/.` copies the CONTENTS, never the directory. Re-measured: **112 == 112 ✓**.
+- **The lesson:** ★ **`cp -r <dir> <existing-dir>` NESTS; `cp -r <dir>/. <existing-dir>/` FILLS.**
+  On any REFRESH (not a first save), the `.` is mandatory — and the count check is what catches it.

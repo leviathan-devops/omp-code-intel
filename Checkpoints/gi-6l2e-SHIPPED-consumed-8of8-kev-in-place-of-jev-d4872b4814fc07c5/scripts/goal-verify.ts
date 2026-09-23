@@ -47,7 +47,9 @@ const checks: Check[] = [
     id: "C2",
     condition: "the 7-class corpus settles at $0 with its SPECIFIC tokens",
     run: () => {
-      const t = fs.readFileSync(path.join(scopeRoot, "tests", "st-gi-6l2e.test.ts"), "utf8");
+      const suitePath = path.join(scopeRoot, "tests", "st-gi-6l2e.test.ts");
+      if (!fs.existsSync(suitePath)) return `the 7-class corpus suite is ABSENT at ${suitePath}`;
+      const t = fs.readFileSync(suitePath, "utf8");
       // the corpus IS seven fixtures, and the count is ASSERTED (not narrated)
       if (!/fixtures\.length\)\.toBe\(7\)/.test(t)) return "the 7-fixture count assertion is ABSENT from tests/st-gi-6l2e.test.ts";
       // the $0 settlement: the judge must not be reached, the budget untouched, the cost zero

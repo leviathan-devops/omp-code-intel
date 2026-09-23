@@ -77,3 +77,31 @@ scripts/ (16 — incl. goal-verify.ts + consumption-audit.ts + kev-probe.ts + ke
 - Ship the other 7 substrates into the container rig (the same payload pattern that carried KEV).
 - Re-run the audit on the GO lane for a fresh post-fix artifact covering the FINAL dist.
 - The 5 declined findings: revisit if the threat model changes (a multi-user host).
+
+---
+
+## ★ ADDENDUM — THE RED-TEAM PASS (2026-09-23)
+
+**THE ZERO-TRUST + RED-TEAM SWEEP found 2 REAL defects, both FIXED and measured:**
+
+| # | the finding | the evidence | the disposition |
+|---|---|---|---|
+| **F-104** | ★ **the canonical `bun run test` was a PARTIAL GATE** | `package.json`'s `test` = `bun test ./tests/st-gi-omp-scope.ts` → **7 pass / 0 fail across 1 file**, while the suite is **468 across 51** | **FIXED**: `test` → `bun test && bun test ./tests/st-*.ts` → **468 pass / 0 fail, exit 0**; + `test:unit`/`test:st`/`test:goal` |
+| **F-105** | the predicate's C2 named a FALSE mechanism (`the check THREW: ENOENT …`) instead of the missing precondition | `goal-verify.ts /nonexistent-xyz evidence` → a raw FS error | **FIXED**: an existence assertion → `the 7-class corpus suite is ABSENT at <path>` |
+
+**★ THE HARNESS FACTS (measured):** `bun test` alone runs **34 files** (its default pattern is
+`*.test.ts`); the 17 `st-*.ts` files require an explicit `./` path. And `bun test tests/x.ts`
+WITHOUT the `./` is a **FILTER**, not a path (`note: Tests need ".test"…`) — a probe bug that
+first read as "17 files, 0 tests".
+
+**★ THE VERIFICATION AFTER THE FIXES:**
+```
+bunx tsc --noEmit            → exit 0
+bun run test                 → 370 pass / 0 fail (34 files) + 468 pass / 0 fail (51 files) → exit 0
+bun scripts/goal-verify.ts . evidence        → 5/5 · exit 0
+bun scripts/goal-verify.ts . NoFactsSubject  → C1 FAIL · GI_GOAL_NOT_MET · exit 1
+```
+
+**★ F-106 (found + fixed during this refresh):** `cp -r src "$C/src"` NESTED a second tree
+(`src/src`) — the checkpoint's `.ts` count read 224 against the repo's 112. **FIXED** with
+`cp -r src/. "$C/src/"` (the trailing `/.` copies the CONTENTS). Re-measured: **112 == 112**.
