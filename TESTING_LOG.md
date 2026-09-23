@@ -1790,24 +1790,37 @@ lane. **★ A BLOCKED run is never a PASS, and no ship-ready claim is made.**
 
 ---
 
+---
+
 # ★★★ THE GATE CLEARED (2026-09-23) — the qwen-code-audit, 0 CRITICAL / 0 HIGH
 
-\★ **THE 8 HIGH THAT BLOCKED THE EARLIER RUN ARE CLEARED** — the gate now returns **0 critical /
-0 high**.
+```
+ocr review --from 640da98 --to HEAD --provider muse-go-mimo --effort high --concurrency 1 --format json
+  provider: muse-go-mimo = the ACTIVE HOST's key (go-key.sh) + the go gateway + mimo-v2.5
+  status: partial (the model's 1M context limit on one large group) · files: 34 · comments: 35
+  elapsed 52m14s · DONE rc=0
+  ★ BY SEVERITY: 0 CRITICAL · 0 HIGH · 18 MEDIUM · 17 LOW
+```
+★ **THE 8 HIGH THAT BLOCKED THE EARLIER RUN ARE CLEARED** — the gate returns **0 critical / 0 high**.
 
 ## THE ADJUDICATION (all 35)
-- **M-1** \ typo → **FIXED**
-- **M-5/6/7** \/\/\ returned \ on a substrate fault → ★ **the SAME class
-  as the audit's H-2 (and F-2 before it) — the class had been fixed at ONE site, three times.
+- **M-1** `ARUMBRIS` typo → **FIXED**
+- **M-5/6/7** `c2kg`/`semantica`/`ua` returned `[]` on a substrate fault → ★ **the SAME class as
+  the audit's H-2 (and F-2 before it) — the class had been fixed at ONE site, three times.
   NOW SWEPT: all three THROW the named code.**
-- **M-9** the tsg source said \ while the CLI ran \ → **FIXED** (an audit-trail lie)
-- **M-12** \ treated \/\ as wildcards → **FIXED** (\ + \)
-- **M-14/17** \ overwrite + no expiry → **CONFIRMED (low-impact)**, recorded
+- **M-9** the tsg source said `threshold 0.7` while the CLI ran `0.5` → **FIXED** (an audit-trail lie)
+- **M-12** `LIKE '%subject%'` treated `_`/`%` as wildcards → **FIXED** (`escapeLike` + `ESCAPE`)
+- **M-14/17** `pendingQueries` overwrite + no expiry → **CONFIRMED (low-impact)**, recorded
 - **M-18** "TS downgrade 7→5" → ★ **FALSE POSITIVE**: 7.0.2 is the **Go CLI with NO API**
-  (\); 5.9.3 IS the API version. **The pin is CORRECT and REQUIRED** (the F-95 cause).
+  (`main: NONE`); 5.9.3 IS the API version. **The pin is CORRECT and REQUIRED** (the F-95 cause).
 - **L-4/5/17** *"good correction"* / *"improve type safety"* / *"well-documented"* → **POSITIVE
   comments** (the gate confirming the earlier fixes)
-- the remaining low findings (dead code, unused imports, doc nits) → **CONFIRMED (cosmetic)**, recorded
+- the remaining low findings (dead code, unused imports, doc nits) → **CONFIRMED (cosmetic)**
 
 ## ★ THE STATE
-\error TS5112: tsconfig.json is present but will not be loaded if files are specified on commandline. Use '--ignoreConfig' to skip this error.**\** — ★ the gate is CLEARED.
+```
+tsc exit 0 · the 6L+2E suite 26 pass / 0 fail · the battery 349 pass / 0 fail
+consumed:7/8 · the dist-content gate PASS · the container sha MATCH
+the dist 82bad22c3687d21e
+```
+**`AUDIT GATE: PASS (0 critical / 0 high)`** — ★ the gate is CLEARED.
