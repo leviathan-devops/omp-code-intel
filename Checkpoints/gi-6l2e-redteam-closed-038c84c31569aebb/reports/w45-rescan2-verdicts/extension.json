@@ -1,0 +1,119 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 9,
+    "total_tokens": 55442,
+    "input_tokens": 46068,
+    "output_tokens": 9374,
+    "cache_read_tokens": 17348,
+    "elapsed": "2m13s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/omp/extension.ts",
+      "content": "Wipe claims GI_CLEARED without clearing: the action=wipe branch only runs graphProbeWipeAudited and returns GI_CLEARED/ok:true, but never calls clearGiRegistry (imported but unused). This is a false-success / data-integrity failure — callers believe state was wiped. Call clearGiRegistry() first, map GiClearError.code, and only return GI_CLEARED on actual clear; audit failure should not stay ok:true.",
+      "suggestion_code": "      try {\n        clearGiRegistry(); // throws GiClearError with code GI_CLEAR_REFUSED unless GI_OMP_ALLOW_CLEAR=1\n        const wipeAudit = graphProbeWipeAudited(ctx, cwdOf);",
+      "existing_code": "      try {\n        const wipeAudit = graphProbeWipeAudited(ctx, cwdOf);",
+      "start_line": 320,
+      "end_line": 321,
+      "category": "bug",
+      "severity": "critical"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "Over-permissive default allowlist: when GI_TARGET_ROOTS is unset roots fall back to [callerCwd, /tmp], so any absolute /tmp target passes confinement. An attacker-controlled targetPath under /tmp (symlink plant, world-writable) is unintentionally allowed. Default to [callerCwd] only and require explicit opt-in for /tmp via GI_TARGET_ROOTS.",
+      "suggestion_code": "  const roots = allowRoots.length \u003e 0 ? allowRoots : [callerCwd];",
+      "existing_code": "  const roots = allowRoots.length \u003e 0 ? allowRoots : [callerCwd, \"/tmp\"];",
+      "start_line": 134,
+      "end_line": 134,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "Audit-ledger TOCTOU: auditRoot is mkdirSync + realpathSync-checked, then mkdtempSync(join(auditRoot,...)) is called later, then runTemplateAudit(settlement) is re-confined. An attacker that can swap auditRoot/ledgerDir symlinks between the check and mkdtemp/audit-run can redirect writes outside targetReal. Re-resolve + re-confine immediately before each use (or open with O_NOFOLLOW / keep dir fd), and verify reportPath exists inside the confined real before returning AUDIT_DONE.",
+      "suggestion_code": "      const ledgerDir = fs.mkdtempSync(join(auditRootReal, `${layerId}-`));\n      // re-confine auditRootReal/ledgerReal immediately before handing to auditor; no gap\n      if (!ledgerDirConfined(fs.realpathSync(ledgerDir), targetReal)) throw new Error('GI_LEDGER_DENIED');",
+      "existing_code": "      const ledgerDir = fs.mkdtempSync(join(auditRoot, `${layerId}-`));",
+      "start_line": 539,
+      "end_line": 539,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "Global populateLane head-of-line blocking: a single module-global promise chain serializes populateSessionStore for ALL sessions/scopes, so one slow/failing populate stalls concurrent unrelated queries. Scope the lane per storePath/scopeRoot (e.g. Map\u003cstring,Promise\u003e) with eviction, or bound concurrency + timeout so a hung populate cannot stall the process.",
+      "suggestion_code": "const populateLanes = new Map\u003cstring, Promise\u003cvoid\u003e\u003e();\nconst withPopulateLane = async \u003cT\u003e(key: string, fn: () =\u003e Promise\u003cT\u003e): Promise\u003cT\u003e =\u003e {\n  const prev = populateLanes.get(key) ?? Promise.resolve();\n  const run = prev.then(fn, fn);\n  populateLanes.set(key, run.then(() =\u003e undefined, () =\u003e undefined));\n  run.finally(() =\u003e { if (populateLanes.get(key)?.then) {} }).catch(() =\u003e {});\n  return run;\n};",
+      "existing_code": "let populateLane: Promise\u003cvoid\u003e = Promise.resolve();",
+      "start_line": 33,
+      "end_line": 33,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "writeWipeAudit has no locking/transaction/error mapping: concurrent wipes race on registry.sqlite (SQLITE_BUSY) and any throw after mkdir propagates as unhandled GI_QUERY_FAIL instead of WIPE_AUDIT_FAILED. Wrap open+upsert in a busy-timeout/transaction, construct Database inside try, and let callers map errors to audited:false.",
+      "suggestion_code": "  const db = new Database(regPath);\n  try {\n    db.exec(\"PRAGMA busy_timeout = 5000\");\n    db.exec(\"BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT); INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value; COMMIT;\");",
+      "existing_code": "  const db = new Database(regPath);\n  try {\n    db.exec(\"CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)\");\n    db.run(\"INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value\", note);",
+      "start_line": 85,
+      "end_line": 88,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "Dead imports: clearGiRegistry/GiClearError (also GiScopeError, GiPathError) are imported but never referenced — a direct symptom of finding #1 (wipe never clears). Either wire the clear call or remove the imports; unused imports mask the missing behavior and trip lint.",
+      "suggestion_code": "import { clearGiRegistry } from \"./gi-registry.ts\";\n// ... and actually call clearGiRegistry() in the wipe branch, or delete the import",
+      "existing_code": "import { clearGiRegistry, GiClearError } from \"./gi-registry.ts\";",
+      "start_line": 11,
+      "end_line": 11,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "cwdOf called 3x with potential drift: callerCwd/scopeRoot/defaultConfined each call cwdOf(ctx) anew. If cwdOf is non-pure (process.cwd changes, ctx mutated) the confinement base and the confined value diverge. Capture once: const callerCwd = cwdOf(...); then confineTargetPath(callerCwd, callerCwd).",
+      "suggestion_code": "      const defaultConfined = confineTargetPath(path.resolve(callerCwd), callerCwd);",
+      "existing_code": "      const defaultConfined = confineTargetPath(cwdOf(ctx), cwdOf(ctx));",
+      "start_line": 395,
+      "end_line": 395,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "ledgerDirConfined prefix check over-blocks and is imprecise: !rel.startsWith('..') rejects legitimate siblings named '..foo' and is not separator-aware. Use component check: rel !== '' \u0026\u0026 rel !== '..' \u0026\u0026 !rel.startsWith('..'+path.sep) \u0026\u0026 !path.isAbsolute(rel). Same pattern is duplicated inline for auditRootReal — reuse ledgerDirConfined there.",
+      "suggestion_code": "  const rel = path.relative(targetReal, ledgerReal);\n  return rel !== \"\" \u0026\u0026 rel !== \"..\" \u0026\u0026 !rel.startsWith(`..${path.sep}`) \u0026\u0026 !path.isAbsolute(rel);",
+      "existing_code": "  const rel = path.relative(targetReal, ledgerReal);\n  return rel !== \"\" \u0026\u0026 !rel.startsWith(\"..\") \u0026\u0026 !path.isAbsolute(rel);",
+      "start_line": 45,
+      "end_line": 46,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/omp/extension.ts",
+      "content": "reportPath trusted without existence check: join(reportConfined.real,'findings','report.md') is returned as AUDIT_DONE even if the auditor never wrote it (or swapped ledger between confine and use). statSync/existsSync the file after re-confine and fail GI_LEDGER_DENIED/GI_AUDIT_NOT_WIRED if absent.",
+      "suggestion_code": "        const reportPath = join(reportConfined.real, \"findings\", \"report.md\");\n        if (!fs.existsSync(reportPath)) return textResult('GI_AUDIT_NOT_WIRED: settlement missing report.md', { ok: false, error: 'GI_AUDIT_NOT_WIRED' });",
+      "existing_code": "        const reportPath = join(reportConfined.real, \"findings\", \"report.md\");",
+      "start_line": 554,
+      "end_line": 554,
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Wipe returns `GI_CLEARED` without clearing** — `src/omp/extension.ts` `action=wipe` branch calls `graphProbeWipeAudited` and returns `ok:true` but never calls `clearGiRegistry` (imported but unused). Callers believe state was wiped; registry data survives. False-success / data-integrity failure.\n2. **Over-permissive default confinement allowlist** — `src/omp/extension.ts`: when `GI_TARGET_ROOTS` is unset, roots fall back to `[callerCwd, /tmp]`. Any absolute `/tmp` `targetPath` passes confinement, exposing world-writable / symlink-plantable surface. Default to `[callerCwd]` only.\n3. **Audit-ledger TOCTOU** — `src/omp/extension.ts`: `auditRoot` is `mkdirSync` + `realpathSync`-checked, then `mkdtempSync(join(auditRoot,…))` and `runTemplateAudit(settlement)` re-confined later. Swap of `auditRoot`/`ledgerDir` symlinks between check and use redirects ledger writes/reads.\n4. **Unverified `reportPath` yields false `AUDIT_DONE`** — `src/omp/extension.ts`: `join(reportConfined.real,'findings','report.md')` is returned as success even if auditor never wrote it or ledger was swapped after confine. Requires `statSync`/`existsSync` after final re-confine, else fail `GI_LEDGER_DENIED`/`GI_AUDIT_*`.\n5. **`writeWipeAudit` races and mis-maps errors** — `src/omp/extension.ts`: concurrent wipes race on `registry.sqlite` (`SQLITE_BUSY`, no busy-timeout/transaction) and any throw after `mkdir` propagates as generic `GI_QUERY_FAIL` instead of `WIPE_AUDIT_FAILED`.\n6. **Global `populateLane` head-of-line blocking** — `src/omp/extension.ts`: single module-global promise chain serializes `populateSessionStore` for all sessions/scopes. One slow/failing populate stalls unrelated concurrent queries.\n7. **Fragile path-confinement primitives** — `src/omp/extension.ts`: (a) `ledgerDirConfined` uses `!rel.startsWith('..')` — over-blocks `..foo` siblings and is not separator/`isAbsolute`-aware (pattern duplicated); (b) `cwdOf(ctx)` called 3× for `callerCwd`/`scopeRoot`/`defaultConfined`, allowing base/value drift if non-pure.\n\n### Module Hotspots\n\n- `src/omp/extension.ts` — 9/9 comments concentrated in one file: wipe/clear lifecycle, `GI_TARGET_ROOTS`/`auditRoot`/`ledgerDir` confinement, wipe-audit SQLite handling, and session-populate concurrency all intersect here. No other paths flagged.\n\n### Cross-Cutting Concerns\n\n- **False-success returns:** wipe-without-clear and audit-done-without-`report.md` in `src/omp/extension.ts` both report success while side-effect/file is unverified.\n- **Check-then-use confinement:** `auditRoot → mkdtemp → audit-run` and `reportConfined → join → return` in `src/omp/extension.ts` both separate validation from use without atomic re-validation/holding an fd.\n- **Imprecise path logic:** separator-unaware `startsWith('..')` and repeated `cwdOf(ctx)` calls in `src/omp/extension.ts` indicate confinement helpers need centralization.\n- **Missing concurrency control:** global serialization (`populateLane`) vs. zero serialization (`registry.sqlite` wipes) in `src/omp/extension.ts` — opposite extremes, both incorrect.\n- **Dead code masking missing behavior:** unused `clearGiRegistry`/`GiClearError` (plus `GiScopeError`, `GiPathError`) imports in `src/omp/extension.ts` directly signaled the omitted clear call.\n\n### Quick Wins\n\n- Wire `clearGiRegistry` into wipe branch (or delete `clearGiRegistry`/`GiClearError`/`GiScopeError`/`GiPathError` imports) in `src/omp/extension.ts` — fixes #1 and lint noise.\n- Change unset-`GI_TARGET_ROOTS` default from `[callerCwd, /tmp]` to `[callerCwd]` in `src/omp/extension.ts`.\n- Capture `cwdOf(ctx)` once and reuse for `callerCwd`/`scopeRoot`/`defaultConfined` in `src/omp/extension.ts`.\n- Fix prefix check to `rel !== '' \u0026\u0026 rel !== '..' \u0026\u0026 !rel.startsWith('..'+path.sep) \u0026\u0026 !path.isAbsolute(rel)` and deduplicate helper in `src/omp/extension.ts`.\n- Add post-confine `existsSync`/`statSync` for `findings/report.md` before returning `AUDIT_DONE` in `src/omp/extension.ts`.",
+  "session_id": "a97aabd2-7eb7-45e6-a501-6cd33e696e38"
+}

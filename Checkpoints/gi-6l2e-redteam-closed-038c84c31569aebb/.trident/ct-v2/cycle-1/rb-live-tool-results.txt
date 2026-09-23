@@ -1,0 +1,73 @@
+═══ RB ROWS VIA REAL xd:// TOOL CALLS (2026-09-21) ═══
+These are TOOL RESULTS, not script output — the pin's requirement.
+
+── RB-IDENT ─────────────────────────────────────────────────────────────
+CALL   xd://graph-probe {"echo":"rb-ident"}
+RESULT {"token":"PROBE_TOOL_OK","sessionID":"default","echo":"rb-ident"}
+passToken REQUIRED: "graph-probe returns PROBE_TOOL_OK + the session id"
+MEASURED: PROBE_TOOL_OK + sessionID=default
+VERDICT: PASS
+NOTE: sessionID="default" — the documented limitation (the tool_call ctx carries
+      no session id, so sessions share the default bucket) is VISIBLE here.
+
+── RB-CONFIG ────────────────────────────────────────────────────────────
+CALL   xd://graph-query {"verb":"who-calls","target":"applyTypedDdl"}
+RESULT substrate=undefined reason=GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent
+       rows=0
+       ripwire: query failed (ripwire: --callers symbol not found: applyTypedDdl)
+passToken REQUIRED: "pointing the store path at a missing dir emits GI_POPULATE_FAILED"
+failToken REQUIRED: "it silently creates an empty store"
+MEASURED: GI_POPULATE_FAILED + rows=0 and NO store was created
+VERDICT: PASS
+
+── RB-CONFIG (a second, stronger case: an OUT-OF-ROOT path) ─────────────
+CALL   xd://graph-query {"verb":"who-calls","target":"applyTypedDdl",
+        "targetPath":"/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence"}
+RESULT GI_PATH_DENIED: targetPath '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/
+       Graph_Intelligence' is outside the allowed roots
+       (/home/leviathan/.omp/wt/graph-intelligence-66dfa4c:/tmp);
+       set GI_TARGET_ROOTS to extend
+passToken-class: a loud NAMED refusal WITH a remedy, never a silent read of another store
+VERDICT: PASS (a second RB-CONFIG-class token)
+
+── RB-TOOLS ─────────────────────────────────────────────────────────────
+CALL   xd://graph-query {"verb":"consistency"}
+RESULT substrate=undefined reason=GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent
+       rows=0
+       []
+passToken REQUIRED: "graph-query returns typed rows from the store"
+failToken REQUIRED: "zero rows while typed_nodes is non-empty"
+MEASURED: rows=0 — and the STORE FOR THIS CWD IS EMPTY (no session store exists
+          under /home/leviathan/.omp/wt/graph-intelligence-66dfa4c/.omp/...).
+          rows=0 against an empty store is CONSISTENT, not the failToken.
+          The populated 1266-row store lives in a DIFFERENT repo and is
+          out-of-root (GI_PATH_DENIED above).
+VERDICT: BLOCKED — this row cannot be run from this cwd. Reported BLOCKED, not
+         marked passed on a technicality.
+
+── RB-ERRORS ────────────────────────────────────────────────────────────
+passToken REQUIRED: "a down layer yields GI_STACK_INCOMPLETE:<layer>"
+MEASURED: the live tools DO refuse loudly — GI_POPULATE_FAILED and
+          GI_PATH_DENIED both appeared in tool results. But
+          GI_STACK_INCOMPLETE:<layer> is a v2.0 token emitted by
+          src/omp/kernel-v2.ts, which is NOT yet wired into the extension's
+          live tool path. A live tool result cannot carry it until that wiring
+          lands.
+VERDICT: BLOCKED — a DIFFERENT token is not the required token. Not claimed.
+
+── RB-INTEGRATION ───────────────────────────────────────────────────────
+passToken REQUIRED: "an Edit on a quarantined symbol REFUSES with the code"
+MEASURED: same blocker as RB-ERRORS — the v2 kernel is not in the live gate path,
+          so an Edit cannot be refused by it yet.
+VERDICT: BLOCKED
+
+═══ RB SUMMARY ═══
+  RB-IDENT        PASS      a real tool result
+  RB-TOOLS        BLOCKED   this cwd has no populated store
+  RB-FIREWALL     PASS      executed against the store (rb-firewall-lifecycle.txt)
+  RB-LIFECYCLE    PASS      executed against the store (rb-firewall-lifecycle.txt)
+  RB-INTEGRATION  BLOCKED   the v2 kernel is not in the live gate path
+  RB-ERRORS       BLOCKED   GI_STACK_INCOMPLETE is a v2 token, not yet wired
+  RB-CONFIG       PASS      a real tool result (GI_POPULATE_FAILED + no store)
+  ────────────────────────
+  4 PASS · 3 BLOCKED · 0 FAIL

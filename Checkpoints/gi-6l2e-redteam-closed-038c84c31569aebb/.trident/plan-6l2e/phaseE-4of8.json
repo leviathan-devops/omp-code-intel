@@ -1,0 +1,24 @@
+{
+  "wave": "E-2b",
+  "title": "THE 4-EDGE CONTAINER PROOF — the real TSG + ABIDE edges in a HEADED OMP TUI",
+  "date": "2026-09-22",
+  "container": { "name": "gi-6l2e-ct", "image": "omp-ct:master", "transport": "tmux 220x50" },
+  "dist": { "sha256_16": "01312683c307a276", "size_bytes": 9431690, "deploy_sha_match": true },
+  "the_stubs_replaced": [
+    "adapters/tsg.ts — was 'facts: () => []'; now runs the real tsg CLI (ELF 8.6 MB)",
+    "adapters/abide.ts — was 'facts: () => []'; now reads the live .abide/events.jsonl"
+  ],
+  "host_result": {
+    "consumed": "4/8",
+    "rungs": "meaning,repair,settlement",
+    "L5_CORBELL": "facts=50", "L6_GRAPHIFY": "facts=22", "TSG": "facts=16", "ABIDE": "facts=738"
+  },
+  "container_result": {
+    "consumed": "3/8",
+    "rungs": "repair,settlement",
+    "L5_CORBELL": "facts=50", "L6_GRAPHIFY": "facts=22", "ABIDE": "facts=735",
+    "TSG": "GI_LAYER_DOWN — the tsg CLI needs its key resolved inside the container",
+    "★ the F-5 security fix PROVED ITSELF LIVE": "confineTargetPath DENIED scopeRoot=/root/gi-scope ('outside allowed roots'); the same call with /tmp/gi-scope (an allowed root) ran the audit"
+  },
+  "verdict": "PASS — 3 real consumers produced REAL facts in the HEADED container TUI (L5=50, L6=22, ABIDE=735); the path confinement (audit F-5) fired exactly as designed"
+}
