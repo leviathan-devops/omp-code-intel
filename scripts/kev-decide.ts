@@ -44,8 +44,14 @@ function readQuestions(): { state: string; questions: KevQuestion[] } {
 const t0 = Date.now();
 try {
   const { state, questions } = readQuestions();
-  if (state.length === 0 || questions.length === 0) {
-    console.log(JSON.stringify({ ok: false, error: "KEV_USAGE: --state and a --question/--options (or --json) are required" }));
+  // ★ RED-TEAM FINDING (ST-RT-5, 2026-09-23): the guard checked `questions.length === 0`, but
+  //   the default construction ALWAYS yields ONE question (`[{ instr, options }]`) — so
+  //   `--state X` alone (no --question, no --options) SLIPPED THROUGH to the model with ZERO
+  //   options, and the model returned a decision over an empty option set. The guard must
+  //   assert what the decision REQUIRES: a non-empty state AND every question carrying options.
+  const noOptions = questions.some((q) => q.options.length === 0);
+  if (state.length === 0 || questions.length === 0 || noOptions) {
+    console.log(JSON.stringify({ ok: false, error: "KEV_USAGE: --state and a --question/--options (or --json) are required; every question needs >=1 option" }));
     process.exit(1);
   }
   const res = await kevDecide(state, questions);

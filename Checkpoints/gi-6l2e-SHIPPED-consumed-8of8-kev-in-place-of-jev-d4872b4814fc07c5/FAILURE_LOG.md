@@ -1348,3 +1348,29 @@ AND THE RUNTIME NEVER CHANGED.
   the mtime SHOULD be the newest) → 5 pass / 0 fail.
 - **The lesson:** ★ **A SUITE'S IMPORT PATH IS ITS SUBJECT — and a suite that never imports the
   artifact cannot fail on the artifact.** And: mtime is a HINT; a rebuild's SHA is the evidence.
+
+---
+
+### F-108 — THE KEV CLI'S USAGE GUARD WAS INEFFECTIVE (the red-team's find) (2026-09-23)
+
+- **What happened:** `bun scripts/kev-decide.ts --state "some state"` (no `--question`, no
+  `--options`) returned **`{"ok":true,…}`** — the model DECIDED over an EMPTY option set.
+- **Found:** W3's adversarial probe `test_redteam_empty_options_list` (ST-RT-5) — the suite
+  designed to break the decision surface.
+- **Root cause (anchored):** the guard was
+  `if (state.length === 0 || questions.length === 0)` — **but the default construction ALWAYS
+  yields ONE question** (`[{ instr: "", options: [] }]`), so `questions.length` is 1, the guard
+  passes, and the model receives ZERO options. The guard checked the wrong quantity.
+- **Two-sided adjudication:** (A) the probe wrong? NO — passing `--state` alone is a usage error
+  by the CLI's own contract. (B) a real contract violation? **YES** — the guard is ineffective
+  for the empty-options case.
+- **Impact:** a caller could receive a "decision" over no choices — a fabricated verdict from an
+  empty option set, the exact class the kernel bans.
+- **Disposition:** **FIXED + PINNED.** The guard now asserts what the decision REQUIRES:
+  `const noOptions = questions.some((q) => q.options.length === 0)` added to the condition;
+  the error names it (`every question needs >=1 option`).
+  **MEASURED (the exit test):** `--state` alone → `{ok:false,error:KEV_USAGE…}` · **exit 1**;
+  `--state X --question Y` (no options) → **exit 1**; the valid call → **exit 0**.
+- **The lesson:** ★ **A GUARD THAT CHECKS A PROXY QUANTITY IS NOT A GUARD.** `questions.length`
+  was a proxy for "there are options"; the construction made it always-1. Assert the quantity the
+  contract NEEDS.
