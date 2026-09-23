@@ -1448,3 +1448,29 @@ AND THE RUNTIME NEVER CHANGED.
 - **Disposition:** **BLOCKED (named, with its remedy).** The code is CORRECT: a daemon that
   holds nothing about the subject reports `UNCONSUMED`, never a silent pass. ★ NO TEST WAS
   WEAKENED. The goal's gate correctly reads `consumed:7/8`.
+
+### F-111c - THE ENGINE'S INSTANCE SPACE, ENUMERATED (the terminal evidence) (2026-09-23)
+
+- **THE COMMAND:** `bun run scripts/au-read.ts instances ''` against the daemon serving the GI repo.
+- **THE RESULT, verbatim (6 instances, their exact claims):**
+
+```
+  [0] au.engine.repo::au-engine    (the repo declaration)
+  [1] au.engine.repo::au-engine    (the entry repo's declaration)
+  [2] au.engine.readme::au-engine  (the README, body_events with headings)
+  [3] mcp.skill::au-mcp-sdk        (the declared DEP's skill manifest)
+  [4] mcp.skill::au-mcp-sdk
+  [5] mcp.skill::au-mcp-sdk
+```
+
+- **★ NOT ONE CLAIM IS A SOURCE SYMBOL.** Declaring `deps: [au-mcp-sdk]` grew the space from 2
+  to 6 by adding THE DEP'S MANIFESTS — not the repo's code. The engine's instance space is:
+  the entry repo's declaration + its README + every declared dependency's manifests.
+- **AND THERE IS NO INGEST PATH IN THIS CLI:** `au daemon <start|stop|status>` only; the release
+  dir holds ONE binary (`au`, 12,020,936 B) + rlibs. No `build`/`index`/`ingest` subcommand.
+- **THE CONCLUSION (terminal):** `L2_ARSUMBRIS`'s substrate is populated by the au ecosystem's
+  OWN ingestion of a repo's code — a DESIGN task in the au layer, OUTSIDE the GI repo. The GI
+  repo cannot make a repo-declaration engine answer a question about a source symbol.
+- **Disposition:** **BLOCKED (terminal, named, with its remedy).** The code is CORRECT: a daemon
+  that holds nothing about the subject reports `GI_LAYER_UNCONSUMED`, never a silent pass.
+  ★ NO TEST WAS WEAKENED. The goal's gate correctly reads `consumed:7/8`.
