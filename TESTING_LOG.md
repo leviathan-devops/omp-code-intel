@@ -1894,3 +1894,37 @@ the dist 82bad22c3687d21e
   `5 pass` / `0 fail` observed in the tool output.
 - **The artifacts:** `packages/gi-kernel-6l2e/PACKAGE_AUDIT.md` (58 L) ·
   `tests/st-package-audit.test.ts`
+
+## TEST RESULT — 2026-09-23 — P4 THE RUNTIME LEDGER (the kernel's RECORD stage)
+
+### HOST
+- **The run:** the DEPLOYED bundle (`~/.omp/agent/extensions/graph-intelligence/index.js`)
+  mounted on a fake `pi`, `gi-decide` invoked → the kernel's RECORD stage (6) wrote its row.
+- **The raw output:** `stage 6 RECORD	WRITTEN	enforcement ledger` ·
+  `SELECT COUNT(*) FROM fire_decisions` → `1` ·
+  `id=1 · at=2026-09-23T04:20:54.848Z · rule_id=kernel-v2:dumb:STEER · cls=dumb ·
+  band=escalate · action=ESCALATE · policy_name=kernel-v2.dumb · state_hash="no graph query o" ·
+  target=populateSessionStore · cost_usd=0.0 · later_truth=unresolved`
+- **The verdict:** **PASS** — passToken `RECORD	WRITTEN` + a non-empty `fire_decisions` row
+  observed. failToken `RECORD	SKIPPED` / `RECORD	FAILED` ABSENT.
+- **The artifacts:** `.omp/graph-intelligence/fire-decisions.db` (the ledger, 1 row)
+- **★ THE INTERMEDIATE FAILURE (fixed in-seat):** the first sink wrote `band=STEER` and the
+  ledger REFUSED it — `GI_LEDGER_BAD_DOMAIN: band='STEER' is not act|escalate|ignore`. The
+  ledger's domains are validated; the fix maps the kernel's verdict onto them
+  (REFUSE/ABORT→act/FIRE, STEER→escalate/ESCALATE, ALLOW→ignore/IGNORE). Re-proven: WRITTEN.
+
+### CONTAINER
+- **The run:** `gi-6l2e-ct` — the dist deployed (`f70ac64ddbd2a690`), the TUI restarted, the
+  `gi-decide` tool invoked in the headed session.
+- **The raw output:** `● Read xd://gi-decide` · `• gi-decide` · the tool ran.
+- **★ THE TWO CONTAINER FINDINGS:**
+  1. **THE EXTENSION LOADS AT SESSION START, NOT ON FILE DROP.** The first TUI attempt returned
+     `No such tool: xd://gi-decide. Mounted devices: … gi-consumption.` — the running omp
+     (7 h old) had loaded the OLD bundle. A file drop-in does NOT hot-reload an already-running
+     session's tool registry; the session must be RESTARTED. After the restart, `gi-decide`
+     IS mounted.
+  2. **THE CONFINEMENT GATE WORKS — AND IT NAMED ITS OWN REMEDY.** The first invocation returned
+     `GI_PATH_DENIED: targetPath '/root/gi-scope' is outside the allowed roots (/tmp:/tmp); set
+     GI_TARGET_ROOTS to extend`. A LOUD, NAMED refusal with the fix in the message — never a
+     silent wrong answer. The rig was relaunched with `GI_TARGET_ROOTS=/root/gi-scope:/tmp`.
+- **The verdict:** PASS for the mount + the refusal; the tool then ran against the scoped root.

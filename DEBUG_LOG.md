@@ -882,3 +882,26 @@ subject-dependent, so `consumed:N/8` is a function of what you ask about.
 **Verification:** `artifacts/DEPLOYED_REGISTER_CONTROL.md` (the two-subject table).
 **Lesson:** ★ **`consumed:N/8` WITHOUT ITS SUBJECT IS NOT A MEASUREMENT.** The register's
 contract must name the subject, or two honest readers will quote two different numbers.
+
+## EN-6L2E-9 · THE EXTENSION LOADS AT SESSION START — NOT ON FILE DROP (2026-09-23)
+**Finding:** the container TUI reported `No such tool: xd://gi-decide` while the deployed bundle
+carried it (`gi-decide=3` in the dist).
+**Root cause:** the running omp (PID 6188, 7 h old) had loaded the extension at SESSION
+CONSTRUCTION. Replacing the file on disk does not re-register a running session's tools.
+**Fix:** restart the omp session (the rig was relaunched; `gi-decide` then mounted).
+**Verification:** the restart'd TUI: `● Read xd://gi-decide` → the tool ran.
+**Lesson:** ★ the E-2 law ("the container TUI is the proof environment") has a corollary:
+**a file drop-in is a file, not an enforcement.** The proof of a deploy is the RESTARTED
+session's tool registry — never the file's mtime.
+
+## EN-6L2E-10 · THE LEDGER VALIDATES ITS OWN DOMAINS (2026-09-23)
+**Finding:** the first RECORD-stage sink wrote `band=STEER` and the ledger threw
+`GI_LEDGER_BAD_DOMAIN: band='STEER' is not act|escalate|ignore`; stage 6 read `FAILED`.
+**Root cause:** `FireLedger.append` validates `band ∈ act|escalate|ignore` and
+`action ∈ FIRE|ESCALATE|IGNORE` — the kernel's verdict vocabulary is NOT the ledger's.
+**Fix:** map the verdict onto the ledger's domains (REFUSE/ABORT→act/FIRE,
+STEER→escalate/ESCALATE, ALLOW→ignore/IGNORE).
+**Verification:** `stage 6 RECORD WRITTEN` + 1 row in `fire_decisions`.
+**Lesson:** ★ the record stage failing DID NOT silently drop the verdict — it reported `FAILED`
+on the run itself (the T-6 no-silent-catch law working). Two vocabularies meeting is a mapping
+job, and the validator naming the exact domain is what made the fix one line.
