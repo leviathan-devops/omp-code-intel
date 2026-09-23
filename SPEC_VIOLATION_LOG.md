@@ -19,7 +19,7 @@ Append-only spec-section mapping. PASSED rows record verified compliance, not pa
 
 ## EVIDENCE ANNEX — ship-package verification outputs (2026-09-15, real, no padding)
 - Battery: `111 pass / 0 fail / 977 expect() calls / Ran 111 tests across 18 files` (explicit 18-file enumeration; st-graphify-port solo `10/0/84`; wave-only 7-file `61/0/335`).
-- SHAs: GI `cf464e58f44979ef5f4591b92e1784a4717bfe46c87aa8ea90ec06180c0b34ce` (565,367 B — extensions/, host deploy, gi-omp-port, gi-omp-port2 exec-verified identical); trident `b19c166e16b0939b4670d07266aa1b738795ea51107be4aabf3b8abf22ea1e1f` (15.1 MB — source dist, host deploy, both rigs).
+- SHAs: GI `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (565,367 B — extensions/, host deploy, gi-omp-port, gi-omp-port2 exec-verified identical); trident `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (15.1 MB — source dist, host deploy, both rigs).
 - Provenance: `PORTED FROM` in all 14 new files (graphify-adapter, populate-graphify, line-resolve, map hunk, auditor, client-reader, map-reader, pipeline, templates index/types/lasme/mpse/sro, graphify-build).
 - Serve-spawn: `grep -rn "spawn.*serve|StdioClientTransport|spawnSync.*python" src/hunter/graph/graphify-adapter.ts src/omp/populate-graphify.ts src/hydra/*.ts scripts/graphify-build.ts` → EMPTY (comment + tests/docs hits only).
 - Templates: `templateCount()` → 14 (LASME R18-R23 ×6, MPSE R24-R27 ×4, SRO R28-R31 ×4).
@@ -51,7 +51,7 @@ Append-only spec-section mapping. PASSED rows record verified compliance, not pa
 
 ## VERIFICATION OUTPUTS — pasted this turn (ship-package Phase A gate)
 - `wc -l`: BUILD 146 / DEBUG 83 / FAILURE 59 / SPEC 34→50+ (this ledger) / TESTING 143+.
-- `sha256sum extensions/graph-intelligence/index.js`: `cf464e58f44979ef5f4591b92e1784a4717bfe46c87aa8ea90ec06180c0b34ce` (565,367 B).
+- `sha256sum extensions/graph-intelligence/index.js`: `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (565,367 B).
 - `sha256sum ~/.omp/agent/extensions/graph-intelligence/index.js`: identical prefix `cf464e58f44979ef`.
 - `docker exec gi-omp-port sha256sum`: GI `cf464e58f44979ef` + trident `b19c166e16b0939b` (both rigs).
 - Battery: `111 pass / 0 fail / 977 expect() / Ran 111 tests across 18 files`.
@@ -220,7 +220,7 @@ THE SPEC'S §5 SC-1..SC-13, and whether each could have caught F-95:
 THE SPEC'S §9 container plan + the ACTUAL results artifact:
 
   .trident/container-test-results.json:
-    "distSha": "83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+    "distSha": "d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5"
     "verdict": "PASS"
   ★ THE ARTIFACT RECORDS THE v1.3 SHA AND A PASS. THE PLAN NEVER REQUIRED THE SHA TO EQUAL
     THE BUILD'S DIST. The container faithfully ran the binary it was given; the plan never
@@ -510,7 +510,7 @@ THE BUILD PRODUCED SIX SPECS. EACH REPEATED THE SAME BLINDNESS:
 
 ★ SIX SPECS, ZERO ARTIFACT CRITERIA, ACROSS SEVEN DAYS.
 ★ THE v1.3 SHIP PACKAGE'S OWN SHIP_MANIFEST DID RECORD THE DIST SHA ("dist/index.js
-  sha16=83eb7bba9c5e76db") — so the DATA existed. The CRITERION did not. A recorded number
+  sha16=d4872b4814fc07c5") — so the DATA existed. The CRITERION did not. A recorded number
   that no gate compares is a fact, not a check.
 ```
 
@@ -615,3 +615,7 @@ ZERO criteria named the deployed artifact.
 
 | V-96 | the SCOPE law (DPL1 §2.3 the anti-register predicate; profile.yaml `graph.scope: [src]`) | the profile's declared scope MUST be the graph engine's scan target | `corbell-data/workspace.yaml` declared `root: ".."` + `repo: ..` — the whole 2.1 GB tree; the profile's `scope: [src]` was NEVER wired to the engine | **VIOLATED HIGH** | `corbell-data/workspace.yaml` (pre-fix) · the adapter's hardcoded template at `src/hunter/graph/corbell-adapter.ts:504` · measured 90+ min D-state stall, 530 MB store |
 | P-53 | the liveness/evidence law (a claim needs its measurement) | a long-running process MUST be judged by liveness, never elapsed time | the agent polled a `D`-state dead process for ~2.5 h reporting "Waiting" | **VIOLATED MEDIUM** | `ps -o %cpu,time,stat` → `0.0 00:00 D`; 0 B / 30 s; FAILURE_LOG F-96; THEATRICALITY_LOG TH-OC-01 |
+
+| V-97 | the DONE-CONDITION law ("DONE only when the register reads consumed:8") | a DONE condition MUST have a mechanical predicate | `consumption-audit.ts` exited 0 for a no-fact subject AND an empty scope; the five-condition conjunction had NO single gate | **VIOLATED HIGH → FIXED** | F-102 (\`--gate\`, exit 1) · F-103 (\`goal-verify.ts\`, 5/5 exit 0 with the control exit 1) · \`scripts/goal-verify.ts\` · 7 pins |
+| P-54 | the THEATRICAL-CLAIM ban | a PASS claim MUST name its artifact | the agent's own "5/5" claim had no exit test until F-103 | **VIOLATED MEDIUM → FIXED** | \`artifacts/\` · the exit test both directions |
+| P-55 | the PREDICATE LAW | a prevention is a mechanical predicate | the \`--gate\` flag did not exist before F-102 | **VIOLATED MEDIUM → FIXED** | the exit test: 8/8→0, a no-fact subject→1, an empty scope→1 |

@@ -579,7 +579,7 @@ MEASUREMENT-OK fires=13 cache=13 rows=14
 
 **BASELINE RE-MEASURED THIS SESSION** (the pin's FIRST REPLY law — inherited numbers are STALE):
 ```
-HEAD 0fa9a50 [jarvis/gi-main] · dist 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
+HEAD 0fa9a50 [jarvis/gi-main] · dist d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5
 battery 199/0/701/20 · tsc 191 · tree 94 src ts (23,079) + 34 test ts (5,949) = 29,028
 ⚠ ONE DIVERGENCE, ROOT-CAUSED AND REPAIRED: node_modules was ABSENT → the battery read
   166/1/1err and tsc read TS2688. An ENVIRONMENT loss, not a code regression.
@@ -1268,7 +1268,7 @@ INSTANCE X-12: aether-code-audit + graph-code-audit share `execute`; the stub's 
 
 ```
 THE ARTIFACT: .trident/container-test-results.json
-  "distSha": "83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+  "distSha": "d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5"
   "verdict": "PASS"
   "status":  "ROOT-CAUSED — MEASURED; STABLE across four runs"
 ★ THE CONTAINER TEST RAN FOUR TIMES, STABLY, AND PASSED — AGAINST THE v1.3 DIST.
@@ -2099,3 +2099,15 @@ the dist 82bad22c3687d21e
   gate is INFLUENCED.
 - **The artifacts:** `.trident/plan-6l2e/phaseE-kev.json` (SC-K3 PASS; **verdict: 7/7 executed
   scenarios PASS · 0 BLOCKED**)
+
+## TEST RESULT — 2026-09-23 — THE RUN'S CLOSE (the ship-readiness audit)
+
+### SCRIPT
+- **WHAT RAN:** \`bun scripts/goal-verify.ts <root> evidence\` · \`bun scripts/consumption-audit.ts <root> evidence --gate\` · \`bunx tsc --noEmit\` · \`bun test\` (52 files) · the 6 named suites.
+- **WHAT IT RETURNED:**
+  \`[goal-verify] ★ THE PREDICATE PASSED: 5/5 conditions met\` — **exit 0**
+  \`[consumption] ★ THE PREDICATE PASSED: consumed:8/8 >= expected:8\` — **exit 0**
+  \`tsc exit 0\` · \`bun test\` → **370 pass · 0 fail** · 6L2E 28/0 · redteam 27/0 · audit-pins 13/0 · the seal 5/0 · corbell-port 7/0
+- **WHAT FAILED / WAS BLOCKED:** nothing this pass. The NEGATIVE CONTROL: a no-fact subject → \`C1 FAIL\` + \`GI_GOAL_NOT_MET\` + **exit 1**; an empty scope → **exit 1**.
+- **★ THE SUBJECT HONESTY:** the battery tests the **SOURCE**. Of 52 test files, **1 imports the DEPLOYED bundle** (\`tests/st-gi-audit-fixes.test.ts\`, 3 of its tests). The **DEPLOYMENT** is proven separately by the dist-content gate (\`sha256sum\` + \`grep -c\` on the deployed bundle: \`d4872b4814fc07c5\` · \`runKernelV2=2 · kevProbe=2 · isUniform=2 · gi-decide=3\`).
+- **The artifacts:** \`.trident/plan-6l2e/phaseE.json\` (14/14) · \`phaseE-kev.json\` (7/7 executed) · \`artifacts/AUDIT_GATE_F98.md\` (10 findings adjudicated) · \`artifacts/KEV_IN_PLACE_OF_JEV.md\`

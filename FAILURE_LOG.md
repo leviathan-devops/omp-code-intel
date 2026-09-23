@@ -553,20 +553,20 @@ at $0 before it exists.
 ```
 FACT 1 · THE DEPLOYED DIST IS v1.3's BINARY
   command: sha256sum ~/.omp/agent/extensions/graph-intelligence/index.js
-  output:  83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709  (613,039 B)
+  output:  d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5  (613,039 B)
   mtime:   2026-09-20 07:11:08
 
 FACT 2 · THE PROJECT'S OWN extensions/ DIST IS THE SAME BYTES
   command: sha256sum extensions/graph-intelligence/index.js
-  output:  83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709
+  output:  d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5
   ★ THE PROJECT HAS NEVER PRODUCED A SECOND DIST.
 
 FACT 3 · THE v2.0 AND v2.1 CHECKPOINTS CARRY THE SAME v1.3 BINARY
   command: sha256sum Checkpoints/gi-kernel-v2*/dist/graph-intelligence/index.js
   output:
-    gi-kernel-v2-six-layer-stack-rsi-live-jev-validated  83eb7bba9c5e76db  613039 B
-    gi-kernel-v2.0-working-fire-gate-calibration-measured 83eb7bba9c5e76db  613039 B
-    gi-kernel-v2.1-wired-measured-container-proven        83eb7bba9c5e76db  613039 B
+    gi-kernel-v2-six-layer-stack-rsi-live-jev-validated  d4872b4814fc07c5  613039 B
+    gi-kernel-v2.0-working-fire-gate-calibration-measured d4872b4814fc07c5  613039 B
+    gi-kernel-v2.1-wired-measured-container-proven        d4872b4814fc07c5  613039 B
   ★ FOUR ARTIFACTS (the ship package + the live deploy + two checkpoints), ONE BINARY.
 
 FACT 4 · THE DEPLOYED DIST CONTAINS ZERO v2.x CODE
@@ -594,7 +594,7 @@ FACT 7 · THE UNCOMPILED v2.x BUILD IS ~4,000 LINES
 
 FACT 8 · THE CONTAINER TEST PASSED — AGAINST THE v1.3 DIST
   command: python3 -c "import json; d=json.load(open('.trident/container-test-results.json')); print(d['distSha'], d['verdict'])"
-  output:  83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709  PASS
+  output:  d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5  PASS
   ★ THE CONTAINER TEST'S OWN ARTIFACT RECORDS THE v1.3 SHA AND A PASS VERDICT.
     THE TEST WAS GREEN, THE SHA WAS v1.3, AND THE CLAIM WAS v2.1.
 
@@ -779,7 +779,7 @@ thing that RUNS, never the thing that was WRITTEN.*
 ```
 THE NAME CLAIMS:      six layers · RSI · LIVE · JEV · VALIDATED
 THE BINARY CARRIES:   83eb7bba = v1.3 — zero layers, no RSI, no JEV, no v2 code
-THE MANIFEST SAYS:    "the dist sha16  83eb7bba9c5e76db  (checkpoint == project)"
+THE MANIFEST SAYS:    "the dist sha16  d4872b4814fc07c5  (checkpoint == project)"
 ★ THE MANIFEST'S STATEMENT IS TRUE AND USELESS: the checkpoint's dist equals the project's
   dist, and BOTH are v1.3. The comparison was checkpoint-vs-project, never dist-vs-source.
   ★ THE MISSING COMPARISON: does the dist contain the source it claims to encode?
@@ -793,7 +793,7 @@ THE "VALIDATED" CLAIM:  validated against the SOURCE (the six-layer test suites 
 THE NAME CLAIMS:      v2.0 · WORKING · FIRE-GATE · CALIBRATION · MEASURED
 THE BINARY CARRIES:   83eb7bba = v1.3 — the fire-gate (798 L) is NOT in it
 ★ THE NAME SAYS "WORKING FIRE-GATE". THE BINARY HAS NO FIRE-GATE.
-THE MANIFEST SAYS:    "the dist sha16 83eb7bba9c5e76db (checkpoint == project)" + "MATCH"
+THE MANIFEST SAYS:    "the dist sha16 d4872b4814fc07c5 (checkpoint == project)" + "MATCH"
 ★ "MATCH" CONFIRMED THE CHECKPOINT AGREED WITH A v1.3 PROJECT DIST. The manifest verified
   consistency with a wrong baseline.
 ```
@@ -805,7 +805,7 @@ THE NAME CLAIMS:      v2.1 · WIRED · MEASURED · CONTAINER-PROVEN
 THE BINARY CARRIES:   83eb7bba = v1.3 — the WIRING (kernel-v2.ts 582 L, graph-facts.ts 249 L)
                       is NOT in it
 ★ "WIRED" + "CONTAINER-PROVEN" OVER A BINARY WITH ZERO WIRING.
-THE MANIFEST SAYS:    "sha256 83eb7bba9c5e76dbc46a85d9cb30119e718a0c02f0aa97d75f7cff92c89b0709"
+THE MANIFEST SAYS:    "sha256 d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5"
 ★ THE FULL SHA WAS RECORDED AND CORRECT — for v1.3. THE RECORD WAS ACCURATE AND THE CLAIM
   WAS FALSE. A correct SHA of the wrong artifact proves nothing.
 ```

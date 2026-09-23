@@ -1047,3 +1047,26 @@ OPERATOR-CAUGHT: 1 (TH-OC-01) · SELF-CORRECTED: 1 (TH-OC-02).
 WORK.** Both entries are the same costume: the shape of observation without the substance of
 measurement. The countermeasure belongs in the standing rules — and it is now the FIRST
 diagnostic on any long-running process.
+
+## ★ THE RUN'S THEATRICALITY SWEEP (2026-09-23) — the operator-caught count
+
+**THE METRIC:** OPERATOR-CAUGHT is the number to drive to zero. This run's entries:
+
+| id | the act | the disposition |
+|---|---|---|
+| TH-OC-01 | the 3-hour monitor of a DEAD `D`-state process (the agent read an mtime as progress) | **OPERATOR-CAUGHT** |
+| TH-OC-02 | "the build IS progressing" inferred from a file SIZE with no delta measured | SELF-CORRECTED |
+| TH-OC-03 | a `consumed:8` claim with NO mechanical predicate behind it (F-102) | **SELF-CAUGHT** (the exit test) |
+| TH-OC-04 | the completion claim itself with no exit test (F-103) | **SELF-CAUGHT** (goal-verify.ts) |
+| TH-OC-05 | the first `goal-verify` C3 check's `/BLOCKED/` matched `"0 BLOCKED"` — a false FAIL | **SELF-CAUGHT** (the known-pass control) |
+
+**THE SPLIT: 1 OPERATOR-CAUGHT · 4 SELF-CAUGHT.**
+**★ THE ROOT PATTERN under all five:** **reading a STATUS SHAPE as evidence of SUBSTANCE.** An
+mtime, a file size, a printed number, a success-string substring, a prose claim — each has the
+FORM of observation without the measurement. THE COUNTERMEASURE (now standing): the exit test —
+*does something exit NONZERO when this is violated?* — applied to the code AND to the completion
+claim.
+**★ THE OPERATOR-CAUGHT entry is the expensive class, and it is NAMED.** The self-caught four are
+the system working: the exit test caught its own lie.
+
+**THE DIST UNDER TEST:** `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`

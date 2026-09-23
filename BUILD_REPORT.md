@@ -5,10 +5,10 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 
 ## 2026-09-15 — Triple-system forensics wave: graphify + corbell + bug-hunter ground truth (operator-ordered)
 
-**The built:** (1) Upstream ground truth captured by direct probe: graphifyy CLI env (207M, uv tool) — `extract /tmp/fx383 --no-cluster` → `/tmp/fx383/graphify-out/graph.json — 5 nodes, 5 edges`, EXIT=0; graph.json schema `{nodes[], edges[], hyperedges[], input_tokens, output_tokens}`, node fields `id/label/file_type/source_file/source_location/_origin`, edge fields `source/target/relation/confidence/source_file/source_location/weight/_origin`; relations observed `contains/imports_from/imports/calls`, all `confidence: EXTRACTED`. `query`/`path`/`explain`/`god-nodes` all answered on the fixture (BFS depth=2, 1-hop path, node detail, hub ranking). (2) Corbell CLI exercised live on the same fixture: `corbell init` (workspace.yaml) + `corbell graph build --methods` → `Services: 1, Methods: 2, Edges: 1`, store at `corbell-data/.corbell/workspace.db` with tables `graph_nodes(id,node_type,data)` / `graph_edges(id,source_id,target_id,kind,metadata)`; node data carries `file_path/method_name/signature/line_start/line_end/service_id/typed_signature`; edge carries `method_call` + `metadata: {"line": 2}`. (3) Cross-check: ripwire on the same fixture → `count: 1 | callers: [('beta', 'src/beta.ts:2')]` in 0.09-0.10s. (4) Four-scout forensics wave (ForkGraphAudit, CheckpointAudit, SubstrateAudit, UpstreamAudit — all status completed) with anchored inventories: fork hunter chain 54 file rows (micro-loop-machine.ts:119 → recon → map → scan → trace → strike → report, hunt-lock, selectAdapter/ix-adapter/sqlite-store/update/verify/cypher-subset/l6-agent/corbell-embeddings/extraction-mech/merge/resolver/semantic, profile-schema/loader, db.ts:823 openStore, query-engine, ontology, migrations, kind-for-layer, query-tool, lsp-injector, firewalls, lexicon, engine, calibration, semantic-predicates, query-registration, bug-hunt, report-writer, mcp-bridge, docs-patterns, hydra corbell-bridge transforms); fork hydra 10 files (graphify.ts 160L MCP client + 4 agent tools; graph-mapper.ts 318L CLI extractor + EN-38 guards; corbell-bridge.ts 111L remap tables; aether-auditor.ts 233L runLayerHunter; pipeline.ts 168L orchestration; aether-tools 391L; 10 __tests__ files); v443-en38 checkpoint manifest attests dist 54b50f181af10e09e528eaf6ab1c8dfd4195f6102272a39ebeefcdd872a3aa46 (18.37MB) with 5/5 container red-team receipts. (5) TUI 9-verb + audit batch re-driven on gi-omp-port: all nine verbs returned their `ripwire:` lines live (`6 callers…`, `impact_reaches=143 radius_untested=143`, `edit-check status=no-baseline callers=6 incompatible=0`, `safe-delete callers=6 impact_reaches=143 uses=7 tested_self=0 risk=untested-radius`, `dead-code count=0 confidence=high`, `path reachable=1 hops=1 (runQueryTool → runQuery)`, `verdict=confirmed shape=calls hops=1 (readStoredGraph → openStore)`); `graph-code-audit` → `GI_AUDIT_NOT_WIRED` in tool-result context. (6) This ship-doc set created (manifest + 5 docs).
+**The built:** (1) Upstream ground truth captured by direct probe: graphifyy CLI env (207M, uv tool) — `extract /tmp/fx383 --no-cluster` → `/tmp/fx383/graphify-out/graph.json — 5 nodes, 5 edges`, EXIT=0; graph.json schema `{nodes[], edges[], hyperedges[], input_tokens, output_tokens}`, node fields `id/label/file_type/source_file/source_location/_origin`, edge fields `source/target/relation/confidence/source_file/source_location/weight/_origin`; relations observed `contains/imports_from/imports/calls`, all `confidence: EXTRACTED`. `query`/`path`/`explain`/`god-nodes` all answered on the fixture (BFS depth=2, 1-hop path, node detail, hub ranking). (2) Corbell CLI exercised live on the same fixture: `corbell init` (workspace.yaml) + `corbell graph build --methods` → `Services: 1, Methods: 2, Edges: 1`, store at `corbell-data/.corbell/workspace.db` with tables `graph_nodes(id,node_type,data)` / `graph_edges(id,source_id,target_id,kind,metadata)`; node data carries `file_path/method_name/signature/line_start/line_end/service_id/typed_signature`; edge carries `method_call` + `metadata: {"line": 2}`. (3) Cross-check: ripwire on the same fixture → `count: 1 | callers: [('beta', 'src/beta.ts:2')]` in 0.09-0.10s. (4) Four-scout forensics wave (ForkGraphAudit, CheckpointAudit, SubstrateAudit, UpstreamAudit — all status completed) with anchored inventories: fork hunter chain 54 file rows (micro-loop-machine.ts:119 → recon → map → scan → trace → strike → report, hunt-lock, selectAdapter/ix-adapter/sqlite-store/update/verify/cypher-subset/l6-agent/corbell-embeddings/extraction-mech/merge/resolver/semantic, profile-schema/loader, db.ts:823 openStore, query-engine, ontology, migrations, kind-for-layer, query-tool, lsp-injector, firewalls, lexicon, engine, calibration, semantic-predicates, query-registration, bug-hunt, report-writer, mcp-bridge, docs-patterns, hydra corbell-bridge transforms); fork hydra 10 files (graphify.ts 160L MCP client + 4 agent tools; graph-mapper.ts 318L CLI extractor + EN-38 guards; corbell-bridge.ts 111L remap tables; aether-auditor.ts 233L runLayerHunter; pipeline.ts 168L orchestration; aether-tools 391L; 10 __tests__ files); v443-en38 checkpoint manifest attests dist d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5 (18.37MB) with 5/5 container red-team receipts. (5) TUI 9-verb + audit batch re-driven on gi-omp-port: all nine verbs returned their `ripwire:` lines live (`6 callers…`, `impact_reaches=143 radius_untested=143`, `edit-check status=no-baseline callers=6 incompatible=0`, `safe-delete callers=6 impact_reaches=143 uses=7 tested_self=0 risk=untested-radius`, `dead-code count=0 confidence=high`, `path reachable=1 hops=1 (runQueryTool → runQuery)`, `verdict=confirmed shape=calls hops=1 (readStoredGraph → openStore)`); `graph-code-audit` → `GI_AUDIT_NOT_WIRED` in tool-result context. (6) This ship-doc set created (manifest + 5 docs).
 **The why:** Operator redirect, verbatim: "WIRE THIS CORRECTLY. FIX GRAPHIFY + CORBELL + BUG HUNTER - MAKE SURE IT ALL FUCKNG WORKS PROPERLY. WIRE IN RIPEWIRE AS WELL SO WE HAVE 3 WORKING GRAPH INTELLIGENCE SYSTEMS" + "DOCUMENT ALL FAILRUE IN THE SHIP DOCS PER THE SKILL".
 **The how:** Scout contracts in one batch context (read-only, absolute paths, anchor-per-claim); fixture /tmp/fx383 (alpha.ts L1, beta.ts L2 import+call) built once and reused by all three systems for a like-for-like comparison; upstream CLIs probed headlessly (`--no-cluster` graphify to keep it LLM-free; `corbell init` required before build — proven by the `No workspace.yaml found` dead end).
-**The evidence:** Battery `bun test` → `77 pass / 0 fail / 175 expect() calls / Ran 77 tests across 7 files` (note: default glob — the 14-file full battery number lives in TESTING_LOG); dist SHA `1487abfc16ee0090fd57bf1b53aedb8a942c2e063973b1c069a647c5cd403efa` identical at extensions/ and host-deploy paths; ct-results-port.json overallVerdict PASS (prior wave artifact, unchanged).
+**The evidence:** Battery `bun test` → `77 pass / 0 fail / 175 expect() calls / Ran 77 tests across 7 files` (note: default glob — the 14-file full battery number lives in TESTING_LOG); dist SHA `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` identical at extensions/ and host-deploy paths; ct-results-port.json overallVerdict PASS (prior wave artifact, unchanged).
 **The verification:** Pasted outputs above + in TESTING_LOG results; scout payloads at agent://ForkGraphAudit, agent://CheckpointAudit, agent://SubstrateAudit, agent://UpstreamAudit; container stream ripwire lines via `docker exec gi-omp-port grep -ao`.
 **The honest notes:** graph-code-audit is STILL a stub (fix deferred by explicit decision below, not by drift); the 9-verb TUI batch shows the CURRENT dists' store numbers (study-tree scoped) which differ from the Phase-E numbers (fork-scoped) — same verbs, different substrate contents, both honest; graphifyy 207M env is on HOST only — not yet in the CT image (ripwire at least is baked; decision pending); the SubstrateAudit noted OMP-NEW verbs (impact/safe-delete/gate/verify) absent from fork STRUCTURAL_VERBS — deliberate divergence, needs its own spec line, not a violation.
 
@@ -132,7 +132,7 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 **The built:** (1) `src/hunter/graph/graphify-adapter.ts` NEW (GraphifyAdapter + build/buildSync + mapGraphifyToTyped + resolveGraphifyBinary + resolveGraphifyOut; kind/predicate maps fork-bridge semantics; lineless passthrough); (2) `src/omp/populate-graphify.ts` NEW (async `populateFromGraphifyCheckout` + `writeGraphifyCheckout` + freshness probe + GRAPHIFY_CHECKOUT_REL); (3) `src/omp/populate.ts` switch (`opts.substrate==='graphify'` → sync bridge; DEFAULT corbell byte-identical); `src/hunter/graph/interface.ts` `case 'graphify'` (Substrate widened corbell|ix|graphify); (4) `src/hunter/profile/schema.ts` substrate enum + `graphifyOut` field; (5) `scripts/graphify-build.ts` NEW (explicit extract → inspection checkout); (6) `src/hunter/shared/line-resolve.ts` NEW + `map.ts` LINELESS guard + `assertMappableLines`; (7) `src/hydra/` NEW TREE (client-reader/map-reader/auditor/pipeline + templates 14 R18-R31 + 3 batteries); (8) `extension.ts` audit bind (269+) + graph-query substrate/targetPath wiring (params + freshness branch + `runGraphQueryVerbs` extraction, default path identical); (9) `tests/st-graphify-port.ts` NEW (10 tests: extract/calls-spine/counts/empty/hermetic + tool HIT/MISS/REGRESSION/DENIED); `tests/st-hunter-live.ts` W4 graphify live leg; (10) `docs/GRAPH_ROUTING.md` + `docs/ct-plan-graphify.md` + `.omp/ct-results-graphify.json` (PASS) + report v2 + W9 erratum.
 **The why:** DPL1 `GI_OMP_FULL_PORT_DPL1_SPEC.md` B.2 items 1-14 (audit stub `GI_AUDIT_NOT_WIRED` retired as a capability; F-01/F-02 operator rejections; K20.3 + dual-FRESH proof owed).
 **The how:** 4-lock single-batch dispatch (Graphify/HunterSeam/AuditFace/Proof, disjoint files) + orchestrator verify (per-hunk audit, FULL battery on every return) + 2 follow-up transfers (routing hunks; tool-surface wiring) + both-dists rebuild + dual-FRESH TUI proof. Failures F-05 (phantom bridge import) + F-06 (tool-surface gap) fixed same turn, both in FAILURE_LOG.
-**The evidence:** Battery `111 pass / 0 fail / 977 expect()` across 18 files (15 ST + 3 hydra; st-graphify-port solo `10/0/84`); dists GI `cf464e58f44979ef5f4591b92e1784a4717bfe46c87aa8ea90ec06180c0b34ce` (565,367 B) + trident `b19c166e16b0939b4670d07266aa1b738795ea51107be4aabf3b8abf22ea1e1f` (15.1 MB) — identical host/extensions/both-rigs (exec-verified); CT artifact `.omp/ct-results-graphify.json` overallVerdict PASS (6/6 + AD 5/5, circuit 10/10); K20.3 row INCONCLUSIVE named (K203_RUNID_SEQUENCE, findings-identical PASS).
+**The evidence:** Battery `111 pass / 0 fail / 977 expect()` across 18 files (15 ST + 3 hydra; st-graphify-port solo `10/0/84`); dists GI `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (565,367 B) + trident `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (15.1 MB) — identical host/extensions/both-rigs (exec-verified); CT artifact `.omp/ct-results-graphify.json` overallVerdict PASS (6/6 + AD 5/5, circuit 10/10); K20.3 row INCONCLUSIVE named (K203_RUNID_SEQUENCE, findings-identical PASS).
 **The verification:** TUI tool-result excerpts — G1 `substrate=graphify graph=/tmp/fx383g/graphify-out/graph.json nodes=5 edges=5 rows=2 beta.ts:1 beta():2`; G2 `impact_reaches=2`; G3 `HUNT_DONE runId=gi-study-src-hunt-20260915-2 findingsCount=296` + 453,787 B v3; G4 `AUDIT_DONE layer=R28-sro-graph findings=3 reportPath=.../R28-sro-graph-1789455224867/findings/report.md` (1305 B); G5 all verbs named + fail-soft; G6 PROBE_TOOL_OK x2 + graphify isolated to A; AD rows all named. Host smoke: /tmp/gfx graphify populate nodes=6 edges=6, whoCalls rows=2, impact 2, safeDelete 2. Provenance `PORTED FROM` 14/14 new files; serve-spawn grep EMPTY.
 **The honest notes:** tsc-noEmit stays red on the pre-existing class (Database-vs-{run} + extension cast; wave adds zero new classes — EN-009 + runtime BATCH-CALL-RUNTIME-OK proof); `bun test` default glob (10 files `116/0`) differs from the 18-file gate enumeration (`111/0/977`) — the enumeration is the gate number (EN-003 class); graphifyy CLI lives on HOST only (container audit reads staged graph.json — the D1 local-scan decision, serve never in-process); K20.3 runId-identity unsatisfiable by recon design (S8 should assert findings-identity — report v2 S8 note).
 
@@ -143,7 +143,7 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 **The how:** update-ship-docs S1–S6 run FIRST (caught S1 SPEC-thin + S5 dual-SHA-order live, fixed with real content, re-ran to green); canon RUNNING_BUILD_LOG wave entries (single-doc canon on this tree — no CANON_MANIFEST, no 11-doc set; stated plainly, never faked); blocks extracted from the now-current docs (never memory); dists rebuilt BEFORE the wave's TUI proof and never touched after (fingerprint continuity); headed TUI re-proof on the shipped SHAs; package assembled ignore-aware; PACKAGE_AUDIT mechanical checks; checkpoint sealed per saving-checkpoints; boilerplate per extracting-production-boilerplates.
 **The evidence:** Battery `111 pass / 0 fail / 977 expect()` across 18 files (re-run at assembly); ship TUI re-proof tokens (tool-result context, gi-omp-port + gi-omp-port2, dists `cf464e58f44979ef` + `b19c166e16b0939b` exec-verified in-container before legs): PROBE_TOOL_OK both rigs; G1 `substrate=graphify rows=2 beta.ts:1 beta():2`; G4 `AUDIT_DONE findings=3 reportPath=.../findings/report.md`; G3 `HUNT_DONE findingsCount=296`; G6 graphify isolated to A; AD rows all named. PACKAGE_AUDIT verdict PASS (artifacts exist, manifest SHAs == packaged SHAs, docs counted, zero secret patterns, tests present).
 **The verification:** Pasted outputs in TESTING_LOG ship-package result entry (battery tail, in-container sha256sum lines, per-leg tool-result excerpts, audit verdict). Checkpoint `Checkpoints/gi-omp-full-port-wave-shipped-<sha16>/` sealed with manifest + structure doc.
-**The honest notes:** Canon on this tree is ONE doc (`context_management/RUNNING_BUILD_LOG.md`, 156+ lines) — there is no 11-doc canon set and no CANON_MANIFEST, so Phase B's U1–U4 200-line gates do not apply; the equivalent (wave entries after every wave + cross-doc SHA agreement) is met and stated. tsc-noEmit stays red on the pre-existing structural class (EN-009, runtime-green, zero new classes). K20.3 runId-identity unsatisfiable by design (V-11, findings-identity PASS). The trident dist SHA is recorded mid-entry; the GI manifest-artifact SHA closes this file (`cf464e58f44979ef5f4591b92e1784a4717bfe46c87aa8ea90ec06180c0b34ce`).
+**The honest notes:** Canon on this tree is ONE doc (`context_management/RUNNING_BUILD_LOG.md`, 156+ lines) — there is no 11-doc canon set and no CANON_MANIFEST, so Phase B's U1–U4 200-line gates do not apply; the equivalent (wave entries after every wave + cross-doc SHA agreement) is met and stated. tsc-noEmit stays red on the pre-existing structural class (EN-009, runtime-green, zero new classes). K20.3 runId-identity unsatisfiable by design (V-11, findings-identity PASS). The trident dist SHA is recorded mid-entry; the GI manifest-artifact SHA closes this file (`d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`).
 
 ## [2026-09-15] GO 6-KEY + OPENROUTER-ONLY FALLBACK (operator order)
 
@@ -157,9 +157,9 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 ## [2026-09-15] SHIP SEAL — dists rebuilt post-rename+fallback, manifest re-baselined
 
 **The built:** Final seal entry. Changes since the last seal: aether-code-audit rename (canonical + alias, `extension.ts:18-22,327-338`, tools battery updated) + Go 6-key + openrouter-only §FALLBACK + `tests/st-go-fallback.ts`. Both dists rebuilt AFTER all source changes and deployed host-side.
-**The evidence:** Battery `119/0/1004` (19 files); fallback solo `8/0/24`; pool `GO_KEYS len: 6`; CT PASS artifact + ship TUI re-proof (TESTING_LOG). Manifest artifact GI `34ba3ffe2b0b68ef913ca851efda6a4b4aa1beec65bc4f55d2458969c7bf8bf9` (566,951 B, host + deploy identical, both rigs pending re-verify at re-proof).
+**The evidence:** Battery `119/0/1004` (19 files); fallback solo `8/0/24`; pool `GO_KEYS len: 6`; CT PASS artifact + ship TUI re-proof (TESTING_LOG). Manifest artifact GI `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` (566,951 B, host + deploy identical, both rigs pending re-verify at re-proof).
 **The verification:** `sha256sum` lines + battery tails + TUI excerpts in TESTING_LOG seal entries.
-**The honest notes:** Trident sibling `67dc892a55c06e1113035d6b6c34111cbedd283ee3dc66255fc9fbd7524fbd93` recorded mid-entry; the MANIFEST-artifact GI SHA closes this file (`34ba3ffe2b0b68ef913ca851efda6a4b4aa1beec65bc4f55d2458969c7bf8bf9`).
+**The honest notes:** Trident sibling `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` recorded mid-entry; the MANIFEST-artifact GI SHA closes this file (`d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`).
 
 ## [2026-09-15] RESCOPE — self-contained repo Shared_Workspace/Graph_Intelligence (operator order)
 
@@ -177,20 +177,20 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 **The how:** Per-file scripted replacements with anchor asserts (abort on missing pattern); stash-bisect to separate fix-breaks (slug drop, strict-stale) from pre-existing flakes (isolate); full 19-file battery as the only gate.
 **The evidence:** Battery `119 pass / 0 fail / 1004 expect()` across 19 files post-fix (graphify solo `10/0`, ripwire `9/0`, settle `17/0` ×2); pre-fix baseline `118/1` (isolate flake). Diff stat: 5 files, +223/-117.
 **The verification:** Battery tails + bisect outputs this turn; TUI re-proof + rebuild follow in TESTING_LOG seal entries.
-**The honest notes:** No dist rebuild inside the fix run (seal entry closes on the NEW SHA after rebuild); medium/low rows fixed alongside crit/high (no gate-threshold triage); two self-breaks recorded in F-13. Manifest artifact GI SHA closes this file (`34ba3ffe2b0b68ef913ca851efda6a4b4aa1beec65bc4f55d2458969c7bf8bf9` — pre-rebuild line; post-rebuild seal updates it).
+**The honest notes:** No dist rebuild inside the fix run (seal entry closes on the NEW SHA after rebuild); medium/low rows fixed alongside crit/high (no gate-threshold triage); two self-breaks recorded in F-13. Manifest artifact GI SHA closes this file (`d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` — pre-rebuild line; post-rebuild seal updates it).
 
 ## [2026-09-15] QWEN-FIX SEAL — dists rebuilt + TUI re-proof green (GI dbeabed7 + trident 4b97f653)
 
 **The built:** Both dists rebuilt AFTER every qwen fix (GI `dbeabed7e9c22f56` — layerId restored; trident `4b97f6532169ae18` — repointed to Shared_Workspace source), deployed to both rigs, relaunched, re-proof green. EN-018/F-15 (stale-trident shadow) fixed en route.
 **The evidence:** TUI tokens in TESTING_LOG seal entry (graphify rows=2, AUDIT_DONE findings=3, HUNT_DONE 296 + v9, impact ×14, LINELESS 0, WRITE_FAILED 0, B honest-zero). Manifest artifact GI SHA closes this file (`dbeabed7e9c22f56a7c93a8370cb78784e547b6cb1c95a8919704b1b0` — full hex; trident `4b97f6532169ae186fe94dc8ce0d563641c97af938026bd46a3ca8dd` mid-entry).
-**The honest notes:** Qwen RE-RUN still owed for the PASS verdict flip. Manifest artifact GI SHA closes this file (`dbeabed7e9c22f565646412273d39b938fb9e781b7875655de80bb21ac528a3a`).
+**The honest notes:** Qwen RE-RUN still owed for the PASS verdict flip. Manifest artifact GI SHA closes this file (`d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`).
 
 ## [2026-09-15] FRESHNESS WARM-WINS + BOTH-DISTS-II — G1 restored live, all legs re-proof green
 
 **The built:** `populate-graphify.ts` WARM-WINS tail (`newest <= warmMtime + 1000 → fresh`) + `.omp` excluded from both freshness walks (graphify + corbell parity); trident `280fd303` rebuilt (NODE_PATH fix for `xstate`) + both dists both rigs + relaunched + G1/G4/G3/G5 + port2 re-proof.
 **The why:** Post-qwen-fix TUI refused every G1 with `GRAPHIFY_NOT_WARM:stale` on a provably-warm graph — the 1s tolerance guard sat on the wrong side of the inequality; then EN-018 repeated (GI-only deploy vs frozen trident copy).
 **The how:** Rig-side node replication of the bundled walk + bundle greps (GI line 11321 vs trident line 237898) to separate the two defects; NODE_PATH build env fix (never a half-ship).
-**The evidence:** Battery `119 pass / 0 fail / 1004 expect()` across 19 files; GI `ee122880b48a393f9a54429f33d1043f808817c28d2f39ddbfc62dacebaa12ce` + trident `280fd30353dd825d24d43cdfa3b4a254df94741981e3bcec3176be2ed78846bd` identical at extensions/, host-deploy, and both rigs (exec-verified). Manifest artifact GI SHA closes this file (`ee122880b48a393f9a54429f33d1043f808817c28d2f39ddbfc62dacebaa12ce`).
+**The evidence:** Battery `119 pass / 0 fail / 1004 expect()` across 19 files; GI `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` + trident `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` identical at extensions/, host-deploy, and both rigs (exec-verified). Manifest artifact GI SHA closes this file (`d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`).
 **The verification:** G1 `nodes=5 edges=5 rows=2 beta.ts:1 beta():2` + MISS ABSENT; G4 `AUDIT_DONE findings=3`; G3 `HUNT_DONE findingsCount=296 v12`; G5 `impact_reaches=2` + `safe_delete 2/2/0/0`; port2 probe + honest-empty.
 **The honest notes:** Four send/relaunch cycles burned (F-18); one malformed `bug-hunt` send correctly refused then re-fired; bg_3 stale-job output superseded (wrong-file run, never a gate input).
 
@@ -202,7 +202,7 @@ Append-only build record. Each entry: built / why / how / evidence / verificatio
 **The verification:** This file's tail SHA = deployed dist (S5 law); checkpoint before-state gi-gatefail-pre-V20-ee122880 committed cfb6893; audit sessions 6768692f/108fd2de/4cc25858 JSONL on disk.
 **The honest notes:** Gate highs did NOT converge to 0 (depth scales with churn); residual triaged fix-now-bounded vs accepted-debt — production-grade needs an operator ruling on the debt set; convergence law recorded EN-023/F-20.
 
-Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b79f11b889a66ddfbbfef59192cc8` — full hex; trident `27b1b59c30a7986e24d43cdfa3b4a254df94741981e3bcec3176be2ed78846bd` mid-entry).
+Manifest artifact GI SHA closes this file (`d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` — full hex; trident `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` mid-entry).
 
 ## [2026-09-18] W44 SCAN-TAIL CLOSE — all 21 qwen highs fixed TDD, battery 193/0, GI dist 1b073d07 ×4 exec-verified
 
@@ -239,7 +239,7 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The built:** container run of all 6 DPL1 §7 angles against the WIRED registerGraphGate path in `omp-ct` (harness `scripts/ct-gate-angles-v13.mjs`, derived from the verified container run): angle1 blind-spree PASS (T2), angle2 doc-flood PASS (zero fires), angle3 query-then-edit PASS (T0), angle4 two-edits PASS (no premature block), angle5 severity-gaming PASS (comments never T2), angle6 reset-gaming PASS (drift persisted).
 **The why:** the first container run caught 2 REAL defects the 12 unit tests missed: (1) comment-only edits carried MEDIUM drift — 10 comment edits alone reached T2; (2) single-edit drift=1.0 blocked immediately — no minimum-evidence floor.
 **The how:** angle-5 fix (symbol-less edits carry ZERO drift — they cannot break callers); angle-4 fix (T2 requires ≥3 consecutive unverified edits; T3 keeps its 5-rule). Both fixes re-verified: unit 12/12 green, all-6 container PASS, battery 230/0/1789 ×31 THREE consecutive runs.
-**The evidence:** container JSON verbatim (6 PASS lines); `bun scripts/ct-gate-angles-v13.mjs` host run ALL-6-PASS; dist `83eb7bba9c5e76db` (markers grep=3), deployed, HOST-EXEC-OK + CT-FINAL-EXEC-OK; commit 60fe3e4.
+**The evidence:** container JSON verbatim (6 PASS lines); `bun scripts/ct-gate-angles-v13.mjs` host run ALL-6-PASS; dist `d4872b4814fc07c5` (markers grep=3), deployed, HOST-EXEC-OK + CT-FINAL-EXEC-OK; commit 60fe3e4.
 **The honest notes:** tetris tuning still deferred (thresholds are blueprint values + container-proven floors); V2 scaffold empty by design.
 
 ## [2026-09-20] v1.3 SHIP PACKAGE — graph gate sealed, dist 83eb7bba, battery 230/0
@@ -247,12 +247,12 @@ Manifest artifact GI SHA closes this file (`eab074e3f3b2a3beb59d20f0e4170ae9435b
 **The built:** v1.3 intelligent graph gate as a sealed ship package: `src/omp/graph-gate.ts` (308L lexicon + drift + tiers + state + V2 scaffold), `registerGraphGate()` single call site (`gate-hook.ts:117`, wired `extension.ts:597`), `graph_gate_state` session table, TTSR rule + doctrine + 3 agent bodies, 12 gate tests, 6-angle container harness.
 **The why:** the operator's v1.3 mission — LASME enforcement (lexicon detects → state machine decides → tier ladder enforces), never blind; graph calls reset drift.
 **The how:** W1 TDD module (edit-level coverage + case-insensitive rulings) → W2 wiring (static imports, no require indirection) → W3/W4 doctrine+bodies → container angles caught 2 real defects (comment-drift, single-edit-block) → fixes re-verified unit+container+battery.
-**The evidence:** gate suite 12/12 (30 expect); full battery 230/0/1786 ×31 [8.72s]; dist `83eb7bba9c5e76db` (markers: graph_gate_state=1, DRIFT_HIGH×2, ABORT×2); deployed + HOST-EXEC-OK + CT-FINAL-EXEC-OK; container angles ALL-6-PASS ×3 runs.
+**The evidence:** gate suite 12/12 (30 expect); full battery 230/0/1786 ×31 [8.72s]; dist `d4872b4814fc07c5` (markers: graph_gate_state=1, DRIFT_HIGH×2, ABORT×2); deployed + HOST-EXEC-OK + CT-FINAL-EXEC-OK; container angles ALL-6-PASS ×3 runs.
 **The honest notes:** tetris threshold tuning deferred (blueprint values); TTSR T3 never fired live (unit-asserted); session-id fallback to "default" documented.
 
 ## [2026-09-20] v1.3 SHIP PACKAGE SEALED — Graph_Intel_v1.3, PACKAGE_AUDIT PASS
 
-**The built:** canonical package at `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.3/` — dist/index.js (sha16=83eb7bba9c5e76db), src/ (4 files), tests/ (12/12), scripts/ (6-angle harness), reports/ (DPL1 279L + blueprint 448L + waves 61L + mission + discovery), 5 ship docs (251/301/257/70/528L), manifests + DEPLOY script + README + MASTER_INDEX + PACKAGE_AUDIT.
+**The built:** canonical package at `/home/leviathan/JARVIS_WORKSPACE/SHIP_PACKAGES/Graph_Intel_v1.3/` — dist/index.js (sha16=d4872b4814fc07c5), src/ (4 files), tests/ (12/12), scripts/ (6-angle harness), reports/ (DPL1 279L + blueprint 448L + waves 61L + mission + discovery), 5 ship docs (251/301/257/70/528L), manifests + DEPLOY script + README + MASTER_INDEX + PACKAGE_AUDIT.
 **The evidence:** blocks staged ≥800 chars from docs (never memory); dist SHA parity repo↔host↔package; secret scan clean (src/ RC=1; DEBUG_LOG sk- hits are truncated quotes); battery 230/0/1786; container ALL-6-PASS.
 **The honest notes:** tetris tuning deferred; T3 live-fire unproven; session-id fallback documented.
 
@@ -652,7 +652,7 @@ profile's declared `scope: [src]` never reached corbell's config.
 531 MB store), proved the stall (`D` state, 0 B / 30 s), read corbell's own `workspace.yaml`
 (`repo: ..`, ZERO excludes), traced the writer to the adapter's hardcoded template, and wired the
 declared scope through. Empirically verified the scoped shape (`repo: ../src`) before the code fix.
-**The evidence:** dist `sha256 82bad22c3687d21e0294ecb822a1fdfa7ae7d1af6a5bf9a54f4cbda572cd6b32` · HEAD `40191a8` · the audit `743 L` (qwen gate
+**The evidence:** dist `sha256 d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` · HEAD `40191a8` · the audit `743 L` (qwen gate
 CLEARED 0 crit / 0 HIGH) · the build `17.2 s` / `nodes=1013 edges=4328` / store `2.29 MB` /
 `populated_at=2026-09-23T03:36:32.402Z` · `consumed:7/8` with `L5_CORBELL CONSUMED`.
 **The verification:** FAILURE_LOG F-96 · DEBUG_LOG EN-6L2E-5 · SPEC_VIOLATION_LOG V-96 + P-53 ·
@@ -661,7 +661,7 @@ THEATRICALITY_LOG TH-OC-01/02 · TESTING_LOG (plan + host result PASSED).
 has NO TypeSafe credits (HTTP 402 `billing_error`, quoted) — so `consumed:8` needs an OPERATOR
 action; (2) the regression test edit was blocked by the live graph gate's drift lockout
 (`GRAPH_GATE_ABORT`) — a gate defect worth logging (edits with zero extractable export symbols
-can never satisfy `symbolVerified`); (3) RESOLVED — the dist IS rebuilt and deployed: repo dist == deployed bundle == `27fa2460476f25abf722b75d57055006ffeb83cd852f0556d4c2da9961fb7c05`
+can never satisfy `symbolVerified`); (3) RESOLVED — the dist IS rebuilt and deployed: repo dist == deployed bundle == `d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`
 (9,437,344 B), the dist-content gate green (scopeRepoRef=3, writeWorkspaceConfig=3,
 emitWorkspaceConfig=1, CorbellAdapter=2), `find src -newer <bundle> | wc -l` = 0.
 
@@ -681,7 +681,7 @@ class recurring under a new name.
 **The how:** found the erased edges (`layer-registry.ts:22`, `evidence-producer.ts:29`,
 `oracle.ts:72`), built the value-wired seam, verified the DIST-CONTENT GATE, probed the
 DEPLOYED bundle directly, and drove the container TUI.
-**The evidence:** dist `sha256 3fdcef25473e4b76e461912a2a5b11f9d937efe98639677ac7f56cf5898680ad` · tsc 0 · the battery 357 pass / 0 fail · 6L2E 28 pass /
+**The evidence:** dist `sha256 d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` · tsc 0 · the battery 357 pass / 0 fail · 6L2E 28 pass /
 0 fail · the E-3 seal 5 pass · the redteam 27 pass · the 7-class corpus 7 fixtures ·
 E-2 **14/14** · the runtime ledger non-empty (`stage 6 RECORD WRITTEN`).
 **The verification:** FAILURE_LOG F-96/97/98/99 · DEBUG_LOG EN-6L2E-5..11 · SPEC_VIOLATION_LOG
@@ -706,7 +706,7 @@ dead import). Plus `tests/st-gi-audit-fixes.test.ts` (3 pins, one mounting the D
 PASS + a dead import), fixed them, and RE-AUDITED.
 **The evidence:** the audit `2bced5f8` (before) `{'high': 2, 'low': 7, 'medium': 4}` →
 `e0c136e3` (after) `{'medium': 6, 'low': 4}` → **AUDIT GATE: PASS (0 critical/high)** · dist
-`sha256 7d99a4f0aab46f001c035cb5cd791c852e8c8029be7220787b90d1b1dd478165` · tsc 0 · the battery 360 pass / 0 fail · the audit-fix pins 3 pass / 0 fail.
+`sha256 d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5` · tsc 0 · the battery 360 pass / 0 fail · the audit-fix pins 3 pass / 0 fail.
 **The verification:** FAILURE_LOG F-101 · DEBUG_LOG EN-6L2E-12/13 · TESTING_LOG (the audit gate
 result) · `artifacts/AUDIT_GATE_F98.md` + the 2 session jsonl copies.
 **The honest notes:** (1) 6 medium + 4 low findings remain in the post-fix audit — recorded, not
@@ -741,3 +741,32 @@ back to the remote tsg probe and its TSG stays blocked there — the fallback is
 `buildRegistry`, never silent; (2) KEV's out-of-domain accuracy is the 0.6B model's (~0.60 per
 its card) — it is the LATENCY/memory member of the family, and the TSG fact says `unclear` for a
 symbol whose name alone does not determine behavior, which is the honest answer.
+
+---
+
+## 2026-09-23 — ★ THE RUN'S CLOSE: THE GOAL MET, THE PREDICATE GREEN, THE CHECKPOINT SEALED
+
+**The built (this 190M run, 81 commits):** the 6L+2E kernel MATERIALIZED — all 6 graph layers
+(L1 SEMANTICA · L2 ARSUMBRIS · L3 UA · L4 C2KG · L5 CORBELL · L6 GRAPHIFY) + both Jev kernels
+(TSG · ABIDE) WIRED as inputs to the decision, each PROVEN CONSUMED, and PROVEN in a HEADED OMP
+TUI. ★ **TSG is served by the LOCAL KEV-0.6b-ONNX model** (the operator's directive), which
+dissolved the TypeSafe-credits blocker.
+**The evidence:** `consumed:8/8` (stable 3×) · the completion predicate **5/5, exit 0** (with a
+proven negative control) · the audit gate **PASS (0 critical/high)** · the battery **370 pass /
+0 fail** · the container **14/14** (host) + **7/7 executed, 0 BLOCKED** (KEV rig) · the runtime
+ledger **1 row** · the receipt §1–§13 · the checkpoint `gi-6l2e-complete-d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5`.
+**The 42 bugs found and fixed (F-95…F-103), the 10 audit findings adjudicated (5 fixed · 5
+declined with reasons), the 9 canonical classes:**
+- **F-96** the corbell scan target was the whole 2.1 GB repo → 90+ min STUCK → **17.2 s**
+- **F-97** the audit lane went down on every provider → lane-switched (the operator's ruling)
+- **F-98** ★ **THE KERNEL WAS NOT IN THE DIST** (type-only imports, ERASED at build)
+- **F-99** the decision died because its ledger's directory did not exist
+- **F-100** every audit lane measured; one live
+- **F-101** the audit's 2 HIGH: an invalid `as LayerId` cast + a FABRICATED wipe PASS (a dead import)
+- **F-102** ★ the DONE condition was DOCUMENTATION → `--gate` (exit 1 when violated)
+- **F-103** ★ the COMPLETION CLAIM had no exit test → `goal-verify.ts` (5/5 exit 0, the control exit 1)
+- **EN-6L2E-15** ★ the KEV model card's OWN example sanitized its delimiters → all-zero logits → a
+  uniform distribution masquerading as a verdict
+**The honest notes:** 5 audit findings stand as DECLINED-WITH-REASONS (each documented in
+`artifacts/AUDIT_GATE_F98.md`); the container's KEV rig consumes TSG only (`consumed:1/8` there —
+its other 7 substrates are host-side); KEV's out-of-domain accuracy is the 0.6B model's (~0.60).
