@@ -869,3 +869,16 @@ decideFireFromGraph=2 · dumbDetector=2 · classifyByDetectors=2 · preflight=2 
 tsc exit 0 · 6L2E 28/0 · the battery 356/0 · `test_decision_consults_registry` PASS.
 **Lesson:** ★ the greps that matter are on the bundle, never the tree. A source-importing
 register cannot see a tree-shaken kernel.
+
+## EN-6L2E-8 · THE DEPLOYED REGISTER AGREES WITH THE SOURCE — AND IT IS SUBJECT-DEPENDENT (2026-09-23)
+**Finding:** probed the DEPLOYED bundle (`3bffc09947b440ec`) by mounting it on a fake `pi`
+and invoking `gi-consumption`. It reads `consumed:7/8` for subject `evidence` and
+`consumed:4/8` for subject `populateSessionStore` — **identical to the source CLI** on both.
+**Root cause of the discrepancy I first saw:** the SUBJECT differed (the CLI used `evidence`,
+my first probe used `populateSessionStore`), not the code. `facts(subject)` is
+subject-dependent, so `consumed:N/8` is a function of what you ask about.
+**Fix:** none needed — the artifact and the source AGREE, which is the proof F-98 needed:
+★ the measurement's subject is now the DEPLOYED bundle, not the source tree.
+**Verification:** `artifacts/DEPLOYED_REGISTER_CONTROL.md` (the two-subject table).
+**Lesson:** ★ **`consumed:N/8` WITHOUT ITS SUBJECT IS NOT A MEASUREMENT.** The register's
+contract must name the subject, or two honest readers will quote two different numbers.
