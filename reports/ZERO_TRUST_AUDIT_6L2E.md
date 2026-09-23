@@ -689,3 +689,24 @@ consumed:6/8 — L5 CORBELL awaits its rebuild (the A3 gate refused the stale st
              — TSG awaits the TypeSafe key's credits (HTTP 402)
 ★ THE A3 GATE IS THE FIRST MECHANISM IN THIS BUILD THAT REFUSED A REAL STALE ANSWER.
 ```
+
+---
+
+# 17 · ★ THE DPL1 §7 CONTAINER PLAN — A1-A10, THE HONEST COVERAGE
+
+| # | the DPL1 scenario | the state | the evidence |
+|---|---|---|---|
+| A1 | the register, 0 consumers | ✅ | `consumed:0/8` on a cold scope |
+| A2 | wire a consumer → re-probe | ✅ | `consumed:7/8` on the live tree |
+| A3 | a store older than HEAD | ★ **IMPLEMENTED** | `GI_LAYER_STALE` (`assertStoreFresh`) — and it REFUSED the genuinely stale corbell store |
+| A4 | a target absent from the store | ✅ | `GI_LAYER_UNCONSUMED` + `test_scope_mismatch` |
+| A5 | a fire the graph settles $0 | ✅ | `questionVersion="graph:M-GRAPH-1"`, `judgeCalls=0`, `costUsd=0` |
+| A6 | a layer throws mid-query | ★ **IMPLEMENTED** | `GI_LAYER_ERROR:<id>` (the distinct token) |
+| A7 | the D-2/D-6/D-7/D-5 replay | ✅ | `M-GRAPH-1`/`2`/`4`/`5` in the corpus test |
+| A8 | the pre-act advisory fires | ✅ | the `[GATE STEER]` advisory at `graph-gate.ts:256` (the T1 tier) |
+| A9 | TSG judges a change's MEANING | ⚠ **BLOCKED** | the TypeSafe key returns `HTTP 402 Payment Required` — a BILLING state, an operator action |
+| A10 | Abide repairs, never blocks | ✅ | the `repair` rung (`adapters/abide.ts`) — a repair, never a refusal |
+
+**★ 9 of 10 A-scenarios are green. A9 is BLOCKED on the TypeSafe key's credits.**
+★ And A3/A6 — the two the gate's model could never have checked — were **MISSING** and are now
+IMPLEMENTED, each proven by the tests.
