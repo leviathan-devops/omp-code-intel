@@ -611,3 +611,33 @@ REAL — ALL FIXED.
 - FR-2 `SELECT COUNT(*), COUNT(DISTINCT rule_id||'|'||band||'|'||action) FROM fire_decisions`
   → **`56 | 4`**
 - the register at face value: `consumption-audit` → `consumed:7/8` L2_ARSUMBRIS named
+
+---
+
+## 2026-09-24 ~17:20 — THE RUN-5 WAVE CLOSED (all 5 agents integrated)
+
+**HEAD** `5f0a868` → the checkpoint commit `5831ad0`. **dist** `812e3c6987027b19`.
+
+**THE DELIVERED:** all 5 R5 agents returned + integrated:
+- **R5GraphLexicon** — 12 REAL (F-250..F-260): the graphify concurrency, the rule-card, the corbell cache.
+- **R5HarnessShared** — 6 REAL (F-242..F-253): the report atomicity (one BEGIN IMMEDIATE), the loader
+  TOCTOU (realpathSync decides), the bug-hunt scope (absTarget + the profile file check), the log shortFile.
+- **R5SurfaceDiagFirewall** — 3 REAL (F-242..F-244): the calibration fd double-close, the engine
+  fail-closed readdir, the rootPrefix containment.
+- **R5Omp** — ~14 REAL (F-260..F-274): the adapters, the evidence-producer, the fire-gate, the
+  graph-gate, the hard-deps, the layer-consumption, the ripwire-bridge, the rsi, the store-open.
+- **R5HydraKernelScoping** — 2 REAL (F-212..F-213): the pipeline evidence splice (single-call
+  snapshot), the mpse schemas (direct assignment, no double-cast).
+- **+ F-252b** (orchestrator): the bug-hunt `profilePath` typing (the spread union widened it).
+
+**THE VERIFICATION:** `tsc exit 0` · `bun run test` → **430/0 + 528/0** · the dist rebuilt + deployed
+(the deployed == the repo dist) · the checkpoint gate 7/7 PASS · the secret scan 0 hits.
+
+**THE CHECKPOINT:** `Checkpoints/gi-cleanup-run5-wave-5f0a868` — 257 files · 15 M · the manifest 83 L
+· the structure 70 L · the seal Mode B (NO-LOCK, a live working tree).
+
+**THE AUDIT TREND:** 8/92 → 5/90 → 3/80 → 6/65 → 4/51. The high count falls monotonically as real
+defects are fixed. The operator's ruling: all findings are legit; fix until AUDIT GATE: PASS (0/0).
+
+**NEXT:** run 6 (the whole-tree audit on the post-R5 tree) + the REAL-DEFERRED fix wave (R6ScopingKernel
++ R6HunterOmp — 16 findings).
