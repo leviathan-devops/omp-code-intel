@@ -111,16 +111,30 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
     });
     let stdout = '';
     let stderr = '';
-    let settled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); fn(); };
+    let killTimer: ReturnType<typeof setTimeout> | null = null;
+    // ★ F-252b FIX (2026-09-24): the `settled` latch the F-336 timeout work depends on was
+    //   REFERENCED but never DECLARED — every `done()`/timeout path threw TS2304 (broken
+    //   tsc). One latch, set by whichever settles first (close, error, or the timeout),
+    //   so no handler can double-settle or reap a child another handler already closed.
+    let settled = false;
+    const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); if (killTimer !== null) clearTimeout(killTimer); fn(); };
     if (typeof timeoutMs === 'number' && timeoutMs > 0) {
+      // ★ F-336 FIX (2026-09-24): SIGTERM alone leaked a trapping child — it kept running
+      // ★ after rejection (settled guard blocked the close/error handlers, nobody reaped it).
+      // ★ SIGTERM now escalates to SIGKILL after a 5s grace; the kill timer is unref'd so a
+      // ★ leaked child cannot hold the event loop open after the rejection.
       timer = setTimeout(() => {
         if (settled) return;
         settled = true;
         try { proc.kill('SIGTERM'); } catch { /* already exited */ }
-        reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child SIGTERMed, no partial graph accepted`));
+        killTimer = setTimeout(() => {
+          try { proc.kill('SIGKILL'); } catch { /* already exited */ }
+        }, 5_000);
+        (killTimer as unknown as { unref?: () => void }).unref?.();
+        reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child SIGTERMed (SIGKILL in 5s), no partial graph accepted`));
       }, timeoutMs);
+      (timer as unknown as { unref?: () => void }).unref?.();
     }
     proc.stdout?.on('data', (data: Buffer) => { stdout += data.toString(); });
     proc.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });

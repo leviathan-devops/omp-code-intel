@@ -391,6 +391,10 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
   });
 
   const handleDisposables: Array<{ unsubscribe(): void }> = [];
+  // ★ F-337 FIX (2026-09-24): done() built two fresh actor subscriptions per CALL — a second
+  // ★ call before termination doubled them (four subs, stale disposables). The pending promise
+  // ★ is now cached: concurrent callers share one subscription pair, never re-subscribe.
+  let pendingDone: Promise<void> | null = null;
   const handle: MicroLoopHandle = {
     stop(): void {
       sub.unsubscribe();
@@ -402,7 +406,8 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
       actor.send(event);
     },
     done(): Promise<void> {
-      return new Promise<void>((resolve): void => {
+      if (pendingDone !== null) return pendingDone;
+      pendingDone = new Promise<void>((resolve): void => {
         if (actor.getSnapshot().status === 'done') { resolve(); return; }
         // ★ F-62 FIX (2026-09-24): done() after stop() (or on an errored actor) never
         //   resolved — neither subscription fires on a dead actor (an eternal promise hang).
@@ -433,6 +438,7 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
         // on the handle's disposables, never void-dropped.
         handleDisposables.push(sub2, sub3);
       });
+      return pendingDone;
     },
     get state(): { value: string } {
       return { value: snapshotState(actor.getSnapshot()) };

@@ -654,7 +654,8 @@ export function mapGraphifyToTyped(
     // branch now SKIPS + counts them (W3 policy) instead of throwing, so the
     // two stages no longer disagree. An unanchorable edge is dropped, the
     // count is WARN-logged by the caller-facing summary below.
-    if (line === undefined) { linelessEdgesDropped++; return []; }
+    // ★ F-330 FIX (2026-09-24): lineless means null OR undefined — GraphEdge.line is number|null|undefined, so the drop guard must catch both (== null).
+    if (line == null) { linelessEdgesDropped++; return []; }
     return {
       srcCanonical: e.sourceId,
       dstCanonical: e.targetId,

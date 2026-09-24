@@ -35,7 +35,11 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       } catch (e) {
         throw new Error(`GI_LAYER_C2KG: the index is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
-      const hits = (idx.symbols ?? []).filter((s) => (s.name ?? "").includes(subject));
+      // ★ F-346 FIX (2026-09-24): idx.symbols is runtime-untrusted JSON — a non-array
+      //   shape (string/number/object) threw raw TypeError at .filter, bypassing the
+      //   GI_LAYER_C2KG contract. Array.isArray narrows; non-array reads as zero hits.
+      const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
+      const hits = symbols.filter((s) => (s.name ?? "").includes(subject));
       return hits.map((s) => ({
         consumer: "L4_C2KG" as const,
         rung: "context" as const,

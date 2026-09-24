@@ -160,7 +160,12 @@ function preprocess(physical: string[]): { indent: number; text: string; line: n
 
     const trimmed = raw.trim();
     if (trimmed === '') continue;
-    if (/^\t/.test(trimmed)) yamlErr([], trimmed, i + 1, 'tabs are not allowed in indentation (the subset is space-indented)');
+    // ★ F-338 FIX (2026-09-24): the tab guard tested the TRIMMED line — trim() strips
+    // ★ leading tabs, so /^\t/ could never match and tab-indented YAML was silently
+    // ★ accepted (fail-closed contract violated). The guard now reads the RAW leading
+    // ★ whitespace; a tab anywhere in the indent is PROFILE_INVALID.
+    const leadingWs = raw.slice(0, raw.length - raw.trimStart().length);
+    if (leadingWs.includes('\t')) yamlErr([], trimmed, i + 1, 'tabs are not allowed in indentation (the subset is space-indented)');
 
     const indent = raw.length - raw.trimStart().length;
     const { text, quoteOpen } = stripCommentWithState(trimmed);

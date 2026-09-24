@@ -215,7 +215,10 @@ export function dedupe(findings: NormalizedFinding[]): NormalizedFinding[] {
   const seen = new Set<string>();
   const out: NormalizedFinding[] = [];
   for (const f of findings) {
-    const key = `${f.ruleId}|${f.file}|${f.line}`;
+    // ★ F-281 FIX (2026-09-24): the '|' join collides — ruleId/file containing '|'
+    // ★ merges distinct rows (false dedupe drops a real finding). JSON-tuple key
+    // ★ is injective over (ruleId, file, line); findings-store.ts:185 fixed identically.
+    const key = JSON.stringify([f.ruleId, f.file, f.line]);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(f);

@@ -132,6 +132,15 @@ export async function callWithStallDetection(
       },
       body: JSON.stringify({ model: modelId, messages, max_tokens: 16384 }),
     });
+    // ★ F-282 FIX (2026-09-24): check the HTTP status BEFORE touching the body —
+    //   a 4xx/5xx error page parsed as a completion surfaced as silent EMPTY/PARSE.
+    //   Non-ok is a named LOUD error carrying its status (fail-fast downstream).
+    if (!response.ok) {
+      clearInterval(stallTimer);
+      let detail = "";
+      try { detail = (await response.text()).slice(0, 200); } catch { /* body unreadable — status alone is the signal */ }
+      return { ok: false, reason: `SCAN_HTTP_${response.status}: ${response.statusText ?? ""}${detail ? ` — ${detail}` : ""}` };
+    }
 
     // stream-read: every chunk resets the stall timer
     const reader = response.body?.getReader();
@@ -225,8 +234,15 @@ export async function runScanChain(
         return { ok: true, content: result.content, provider: rung.provider, modelId: rung.modelId, ledger };
       }
       ledger.push({ provider: rung.provider, modelId: rung.modelId, attempt, reason: result.reason });
-
-      // retryable? backoff and retry. non-retryable? next attempt anyway.
+      // ★ F-281 FIX (2026-09-24): gate the retry on RETRYABLE_RE — a fatal
+      //   (auth, not-found, parse, empty) retried 5x burns 5 backoffs and the
+      //   stall window for nothing. Retryable → backoff + retry; 401/404 →
+      //   fail-fast to the next rung (never retryable); other non-matching →
+      //   break to the next rung (failover, not spin).
+      const rmsg = result.reason ?? "";
+      if (/SCAN_HTTP_(401|404)\b/.test(rmsg)) break; // fail-fast: auth/not-found never heals on retry
+      if (!RETRYABLE_RE.test(rmsg)) break; // fatal/non-transient → next rung, no backoff burn
+      // retryable? backoff and retry.
       if (attempt < RETRY_ATTEMPTS) {
         await new Promise(resolve => setTimeout(resolve, rung.backoffMs));
       }

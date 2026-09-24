@@ -74,6 +74,12 @@ export interface PrecisionEstimate {
  *  counts (the normal approximation misbehaves exactly where thresholds live,
  *  near 0 and 1, and at small n). */
 export function precisionFromCounts(c: ResolvedCounts, z = 1.96): PrecisionEstimate {
+  // ★ F-336 FIX (2026-09-24): fail-closed on negative counts — a negative input
+  //   silently produced a negative denominator / out-of-range precision and bogus
+  //   sufficient/starved flags. Counts are cardinalities; negatives are caller bugs.
+  if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
   const resolved = c.confirmed + c.refuted;
   const fires = resolved + c.unresolved;
   const p = resolved === 0 ? 0 : c.confirmed / resolved;

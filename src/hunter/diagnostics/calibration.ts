@@ -253,18 +253,31 @@ export class CalibrationGate {
     // ★ pass with a stale version. The topology rides as the per-node inbound
     // ★ caller list (whoCalls is the adapter's edge read; guarded — a throwing
     // ★ adapter yields [] rather than breaking versioning). Fixtures are small.
-    const graphOf = (graph: GraphAdapter): unknown => ({
-      nodes: graph.nodes().map((n) => ({
+    // ★ F-334 FIX (2026-09-24): graph.nodes() ordering is adapter-defined — an unsorted
+    // ★ map fed into JSON.stringify made the fixturesHash order-dependent, so the same
+    // ★ logical fixture set hashed differently across runs (spurious invalidation). Nodes
+    // ★ AND edges are sorted by stable id before serialization; the hash is order-free.
+    const graphOf = (graph: GraphAdapter): unknown => {
+      const nodes = graph.nodes().map((n) => ({
         id: n.id, kind: n.kind, name: n.name,
         file: n.file ?? null, line: n.line ?? null, lineage: n.lineage, source: n.source,
         data: n.data ?? null,
-      })),
-      edges: graph.nodes().map((n) => {
+      }));
+      nodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const edges = graph.nodes().map((n) => {
         try {
           return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
-        } catch { return { to: n.id, callers: [] }; }
-      }),
-    });
+        } catch (e) {
+          // ★ F-335 FIX (2026-09-24): a throwing whoCalls used to coerce to [] SILENTLY —
+          // ★ a topology-breaking adapter fault escaped the version hash. Still [] (a broken
+          // ★ edge read must not brick versioning) but LOUD: the node + the error are warned.
+          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} — recording empty callers in version hash`);
+          return { to: n.id, callers: [] as string[] };
+        }
+      });
+      edges.sort((a, b) => String(a.to).localeCompare(String(b.to)));
+      return { nodes, edges };
+    };
     return JSON.stringify({
       fire: this.fixtures.fire.map((f) => ({
         ruleId: f.ruleId, file: f.file, line: f.line, description: f.description, source: f.source,

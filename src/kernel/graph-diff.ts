@@ -38,10 +38,14 @@ export function captureSnapshot(storePath: string): GraphSnapshot {
     const nodes = db.query(
       "SELECT canonical_id, label, kind FROM typed_nodes WHERE superseded_run IS NULL",
     ).all() as Array<{ canonical_id: string; label: string; kind: string | null }>;
-    const edges = db.query(
+    // ★ F-280 FIX (2026-09-24): parameterize the IN-list — `?` placeholders +
+    //   bound values, never string-interpolated literals (a predicate carrying
+    //   a quote could break/escape the SQL).
+    const preds = [...PREDICATES];
+    const edges = preds.length === 0 ? [] : db.query(
       `SELECT src_canonical, dst_canonical, predicate FROM typed_edges
-       WHERE superseded_run IS NULL AND predicate IN (${[...PREDICATES].map((p) => `'${p}'`).join(", ")})`,
-    ).all() as Array<{ src_canonical: string; dst_canonical: string; predicate: string }>;
+       WHERE superseded_run IS NULL AND predicate IN (${preds.map(() => "?").join(", ")})`,
+    ).all(...preds) as Array<{ src_canonical: string; dst_canonical: string; predicate: string }>;
 
     const nodeKinds: Record<string, number> = {};
     for (const n of nodes) {

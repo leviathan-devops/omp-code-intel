@@ -138,7 +138,11 @@ export class DiagnosticsServer {
   /** THE CLEAR (D25) — the state empties at the auditor's verified conformance zero. */
   onAuditDone({ conformanceZero }: { conformanceZero: boolean }): void {
     this.conformanceZero = conformanceZero;
-    if (conformanceZero) this.state.clear();
+    // ★ F-340 FIX (2026-09-24): the dedupe window is generation-scoped to the
+    //   finding set — a conformance-zero clear that keeps `recent` makes the next
+    //   cycle's fresh findings collapse as "(N repeated)" against counters for
+    //   diagnostics that no longer exist. Clear both together.
+    if (conformanceZero) { this.state.clear(); this.recent.clear(); }
   }
 
   /** THE LIVE DIAGNOSTICS FOR A FILE — the DB-backed read when bound (the
@@ -352,8 +356,12 @@ export class LiveGraphWatcher extends DiagnosticsServer {
   private enforceBacklog(): void {
     if (this.queue.length > WATCHER_BACKLOG_CAP) {
       console.warn(WATCHER_STALLED);
+      // ★ F-341 FIX (2026-09-24): dedupe by FULL path, never basename — two files
+      //   sharing a basename in different dirs (src/utils/index.ts vs
+      //   lib/utils/index.ts) are distinct reparse targets; basename folding
+      //   silently dropped one and its diagnostics went stale forever.
       const folded = new Map<string, string>();
-      for (const f of this.queue) folded.set(path.basename(f), f);
+      for (const f of this.queue) folded.set(f, f);
       this.queue = [...folded.values()];
     }
   }
