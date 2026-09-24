@@ -250,18 +250,26 @@ function parseQuoted(t: string, line: number): string {
   yamlErr([], t, line, `unexpected token: "${t}"`);
 }
 
-function parseFlowArray(inner: string, line: number): unknown[] {
+function parseFlowArray(inner: string, line: number, depth = 0): unknown[] {
+  // ★ F-933 FIX (2026-09-24): UNBOUNDED recursion — parseFlowValue → parseFlowMap/
+  //   parseFlowArray → parseFlowValue had no bound (the block parser's F-67 cap stops at
+  //   100, but a single-line `{a:{b:{…}}}` nested 10,000 deep overflowed the stack into a
+  //   bare RangeError, losing the named-error contract). Same depth > 100 YamlParseError
+  //   law; the increment lands on container DESCENT (value → map/array passes depth + 1,
+  //   map/array → value passes depth through), so the count measures nesting levels.
+  if (depth > 100) yamlErr([], inner, line, 'maximum flow-nesting depth (100) exceeded');
   const arr: unknown[] = [];
   if (inner.trim() === '') return arr;
   for (const part of splitTopLevel(inner, ',')) {
     const p = part.trim();
     if (p === '') continue;
-    arr.push(parseFlowValue(p, line));
+    arr.push(parseFlowValue(p, line, depth));
   }
   return arr;
 }
 
-function parseFlowMap(inner: string, line: number): Record<string, unknown> {
+function parseFlowMap(inner: string, line: number, depth = 0): Record<string, unknown> {
+  if (depth > 100) yamlErr([], inner, line, 'maximum flow-nesting depth (100) exceeded');
   const obj: Record<string, unknown> = {};
   if (inner.trim() === '') return obj;
   for (const part of splitTopLevel(inner, ',')) {
@@ -272,7 +280,7 @@ function parseFlowMap(inner: string, line: number): Record<string, unknown> {
     const k = p.slice(0, ci).trim();
     if (k === '' || /["'{}[\]\s]/.test(k)) yamlErr([], p, line, `flow map key "${k}" is not a plain key`);
     const v = p.slice(ci + 1).trim();
-    obj[k] = v === '' ? null : parseFlowValue(v, line);
+    obj[k] = v === '' ? null : parseFlowValue(v, line, depth);
   }
   return obj;
 }
@@ -311,17 +319,21 @@ function findTopLevelColon(s: string): number {
   return -1;
 }
 
-/** Parse a single-line flow value: flow map | flow array | quoted | scalar. */
-function parseFlowValue(token: string, line: number): unknown {
+/** Parse a single-line flow value: flow map | flow array | quoted | scalar.
+ *  ★ F-933 FIX (2026-09-24): depth-capped (see parseFlowArray) — the entry guard below
+ *  ★ fires when a value arrives already deeper than 100 (e.g. a block-level caller threading
+ *  ★ depth through); container descent passes depth + 1. */
+function parseFlowValue(token: string, line: number, depth = 0): unknown {
+  if (depth > 100) yamlErr([], token, line, 'maximum flow-nesting depth (100) exceeded');
   const t = token.trim();
   if (t === '') return null;
   if (t.startsWith('{')) {
     if (!t.endsWith('}')) yamlErr([], t, line, `flow map is not closed on a single line: "${t}"`);
-    return parseFlowMap(t.slice(1, -1), line);
+    return parseFlowMap(t.slice(1, -1), line, depth + 1);
   }
   if (t.startsWith('[')) {
     if (!t.endsWith(']')) yamlErr([], t, line, `flow array is not closed on a single line: "${t}"`);
-    return parseFlowArray(t.slice(1, -1), line);
+    return parseFlowArray(t.slice(1, -1), line, depth + 1);
   }
   if (t.startsWith("'") || t.startsWith('"')) return parseQuoted(t, line);
   if (t.indexOf(':') >= 0) yamlErr([], t, line, `an unquoted value containing ":" is outside the supported subset: "${t}"`);

@@ -1,6 +1,6 @@
 # CHANGELOG — GI Kernel v2.1 (append-only)
 
-**The dist SHA: e8b5e20139608fe69e098e603f287280a8ffd734a19cdb424673410a9e2e378f**
+**The dist SHA: a06adf053dd7b072ca9a377a588e78af11a22523a0a611690869abb140dc1c72**
 
 ## [2026-09-21] THE v2.1 SESSION — 45 commits
 

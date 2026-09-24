@@ -178233,7 +178233,16 @@ function getStoreDb(opts) {
   try {
     fresh.exec("PRAGMA journal_mode = WAL;");
     fresh.exec("PRAGMA busy_timeout = 5000;");
-  } catch (_nonfatal) {}
+  } catch (walErr) {
+    console.error(`[scoped-store${opts?.id ? " " + opts.id : ""}] WAL mode FAILED \u2014 falling back to rollback journal (race-condition protection DEGRADED):`, walErr instanceof Error ? walErr.message : String(walErr));
+  }
+  try {
+    const modeRow = fresh.query("PRAGMA journal_mode").get();
+    const mode = typeof modeRow?.journal_mode === "string" ? modeRow.journal_mode.toLowerCase() : "";
+    if (mode !== "" && mode !== "wal") {
+      console.error(`[scoped-store${opts?.id ? " " + opts.id : ""}] WAL mode NOT ACTIVE (journal_mode=${mode || "unknown"}) \u2014 concurrent writers race (see the 8-session law above)`);
+    }
+  } catch {}
   if (opts?.schema?.length) {
     for (let attempt = 0;attempt < 3; attempt++) {
       try {
@@ -178242,8 +178251,11 @@ function getStoreDb(opts) {
         break;
       } catch (e) {
         if (attempt === 2) {
-          console.error(`[scoped-store${opts.id ? " " + opts.id : ""}] schema setup failed after 3 attempts:`, e instanceof Error ? e.message : String(e));
-          break;
+          console.error(`[scoped-store${opts.id ? " " + opts.id : ""}] schema setup failed after 3 attempts \u2014 evicting broken handle:`, e instanceof Error ? e.message : String(e));
+          try {
+            fresh.close();
+          } catch {}
+          throw e;
         }
         try {
           fresh.exec("PRAGMA busy_timeout = 5000;");
@@ -178605,7 +178617,8 @@ function deriveConfidence(evidence, opts = {}) {
   const corr = opts.corroboration === "agree" ? CORROBORATION_AGREE : opts.corroboration === "conflict" ? CORROBORATION_CONFLICT : 1;
   const tau = FRESHNESS_TAU_DAYS[derivation] ?? 1;
   const fresh = typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1;
-  const confidence = Math.max(0, Math.min(1, base * corr * fresh));
+  const raw = base * corr * fresh;
+  const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : DERIVATION_BASE["unknown"];
   return { confidence, derivation };
 }
 function migrateLayerColumns(db) {
@@ -179087,7 +179100,16 @@ var resolveRegistryPath = makeDbPath({
   fileName: "registry.sqlite",
   testFile: path5.join(os3.tmpdir(), "gi-omp-registry-test.sqlite")
 });
+var giRegistryWarned = false;
+function isRegistryTestContext() {
+  const argv1 = process.argv[1] ?? "";
+  return process.env.BUN_TEST != null || process.env.BUN_TEST_PID != null || argv1.includes("/tests/st-");
+}
 function giRegistryPath() {
+  if (process.env.GI_OMP_DB_DIR && isRegistryTestContext() && !giRegistryWarned) {
+    giRegistryWarned = true;
+    console.warn(`[gi-registry] GI_OMP_DB_DIR is set inside a test context \u2014 test-isolation heuristics bypassed; ` + `registry resolves to GI_OMP_DB_DIR=${process.env.GI_OMP_DB_DIR} (explicit env wins by design; ` + `unset it globally or point it at a per-test temp dir)`);
+  }
   if (!process.env.GI_OMP_DB_DIR) {
     const argv1 = process.argv[1] ?? "";
     const inTestContext = process.env.BUN_TEST != null || process.env.BUN_TEST_PID != null || argv1.includes("/tests/st-");
@@ -179526,7 +179548,18 @@ function reconstruct(toolName, input) {
   return { oldText, newText, file };
 }
 function attachGiGraphGate(pi) {
+  const PENDING_STEER_TTL_MS = 120000;
+  const PENDING_STEER_MAX_PER_SID = 10;
   const pendingSteer = new Map;
+  const sweepStaleSteer = (now) => {
+    for (const [sid, q] of pendingSteer) {
+      const live = q.filter((e) => now - (e.enqueuedAt ?? 0) <= PENDING_STEER_TTL_MS);
+      if (live.length === 0)
+        pendingSteer.delete(sid);
+      else if (live.length !== q.length)
+        pendingSteer.set(sid, live);
+    }
+  };
   pi.on("tool_call", (event) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = event.input && typeof event.input === "object" ? event.input : {};
@@ -179574,8 +179607,11 @@ function attachGiGraphGate(pi) {
       throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
     }
     if (verdict.token === "[GATE STEER]") {
+      sweepStaleSteer(Date.now());
       const queue = pendingSteer.get(steerSid) ?? [];
-      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim() });
+      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim(), enqueuedAt: Date.now() });
+      while (queue.length > PENDING_STEER_MAX_PER_SID)
+        queue.shift();
       pendingSteer.set(steerSid, queue);
     }
     return;
@@ -179603,6 +179639,33 @@ function attachGiGraphGate(pi) {
 function registerGraphGate(pi) {
   attachGiGraphGate(pi);
   const states = new Map;
+  const STATE_IDLE_TTL_MS = 600000;
+  const STATE_MAX_ENTRIES = 1000;
+  const stateSeen = new Map;
+  const sweepIdleStates = (now) => {
+    for (const [sid] of states) {
+      const seen = stateSeen.get(sid) ?? now;
+      if (now - seen > STATE_IDLE_TTL_MS) {
+        states.delete(sid);
+        stateSeen.delete(sid);
+      }
+    }
+    while (states.size > STATE_MAX_ENTRIES) {
+      let oldest = null;
+      let oldestSeen = Infinity;
+      for (const [sid] of states) {
+        const s = stateSeen.get(sid) ?? Infinity;
+        if (s < oldestSeen) {
+          oldestSeen = s;
+          oldest = sid;
+        }
+      }
+      if (oldest === null)
+        break;
+      states.delete(oldest);
+      stateSeen.delete(oldest);
+    }
+  };
   const PENDING_QUERY_TTL_MS = 120000;
   const PENDING_QUERY_MAX_PER_SID = 10;
   const pendingQueries = new Map;
@@ -179620,11 +179683,13 @@ function registerGraphGate(pi) {
     const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
     const isQuery = name === "graph-query" || name === "ripwire" || String(event.toolName ?? "") === "graph-query";
     const sid = resolveSessionIdFromEvent(event).id;
+    sweepIdleStates(Date.now());
     let st = states.get(sid);
     if (!st) {
       st = createEmptyState();
       states.set(sid, st);
     }
+    stateSeen.set(sid, Date.now());
     if (isQuery) {
       sweepStaleQueries(Date.now());
       const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
@@ -179645,6 +179710,8 @@ function registerGraphGate(pi) {
     const d = computeDrift(st);
     const g = gateDecision(d, st);
     if (g.tier === "T3") {
+      states.delete(sid);
+      stateSeen.delete(sid);
       throw new Error(`${g.blockReason ?? "GRAPH_GATE_ABORT"} (rule: graph-before-structural-edit)`);
     }
     if (g.tier === "T2") {
@@ -179695,8 +179762,10 @@ function registerGraphGate(pi) {
     const noRows = structuredRows !== null ? structuredRows === 0 : /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /"(?:callers|defs|impact|results|matches)":\s*\[\s*\]/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
     const resolved = !errored && hasRows;
     recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
-    if (!pendingQueries.has(sid))
+    if (!pendingQueries.has(sid)) {
       states.delete(sid);
+      stateSeen.delete(sid);
+    }
     return;
   });
 }
@@ -181553,9 +181622,13 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
   let exhausted = false;
   const budget = { n: CORBELL_FRESHNESS_BUDGET };
   const visited = new Set;
-  const walk = (dir) => {
+  const walk = (dir, depth = 0) => {
     if (budget.n <= 0) {
       exhausted = true;
+      return;
+    }
+    if (depth > 256) {
+      walkFailed = true;
       return;
     }
     let realDir;
@@ -181583,7 +181656,7 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name))
           continue;
-        walk(path10.join(dir, entry.name));
+        walk(path10.join(dir, entry.name), depth + 1);
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
         budget.n--;
         try {
@@ -182847,7 +182920,9 @@ function parseQuoted(t, line) {
   }
   yamlErr([], t, line, `unexpected token: "${t}"`);
 }
-function parseFlowArray(inner, line) {
+function parseFlowArray(inner, line, depth = 0) {
+  if (depth > 100)
+    yamlErr([], inner, line, "maximum flow-nesting depth (100) exceeded");
   const arr = [];
   if (inner.trim() === "")
     return arr;
@@ -182855,11 +182930,13 @@ function parseFlowArray(inner, line) {
     const p = part.trim();
     if (p === "")
       continue;
-    arr.push(parseFlowValue(p, line));
+    arr.push(parseFlowValue(p, line, depth));
   }
   return arr;
 }
-function parseFlowMap(inner, line) {
+function parseFlowMap(inner, line, depth = 0) {
+  if (depth > 100)
+    yamlErr([], inner, line, "maximum flow-nesting depth (100) exceeded");
   const obj = {};
   if (inner.trim() === "")
     return obj;
@@ -182874,7 +182951,7 @@ function parseFlowMap(inner, line) {
     if (k === "" || /["'{}[\]\s]/.test(k))
       yamlErr([], p, line, `flow map key "${k}" is not a plain key`);
     const v = p.slice(ci + 1).trim();
-    obj[k] = v === "" ? null : parseFlowValue(v, line);
+    obj[k] = v === "" ? null : parseFlowValue(v, line, depth);
   }
   return obj;
 }
@@ -182920,19 +182997,21 @@ function findTopLevelColon(s) {
   }
   return -1;
 }
-function parseFlowValue(token, line) {
+function parseFlowValue(token, line, depth = 0) {
+  if (depth > 100)
+    yamlErr([], token, line, "maximum flow-nesting depth (100) exceeded");
   const t = token.trim();
   if (t === "")
     return null;
   if (t.startsWith("{")) {
     if (!t.endsWith("}"))
       yamlErr([], t, line, `flow map is not closed on a single line: "${t}"`);
-    return parseFlowMap(t.slice(1, -1), line);
+    return parseFlowMap(t.slice(1, -1), line, depth + 1);
   }
   if (t.startsWith("[")) {
     if (!t.endsWith("]"))
       yamlErr([], t, line, `flow array is not closed on a single line: "${t}"`);
-    return parseFlowArray(t.slice(1, -1), line);
+    return parseFlowArray(t.slice(1, -1), line, depth + 1);
   }
   if (t.startsWith("'") || t.startsWith('"'))
     return parseQuoted(t, line);
@@ -186121,15 +186200,15 @@ function runQuery(input, db, adapter, ext) {
     case "chain":
       return chain(input, db);
     case "must-implement":
-      return mustImplement(db);
+      return mustImplement(db, input.format);
     case "unwired":
-      return unwired(db, adapter);
+      return unwired(db, adapter, input.format);
     case "rule":
       return rule(input, db);
     case "violations":
       return violations(input, db);
     case "consistency":
-      return consistency(db);
+      return consistency(db, input.format);
     case "semantic-search":
       return semanticVerb(input, ext?.semantic);
     case "code-search":
@@ -186218,7 +186297,7 @@ function chain(input, db) {
     }
     rev.reverse();
     rev.push(finalStep);
-    return rev;
+    return rev.map((r, i) => ({ ...r, step: i + 1 }));
   };
   while (head < queue.length) {
     const curId = queue[head];
@@ -186279,14 +186358,14 @@ function codeNameSet(db) {
   }
   return names;
 }
-function mustImplement(db) {
+function mustImplement(db, format) {
   const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED' AND kind = 'stage'").all(), "must-implement spec");
   const codeNames = codeNameSet(db);
-  return spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: "MUST_IMPLEMENT" }));
+  return formatRows(spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: "MUST_IMPLEMENT" })), format);
 }
-function unwired(db, adapter) {
+function unwired(db, adapter, format) {
   if (adapter) {
-    return adapter.unwired().map((d) => ({ name: d.name, file: d.file, line: d.line, status: "UNWIRED" }));
+    return formatRows(adapter.unwired().map((d) => ({ name: d.name, file: d.file, line: d.line, status: "UNWIRED" })), format);
   }
   const code = rowsAs(db.prepare(`
       SELECT n.canonical_id AS id, n.label, n.file, n.line
@@ -186299,7 +186378,7 @@ function unwired(db, adapter) {
             AND e.predicate IN ('calls', 'imports') AND e.superseded_run IS NULL
         )
     `).all(), "unwired code");
-  return code.map((n) => ({ name: n.label, file: n.file ?? "", line: n.line ?? 0, status: "UNWIRED" }));
+  return formatRows(code.map((n) => ({ name: n.label, file: n.file ?? "", line: n.line ?? 0, status: "UNWIRED" })), format);
 }
 function rule(input, db) {
   const ruleId = input.ruleId ?? "";
@@ -186329,12 +186408,12 @@ function violations(input, db) {
   const effectiveCap = input.format === "llm" ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
   const off = Math.max(0, Math.floor(input.offset ?? 0));
   const lim = input.limit !== undefined ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap) : effectiveCap;
-  return rows.slice(off, off + lim);
+  return formatRows(rows.slice(off, off + lim), input.format);
 }
-function consistency(db) {
+function consistency(db, format) {
   const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(), "consistency spec");
   const codeNames = codeNameSet(db);
-  return spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ status: "DRIFT", specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source }));
+  return formatRows(spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ status: "DRIFT", specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source })), format);
 }
 function semanticVerb(input, surface) {
   if (!surface) {
@@ -187053,7 +187132,17 @@ function tsgProbe(scopeRoot, tsgRoot) {
         });
       } catch (e) {
         const err = e;
-        const redact = (s) => key !== null && key.length > 0 ? s.split(key).join(key.slice(0, 4) + "...[redacted]") : s;
+        const redact = (s) => {
+          if (key === null || key.length === 0)
+            return s;
+          let out = s.split(key).join(key.slice(0, 4) + "...[redacted]");
+          if (key.length >= 16) {
+            const tail = key.slice(-8);
+            if (tail.length >= 8)
+              out = out.split(tail).join("...[redacted-tail]");
+          }
+          return out;
+        };
         const out = redact(String(err.stdout ?? "").slice(-400));
         const errOut = redact(String(err.stderr ?? "").slice(-200));
         const detail = [out, errOut].filter((x) => x.length > 0).join(" | ");
@@ -187419,6 +187508,7 @@ function consumptionAudit(scopeRoot, subject) {
   const reports = registry.audit(subject);
   const influenced = reports.filter((r) => r.consumed).map((r) => r.consumer);
   const consumed = reports.filter((r) => r.consumed);
+  const errors = reports.filter((r) => r.verdict.startsWith("GI_LAYER_ERROR"));
   const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
   const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
   const parts = [
@@ -187429,6 +187519,8 @@ function consumptionAudit(scopeRoot, subject) {
     parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.consumer).join(",")}`);
   if (down.length > 0)
     parts.push(`GI_LAYER_DOWN=${down.map((r) => r.consumer).join(",")}`);
+  if (errors.length > 0)
+    parts.push(`GI_LAYER_ERROR=${errors.map((r) => r.consumer).join(",")}`);
   return {
     scopeRoot,
     subject,
