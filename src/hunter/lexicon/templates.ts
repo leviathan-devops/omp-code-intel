@@ -393,8 +393,11 @@ const CONTRACT_MUST_IMPLEMENT: PredicateTemplate = {
     // nothing declared → nothing to verify → the honest silent (the check claims only what it can measure)
     if (!declaredInterface || requiredMembers.length === 0) return findings;
     for (const node of ctx.graph.nodes('class')) {
-      if (node.name !== declaredInterface && node.data?.['interface'] !== declaredInterface) continue;
-      const members = node.data !== undefined && node.data !== null ? bindStringArray(node.data, 'members') : [];
+      // ★ F-841 FIX (2026-09-24): prototype-safety — direct `node.data['interface']` and `bindStringArray(node.data,…)` (`bindings[key]`) walk the prototype chain, so a crafted graph.json `__proto__`/inherited key surfaced as a binding. Both reads route through readPath's own-property + blocklist guards (F-333/F-412).
+      const nodeInterface = node.data ? readPath(node.data, 'interface') : undefined;
+      if (node.name !== declaredInterface && nodeInterface !== declaredInterface) continue;
+      const membersRaw = node.data ? readPath(node.data, 'members') : undefined;
+      const members = Array.isArray(membersRaw) ? membersRaw.filter((el): el is string => typeof el === 'string') : [];
       const missing = requiredMembers.filter((m) => !members.includes(m));
       if (missing.length > 0) {
         findings.push({
