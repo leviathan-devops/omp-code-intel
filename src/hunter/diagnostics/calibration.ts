@@ -258,7 +258,17 @@ export class CalibrationGate {
     // ★ logical fixture set hashed differently across runs (spurious invalidation). Nodes
     // ★ AND edges are sorted by stable id before serialization; the hash is order-free.
     const graphOf = (graph: GraphAdapter): unknown => {
-      const nodes = graph.nodes().map((n) => ({
+      // ★ F-443 FIX (2026-09-24): this nodes() read was UNGUARDED while the whoCalls read
+      //   below was already wrapped — a throwing/corrupt adapter crashed serializeFixtures
+      //   with no diagnostic at all. Same posture as F-335: record [] + name the fault LOUD,
+      //   so versioning never bricks but the fault is visible.
+      let nodesRaw: ReturnType<GraphAdapter['nodes']> = [];
+      try {
+        nodesRaw = graph.nodes();
+      } catch (e: unknown) {
+        console.error(`[calibration] graph.nodes() threw during fixture serialization — versioning proceeds with an EMPTY node set: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      const nodes = nodesRaw.map((n) => ({
         id: n.id, kind: n.kind, name: n.name,
         file: n.file ?? null, line: n.line ?? null, lineage: n.lineage, source: n.source,
         data: n.data ?? null,

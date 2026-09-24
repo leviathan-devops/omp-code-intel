@@ -9,6 +9,7 @@
 // D17 born-dryRun calibration gate, sweep-blind refusal note, engine dispatch.
 // FIX (2026-09-15): the live-compile path called path.isAbsolute/path.resolve
 // with no node:path import (the stub-battery ST never exercised it — caught by
+import * as fs from "node:fs";
 // the live TUI hunt as "path is not defined"). Import added.
 import path from 'node:path';
 import type { FireFixture, GoldenFixture } from '../diagnostics/calibration.ts';
@@ -32,11 +33,33 @@ export function resolveCorpusPaths(profile: ProjectProfile): ProjectProfile {
   // ★ F-64 FIX (2026-09-24): entries like ../../etc/passwd resolved OUTSIDE the project
   //   root (a path-traversal oracle). The loader enforces containment at load; the scan
   //   re-enforces it here (defense in depth — the scan also runs on loader-bypassing overrides).
+  // ★ F-440 FIX (2026-09-24): SYMLINK-AWARE. F-64's containment used path.resolve +
+  //   startsWith — which collapses `..` but does NOT follow symlinks, so a link planted
+  //   inside the root pointing out (`root/evil -> /etc`) passed the string prefix test
+  //   while every read followed it out of the tree. Resolve the REAL path (nearest
+  //   existing ancestor, since a corpus entry may not exist yet) and contain on THAT.
   const root = path.resolve(profile.project.root);
+  const rootReal = fs.realpathSync(root);
+  const rootPrefix = rootReal === path.sep ? path.sep : rootReal + path.sep;
+  const inside = (q: string): boolean => q === rootReal || q.startsWith(rootPrefix);
+  const realNearest = (start: string): string => {
+    let dir = path.resolve(start);
+    for (let i = 0; i < 8; i += 1) {
+      try { return fs.realpathSync(dir); } catch {
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+    }
+    return path.resolve(start);
+  };
   const corpus = profile.rules.corpus.map((entry) => {
     const abs = path.isAbsolute(entry) ? path.normalize(entry) : path.resolve(root, entry);
-    if (abs !== root && !abs.startsWith(root + path.sep)) {
+    if (abs !== root && !abs.startsWith(rootPrefix.replace(/\/$/, '') === rootReal ? rootReal : root + path.sep)) {
       throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} escapes the project root (${root}) — corpus entries must stay under the root.`);
+    }
+    if (!inside(realNearest(abs))) {
+      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${rootReal} real=${realNearest(abs)}) — corpus entries must stay under the root.`);
     }
     return abs;
   });

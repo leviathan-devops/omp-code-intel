@@ -326,7 +326,12 @@ export function lockdownReadSource(profile: ProjectProfile): { read(file: string
       if (!inside(fileReal)) throw sourceReadFailed(abs, `symlink escapes project root (root=${rootReal} file=${fileReal})`);
       let text: string;
       try {
-        text = fs.readFileSync(abs, 'utf8');
+        // ★ F-441 FIX (2026-09-24): READ THE RESOLVED PATH. The containment above resolved
+        //   `fileReal` (symlink-following) but the read then used `abs` — the ORIGINAL
+        //   spelling. Between the realpath and the read, `abs` can be swapped for a
+        //   symlink out of the tree (a classic TOCTOU): the check passes on one inode and
+        //   the read opens another. `fileReal` is the path the check actually validated.
+        text = fs.readFileSync(fileReal, 'utf8');
       } catch (e: unknown) {
         throw sourceReadFailed(abs, String(e));
       }

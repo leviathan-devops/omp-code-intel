@@ -44,7 +44,11 @@ export interface TraceRow {
 
 /** The finding's stable id — ruleId:file:line (the report + the strike share it). */
 export function findingIdOf(f: { ruleId: string; file: string; line: number }): string {
-  return `${f.ruleId}:${f.file}:${f.line}`;
+  // ★ F-442 FIX (2026-09-24): the `:` DELIMITER collided. A Windows drive (`C:\x.ts`), a
+  //   namespaced rule id (`security:xss`), or a path containing `:` could produce the SAME
+  //   string for two DISTINCT findings — silent downstream collisions (the report and the
+  //   strike key on this id). JSON.stringify of the tuple is injective by construction.
+  return JSON.stringify([f.ruleId, f.file, f.line]);
 }
 
 function severityWeight(s: Severity): number {
