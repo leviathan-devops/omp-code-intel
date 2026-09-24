@@ -42,17 +42,23 @@ CREATE TABLE IF NOT EXISTS resolutions (
   reasoning TEXT NOT NULL,
   created_run TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS graph_facts (
+// ★ F-834 FIX (2026-09-24): graph_facts carried NO predicate/evidence CHECKs while typed_edges
+//   enforces both — arbitrary garbage predicates broke schema consistency. Closed to the same
+//   PREDICATES_SQL canon plus 'has_finding', the ONE live writer's predicate (report.ts:317
+//   insertFact.run(f.file, 'has_finding', ...) — a bare IN (PREDICATES_SQL) would have turned that
+//   committed write into a constraint violation). Evidence rides the same length(evidence) > 0 law.
+const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
+const GRAPH_FACT_DDL = `CREATE TABLE IF NOT EXISTS graph_facts (
   id INTEGER PRIMARY KEY,
   subject TEXT NOT NULL,
-  predicate TEXT NOT NULL,
+  predicate TEXT NOT NULL CHECK (predicate IN (${GRAPH_FACT_PREDICATES_SQL})),
   object TEXT NOT NULL,
-  evidence TEXT NOT NULL,
+  evidence TEXT NOT NULL CHECK (length(evidence) > 0),
   confidence REAL NOT NULL,
   created_at INTEGER NOT NULL,
   superseded_at INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id);
+)\`;
+const TYPED_GRAPH_DDL_PART2 = `CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id);
 CREATE INDEX IF NOT EXISTS idx_tn_kind ON typed_nodes(kind);
 -- THE FILE INDEX (GG-BUG-5, the host live-fire 2026-09-10): the graph gate's
 -- blast-radius CTE joins dst.file = blast.file per recursion row — with no
