@@ -18,7 +18,10 @@ export interface TestTarget {
 }
 
 export function getTestTargets(storePath: string, modifiedFunction: string, maxTargets = 5): TestTarget[] {
-  const db = openTypedStore(storePath);
+  // ★ F-200 FIX (2026-09-24): `let` + a guard — if openTypedStore THROWS, the finally's
+  //   db.close() would throw a ReferenceError, masking the original error.
+  let db: ReturnType<typeof openTypedStore> | null = null;
+  db = openTypedStore(storePath);
   try {
     const q = whoCallsInDb(db, modifiedFunction);
     const degreeCache = new Map<string, number>();
@@ -44,6 +47,6 @@ export function getTestTargets(storePath: string, modifiedFunction: string, maxT
     targets.sort((a, b) => b.inboundDegree - a.inboundDegree || a.priority - b.priority);
     return targets.slice(0, Math.max(0, maxTargets)).map((t, i) => ({ ...t, priority: i + 1 }));
   } finally {
-    db.close();
+    db?.close();
   }
 }
