@@ -181,7 +181,17 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         const expEvidence = evidenceQuoteForNode(sf, stmt);
         if (stmt.moduleSpecifier && ts.isStringLiteral(stmt.moduleSpecifier)) {
           const target = stmt.moduleSpecifier.text;
-          const targetRel = target.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(relPosix), target)) : target;
+          let targetRel = target;
+          if (target.startsWith('.')) {
+            targetRel = path.posix.normalize(path.posix.join(path.posix.dirname(relPosix), target));
+            // ★ F-500 FIX (2026-09-24): mirror the import branch's known-ext resolution —
+            //   a bare re-export './bar' must canon to file:./bar.ts like imports do,
+            //   else import/export triples for the same module never join.
+            const knownExts = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
+            if (!knownExts.some((ext) => targetRel.endsWith(ext))) {
+              targetRel = `${targetRel}.ts`;
+            }
+          }
           pushTriple(fileCanon, 'exports', `file:${targetRel}`, expEvidence, relPosix, expLine);
         } else {
           pushTriple(fileCanon, 'exports', moduleCanon, expEvidence, relPosix, expLine);

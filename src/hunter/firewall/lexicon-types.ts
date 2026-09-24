@@ -52,7 +52,8 @@ export interface PatternFamily {
   /** The named-error text, verbatim. */
   messageTemplate: string;
   /** The recovery action (the throw, the triplet record, the log). */
-  remediationHook?: (evidence: { pattern: string; state: string; evidence: string }) => void;
+  // ★ F-500 FIX (2026-09-24): the hook took a lowercase {pattern,state,evidence} arg while MPSE is PascalCase — no call site could pass the triplet directly (grep: zero invocations in src/). The hook now takes MPSE itself.
+  remediationHook?: (evidence: MPSE) => void;
 }
 
 /** THE MPSE TRIPLET — the evidence record on EVERY decision (the bible §1.2, the L2 spec §7.1:3069-3077). */
