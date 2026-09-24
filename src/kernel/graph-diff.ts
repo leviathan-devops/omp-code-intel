@@ -151,8 +151,13 @@ export function diffGraphs(before: GraphSnapshot, after: GraphSnapshot): GraphDi
     details.push(`CIRCULAR DEPENDENCY: ${newCycles} new cycle(s) (${before.cycleCount} → ${after.cycleCount})`);
   }
   if (unwiredDelta > 0 && verdict !== "FAIL") verdict = "WARN";
+  // ★ F-405 FIX (2026-09-24): the JSDoc promises WARN on a blast-radius jump (inbound more
+  // ★ than doubling) but jumps never touched the verdict — a tripled inbound stayed PASS.
+  const blastJump = blastRadiusChanges.filter((b) => b.before >= 1 && b.after > 2 * b.before);
+  if (blastJump.length > 0 && verdict !== "FAIL") verdict = "WARN";
   if (unwiredDelta !== 0) details.push(`unwired nodes: ${before.unwiredCount} → ${after.unwiredCount} (${unwiredDelta >= 0 ? "+" : ""}${unwiredDelta})`);
   for (const b of blastRadiusChanges) details.push(`blast radius: ${b.label} inbound ${b.before} → ${b.after}`);
+  for (const b of blastJump) details.push(`BLAST RADIUS JUMP: ${b.label} inbound more than doubled (${b.before} → ${b.after})`);
   if (nodesDelta !== 0) details.push(`nodes: ${before.nodes} → ${after.nodes} (${nodesDelta >= 0 ? "+" : ""}${nodesDelta})`);
   if (details.length === 0) details.push("no structural change");
   return { nodesDelta, edgesDelta, unwiredDelta, newCycles, blastRadiusChanges, verdict, details };

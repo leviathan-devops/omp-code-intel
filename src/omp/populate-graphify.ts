@@ -417,7 +417,17 @@ export async function populateFromGraphifyCheckout(
       // rehash used to absorb mid-populate edits (stale-wins laundering).
       fs.writeFileSync(hashPath, vettedHash, "utf8");
     } catch (hashErr) {
-      console.log(`[gi-omp] hash sidecar write failed (non-fatal): ${hashErr instanceof Error ? hashErr.message.slice(0, 60) : "?"}`);
+      // ★ F-400 FIX (2026-09-24, the run-7 CRITICAL): the sidecar write failure was
+      //   logged at `console.log` — INVISIBLE to an operator watching errors, and it
+      //   seeds a REBUILD LOOP: with no sidecar the next freshness probe falls back to
+      //   the mtime walk, may still prove fresh, rebuilds, and fails the sidecar write
+      //   again, forever. The store update DID succeed (genuinely non-fatal, so this must
+      //   not throw) — but it must be LOUD and it must NAME the consequence.
+      const why = hashErr instanceof Error ? hashErr.message.slice(0, 120) : "?";
+      console.error(
+        `[gi-omp] SIDECAR_WRITE_FAILED path=${hashPath}: ${why}`
+        + ` — the freshness probe now has no sidecar to compare, so this target may REBUILD on every populate (rebuild loop)`,
+      );
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

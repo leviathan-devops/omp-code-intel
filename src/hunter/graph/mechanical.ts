@@ -164,7 +164,10 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         let targetRel = target;
         if (target.startsWith('.')) {
           targetRel = path.posix.normalize(path.posix.join(path.posix.dirname(relPosix), target));
-          if (!targetRel.endsWith('.ts') && !targetRel.endsWith('.tsx') && !targetRel.endsWith('.js')) {
+          // ★ F-400 FIX (2026-09-24): .mjs/.cjs are known extensions — only bare
+          //   imports get the .ts default, else foo.mjs resolved as foo.mjs.ts.
+          const knownExts = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
+          if (!knownExts.some((ext) => targetRel.endsWith(ext))) {
             targetRel = `${targetRel}.ts`;
           }
         }

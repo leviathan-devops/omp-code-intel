@@ -87,10 +87,13 @@ export function precisionFromCounts(c: ResolvedCounts, z = 1.96): PrecisionEstim
   if (resolved === 0) {
     return { precision: 0, low: 0, high: 1, halfWidth: 0.5, resolved: 0, unresolvedRatio, sufficient: false, starved: true };
   }
-  const z2 = z * z;
+  // ★ F-406 FIX (2026-09-24): a negative z made margin negative (low > high, negative
+  // ★ halfWidth, sufficient stuck true) — the F-CAL-Z pattern from firesNeededForGap.
+  const zSafe = Math.abs(z) || 1.96;
+  const z2 = zSafe * zSafe;
   const denom = 1 + z2 / resolved;
   const centre = (p + z2 / (2 * resolved)) / denom;
-  const margin = (z * Math.sqrt((p * (1 - p) + z2 / (4 * resolved)) / resolved)) / denom;
+  const margin = (zSafe * Math.sqrt((p * (1 - p) + z2 / (4 * resolved)) / resolved)) / denom;
   const low = Math.max(0, centre - margin);
   const high = Math.min(1, centre + margin);
   return {
