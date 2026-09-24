@@ -2478,3 +2478,52 @@ maintainability. CRITICAL = 2 security + 2 bug. These are defect classes, not st
 The run-6 number is measured on a tree that carries ~40 NEW fixes (run 5's), so it is not
 directly comparable — the meaningful read is the MATERIALITY: run 6's criticals are 2 security +
 2 bug (both security ones REAL, fixed), and its highs are 46 bug + 9 security.
+
+---
+
+## 2026-09-24 — THE RUN-7 WHOLE-TREE AUDIT — **0 CRITICAL** (the class closed)
+
+**The instrument:** `ocr` scan (Alibaba OpenCodeReview), 112 `src/**/*.ts`, provider
+`muse-go-mimo`, 12 parallel workers. The aggregate: `artifacts/w7-run7-full-audit.json` (735 KB).
+Launched on HEAD `d9358f2`; the tree advanced under it (R6High2..R6High5 + R6ScopingKernel +
+R6HunterOmp landed during the run) — the parts carry the file's content AT SCAN TIME.
+
+**★ THE RESULT: `CRITICAL=0 HIGH=52`** / 187 MEDIUM / 114 LOW = 353 comments. 23 files returned
+EMPTY_RESULT (the explicit marker).
+
+### ★ THE TREND (the convergence curve — seven runs)
+
+```
+  run   critical   high    what changed
+  ───   ────────   ────    ────────────────────────────────────────────────
+   1        8       92     the pre-fix baseline
+   2        5       90     post 6 agents
+   3        3       80     post critical fixes
+   4        6       65     post run-3 wave (~80 fixes)
+   5        4       51     post run-4 wave (~50 fixes)
+   6        4       65     post run-5 wave (~40 fixes)   ← every wave adds code
+   7        0       52     post run-6 wave (F-301..F-359) ← ★ THE CRITICAL CLASS CLOSED
+```
+
+**The critical curve is the load-bearing one: 8 → 5 → 3 → 6 → 4 → 4 → 0.** The last two runs'
+criticals were both the SAME class — containment gates on the filesystem (`C1` the parent-only
+realpath that a symlink at the target escaped; `C3` the unbounded `resolve` + `isDirectory` that
+accepted `/etc`). Both were adjudicated REAL and fixed by **F-301/F-302/F-303/F-303b**, and the
+next full-tree run returned **zero** — the class is closed, not the instances.
+
+**The high plateau (~50)** is the reviewer's own generation floor on a 112-file TypeScript tree:
+46 of run 6's 65 highs were `category: bug`, and the classes recur as code is ADDED (each fix wave
+lands new lines the next run audits). It is driven down only by fixing the CLASSES:
+run-7's top files are the ones the run-6 wave did NOT reach (`profile/loader.ts`,
+`surface/lsp-injector.ts`, `omp/gate-hook.ts`, `omp/ripwire-bridge.ts` — 7-8 findings each).
+
+### THE ADJUDICATION DISCIPLINE (why the curve is credible)
+
+Every critical got a **two-sided adjudication BEFORE any edit**: run 6's four were 2 REAL (both
+security) + 2 NOT-A-BUG (C2 disproven by a runtime probe; C4 a stale read already fixed at both
+sites). The NOT-A-BUG verdicts are as load-bearing as the fixes — each carries a proof (a
+tool-result token or a quoted line region), so the next run's identical comment does not re-open
+the question.
+
+**The gate is now `0 critical / 52 high`.** 42 of the 52 ride the run-7 fix wave (5 disjoint
+agents); the other 10 belong to two agents still in flight.

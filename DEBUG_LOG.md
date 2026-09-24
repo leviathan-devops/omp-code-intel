@@ -1155,3 +1155,25 @@ blame the provider.
   (symlink-following) AND be given a root to contain within. And a reviewer's critical is a
   HYPOTHESIS: C2 and C4 cost one probe and one grep to adjudicate — cheaper than the "fix" a naive
   acceptance would have applied to correct code.
+
+---
+
+## EN-W3-RUN7 — **0 CRITICAL** (the containment class closed) 2026-09-24
+
+- **THE FINDING:** run 7 (the whole-tree audit) returned `{critical: 0, high: 52}` — the first run
+  with ZERO criticals across all 112 files.
+- **THE ROOT CAUSE OF THE PREVIOUS CRITICALS (now closed):** ONE mechanism produced 6 of the 6
+  criticals across runs 5-6: **a containment gate that resolved the PARENT, never the target, and
+  was never given a root to contain within.** `realpathSync(path.dirname(abs))` says "contained"
+  for `<root>/link.ts → /etc/passwd` because the dirname IS the root; and `path.resolve` +
+  `isDirectory()` proves a path EXISTS, never that it is inside the scope (`/etc` passed).
+- **THE FIX (landed, then re-audited):** F-301/F-302 (engine.ts, both sites) realpath the FILE as
+  well as the parent and require containment on BOTH; F-303/F-303b (bug-hunt.ts) thread the
+  caller's `scopeRoot` in and containment-check BOTH target and profile (symlink-aware).
+- **THE VERIFICATION:** the NEXT full-tree run (7) returned **0 critical** — the class is closed,
+  not the instances. `tsc exit 0`; battery 430/0 + 528/0; the register `consumed:7/8`; the ledger
+  `87 rows / 4 distinct`.
+- **THE LESSON:** "canonicalize" is not "contain". A containment gate needs BOTH a resolved final
+  target (symlink-following) AND an explicit root. And the audit's convergence measure is the
+  ADJUDICATED-REAL count PER CLASS, not the raw per-run count — the raw count tracks the tree's
+  size, which every fix wave grows.

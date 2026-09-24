@@ -1,0 +1,877 @@
+[HIGH] src/hunter/diagnostics/calibration.ts:513-516 (bug)
+  The catch block for ROLLBACK is empty — if ROLLBACK itself throws (e.g. connection lost, disk full), the original exception is re-thrown but the database connection is left in a broken transaction state. Any subsequent operations on the same DbClient will fail or produce corrupt results. At minimum, the connection should be flagged as unusable (e.g. call `db.close()` or destroy the client) to prevent silent data corruption.
+  ```existing
+  } catch (e: unknown) {
+      try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is what the caller sees */ }
+      throw e;
+    }
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:769-775 (bug)
+  Race condition in stale lock recovery: After unlinking a stale lock and re-creating it (lines 633-635), there is no guarantee that the original lock holder has finished persisting. Process A holds the lock, starts writing. Process B times out, calls `readStoredGraph` (returns null because A isn't done), then does `fs.unlinkSync(lockPath)` on A's lock, creates a new one, and proceeds to build+write — now both A and B believe they hold the lock and write to shared.db concurrently, corrupting the database. The `unlinkSync` + `writeFileSync` pair is not atomic, and there is no coordination mechanism (e.g., polling for DB non-emptiness, advisory lock with retry) to ensure the previous holder fini
+  ```existing
+  if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // take over rather than deadlock on its stale lock.
+      try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      haveLock = true;
+    }
+  ```
+  ```suggested
+  if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // Poll for DB non-emptiness (the winner persisting) before unlinking.
+      const deadline = Date.now() + 5_000;
+      while (Date.now() < deadline) {
+        const raced = readStoredGraph(dbPath);
+        if (raced !== null && raced.nodes.length > 0) {
+          rows = raced;
+
+  ```
+
+[HIGH] src/hunter/diagnostics/findings-store.ts:162-165 (bug)
+  The `week` filter in `queryFindings` uses `if (opts.week)` which is falsy for an empty string `''`. If a caller passes `week: ''` intending to query records stored with that exact value, the clause will be silently omitted and return a superset of expected results. This is inconsistent with the `append` function which uses `week ?? null` (so `''` would be stored as-is). Use an explicit null/undefined check instead of a truthiness check to distinguish 'not provided' from 'provided as empty string'.
+  ```existing
+  if (opts.week) {
+    clauses.push('week = ?');
+    params.push(opts.week);
+  }
+  ```
+  ```suggested
+  if (opts.week != null) {
+    clauses.push('week = ?');
+    params.push(opts.week);
+  }
+  ```
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:147-147 (security)
+  `manifest.sourceFile` is read directly from untrusted fixture JSON and used in `path.join(dir, manifest.sourceFile)` to construct a file path. A malicious or malformed manifest could set `sourceFile` to `../../etc/passwd` (path traversal), causing reads outside the fixture directory. Validate that the resolved path stays within the fixture dir.
+  ```existing
+  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');
+  ```
+  ```suggested
+  const resolvedSource = path.resolve(dir, manifest.sourceFile);
+  if (!resolvedSource.startsWith(path.resolve(dir) + path.sep) && resolvedSource !== path.resolve(dir)) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: sourceFile '${manifest.sourceFile}' escapes fixture dir`);
+  }
+  const source = fs.readFileSync(resolvedSource, 'utf8');
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:134-136 (bug)
+  P3 bypasses the edge-anchored traversal contract: `ctx.graph.nodes()` iterates ALL graph nodes directly, contradicting the module's architectural mandate (header: 'never nodes() as a file list'). Every other predicate (P1, P2, P4, P5, P6) uses `resolveEdgeAnchor` to scope candidates through traversed edges. P3's direct node iteration means ANY function/method/class whose name matches `/(enforce|gate|guard|STATE_GATE)/i` becomes a candidate regardless of edge participation, generating false positives from orphaned or unrelated nodes. The edge-anchored design exists so that `DELETE FROM graph_edges` vanishes all findings — P3 violates this invariant.
+  ```existing
+  for (const node of ctx.graph.nodes()) {
+      if (node.kind !== 'function' && node.kind !== 'method' && node.kind !== 'class') continue;
+      if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name)) continue;
+  ```
+  ```suggested
+  // Use resolveEdgeAnchor like P1-P6: define a P3_SPEC with defMatchers
+    // matching /enforce|gate|guard|STATE_GATE/i, then iterate anchor.files
+    // instead of ctx.graph.nodes(). The unwired-enforcement check would then
+    // read the source of each edge-resolved file and inspect its exported
+    // symbols for zero-caller gates — preserving the edge-anchor contract.
+    const anchor = ancho
+  ```
+
+[HIGH] src/hunter/firewall/artifact-scope.ts:163-167 (security)
+  Security: When `masterReal` is not null (the master dir exists), the code verifies that `parentReal` is inside `masterReal`, but it never verifies that `masterReal` itself is inside `projectRootReal`. If `MASTER_CONTEXT` (or any variant) exists as a symlink pointing outside the project root (e.g., `/project/MASTER_CONTEXT → /tmp/evil`), then `masterReal` resolves to `/tmp/evil`, `parentReal` resolves through the same symlink to `/tmp/evil/`, and the containment check passes. The caller then writes the report to `/tmp/evil/bug_hunter_report_v<N>.md`, escaping the project boundary entirely. A defending check should verify `masterReal` is within `projectRootReal` before trusting it as the conta
+  ```existing
+  if (masterReal !== null) {
+    if (parentReal !== masterReal && !parentReal.startsWith(masterReal + path.sep)) {
+      return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    }
+  } else {
+  ```
+  ```suggested
+  if (masterReal !== null) {
+    // F-NEW: verify the resolved master dir itself is inside the project root —
+    // a variant symlink (e.g. MASTER_CONTEXT -> /tmp) would otherwise let writes
+    // escape the project boundary.
+    if (masterReal !== projectRootReal && !masterReal.startsWith(projectRootReal + path.sep)) {
+      console.warn(`[artifact-scope] master realpath escapes project root (mas
+  ```
+
+[HIGH] src/hunter/firewall/readonly.ts:134-137 (bug)
+  **Bug: `scanMetacharacters` non-exempt path falsely blocks safe quoted arguments for READ verbs.**
+
+The non-exempt branch (lines 124-127) scans the FULL command string against `BYPASS_METACHARACTERS`, which includes single quotes (`'`), double quotes (`"`), and parentheses `(`, `)`. For any READ-verb command with a quoted argument, the quote character is flagged as a metacharacter and the command is BLOCKED.
+
+Trace for `grep 'error' log.txt`:
+1. `parseCommand` → firstToken=`grep`, secondToken=`'error'`
+2. `scanMetacharacters` → `grep` is NOT in `blockVerbExemption` (not EXECUTION/MUTATION/ECHO) → enters the non-exempt path
+3. Non-exempt scan finds `'` in the command string → returns `'` (the
+  ```existing
+  for (const ch of command) {
+    if (BYPASS_METACHARACTERS.has(ch)) return ch;
+  }
+  return null;
+  ```
+  ```suggested
+  // READ verbs + unknown verbs: the full scan still applies, but we exclude
+  // argument-syntax characters that are safe when the verb itself cannot execute code.
+  // Command-chaining chars (| ; & > < \n $ `) are still blocked; quotes, parens,
+  // braces, etc. are allowed as argument syntax for the read-only verb set.
+  for (const ch of command) {
+    if (ch === '|' || ch === ';' || ch === '&' |
+  ```
+
+[HIGH] src/hunter/firewall/readonly.ts:224-227 (bug)
+  **Dead code / misleading constant: `ECHO_VERB` and the unreachable check at line 199.**
+
+`ECHO_VERB` (line 75) serves no functional purpose and creates dead code:
+
+1. **Line 109:** `ECHO_VERB` is added to `blockVerbExemption`, but `echo` is already in `EXECUTION_VERBS`, so this is redundant — `EXECUTION_VERBS.has(firstToken)` at line 190 already handles it.
+2. **Line 199:** `if (firstToken === ECHO_VERB)` is unreachable because line 190 (`EXECUTION_VERBS.has(firstToken)`) returns `blocked('BASH_EXECUTION', ...)` for `echo` before this check is ever reached.
+
+If `echo` is intended to be **BLOCKED** as an execution verb, the dead code at line 199 should be removed. If it's intended to be **ALL
+  ```existing
+  // THE BARE-ECHO NO-OP EDGE CASE (§7.2:3170) — zero metachars already proven by the BYPASS pass.
+  if (firstToken === ECHO_VERB) {
+    return allowed('BASH_READ', firstToken, command);
+  }
+  ```
+  ```suggested
+  // If echo should be ALLOWED (no-op): remove 'echo' from EXECUTION_VERBS and keep this check.
+// If echo should be BLOCKED: remove this dead-code block entirely.
+// Current state: echo is in EXECUTION_VERBS, so this block is unreachable.
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:0-0 (security)
+  Shell injection risk in exported defaultExec: This function passes cmdRaw directly to execSync (which invokes /bin/sh -c) with zero sanitization. While internal callers construct commands from resolveCorbell()-validated paths, the function itself is a public export. Any external caller or future internal caller passing user-influenced input enables shell metacharacter injection. Since resolveCorbell already validates paths, consider adding a guard here as defense-in-depth, or remove the export so only guarded internal call-sites can use it.
+  ```existing
+  export const defaultExec: ExecFn = (cmdRaw, opts) => {
+  const cmd = 'exec ' + cmdRaw;
+  const ATTEMPTS = 8;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      return execSync(cmd, {
+  ```
+  ```suggested
+  export const defaultExec: ExecFn = (cmdRaw, opts) => {
+  if (/[;&|`$(){}!<>\n]/.test(cmdRaw)) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
+  }
+  const cmd = 'exec ' + cmdRaw;
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:135-135 (bug)
+  Async timeout SIGKILL is fire-and-forget: When the timeout fires, the Promise is rejected immediately and the 5-second SIGKILL fallback runs on an unref'd timer. If SIGTERM does not terminate the child, the SIGKILL is never awaited and the child process can outlive the caller. Consider waiting for proc.on('exit') before settling the rejection, so the caller is not left with an orphaned process.
+  ```existing
+  reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child SIGTERMed (SIGKILL in 5s), no partial graph accepted`));
+  ```
+  ```suggested
+  proc.on('exit', () => {
+          done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));
+        });
+  ```
+
+[HIGH] src/hunter/graph/interface.ts:51-51 (bug)
+  The `Substrate` type includes `'ix'`, but `selectAdapter` throws a REMOVED error for it at runtime. This means TypeScript won't catch `ix` usage at compile time — callers can construct values of type `Substrate` with `'ix'` and pass them around freely, only to hit a runtime throw. The `'ix'` value should be removed from the `Substrate` type to get compile-time enforcement of the removal. Additionally, the profile schema at `src/hunter/profile/schema.ts:44` still lists `'ix'` in `z.enum(['corbell', 'ix', 'graphify'])`, so a profile with `substrate: 'ix'` passes validation, reaches `selectAdapter`, and then throws — a confusing runtime failure that should be caught at validation time instead.
+  ```existing
+  export type Substrate = 'corbell' | 'ix' | 'graphify';
+  ```
+  ```suggested
+  export type Substrate = 'corbell' | 'graphify';
+
+// And update the profile schema enum accordingly:
+// substrate: z.enum(['corbell', 'graphify'])
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:167-169 (bug)
+  Import path normalization misses `.mjs` and `.cjs` extensions. When a relative import has no recognized extension, the code always appends `.ts`, producing incorrect URIs for modules authored as `.mjs` or `.cjs`. Downstream consumers resolving `file:foo.mjs.ts` will fail to match actual files, silently corrupting the graph.
+  ```existing
+  if (!targetRel.endsWith('.ts') && !targetRel.endsWith('.tsx') && !targetRel.endsWith('.js')) {
+            targetRel = `${targetRel}.ts`;
+          }
+  ```
+  ```suggested
+  const knownExts = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
+          if (!knownExts.some((ext) => targetRel.endsWith(ext))) {
+            targetRel = `${targetRel}.ts`;
+          }
+  ```
+
+[HIGH] src/hunter/graph/merge.ts:113-116 (bug)
+  Semantic triples are not deduplicated by key. Mechanical triples are deduplicated via `seenMechanicalKeys` (lines 105-108), but the semantic loop (line 116) iterates over all semantic triples without any key-based dedup. If two semantic triples share the same subject|predicate|object key (e.g. extracted by overlapping sources), both will be pushed into `merged`, producing duplicate output rows. Add a `seenSemanticKeys` set analogous to the mechanical one, or deduplicate `semantic` before the loop.
+  ```existing
+  for (const s of semantic) {
+    const k = tripleKey(s);
+    const pair = subjectObjectKey(s);
+    const mechExact = index.byKey.get(k);
+  ```
+  ```suggested
+  const seenSemanticKeys = new Set<string>();
+  for (const s of semantic) {
+    const k = tripleKey(s);
+    if (seenSemanticKeys.has(k)) continue;
+    seenSemanticKeys.add(k);
+    const pair = subjectObjectKey(s);
+    const mechExact = index.byKey.get(k);
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:225-226 (bug)
+  Bug (asymmetry with `decide` path): The `run()` path resolves `newEnt` via `n.id === alias` only, while the `decide()` path uses `n.id === alias || n.label === alias` (line 193). If the AI harness returns an entity's label rather than its ID in the `alias` field, the `run()` path silently drops that record and falls back to heuristic — producing an incorrect or inconsistent result without any diagnostic signal.
+
+Fix: add the same `|| n.label === alias` fallback to the `run()` path for parity.
+  ```existing
+  // ★ F-253 FIX (2026-09-24): run path — same no-fabrication rule as the decide path (skip hallucinated aliases).
+              const newEnt = newEntities.find((n) => n.id === alias);
+  ```
+  ```suggested
+  // ★ F-253 FIX (2026-09-24): run path — same no-fabrication rule as the decide path (skip hallucinated aliases).
+              const newEnt = newEntities.find((n) => n.id === alias || n.label === alias);
+  ```
+
+[HIGH] src/hunter/graph/store-map.ts:194-195 (bug)
+  If the same `runTag` is passed on a re-run (or the generated `Date.now()` tag collides with a previous run), the supersede UPDATE `WHERE superseded_run IS NULL` becomes a no-op: the previous successful insert already left all rows with `superseded_run = <this runTag>` (not NULL). The subsequent INSERT then adds duplicate live rows alongside the original ones from that same run, corrupting the store. Consider either: (a) generating a new unique runTag and using a different mechanism to supersede, or (b) explicitly superseding rows with the same runTag too: `UPDATE ... SET superseded_run = ?1 WHERE superseded_run IS NULL OR superseded_run = ?1`.
+  ```existing
+  db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:99-120 (bug)
+  The F-61 reread-before-unlink mitigation is incomplete and leaves a TOCTOU race window. Two concurrent processes can both pass the reread check (lines 99-106), then both proceed to unlink (line 111). The sequence is:
+
+1. Process A and B both read the same stale payload → `existing` is identical.
+2. Both compute `stale = true`.
+3. A rereads → still sees the old payload (B hasn't modified it yet).
+4. B rereads → still sees the old payload (A hasn't modified it yet).
+5. Both pass the reread ownership check (reread matches existing).
+6. A unlinks → succeeds.
+7. A writes with 'wx' → succeeds (A's fresh lock now on disk).
+8. B unlinks → succeeds (deletes A's fresh lock!).
+9. B writes with 'wx' → s
+  ```existing
+  const reread = readPayload(lockPath);
+      if (existing) {
+        // ★ F-342 FIX (2026-09-24): the race re-read must compare the FULL ownership
+        //   triple — a cross-host lock with colliding pid+stamp but a different
+        //   hostname is a DIFFERENT owner; unlinking it would delete a live peer's lock.
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existin
+  ```
+  ```suggested
+  const reread = readPayload(lockPath);
+      if (existing) {
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt || reread.hostname !== existing.hostname) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
+      } else if (reread) {
+        throw new
+  ```
+
+[HIGH] src/hunter/harness/map.ts:98-104 (bug)
+  **Edge deduplication discards location info — potential false-pass in LINELESS guard.**
+
+The `edgeLocByTarget` map keeps only the first edge per `targetId`. If the first edge targeting a node has NO `source_location`, but a later edge DOES, the guard checks against `{ source_location: undefined }` instead of the later edge's location. This causes a valid node (with line info available via a later edge) to be falsely rejected as LINELESS_NODE — or conversely, if the first edge has `source_location` and a later one lacks it, that's benign but semantically wrong.
+
+The real danger: a node where the *only* source of line information is a second (or later) edge — the first edge for that target has
+  ```existing
+  const edgeLocByTarget: Record<string, { source_location?: unknown; metadata?: unknown }> = {};
+  for (const e of buildResult.edges) {
+    if (edgeLocByTarget[e.targetId] === undefined) {
+      const rec = e as unknown as Record<string, unknown>;
+      edgeLocByTarget[e.targetId] = { source_location: rec['source_location'], metadata: rec['metadata'] };
+    }
+  }
+  ```
+  ```suggested
+  const edgeLocByTarget: Record<string, Array<{ source_location?: unknown; metadata?: unknown }>> = {};
+  for (const e of buildResult.edges) {
+    const rec = e as unknown as Record<string, unknown>;
+    const entry = { source_location: rec['source_location'], metadata: rec['metadata'] };
+    (edgeLocByTarget[e.targetId] ??= []).push(entry);
+  }
+  ```
+
+[HIGH] src/hunter/harness/map.ts:110-114 (bug)
+  **resolveLine receives only one edge — but there may be multiple edges to the same node.**
+
+After fixing the edge dedup above (if collecting arrays), the `resolveLine` call on line 107-111 passes only `edgeLocByTarget[n.id] ?? null` (a single entry). If the data was changed to an array, this call needs updating to try each edge entry. Additionally, `resolveLine` is currently a fire-and-forget — it either returns a valid line or throws. If it throws for one edge but a different edge would have resolved, the guard is overly strict.
+
+Consider building a `tryResolveLine`-based loop over all edges for the node before falling through to the loud refusal.
+  ```existing
+  resolveLine(
+      { line: n.line ?? undefined, data, source_location: data['source_location'] },
+      edgeLocByTarget[n.id] ?? null,
+      n.id,
+    );
+  ```
+  ```suggested
+  // Try all edges pointing at this node — if ANY resolves a line, the node passes.
+    const edges = edgeLocByTarget[n.id];
+    if (edges && edges.length > 0) {
+      let resolved = false;
+      for (const edge of edges) {
+        const line = tryResolveLine(
+          { line: n.line ?? undefined, data, source_location: data['source_location'] },
+          edge,
+        );
+        if (line !== unde
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:399-403 (bug)
+  BUG (High): `done()` + `stop()` lifecycle race — the pending promise never resolves.
+
+When `done()` is called while the machine is still running, `sub2` and `sub3` are registered on the actor and pushed to `handleDisposables`. If `stop()` is then called before the machine reaches a terminal state, `handleDisposables.splice(0)` unsubscribes both `sub2` and `sub3` (the only callbacks that can call `settle()` and resolve the promise), then `actor.stop()` kills the actor. The `pendingDone` promise is left pending forever, causing any caller awaiting `handle.done()` to hang indefinitely.
+
+Fix: resolve `pendingDone` inside `stop()` before tearing down subscriptions.
+  ```existing
+  stop(): void {
+      sub.unsubscribe();
+      for (const d of handleDisposables.splice(0)) d.unsubscribe();
+      try { actor.stop(); } catch (e) { console.error('[micro-loop] actor stop failed:', e instanceof Error ? e.message : String(e)); }
+    },
+  ```
+  ```suggested
+  stop(): void {
+      sub.unsubscribe();
+      for (const d of handleDisposables.splice(0)) d.unsubscribe();
+      // F-337 follow-up: resolve any pending done() promise so the caller
+      // never hangs after an explicit stop().
+      if (pendingDone !== null && !settled) {
+        settled = true;
+        pendingDone.resolve();
+      }
+      try { actor.stop(); } catch (e) { console.error('[micro
+  ```
+
+[HIGH] src/hunter/harness/report.ts:282-288 (bug)
+  If `COMMIT` fails (e.g., disk full, I/O error), the transaction remains open on the `DbClient` handle. Unlike the inner DB operation block which has explicit ROLLBACK handling, the COMMIT path has no error recovery. A subsequent operation on this handle could silently operate inside the stale transaction or fail in confusing ways.
+
+Suggested fix: wrap the COMMIT in a try/catch and attempt ROLLBACK on failure, throwing a descriptive error.
+  ```existing
+  } catch (dbErr: unknown) {
+      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
+      }
+      throw dbErr;
+    }
+    i
+  ```
+  ```suggested
+  } catch (dbErr: unknown) {
+      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
+      }
+      throw dbErr;
+    }
+    t
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:98-103 (bug)
+  The `break` on a non-numeric-id poison row halts intake without advancing the cursor past it. On the next poll, `WHERE id > ?` re-selects the same poison row, breaking again — a permanent stall. The F-348 comment claims "the cursor already covers every clean row before it," but it does NOT cover the poison row itself. Additionally, all clean rows *after* the poison row are lost from both `clean` and cursor advancement, so they will be re-fetched (and re-broken) on every subsequent poll. Since this is supposed to be defense-in-the-depth, it should use `continue` after logging (accepting that the poison row id is unusable for the cursor) or otherwise ensure forward progress.
+  ```existing
+  const sig = JSON.stringify(row).slice(0, 160);
+        if (!this.poisonLogged.has(sig)) {
+          this.poisonLogged.add(sig);
+          console.error(`[hydra-bus] POISON events row (non-numeric id, intake halted past cursor ${this.cursor}): ${sig}`);
+        }
+        break;
+  ```
+  ```suggested
+  const sig = JSON.stringify(row).slice(0, 160);
+        if (!this.poisonLogged.has(sig)) {
+          this.poisonLogged.add(sig);
+          console.error(`[hydra-bus] POISON events row (non-numeric id, skipped past cursor ${this.cursor}): ${sig}`);
+        }
+        // Advance cursor so this non-numeric row is never re-selected.
+        // We cannot use row.id (it is not a number), so the cursor sta
+  ```
+
+[HIGH] src/hunter/lexicon/templates.ts:135-140 (security)
+  readPath allows traversal into `constructor` as an own property: for a standard object, `Object.hasOwn(obj, 'constructor')` returns `true` because `constructor` is an inherited but also own-key-accessible property. A crafted `node.data` with a poisoned `constructor.prototype` chain (e.g., via a polluted dependency writing to `Object.prototype.constructor`) would let `readPath` walk into the prototype. Consider blocklisting `__proto__` and `constructor` explicitly — the F-333 fix was on the right track but the set of dangerous keys is larger than just prototype-chain walks via inherited properties.
+  ```existing
+  // ★ F-333 FIX (2026-09-24): OWN-PROPERTY ONLY. A bare `obj[part]` walks the
+    //   prototype chain — a polluted Object.prototype (or an Object.create'd node.data)
+    //   could surface an INHERITED value as if it were a binding. The predicate's
+    //   bindings are the template's INPUT, so the read is a trust boundary.
+    if (!Object.hasOwn(cur, part)) return undefined;
+    cur = (cur as Rec
+  ```
+  ```suggested
+  // The F-333 trust-boundary guard: own-property only, PLUS blocklist of
+    // keys that are unsafe even as own properties.
+    if (!Object.hasOwn(cur, part)) return undefined;
+    if (part === '__proto__' || part === 'constructor') return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  ```
+
+[HIGH] src/hunter/profile/loader.ts:503-503 (bug)
+  The JSDoc on `loadProfile` (line 436) states "The frozen ProjectProfile is returned on success" but the function returns `result.data` (line 503/549) without calling `Object.freeze`. Downstream code relying on the freeze contract for immutability (e.g., preventing accidental profile mutation) will silently break. Either add `return Object.freeze(profile as ProjectProfile)` or correct the docstring.
+  ```existing
+  const profile = result.data;
+  ```
+
+[HIGH] src/hunter/shared/db.ts:844-844 (bug)
+  The `readonly` option is cast to `Record<string, unknown>`, bypassing TypeScript's type checking. If bun:sqlite's API changes or a typo is introduced (e.g., `{ readonly: true }` vs `{ readOnly: true }`), this will silently fail to enforce read-only mode, allowing writes to what should be a protected family store. Use the correct bun:sqlite options type directly.
+  ```existing
+  const handle = new Database(familyPath, { readonly: true } as unknown as Record<string, unknown>);
+  ```
+  ```suggested
+  const handle = new Database(familyPath, { readonly: true });
+  ```
+
+[HIGH] src/hunter/shared/db.ts:735-737 (bug)
+  Each call to `writeBranchView` ATTACHes the family database as `family_attached` without first checking if it is already attached. In SQLite, re-attaching an already-attached alias fails with 'database family_attached is already in use'. The error is silently swallowed by the idempotent guard, which means the attached-database view (`branch_union_attached`) silently becomes unavailable on the second and all subsequent calls, degrading to the non-attached union view that misses cross-database queries. Check for existing attachment before re-attaching, or DETACH first.
+  ```existing
+  this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, "''")}' AS family_attached`);
+      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
+      this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, so
+  ```
+  ```suggested
+  try {
+        this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, "''")}' AS family_attached`);
+      } catch (attachErr) {
+        // Already attached — ignore
+      }
+      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
+      this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FRO
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:307-313 (bug)
+  `fs.watch` does not handle the `'error'` event. When the OS file-watch limit is exceeded (a common scenario on macOS/inotify), `fs.watch` emits an `'error'` event. Without a listener, this becomes an uncaught exception that crashes the process. Add an `error` event handler to the watcher to gracefully degrade.
+  ```existing
+  this.watcher = fs.watch(absDir, { recursive: true }, (_event: string, filename: string | null) => {
+        if (!filename) return;
+        if (this.pausedFlag || this.writeLock) { this.queue.push(filename); this.enforceBacklog(); return; }
+        this.queue.push(path.resolve(absDir, filename));
+        this.enforceBacklog();
+        this.scheduleDrain(onChange, absDir);
+      });
+  ```
+
+[HIGH] src/hunter/tools/bug-hunt.ts:78-84 (security)
+  **Security: `realpathSync` fallback bypasses scope containment for both target and profile paths.**
+
+The `inScope` check is described as 'symlink-aware' but when `realpathSync` fails (permissions, broken symlink, OS edge cases), the fallback defaults to the unresolved path. This allows a symlinked path that resolves outside the scope to pass the check because the scope containment runs against the logical path. This issue exists for both targetPath (as noted in the original) and profilePath (F-303b).
+
+**Suggestion**: When `realpathSync` fails and scope containment is required, treat the path as out-of-scope (throw) rather than silently falling back to the unresolved path. This aligns with th
+  ```existing
+  if (scopeReal !== null) {
+    let targetReal = absTarget;
+    try { targetReal = fsDyn.realpathSync(absTarget); } catch { targetReal = absTarget; }
+    if (!inScope(targetReal)) {
+      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
+    }
+  }
+  ```
+  ```suggested
+  if (scopeReal !== null) {
+    let targetReal: string;
+    try {
+      targetReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      // Fail closed: if we cannot resolve the real path, we cannot confirm
+      // containment — reject rather than silently checking the logical path.
+      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scope
+  ```
+
+[HIGH] src/hunter/triad.ts:49-49 (bug)
+  `ev.line` is only checked for `typeof` and `Number.isFinite`, but line numbers must be positive integers. As written, negative numbers, zero, and fractional values (e.g., -1, 0, 3.7) all pass validation. Add a check that `ev.line >= 1` and `Number.isInteger(ev.line)` to ensure a valid line reference.
+  ```existing
+  if (typeof ev.line !== 'number' || !Number.isFinite(ev.line)) return false;
+  ```
+  ```suggested
+  if (typeof ev.line !== 'number' || !Number.isFinite(ev.line) || ev.line < 1 || !Number.isInteger(ev.line)) return false;
+  ```
+
+[HIGH] src/hydra/auditor.ts:517-517 (bug)
+  **Bug (buffer corruption in multi-chunk reads):** The 3rd argument to `fs.readSync` (buffer destination offset) is hardcoded to `0` instead of `total`. On each loop iteration, data is written to the **beginning** of the buffer, overwriting the previous chunk. Compare with the correct implementation in `makeCappedReadTool` (line 138) which correctly passes `total` as the buffer offset.
+
+Currently latent because the files quoted for evidence are typically small enough to fit in a single read call, but this is a correctness bug that will silently produce corrupted/wrong evidence quotes if any source file exceeds a single read chunk (~16KB on most systems).
+
+Additionally, the ternary `total >= 0
+  ```existing
+  const n = fs.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+  ```
+  ```suggested
+  const n = fs.readSync(fd, buf, total, size - total, total);
+  ```
+
+[HIGH] src/hydra/map-reader.ts:83-84 (bug)
+  `normalizeGraph` casts raw JSON arrays (`rawNodes`, `rawLinks`) to `Record<string, unknown>[]` without verifying element types. If `graph.json` contains non-object elements (numbers, nulls, strings) in the nodes or edges arrays, property access like `r["id"]`, `e["source"]` silently produces empty-string IDs rather than failing with a clear parse-time error. This can cause subtle downstream bugs (phantom empty-ID nodes, broken edge references) that are hard to trace back to the source file.
+  ```existing
+  const rawNodes = (raw["nodes"] as unknown[]) ?? [];
+  const rawLinks = ((raw["links"] as unknown[]) ?? (raw["edges"] as unknown[]) ?? []) as Record<string, unknown>[];
+  ```
+  ```suggested
+  const rawNodes = (raw["nodes"] as unknown[]) ?? [];
+  const rawLinks = ((raw["links"] as unknown[]) ?? (raw["edges"] as unknown[]) ?? []) as unknown[];
+
+  // Validate elements are objects before mapping
+  for (const [i, n] of rawNodes.entries()) {
+    if (n === null || typeof n !== "object" || Array.isArray(n)) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: nodes[${i}] is not an object — got ${t
+  ```
+
+[HIGH] src/hydra/map-reader.ts:74-79 (security)
+  The 128MB `GRAPH_LOAD_BUDGET_BYTES` budget guards file size on disk, but `JSON.parse` can expand deeply nested or adversarial payloads to many multiples of their byte size in memory. A 128MB file with deeply nested objects could consume gigabytes of heap during parse, bypassing the intended OOM protection. Consider adding a runtime heap-usage check before/after parse, or using a streaming JSON parser for large graphs.
+  ```existing
+  function parseGraphJson(contents: string, size: number): Record<string, unknown> {
+  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+  if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
+  }
+  return JSON.p
+  ```
+  ```suggested
+  function parseGraphJson(contents: string, size: number): Record<string, unknown> {
+  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+  if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
+  }
+  // Post-parse
+  ```
+
+[HIGH] src/hydra/templates/lasme.ts:25-25 (bug)
+  The double cast `as unknown as z.ZodSchema` bypasses TypeScript's type checker. Since `SubagentOutputSchema` is a `z.ZodObject` which extends `z.ZodType<any, any, any>` (alias for `z.ZodSchema`), this cast should be unnecessary. If it was added to satisfy a stricter generic signature, it still hides potential type mismatches at compile time. If the assignment fails without the cast, the `AuditorTemplate.outputSchema` type should be narrowed to `z.ZodObject` or a more specific union. Either way, `as unknown as` is a red flag that warrants investigation.
+  ```existing
+  outputSchema: SubagentOutputSchema as unknown as z.ZodSchema,
+  ```
+  ```suggested
+  outputSchema: SubagentOutputSchema,
+  ```
+
+[HIGH] src/hydra/templates/mpse.ts:151-160 (bug)
+  Missing `filterTags` on `mpseProvenanceTemplate`. All other three MPSE templates (R24 contract, R25 oracle, R26 stage) define `filterTags` arrays, but R27 provenance omits it entirely. While `filterTags` is typed as optional in `AuditorTemplate` (types.ts line 51), downstream filtering logic that iterates `MPSE_TEMPLATES` and reads `.filterTags` will silently get `undefined` for this template, causing it to be skipped or mishandled by tag-based filtering. This is almost certainly a copy-paste omission.
+  ```existing
+  export const mpseProvenanceTemplate: AuditorTemplate = {
+  layerId: "R27-mpse-provenance",
+  anchorPredicate: "provenance",
+  layerNumber: 27,
+  graphQueries: [
+    "path spec clause reference to code implementation",
+    "find unreachable spec declarations",
+  ],
+  // ★ F-213 FIX (2026-09-24): direct assignment (see contract — same F-160 precedent).
+  outputSchema: MpseProvenanceOutputSchema,
+  ```
+  ```suggested
+  export const mpseProvenanceTemplate: AuditorTemplate = {
+  layerId: "R27-mpse-provenance",
+  anchorPredicate: "provenance",
+  layerNumber: 27,
+  graphQueries: [
+    "path spec clause reference to code implementation",
+    "find unreachable spec declarations",
+  ],
+  filterTags: ["trace-gap", "unreachable", "provenance"],
+  outputSchema: MpseProvenanceOutputSchema,
+  ```
+
+[HIGH] src/kernel/graph-diff.ts:153-153 (bug)
+  **Bug: WARN verdict never set for blast radius jumps.**
+
+The JSDoc comment on this function explicitly states: "WARN: unwired growth or a blast-radius jump (a node's inbound more than doubling)." However, the verdict logic at line 126 only checks `unwiredDelta > 0` for WARN. Blast radius jumps (which are detected and reported in `details` at line 131) never influence the verdict. A change that causes a node's inbound to triple would still produce verdict=PASS.
+
+Fix: After computing blast radius changes, check if any qualify as a jump (e.g., `after > 2 * before`) and set verdict to WARN accordingly.
+  ```existing
+  if (unwiredDelta > 0 && verdict !== "FAIL") verdict = "WARN";
+  ```
+
+[HIGH] src/kernel/graph-test-target.ts:87-95 (bug)
+  Duplicate callers can appear in the output. `whoCallsInDb` uses `SELECT DISTINCT src.label, predicate, target_canonical`, so the same caller label can appear multiple times in `q.callers` when it reaches the modified function via different predicates (e.g., 'calls' + 'traces-to') or through different target canonical IDs. Since `targets` is built directly from `q.callers.map(...)` without deduplication, the same caller can occupy multiple slots in the top-N result, pushing out other legitimate callers. Consider deduplicating by caller label before building targets, or merging predicates into a single entry per caller.
+  ```existing
+  const targets: TestTarget[] = q.callers.map((c, i) => ({
+      label: c.caller,
+      file: c.file,
+      line: c.line,
+      inboundDegree: degreeOf(c.caller),
+      depth: 1,
+      priority: i + 1,
+      reason: `direct caller of ${modifiedFunction} via ${c.predicate || "call"} — tests ${c.caller} prove the contract survives the change`,
+    }));
+  ```
+  ```suggested
+  // Deduplicate callers by label — whoCallsInDb may return the same caller
+    // via different predicates or target canonical IDs.
+    const seen = new Set<string>();
+    const targets: TestTarget[] = [];
+    for (let i = 0; i < q.callers.length; i++) {
+      const c = q.callers[i];
+      if (seen.has(c.caller)) continue;
+      seen.add(c.caller);
+      targets.push({
+        label: c.caller,
+    
+  ```
+
+[HIGH] src/kernel/scan-chain.ts:155-164 (bug)
+  When the abort controller fires or an exception is thrown, the ReadableStream reader is never cancelled. This leaks the underlying TCP/socket connection held by the Response body. The reader should be cancelled in both the normal break/error paths within the loop and in the outer catch block to ensure deterministic resource cleanup.
+  ```existing
+  for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      lastActivity = Date.now(); // ← THE EVENT: tokens are flowing, reset the timer
+      full += decoder.decode(value, { stream: true });
+      if (dead) break;
+    }
+    clearInterval(stallTimer);
+
+    if (dead) return { ok: false, reason: `STALL: no tokens for ${stallMs / 1000}s` };
+  ```
+  ```suggested
+  try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        lastActivity = Date.now();
+        full += decoder.decode(value, { stream: true });
+        if (dead) break;
+      }
+    } catch {
+      // Read may throw after abort — fall through to cleanup
+    } finally {
+      reader.cancel().catch(() => {}); // release the underlying connection
+      
+  ```
+
+[HIGH] src/omp/adapters/abide.ts:118-119 (performance)
+  The bounded-tail optimization (F-23, F-AB1, F-210) is defeated by the fallback at line 119. Multiple failure paths — statSync returning null (line 81, file disappears between resolution and read), fd open failure (line 115 catch), and while-loop exhaustion when no newline is found in the growing window — all fall through to `fs.readFileSync(eventsPath, "utf8")`, which loads the **entire** ~22.8 MB ledger into memory. This silently undoes the very optimization these fixes introduced. At minimum, the fallback should log a warning so operators can detect the degraded path, or rethrow if the file is genuinely too large to materialize. Additionally, the stat failure path (st === null) is especial
+  ```existing
+  }
+  const raw = fs.readFileSync(eventsPath, "utf8");
+  ```
+  ```suggested
+  }
+  // If we reach here, the bounded tail failed — log so operators know the optimization is degraded.
+  // Consider throwing for files above a safety threshold instead of silently loading the full ledger.
+  const MAX_SAFE_FULL_READ = 32 * 1024 * 1024; // 32 MiB
+  if (st && st.size > MAX_SAFE_FULL_READ) {
+    throw new Error(
+      `GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${st.siz
+  ```
+
+[HIGH] src/omp/adapters/c2kg.ts:0-0 (bug)
+  Untrusted JSON field `s.name` is not type-validated. If the index file contains a symbol entry where `name` is a number (valid JSON), the nullish coalescing `s.name ?? ''` will not trigger (number is not nullish), and `Number.prototype.includes` does not exist — this throws a TypeError at runtime, bypassing the GI_LAYER_C2KG contract. The F-346 fix addressed `idx.symbols` not being an array, but individual item fields need the same defensive treatment since this is runtime-untrusted JSON. Use `String(s.name ?? '')` to coerce safely.
+  ```existing
+  const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
+      const hits = symbols.filter((s) => (s.name ?? '').includes(subject));
+  ```
+  ```suggested
+  const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
+      const hits = symbols.filter((s) => String(s.name ?? '').includes(subject));
+  ```
+
+[HIGH] src/omp/calibration.ts:90-95 (bug)
+  **Bug: Negative z-score produces inverted Wilson interval (same pattern as F-CAL-Z fix in firesNeededForGap).**
+
+When a negative `z` is passed, the `margin` computed on line 93 becomes negative (since `z < 0`). This causes:
+- `low = centre - margin` → `centre + |margin|` (higher than centre)
+- `high = centre + margin` → `centre - |margin|` (lower than centre)
+- Result: `low > high`, `halfWidth` becomes **negative**, and `sufficient: (high - low) / 2 <= 0.10` evaluates to `true` (a negative number is always ≤ 0.10) — falsely marking a rule as having sufficient evidence.
+
+The F-CAL-Z fix in `firesNeededForGap` (line 45) already addressed this exact pattern with `Math.abs(z) || 1.96`, but `prec
+  ```existing
+  const z2 = z * z;
+  const denom = 1 + z2 / resolved;
+  const centre = (p + z2 / (2 * resolved)) / denom;
+  const margin = (z * Math.sqrt((p * (1 - p) + z2 / (4 * resolved)) / resolved)) / denom;
+  const low = Math.max(0, centre - margin);
+  const high = Math.min(1, centre + margin);
+  ```
+  ```suggested
+  const zSafe = Math.abs(z) || 1.96;
+  const z2 = zSafe * zSafe;
+  const denom = 1 + z2 / resolved;
+  const centre = (p + z2 / (2 * resolved)) / denom;
+  const margin = (zSafe * Math.sqrt((p * (1 - p) + z2 / (4 * resolved)) / resolved)) / denom;
+  const low = Math.max(0, centre - margin);
+  const high = Math.min(1, centre + margin);
+  ```
+
+[HIGH] src/omp/enforcement.ts:119-120 (bug)
+  **Fragile error code derivation via variable-existence heuristic.** The catch block at line 100 determines the error code by checking whether `abideDecl` was defined — a side-effect of control flow — rather than reading the error code from the thrown exception. This produces a **wrong error code** when `requireUp(abideDecl)` fails: the HardDependencyError carries code `GI_ENFORCE_ABIDE`, but because `abideDecl` is defined at that point, the catch block overwrites it to `GI_ENFORCE_JEV`. The `HardDependencyError` class (hard-deps.ts:41-51) already carries the correct `code` property; the catch should read it directly instead of re-deriving it from control flow. Additionally, the same pattern 
+  ```existing
+  const code = (e as { code?: string }).code ?? (abideDecl ? "GI_ENFORCE_JEV" : "GI_ENFORCE_ABIDE");
+    return { verdict: "SKIPPED", repair: null, reason: `work layer skipped: ${code}`, evidence: (e as Error).message };
+  ```
+  ```suggested
+  // HardDependencyError always carries .code — read it directly.
+    const code = (e instanceof Error && "code" in e) ? String((e as { code: unknown }).code) : "GI_ENFORCE_ABIDE";
+    return { verdict: "SKIPPED", repair: null, reason: `work layer skipped: ${code}`, evidence: e instanceof Error ? e.message : String(e) };
+  ```
+
+[HIGH] src/omp/fire-ledger.ts:642-646 (bug)
+  Proxy method identity is broken for ALL methods except `judge`. The `get` trap calls `v.bind(target)` on every access, returning a new function object each time. This means `gated.close === gated.close` is always false, breaking any caller that relies on method reference equality (memoisation keys, effect deps, spy assertions, `instanceof`-style checks). The comment on line 397 explicitly acknowledges this was fixed for `judge` (Audit Finding 6 — "ONE wrapper, built once"), but the identical problem remains for every other method. Apply the same caching pattern to all bound methods.
+  ```existing
+  get(target, prop) {
+      if (prop === "judge") return judgeWithPersist;
+      const v = Reflect.get(target, prop, target);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  ```
+  ```suggested
+  // ★ AUDIT FINDING 6 EXTENDED — ALL bound methods must be cached, not just judge.
+    // A new .bind() on every get() breaks method identity (gated.close === gated.close).
+    const methodCache = new Map<string | symbol, Function>();
+    get(target, prop) {
+      if (prop === "judge") return judgeWithPersist;
+      const v = Reflect.get(target, prop, target);
+      if (typeof v !== "function") ret
+  ```
+
+[HIGH] src/omp/gate-hook.ts:41-41 (bug)
+  The `split(oldString).join(newString)` pattern replaces ALL occurrences of `oldString` in the file, not just the targeted one. Edit tools (e.g., Claude's edit) specify a unique `old_string` to replace only one instance. If `oldString` appears multiple times in the file, the reconstructed `newText` will differ from what the tool actually produces, leading to incorrect gate verdicts. Use `.replace(oldString, newString)` (with the limit parameter omitted or explicitly limited to 1) or a more targeted approach.
+  ```existing
+  return { oldText, newText: oldText.split(oldString).join(newString), file };
+  ```
+  ```suggested
+  return { oldText, newText: oldText.replace(oldString, newString), file };
+  ```
+
+[HIGH] src/omp/gate-hook.ts:98-106 (bug)
+  When a tool_call is cancelled, this filter removes ALL queued steer entries for that tool name in the session, not just the entry belonging to the current call. If two interleaved write calls both have steers queued and one is cancelled, the innocent call's steer is also discarded. The fix should remove only the specific pending entry for the current call rather than filtering by tool name.
+  ```existing
+  if (verdict.cancel && verdict.token) {
+      const stale = pendingSteer.get(steerSid);
+      if (stale) {
+        const rest = stale.filter((e) => e.tool !== name);
+        if (rest.length > 0) pendingSteer.set(steerSid, rest);
+        else pendingSteer.delete(steerSid);
+      }
+      throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
+    }
+  ```
+  ```suggested
+  if (verdict.cancel && verdict.token) {
+      const stale = pendingSteer.get(steerSid);
+      if (stale && stale.length > 0) {
+        // Remove only the most recent entry for this tool (FIFO order, last pushed = current call)
+        const idx = stale.findLastIndex((e) => e.tool === name);
+        if (idx !== -1) stale.splice(idx, 1);
+        if (stale.length === 0) pendingSteer.delete(steerSid);
+
+  ```
+
+[HIGH] src/omp/gate-middleware.ts:1-2 (maintainability)
+  **Stale header comment contradicts fail-closed behavior.** Line 2 says `Fail-open when no store (GI_NO_STORE)`, but the actual behavior is fail-**closed** (`cancel: true`) unless the explicit escape `GI_ALLOW_NO_STORE=1` is set. This contradiction (documented as AP-5 in the project's audit logs) is misleading to any future maintainer reading the file header. The header should match the body.
+  ```existing
+  // OMP write/edit graph-gate. STEER default. FULL cancels on export strip.
+// No @mimo-ai/plugin. Fail-open when no store (GI_NO_STORE).
+  ```
+  ```suggested
+  // OMP write/edit graph-gate. STEER default. FULL cancels on export strip.
+// No @mimo-ai/plugin. Fail-closed when no store (GI_NO_STORE); explicit bypass via GI_ALLOW_NO_STORE=1.
+  ```
+
+[HIGH] src/omp/graph-gate.ts:303-311 (bug)
+  `saveGateState` finally block calls `db.close()` without try/catch — if `db.run()` throws (e.g., disk full) and then `db.close()` also throws (possible when the DB is in a bad state), the close exception replaces the original write error, masking the root cause. Compare with `loadGateState` which correctly wraps `db?.close()` in try/catch. Additionally, unlike `loadGateState`, there is no error logging here — a silent failure leaves the caller unaware that state was not persisted.
+  ```existing
+  const db = openSessionDb(storePath);
+  try {
+    db.run(
+      "INSERT INTO graph_gate_state (session_id, drift, state, edits_json, queries_json, updated_ms) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET drift = excluded.drift, state = excluded.state, edits_json = excluded.edits_json, queries_json = excluded.queries_json, updated_ms = excluded.updated_ms",
+      [sessionId, state
+  ```
+  ```suggested
+  const db = openSessionDb(storePath);
+  try {
+    db.run(
+      "INSERT INTO graph_gate_state (session_id, drift, state, edits_json, queries_json, updated_ms) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET drift = excluded.drift, state = excluded.state, edits_json = excluded.edits_json, queries_json = excluded.queries_json, updated_ms = excluded.updated_ms",
+      [sessionId, state
+  ```
+
+[HIGH] src/omp/jev.ts:34-39 (security)
+  The comment on line 16 references a '0600 file' invariant, and the KEY_FILE path implies a secret key file. However, `resolveKey` reads the file with `fs.readFileSync` but never checks that the file has restrictive permissions (e.g., mode 0o600). A world-readable key file is silently accepted. Consider checking `fs.statSync(KEY_FILE).mode` and rejecting files with overly permissive permissions (e.g., if `(mode & 0o077) !== 0`), consistent with the documented '0600 file' contract.
+  ```existing
+  try {
+    const v = fs.readFileSync(KEY_FILE, "utf8").trim();
+    if (v.length > 0) return v;
+  } catch {
+    /* fall through to the throw */
+  }
+  ```
+  ```suggested
+  try {
+    const stat = fs.statSync(KEY_FILE);
+    if ((stat.mode & 0o077) !== 0) {
+      throw new JevError(
+        "GI_JEV_KEY_PERMS",
+        `key file ${KEY_FILE} has insecure permissions ${stat.mode.toString(8)} (expected 0600)`,
+      );
+    }
+    const v = fs.readFileSync(KEY_FILE, "utf8").trim();
+    if (v.length > 0) return v;
+  } catch (e) {
+    if (e instanceof JevError) throw e;
+    /*
+  ```
+
+[HIGH] src/omp/layer-registry.ts:203-209 (bug)
+  `factsFor` calls `p.up()` and does `if (!p.up().up) continue;` but does NOT validate the return shape like `auditOne` does. If a probe's `up()` returns a non-object truthy value (e.g., a string `"ok"` or a number `1`), the `.up` property access on line `p.up().up` returns `undefined`, which is falsy — so the consumer is silently skipped. However, if it returns an object like `{ up: 0 }`, it is correctly skipped. The deeper issue is that `factsFor` and `auditOne` disagree on the fate of a malformed probe: `auditOne` marks it DOWN with an explicit evidence string, while `factsFor` silently skips it, meaning the decision view omits facts that `audit` reports as DOWN — the two views are inconsis
+  ```existing
+  try {
+          if (!p.up().up) continue;
+          // ★ F-354 FIX (2026-09-24): a null/non-object fact used to throw inside
+          //   isAnchored, and the catch dropped the consumer's ENTIRE contribution —
+          //   auditOne already filtered before isAnchored, factsFor did not. Same
+          //   filter here: only the bad fact is discarded, never the whole consumer.
+          const got:
+  ```
+
+[HIGH] src/omp/oracle.ts:251-253 (bug)
+  When `notAfter` is set to a timestamp BEFORE the row's `at`, the window becomes inverted (`to < from`), which silently returns zero evidence — every record fails the `at <= from || at > to` filter. This is a caller error (an inverted resolution window), but it is handled as a silent no-op: the row is classified `unresolved` with no indication that the constraint was self-defeating. Compare with the time-travel check above, which loudly throws. The two are symmetric caller errors, but only one is caught.
+
+After `to` is computed on line ~158, add an explicit check:
+  ```existing
+  // `cap` is authoritative: a caller-supplied windowMs can only NARROW it, never
+  // widen past the resolution stamp (the R4c bypass the pass-3 scan found).
+  const to = Math.min(from + windowMs, cap);
+  ```
+  ```suggested
+  const to = Math.min(from + windowMs, cap);
+  if (to < from) {
+    throw new Error(
+      `GI_ORACLE_INVERTED_WINDOW: notAfter ${JSON.stringify(opts.notAfter)} (${to}) is before the fire at ${JSON.stringify(row.at)} (${from}) — the resolution window is inverted, so no evidence can be gathered. This is a caller error: the resolution stamp must be AFTER the fire.`,
+    );
+  }
+  ```
+
+[HIGH] src/omp/populate.ts:44-58 (bug)
+  Corbell path has a two-phase non-atomic write. `populateFromCorbellCheckout` writes data to the store on one handle/transaction, then lines 61-80 open a *second* `openTypedStore` handle to write three meta rows in its own separate transaction. A crash or competing writer between the two commits leaves the store in a half-populated state — data rows exist but substrate metadata is missing. Consider integrating the meta writes into the same transaction used by `populateFromCorbellCheckout`, or verify that the caller guarantees exclusive access.
+  ```existing
+  const db = openTypedStore(storePath);
+    try {
+      db.exec("BEGIN IMMEDIATE;");
+      try {
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPat
+  ```
+
+[HIGH] src/omp/ripwire-bridge.ts:156-160 (bug)
+  `Number()` can return `NaN` when the external binary's output drifts (e.g. `j.reaches` is a non-numeric string or absent in an unexpected format). NaN silently propagates into the `data` record and summary strings (e.g. `"impact_reaches=NaN"`). Add validation or a safe-parse helper: `const safeNum = (v: unknown, fallback: number) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; }` and use it consistently instead of bare `Number()`.
+  ```existing
+  const reaches = Number(j.reaches ?? 0);
+  return {
+    present: true, ok: true,
+    summary: `impact_reaches=${reaches} radius_untested=${String(j.radius_untested ?? "?")}`,
+    data: { reaches, radius_tested: j.radius_tested, radius_untested: j.radius_untested },
+  ```
+
+[HIGH] src/omp/rsi.ts:444-448 (bug)
+  TOCTOU race condition: `liveIncludingForgedRetirement()` is called BEFORE `BEGIN IMMEDIATE`, so `current` may be stale. A concurrent `write()` with the same `canonicalId` could insert a new live row between the read and the lock acquisition. The subsequent `head()` (inside the txn) would then correctly read the new tip, but the early-return guard `current.kind === d.tier` still uses the stale `current`. Additionally, the `label` and `evidenceQuote` inherited from `current` may correspond to the wrong row. The derivation (`recount`) and `head()` are correctly inside the txn, but `current` is not. Either move `liveIncludingForgedRetirement()` inside the transaction, or re-read it after BEGIN I
+  ```existing
+  this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const counts = this.recount(canonicalId);
+      const d = deriveTier(counts.confirmed, counts.refuted, counts.unresolved);
+      const current = this.liveIncludingForgedRetirement(canonicalId);
+  ```
+
+[HIGH] src/scoping/db-path.ts:54-56 (bug)
+  Using `startsWith('/')` to detect absolute paths is not cross-platform safe. On Windows, absolute paths start with a drive letter (e.g., `C:\Users\...`), so this check would incorrectly treat a Windows absolute path as relative and incorrectly join it with `os.tmpdir()`. Use `path.isAbsolute()` instead, which correctly handles all platforms.
+  ```existing
+  return spec.testFile.startsWith('/')
+        ? spec.testFile
+        : path.join(os.tmpdir(), spec.testFile);
+  ```
+  ```suggested
+  return path.isAbsolute(spec.testFile)
+        ? spec.testFile
+        : path.join(os.tmpdir(), spec.testFile);
+  ```
+
+# total: 52
