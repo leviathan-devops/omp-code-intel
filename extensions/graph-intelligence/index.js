@@ -178909,7 +178909,7 @@ var resolveRegistryPath = makeDbPath({
 function giRegistryPath() {
   if (!process.env.GI_OMP_DB_DIR) {
     const argv1 = process.argv[1] ?? "";
-    const inTestContext = process.env.BUN_TEST === "1" || argv1.includes("st-gi-omp");
+    const inTestContext = process.env.BUN_TEST === "1" || argv1.includes("/tests/st-");
     if (inTestContext) {
       return path5.join(os3.tmpdir(), "gi-omp-registry-test.sqlite");
     }

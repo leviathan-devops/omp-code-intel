@@ -34,8 +34,14 @@ export function giRegistryPath(): string {
     //   routed PROD traffic to the tmp test DB. BUN_TEST=1 (set by `bun test`) is the
     //   primary signal; only the repo's own test-file prefix remains as a fallback.
     const argv1 = process.argv[1] ?? "";
+    // ★ F-GR1 FIX (2026-09-24) + F-14 (2026-09-24): the '.test.'/'_test_' substrings
+    //   false-positive in prod (e.g. /opt/myapp/integration-test-runner/bin/app) — dropped.
+    //   But bun does NOT set BUN_TEST, and in a batch run argv1 is the FIRST glob file
+    //   (e.g. st-artifact-coverage.test.ts), so 'st-gi-omp' alone missed most tests and the
+    //   wipe test read the PROD path. The repo's own test dir + prefix (/tests/st-) is the
+    //   precise signal: it matches EVERY test file here, never a prod binary path.
     const inTestContext = process.env.BUN_TEST === "1"
-      || argv1.includes("st-gi-omp");
+      || argv1.includes("/tests/st-");
     if (inTestContext) {
       return path.join(os.tmpdir(), "gi-omp-registry-test.sqlite");
     }
