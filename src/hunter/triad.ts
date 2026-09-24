@@ -46,7 +46,8 @@ export function isEvidenceTriad(v: unknown): v is EvidenceTriad {
   if (!sta || typeof sta.machineId !== 'string' || sta.machineId.trim() === '') return false;
   if (typeof sta.from !== 'string' || typeof sta.to !== 'string') return false;
   if (!ev || typeof ev.file !== 'string' || ev.file.trim() === '') return false;
-  if (typeof ev.line !== 'number' || !Number.isFinite(ev.line)) return false;
+  // ★ F-403 FIX (2026-09-24): line refs must be positive integers — -1/0/3.7 used to pass validation and pointed findings at nonsense locations.
+  if (typeof ev.line !== 'number' || !Number.isFinite(ev.line) || ev.line < 1 || !Number.isInteger(ev.line)) return false;
   return true;
 }
 

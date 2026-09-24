@@ -84,7 +84,16 @@ export function getTestTargets(storePath: string, modifiedFunction: string, maxT
       degreeCache.set(label, d);
       return d;
     };
-    const targets: TestTarget[] = q.callers.map((c, i) => ({
+    // ★ F-404 FIX (2026-09-24): whoCallsInDb is DISTINCT (label,predicate,target) — one
+    //   caller reaching via two predicates occupied two top-N slots, evicting real callers.
+    //   Dedupe by caller label first (first row wins), then rank.
+    const seenCallers = new Set<string>();
+    const uniqueCallerRows = q.callers.filter((c) => {
+      if (seenCallers.has(c.caller)) return false;
+      seenCallers.add(c.caller);
+      return true;
+    });
+    const targets: TestTarget[] = uniqueCallerRows.map((c, i) => ({
       label: c.caller,
       file: c.file,
       line: c.line,

@@ -201,7 +201,12 @@ export function createLayerRegistry(): LayerRegistry {
       const out: LayerFact[] = [];
       for (const p of byId.values()) {
         try {
-          if (!p.up().up) continue;
+          // ★ F-405 FIX (2026-09-24): auditOne validates the probe shape (malformed → DOWN
+          //   with evidence); factsFor trusted p.up().up, so a non-object truthy return
+          //   silently skipped the consumer and the two views disagreed. Same rule here:
+          //   only boolean-true up contributes; malformed-or-DOWN contributes nothing.
+          const rawProbe: unknown = p.up();
+          if (typeof rawProbe !== "object" || rawProbe === null || (rawProbe as { up?: unknown }).up !== true) continue;
           // ★ F-354 FIX (2026-09-24): a null/non-object fact used to throw inside
           //   isAnchored, and the catch dropped the consumer's ENTIRE contribution —
           //   auditOne already filtered before isAnchored, factsFor did not. Same

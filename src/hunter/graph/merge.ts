@@ -110,8 +110,15 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
     mergedByKey.set(k, row);
   }
 
+  // ★ F-400 FIX (2026-09-24): semantic dedup by key — the mechanical loop above
+  //   skips repeats via seenMechanicalKeys, but this loop pushed every semantic
+  //   triple, so two sources extracting the same subject|predicate|object emitted
+  //   duplicate output rows (and double retro-flags). First wins, like mechanical.
+  const seenSemanticKeys = new Set<string>();
   for (const s of semantic) {
     const k = tripleKey(s);
+    if (seenSemanticKeys.has(k)) continue;
+    seenSemanticKeys.add(k);
     const pair = subjectObjectKey(s);
     const mechExact = index.byKey.get(k);
     const mechPairGroup = index.byPair.get(pair) ?? [];

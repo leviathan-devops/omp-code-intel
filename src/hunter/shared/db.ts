@@ -729,13 +729,19 @@ export class FamilyGraphStore {
       this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes");
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #2:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     // attach family for union query: re-create view that unions via attached db
+    // ★ F-402 FIX (2026-09-24): ATTACH throws when the alias is already attached (2nd+
+    //   call) — the old single try skipped the DROP/CREATE VIEW with it, so
+    //   branch_union_attached silently went stale while the guard swallowed the error.
+    //   ATTACH is idempotent-guarded alone; the view rebuild ALWAYS runs.
     try {
       // ★ F-5 FIX (2026-09-24): escape the path — a path with a quote broke the ATTACH
       //   (SQL-literal injection via the filename). Doubling the quote is the correct escape.
       this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, "''")}' AS family_attached`);
+    } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #3:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    try {
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
       this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
-    } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #3:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    } catch (viewErr) { console.debug("[kg-store] branch_union_attached rebuild failed:", viewErr instanceof Error ? viewErr.message : String(viewErr)); }
   }
 
   getBranchUnion(): Array<GraphNode & { origin: string }> {
@@ -841,7 +847,9 @@ export function openFamilyStore(familyPath: string, branchPath: string): FamilyG
 }
 
 export function openFamilyReadOnly(familyPath: string): FamilyGraphStore {
-  const handle = new Database(familyPath, { readonly: true } as unknown as Record<string, unknown>);
+  // ★ F-401 FIX (2026-09-24): drop the cast — bun-types DatabaseOptions declares
+  //   readonly?: boolean, so the literal typechecks and a typo/API drift fails LOUD at tsc.
+  const handle = new Database(familyPath, { readonly: true });
   try { handle.exec('PRAGMA query_only = 1'); } catch (e: unknown) { throw pragmaFailed('PRAGMA query_only=1', String(e)); }
   const branchHandle = new Database(':memory:');
   applyPragmas(branchHandle);
