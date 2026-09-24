@@ -812,3 +812,20 @@ wave's gate named its test ids; the measured token bound to a tool result.
 **The honest notes:** W3 (the whole-tree audit) is RUNNING (the serial shape was the wrong
 design — 7.5 min/file; the parallel shape is 12 workers) · **F-121 found: a PREFLIGHT refusal is
 NEVER recorded** (OPEN) · W4's 2 DOWN are NAMED with retry conditions.
+
+
+---
+
+## 2026-09-24 — ★ W3: THE WHOLE-TREE AUDIT (the scope's true answer)
+
+**The built:** `scripts/whole-tree-audit.sh` — a PARALLEL scan (12 workers, a shared queue) over
+all 112 `src/**/*.ts`; the artifact `artifacts/whole-tree-audit.json`.
+**The why:** FR-3 — the prior audit covered 3 of 112 files (2.7%) and its PASS was reported as
+tree-wide.
+**The how:** the serial shape was the WRONG DESIGN (measured 7.5 min/file → 14 h); the parallel
+shape (12 workers) finished 112 files in ~18 min.
+**The evidence:** `447 comments · {'critical': 7, 'high': 91, 'medium': 240, 'low': 109}` ·
+**`AUDIT GATE (the whole tree): FAIL (6 critical, 82 high)`** · 105 files with a result.
+**The verification:** the per-file parts at `/tmp/w3parts/` (112) aggregated into the artifact.
+**The honest notes:** ★ the ship-ready claim is WITHHELD — the tree carries 88 blocking findings
+(path traversal, a silent data-loss path, a symlink-escape skip). The fix is a NEW wave.

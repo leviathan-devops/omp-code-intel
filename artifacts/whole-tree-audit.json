@@ -1,0 +1,176 @@
+{
+ "wave": "W3",
+ "title": "THE WHOLE-TREE AUDIT (FR-3 + FR-4)",
+ "date": "2026-09-24",
+ "method": "the parallel scan (12 workers, the ocr tool, the muse-go-mimo lane), one file per part",
+ "files_scanned": 112,
+ "files_with_a_result": 105,
+ "failed_or_empty": 7,
+ "total_comments": 447,
+ "by_severity": {
+  "high": 91,
+  "medium": 240,
+  "low": 109,
+  "critical": 7
+ },
+ "\u2605 AUDIT GATE (the whole tree)": "FAIL (6 critical, 82 high)",
+ "\u2605 THE HONEST COMPARISON": {
+  "the prior audit": "PASS (0 critical/high) on 3 of 112 files (2.7%)",
+  "the whole tree": "{'high': 91, 'medium': 240, 'low': 109, 'critical': 7} on 105 files",
+  "the delta": "the 2.7% scope HID 88 blocking findings (6 critical + 82 high)"
+ },
+ "the_blocking_findings": [
+  {
+   "file": "src/hunter/diagnostics/calibration.ts",
+   "severity": "high",
+   "content": "`writeCalibrationRows` uses `Date.now()` as the `created_at` parameter on each individual INSERT. Even within a single session this produces different timestamps per row, and replaying the same sessio"
+  },
+  {
+   "file": "src/hunter/diagnostics/calibration.ts",
+   "severity": "high",
+   "content": "The append-only version numbering (read directory \u2192 compute N \u2192 write N+1) is not atomic. Two concurrent calibration sessions can read the same `existing` count and both write `CALIBRATION_vN.md`, ove"
+  },
+  {
+   "file": "src/hunter/diagnostics/engine.ts",
+   "severity": "high",
+   "content": "**Security: Path traversal allows reading arbitrary files outside the project root.** `path.resolve(profile.project.root, file)` does not validate that the resolved path stays within the project root."
+  },
+  {
+   "file": "src/hunter/diagnostics/engine.ts",
+   "severity": "high",
+   "content": "**Data-loss risk: malformed `r.data` JSON silently triggers an unconditional database overwrite.** If any row's `data` column contains invalid JSON, `JSON.parse(r.data)` throws inside the `try` block,"
+  },
+  {
+   "file": "src/hunter/diagnostics/findings-store.ts",
+   "severity": "high",
+   "content": "No validation that `runId` is non-empty. An empty string `runId` would produce an invalid WHERE clause `run_id = ?` with an empty value, silently scoping findings to an empty run. Given the determinis"
+  },
+  {
+   "file": "src/hunter/diagnostics/fixture-calibration.ts",
+   "severity": "high",
+   "content": "loadCalibrationFixtures() filters for 'manifest.json' then calls loadFireFixture(fireDir) with the directory path, not the individual manifest file path. This means if there are multiple fixture subdi"
+  },
+  {
+   "file": "src/hunter/diagnostics/semantic-predicates.ts",
+   "severity": "high",
+   "content": "**Regex bug: `Sync?` makes the trailing `c` optional.** `writeFileSync?` matches both `writeFileSync` and `writeFileSyn` (missing `c`). Similarly `appendFileSync?` and `mkdirSync?` will match incomple"
+  },
+  {
+   "file": "src/hunter/firewall/artifact-scope.ts",
+   "severity": "high",
+   "content": "**Security: `fs.stat` failure ambiguity in overwrite detection.** The `catch` block (lines 136-140) treats ALL `fs.stat` failures as \"target doesn't exist\" and proceeds with `ALLOW_REPORT`. However, a"
+  },
+  {
+   "file": "src/hunter/firewall/artifact-scope.ts",
+   "severity": "high",
+   "content": "**Security: Symlink escape check silently skipped on parent realpath failure.** When `fs.realpath(path.dirname(targetNorm))` fails (line 100-103), `parentReal` is set to `null` and the entire symlink-"
+  },
+  {
+   "file": "src/hunter/firewall/artifact-scope.ts",
+   "severity": "high",
+   "content": "**Security: Asymmetric realpath comparison when master dir doesn't exist.** When `fs.realpath(masterNorm)` fails (line 114-116), `masterReal` remains as `masterNorm` (a path-normalized string, NOT a r"
+  },
+  {
+   "file": "src/hunter/firewall/lexicon-types.ts",
+   "severity": "high",
+   "content": "The `state` field (inherited from `LexiconDecision`) is typed as `LexiconDecision['verdict']` which resolves to `'ALLOW_READ' | 'ALLOW_REPORT' | 'ALLOW_FIX' | 'BLOCKED'`. However, `BashLockdownDecisio"
+  },
+  {
+   "file": "src/hunter/firewall/lexicon-types.ts",
+   "severity": "high",
+   "content": "Same `state` alias inconsistency as `BashLockdownDecision`. The `state` field inherits the full 4-member union from `LexiconDecision['verdict']`, but `verdict` is narrowed to `'ALLOW_REPORT' | 'BLOCKE"
+  },
+  {
+   "file": "src/hunter/firewall/readonly.ts",
+   "severity": "high",
+   "content": "The `blockVerbExemption` loop only checks `| ; & > < \\n`, but does NOT check `$` (command substitution `$(...)`) or `` ` `` (backtick substitution). This means `node -e \"$(whoami)\"` or `bash -c \"echo "
+  },
+  {
+   "file": "src/hunter/graph/corbell-adapter.ts",
+   "severity": "high",
+   "content": "This `execSync('sleep ...')` blocks the Node.js event loop for up to 16 seconds per retry attempt (8 attempts \u00d7 up to 16s each = potentially 128s of total event-loop freeze). This directly contradicts"
+  },
+  {
+   "file": "src/hunter/graph/corbell-adapter.ts",
+   "severity": "high",
+   "content": "The `safe()` shell-metacharacter validation is applied to paths resolved from `profile.graph.binaryPath` and `CORBELL_BIN`, but is **skipped** for `VENV_SITES` candidates and `PATH`-walk candidates (l"
+  },
+  {
+   "file": "src/hunter/graph/merge.ts",
+   "severity": "high",
+   "content": "Underutilized mechanical indices causing unnecessary linear scans: `buildMechanicalIndex` builds `bySubject` (and populates `subjects`/`objects` sets), but multiple code paths ignore these indices and"
+  },
+  {
+   "file": "src/hunter/graph/resolver.ts",
+   "severity": "high",
+   "content": "DB writes lack transaction support. The sequential INSERT OR REPLACE operations are not wrapped in a transaction. If any write fails midway through the loop, earlier writes are already committed while"
+  },
+  {
+   "file": "src/hunter/graph/store-map.ts",
+   "severity": "critical",
+   "content": "**Critical: Supersede-then-insert transaction boundary bug** \u2014 The supersede UPDATEs (lines 136-137) run BEFORE `BEGIN IMMEDIATE` (line 138). In bun:sqlite, statements outside an explicit transaction "
+  },
+  {
+   "file": "src/hunter/harness/map.ts",
+   "severity": "high",
+   "content": "When the `map` function succeeds, the opened `DbClient` is returned inside `MapResult` but there is no documented contract for the caller to close it. The error path properly calls `db.close()`, but o"
+  },
+  {
+   "file": "src/hunter/harness/micro-loop-machine.ts",
+   "severity": "high",
+   "content": "**`snapshotState` type lie on fallback path**: The function signature promises `string` but the fallback returns `undefined as unknown as string`. If XState ever produces an unexpected value shape (e."
+  },
+  {
+   "file": "src/hunter/harness/recon.ts",
+   "severity": "high",
+   "content": "Concurrency hazard: `openAndNextRunId` reads all HUNT_DONE events, computes the next sequence number in JavaScript, and returns it \u2014 but this read-compute cycle is not atomic. Two concurrent `recon()`"
+  },
+  {
+   "file": "src/hunter/harness/report.ts",
+   "severity": "high",
+   "content": "Race condition in N-versioning: `nextReportVersion` reads the directory and picks `max + 1`, but between the read and the subsequent `writeFileSync`, another concurrent process/hunt could write a file"
+  },
+  {
+   "file": "src/hunter/harness/scan.ts",
+   "severity": "high",
+   "content": "The function returns the ORIGINAL `battery` (pre-calibration), but the `run` was produced using `liveBattery` (post-calibration, with FLAGGED predicates excluded). This creates an inconsistency: the c"
+  },
+  {
+   "file": "src/hunter/harness/trace.ts",
+   "severity": "high",
+   "content": "Dead code: `footprint` is computed via `graph.whoCalls()` and then explicitly voided with `void footprint`, never being used in any relevance calculation. This means the graph-based call-site analysis"
+  },
+  {
+   "file": "src/hunter/hooks/bus-hook.ts",
+   "severity": "high",
+   "content": "Race condition: if `poll()` is called concurrently (e.g., multiple event hooks firing simultaneously), both invocations will query the same cursor value before either updates it. This leads to duplica"
+  },
+  {
+   "file": "src/hunter/hooks/bus-hook.ts",
+   "severity": "high",
+   "content": "The in-memory cursor resets to 0 on every instantiation, so after a process restart the bus replays every historical event from the beginning of the `events` table. This causes duplicate dispatches an"
+  },
+  {
+   "file": "src/hunter/keys/go-key-pool.ts",
+   "severity": "high",
+   "content": "The `server` class regex matches plain phrases like \"service unavailable\" and \"gateway timeout\" without word boundaries. If a 429 quota error body contains the phrase \"service unavailable\" (e.g., a pr"
+  },
+  {
+   "file": "src/hunter/lexicon/compiled-store.ts",
+   "severity": "high",
+   "content": "`writeBattery` lacks transaction wrapping, unlike `writeRuleCards` which explicitly uses BEGIN/COMMIT/ROLLBACK. If an error occurs mid-loop, some rows will have been committed while others haven't, re"
+  },
+  {
+   "file": "src/hunter/lexicon/compiler.ts",
+   "severity": "high",
+   "content": "**Race condition: non-atomic check-then-write.** Two concurrent calls to `compileBattery` with the same profile can both see `COUNT(*) = 0`, both proceed to compile, and both write to the database. Wh"
+  },
+  {
+   "file": "src/hunter/lexicon/templates.ts",
+   "severity": "critical",
+   "content": "`WIRING_EXPORT_IMPORTER` calls `readFileSync(file, 'utf-8')` directly from `node:fs`, bypassing the injected `ctx.source.read()`. This violates the file's own A3 hostile-corpus law and K20.3 determini"
+  }
+ ],
+ "artifact": "artifacts/whole-tree-audit.json",
+ "honest_note": "\u2605 THE PRIOR 'PASS' WAS TRUE ONLY FOR ITS 3-FILE SCOPE. The whole tree FAILS the gate. This is FR-3+FR-4's answer: the audit's 2.7% scope hid 88 blocking findings."
+}

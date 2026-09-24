@@ -2260,3 +2260,27 @@ the dist 82bad22c3687d21e
 - **The verdict line this pass carries:** `AUDIT GATE: PASS (0 critical/high) on the 3 CHANGED
   files` — ★ quoted with its SCOPE (F-117: the whole-tree audit is OPEN, W3).
 - **The artifacts:** the auditor's 7 rows · the CLEANUP_SPEC's FR ledger · `reports/GI_6L2E_Kernel_Engineering_Report_v1.md`.
+
+
+## TEST RESULT — 2026-09-24 — ★ W3: THE WHOLE-TREE AUDIT (FR-3 + FR-4)
+
+### SCRIPT
+- **WHAT RAN:** the PARALLEL whole-tree scan (`scripts/whole-tree-audit.sh`, 12 workers, the ocr
+  tool, the muse-go-mimo lane) — one file per part, over ALL 112 `src/**/*.ts`.
+- **THE RESULT (the aggregate, 105 files with a result, 7 empty):**
+  `447 comments · {'critical': 7, 'high': 91, 'medium': 240, 'low': 109}`
+- **★ AUDIT GATE (the whole tree): FAIL (6 critical, 82 high)** — the artifact:
+  `artifacts/whole-tree-audit.json`.
+- **★ THE HONEST COMPARISON:** the prior audit read `PASS (0 critical/high)` on **3 of 112 files
+  (2.7%)**. The whole tree carries **6 critical + 82 high** across 105 files. **THE 2.7% SCOPE HID
+  88 BLOCKING FINDINGS.** This is FR-3+FR-4's answer.
+- **★ THE BLOCKING FINDINGS (the sample):** `src/hunter/diagnostics/engine.ts` — *"Security: Path
+  traversal allows reading arbitrary files outside the project root"* · *"Data-loss risk: malformed
+  `r.data` JSON silently triggers an unconditional database overwrite"* ·
+  `src/hunter/firewall/artifact-scope.ts` — *"Security: Symlink escape check silently skipped on
+  parent realpath failure"* · *"Security: Asymmetric realpath comparison when master dir doesn't
+  exist"* · `src/hunter/diagnostics/semantic-predicates.ts` — *"Regex bug: `Sync?` makes the
+  trailing `c` optional"*.
+- **The verdict:** **FAIL** — the ship-ready claim stays WITHHELD. The fix work is a NEW wave
+  (W3's follow-on): 88 blocking findings to fix-or-prove.
+- **The artifacts:** `artifacts/whole-tree-audit.json` · the 112 per-file parts at `/tmp/w3parts/`.

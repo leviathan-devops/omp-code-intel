@@ -1642,3 +1642,23 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **A TOOL THAT FIXES ITS INPUT CAN ONLY EVER PRODUCE ONE OUTPUT.** The kernel
   distinguished 4 classes; the tool flattened them to 1 with a hardcoded literal. Test the TOOL's
   reachability, not just the library's logic.
+
+
+---
+
+### F-123 — THE 2.7% SCOPE HID 88 BLOCKING FINDINGS (2026-09-24)
+
+- **What happened:** the prior `AUDIT GATE: PASS (0 critical/high)` covered **3 of 112 files**.
+  The whole-tree audit (W3, the parallel scan over ALL 112) returned
+  **`FAIL (6 critical, 82 high)`** — **447 findings across 105 files**.
+- **Found:** W3's whole-tree scan (`scripts/whole-tree-audit.sh`), the artifact
+  `artifacts/whole-tree-audit.json`.
+- **Root cause:** the audit's SCOPE was the 3 CHANGED files (the multi-file scan hit the lane's
+  15-min deadline, so only the changed files were scanned). The PASS was TRUE FOR ITS SCOPE and
+  reported as if tree-wide.
+- **Impact:** ★ **the ship-ready claim rested on a 2.7% sample.** The tree carries 6 CRITICAL and
+  82 HIGH findings — including PATH TRAVERSAL and a silent DATA-LOSS path.
+- **Disposition:** **OPEN — the fix is a new wave (W3's follow-on: 88 blocking findings to
+  fix-or-prove).** The audit gate is now **FAIL** and every ship-ready claim is WITHHELD.
+- **The lesson:** ★ **A PASS NAMES ITS SCOPE OR IT IS A LIE.** "0 critical/high" over 2.7% of the
+  tree is not a clean bill — it is an unmeasured surface. The scope IS the claim.
