@@ -154,7 +154,7 @@ export function scoreProjectRoots(paths: Map<string, number>, stateDir: string):
     while (guard++ < 32 && d.length > 1) {
       if (isRoot(d) && !seen.has(d)) {
         seen.add(d);
-        candidates.push({ d, depth: d.split('/').length, hasState: has(d, stateDir) });
+        candidates.push({ d, depth: d.replace(/\\/g, "/").split("/").length, hasState: has(d, stateDir) }); // ★ F-284 FIX (2026-09-24): separator-agnostic depth.
       }
       const up = path.dirname(d);
       if (up === d) break;
