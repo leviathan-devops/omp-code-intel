@@ -176812,9 +176812,16 @@ var init_templates = __esm(() => {
     ...MPSE_TEMPLATES,
     ...SRO_TEMPLATES
   ];
+  if (ALL_TEMPLATES.length !== 14) {
+    throw new Error(`HUNTER_TEMPLATE_COUNT: registry law requires exactly 14 templates (6 LASME + 4 MPSE + 4 SRO), found ${ALL_TEMPLATES.length}`);
+  }
   BY_LAYER_ID = {};
-  for (const t of ALL_TEMPLATES)
+  for (const t of ALL_TEMPLATES) {
+    if (BY_LAYER_ID[t.layerId] !== undefined) {
+      throw new Error(`HUNTER_TEMPLATE_DUPLICATE: duplicate layerId '${t.layerId}'`);
+    }
     BY_LAYER_ID[t.layerId] = t;
+  }
 });
 
 // src/hunter/shared/kind-for-layer.ts
@@ -178902,8 +178909,8 @@ var resolveRegistryPath = makeDbPath({
 function giRegistryPath() {
   if (!process.env.GI_OMP_DB_DIR) {
     const argv1 = process.argv[1] ?? "";
-    const bunTestUnset = process.env.BUN_TEST === "1" || argv1.includes("st-gi-omp") || argv1.includes(".test.") || argv1.includes("_test_");
-    if (bunTestUnset) {
+    const inTestContext = process.env.BUN_TEST === "1" || argv1.includes("st-gi-omp");
+    if (inTestContext) {
       return path5.join(os3.tmpdir(), "gi-omp-registry-test.sqlite");
     }
   }
@@ -179285,19 +179292,21 @@ function reconstruct(toolName, input) {
   return { oldText, newText, file };
 }
 function attachGiGraphGate(pi) {
-  let pendingSteer = null;
+  const pendingSteer = new Map;
   pi.on("tool_call", (event) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = event.input && typeof event.input === "object" ? event.input : {};
-    try {
-      fs5.appendFileSync("/tmp/gi-gate.log", JSON.stringify({
-        name,
-        keys: Object.keys(input),
-        dial: process.env.GI_DIAL ?? "",
-        origin: event.isAgentOrigin
-      }) + `
+    if (process.env.GI_GATE_DEBUG === "1") {
+      try {
+        fs5.appendFileSync("/tmp/gi-gate.log", JSON.stringify({
+          name,
+          keys: Object.keys(input),
+          dial: process.env.GI_DIAL ?? "",
+          origin: event.isAgentOrigin
+        }) + `
 `);
-    } catch {}
+      } catch {}
+    }
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
       return;
     }
@@ -179312,27 +179321,32 @@ function attachGiGraphGate(pi) {
       file: rec.file,
       hasStore: true
     });
-    try {
-      fs5.appendFileSync("/tmp/gi-gate.log", JSON.stringify({ recFile: rec.file, dial, verdict }) + `
+    if (process.env.GI_GATE_DEBUG === "1") {
+      try {
+        fs5.appendFileSync("/tmp/gi-gate.log", JSON.stringify({ recFile: rec.file, dial, verdict }) + `
 `);
-    } catch {}
+      } catch {}
+    }
     if (verdict.cancel && verdict.token) {
-      pendingSteer = null;
+      pendingSteer.delete(name);
       throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
     }
-    pendingSteer = verdict.token === "[GATE STEER]" ? `[GATE STEER] ${verdict.advisory ?? ""}`.trim() : null;
+    if (verdict.token === "[GATE STEER]")
+      pendingSteer.set(name, `[GATE STEER] ${verdict.advisory ?? ""}`.trim());
+    else
+      pendingSteer.delete(name);
     return;
   });
   pi.on("tool_result", (event) => {
-    if (!pendingSteer)
-      return;
     const name = String(event.toolName ?? "").toLowerCase();
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
-      pendingSteer = null;
+      pendingSteer.delete(name);
       return;
     }
-    const note = pendingSteer;
-    pendingSteer = null;
+    const note = pendingSteer.get(name);
+    if (!note)
+      return;
+    pendingSteer.delete(name);
     const extra = { type: "text", text: note };
     const prev = Array.isArray(event.content) ? event.content : [];
     return { content: [extra, ...prev], details: { ...typeof event.details === "object" && event.details ? event.details : {}, giSteer: note } };
@@ -179355,7 +179369,9 @@ function registerGraphGate(pi) {
     if (isQuery) {
       const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
       if (target) {
-        pendingQueries.set(sid, { target, tool: name });
+        const queue = pendingQueries.get(sid) ?? [];
+        queue.push({ target, tool: name });
+        pendingQueries.set(sid, queue);
       }
       return;
     }
@@ -179379,12 +179395,15 @@ function registerGraphGate(pi) {
     if (name !== "graph-query" && name !== "ripwire")
       return;
     const sid = resolveSessionIdFromEvent(event).id;
-    const q = pendingQueries.get(sid);
-    if (!q)
+    const queue = pendingQueries.get(sid);
+    if (!queue || queue.length === 0)
       return;
-    if (q.tool !== name)
+    const qi = queue.findIndex((e) => e.tool === name);
+    if (qi === -1)
       return;
-    pendingQueries.delete(sid);
+    const q = queue.splice(qi, 1)[0];
+    if (queue.length === 0)
+      pendingQueries.delete(sid);
     const st = states.get(sid);
     if (!st)
       return;
@@ -181331,20 +181350,20 @@ function populateGraphifySessionStore(storePath, root, runTag, scope) {
   }
   const db = openTypedStore(storePath);
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
-    db.exec("COMMIT;");
-  } finally {
-    db.close();
+    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
+      ["substrate", "graphify"],
+      ["graphify_graph", graphPath],
+      ["graphify_nodes", String(nodeRows.length)],
+      ["graphify_edges", String(edgeRows.length)],
+      ["populated_at", new Date().toISOString()]
+    ]);
+  } catch (e) {
+    try {
+      db.close();
+    } catch {}
+    throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
   }
-  setMeta(storePath, "substrate", "graphify");
-  setMeta(storePath, "graphify_graph", graphPath);
-  setMeta(storePath, "graphify_nodes", String(nodeRows.length));
-  setMeta(storePath, "graphify_edges", String(edgeRows.length));
-  setMeta(storePath, "populated_at", new Date().toISOString());
+  db.close();
   console.error(`[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`);
   return { filesIndexed: 0, nodes: nodeRows.length, edges: edgeRows.length, runTag, skipped: false, substrate: "graphify", graphifyGraph: graphPath };
 }
@@ -182610,6 +182629,9 @@ function toFindingInput(f) {
   };
 }
 function appendFindings(db, findings, runId, week) {
+  if (typeof runId !== "string" || runId.trim() === "") {
+    throw findingNoTriplet(`refusing appendFindings of ${findings.length} findings with an empty runId \u2014 the run scope is mandatory (K21.2 determinism)`);
+  }
   for (let i = 0;i < findings.length; i++) {
     const f = findings[i];
     if (typeof f.evidence !== "string" || f.evidence.trim() === "") {
@@ -183932,10 +183954,17 @@ var COMPILED_PREDICATES_COLUMNS = [
 function writeBattery(db, battery) {
   if (battery.length === 0)
     return;
-  const stmt = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
-  for (const p of battery) {
-    const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
-    stmt.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
+  db.exec("BEGIN");
+  try {
+    const stmt = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    for (const p of battery) {
+      const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
+      stmt.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
+    }
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
   }
 }
 function writeRuleCards(db, cards, corpusHash) {
@@ -185439,14 +185468,9 @@ function violations(input, db) {
     params.push(input.week);
   const rows = rowsAs(db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params), "violations");
   const effectiveCap = input.format === "llm" ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
-  const total = rows.length;
-  const capped = rows.slice(0, effectiveCap);
   const off = Math.max(0, Math.floor(input.offset ?? 0));
-  const lim = input.limit !== undefined ? Math.max(0, Math.floor(input.limit)) : effectiveCap;
-  const sliced = capped.slice(off, off + lim);
-  const result = [...sliced];
-  result.push({ pagination: { offset: off, limit: lim, total } });
-  return result;
+  const lim = input.limit !== undefined ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap) : effectiveCap;
+  return rows.slice(off, off + lim);
 }
 function consistency(db) {
   const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(), "consistency spec");
@@ -186276,7 +186300,7 @@ function abideProbe(scopeRoot, abideRoot) {
 }
 
 // src/omp/layer-consumption.ts
-var SIX_L2E_CONSUMERS = [
+var L2E_CONSUMERS = [
   "L1_SEMANTICA",
   "L2_ARSUMBRIS",
   "L3_UA",
@@ -186304,12 +186328,13 @@ function buildRegistry(scopeRoot, overrides) {
     const override = overrides?.[p.id];
     registry.register(override ?? p);
   }
-  const missing = SIX_L2E_CONSUMERS.filter((id) => !registry.consumers().some((c) => c.id === id));
+  const missing = L2E_CONSUMERS.filter((id) => !registry.consumers().some((c) => c.id === id));
   if (missing.length > 0) {
     throw new Error(`GI_REGISTRY_INCOMPLETE: no probe registered for ${missing.join(",")}`);
   }
   return registry;
 }
+var SIX_L2E_CONSUMERS = L2E_CONSUMERS;
 function consumptionAudit(scopeRoot, subject) {
   const registry = buildRegistry(scopeRoot);
   const reports = registry.audit(subject);
@@ -186375,7 +186400,7 @@ function graphFacts(input) {
     const stale = freshnessGate(db, input);
     if (stale !== null)
       return [stale];
-    const known = db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1`).get(LIKE(input.target)).n;
+    const known = db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
     if (known === 0) {
       return [{
         rule: "M-GRAPH-1",
@@ -186393,7 +186418,7 @@ function graphFacts(input) {
         rule: "M-GRAPH-1",
         settles: true,
         action: "FIRE",
-        reason: `the consumed symbol "${input.target}" has ZERO incoming edges \u2014 nothing constructs or calls it`,
+        reason: `the consumed symbol "${input.target}" has ZERO incoming ` + "`calls`" + ` edges \u2014 nothing constructs or calls it`,
         evidence: `in-degree 0 (calls) \xB7 out-degree ${outD}`
       } : {
         rule: "M-GRAPH-1",
@@ -186623,12 +186648,14 @@ function runKernelV2(input) {
   const cleanRun = worst.outcome.verdict === "PASS";
   const code = cleanRun ? null : worst.detector.class === "destructive" ? "GI_VIOLATION" : worst.detector.class === "theatrical" ? "GI_FABRICATED_CLAIM" : "GI_BLIND_ACT";
   const run = finish(stages, verdict, code, cleanRun ? "benign" : worst.detector.class, worst.outcome.reason, worst.outcome.evidence);
-  stages.push({ stage: 6, name: "RECORD", outcome: input.record ? "WRITTEN" : "SKIPPED", detail: input.record ? "enforcement ledger" : "no sink supplied" });
-  if (input.record) {
+  if (!input.record) {
+    stages.push({ stage: 6, name: "RECORD", outcome: "SKIPPED", detail: "no sink supplied" });
+  } else {
     try {
       input.record(run);
+      stages.push({ stage: 6, name: "RECORD", outcome: "WRITTEN", detail: "enforcement ledger" });
     } catch (e) {
-      run.stages.push({ stage: 6, name: "RECORD", outcome: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+      stages.push({ stage: 6, name: "RECORD", outcome: "FAILED", detail: e instanceof Error ? e.message : String(e) });
     }
   }
   return run;
@@ -187139,6 +187166,16 @@ function decideFromRegistry(scopeRoot, subject, act, record) {
   }
   if (act === null || typeof act !== "object") {
     throw new Error("GI_DECIDE_BAD_INPUT: act must be an object");
+  }
+  const a = act;
+  if (typeof a.toolName !== "string" || a.toolName.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: act.toolName must be a non-empty string");
+  }
+  if (typeof a.target !== "string" || a.target.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: act.target must be a non-empty string");
+  }
+  if (typeof a.queriedBefore !== "boolean") {
+    throw new Error("GI_DECIDE_BAD_INPUT: act.queriedBefore must be a boolean (undefined would silently read as blind)");
   }
   const registry = buildRegistry(scopeRoot);
   const facts = registry.factsFor(subject);

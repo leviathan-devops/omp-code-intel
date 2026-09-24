@@ -77,7 +77,9 @@ describe("st-gi-v21-graph-facts: P1 — the derailments, settled at $0", () => {
     const d = await gate.judge(aFire("OutcomeRecord"), absorbContext(aFire("OutcomeRecord"), NEUTRAL));
     expect(d.row.questionVersion).toBe("graph:M-GRAPH-1");   // ★ THE SPECIFIC TOKEN
     expect(d.action).toBe("FIRE");
-    expect(d.reason).toContain("ZERO incoming edges");
+    // ★ F-GF3 (2026-09-24): the reason names the CALLS-only scope (the M-GRAPH-1 check is
+    //   predicate='calls') — the exact substring, not a loosened assertion.
+    expect(d.reason).toContain("ZERO incoming `calls` edges");
     expect(calls.n).toBe(0);                                  // ★ $0 — NO MODEL CALL
     expect(gate.firesUsed()).toBe(0);                         // ★ AND NO FIRE SPENT
   });
