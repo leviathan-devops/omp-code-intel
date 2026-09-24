@@ -1360,3 +1360,36 @@ blame the provider.
   record it exists to protect silently drops the record** (F-754). (3) **A spec comment and its
   code are two claims; when they disagree, one is a defect** (F-756). (4) A stalled agent's
   verified analysis is still valuable — R10High3's 7 findings were fixable from its slice alone.
+
+---
+
+## EN-W3-RUN12 — the 3 criticals (two were MY OWN earlier fixes, half-applied) 2026-09-24
+
+- **THE FINDING:** run 12 (the first audit of the post-R11 tree) returned `{critical: 3, high: 52}`.
+- **★ THE PATTERN — and it is the sharpest lesson of the session: ALL THREE CRITICALS WERE
+  INCOMPLETE EARLIER FIXES, not new defects.**
+  1. **F-870 (`tools/bug-hunt.ts`)** — my F-303 containment had its OWN copy of the
+     `scopeReal === path.sep ? path.sep : …` prefix, so `scopeRoot='/'` made containment
+     VACUOUSLY true. **The shared primitive fixed this exact bug in F-601 (`rootPrefixOf`) — but
+     F-303 predated the primitive and kept its private copy.** A class fix only helps the sites
+     that CALL it.
+  2. **F-871 (`harness/micro-loop-machine.ts`)** — F-408 declared `pendingSettle`, made `stop()`
+     call it, and had `settle()` clear it — **but nothing ever ASSIGNED it.** The declaration and
+     the call site shipped; the binding did not. `stop()` therefore still hung.
+  3. **F-872 (`diagnostics/engine.ts`)** — F-42 passed the FULL node set as `changedNodeIds`
+     ("the honest universe") into `assertNoBlindness`, which throws `ENGINE_SKIP` when
+     `runResult.length === 0 && changed.size > 0`. **So any CLEAN run (a project with no
+     findings) threw** — the check fired on exactly the state it exists to permit. The honest
+     checkpoint is `changedNodeIds: ∅` (a full re-run changes nothing).
+- **THE FIXES:** F-870 (refuse a filesystem-root scope) · F-871 (bind `pendingSettle = settle`) ·
+  F-872 (the empty changed-set; `rerunNodeIds` keeps the full universe).
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **430/0 + 528/0**, exit 0; dist
+  `e8b5e20139608fe6`, deployed == repo.
+- **★ THE LESSON (the one worth keeping): A FIX IS NOT DONE WHEN IT COMPILES OR WHEN ITS OWN
+  COMMENT SAYS SO.** All three shipped with a comment describing the intended behaviour and a body
+  that did not deliver it. **THE CHECK FOR A FIX IS: does the code PATH that was broken now take
+  the new branch?** F-871's `pendingSettle` was null at every call; F-872's `changed` set was
+  populated on every run; F-870's prefix was `/` at the one input that matters. Each is invisible
+  to tsc and to a green suite that never exercises the state.
+- **THE FLAKE NOTE:** `st-gi-w44-highs` failed once in the parallel battery and passed 34/0 in
+  isolation — a temp-dir collision under concurrent load, not a regression.
