@@ -1,0 +1,33 @@
+[CRITICAL] src/kernel/graph-test-target.ts
+    If `openTypedStore(storePath)` throws, the variable `db` is never assigned, so the `finally` block will throw a ReferenceError on `db.close()`, masking the original error and leaking any partially-opened resources. The `finally` must guard 
+
+[CRITICAL] src/scoping/gi-ecosystem.ts
+    CRITICAL: Model ID 'gpt-4o' is hardcoded and doesn't exist in the OpenAI model list defined in the UI. The available OpenAI models are 'gpt-4o-mini', 'gpt-4.1-nano', 'gpt-4.1-mini', and 'gpt-4.1'. If a user clicks 'Use OpenAI', the system w
+
+[HIGH] src/hydra/map-reader.ts
+    The MCP tool names used in callTool() do not match the tool definitions in client-reader.ts. The definitions use `graphify_query`, `graphify_path`, and `graphify_explain`, but map-reader.ts calls `query_graph`, `shortest_path`, and `get_nod
+
+[HIGH] src/hydra/pipeline.ts
+    **Config functions `targetRootFor`/`graphPathFor` are defined in `PipelineConfig` but never called.**  `PipelineConfig` declares `targetRootFor` and `graphPathFor` (lines 62-63), which exist to extract these values from the generic `TInput`
+
+[HIGH] src/hydra/pipeline.ts
+    **Concurrency hazard: shared mutable `evidence` array across concurrent `execute()` calls.**  `this.evidence` is instance-level (line 90) and is reset via `this.evidence.length = 0` at line 107. If two `execute()` calls are invoked concurre
+
+[HIGH] src/kernel/graph-gate.ts
+    The F-145 FIX comment says it protects against "malformed diff", but the guard only handles `null` and non-object types. If `diff` is a malformed object with missing properties (e.g. `{}` or `{ edgesDelta: undefined }`), the arithmetic sile
+
+[HIGH] src/kernel/graph-pre-flight.ts
+    In the `finally` block, if `db.close()` throws an exception, the error thrown in the `catch` block will be silently swallowed and replaced by the `close()` exception. This can mask the real root cause (the GI_PREFLIGHT_FAILED error). Wrap `
+
+[HIGH] src/kernel/scan-chain.ts
+    The SSE fallback parser only returns the LAST delta chunk. In real streaming responses, the assistant's content arrives across many SSE events. By iterating `lines.reverse()` and returning the first (i.e., last in original order) match, all
+
+[HIGH] src/scoping/scope-binding.ts
+    Prefix overlap bug: `startsWith` with `Array.find` returns the FIRST matching prefix, not the LONGEST (most specific). If two ecosystems have overlapping prefixes (e.g. `wave-` and `wave-extra-`), a wave id like `wave-extra-abc` matches BOT
+
+[HIGH] src/scoping/scoped-store.ts
+    `runWithRetry` silently swallows errors after exhausting all retry attempts. It logs to `console.error` but returns `void`, giving callers no way to detect that the write failed. This can lead to **silent data loss** — the caller proceeds a
+
+[HIGH] src/scoping/session-state.ts
+    The readSessionState catch block swallows ALL errors indiscriminately (permissions denied, disk full, etc.), not just ENOENT. This silently discards data loss and causes the latch to re-arm from scratch without any diagnostic signal. Consid
+

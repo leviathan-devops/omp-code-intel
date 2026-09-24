@@ -1,0 +1,21 @@
+[CRITICAL] src/hunter/lexicon/rule-card.ts
+    Bug: Multi-line blockquote handling has two issues: (1) The outer for loop does not advance after collecting a blockquote, causing duplicate cards. (2) The metadata scan for blockquotes starts at i+1, which is inside the blockquote, so decl
+
+[HIGH] src/hunter/graph/corbell-adapter.ts
+    `readCorbellStore` performs synchronous `fs.readFileSync` inside the node-enrichment loop (lines 378-386) for every method node to extract numeric literals. On a large codebase with hundreds of method nodes, this translates to hundreds of s
+
+[HIGH] src/hunter/graph/graphify-adapter.ts
+    The `normalizeGraphifyGraph` node containment loop has an index misalignment bug: `rawNodes[i]` does not correspond to `nodes[i]` when rows were dropped, corrupting the dedup map. This is a high-severity issue; use the `nodeIdByRaw` map to 
+
+[HIGH] src/hunter/graph/mechanical.ts
+    **Bug: File exclusion logic fails when root equals `process.cwd()`.** On line 110-112, when `root === process.cwd()`, files outside the root directory are not excluded. The inner guard `root !== process.cwd()` evaluates to `false`, so the `
+
+[HIGH] src/hunter/graph/resolver.ts
+    `heuristicDecide` returns `canonical: c` (non-null) for the destructive name-collision case, but the verdict is `'unrelated'` — meaning the merge is refused. Setting `existingCanonical` to a non-null value in a `ResolutionDecision` with `ve
+
+[HIGH] src/hunter/graph/store-map.ts
+    Module-level `edgeEvidenceLineCache` is never evicted and grows without bound. On large multi-project graphs with thousands of unique source files, each file's complete content (split into lines) is retained for the lifetime of the process.
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    `selectTemplate` is declared to return `PredicateTemplate`, but `TEMPLATE_LIBRARY[key]` returns `PredicateTemplate | undefined` (since `Record` indexing does not guarantee key existence at runtime). If `TEMPLATE_LIBRARY` is ever extended or
+
