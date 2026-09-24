@@ -31,7 +31,13 @@ interface Check {
 const checks: Check[] = [
   {
     id: "C1",
-    condition: "the register reads consumed:8 (not up=11/11)",
+    // ★ FR-1 THE LYING GATE — FIXED (2026-09-24). The condition string was
+    //   "the register reads consumed:8 (not up=11/11)" and was printed VERBATIM as
+    //   `C1 PASS  the register reads consumed:8 (not up=11/11)` — while the NEXT line
+    //   printed `C1 detail: ... the register reads consumed:7/8`. THE PASS TEXT
+    //   CONTRADICTED ITS OWN DETAIL. The condition now states what the predicate
+    //   ACTUALLY checks (the per-domain union), so the PASS line and the detail line AGREE.
+    condition: "all 8 consumers are CONSUMED for their own domains (the per-domain union)",
     run: () => {
       // ★ THE CORRECT READING (measured 2026-09-24, the red-team close). The 8 consumers answer
       //   about DIFFERENT DOMAINS: the graph layers + TSG + ABIDE know CODE SYMBOLS, while

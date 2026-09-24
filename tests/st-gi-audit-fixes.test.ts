@@ -208,3 +208,39 @@ describe("st-gi-audit-fixes: ★★ THE GOAL PREDICATE — the five DONE conditi
     expect(r.code).toBe(1);
   }, 600_000);
 });
+
+describe("st-gi-audit-fixes: ★★ FR-1 — THE GATE MUST NOT CONTRADICT ITSELF", () => {
+  // ★ FR-1 THE LYING GATE (F-115, the zero-trust auditor's find). `goal-verify` printed
+  //   `C1 PASS  the register reads consumed:8 (not up=11/11)` while its OWN NEXT LINE printed
+  //   `C1 detail: ... the register reads consumed:7/8`. A gate whose PASS line contradicts its
+  //   detail line is worse than a FAIL — it fabricates with a receipt.
+  // ★ THE PIN: no PASS line's number may differ from its detail line's number.
+  const REPO = path.resolve(import.meta.dir, "..");
+  const SCRIPT = path.join(REPO, "scripts", "goal-verify.ts");
+
+  test("test_goal_predicate_honest_text: no PASS line contradicts its own detail line", () => {
+    const r = Bun.spawnSync(["bun", SCRIPT, REPO, "evidence"], { cwd: REPO, stdout: "pipe", stderr: "pipe" });
+    const out = r.stdout.toString();
+    // ★ parse every PASS line and every detail line, keyed by the check id
+    const passes = [...out.matchAll(/([A-Z]\d)\s+PASS\s+([^\n]*)/g)].map((m) => [m[1], m[2]] as const);
+    const details = [...out.matchAll(/([A-Z]\d)\s+detail:\s+([^\n]*)/g)].map((m) => [m[1], m[2]] as const);
+    let contradictions = 0;
+    for (const [pid, ptext] of passes) {
+      for (const [did, dtext] of details) {
+        if (pid !== did) continue;
+        const pn = [...ptext.matchAll(/consumed:(\d)\/8/g)].map((m) => m[1]);
+        const dn = [...dtext.matchAll(/consumed:(\d)\/8/g)].map((m) => m[1]);
+        if (pn.length > 0 && dn.length > 0 && pn.join() !== dn.join()) contradictions++;
+      }
+    }
+    if (contradictions > 0) {
+      throw new Error(`THE LYING GATE IS BACK: ${contradictions} PASS line(s) contradict their detail. stdout:\n${out}`);
+    }
+    expect(contradictions).toBe(0);
+    // ★ AND the C1 condition string names the per-domain union (never a bare consumed:8)
+    const src = fs.readFileSync(SCRIPT, "utf8");
+    expect(src).toContain("all 8 consumers are CONSUMED for their own domains");
+    expect(src).not.toContain('condition: "the register reads consumed:8');
+    expect(r.exitCode).toBe(0);
+  }, 900_000);
+});
