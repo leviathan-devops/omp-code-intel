@@ -156,6 +156,8 @@ export const mpseProvenanceTemplate: AuditorTemplate = {
     "path spec clause reference to code implementation",
     "find unreachable spec declarations",
   ],
+  // ★ F-406 FIX (2026-09-24): missing filterTags (copy-paste omission — R24/R25/R26 all carry them; the auditor reads template.filterTags ?? [] so undefined silently degraded to flagged_by).
+  filterTags: ["trace-gap", "unreachable", "provenance"],
   // ★ F-213 FIX (2026-09-24): direct assignment (see contract — same F-160 precedent).
   outputSchema: MpseProvenanceOutputSchema,
   staticPrompt: `IDENTITY: PROVENANCE hunter — hunt trace gaps (spec clauses with no implementing code, unreachable declarations). Missing trace = TRACE_GAP. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`,

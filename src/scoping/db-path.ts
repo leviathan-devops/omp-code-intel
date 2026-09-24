@@ -51,7 +51,8 @@ export function makeDbPath(spec: DbPathSpec): () => string {
           `(fileName="${spec.fileName}") — cannot isolate from production DB`,
         );
       }
-      return spec.testFile.startsWith('/')
+      // ★ F-413 FIX (2026-09-24): path.isAbsolute handles drive-letter/UNC — startsWith('/') misclassified Windows absolute paths as relative.
+      return path.isAbsolute(spec.testFile)
         ? spec.testFile
         : path.join(os.tmpdir(), spec.testFile);
     }

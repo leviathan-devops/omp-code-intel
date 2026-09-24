@@ -311,6 +311,13 @@ export class LiveGraphWatcher extends DiagnosticsServer {
         this.enforceBacklog();
         this.scheduleDrain(onChange, absDir);
       });
+      // ★ F-409 FIX (2026-09-24): handle fs.watch error event — when the OS file-watch limit is
+      //   exceeded (inotify), the watcher emits 'error' which becomes an uncaught exception.
+      //   Degrade gracefully: log + null-out the watcher so close() is idempotent.
+      this.watcher.on('error', (err: NodeJS.ErrnoException) => {
+        console.error(`[LiveGraphWatcher] fs.watch error (dir=${absDir}): ${err.message}`);
+        this.watcher = null;
+      });
     } catch { /* grace: watcher setup best-effort — the injector still serves its cached handle */ }
     const self = this;
     this.handle = {

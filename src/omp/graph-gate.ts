@@ -306,8 +306,11 @@ export function saveGateState(storePath: string, sessionId: string, state: Graph
       "INSERT INTO graph_gate_state (session_id, drift, state, edits_json, queries_json, updated_ms) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET drift = excluded.drift, state = excluded.state, edits_json = excluded.edits_json, queries_json = excluded.queries_json, updated_ms = excluded.updated_ms",
       [sessionId, state.drift, state.gateState, JSON.stringify(state.editLog), JSON.stringify(state.graphQueries), Date.now()],
     );
+  } catch (e) {
+    console.error(`GI_GATE_STATE_SAVE_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);
+    throw e;
   } finally {
-    db.close();
+    try { db.close(); } catch { /* already closed */ }
   }
 }
 
