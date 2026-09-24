@@ -176674,7 +176674,7 @@ var init_lasme = __esm(() => {
 });
 
 // src/hydra/templates/mpse.ts
-var candidateWithContract, MpseContractConformanceSchema, MpseContractOutputSchema, mpseContractTemplate, MpseOracleConformanceSchema, MpseOracleOutputSchema, mpseOracleTemplate, MpseStageConformanceSchema, MpseStageOutputSchema, mpseStageTemplate, TraceGapSchema, ProvenanceConformanceSchema, MpseProvenanceOutputSchema, mpseProvenanceTemplate, MPSE_TEMPLATES;
+var candidateWithContract, MpseConformanceBaseSchema, MpseContractConformanceSchema, MpseContractOutputSchema, mpseContractTemplate, MpseOracleConformanceSchema, MpseOracleOutputSchema, mpseOracleTemplate, MpseStageConformanceSchema, MpseStageOutputSchema, mpseStageTemplate, TraceGapSchema, ProvenanceConformanceSchema, MpseProvenanceOutputSchema, mpseProvenanceTemplate, MPSE_TEMPLATES;
 var init_mpse = __esm(() => {
   init_zod();
   init_types();
@@ -176682,7 +176682,7 @@ var init_mpse = __esm(() => {
     contractId: string2().optional(),
     implementationStatus: _enum(["conformant", "violated", "unimplemented"]).optional()
   });
-  MpseContractConformanceSchema = object({
+  MpseConformanceBaseSchema = object({
     contractId: string2().min(1),
     specPath: string2().min(1),
     specLine: number2().int().positive(),
@@ -176692,6 +176692,7 @@ var init_mpse = __esm(() => {
     line: number2().int().positive().optional(),
     evidence: string2().optional()
   });
+  MpseContractConformanceSchema = MpseConformanceBaseSchema.extend({});
   MpseContractOutputSchema = object({
     candidates: array(candidateWithContract),
     conformances: array(MpseContractConformanceSchema).optional(),
@@ -176709,15 +176710,7 @@ var init_mpse = __esm(() => {
     outputSchema: MpseContractOutputSchema,
     staticPrompt: `IDENTITY: CONTRACT hunter \u2014 hunt contract conformance (unimplemented/violated/missing-guard/drifted contracts). Trace spec clause \u2192 checkContract() chain \u2192 implementing function \u2192 verdict. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; path-trace connections; subgraph depth 3 for blast radius; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks (predicate/file path:line/evidence/spec) + ## SUMMARY.`
   };
-  MpseOracleConformanceSchema = object({
-    contractId: string2().min(1),
-    specPath: string2().min(1),
-    specLine: number2().int().positive(),
-    specQuote: string2().min(1),
-    implementationStatus: _enum(["conformant", "violated", "unimplemented"]),
-    file: string2().optional(),
-    line: number2().int().positive().optional(),
-    evidence: string2().optional(),
+  MpseOracleConformanceSchema = MpseConformanceBaseSchema.extend({
     epsilon: number2().optional()
   });
   MpseOracleOutputSchema = object({
@@ -176737,16 +176730,7 @@ var init_mpse = __esm(() => {
     outputSchema: MpseOracleOutputSchema,
     staticPrompt: `IDENTITY: ORACLE hunter \u2014 hunt epsilon/oracle threshold enforcement (unguarded numeric decisions, epsilon drift, missing oracle guards near contract calls). Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`
   };
-  MpseStageConformanceSchema = object({
-    contractId: string2().min(1),
-    specPath: string2().min(1),
-    specLine: number2().int().positive(),
-    specQuote: string2().min(1),
-    implementationStatus: _enum(["conformant", "violated", "unimplemented"]),
-    file: string2().optional(),
-    line: number2().int().positive().optional(),
-    evidence: string2().optional()
-  });
+  MpseStageConformanceSchema = MpseConformanceBaseSchema.extend({});
   MpseStageOutputSchema = object({
     candidates: array(candidateWithContract),
     conformances: array(MpseStageConformanceSchema).optional(),
@@ -176775,16 +176759,7 @@ var init_mpse = __esm(() => {
     evidence: string2().min(1),
     gapReason: string2().min(1).optional()
   });
-  ProvenanceConformanceSchema = object({
-    contractId: string2().min(1),
-    specPath: string2().min(1),
-    specLine: number2().int().positive(),
-    specQuote: string2().min(1),
-    implementationStatus: _enum(["conformant", "violated", "unimplemented"]),
-    file: string2().optional(),
-    line: number2().int().positive().optional(),
-    evidence: string2().optional()
-  });
+  ProvenanceConformanceSchema = MpseConformanceBaseSchema.extend({});
   MpseProvenanceOutputSchema = object({
     candidates: array(candidateWithContract),
     conformances: array(ProvenanceConformanceSchema).optional(),
@@ -177182,7 +177157,7 @@ class GraphifyMapReader {
       for (const e of g.edges ?? []) {
         if (!e || typeof e.src !== "string")
           continue;
-        const key = `${e.src}\u2192${e.dst}:${e.relation}`;
+        const key = `${e.src}\u2192${e.dst}:${e.relation}:${e.confidence ?? "EXTRACTED"}`;
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
           edges.push(e);
@@ -178184,7 +178159,7 @@ function makeDbPath(spec) {
         if (!home) {
           throw new Error(`[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` + `(fileName="${spec.fileName}") - cannot resolve testFile`);
         }
-        return testFile === TILDE ? path.join(home, spec.fileName) : path.join(home, testFile.slice(2));
+        return testFile === TILDE ? path.join(home, spec.fileName) : path.join(home, testFile.slice(2) || spec.fileName);
       }
       return path.join(os.tmpdir(), testFile);
     }
@@ -178290,6 +178265,7 @@ function sessionKey(sessionId) {
 import * as os2 from "os";
 import * as fs2 from "fs";
 import * as path3 from "path";
+import { createHash } from "crypto";
 var GI_STATE_DIR = ".omp/graph-intelligence";
 class GiPathError extends Error {
   code;
@@ -178311,10 +178287,10 @@ function sessionStorePath(scopeRoot, sessionId) {
   if (sid.length < 8)
     sid = (sid + "xxxxxxxx").slice(0, 8);
   const p = path3.join(scopeRoot, GI_STATE_DIR, "sessions", sid, "store.sqlite");
-  assertSessionStorePath(p);
+  assertSessionStorePath(p, scopeRoot);
   return p;
 }
-function assertSessionStorePath(p) {
+function assertSessionStorePath(p, optScopeRoot) {
   const resolved = path3.resolve(p);
   const norm = resolved.replace(/\\/g, "/");
   if (isGlobalHomeGraph(norm)) {
@@ -178338,6 +178314,22 @@ function assertSessionStorePath(p) {
       throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: the session dir RESOLVES elsewhere (logical=${norm} real=${parentNorm}) \u2014 a symlinked session dir is a scope escape`);
     }
   }
+  if (optScopeRoot !== undefined) {
+    let realRoot;
+    try {
+      realRoot = fs2.realpathSync(optScopeRoot);
+    } catch {
+      throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: scope root does not resolve: ${optScopeRoot}`);
+    }
+    const realParent = parentReal ?? parent;
+    const realParentNorm = realParent.replace(/\\/g, "/");
+    const realRootNorm = realRoot.replace(/\\/g, "/");
+    const rootPrefix = realRootNorm.endsWith("/") ? realRootNorm : realRootNorm + "/";
+    const under = realParentNorm === realRootNorm || realParentNorm.startsWith(rootPrefix);
+    if (!under) {
+      throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: the session dir ESCAPES its scope (real parent=${realParentNorm} scope=${realRootNorm}) \u2014 a symlink above sessions/ is a scope escape`);
+    }
+  }
 }
 function resolveSessionId(ctx, env = process.env, scopeRoot) {
   const fromCtx = ctx?.sessionID;
@@ -178349,8 +178341,9 @@ function resolveSessionId(ctx, env = process.env, scopeRoot) {
     return { id: fromEnv, source: "GI_SESSION_ID" };
   }
   const root = scopeRoot ?? env["GI_SCOPE_ROOT"] ?? process.cwd();
-  const slug = path3.resolve(root).replace(/[^A-Za-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  let id = `scope-${slug}`.slice(0, 24);
+  const rootResolved = path3.resolve(root);
+  const hash = createHash("sha256").update(rootResolved).digest("hex");
+  let id = `scope-${hash.slice(0, 18)}`;
   if (id.length < 8)
     id = (id + "-xxxxxxxx").slice(0, 8);
   return { id, source: "scope-root" };
@@ -178369,10 +178362,10 @@ function isGlobalHomeGraph(norm) {
 }
 // src/scoping/gi-ecosystem.ts
 import { tmpdir as tmpdir2 } from "os";
-import { join as join3 } from "path";
+import { join as join3, sep } from "path";
 var GI_TMP_DIR = join3(tmpdir2(), "gi-omp-tmp");
 // src/omp/typed-write.ts
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 
 class GiStoreCorruptError extends Error {
   code = "GI_STORE_CORRUPT";
@@ -178694,7 +178687,7 @@ function applyTypedDdl(db) {
           if (!on) {
             console.error(`[gi-omp] DDL note: unique index regex miss (recording deferral) \u2014 ${stmt.slice(0, 80)}`);
             try {
-              db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
+              db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash2("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
             } catch {}
             continue;
           }
@@ -178734,7 +178727,7 @@ function applyTypedDdl(db) {
             throw dedupErr;
           console.error(`[gi-omp] DDL dedup failed (deferral still recorded): ${dm}`);
           try {
-            db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
+            db.run("INSERT OR REPLACE INTO gi_meta (key, value) VALUES (?, ?)", [`unique_index_deferred:${createHash2("sha256").update(stmt).digest("hex").slice(0, 12)}`, stmt.slice(0, 200)]);
           } catch {}
         }
         continue;
@@ -179202,6 +179195,10 @@ function openSessionStore(input) {
       storePath
     });
   }
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`);
+  }
   return { storePath, ownerKey, created };
 }
 
@@ -179210,7 +179207,7 @@ import * as fs6 from "fs";
 
 // src/omp/gate-middleware.ts
 import * as fs5 from "fs";
-var EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+var EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
 var EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
 var EXPORT_DESTRUCT_RE = /export\s+(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])/g;
 function eachDestructuredName(list, cb) {
@@ -179790,7 +179787,7 @@ import * as path10 from "path";
 import { Database as Database4 } from "bun:sqlite";
 
 // src/omp/populate-graphify.ts
-import { createHash as createHash2 } from "crypto";
+import { createHash as createHash3 } from "crypto";
 import * as fs9 from "fs";
 import * as path9 from "path";
 
@@ -179851,7 +179848,12 @@ var defaultExec = (cmdRaw, opts) => {
       const execBudget = retryDeadline - Date.now();
       if (execBudget <= 0)
         break;
-      const execTimeout = retryDeadline === Number.POSITIVE_INFINITY ? retryTimeout : Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, Math.max(1, execBudget));
+      let execTimeout;
+      if (retryDeadline === Number.POSITIVE_INFINITY) {
+        execTimeout = retryTimeout;
+      } else {
+        execTimeout = Math.max(1, Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, execBudget));
+      }
       return execSync(cmd, {
         cwd: opts?.cwd,
         timeout: execTimeout,
@@ -180533,7 +180535,7 @@ function statAndReadGraphJson(graphPath) {
   }
   return { text, size };
 }
-function loadGraphifyFileSync(graphPath) {
+function loadGraphifyFileSync(graphPath, rootOverride) {
   let text;
   try {
     text = statAndReadGraphJson(graphPath).text;
@@ -180549,7 +180551,7 @@ function loadGraphifyFileSync(graphPath) {
   } catch (e) {
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed \u2014 ${e instanceof Error ? e.message : String(e)}`);
   }
-  return normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
+  return normalizeGraphifyGraph(raw, { root: rootOverride ?? path8.dirname(path8.dirname(graphPath)) });
 }
 function normalizeGraphifyGraph(raw, opts) {
   const rawNodes = Array.isArray(raw["nodes"]) ? raw["nodes"] : [];
@@ -181143,7 +181145,7 @@ class GraphifyAdapter {
     try {
       const effectiveProfile = profileOverride ?? this.profile;
       const root = path8.resolve(effectiveProfile.project.root);
-      const graph = loadGraphifyFileSync(graphPath);
+      const graph = loadGraphifyFileSync(graphPath, root);
       if (graph.nodes.length === 0) {
         throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
       }
@@ -181417,7 +181419,7 @@ function graphHashSidecarPath(graphPath) {
 }
 var GRAPH_HASH_WHOLE_FILE_MAX = 65536;
 function hashSourceTree(root, scope, excludes, budgetN) {
-  const hash = createHash2("sha256");
+  const hash = createHash3("sha256");
   const budget = { n: budgetN };
   let exhausted = false;
   const hashFile = (abs, anchor, statSize) => {
@@ -181778,7 +181780,13 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
 // src/omp/populate.ts
 function populateSessionStore(storePath, root, runTag = "populate-" + Date.now().toString(36), opts) {
   if (opts?.substrate === "graphify") {
-    return populateGraphifySessionStore(storePath, root, runTag);
+    try {
+      return populateGraphifySessionStore(storePath, root, runTag);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
+      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason };
+    }
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
   if (corbell.ok) {
@@ -181913,7 +181921,9 @@ function runRaw(root, args, timeoutMs, env) {
     env: e
   });
   const rawErr = res.error;
-  const execError = rawErr === undefined ? null : rawErr.code === "ENOBUFS" ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B \u2014 ${rawErr.message}` : rawErr.message;
+  const stdoutLen = String(res.stdout ?? "").length;
+  const isTruncated = rawErr !== undefined && (rawErr.code === "ENOBUFS" || rawErr.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" || rawErr.code === undefined && stdoutLen >= RIPWIRE_MAX_BUFFER);
+  const execError = rawErr === undefined ? null : isTruncated ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B \u2014 ${rawErr.message}` : rawErr.message;
   return {
     bin,
     status: res.status,
@@ -182239,7 +182249,21 @@ function releaseHuntLock(targetPath) {
       console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed during release (a peer won the race) \u2014 keeping the current holder's lock`);
       return;
     }
-    fs12.unlinkSync(lockPath);
+    const fresh2 = readPayload(lockPath);
+    if (!fresh2 || fresh2.pid !== existing.pid || fresh2.acquiredAt !== existing.acquiredAt || fresh2.hostname !== existing.hostname) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed just before unlink (a peer won the race) \u2014 keeping the current holder's lock`);
+      return;
+    }
+    try {
+      fs12.unlinkSync(lockPath);
+    } catch (e) {
+      const code = e !== undefined && e !== null && typeof e === "object" && "code" in e ? e.code : undefined;
+      if (code === "ENOENT") {
+        console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock vanished before unlink (a peer won the race) \u2014 nothing to delete`);
+        return;
+      }
+      throw e;
+    }
   } catch (e) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -183247,7 +183271,7 @@ init_zod();
 
 // src/hunter/lexicon/templates.ts
 init_zod();
-import { createHash as createHash3 } from "crypto";
+import { createHash as createHash4 } from "crypto";
 class LexiconError extends Error {
   code;
   constructor(code, message) {
@@ -183263,7 +183287,7 @@ function templateMissing(templateId) {
   return new LexiconError("TEMPLATE_MISSING", `TEMPLATE_MISSING: template=${templateId} (the stored check_code names a template absent from the library \u2014 the battery cannot be reinstated)`);
 }
 function sha256(input) {
-  return createHash3("sha256").update(input, "utf8").digest("hex");
+  return createHash4("sha256").update(input, "utf8").digest("hex");
 }
 function readPath(obj, dotted) {
   let cur = obj;
@@ -183309,7 +183333,7 @@ function bindStringArray(bindings, key) {
 function bindStages(bindings) {
   const v = bindings["stages"];
   if (Array.isArray(v)) {
-    return v;
+    return v.filter((el) => typeof el === "object" && el !== null && typeof el.id === "string" && typeof el.entry === "string");
   }
   return [];
 }
@@ -183599,10 +183623,16 @@ var PROCESS_GATES_OUTPUTS = {
       const callers = ctx.graph.whoCalls(next.entry);
       const connected = outgoing.some((e) => e.to.includes(next.entry)) || callers.some((c) => c.caller === cur.entry);
       if (!connected) {
+        let stageFile = "";
+        try {
+          const hit = ctx.graph.nodes().find((n) => n.name === cur.entry);
+          if (hit?.file)
+            stageFile = hit.file;
+        } catch {}
         findings.push({
           ruleId: "process.gates-measure-outputs-not-logic",
           severity: sev,
-          file: cur.entry,
+          file: stageFile,
           line: 0,
           evidence: `stage ${cur.id} (entry ${cur.entry}) has no graph edge reaching stage ${next.id} (entry ${next.entry}) \u2014 the declared sequence is not wired in the call graph`,
           verdict: "VIOLATION"
@@ -184014,9 +184044,9 @@ var P6 = {
           if (!hasEx) {
             const triad = makeTriad(file, i + 1, "semantic.unscoped-walker", sev);
             findings.push({ ruleId: "semantic.unscoped-walker", severity: sev, file, line: i + 1, evidence: evEdge("semantic.unscoped-walker", file, i + 1, lines[i].trim(), "HT-BUG-20", anchor), verdict: "VIOLATION", triad });
-          } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win)) {
+          } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win) || !/\bdist\b/i.test(win)) {
             const triad = makeTriad(file, i + 1, "semantic.unscoped-walker", sev);
-            findings.push({ ruleId: "semantic.unscoped-walker", severity: sev, file, line: i + 1, evidence: evEdge("semantic.unscoped-walker", file, i + 1, lines[i].trim() + " missing Checkpoints/.trident", "HT-BUG-20", anchor), verdict: "VIOLATION", triad });
+            findings.push({ ruleId: "semantic.unscoped-walker", severity: sev, file, line: i + 1, evidence: evEdge("semantic.unscoped-walker", file, i + 1, lines[i].trim() + " missing Checkpoints/.trident/dist", "HT-BUG-20", anchor), verdict: "VIOLATION", triad });
           }
         }
     }
@@ -184339,7 +184369,8 @@ function openAndNextRunId(token, dbPath) {
     for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
       let payload;
       try {
-        payload = JSON.parse(String(row["payload"] ?? "{}"));
+        const raw = row["payload"];
+        payload = raw !== null && typeof raw === "object" ? raw : JSON.parse(String(raw ?? "{}"));
       } catch (e) {
         console.warn(`[recon] HUNT_DONE payload parse failed \u2014 skipped: ${e instanceof Error ? e.message : String(e)}`);
         continue;
@@ -184846,20 +184877,20 @@ function calibrationFixtureInvalid(detail) {
 }
 
 class CalibrationGate {
-  battery;
   fixtures;
   fixtureVersion;
   dryRun;
   fireByPred = new Map;
   silentByPred = new Map;
   verdicts = new Map;
+  battery;
   calibratedAt;
   constructor(battery, fixtures, fixtureVersion, dryRun = true) {
-    this.battery = battery;
     this.fixtures = fixtures;
     this.fixtureVersion = fixtureVersion;
     this.dryRun = dryRun;
     this.calibratedAt = Date.now();
+    this.battery = battery.map((p) => ({ ...p }));
   }
   async fireTest(p, fireFixtures) {
     const result = this.computeFireTest(p, fireFixtures);
@@ -185082,11 +185113,12 @@ ${p.verbatimQuote}`).join(`
       verdict = "FLAGGED";
     else if (fire && silent)
       verdict = "CALIBRATED";
+    const owned = this.battery.find((b) => b.id === p.id) ?? p;
     if (verdict) {
       this.verdicts.set(p.id, verdict);
-      markCalibrated(p, verdict);
+      markCalibrated(owned, verdict);
     } else {
-      markCalibrated(p, "PENDING");
+      markCalibrated(owned, "PENDING");
     }
   }
   writeCalibrationRows(db, records, fixtureVersion) {
@@ -185180,7 +185212,8 @@ async function runCalibration(profile, fixtures, opts = {}) {
     const fixtureVersion = opts.fixtureVersion ?? "v1";
     const battery = opts.battery ?? await compile(profile);
     const gate = new CalibrationGate(battery, fixtures, fixtureVersion, opts.dryRun ?? true);
-    return gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
+    const result = await gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
+    return result;
   } catch (e) {
     console.warn(`[calibration] runCalibration failed: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
@@ -185283,10 +185316,11 @@ function severityWeight(s) {
 }
 function deriveRootCause(f, evidenceLen) {
   const anchor = `${f.file}:${f.line}`;
-  const first = f.evidence.split(/\n|\.\s/)[0]?.trim() ?? f.evidence;
+  const evidenceText = typeof f.evidence === "string" ? f.evidence : "";
+  const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
   const mechanism = first.length > 120 ? `${first.slice(0, 120)}\u2026` : first;
   const depth = evidenceLen > 3 ? "a multi-step edge chain" : "a single-edge mechanism";
-  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${mechanism}`;
+  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${first}`;
 }
 function legacySolveTrace(findings, graph) {
   const ruleCounts = new Map;
@@ -185296,7 +185330,8 @@ function legacySolveTrace(findings, graph) {
   const total = findings.length === 0 ? 1 : findings.length;
   return findings.map((f) => {
     const blast = ruleCounts.get(f.ruleId) ?? 0;
-    const evidenceLen = f.evidence.split(/\s+->\s+|,|\n/).filter((s) => s.trim().length > 0).length;
+    const evText = typeof f.evidence === "string" ? f.evidence : "";
+    const evidenceLen = evText.split(/\s+->\s+|,|\n/).filter((s) => s.trim().length > 0).length;
     const relevance = {
       "first-principles": severityWeight(f.severity),
       "systematic-debugging": Math.min(1, evidenceLen / 6),
@@ -185331,8 +185366,17 @@ function strike(findings, profile, traces = []) {
   const deduped = dedupe(findings);
   const ranked = rankFindings(deduped, profile);
   const traceByFinding = new Map;
-  for (const t of traces)
-    traceByFinding.set(t.findingId, t);
+  for (const t of traces) {
+    const existing = traceByFinding.get(t.findingId);
+    if (!existing) {
+      traceByFinding.set(t.findingId, { ...t, relevance: { ...t.relevance } });
+      continue;
+    }
+    const merged = { ...existing.relevance };
+    for (const [k, v] of Object.entries(t.relevance))
+      merged[k] = (merged[k] ?? 0) + (typeof v === "number" ? v : 0);
+    traceByFinding.set(t.findingId, { ...existing, relevance: merged });
+  }
   const relevanceOf = (f) => {
     const t = traceByFinding.get(findingIdOf(f));
     if (!t)
@@ -185874,6 +185918,7 @@ function createMicroLoop(options) {
             settle();
           }
         });
+        handleDisposables.push(sub2, sub3);
         function settle() {
           if (settled)
             return;
@@ -186134,30 +186179,45 @@ function createBugHuntTool(pi, opts) {
         }
       }
       try {
-        const opened = openSessionStore({ sessionId: callerId, scopeRoot, callerSessionId: callerId });
-        if (countTypedNodes(opened.storePath) === 0) {
-          populateSessionStore(opened.storePath, scopeRoot);
-        }
-        let u = [];
-        let linelessNote = "";
         try {
-          u = unwiredNodes(opened.storePath);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          if (msg.includes("LINELESS_NODE")) {
-            linelessNote = ` store-note=${msg.slice(0, 120)}`;
-          } else {
-            throw e;
+          acquireHuntLock(scopeRoot);
+        } catch (lockErr) {
+          const lockMsg = lockErr instanceof Error ? lockErr.message : String(lockErr);
+          if (lockMsg.includes("HUNT_ALREADY_RUNNING")) {
+            return textResult(`HUNT_BUSY: a hunt holds the lock for ${scopeRoot} - status refuses a half-written read (retry after the hunt releases the lock)`, { ok: false, error: "HUNT_BUSY", action: p.action ?? "status" });
           }
+          throw lockErr;
         }
-        const fixOrder = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`);
-        return textResult(`state=done findingsCount=${u.length} fixOrderCount=${fixOrder.length}${linelessNote}`, {
-          ok: true,
-          state: "done",
-          findingsCount: u.length,
-          fixOrder,
-          action: p.action ?? "status"
-        });
+        try {
+          const opened = openSessionStore({ sessionId: callerId, scopeRoot, callerSessionId: callerId });
+          if (countTypedNodes(opened.storePath) === 0) {
+            populateSessionStore(opened.storePath, scopeRoot);
+          }
+          let u = [];
+          let linelessNote = "";
+          try {
+            u = unwiredNodes(opened.storePath);
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (msg.includes("LINELESS_NODE")) {
+              linelessNote = ` store-note=${msg.slice(0, 120)}`;
+            } else {
+              throw e;
+            }
+          }
+          const fixOrder = u.slice(0, 20).map((r) => `${r.name} (${r.file}:${r.line})`);
+          return textResult(`state=done findingsCount=${u.length} fixOrderCount=${fixOrder.length}${linelessNote}`, {
+            ok: true,
+            state: "done",
+            findingsCount: u.length,
+            fixOrder,
+            action: p.action ?? "status"
+          });
+        } finally {
+          try {
+            releaseHuntLock(scopeRoot);
+          } catch {}
+        }
       } catch (e) {
         const errObj = typeof e === "object" && e !== null ? e : {};
         const code = typeof errObj === "object" && errObj !== null && "code" in errObj && typeof errObj.code === "string" ? String(errObj.code) : "GI_QUERY_FAIL";
@@ -186383,11 +186443,11 @@ function violations(input, db) {
     params.push(input.runId);
   if (input.week)
     params.push(input.week);
-  const rows = rowsAs(db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params), "violations");
   const effectiveCap = input.format === "llm" ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
   const off = Math.max(0, Math.floor(input.offset ?? 0));
   const lim = input.limit !== undefined ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap) : effectiveCap;
-  return formatRows(rows.slice(off, off + lim), input.format);
+  const rows = rowsAs(db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END, id LIMIT ? OFFSET ?`).all(...params, lim, off), "violations");
+  return formatRows(rows, input.format);
 }
 function consistency(db, format) {
   const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(), "consistency spec");
@@ -186617,8 +186677,13 @@ function createLayerRegistry() {
         try {
           const rawProbe = p.up();
           const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof rawProbe.up === "boolean";
-          if (!probeValid || rawProbe.up !== true)
+          if (!probeValid || rawProbe.up !== true) {
+            const probeEvidence = typeof rawProbe === "object" && rawProbe !== null && typeof rawProbe.evidence === "string" ? rawProbe.evidence : "";
+            const reason = !probeValid ? `GI_LAYER_DOWN:${p.id} - the probe returned a malformed shape (no boolean up) - DOWN by construction` : `GI_LAYER_DOWN:${p.id} - the probe reports DOWN${probeEvidence ? `: ${probeEvidence}` : ""}`;
+            console.error("[layer-registry] factsFor: consumer " + p.id + " is DOWN or malformed - see audit GI_LAYER_DOWN:" + p.id + ": " + reason);
+            faults.push({ consumer: p.id, reason });
             continue;
+          }
           const got = p.facts(subject);
           if (!Array.isArray(got)) {
             console.error("[layer-registry] factsFor: consumer " + p.id + " returned non-array facts - see audit GI_LAYER_ERROR:" + p.id);
@@ -187028,7 +187093,10 @@ function semanticaProbe(scopeRoot) {
       } catch (e) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
-      if (kg !== null && typeof kg === "object" && !Array.isArray(kg) && kg.entities !== undefined && !Array.isArray(kg.entities)) {
+      if (kg === null || typeof kg !== "object" || Array.isArray(kg)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store root is not a valid object (got ${kg === null ? "null" : Array.isArray(kg) ? "array" : typeof kg})`);
+      }
+      if (kg.entities !== undefined && !Array.isArray(kg.entities)) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expected array, got ${typeof kg.entities})`);
       }
       const hits = (kg.entities ?? []).filter((e) => {
@@ -187122,9 +187190,14 @@ function tsgProbe(scopeRoot, tsgRoot) {
             return s;
           let out = s.split(key).join(key.slice(0, 4) + "...[redacted]");
           if (key.length >= 16) {
-            const tail = key.slice(-8);
-            if (tail.length >= 8)
-              out = out.split(tail).join("...[redacted-tail]");
+            const seen = new Set;
+            for (let i = 0;i + 8 <= key.length; i++) {
+              const gram = key.slice(i, i + 8);
+              if (seen.has(gram))
+                continue;
+              seen.add(gram);
+              out = out.split(gram).join("...[redacted-frag]");
+            }
           }
           return out;
         };
@@ -187405,11 +187478,16 @@ function abideProbe(scopeRoot, abideRoot) {
       const hits = events.filter((e) => {
         if (e.band !== "flag")
           return false;
-        const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
-        if (hay.includes(subject))
-          return true;
         const span = (e.matched_span ?? "").trim();
-        if (span.length > 0 && subject.includes(span))
+        const verdict = (e.verdict ?? "").trim();
+        const rule = (e.rule ?? "").trim();
+        if (span.length > 0 && span.includes(subject))
+          return true;
+        if (verdict.length > 0 && verdict.includes(subject))
+          return true;
+        if (rule.length > 0 && rule.includes(subject))
+          return true;
+        if (span.length >= 6 && subject.includes(span))
           return true;
         return false;
       });
@@ -188394,6 +188472,9 @@ function decideFireFromGraph(scopeRoot, target, intent) {
   if (typeof target !== "string" || target.trim().length === 0) {
     throw new Error("GI_DECIDE_BAD_INPUT: target must be a non-empty string");
   }
+  if (target.includes("\x00")) {
+    throw new Error("GI_DECIDE_BAD_INPUT: target must not contain NUL bytes");
+  }
   if (intent !== "consume" && intent !== "declare" && intent !== "mutate" && intent !== "measure") {
     throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of consume|declare|mutate|measure (got ${String(intent)})`);
   }
@@ -188442,6 +188523,33 @@ var withPopulateLane = async (fn) => {
   });
   return run;
 };
+function ensureAuditRoot(targetReal, auditRoot) {
+  const rel = path37.relative(targetReal, auditRoot);
+  if (rel === "" || rel.startsWith("..") || path37.isAbsolute(rel))
+    return "audit root escapes the target root";
+  const parts = rel.split(path37.sep).filter((p) => p.length > 0);
+  let cur = targetReal;
+  try {
+    for (const part of parts) {
+      if (part === ".." || part === "." || path37.isAbsolute(part))
+        return "audit root escapes the target root";
+      cur = path37.join(cur, part);
+      let st = null;
+      try {
+        st = fs32.lstatSync(cur);
+      } catch {
+        st = null;
+      }
+      if (st && st.isSymbolicLink())
+        return "audit root is a symlink plant";
+      if (!st)
+        fs32.mkdirSync(cur);
+    }
+  } catch (mkErr) {
+    return `cannot create audit root: ${mkErr instanceof Error ? mkErr.message : String(mkErr)}`;
+  }
+  return null;
+}
 function ledgerDirConfined(ledgerReal, targetReal) {
   const rel = path37.relative(targetReal, ledgerReal);
   return rel !== "" && !rel.startsWith("..") && !path37.isAbsolute(rel);
@@ -188850,19 +188958,9 @@ ${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false 
       }
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      let auditPre = null;
-      try {
-        auditPre = fs32.lstatSync(auditRoot);
-      } catch {
-        auditPre = null;
-      }
-      if (auditPre && auditPre.isSymbolicLink()) {
-        return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
-      }
-      try {
-        fs32.mkdirSync(auditRoot, { recursive: true });
-      } catch (mkErr) {
-        return textResult2(`GI_LEDGER_DENIED: cannot create audit root: ${mkErr instanceof Error ? mkErr.message : String(mkErr)}`.slice(0, 200), { ok: false, error: "GI_LEDGER_DENIED" });
+      const rootRefusal = ensureAuditRoot(targetReal, auditRoot);
+      if (rootRefusal !== null) {
+        return textResult2(`GI_LEDGER_DENIED: ${rootRefusal}`.slice(0, 200), { ok: false, error: "GI_LEDGER_DENIED" });
       }
       const auditRootReal = fs32.realpathSync(auditRoot);
       const ledgerRel = path37.relative(targetReal, auditRootReal);
@@ -189037,6 +189135,7 @@ export {
   GI_TOOL_NAMES,
   GI_TOOL_NAMES_ALIASES,
   giOmpExtension as default,
+  ensureAuditRoot,
   graphProbeWipeAudited,
   ledgerDirConfined,
   parseTargetRoots,

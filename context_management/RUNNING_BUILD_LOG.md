@@ -685,7 +685,7 @@ workspace-ancestor ledger walk).
 
 ## 2026-09-25 ~02:00 — THE R12 WAVE CLOSED + THE SUBSTRATE RESTORED
 
-**HEAD** `17dec7d` · **dist** `c8366b1f1ffd0c7e` · **the battery** 438/0 + 536/0, exit 0.
+**HEAD** `17dec7d` · **dist** `8665a03e6fff5546c0d99d941992678a3ea34f590887a62981fb5a1e8b69d359` · **the battery** 438/0 + 536/0, exit 0.
 
 **THE WAVE (~43 REAL across 5 agents):**
 - **R12High1** 9 REAL + 2 NOT-A-BUG — calibration persistence-split, fixture validation, whoCalls
