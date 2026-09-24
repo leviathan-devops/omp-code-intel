@@ -52,12 +52,26 @@ export function makeDbPath(spec: DbPathSpec): () => string {
         );
       }
       // ★ F-413 FIX (2026-09-24): path.isAbsolute handles drive-letter/UNC — startsWith('/') misclassified Windows absolute paths as relative.
-      return path.isAbsolute(spec.testFile)
-        ? spec.testFile
-        : path.join(os.tmpdir(), spec.testFile);
+      // F-856 FIX (2026-09-24): expand a tilde testFile against HOME.
+      const testFile = spec.testFile;
+      if (path.isAbsolute(testFile)) return testFile;
+      if (testFile === TILDE || testFile.startsWith(TILDE_SLASH)) {
+        const home = process.env.HOME ?? process.env.USERPROFILE;
+        if (!home) {
+          throw new Error(
+            `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
+            `(fileName="${spec.fileName}") - cannot resolve testFile`,
+          );
+        }
+        return testFile === TILDE ? path.join(home, spec.fileName) : path.join(home, testFile.slice(2));
+      }
+      return path.join(os.tmpdir(), testFile);
     }
+    const TILDE = String.fromCharCode(126);
+    const TILDE_SLASH = TILDE + '/';
     let dir = spec.defaultDir;
-    if (dir.startsWith('~/')) {
+    // F-855 FIX (2026-09-24): bare tilde is HOME too.
+    if (dir === TILDE || dir.startsWith(TILDE_SLASH)) {
       // ★ F-355 FIX (2026-09-24): the '.' fallback silently resolved the production DB
       //   relative to an unpredictable cwd when neither HOME nor USERPROFILE is set
       //   (containers/CI) — the exact silent-pollution class this module exists to
