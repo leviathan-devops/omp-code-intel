@@ -1,0 +1,627 @@
+[
+{"part":"src_hunter_diagnostics_calibration.ts","result":{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 6,
+    "total_tokens": 47814,
+    "input_tokens": 38059,
+    "output_tokens": 9755,
+    "cache_read_tokens": 14528,
+    "elapsed": "2m58s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "content": "The `failedTest` assignment uses a deeply nested ternary expression (3 levels deep). This is error-prone to read and maintain — a misread of nesting levels could mislabel the `failedTest` field, which is the permanent audit record for FLAGGED predicates. Consider rewriting as a sequence of if/else-if or a helper function for clarity.",
+      "suggestion_code": "      let failedTest: CalibrationRecord['failedTest'];\n      if (verdict === 'CALIBRATED') {\n        failedTest = undefined;\n      } else if (fire.result === 'MISS' \u0026\u0026 silent.result === 'FALSE-FIRE') {\n        failedTest = 'BOTH';\n      } else if (fire.result === 'MISS') {\n        failedTest = 'FIRE';\n      } else {\n        failedTest = 'SILENT';\n      }",
+      "existing_code": "      const failedTest: CalibrationRecord['failedTest'] = verdict === 'CALIBRATED'\n        ? undefined\n        : fire.result === 'MISS'\n          ? (silent.result === 'FALSE-FIRE' ? 'BOTH' : 'FIRE')\n          : 'SILENT';",
+      "start_line": 334,
+      "end_line": 338,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "content": "The `liveBattery` and `excluded` filtering logic is duplicated between the `run()` method and the instance methods `liveBattery()` / `excluded()`. The `run()` method should call those methods to stay DRY and avoid drift if the filtering logic changes.",
+      "suggestion_code": "    const liveBattery = this.liveBattery();\n    const excluded = this.excluded();",
+      "existing_code": "    const liveBattery = this.battery.filter((p) =\u003e this.verdictOf(p.id) === 'CALIBRATED');\n    const excluded = this.battery.filter((p) =\u003e this.verdictOf(p.id) === 'FLAGGED');",
+      "start_line": 365,
+      "end_line": 366,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "content": "`fireTest` and `silentTest` are declared `async` but their implementations (`computeFireTest` / `computeSilentTest`) are entirely synchronous — no `await` is used anywhere in the call chain. This is misleading: callers will receive a Promise wrapping a synchronous result, adding unnecessary microtask overhead. More importantly, if the engine's `run()` function is ever changed to return a Promise, the missing `await` inside `runCheck` would silently produce incorrect results (a Promise object is truthy, so every fixture would appear as a HIT). Either remove the unnecessary `async` keyword, or add `await` in `runCheck` if the engine is expected to become async.",
+      "suggestion_code": "  fireTest(p: CompiledPredicate, fireFixtures: FireFixture[]): FireTestResult {\n    const result = this.computeFireTest(p, fireFixtures);\n    this.fireByPred.set(p.id, result);\n    this.mark(p);\n    return result;\n  }",
+      "existing_code": "async fireTest(p: CompiledPredicate, fireFixtures: FireFixture[]): Promise\u003cFireTestResult\u003e {\n    const result = this.computeFireTest(p, fireFixtures);\n    this.fireByPred.set(p.id, result);\n    this.mark(p);\n    return result;\n  }",
+      "start_line": 196,
+      "end_line": 201,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "content": "TOCTOU race in file claiming: `readdirSync` counts existing files, then the loop starts probing from `N+1`. Between the `readdirSync` and the first `openSync`, another concurrent session could claim the same `N+1`, and while the `EEXIST` retry loop handles immediate collisions, it only increments linearly. If two sessions race past the same gap simultaneously, they could both claim the same slot before either writes. A more robust approach would be to always start probing from 1 (or use `mkdtemp` / a lock file).",
+      "suggestion_code": "    // Always probe from 1 to avoid TOCTOU gaps with concurrent sessions\n    let n = 1;\n    let file = path.join(recordPath, `CALIBRATION_v${n}.md`);",
+      "existing_code": "    const existing = fs.readdirSync(recordPath).filter((f) =\u003e /^CALIBRATION_v\\d+\\.md$/.test(f)).length;\n    let n = existing + 1;\n    let file = path.join(recordPath, `CALIBRATION_v${n}.md`);",
+      "start_line": 551,
+      "end_line": 553,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "content": "`markCalibrated` casts and mutates the original `CompiledPredicate` objects in the shared battery array via `(p as CalibratedPredicate).calibrated = verdict`. External callers holding references to those objects will see the mutated `calibrated` property across sessions. If the same battery is reused for a second calibration session (e.g., different fixtures), the previous session's verdicts leak into the new session's starting state. Consider creating shallow copies of predicates before marking, or using a separate Map for calibration state instead of mutating the shared objects.",
+      "suggestion_code": "// Consider storing calibration state in CalibrationGate's own Map\n// instead of mutating the shared CompiledPredicate objects:\n// private readonly calibrations = new Map\u003cstring, 'CALIBRATED' | 'FLAGGED' | 'PENDING'\u003e();\n//\n// Or, if mutation is required, work on shallow copies:\n// function markCalibrated(p: CompiledPredicate, verdict: ...): CalibratedPredicate {\n//   return { ...p, calibrated: verdict };\n// }",
+      "existing_code": "function markCalibrated(p: CompiledPredicate, verdict: 'CALIBRATED' | 'FLAGGED' | 'PENDING'): void {\n  if (p !== undefined \u0026\u0026 p !== null) {\n    (p as CalibratedPredicate).calibrated = verdict;\n    return;\n  }",
+      "start_line": 650,
+      "end_line": 654,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "content": "The `validateFireFixture` and `validateGoldenFixture` methods are called inside the per-fixture loop in `computeFireTest` / `computeSilentTest`. If a fixture is invalid, the error is thrown mid-iteration, leaving partial results. Consider validating ALL fixtures up-front before running any engine checks, so that malformed fixtures fail fast without wasting engine runs on valid fixtures.",
+      "suggestion_code": "    // Validate all fixtures upfront before running engine checks\n    for (const fixture of matching) {\n      this.validateFireFixture(fixture);\n    }\n    for (const fixture of matching) {\n      const findings = this.runCheck(p, fixture.graph, fixture.source);",
+      "existing_code": "    for (const fixture of matching) {\n      this.validateFireFixture(fixture);\n      const findings = this.runCheck(p, fixture.graph, fixture.source);",
+      "start_line": 408,
+      "end_line": 410,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **TOCTOU race in file claiming** (`src/hunter/diagnostics/calibration.ts`): `readdirSync` counts files then a loop claims `N+1`, but concurrent sessions can race between the count and the first `openSync`. The `EEXIST` retry handles immediate collisions but not broader contention. This is a real concurrency bug that can produce corrupted or duplicate calibration files.\n\n2. **Shared mutable state via `markCalibrated`** (`src/hunter/diagnostics/calibration.ts`): Casts and mutates original `CompiledPredicate` objects from a shared battery array, attaching a `calibrated` property directly. Any external caller holding a reference sees the mutation bleed across sessions, risking stale or cross-contaminated calibration state.\n\n3. **Partial results on validation failure** (`src/hunter/diagnostics/calibration.ts`): `validateFireFixture` / `validateGoldenFixture` are called mid-iteration inside the per-fixture loop. A single invalid fixture throws mid-run, leaving partial, non-reproducible results. Validating all fixtures up-front would make failures atomic and diagnosable.\n\n4. **Misleading `async` on synchronous implementations** (`src/hunter/diagnostics/calibration.ts`): `fireTest` and `silentTest` are `async` but `computeFireTest` / `computeSilentTest` use no `await` anywhere. Every caller gets an unnecessary Promise wrapper, adding microtask overhead and obscuring the fact that no concurrency is involved.\n\n### Module Hotspots\n\n- **`src/hunter/diagnostics/calibration.ts`** — sole file scanned; all 6 comments concentrate here. The file mixes I/O, concurrency, mutation of shared data structures, validation, and complex control flow in a single module, suggesting it may benefit from decomposition.\n\n### Cross-Cutting Concerns\n\n- **Mutation of shared domain objects** (`src/hunter/diagnostics/calibration.ts`): The `markCalibrated` method mutates objects in-place via casting, a pattern that tends to propagate across a codebase wherever battery arrays are shared. Worth auditing for other mutation sites.\n- **Lack of upfront input validation** (`src/hunter/diagnostics/calibration.ts`): Both `computeFireTest` and `computeSilentTest` validate inputs lazily inside loops. This is a common anti-pattern across data-processing code — consider a shared validation utility that runs before iteration.\n- **Unnecessary `async` wrappers** (`src/hunter/diagnostics/calibration.ts`): A broader check across the codebase for `async` functions containing zero `await` expressions would catch similar noise in other modules.\n\n### Quick Wins\n\n- **Un-nest the `failedTest` ternary** (`src/hunter/diagnostics/calibration.ts`): Replace with an `if/else` chain or `match`-style lookup table. Trivial refactor, eliminates a readability hazard in an audit-critical field.\n- **DRY up the `liveBattery`/`excluded` filtering** (`src/hunter/diagnostics/calibration.ts`): Make `run()` delegate to the existing `liveBattery()` and `excluded()` instance methods. ~15 minutes of work, removes a drift risk.\n- **Remove `async` from `fireTest` / `silentTest`** (`src/hunter/diagnostics/calibration.ts`): Drop the `async` keyword and return values directly. Eliminates unnecessary Promise wrapping and clarifies the contract. *(Note: verify no downstream caller `.await`s these or chains `.then()` on them.)*\n- **Move fixture validation before the loop** (`src/hunter/diagnostics/calibration.ts`): Collect all validation errors, then throw a single aggregate error. Small structural change, makes failures deterministic and easier to debug.",
+  "session_id": "551075dc-c76b-4c44-9f23-d5d906317f18"
+}},
+{"part":"src_hunter_diagnostics_engine.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_diagnostics_findings-store.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_diagnostics_fixture-calibration.ts","result":{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 8,
+    "total_tokens": 47129,
+    "input_tokens": 38182,
+    "output_tokens": 8947,
+    "cache_read_tokens": 21824,
+    "elapsed": "1m50s"
+  },
+  "tool_calls": {
+    "total": 2,
+    "by_tool": {
+      "code_comment": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "WITHDRAWN — upon closer inspection, the return object `{ profile, fixtures, fixtureProfileDir, profileFromDisk }` does include profileFromDisk. No bug here. The initial claim that profileFromDisk was missing from the return was incorrect.",
+      "suggestion_code": "  const { profile, profileFromDisk } = loadFixtureProfile(fixtureProfileDir);\n  const fixtures = loadCalibrationFixtures(fixtureProfileDir);\n  return { profile, fixtures, fixtureProfileDir, profileFromDisk };  // ← this is actually correct on re-read",
+      "existing_code": "  const { profile, profileFromDisk } = loadFixtureProfile(fixtureProfileDir);\n  const fixtures = loadCalibrationFixtures(fixtureProfileDir);\n  return { profile, fixtures, fixtureProfileDir, profileFromDisk };",
+      "start_line": 299,
+      "end_line": 301,
+      "category": "bug",
+      "severity": "critical"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "TOCTOU race in both loadFireFixture and loadGoldenFixture: fs.existsSync guards before readFileSync create a time-of-check-time-of-use gap. If a manifest.json or source file is removed between the existence check and the read, the resulting ENOENT surfaces as an uncaught synchronous throw rather than the clear CALIBRATION_FIXTURE_INVALID message the loader intends. Wrap the readFileSync calls in try/catch and convert ENOENT to CALIBRATION_FIXTURE_INVALID in both functions.",
+      "suggestion_code": "export function loadFireFixture(dir: string): FireFixture {\n  let rawManifest: string;\n  try {\n    rawManifest = fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8');\n  } catch (e: unknown) {\n    if ((e as NodeJS.ErrnoException).code === 'ENOENT') {\n      throw new Error(`CALIBRATION_FIXTURE_INVALID: manifest.json not found in ${dir}`);\n    }\n    throw e;\n  }\n  const manifest = asFixture\u003cFireFixtureManifest\u003e(rawManifest, 'fire manifest');\n  let source: string;\n  try {\n    source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');\n  } catch (e: unknown) {\n    if ((e as NodeJS.ErrnoException).code === 'ENOENT') {\n      throw new Error(`CALIBRATION_FIXTURE_INVALID: source file '${manifest.sourceFile}' not found in ${dir}`);\n    }\n    throw e;\n  }",
+      "existing_code": "export function loadFireFixture(dir: string): FireFixture {\n  const manifest = asFixture\u003cFireFixtureManifest\u003e(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'fire manifest');\n  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');",
+      "start_line": 155,
+      "end_line": 157,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "No guard against empty fixture arrays after loading. loadCalibrationFixtures can legally return { fire: [], golden: [] } if subdirectories exist but contain no manifest.json files. This produces a silent no-op calibration run that reports nothing. Add a post-load check and throw CALIBRATION_FIXTURE_INVALID when either array is empty.",
+      "suggestion_code": "  const fire = withManifest(fireDir).map((d) =\u003e loadFireFixture(d));\n  const golden = withManifest(goldenDir).map((d) =\u003e loadGoldenFixture(d));\n  if (fire.length === 0) {\n    throw new Error(`CALIBRATION_FIXTURE_INVALID: no fire fixtures found in ${fireDir}`);\n  }\n  if (golden.length === 0) {\n    throw new Error(`CALIBRATION_FIXTURE_INVALID: no golden fixtures found in ${goldenDir}`);\n  }\n  return { fire, golden };",
+      "existing_code": "  const fire = withManifest(fireDir).map((d) =\u003e loadFireFixture(d));\n  const golden = withManifest(goldenDir).map((d) =\u003e loadGoldenFixture(d));\n  return { fire, golden };",
+      "start_line": 204,
+      "end_line": 206,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "Path traversal risk: manifest.sourceFile comes from untrusted on-disk JSON and is joined to the fixture dir via path.join without sanitization. A manifest with sourceFile '../../etc/passwd' would read arbitrary files outside the fixture directory. Validate that the resolved path stays within the fixture dir (or at least that sourceFile has no directory separators).",
+      "suggestion_code": "  // Path traversal guard: sourceFile must not escape the fixture dir\n  const resolvedSource = path.resolve(dir, manifest.sourceFile);\n  if (!resolvedSource.startsWith(path.resolve(dir))) {\n    throw new Error(`CALIBRATION_FIXTURE_INVALID: sourceFile '${manifest.sourceFile}' escapes fixture dir ${dir}`);\n  }\n  const source = fs.readFileSync(resolvedSource, 'utf8');\n  if (!manifest.ruleId || !manifest.file || !manifest.line) {",
+      "existing_code": "  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');\n  if (!manifest.ruleId || !manifest.file || !manifest.line) {",
+      "start_line": 157,
+      "end_line": 158,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "asFixture validates the graph structure but does not validate individual node shapes. A manifest with graph.nodes containing objects missing required fields (id, kind, file, line) will propagate into graphFromManifest() and produce an opaque TypeError at .map time rather than a clear CALIBRATION_FIXTURE_INVALID. Add a per-node shape check inside asFixture.",
+      "suggestion_code": "        if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {\n          throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);\n        }\n        // Validate each node has the required shape\n        for (const [i, node] of ((g as { nodes: Record\u003cstring, unknown\u003e[] }).nodes).entries()) {\n          if (typeof node !== 'object' || node === null || typeof node.id !== 'string' || typeof node.kind !== 'string' || typeof node.file !== 'string' || typeof node.line !== 'number') {\n            throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes[${i}] is missing required fields (id, kind, file, line)`);\n          }\n        }\n      }\n      return parsed as T;",
+      "existing_code": "        if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {\n          throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);\n        }\n      }\n      return parsed as T;",
+      "start_line": 127,
+      "end_line": 131,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "buildFixtureProfile hardcodes template ID 'domain.numeric-threshold' without verifying it exists in TEMPLATE_LIBRARY. If the template is renamed, the fallback path builds a full profile object, the caller compiles it, and only then does compileFixtureBattery throw TEMPLATE_UNKNOWN — a misleading error far from the root cause. Validate the template key eagerly and throw a clear error if absent.",
+      "suggestion_code": "export function buildFixtureProfile(fixtureProfileDir: string): ProjectProfile {\n  // Eagerly validate the hardcoded template key to fail fast if the library changes\n  const P6_TEMPLATE_ID = 'domain.numeric-threshold';\n  if (!TEMPLATE_LIBRARY[P6_TEMPLATE_ID]) {\n    throw new Error(`TEMPLATE_UNKNOWN: buildFixtureProfile fallback requires template '${P6_TEMPLATE_ID}' which is not in TEMPLATE_LIBRARY`);\n  }\n  return ProjectProfileSchema.parse({",
+      "existing_code": "export function buildFixtureProfile(fixtureProfileDir: string): ProjectProfile {\n  return ProjectProfileSchema.parse({",
+      "start_line": 218,
+      "end_line": 219,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "loadFireFixture and loadGoldenFixture both use readFileSync (sync I/O) but are called from the async runFixtureCalibration pipeline. Under load or with many fixtures, this blocks the event loop. Consider using fs.promises.readFile / fs.promises.readdir or wrapping the sync calls in a file:// import with a note that this is intentional for fixture loading (which runs once at startup).",
+      "suggestion_code": "  // Consider converting to async (fs.promises.readFile) to avoid blocking the event loop:\n  // const source = await fs.promises.readFile(path.join(dir, manifest.sourceFile), 'utf8');\n  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');",
+      "existing_code": "  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');\n  if (!manifest.ruleId || !manifest.file || !manifest.line) {\n    throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} carries an empty ruleId/file/line anchor`);",
+      "start_line": 157,
+      "end_line": 159,
+      "category": "performance",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "content": "bindingsMap accepts any non-null object including numbers and booleans (e.g., bindingsMap(42) returns { 42: {} }). Since the input comes from a parsed profile, a corrupted value would silently produce an empty declaredPredicates map. Add a typeof guard to reject non-plain-object inputs.",
+      "suggestion_code": "function bindingsMap(v: unknown): Record\u003cstring, Record\u003cstring, unknown\u003e\u003e {\n  if (v !== undefined \u0026\u0026 v !== null \u0026\u0026 typeof v === 'object' \u0026\u0026 !Array.isArray(v)) {\n    return v as Record\u003cstring, Record\u003cstring, unknown\u003e\u003e;\n  }\n  return {};\n}",
+      "existing_code": "function bindingsMap(v: unknown): Record\u003cstring, Record\u003cstring, unknown\u003e\u003e {\n  if (v !== undefined \u0026\u0026 v !== null \u0026\u0026 typeof v === 'object') {\n    return v as Record\u003cstring, Record\u003cstring, unknown\u003e\u003e;\n  }\n  return {};\n}",
+      "start_line": 138,
+      "end_line": 143,
+      "category": "bug",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Path traversal via untrusted manifest data** — `manifest.sourceFile` is joined to the fixture directory with `path.join` and no sanitization. A crafted `manifest.json` could read arbitrary files outside the fixture directory. This is a security-critical finding. (`src/hunter/diagnostics/fixture-calibration.ts`)\n\n2. **TOCTOU race conditions in fixture loading** — Both `loadFireFixture` and `loadGoldenFixture` use `fs.existsSync` as a guard before `readFileSync`. A file removed between the check and the read produces an uncaught synchronous exception. (`src/hunter/diagnostics/fixture-calibration.ts`)\n\n3. **Silent no-op on empty fixture arrays** — `loadCalibrationFixtures` can return `{ fire: [], golden: [] }` when subdirectories exist but contain no `manifest.json` files. This produces a calibration run that silently reports nothing. (`src/hunter/diagnostics/fixture-calibration.ts`)\n\n4. **Missing node-shape validation in `asFixture`** — The function validates graph structure but not individual node shapes. Manifests with nodes missing required fields (`id`, `kind`, `file`, `line`) propagate to `graphFromManifest()` and surface as opaque `TypeError` exceptions rather than clear validation errors. (`src/hunter/diagnostics/fixture-calibration.ts`)\n\n5. **Hardcoded template ID without existence check** — `buildFixtureProfile` uses `'domain.numeric-threshold'` without verifying it exists in `TEMPLATE_LIBRARY`. If the template is renamed, the error only surfaces deep in the compilation stage. (`src/hunter/diagnostics/fixture-calibration.ts`)\n\n### Module Hotspots\n\nAll findings are concentrated in a single file:\n\n- **`src/hunter/diagnostics/fixture-calibration.ts`** — 7 actionable comments (8 total, 1 withdrawn) spanning security, correctness, robustness, and performance. This file is responsible for loading, parsing, and compiling calibration fixtures and is the sole hotspot in the review.\n\n### Cross-Cutting Concerns\n\n- **Inconsistent input validation** — Multiple functions accept data from untrusted on-disk JSON (`manifest.json`, profile objects) without adequate validation at their boundaries: path traversal in `sourceFile`, missing node fields in `asFixture`, non-object types in `bindingsMap`, and non-existent template IDs in `buildFixtureProfile`. These are all instances of the same pattern: parsing without defensive guards.\n\n- **Synchronous I/O in an async pipeline** — `loadFireFixture` and `loadGoldenFixture` both use `readFileSync`/`existsSync` but are invoked from the async `runFixtureCalibration` pipeline, blocking the event loop under load or with many fixtures.\n\n### Quick Wins\n\n- **Sanitize `manifest.sourceFile`** — After resolving the path, verify it stays within the fixture directory (e.g., `resolved.startsWith(fixtureDir)`). Trivial to add and eliminates a path traversal vector.\n\n- **Replace `existsSync`/`readFileSync` with try/catch around `readFileSync`** (or switch to `fs.promises`) — Removing the TOCTOU guard collapses two calls into one and eliminates both the race and the sync I/O problem simultaneously.\n\n- **Add a post-load emptiness check** in `loadCalibrationFixtures` — After loading, throw a clear error if both `fire` and `golden` arrays are empty.\n\n- **Add `typeof` guard in `bindingsMap`** — Reject non-plain-object inputs early (`if (!value || typeof value !== 'object' || Array.isArray(value)) throw ...`) to prevent silent corruption.\n\n- **Validate `sourceFile` against a whitelist pattern or path-prefix check** and **add node-shape validation in `asFixture`** — Both are straightforward `Object.keys`/field-existence checks that produce clear error messages instead of opaque downstream failures.",
+  "session_id": "0720ee85-1c81-494e-acb4-f9e2c93af55c"
+}},
+{"part":"src_hunter_diagnostics_semantic-predicates.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_firewall_artifact-scope.ts","result":{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "message": "No comments generated. Looks good to me.",
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 0,
+    "total_tokens": 32468,
+    "input_tokens": 29376,
+    "output_tokens": 3092,
+    "cache_read_tokens": 19328,
+    "elapsed": "2m40s"
+  },
+  "tool_calls": {
+    "total": 2,
+    "by_tool": {
+      "code_search": 1,
+      "file_read": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "session_id": "47793eff-03bd-4f85-be54-4f120650c435"
+}},
+{"part":"src_hunter_firewall_lexicon-types.ts","result":{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 23364,
+    "input_tokens": 16298,
+    "output_tokens": 7066,
+    "cache_read_tokens": 3584,
+    "elapsed": "3m49s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/firewall/lexicon-types.ts",
+      "content": "Type safety gap: `verdict` and `state` are independently typed properties, so nothing prevents constructing a `BashLockdownDecision` where `verdict: 'ALLOW_READ'` but `state: 'BLOCKED'`. Since `state` is documented as an alias of `verdict` (the spec's pseudocode `d.state`), this divergence would be semantically invalid but type-correct. The same issue exists in `ReportScopeDecision`. Consider using a discriminated-union pattern or a factory function that enforces consistency, rather than exposing two independently-settable properties that must always carry the same value.",
+      "suggestion_code": "// Option A: Use a mapped type that forces state = verdict\nexport type BashLockdownDecision = LexiconDecision \u0026 {\n  verdict: 'ALLOW_READ' | 'BLOCKED';\n} \u0026 { state: LexiconDecision['verdict'] };\n\n// Option B (preferred): A factory that constructs the object with guaranteed consistency\nexport function createBashLockdownDecision(\n  verdict: 'ALLOW_READ' | 'BLOCKED',\n  rest: Omit\u003cBashLockdownDecision, 'verdict' | 'state' | 'triplet' | 'mPSE'\u003e \u0026 { mPSE: MPSE }\n): BashLockdownDecision {\n  return { ...rest, verdict, state: verdict, triplet: rest.mPSE };\n}",
+      "existing_code": "export interface BashLockdownDecision extends LexiconDecision {\n  verdict: 'ALLOW_READ' | 'BLOCKED';\n  state: 'ALLOW_READ' | 'BLOCKED';\n}",
+      "start_line": 94,
+      "end_line": 97,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/hunter/firewall/lexicon-types.ts",
+      "content": "`remediationHook` is defined but the comment itself states there are zero invocations anywhere in `src/`. While optional hooks are common in type-definition files as extension points, a hook that is never wired up is dead code at the contract surface — it may mislead consumers into thinking the hook will be called. If this is intentionally kept for future use, consider adding a `@todo` or marking it explicitly. If not, remove it to avoid confusion.",
+      "suggestion_code": "  // @todo F-533: wire remediationHook into the decision state machines (currently zero call sites)\n  remediationHook?: (evidence: MPSE) =\u003e void;",
+      "existing_code": "  remediationHook?: (evidence: MPSE) =\u003e void;",
+      "start_line": 56,
+      "end_line": 56,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/firewall/lexicon-types.ts",
+      "content": "In `LexiconDecision`, the properties `state` (alias of `verdict`) and `triplet` (alias of `mPSE`) are duplicate fields that must always carry identical values. Nothing in the type system enforces this — every call site that constructs a `LexiconDecision` (or its subtypes) must manually keep `verdict`/`state` and `mPSE`/`triplet` in sync. A single construction site that forgets one alias will produce a silently inconsistent record. A helper/factory function would eliminate this entire class of bug.",
+      "suggestion_code": "// Add a construction helper that guarantees alias consistency:\nexport function lexiconDecision(\n  verdict: LexiconDecision['verdict'],\n  pattern: string,\n  token: string,\n  message: string,\n  mPSE: MPSE,\n  resolvedDir?: string\n): LexiconDecision {\n  return { verdict, state: verdict, pattern, token, message, mPSE, triplet: mPSE, resolvedDir };\n}",
+      "existing_code": "  state: LexiconDecision['verdict'];\n  /** Alias of mPSE — the pseudocode asserts d.triplet.Pattern. */\n  triplet: MPSE;",
+      "start_line": 83,
+      "end_line": 85,
+      "category": "maintainability",
+      "severity": "medium"
+    }
+  ],
+  "session_id": "a12102bd-fded-4007-991b-61bef1082b32"
+}},
+{"part":"src_hunter_firewall_readonly.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_graph_corbell-adapter.ts","result":{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 9,
+    "total_tokens": 63118,
+    "input_tokens": 57595,
+    "output_tokens": 5523,
+    "cache_read_tokens": 22272,
+    "elapsed": "2m51s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "The `chain()` method has O(V×E) complexity because `this.cachedEdges.filter(...)` is called for every dequeued node. For graphs with thousands of nodes/edges this becomes a bottleneck. Build an adjacency map once, then traverse.",
+      "suggestion_code": "    // Build adjacency map once: O(V+E) instead of O(V*E)\n    const adj = new Map\u003cstring, GraphEdge[]\u003e();\n    for (const e of this.cachedEdges) {\n      if (e.kind === 'calls') {\n        if (!adj.has(e.sourceId)) adj.set(e.sourceId, []);\n        adj.get(e.sourceId)!.push(e);\n      }\n    }\n    const queue = [start];\n    while (queue.length \u003e 0) {\n      const from = queue.shift()!;\n      for (const e of (adj.get(from) ?? [])) {",
+      "existing_code": "    const queue = [start];\n    while (queue.length \u003e 0) {\n      const from = queue.shift()!;\n      for (const e of this.cachedEdges.filter((x) =\u003e x.kind === 'calls' \u0026\u0026 x.sourceId === from)) {",
+      "start_line": 905,
+      "end_line": 908,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "Deeply nested ternary expressions (4 levels) for name resolution hurt readability and make the logic hard to follow or extend. Refactor to an if-chain or utility function.",
+      "suggestion_code": "        const resolveName = (...candidates: unknown[]): string =\u003e {\n          for (const v of candidates) {\n            if (typeof v === 'string' \u0026\u0026 v !== '') return v;\n          }\n          return id;\n        };\n        const name = resolveName(data['name'], data['method_name'], data['function_name'], data['class_name']);",
+      "existing_code": "        const name =\n          typeof data['name'] === 'string' \u0026\u0026 data['name'] !== ''\n            ? (data['name'] as string)\n            : typeof data['method_name'] === 'string' \u0026\u0026 data['method_name'] !== ''\n              ? (data['method_name'] as string)\n              : typeof data['function_name'] === 'string' \u0026\u0026 data['function_name'] !== ''\n                ? (data['function_name'] as string)\n                : typeof data['class_name'] === 'string' \u0026\u0026 data['class_name'] !== ''\n                  ? (data['class_name'] as string)\n                  : id;",
+      "start_line": 735,
+      "end_line": 744,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "`resolveNodeFileCache` is a module-level Map that grows indefinitely and is never cleared. In long-running processes or across multiple `build()` invocations, this is an unbounded memory leak. Consider adding a `clearResolveNodeFileCache()` export or clearing it at the start of `build()`.",
+      "suggestion_code": "const resolveNodeFileCache = new Map\u003cstring, string\u003e();\n\n/** Clear the file-resolution cache — call at the start of each build cycle. */\nexport function clearResolveNodeFileCache(): void {\n  resolveNodeFileCache.clear();\n}",
+      "existing_code": "const resolveNodeFileCache = new Map\u003cstring, string\u003e();",
+      "start_line": 243,
+      "end_line": 243,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "The `killTimer` is declared as `ReturnType\u003ctypeof setTimeout\u003e | null` but then cast via `(killTimer as unknown as { unref?: () =\u003e void }).unref?.()`. This unsafe double-cast is unnecessary in Node.js where `setTimeout` returns a `Timeout` object that has `.unref()`. Use the correct type or import `Timeout` from `node:timers`.",
+      "suggestion_code": "    import type { Timeout } from 'node:timer';\n    let timer: Timeout | null = null;\n    let killTimer: Timeout | null = null;\n    // ... then later: timer?.unref(); killTimer?.unref(); — no casts needed.",
+      "existing_code": "    let timer: ReturnType\u003ctypeof setTimeout\u003e | null = null;\n    let killTimer: ReturnType\u003ctypeof setTimeout\u003e | null = null;",
+      "start_line": 114,
+      "end_line": 115,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "`readStore` and `emitWorkspaceConfig` use `this as unknown as { ... }` to bypass TypeScript's private access. This is fragile — if the private method signature changes, this cast silently produces a runtime error. Consider making the methods `protected` or `internal`, or extracting the shared logic into a standalone function.",
+      "suggestion_code": "  // Option A: change private → internal/protected\n  internalReadCorbellStore(profile: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[] } {\n    return this.readCorbellStore(profile);\n  }",
+      "existing_code": "  readStore(profile: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[] } {\n    // Private-access delegate: same-class private, not external input — a named const carries the shape.\n    const selfAsStoreReader = this as unknown as { readCorbellStore(p: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[] } };\n    return selfAsStoreReader.readCorbellStore(profile);\n  }",
+      "start_line": 842,
+      "end_line": 846,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "In `buildCorbellGraphAsync`, the timeout handler registers `proc.on('exit', ...)` every time it runs, without checking if a previous timeout already registered one. While `done()` guards the callback, Node.js EventEmitter allows duplicate listeners and they are never removed — each invocation leaks a listener. Before registering, check `proc.listenerCount('exit')` or use `proc.once('exit', ...)` and remove the previous listener.",
+      "suggestion_code": "        proc.once('exit', () =\u003e {\n          done(() =\u003e reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));\n        });",
+      "existing_code": "        proc.on('exit', () =\u003e {\n          done(() =\u003e reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));\n        });",
+      "start_line": 152,
+      "end_line": 154,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "Duplicate comment block: the `CHAIN-ORDER NOTE` about `pi-aether-agent.ts` appears both at lines 45-50 and lines 97-101 with slightly different formatting. Remove one to avoid confusion.",
+      "suggestion_code": "// Remove the duplicate CHAIN-ORDER NOTE block (lines ~97-101) — already declared at lines 45-50.",
+      "existing_code": "// CHAIN-ORDER NOTE (the AETHER CHAIN, not this adapter): the aether-agent\n// chain lives in src/audit-engine/harness/pi-aether-agent.ts — zen\n// muse-spark primary per the operator's 2026-08-23 directive; this adapter\n// only consumes the resolved corbell binary path.\nimport { Database } from 'bun:sqlite';",
+      "start_line": 44,
+      "end_line": 48,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "Source file enrichment reads arbitrary filesystem paths from the corbell store's `file_path` field and caches them in `srcCache`. The path is not validated to be within `profile.project.root` before reading — the `resolveNodeFile` call is only on the *resolved* path for node output, not for this enrichment read. A malicious or misconfigured corbell store could cause reads of arbitrary files (e.g., `/etc/passwd`). Consider validating that the resolved path is under the project root before `fs.readFileSync`.",
+      "suggestion_code": "            const srcPath = path.isAbsolute(file) ? file : path.join(profile.project.root, file);\n            // Guard: only read files within the project root\n            const resolvedRoot = path.resolve(profile.project.root);\n            if (!path.resolve(srcPath).startsWith(resolvedRoot + path.sep) \u0026\u0026 path.resolve(srcPath) !== resolvedRoot) {\n              console.warn(`[corbell-adapter] enrichment skipped — '${file}' escapes project root`);\n              continue;\n            }\n            let src = srcCache.get(srcPath);\n            if (src === undefined) {\n              src = fs.readFileSync(srcPath, 'utf8');\n              srcCache.set(srcPath, src);\n            }",
+      "existing_code": "            const srcPath = path.isAbsolute(file) ? file : path.join(profile.project.root, file);\n            let src = srcCache.get(srcPath);\n            if (src === undefined) {\n              src = fs.readFileSync(srcPath, 'utf8');\n              srcCache.set(srcPath, src);\n            }",
+      "start_line": 699,
+      "end_line": 704,
+      "category": "security",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "content": "The `Atomics.wait` call blocks the entire thread with a worst-case sum of ~60s across 8 retries (1+2+4+8+16+16+16+16 seconds). Combined with the original execSync timeout, this can lead to very long stalls. Consider adding an overall deadline to the retry loop.",
+      "suggestion_code": "  const ATTEMPTS = 8;\n  const overallDeadline = Date.now() + (opts?.timeout ?? 600_000);\n  let lastErr: unknown;\n  for (let attempt = 1; attempt \u003c= ATTEMPTS; attempt++) {\n    try {\n      return execSync(cmd, {\n        cwd: opts?.cwd,\n        timeout: opts?.timeout,\n        encoding: 'utf8',\n        maxBuffer: 64 * 1024 * 1024,\n        stdio: ['ignore', 'pipe', 'pipe'],\n        env: { ...process.env, ...(opts?.env ?? {}) },\n      }).toString();\n    } catch (e: unknown) {\n      lastErr = e;\n      const msg = e instanceof Error ? e.message : String(e);\n      if (!/database is locked|SQLITE_BUSY/i.test(msg) || attempt === ATTEMPTS) break;\n      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1));\n      const remaining = overallDeadline - Date.now();\n      if (remaining \u003c= 0) break;\n      const sleep = Math.min(backoff, remaining);\n      console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) — retrying in ${sleep}ms`);\n      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, sleep);\n    }\n  }",
+      "existing_code": "  const ATTEMPTS = 8;\n  let lastErr: unknown;\n  for (let attempt = 1; attempt \u003c= ATTEMPTS; attempt++) {\n    try {\n      return execSync(cmd, {\n        cwd: opts?.cwd,\n        timeout: opts?.timeout,",
+      "start_line": 196,
+      "end_line": 202,
+      "category": "performance",
+      "severity": "medium"
+    }
+  ],
+  "session_id": "2d80bca2-9772-44bd-9ce2-0619adb06c97"
+}},
+{"part":"src_hunter_graph_graphify-adapter.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_graph_interface.ts","result":{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 25718,
+    "input_tokens": 20414,
+    "output_tokens": 5304,
+    "cache_read_tokens": 11776,
+    "elapsed": "1m39s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "content": "`ChainStep.kind` is typed as plain `string` while every other `kind` field in this file (`GraphNode.kind`, `GraphEdge.kind`) uses a strongly-typed union (`GraphNodeKind`, `GraphEdgeKind`). This weakens type safety — callers can pass any arbitrary string for `kind` without a compile-time check. If `ChainStep` represents a single step of a trace between two nodes (as documented), its `kind` should be constrained to `GraphEdgeKind` (or a dedicated union if the step kinds are intentionally different from edge kinds). At minimum, a comment explaining why `string` is correct would prevent future drift.",
+      "existing_code": "export interface ChainStep { from: string; to: string; kind: string; file: string; line: number; }",
+      "start_line": 84,
+      "end_line": 84,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "content": "All sibling error classes (`GraphEmptyError`, `FamilyRootReadonlyError`, `FamilyPromotionPendingError`, `AdapterFailedError`, `AdapterParseError`) expose their diagnostic data as a `detail: string` field so callers can read it. `FamilyRootDriftError` breaks this pattern — it stores `expected` and `actual` but has no `detail` field. A caller catching `GraphError` and downcasting will find `detail` is missing on drift errors. Consider adding a `readonly detail: string` field (or a computed getter) for consistency, so all `GraphError` subclasses share the same inspection surface.",
+      "existing_code": "export class FamilyRootDriftError extends GraphError {\n  readonly expected: string;\n  readonly actual: string;",
+      "start_line": 191,
+      "end_line": 193,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "content": "The `GraphNode.file` property is declared as `file?: string | null`, meaning it can be `undefined`, `null`, or a `string`. This dual nullability (optional + nullable) makes downstream null-safety checks ambiguous — `node.file !== undefined` does not guard against `null`, and `node.file != null` works but obscures intent. Since this is an interface consumed by multiple adapters, consider standardizing on one pattern: either `file?: string` (absence = no file) or `file: string | null` (explicit absence). The current pattern is valid but increases the cognitive load for consumers performing null checks.",
+      "existing_code": "  file?: string | null;          // the absolute path (or the corpus anchor for SPEC_DERIVED)",
+      "start_line": 62,
+      "end_line": 62,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **`ChainStep.kind` uses untyped `string` instead of a union type** (`src/hunter/graph/interface.ts`): Every other `kind` discriminator in the file (`GraphNode.kind` → `GraphNodeKind`, `GraphEdge.kind` → `GraphEdgeKind`) uses a strongly-typed union, but `ChainStep.kind` is plain `string`. This completely undermines the narrowing benefit the rest of the graph model provides and allows invalid values to propagate silently.\n\n2. **`FamilyRootDriftError` breaks the error-class diagnostic convention** (`src/hunter/graph/interface.ts`): All sibling error classes (`GraphEmptyError`, `FamilyRootReadonlyError`, `FamilyPromotionPendingError`, `AdapterFailedError`, `AdapterParseError`) expose diagnostic data via a `detail: string` field. `FamilyRootDriftError` deviates from this pattern, forcing callers to handle it as a special case and creating inconsistent error handling downstream.\n\n3. **`GraphNode.file` uses ambiguous dual-nullability (`string | null | undefined`)** (`src/hunter/graph/interface.ts`): The `file?: string | null` declaration means the property can be `undefined`, `null`, or a `string`. This makes downstream guards unreliable — a check like `node.file !== undefined` still leaves `null` unhandled, leading to potential runtime errors.\n\n### Module Hotspots\n\n- **`src/hunter/graph/`** — This is the sole file with comments, and all three findings relate to type-safety and consistency within the graph model interface. Even though only one file is flagged, the interface file is architecturally critical: every inconsistency here propagates to all consumers of the graph API.\n\n### Cross-Cutting Concerns\n\n- **Weak type discipline on discriminators**: The `kind` field pattern is inconsistent — sibling types use proper unions while `ChainStep` does not. This suggests the codebase may lack a shared convention or lint enforcement for tagged-union discriminators. *(Representative: `src/hunter/graph/interface.ts`)*\n- **Inconsistent error-class contract**: The error hierarchy has an implicit `detail: string` interface that one class violates, indicating there is no enforced base class or interface for domain errors. *(Representative: `src/hunter/graph/interface.ts`)*\n- **Nullable property idiom inconsistency**: The `undefined | null | string` triple-state pattern for `file` is a common source of null-guard bugs across TypeScript codebases and likely exists in other model interfaces. *(Representative: `src/hunter/graph/interface.ts`)*\n\n### Quick Wins\n\n1. **Define a `ChainStepKind` union type** and narrow `ChainStep.kind` to it, matching the pattern already used for `GraphNodeKind` and `GraphEdgeKind`. Small, mechanical change with large safety payoff.\n2. **Add `detail: string` to `FamilyRootDriftError`** (or introduce a shared `GraphError` base interface/abstract class) so all error classes follow the same diagnostic contract.\n3. **Normalize `GraphNode.file` to `string | null`** (drop the `?` / `undefined` optionality) or, if absence is meaningful, use `string | undefined` without `null`. Eliminating the triple-state removes an entire class of null-guard bugs.",
+  "session_id": "61a489c2-aab4-4199-a0ef-d520620513a7"
+}},
+{"part":"src_hunter_graph_mechanical.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_graph_merge.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_graph_resolver.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_graph_store-map.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_hunt-lock.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_map.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_micro-loop-machine.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_recon.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_report.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_scan.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_strike.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_trace.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_harness_types.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_hooks_bus-hook.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_identity_warhead.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_keys_go-key-pool.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_lexicon_compiled-store.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_lexicon_compiler.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_lexicon_rule-card.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_lexicon_templates.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_log.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_profile_loader.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_profile_profile-schema.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_profile_schema.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_containment.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_db-canon.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_db.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_kind-for-layer.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_line-resolve.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_migrations.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_ontology.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_profile-schema.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_shared_query-engine.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_surface_lsp-injector.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_surface_query-tool.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_testing_inconclusive.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_tools_bug-hunt.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_tools_query-registration.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_tools_report-writer-local.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hunter_triad.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_auditor.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_client-reader.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_map-reader.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_pipeline.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_templates_index.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_templates_lasme.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_templates_mpse.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_templates_sro.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra_templates_types.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_hydra___tests___fx383-fixture.ts","result":{
+  "status": "skipped",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "message": "No supported files changed.",
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": []
+}},
+{"part":"src_hydra___tests___pipeline-battery.test.ts","result":{
+  "status": "skipped",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "message": "No supported files changed.",
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": []
+}},
+{"part":"src_hydra___tests___reader-battery.test.ts","result":{
+  "status": "skipped",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "message": "No supported files changed.",
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": []
+}},
+{"part":"src_hydra___tests___settle-battery.test.ts","result":{
+  "status": "skipped",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "message": "No supported files changed.",
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": []
+}},
+{"part":"src_kernel_graph-diff.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_kernel_graph-gate.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_kernel_graph-pre-flight.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_kernel_graph-test-target.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_kernel_scan-chain.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_abide.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_arsumbris.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_c2kg.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_corbell.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_graphify.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_kev.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_semantica.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters__shared.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_tsg.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_adapters_ua.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_calibration.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_decision.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_enforcement.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_evidence-producer.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_extension.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_fire-gate.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_fire-ledger.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_gate-hook.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_gate-middleware.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_gi-registry.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_graph-facts.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_graph-gate.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_hard-deps.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_jev.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_kernel-v2.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_layer-consumption.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_layer-registry.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_oracle.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_policy-store.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_populate-corbell.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_populate-graphify.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_populate.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_ripwire-bridge.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_rsi.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_store-open.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_omp_typed-write.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_db-path.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_gi-ecosystem.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_gi-session-path.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_index.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_scope-binding.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_scoped-store.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_scope-resolver.ts","result":{"comments":[],"note":"EMPTY_RESULT"}},
+{"part":"src_scoping_session-state.ts","result":{"comments":[],"note":"EMPTY_RESULT"}}]

@@ -1,0 +1,50 @@
+[CRITICAL] src/hunter/diagnostics/fixture-calibration.ts:299-301 (bug)
+  WITHDRAWN — upon closer inspection, the return object `{ profile, fixtures, fixtureProfileDir, profileFromDisk }` does include profileFromDisk. No bug here. The initial claim that profileFromDisk was missing from the return was incorrect.
+  ```existing
+  const { profile, profileFromDisk } = loadFixtureProfile(fixtureProfileDir);
+  const fixtures = loadCalibrationFixtures(fixtureProfileDir);
+  return { profile, fixtures, fixtureProfileDir, profileFromDisk };
+  ```
+  ```suggested
+  const { profile, profileFromDisk } = loadFixtureProfile(fixtureProfileDir);
+  const fixtures = loadCalibrationFixtures(fixtureProfileDir);
+  return { profile, fixtures, fixtureProfileDir, profileFromDisk };  // ← this is actually correct on re-read
+  ```
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:157-158 (security)
+  Path traversal risk: manifest.sourceFile comes from untrusted on-disk JSON and is joined to the fixture dir via path.join without sanitization. A manifest with sourceFile '../../etc/passwd' would read arbitrary files outside the fixture directory. Validate that the resolved path stays within the fixture dir (or at least that sourceFile has no directory separators).
+  ```existing
+  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');
+  if (!manifest.ruleId || !manifest.file || !manifest.line) {
+  ```
+  ```suggested
+  // Path traversal guard: sourceFile must not escape the fixture dir
+  const resolvedSource = path.resolve(dir, manifest.sourceFile);
+  if (!resolvedSource.startsWith(path.resolve(dir))) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: sourceFile '${manifest.sourceFile}' escapes fixture dir ${dir}`);
+  }
+  const source = fs.readFileSync(resolvedSource, 'utf8');
+  if (!manifest.ruleId || !manifes
+  ```
+
+[HIGH] src/hunter/firewall/lexicon-types.ts:94-97 (bug)
+  Type safety gap: `verdict` and `state` are independently typed properties, so nothing prevents constructing a `BashLockdownDecision` where `verdict: 'ALLOW_READ'` but `state: 'BLOCKED'`. Since `state` is documented as an alias of `verdict` (the spec's pseudocode `d.state`), this divergence would be semantically invalid but type-correct. The same issue exists in `ReportScopeDecision`. Consider using a discriminated-union pattern or a factory function that enforces consistency, rather than exposing two independently-settable properties that must always carry the same value.
+  ```existing
+  export interface BashLockdownDecision extends LexiconDecision {
+  verdict: 'ALLOW_READ' | 'BLOCKED';
+  state: 'ALLOW_READ' | 'BLOCKED';
+}
+  ```
+  ```suggested
+  // Option A: Use a mapped type that forces state = verdict
+export type BashLockdownDecision = LexiconDecision & {
+  verdict: 'ALLOW_READ' | 'BLOCKED';
+} & { state: LexiconDecision['verdict'] };
+
+// Option B (preferred): A factory that constructs the object with guaranteed consistency
+export function createBashLockdownDecision(
+  verdict: 'ALLOW_READ' | 'BLOCKED',
+  rest: Omit<BashLockdownDecision,
+  ```
+
+# total: 3

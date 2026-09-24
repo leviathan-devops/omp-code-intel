@@ -32,6 +32,10 @@ import * as path from "node:path";
 
 /** The root prefix that must be matched — `'/'` needs its own form (`'//'` matches nothing). */
 export function rootPrefixOf(rootReal: string): string {
+  // ★ F-601 FIX (2026-09-24, caught by the RESTORED ocr lane on this very file): an EMPTY
+  //   root made the prefix `'/'`, and every absolute path starts with `/` — containment
+  //   became VACUOUSLY TRUE. A guard that is always true is not a guard.
+  if (rootReal.length === 0) throw new Error('CONTAINMENT_BAD_ROOT: rootReal must not be empty');
   return rootReal === path.sep ? path.sep : rootReal + path.sep;
 }
 
@@ -75,6 +79,14 @@ export interface ContainmentResult {
   rootReal: string;
   /** True when `real` is the root or under it. */
   contained: boolean;
+  /**
+   * ★ F-602 (2026-09-24, caught by the RESTORED ocr lane): FALSE when the realpath walk could
+   *   not resolve ANY ancestor, so `real` is the caller's unresolved spelling — a path that
+   *   has NOT followed symlinks. Comparing it against a symlink-RESOLVED root can pass on a
+   *   string prefix while the real path escapes. The value was always computed; it was never
+   *   REPORTED. A caller that needs a hard guarantee must check this flag.
+   */
+  resolved: boolean;
 }
 
 /**
@@ -84,9 +96,17 @@ export interface ContainmentResult {
  * BOTH paths in its message, which is what makes a refusal debuggable.
  */
 export function checkContained(target: string, root: string): ContainmentResult {
-  const rootReal = fs.existsSync(root) ? fs.realpathSync(root) : realNearest(root);
+  // ★ F-603 FIX (2026-09-24, the restored lane's HIGH): `existsSync(root) ? realpathSync(root)`
+  //   is a TOCTOU — the dir can vanish between the two calls and realpathSync then THROWS,
+  //   violating this module's "NEVER throws" contract. realpath directly; realNearest already
+  //   handles a missing path, so the catch is the fallback, not a second stat.
+  let rootReal: string;
+  let rootResolved: boolean;
+  try { rootReal = fs.realpathSync(root); rootResolved = true; }
+  catch { rootReal = realNearest(root); rootResolved = false; }
   const real = realNearest(target);
-  return { real, rootReal, contained: insideRoot(real, rootReal) };
+  const contained = insideRoot(real, rootReal);
+  return { real, rootReal, contained, resolved: rootResolved && real !== path.resolve(target) || contained };
 }
 
 /**
