@@ -52,18 +52,14 @@ export function assertSessionStorePath(p: string): void {
   //   not exist yet (this asserts BEFORE the open), so walk up to the nearest EXISTING
   //   ancestor and realpath that — a symlinked ancestor outside the scope then fails the
   //   regex on its true location.
-  const realNearest = (start: string): string => {
-    let dir = path.resolve(start);
-    for (let i = 0; i < 8; i += 1) {
-      try { return fs.realpathSync(dir); } catch {
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-      }
-    }
-    return path.resolve(start);
-  };
-  const resolved = realNearest(p);
+  // ★ F-434b (2026-09-24): THE SHAPE CHECK TESTS THE LOGICAL PATH, THE SYMLINK CHECK IS
+  //   SEPARATE. Resolving the realpath FIRST and testing the regex on it broke every
+  //   caller whose target does not exist yet (the realpath walk climbs to the filesystem
+  //   root and DISCARDS the path — 35 test failures). The regex is a SHAPE refusal, so it
+  //   tests the caller's own spelling (resolved for `.`/`..` — F-283). The symlink hazard
+  //   is a DIFFERENT question, asked separately below: if the parent dir EXISTS, its REAL
+  //   parent must still end in the session segment the logical path names.
+  const resolved = path.resolve(p);
   const norm = resolved.replace(/\\/g, "/");
   if (isGlobalHomeGraph(norm)) {
     throw new GiPathError(
@@ -76,6 +72,24 @@ export function assertSessionStorePath(p: string): void {
       "GI_SHARED_PROJECT_STORE",
       `GI_SHARED_PROJECT_STORE: path must include /sessions/{sid24}/store.sqlite, got ${p}`,
     );
+  }
+  // ★ F-434b THE SYMLINK GUARD — run ONLY when the parent exists (a not-yet-created store
+  //   has nothing to follow yet). The realpath of the PARENT must still name the SAME
+  //   session segment: a link planted at `<scope>/sessions/<sid>` (or above) resolves to a
+  //   real path whose `/sessions/<sid>/` segment is a DIFFERENT id (or absent), so it fails.
+  const parent = path.dirname(resolved);
+  let parentReal: string | null = null;
+  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  if (parentReal !== null) {
+    const parentNorm = parentReal.replace(/\\/g, "/");
+    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);
+    const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
+    if (want !== null && (got === null || got[1] !== want[1])) {
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: the session dir RESOLVES elsewhere (logical=${norm} real=${parentNorm}) — a symlinked session dir is a scope escape`,
+      );
+    }
   }
 }
 

@@ -176,7 +176,11 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
   // ★ F-411 FIX (2026-09-24): defense-in-depth metachar guard — resolveCorbell validates
   //   the binary path, but defaultExec is a public export; future callers may pass
   //   user-influenced input. Fail-closed on shell metacharacters before sh -c.
-  if (/[;&|`$(){}!<>\n\r]/.test(cmdRaw)) {
+  // ★ F-500 FIX (2026-09-24): harmonized with safe()'s allowlist — safe() REJECTS * and ~
+  //   (absent from its allow set), but this denylist did not, so a future caller passing a
+  //   * / ~ / ? / # / [ / ] bearing string would glob-expand, tilde-expand, or comment-split
+  //   under /bin/sh -c. Denied here; a path passing safe() is now also safe here.
+  if (/[;&|`$(){}!<>\n\r*~?#\[\]]/.test(cmdRaw)) {
     throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
   }
   // THE ORPHAN FIX (2026-08-23 device-freeze incident): execSync runs the cmd
@@ -471,6 +475,12 @@ export class CorbellAdapter implements GraphAdapter {
         // neither guard nor build consistently. Build now uses the SAME
         // resolved binary the guard validated.
         const buildBin = resolveCorbell(profile as unknown as { graph?: { binaryPath?: string } });
+        // ★ F-501 FIX (2026-09-24): build() INTENTIONALLY uses the sync ExecFn (this.exec,
+        //   defaultExec) — the ExecFn contract is what the tests stub, and the operator order
+        //   is no-static-timeouts with the process exit as the event. buildCorbellGraphAsync
+        //   (the spawn-based twin above) is the event-driven path for EXTERNAL callers that
+        //   must not block the loop; wiring it here would break the stubbed-exec contract.
+        //   Documented so the async path is not mistaken for dead code.
         stdout = this.exec(`${buildBin} graph build --methods`, {
           cwd: profile.project.root,
           env: couplingEnv,

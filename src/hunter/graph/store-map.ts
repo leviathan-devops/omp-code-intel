@@ -195,6 +195,17 @@ export function writeCorbellToTypedStore(
       db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
       insertForkNodesBatch(db, nodeRows);
       insertForkEdgesBatch(db, edgeRows);
+      // ★ F-502 FIX (2026-09-24): the session writer records its own provenance IN THE SAME
+      //   TRANSACTION (the checkout path's P3 discipline) — a session store without
+      //   populated_at is stale-by-construction to layerFreshness, whatever the caller does later.
+      db.run(
+        "INSERT INTO gi_meta (key, value) VALUES ('populated_at', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [new Date().toISOString()],
+      );
+      db.run(
+        "INSERT INTO gi_meta (key, value) VALUES ('substrate', 'corbell') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [],
+      );
       db.exec("COMMIT;");
       // ★ F-144 FIX (2026-09-24): verification reads ride the pre-close order — the writer has committed but not yet closed, so the fresh-reader helpers see the commit.
       storeNodes = countTypedNodes(storePath);

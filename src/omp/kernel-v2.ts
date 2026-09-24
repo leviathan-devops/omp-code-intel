@@ -279,6 +279,12 @@ const VERDICT_RANK: Record<Verdict, number> = { PASS: 0, UNCERTIFIABLE: 1, VIOLA
 export function worstOutcome(
   outcomes: readonly { detector: Detector; outcome: DetectorVerdict }[],
 ): { detector: Detector; outcome: DetectorVerdict } {
+  // ★ F-505 FIX (2026-09-24): reduce without an initial value throws a bare TypeError on [] —
+  //   detectors is caller-supplied (may be []) and flows here via classifyByDetectors.
+  //   Empty is a NAMED refusal, never a bare TypeError.
+  if (outcomes.length === 0) {
+    throw new Error("worstOutcome requires at least one outcome");
+  }
   return outcomes.reduce((a, b) => {
     const va = VERDICT_RANK[a.outcome.verdict];
     const vb = VERDICT_RANK[b.outcome.verdict];

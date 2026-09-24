@@ -136,7 +136,17 @@ class ScopeBindingImpl implements ScopeBinding {
   }
 
   ownsWave(waveId: string): boolean {
-    return typeof waveId === 'string' && waveId.startsWith(this.wavePrefix);
+    // ★ F-508 FIX (2026-09-24): longest-prefix ownership — a bare startsWith returns true for
+    //   the WRONG binding when namespaces overlap (wave- vs wave-extra-), so a direct
+    //   ownsWave/assertOwnWave caller accepted a foreign wave that ownerOf would not. A longer
+    //   registered prefix extending this one that also matches the id wins instead.
+    if (typeof waveId !== 'string' || !waveId.startsWith(this.wavePrefix)) return false;
+    for (const prefix of this.allPrefixes()) {
+      if (prefix.length > this.wavePrefix.length && prefix.startsWith(this.wavePrefix) && waveId.startsWith(prefix)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   isForeignWave(waveId: string): boolean {
