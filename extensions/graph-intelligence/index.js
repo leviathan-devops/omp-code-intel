@@ -178099,6 +178099,8 @@ import * as os from "os";
 import * as path from "path";
 function makeDbPath(spec) {
   return function dbPath() {
+    const TILDE = String.fromCharCode(126);
+    const TILDE_SLASH = TILDE + "/";
     for (const env of spec.envVars) {
       const v = process.env[env];
       if (v && v.trim().length > 0)
@@ -178108,10 +178110,20 @@ function makeDbPath(spec) {
       if (!spec.testFile) {
         throw new Error(`[db-path] GI_TEST_ISOLATION_BROKEN: BUN_TEST=1 but no testFile in spec ` + `(fileName="${spec.fileName}") \u2014 cannot isolate from production DB`);
       }
-      return path.isAbsolute(spec.testFile) ? spec.testFile : path.join(os.tmpdir(), spec.testFile);
+      const testFile = spec.testFile;
+      if (path.isAbsolute(testFile))
+        return testFile;
+      if (testFile === TILDE || testFile.startsWith(TILDE_SLASH)) {
+        const home = process.env.HOME ?? process.env.USERPROFILE;
+        if (!home) {
+          throw new Error(`[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` + `(fileName="${spec.fileName}") - cannot resolve testFile`);
+        }
+        return testFile === TILDE ? path.join(home, spec.fileName) : path.join(home, testFile.slice(2));
+      }
+      return path.join(os.tmpdir(), testFile);
     }
     let dir = spec.defaultDir;
-    if (dir.startsWith("~/")) {
+    if (dir === TILDE || dir.startsWith(TILDE_SLASH)) {
       const home = process.env.HOME ?? process.env.USERPROFILE;
       if (!home) {
         throw new Error(`[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` + `(fileName="${spec.fileName}") \u2014 cannot resolve defaultDir`);
@@ -181615,6 +181627,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
   if (corbell.ok) {
     const db = openTypedStore(storePath);
+    let metaDegraded = false;
     try {
       db.exec("BEGIN IMMEDIATE;");
       try {
@@ -181626,6 +181639,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
         try {
           db.exec("ROLLBACK;");
         } catch {}
+        metaDegraded = true;
         console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
       }
     } finally {
@@ -181639,6 +181653,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
       runTag,
       skipped: false,
       substrate: "corbell",
+      ...metaDegraded ? { metaDegraded: true } : {},
       corbellCheckout: corbell.checkoutPath
     };
   }
@@ -185096,6 +185111,25 @@ function resolveCorpusPaths(profile) {
     rules: { ...profile.rules, corpus }
   };
 }
+function extractCalibrationFixtures(bindings) {
+  const raw = bindings?.calibrationFixtures;
+  if (raw === undefined || raw === null)
+    return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`SCAN_INVALID_BINDINGS: calibrationFixtures must be an object with fire/golden arrays, got ${Array.isArray(raw) ? "array" : typeof raw} \u2014 refusing a silent calibration skip`);
+  }
+  const rec = raw;
+  for (const key of ["fire", "golden"]) {
+    const v = rec[key];
+    if (v !== undefined && !Array.isArray(v)) {
+      throw new Error(`SCAN_INVALID_BINDINGS: calibrationFixtures.${key} must be an array, got ${typeof v} \u2014 refusing a silent calibration skip`);
+    }
+  }
+  return {
+    fire: Array.isArray(rec.fire) ? rec.fire : [],
+    golden: Array.isArray(rec.golden) ? rec.golden : []
+  };
+}
 async function scan(profile, adapter, runId, db) {
   try {
     const normalized = resolveCorpusPaths(profile);
@@ -185109,15 +185143,7 @@ async function scan(profile, adapter, runId, db) {
     }
     let liveBattery = battery;
     try {
-      const bindingsAny = normalized.rules?.bindings ?? {};
-      const rawFixtures = bindingsAny.calibrationFixtures;
-      const isRecord = typeof rawFixtures === "object" && rawFixtures !== null;
-      const fireField = isRecord ? rawFixtures.fire : undefined;
-      const goldenField = isRecord ? rawFixtures.golden : undefined;
-      const fixtures = {
-        fire: Array.isArray(fireField) ? fireField : [],
-        golden: Array.isArray(goldenField) ? goldenField : []
-      };
+      const fixtures = extractCalibrationFixtures(normalized.rules.bindings) ?? { fire: [], golden: [] };
       const hasFixtures = fixtures.fire.length > 0 || fixtures.golden.length > 0;
       if (hasFixtures) {
         const cal = await runCalibration(normalized, fixtures, { battery, dryRun: true });
@@ -186810,7 +186836,9 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
       const hits = subject.length === 0 ? instances : instances.filter((i) => {
         const values = [];
         const seen = new WeakSet;
-        const walk = (v) => {
+        const walk = (v, depth = 0) => {
+          if (depth > 64)
+            return;
           if (typeof v === "string")
             values.push(v);
           else if (Array.isArray(v)) {
@@ -186818,13 +186846,13 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
               return;
             seen.add(v);
             for (const x of v)
-              walk(x);
+              walk(x, depth + 1);
           } else if (v && typeof v === "object") {
             if (seen.has(v))
               return;
             seen.add(v);
             for (const x of Object.values(v))
-              walk(x);
+              walk(x, depth + 1);
           }
         };
         walk(i);

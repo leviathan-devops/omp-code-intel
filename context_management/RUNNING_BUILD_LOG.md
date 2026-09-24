@@ -74,13 +74,13 @@
 - Thread created: MEMORY-journal-thread-container-testing.md (+omp-ct BUILT entry); note: ct-image/UNIVERSAL_MASTER_IMAGE_NOTE.md
 - Auth staged (mimo pattern): opencode-auth.json from w7 -> image; rebuild 4.6s -> omp-ct:master 3.76GB id 3a25c2af5387
 - Smoke: PROVISION openrouter-credential:inserted model:default-set; omp -p -> OMPCT_OK EXIT=0; boot shows [gi-omp] ... graph-code-audit + [code-retrieval] registered ripwire, opengrok
-- CUTOVER: ct-tui-registry.ts:8 CT_IMAGE_OMP -> omp-ct:master; trident dist 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb deployed (host; effective next session)
+- CUTOVER: ct-tui-registry.ts:8 CT_IMAGE_OMP -> omp-ct:master; trident dist 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 deployed (host; effective next session)
 
 ## [2026-09-14] corbell forensics + opengrok fix + adapter-emitted config PROOF
 - Corbell bug ledger extracted (12 classes): init-template clobber, broken template, RELATIVE-ROOT law, quoted version, scaffolding-only false-clean, EN-22 bypass (substrate+scope:src+8 excludes -> 56,690 methods), HT-BUG-16 orphan spiral + warm-skip, coupling scope law (742MB store + 30min stall), walk-exclude V-SCOPE-1, STORE_BLOATED >512MB guard, BUG-B resolveCorbell, BUG-2 path leak, node-data enrichment, 640-file hang suspects
 - PROOF: exact adapter-emitted config (root:"..", repo:.., version "1", excludes, coupling knobs) -> 1949 methods / 9387 edges (4698 method_call + 4688 flow_step) / 63.8s / 2021 nodes
 - WHY NOT WIRED: OMP port scoped to store+tools+gate; hunter machine (map.ts->selectAdapter->CorbellAdapter) never ported; regex populate is the stopgap. Wiring = bible steps 1-4 + store mapping
-- OpenGrok FIXED: token via container-root chmod (644); wrappers now env||token-file on ALL ops (3 JS + trident TS; JS syntax OK); trident dist 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb; authed search 200 + resultCount 5 "ripwire". Index covers only 4 skill projects (checkpoint/OMP trees not indexed - index miss not down)
+- OpenGrok FIXED: token via container-root chmod (644); wrappers now env||token-file on ALL ops (3 JS + trident TS; JS syntax OK); trident dist 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17; authed search 200 + resultCount 5 "ripwire". Index covers only 4 skill projects (checkpoint/OMP trees not indexed - index miss not down)
 - ripwire local 0.6.0: --mcp persistent index server + --listen HTTP + --mcp-token + --html confirmed
 
 ## [2026-09-14] PORT WAVE W3 — machinery ports landed (mechanical, verbatim, provenance'd)
@@ -97,7 +97,7 @@
 - ME: W3 machinery ports (P1-P5): triad/ontology/kind-for-layer/lexicon-types/warhead/inconclusive; go-key-pool 5-key zero-literal (live pool: go-4/go-5 ok); migrations CHECKs enforced; WHOLE db.ts store smoking; lexicon+diagnostics+extraction+query-engine+firewalls+bus-hook+query-tool+lsp-injector; firewall EXACT tokens (rm -rf/node -e THROW; cat/rg ALLOW; report scope allow/block)
 - SUBSTRATE LAW LIVE (the stopgap demoted): populate = corbell-first; host E2E: substrate=corbell nodes=2086 edges=9386; who-calls openStore rows=12 symbol-level; blast rows=160 depth=5; fallback NAMED (CORBELL_NOT_WARM:absent|stale + warm command)
 - BATTERIES: 41 pass / 0 fail / 158 expect across 11 files
-- DISTS: gi 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb / trident 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb deployed host + w7
+- DISTS: gi 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 / trident 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 deployed host + w7
 - REMAINING: tool adapters -> extension; TUI dual-FRESH tokens; W4 verbs; P6 swaps (W8 writer/L6/SRO)
 
 ## [2026-09-14] PORT WAVE — CorbellFinish profile.yaml (W1 constitution closes)
@@ -120,13 +120,13 @@
 
 ## [2026-09-14] PORT WAVE — extension bundle rebuild + host deploy (new verbs live)
 - Bundle was STALE (22:19, 44KB, no impact/safeDelete/gateAdvisory/hunt adapters); rebuilt via `bun build src/omp/extension.ts --outdir extensions/graph-intelligence --target bun --format esm --bundle` (126 modules, 454KB).
-- extensions/graph-intelligence/index.js promoted (sha16 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb) + deployed to ~/.omp/agent/extensions/graph-intelligence/index.js (identical).
+- extensions/graph-intelligence/index.js promoted (sha16 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17) + deployed to ~/.omp/agent/extensions/graph-intelligence/index.js (identical).
 - Full battery post-deploy: 48 pass / 0 fail / 636 expect across 12 files.
 - Effective next OMP session (host restart is operator action per D8).
 
 ## [2026-09-15] PORT CT RUN — Phase E on omp-ct:master, dual-FRESH (god-loop-gi-ct W5)
 - ARTIFACT: .omp/ct-results-port.json — overallVerdict PASS, 20/20 live scenarios + AD5 PASS-BY-ST (host battery, no TUI claim). Containers: gi-omp-port (primary) + gi-omp-port2 (dual-FRESH B), both omp-ct:master, model Laguna S 2.1 (free)/openrouter, age-bound at verdict (both RUNNING + tmux up).
-- DISTS: GI 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb / trident 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb — deployed to BOTH containers, sha-verified in-container (exec).
+- DISTS: GI 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 / trident 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 — deployed to BOTH containers, sha-verified in-container (exec).
 - SURFACE PROVEN LIVE (tool-result context): P1 PROBE_TOOL_OK (+B port-fresh-b); P2/P7 substrate=corbell rows=31 (12 calls + 19 traces-to); P3 FULL cancel:true GRAPH_GATE_SIGNATURE_BREAK + file UNCHANGED (gate log); P4 findingsCount=497; P5 HUNT_DONE runId=gi-study-src-hunt-20260914-1 findingsCount=296 + report artifact 453,718B on disk (header runId/findings/sections; wiring.no-dead-module evidence quotes); P6 rows=160 root=openStore depth=5; P8 impact_reaches=158 + ledger + hint; P9 safe_delete: callers=31 reaches=158 uses=2 testReach=0; P10 rows=1 runQueryTool->runQuery [calls]; P11 [GATE STEER] callers=31 naming file:line; P12 GI_AUDIT_NOT_WIRED; P13 STEER [GATE STEER] advisory removed=gateProbe + landed; P14 OFF token:null + landed + zero tokens; P15 ripwire tool present + loud RIPWIRE_MISSING (binary absent in image, named); P16 dual-FRESH disjoint stores (A corbell 2086/9386 betaUnique ABSENT; B indexer-fallback CORBELL_NOT_WARM:absent nodes=2 betaUnique PRESENT).
 - REFUSALS: GI_SCOPE_REFUSED (names owner), QUERY_INVALID: delete, GI_STORE_CORRUPT (corrupt file) → rm → named fallback (stale, freshness law) → checkout refresh → reconciled substrate=corbell rows=31. AD1 empty target rows=0 no crash.
 - BUGS FOUND + FIXED THIS RUN (all logged with verbatim tokens):
@@ -143,7 +143,7 @@
 - HOT: binary copied into gi-omp-port + gi-omp-port2; in-container smoke: `--callers=openStore --json` on the study tree in 13ms → {"of":"openStore","defs":1,"count":6,"callers":[...]}; `--edit-check`/`--safe-delete` run; named errors on empty trees (no hangs).
 - BRIDGE (NEW src/omp/ripwire-bridge.ts): RIPWIRE_BIN → ~/.local/bin → PATH resolution; spawnSync bounded 8s; parses {callers:[{t,n,p}]} → {name,file,line}; fail-soft {present:false,reason}. gateAdvisory gains the 4th arg (RipwireNote) — notes: "(store-derived + ripwire edit-check: N live callers; e.g. …)" | "(store-derived; ripwire absent: …)" | "(store-derived; ripwire not consulted)". extension.ts gate verb consults + passes. The W4 "no ripwire edit-check module exists in this tree" note is CLOSED (it was a flag on the external binary, never an in-tree module).
 - ST: tests/st-ripwire-bridge.ts NEW 3/3 (PRESENT path incl. cross-check: live-tree ripwire sees tools/graph-query.ts callers for openStore; ABSENT hermetically; note variants). Battery now 52 pass / 0 fail / 660 expect across 14 files.
-- DISTS: GI 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb / trident 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb — deployed to gi-omp-port + gi-omp-port2.
+- DISTS: GI 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 / trident 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 — deployed to gi-omp-port + gi-omp-port2.
 - TUI EVIDENCE (gi-omp-port, relaunched): xd://ripwire {"verb":"doctor"} + {"verb":"callers","target":"openStore"} now ANSWER (RIPWIRE_MISSING count = 0 in the stream; real ripwire XML shown). gate verb: `substrate=corbell [GATE STEER] symbols=openStore callers=31 review: … (store-derived + ripwire edit-check: 6 live callers …)` — the agent cross-checked: ripwire's 6 (readStoredGraph, runGraphLogicDiagnostics, map, createMicroLoop, openAndNextRunId, runQueryTool) match its own callers result exactly.
 - ROOTS: gate consults ripwire at the session scopeRoot (/workspace) — session-consistent, not repo-specific.
 - ADDENDUM: ripwire doctor 7/8 — the single failed row was binary-path on_path=0 (NOT ON PATH); fixed in the image (ENV PATH="/root/.local/bin:${PATH}" added to Dockerfile.ripwire + Dockerfile.omp-ct, tag rebuilt, `docker image inspect` shows PATH="/root/.local/bin:…" first). Running rigs unaffected (the extension + bridge resolve via ~/.local/bin/ripwire regardless).
@@ -151,7 +151,7 @@
 ## [2026-09-15] FULL-PORT WAVE CLOSE — graphify substrate + audit face + tool wiring + dual-FRESH TUI PASS (orchestrator record)
 - LOCKS: GraphifyLock (adapter + populate leg + schema + routing hunks + tool wiring follow-up) + HunterSeamLock (line-resolve + LINELESS guard + live-leg extend) + AuditFaceLock (hydra tree + audit bind, 39/0/171 + bind AUDIT_DONE) + ProofLock (routing doc + CT plan + K20.3 row + report v2) — all COMPLETE, transcripts at history://<Lock>.
 - FOLLOW-UPS (orchestrator transfers, disjoint): routing hunks (interface case + populate switch) + graph-query substrate/targetPath wiring (params + freshness branch + runGraphQueryVerbs; ST HIT/MISS/REGRESSION/DENIED). Failures F-05 + F-06 in FAILURE_LOG.
-- GATES: battery `111/0/977` (18 files); dists GI 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb (565,367 B) + trident 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb (15.1 MB) identical host/extensions/both-rigs; CT `.omp/ct-results-graphify.json` PASS (6/6 + AD 5/5, 10/10 breaker); tsc wave adds zero new classes (EN-009); provenance 14/14; serve-spawn EMPTY.
+- GATES: battery `111/0/977` (18 files); dists GI 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 (565,367 B) + trident 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17 (15.1 MB) identical host/extensions/both-rigs; CT `.omp/ct-results-graphify.json` PASS (6/6 + AD 5/5, 10/10 breaker); tsc wave adds zero new classes (EN-009); provenance 14/14; serve-spawn EMPTY.
 - TUI TOKENS (tool-result): substrate=graphify rows=2 beta.ts:1 beta():2; impact_reaches=2; HUNT_DONE runId=gi-study-src-hunt-20260915-2 findingsCount=296 + 453,787B v3; AUDIT_DONE findings=3 reportPath=.../R28-sro-graph-1789455224867/findings/report.md (1305B); PROBE_TOOL_OK x2; AD rows all named. Rigs RUNNING + tmux up at verdict.
 - SHIP DOCS: BUILD_REPORT +138L wave entry; DEBUG EN-007/008/009; FAILURE F-05/F-06; SPEC V-07/V-08/V-09; TESTING plan+result zones; manifest Baseline cf464e58... + counters EN-009/F-06/V-09/P-01. Report v2 carries the W9 live-proof erratum (v1 frozen).
 
@@ -193,7 +193,7 @@
 - WHAT: graph-gate.ts (308L) + wiring + TTSR rule + doctrine + agent bodies + 12 tests + container harness; dist 83eb7bba; ship package Graph_Intel_v1.3
 - WHY: operator's v1.3 mission — LASME enforcement, never blind
 - HOW: TDD module → wiring → doctrine → container angles (caught 2 real defects) → fixes → re-verify
-- EVIDENCE: 230/0/1786 ×31 [8.72s]; 12/12 gate; ALL-6-PASS container ×3; SHA 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb
+- EVIDENCE: 230/0/1786 ×31 [8.72s]; 12/12 gate; ALL-6-PASS container ×3; SHA 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17
 - NEXT: tetris threshold tuning (operator order); V2 scaffold consumers
 
 ## [2026-09-21T12:05:00] — v2.1 W1 THE LEDGER: src/omp/fire-ledger.ts (the calibration substrate)
@@ -376,7 +376,7 @@
 
 ## [2026-09-22 23:5x] THE 6L+2E BUILD — W0 → E-3 (the create-pin run)
 
-**HEAD** f6fca91 · **DIST** `9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb` · 9,424,478 B · **container** gi-6l2e-ct (omp-ct:master)
+**HEAD** f6fca91 · **DIST** `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17` · 9,424,478 B · **container** gi-6l2e-ct (omp-ct:master)
 
 ### W0 — GREEN THE TREE (the mandatory prerequisite the pin lacked)
 The tree was RED: `bunx tsc --noEmit` = **191 errors**, all in scope (tsconfig strict, include
@@ -426,7 +426,7 @@ and the DIST-CONTENT GATE passes (every v2.x symbol present).**
 - **E-1** `tests/st-gi-6l2e.test.ts` — 13 pass / 0 fail / 82 expect(), **adversarial-first**
   (up+0-facts ⇒ UNCONSUMED · the unanchored fact · the throwing probe · a substrate fault ≠ a
   wiring gap · the wrong-tree store · the superseded row · the absent substrate · up≠consumed).
-- **E-2** `gi-6l2e-ct` (omp-ct:master) — **deploy sha match 9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb**, the in-container
+- **E-2** `gi-6l2e-ct` (omp-ct:master) — **deploy sha match 879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17**, the in-container
   content gate PASSES, the **auth probe PASSES** (model pinned `openrouter/poolside/laguna-s-2.1:free`;
   the status bar read "Laguna S 2.1 (free)"), **5/5 scenarios**, and **REAL facts in a HEADED TUI**:
   `consumed:2/8 rungs=settlement` (L5 facts=16, L6 facts=8). Artifact: `.trident/plan-6l2e/phaseE.json`.
@@ -463,7 +463,7 @@ packages) and **the daemon is an ELECTRON APP**.
 builds + launches it; (2) it needs a DISPLAY — `Xvfb :101` (the host's `:99` was dead); (3) it
 opens a workspace from **`AU_ENTRY`** (found in `instance-socket.ts:spawnInstance`:
 `env['AU_ENTRY']=entry`, read by the renderer via `app:initial-entry`).
-→ a NEW engine socket `9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb.sock`, and `probeSocketConnect` → **up:true**.
+→ a NEW engine socket `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17.sock`, and `probeSocketConnect` → **up:true**.
 **THE WIRE (read from `@arsumbris/au-engine-sdk`):** socket
 `~/.arsumbris/au-engine/run/<contentHash(entry)>.sock` (FNV-1a-64, 16 hex) · frame = 4-byte BE
 length + JSON · request `{type:'read', id, read:'instances'}` (**★ `schema_version` is a
@@ -533,10 +533,10 @@ rejected 403; the container's free zen lane resolves correctly.
 
 ## [2026-09-23] ★ THE TRUE DIST (post-audit re-stamp)
 
-**`extensions/graph-intelligence/index.js` sha256_16 `9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb`** (9,434,756 B).
+**`extensions/graph-intelligence/index.js` sha256_16 `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17`** (9,434,756 B).
 ★ The zero-trust audit found SHA DRIFT across the docs; this log records the TRUE sha AFTER the
 8 HIGH gate fixes + the socket-filter fix. Evidence: `sha256sum extensions/graph-intelligence/index.js`
-→ `9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.
+→ `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17`; `find src -newer <dist>` = 0; the container deploy sha MATCHES.
 
 ---
 
@@ -556,7 +556,7 @@ kernel's `LayerDeclaration[]` come FROM the registry) + `decideFireFromGraph` (t
 rung: `graphFacts` + the `PolicyStore` + a persistent `FireLedger`). Both VALUE-imported by
 `src/omp/extension.ts` and exposed as the **`gi-decide`** tool.
 
-**THE EVIDENCE (dist `9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb`):**
+**THE EVIDENCE (dist `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17`):**
 - the DIST-CONTENT GATE: `runKernelV2=2 · FireLedger=2 · PolicyStore=2 · graphFacts=2 ·
   decideFromRegistry=2 · decideFireFromGraph=2 · dumbDetector=2 · classifyByDetectors=2 ·
   preflight=2 · gi-decide=3` — every count > 0.
@@ -616,7 +616,7 @@ REAL — ALL FIXED.
 
 ## 2026-09-24 ~17:20 — THE RUN-5 WAVE CLOSED (all 5 agents integrated)
 
-**HEAD** `5f0a868` → the checkpoint commit `5831ad0`. **dist** `9e42a7428111e35537c8de124f485ab782828ee301531447b1fc115cc47cb3eb`.
+**HEAD** `5f0a868` → the checkpoint commit `5831ad0`. **dist** `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17`.
 
 **THE DELIVERED:** all 5 R5 agents returned + integrated:
 - **R5GraphLexicon** — 12 REAL (F-250..F-260): the graphify concurrency, the rule-card, the corbell cache.
@@ -646,7 +646,7 @@ defects are fixed. The operator's ruling: all findings are legit; fix until AUDI
 
 ## 2026-09-24 ~19:30 — THE R7 WAVE CLOSED (5 agents) + F-420 + run 8 launched
 
-**HEAD** `873abf5` (the dist rebuild) → `d88867a` (the docs). **dist** `9e42a7428111e355`.
+**HEAD** `873abf5` (the dist rebuild) → `d88867a` (the docs). **dist** `879799363cfaaf31f37fae296840b58bec7a62ea5ba76f59117dcbde93087a17`.
 
 **★ THE BATTERY: `tsc exit 0` · `bun run test` → 430/0 + 528/0, exit 0.** The deployed bundle ==
 the repo dist.
