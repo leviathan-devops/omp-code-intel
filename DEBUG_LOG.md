@@ -1215,3 +1215,32 @@ blame the provider.
 - **THE LESSON:** when a quarantine/dedupe/cache keys on OBJECT IDENTITY but the system's
   contract is about CONTENT, an in-place repair is invisible to it. Ask "what changes when the
   thing is FIXED?" — if the answer is "a field", the key must be content.
+
+---
+
+## EN-W3-RUN8 — the 5 criticals: all REAL, all fixed (2026-09-24)
+
+- **THE FINDING:** run 8 (the whole-tree audit) returned `{critical: 5, high: 58}`.
+- **THE ROOT CAUSE (one class, five sites):** **the guard that resolves but does not CONTAIN, or
+  validates but does not FOLLOW.** Run 7's criticals were the same family in engine.ts/bug-hunt.ts.
+  - `readonly.ts`: the `sed -n` carve-out EXEMPTED on non-match (`return null`) instead of falling
+    through — a carve-out may exempt ONLY when it matches; a non-match must continue to the scan.
+  - `corbell-adapter.ts`: **`settled` is the SETTLE latch, so setting it directly to signal
+    "timed out" DISARMED settle** — the reject path became inert and the promise hung. Two
+    concerns (this call is done / the caller gave up) collapsed into one flag.
+  - `db.ts`: the view projected a shape the table never had — and **SQLite defers view
+    validation to USE**, so CREATE succeeded silently and the throw surfaced only at query time
+    (where the idempotent guard hid it).
+  - `query-engine.ts`: the BFS seeded the queue but never `cameFrom`, so the start node could
+    never BE the target — the degenerate `from === to` walked a cycle instead of returning [].
+  - `gi-session-path.ts`: `path.resolve` collapses `.`/`..` textually; it does NOT follow symlinks.
+- **THE FIXES:** F-430 (fall through) · F-431 (early-return on from===to) · F-432 (json_extract
+  projection ×3) · F-433 (a separate `timedOut` latch) · F-434 (realpath the nearest existing
+  ancestor).
+- **THE VERIFICATION:** `tsc exit 0`; a fresh `bun build` of the current src is **byte-identical**
+  to the repo dist (`9e42a7428111e355`); the deployed dist == the repo dist; the battery green.
+- **THE LESSONS:** (1) **A latch that means two things will be set by the wrong path.** Ask "does
+  setting this DISARM a settle?" before reusing a done-flag. (2) **SQLite validates views at USE,
+  not CREATE** — a broken view hides behind an idempotent guard until a query runs. (3) **An
+  exemption must PROVE its precondition**; a non-match means "not exempt", never "safe".
+  (4) A hand-aggregate taken mid-run measures a PARTIAL tree — wait for the script's own aggregate.

@@ -2563,3 +2563,48 @@ is retried on the next drain” — because a repaired row is the SAME object wi
 unrepaired malformed row stays quarantined; a repaired one retries. The suite returned to 10/0.
 
 **Run 8** (the whole-tree audit on the frozen tree at HEAD `873abf5`) is in flight.
+
+---
+
+## 2026-09-24 — THE RUN-8 WHOLE-TREE AUDIT — 5 CRITICAL / 58 HIGH
+
+**The instrument:** `ocr` scan (Alibaba OpenCodeReview), 112 `src/**/*.ts`, provider
+`muse-go-mimo`, 12 workers. The aggregate: `artifacts/w8-run8-full-audit.json` (849 KB).
+Launched on the frozen tree at HEAD `873abf5`; the run-7 wave had already landed.
+
+**★ THE RESULT (the official aggregate, completed at 20:01):**
+`CRITICAL=5 HIGH=58` / 198 MEDIUM / 128 LOW / 7 unlabeled = 396 comments. 15 empty-file parts.
+
+**★ CORRECTION (recorded):** a hand-aggregate taken mid-run read `4 critical / 51 high` — it
+measured the parts directory while workers were still writing. The run's OWN aggregate is
+authoritative. (Same class of error as the run-7 correction: **always wait for the script's own
+aggregate before quoting a number.**)
+
+### ★ THE EIGHT-RUN CURVE
+
+```
+  run  critical  high
+   1      8       92
+   2      5       90
+   3      3       80
+   4      6       65
+   5      4       51
+   6      4       65
+   7      1       61
+   8      5       58
+```
+
+The critical count does NOT monotonically fall — it is dominated by ONE recurring class: **the
+containment/validation gate that a newer fix half-closes.** Run 7's criticals were the
+containment-in-engine/bug-hunt pair; run 8's are the SAME CLASS AT FIVE NEW SITES:
+
+| # | the site | the mechanism | the fix |
+|---|---|---|---|
+| C1 | `firewall/readonly.ts` | the `sed -n` carve-out's non-match path `return null` SKIPPED the metacharacter scan — `sed -n 1,20p \| node -e "…execSync('rm -rf /')"` classified ALLOW_READ | **F-430** falls through to the scan. PROBED: the attack now BLOCKS (`BASH_BYPASS`, token `\|`) |
+| C2 | `graph/corbell-adapter.ts` | the timeout set `settled = true` DIRECTLY, making every later `done()` inert → the force-kill timer's reject no-op'd → **the promise hung forever** | **F-433** a separate `timedOut` latch (suppresses a late resolve, never disarms the reject) |
+| C3 | `shared/db.ts` | `branch_union_view`/`_attached` selected 8 columns that DO NOT EXIST on `family_nodes` (content-addressed: `node_json`) | **F-432** `json_extract(node_json,…)` at all 3 sites. PROVEN: OLD throws `no such column: kind` on USE; NEW queries OK |
+| C4 | `shared/query-engine.ts` | `path(from,from)` returned a CYCLE (the start node is never in `cameFrom`) | **F-431** early-return `[]` |
+| C5 | `scoping/gi-session-path.ts` | `path.resolve` collapses `..` but does NOT follow SYMLINKS | **F-434** realpath the nearest existing ancestor |
+
+**THE ADJUDICATION:** all five are REAL (each carries a probe or a quoted/thrown proof, not a
+reading). Each was fixed and pinned in the same turn the audit finished.
