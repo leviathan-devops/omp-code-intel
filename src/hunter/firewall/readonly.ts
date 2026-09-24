@@ -18,7 +18,7 @@
  * (the BASH_UNKNOWN family) — there is no third state.
  */
 
-import type { BashLockdownDecision, LexiconContext, MPSE } from './lexicon-types.js';
+import type { BashLockdownDecision, LexiconContext } from './lexicon-types.js';
 import { BASH_ERROR_MESSAGE, makeLexiconDecision } from './lexicon-types.js';
 
 /**

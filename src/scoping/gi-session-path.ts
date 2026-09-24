@@ -6,6 +6,7 @@
 import * as os from "node:os";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import { sessionKey } from "./session-state.ts";
 
 export const GI_STATE_DIR = ".omp/graph-intelligence";
@@ -34,12 +35,14 @@ export function sessionStorePath(scopeRoot: string, sessionId: string): string {
   }
   if (sid.length < 8) sid = (sid + "xxxxxxxx").slice(0, 8);
   const p = path.join(scopeRoot, GI_STATE_DIR, "sessions", sid, "store.sqlite");
-  assertSessionStorePath(p);
+  // ★ F-1048 FIX (2026-09-25): pass the scope so the containment check below can
+  // ★ verify the real parent stays under this scope's own dir.
+  assertSessionStorePath(p, scopeRoot);
   return p;
 }
 
 /** AP-1/AP-2 mechanical refuse. Call before any sqlite open. */
-export function assertSessionStorePath(p: string): void {
+export function assertSessionStorePath(p: string, optScopeRoot?: string): void {
   // ★ F-283 FIX (2026-09-24): resolve `..`/`.` BEFORE the regex — the old
   //   backslash-normalize + regex-test accepted `sessions/valid/../evil`-style
   //   escapes whose literal text matched but whose resolved path left the
@@ -91,6 +94,31 @@ export function assertSessionStorePath(p: string): void {
       );
     }
   }
+  // ★ F-1048 FIX (2026-09-25, run-13 HIGH): the guard above compares session IDs only —
+  // ★ a link at `sessions/` -> `/tmp/sessions/` keeps the same id and passes while escaping
+  // ★ scope (PROBED: logical `/s/sessions/<id>` vs real `/tmp/sessions/<id>` share the id).
+  // ★ SECOND check: when the caller names its scope, the REAL parent must stay under the
+  // ★ scope's REAL root. optScopeRoot keeps old single-arg callers (openTypedStore) working.
+  if (optScopeRoot !== undefined) {
+    let realRoot: string;
+    try { realRoot = fs.realpathSync(optScopeRoot); } catch {
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: scope root does not resolve: ${optScopeRoot}`,
+      );
+    }
+    const realParent = parentReal ?? parent;
+    const realParentNorm = realParent.replace(/\\/g, "/");
+    const realRootNorm = realRoot.replace(/\\/g, "/");
+    const rootPrefix = realRootNorm.endsWith("/") ? realRootNorm : realRootNorm + "/";
+    const under = realParentNorm === realRootNorm || realParentNorm.startsWith(rootPrefix);
+    if (!under) {
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: the session dir ESCAPES its scope (real parent=${realParentNorm} scope=${realRootNorm}) — a symlink above sessions/ is a scope escape`,
+      );
+    }
+  }
 }
 
 /** ── GI SESSION IDENTITY (the "sessionID is always default" fix) ────────────
@@ -124,13 +152,14 @@ export function resolveSessionId(
     return { id: fromEnv, source: "GI_SESSION_ID" };
   }
   const root = scopeRoot ?? env["GI_SCOPE_ROOT"] ?? process.cwd();
-  // A stable, filesystem-derived key: the scope root, made into a legal
-  // session id (the store-path guard accepts [A-Za-z0-9_-]{8,24}).
-  const slug = path.resolve(root).replace(/[^A-Za-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  // ★ F-164 FIX (2026-09-24): floor the id at 8 chars — an all-punctuation root
-  //   (e.g. "/") yields slug "" → "scope-" (6 chars), which fails the
-  //   SESSION_STORE_RE {8,24} check downstream. sessionStorePath pads the same way.
-  let id = (`scope-${slug}`).slice(0, 24);
+  // ★ F-1049 FIX (2026-09-25, run-13 HIGH): prefix-truncation collided — two roots sharing
+  // ★ the first 18 slug chars (`...-alpha/src` vs `...-beta/src`) yielded the SAME 24-char id
+  // ★ (PROBED live: both → `scope-home-user-projects-my-long-proj`) and merged drift buckets.
+  // ★ A truncated SHA-256 of the resolved root is stable, in-charset ([0-9a-f]), always 24
+  // ★ chars, and collision-resistant; the F-164 8-floor below is kept as a guard.
+  const rootResolved = path.resolve(root);
+  const hash = createHash("sha256").update(rootResolved).digest("hex");
+  let id = `scope-${hash.slice(0, 18)}`;
   if (id.length < 8) id = (id + "-xxxxxxxx").slice(0, 8);
   return { id, source: "scope-root" };
 }
