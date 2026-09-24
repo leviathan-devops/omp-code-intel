@@ -667,8 +667,10 @@ function readStoredGraph(dbPath: string): { nodes: GraphNode[]; edges: GraphEdge
   try {
     db = openStore(dbPath);
   } catch (e: unknown) {
-    console.error(`[engine:graph-logic] openStore failed for ${dbPath}: ${String(e)}`);
-    return null;
+    // ★ F-560 FIX (2026-09-24): openStore failure must propagate — returning null
+    //   makes the caller treat a corrupt/locked/permission-denied DB as 'empty'
+    //   and overwrite it with a fresh build (data loss on transient errors).
+    throw sourceReadFailed(dbPath, `stored-graph open failed: ${String(e)}`);
   }
   try {
     const nrows = db.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as unknown as StoredNodeRow[];
@@ -702,8 +704,10 @@ function readStoredGraph(dbPath: string): { nodes: GraphNode[]; edges: GraphEdge
       edges: erows.map((r) => ({ sourceId: r.source_id, targetId: r.target_id, kind: r.kind as GraphEdge['kind'], lineage: r.lineage as GraphEdge['lineage'] })),
     };
   } catch (e: unknown) {
-    console.error(`[engine:graph-logic] stored-graph read failed for ${dbPath}: ${String(e)}`);
-    return null;
+    // ★ F-560b FIX (2026-09-24): same data-loss class — a query failure (locked
+    //   file, schema mismatch, disk I/O) must not silently return null. The caller
+    //   then overwrites the existing graph with a fresh build. Loud-fail instead.
+    throw sourceReadFailed(dbPath, `stored-graph read failed: ${String(e)}`);
   } finally {
     try { db.close(); } catch { /* the close is best-effort after a read failure */ }
   }

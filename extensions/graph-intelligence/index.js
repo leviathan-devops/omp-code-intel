@@ -178397,10 +178397,25 @@ function openTypedStore(storePath) {
     }
     postOpenVerify = !treatAsFresh;
   }
+  const preOpenDev = st !== null ? st.dev : null;
+  const preOpenIno = st !== null ? st.ino : null;
   const db = new Database2(storePath, { create: true });
   try {
     db.exec("PRAGMA journal_mode = WAL;");
     db.exec("PRAGMA busy_timeout = 5000;");
+    if (postOpenVerify && preOpenDev !== null && preOpenIno !== null) {
+      let postLst;
+      let postSt;
+      try {
+        postLst = fs3.lstatSync(storePath);
+        postSt = fs3.statSync(storePath);
+      } catch {
+        throw new GiStoreCorruptError(`GI_STORE_SWAPPED: ${storePath} vanished between validation and open \u2014 refusing (identity re-verify)`);
+      }
+      if (postLst.isSymbolicLink() || postSt.dev !== preOpenDev || postSt.ino !== preOpenIno) {
+        throw new GiStoreCorruptError(`GI_STORE_SWAPPED: ${storePath} was replaced between validation and open (dev/ino changed) \u2014 refusing cross-session data`);
+      }
+    }
     if (postOpenVerify)
       verifyOpenedStoreFile(storePath);
     applyTypedDdl(db);
@@ -179370,7 +179385,7 @@ function reconstruct(toolName, input) {
     }
   }
   if (oldString && newString) {
-    return { oldText, newText: oldText.split(oldString).join(newString), file };
+    return { oldText, newText: oldText.replace(oldString, newString), file };
   }
   const dsl = str(input.input);
   let newText = oldText;
@@ -184919,7 +184934,7 @@ async function scan(profile, adapter, runId, db) {
 
 // src/hunter/harness/trace.ts
 function findingIdOf(f) {
-  return JSON.stringify([f.ruleId, f.file, f.line]);
+  return `${f.ruleId}:${f.file}:${f.line}`;
 }
 function severityWeight(s) {
   switch (s) {
