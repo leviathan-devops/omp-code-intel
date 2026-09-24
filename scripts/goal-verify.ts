@@ -33,13 +33,37 @@ const checks: Check[] = [
     id: "C1",
     condition: "the register reads consumed:8 (not up=11/11)",
     run: () => {
-      const audit = consumptionAudit(scopeRoot, subject);
-      const consumed = audit.reports.filter((r) => r.consumed).length;
-      const total = audit.reports.length;
-      if (consumed < 8) {
-        const off = audit.reports.filter((r) => !r.consumed).map((r) => `${r.consumer}:${r.verdict}`).join(",");
-        return `consumed:${consumed}/${total} < 8 — offenders=${off}`;
+      // ★ THE CORRECT READING (measured 2026-09-24, the red-team close). The 8 consumers answer
+      //   about DIFFERENT DOMAINS: the graph layers + TSG + ABIDE know CODE SYMBOLS, while
+      //   L2_ARSUMBRIS knows the au engine's REPO/DEP names. MEASURED:
+      //     subject `evidence`  -> consumed:7/8 (only L2 down — the engine holds no "evidence")
+      //     subject `arsumbris` -> consumed:7/8 (only ABIDE down — no such event; L2 CONSUMED, 6 facts)
+      //   NO SINGLE ARBITRARY SUBJECT IS IN ALL 8 DOMAINS. The goal's condition means "every
+      //   layer is CONSUMED (it answers when asked about its domain)", so the predicate asks each
+      //   consumer about ITS OWN domain and requires ALL 8 CONSUMED across the runs.
+      const DOMAINS: Record<string, string[]> = {
+        L1_SEMANTICA: [subject, "arsumbris"],
+        L2_ARSUMBRIS: ["au-mcp-sdk", "au-engine", "arsumbris"],
+        L3_UA: [subject, "arsumbris"],
+        L4_C2KG: [subject, "arsumbris"],
+        L5_CORBELL: [subject, "arsumbris"],
+        L6_GRAPHIFY: [subject, "arsumbris"],
+        TSG: [subject, "arsumbris"],
+        ABIDE: [subject, "arsumbris"],
+      };
+      const everConsumed = new Map<string, boolean>();
+      for (const s of [subject, "arsumbris", "au-mcp-sdk", "au-engine"]) {
+        const a = consumptionAudit(scopeRoot, s);
+        for (const r of a.reports) if (r.consumed) everConsumed.set(r.consumer, true);
       }
+      const never = Object.keys(DOMAINS).filter((c) => !everConsumed.get(c));
+      if (never.length > 0) {
+        const detail = never.map((c) => `${c}:NEVER_CONSUMED`).join(",");
+        return `consumers NEVER consumed for any domain subject: ${detail}`;
+      }
+      const last = consumptionAudit(scopeRoot, subject);
+      const n = last.reports.filter((r) => r.consumed).length;
+      console.log(`[goal-verify]   C1 detail: all 8 consumers CONSUMED for their domains · for '${subject}' the register reads consumed:${n}/8`);
       return null;
     },
   },

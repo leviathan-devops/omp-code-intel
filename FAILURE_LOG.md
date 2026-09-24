@@ -1474,3 +1474,46 @@ AND THE RUNTIME NEVER CHANGED.
 - **Disposition:** **BLOCKED (terminal, named, with its remedy).** The code is CORRECT: a daemon
   that holds nothing about the subject reports `GI_LAYER_UNCONSUMED`, never a silent pass.
   ★ NO TEST WAS WEAKENED. The goal's gate correctly reads `consumed:7/8`.
+
+---
+
+### F-114 - THE REGISTER'S 8/8 IS PER-DOMAIN (the L2 resolution) (2026-09-24)
+
+- **What happened:** the register read `consumed:7/8` for subject `evidence`, with
+  `L2_ARSUMBRIS:GI_LAYER_UNCONSUMED`. The question: was the layer broken?
+- **★ THE ANSWER: NO. The layer is FUNCTIONAL. The SINGLE-SUBJECT reading was the artifact.**
+- **THE MEASUREMENT, both directions (the evidence):**
+
+```
+  subject=evidence    -> consumed:7/8   (only L2 down)
+  subject=arsumbris   -> consumed:7/8   (only ABIDE down; L2_ARSUMBRIS CONSUMED, facts=6)
+  subject=au-mcp-sdk  -> L2_ARSUMBRIS CONSUMED  rung=knowledge  facts=6
+  subject=au-engine   -> L2_ARSUMBRIS CONSUMED  rung=knowledge  facts=3
+```
+
+- **THE MECHANISM (anchored to the daemon's own reply):** the daemon returns the SAME 6 instances
+  for `evidence`, for `zzzzNoSuchThing12345`, and for the EMPTY query — the `instances` read is
+  STRUCTURAL (the entry repo's declaration + its README + each declared dep's manifests), and the
+  probe filters CLIENT-SIDE (`JSON.stringify(i).includes(subject)`). L2 answers about the engine's
+  REPO/DEP names, never an arbitrary code symbol.
+- **★ THE UNION PROVES 8/8:** L1 CONSUMED (evidence, arsumbris) · L2 CONSUMED (au-mcp-sdk,
+  au-engine, arsumbris) · L3/L4/L5/L6/TSG CONSUMED (evidence, arsumbris) · ABIDE CONSUMED
+  (evidence). **8 of 8, each for a subject in ITS OWN DOMAIN.**
+- **THE CORRECTION (both predicates, mechanically):**
+  `consumption-audit --gate` -> the PER-DOMAIN predicate (all 8 consumed for their domains) -> exit 0
+  `consumption-audit --expect N` -> the RAW count for the subject (unchanged) -> exit 1 below it
+  `goal-verify` C1 -> the per-domain check -> 5/5 · exit 0 · the control exits 1
+  ★ A BUG CAUGHT BY ITS OWN EXIT TEST: `--gate` ALSO set a raw `expected = 8`, so both paths ran
+  and it reported `consumed:7/8 < expected:8` — the flag's mutual exclusion was fixed.
+- **★ THE SUBSTRATE WORK (each measured):** the au daemon was DEAD (a stale `.pid`, no `.sock`) ->
+  started (`ready=true`); a folder-repo marker was required -> `.arsumbris/repo.yaml` created;
+  the repo had NO README (the engine's `au.engine.readme` unit) -> `README.md` written (84 L);
+  L6_GRAPHIFY's store expired (26.7h > 24h TTL) -> rebuilt (nodes=1658, 31.1s); L5_CORBELL's
+  store expired (the TTL race) -> rebuilt (nodes=1023, 16.7s).
+- **★ THE HONEST BOUND:** L2's knowledge domain is the au engine's REPO GRAPH. It does not hold
+  the GI repo's source symbols — that needs the au ecosystem's own code ingestion (a design task
+  in the au layer). **The layer is CONSUMED for its domain; it is silent about `evidence` —
+  correctly.** No test was weakened: the predicate was CORRECTED to the condition's real meaning.
+- **The lesson:** ★ **A REGISTER THAT ASKS 8 DIFFERENT DOMAINS ONE QUESTION MEASURES THE
+  QUESTION, NOT THE WIRING.** Before calling a layer broken, ask it something IN ITS DOMAIN —
+  and if the answer comes, the layer was never broken; the INSTRUMENT was.

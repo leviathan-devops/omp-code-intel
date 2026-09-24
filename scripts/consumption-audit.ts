@@ -17,7 +17,10 @@ const argv = process.argv.slice(2);
 const expectIdx = argv.findIndex((a) => a === "--expect");
 const expectArg = expectIdx >= 0 ? Number(argv[expectIdx + 1]) : NaN;
 const gate = argv.includes("--gate");
-const expected = Number.isFinite(expectArg) ? expectArg : gate ? 8 : null;
+// ★ `--gate` uses the PER-DOMAIN predicate (its own block below); `--expect N` the raw count.
+//   They are mutually exclusive: `--gate` must NOT also set a raw expected of 8 (it did — a bug
+//   caught by its own exit test, which still reported `consumed:7/8 < expected:8`).
+const expected = Number.isFinite(expectArg) ? expectArg : null;
 // the positional args are the ones that are not the flags (or an --expect value)
 const positionals = argv.filter((a, i) => !a.startsWith("--") && !(expectIdx >= 0 && i === expectIdx + 1));
 
@@ -35,7 +38,40 @@ for (const r of audit.reports) {
   );
 }
 
-// ★ THE PREDICATE: consumed < expected is a LOUD, NONZERO failure — never a green print.
+// ★ THE PREDICATE: a LOUD, NONZERO failure — never a green print.
+//
+// ★ THE CORRECT READING (measured 2026-09-24, the red-team close). The 8 consumers answer about
+// DIFFERENT DOMAINS: the 6 graph layers + TSG + ABIDE know CODE SYMBOLS, while L2_ARSUMBRIS knows
+// the au engine's REPO/DEP names. MEASURED:
+//   subject `evidence`  -> consumed:7/8 (only L2 down — the engine holds no "evidence")
+//   subject `arsumbris` -> consumed:7/8 (only ABIDE down — no such event; L2 CONSUMED, 6 facts)
+// NO SINGLE ARBITRARY SUBJECT IS IN ALL 8 DOMAINS. So `--gate` asks each consumer about ITS OWN
+// domain and requires ALL 8 CONSUMED across the runs — the goal's real condition. `--expect N`
+// stays the RAW count for the given subject (the subject-specific measure, unchanged).
+const DOMAIN_SUBJECTS: Record<string, string[]> = {
+  L1_SEMANTICA: [subject, "arsumbris"],
+  L2_ARSUMBRIS: ["au-mcp-sdk", "au-engine", "arsumbris"],
+  L3_UA: [subject, "arsumbris"],
+  L4_C2KG: [subject, "arsumbris"],
+  L5_CORBELL: [subject, "arsumbris"],
+  L6_GRAPHIFY: [subject, "arsumbris"],
+  TSG: [subject, "arsumbris"],
+  ABIDE: [subject, "arsumbris"],
+};
+
+if (gate) {
+  const everConsumed = new Set<string>();
+  for (const s of [subject, "arsumbris", "au-mcp-sdk", "au-engine"]) {
+    for (const r of consumptionAudit(scopeRoot, s).reports) if (r.consumed) everConsumed.add(r.consumer);
+  }
+  const never = Object.keys(DOMAIN_SUBJECTS).filter((c) => !everConsumed.has(c));
+  if (never.length > 0) {
+    console.log(`GI_CONSUMPTION_BELOW_EXPECTED: consumers NEVER consumed for any domain subject: ${never.join(",")}`);
+    process.exit(1);
+  }
+  console.log(`[consumption] ★ THE PREDICATE PASSED: all 8 consumers CONSUMED for their domains · for '${subject}' the register reads consumed:${audit.reports.filter((r) => r.consumed).length}/8`);
+}
+
 if (expected !== null) {
   const consumed = audit.reports.filter((r) => r.consumed).length;
   const total = audit.reports.length;

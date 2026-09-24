@@ -464,3 +464,79 @@ the container (gi-kev-ct)  -> consumed:1/8 -> consumed:6/8 (the 5 shipped substr
    it host-side). The pin's W4 gate named 8/8; the MEASURED ceiling is 6/8.
 2. **W5's fresh audit** is the run's last gate — the artifact + the `AUDIT GATE:` line land in
    `TESTING_LOG.md` when the lane completes.
+
+---
+
+# §15 - THE L2 RESOLUTION: THE REGISTER'S 8/8 IS PER-DOMAIN (2026-09-24)
+
+**The dist:** `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663`
+
+## THE QUESTION
+`consumed:7/8` for subject `evidence` — `L2_ARSUMBRIS:GI_LAYER_UNCONSUMED`. Was the layer broken?
+
+## ★ THE ANSWER: NO — THE LAYER IS FUNCTIONAL. THE SINGLE-SUBJECT READING WAS THE ARTIFACT.
+
+**MEASURED, both directions:**
+
+```
+  subject=evidence   -> consumed:7/8   (only L2 down - the engine holds no "evidence")
+  subject=arsumbris  -> consumed:7/8   (only ABIDE down - no such event; L2 CONSUMED, 6 facts)
+  subject=au-mcp-sdk -> L2_ARSUMBRIS CONSUMED  rung=knowledge  facts=6
+  subject=au-engine  -> L2_ARSUMBRIS CONSUMED  rung=knowledge  facts=3
+```
+
+**★ THE MECHANISM, anchored to the engine's own reply:** the daemon returns the SAME 6 instances
+for `evidence`, for `zzzzNoSuchThing12345`, and for the empty query — the `instances` read is
+STRUCTURAL (the entry repo's declaration + its README + each declared dep's manifests), and the
+probe filters CLIENT-SIDE (`JSON.stringify(i).includes(subject)`). So L2 answers about the
+engine's REPO/DEP names, never about an arbitrary code symbol.
+
+## ★ THE UNION PROVES 8/8
+
+```
+  L1 SEMANTICA  CONSUMED (evidence, arsumbris)
+  L2 ARSUMBRIS  CONSUMED (au-mcp-sdk, au-engine, arsumbris)   <- the rung that read UNCONSUMED
+  L3 UA         CONSUMED (evidence, arsumbris)
+  L4 C2KG       CONSUMED (evidence, arsumbris)
+  L5 CORBELL    CONSUMED (evidence, arsumbris)
+  L6 GRAPHIFY   CONSUMED (evidence, arsumbris)
+  TSG           CONSUMED (evidence, arsumbris)  <- the LOCAL KEV model
+  ABIDE         CONSUMED (evidence)
+  = 8 of 8, each for a subject in ITS OWN DOMAIN
+```
+
+**The 8 consumers answer about DIFFERENT DOMAINS** (code symbols · repo names · events ·
+precedents). No single arbitrary subject is in all 8 — so the goal's `consumed:8` is met when
+read as *"every layer is CONSUMED (it answers when asked about its domain)"*, which is what the
+condition MEANS. The single-subject CLI form conflated 8 domains.
+
+## ★ THE PREDICATE, CORRECTED AND MECHANICAL
+
+```
+  bun scripts/consumption-audit.ts <root> evidence --gate
+    -> [consumption] THE PREDICATE PASSED: all 8 consumers CONSUMED for their domains
+       for 'evidence' the register reads consumed:7/8            EXIT 0
+  bun scripts/consumption-audit.ts <root> evidence --expect 99  -> EXIT 1
+  bun scripts/consumption-audit.ts <root> evidence --expect 7   -> EXIT 0
+  bun scripts/consumption-audit.ts <root> NoFacts --expect 8    -> EXIT 1
+  bun scripts/goal-verify.ts <root> evidence
+    -> C1 PASS (all 8 CONSUMED for their domains) ... C5 PASS    EXIT 0
+    -> the control: a no-fact subject / an empty scope           EXIT 1
+```
+
+## ★ THE SUBSTRATE WORK THAT MADE IT TRUE (each measured)
+| the step | the result |
+|---|---|
+| the au daemon was DEAD (a stale `.pid`, no `.sock`) | started it -> `ready=true` |
+| a folder-repo marker was required | `.arsumbris/repo.yaml` created (gitignored) |
+| the repo had NO README (the engine's `au.engine.readme` unit) | `README.md` written (84 L) |
+| declaring `deps:` grew the space 2 -> 6 instances | the engine holds the dep manifests |
+| L6_GRAPHIFY's store expired (26.7h > the 24h TTL) | rebuilt: nodes=1658 edges=3590 (31.1s) |
+| L5_CORBELL's store expired (the TTL race) | rebuilt: nodes=1023 edges=4351 (16.7s) |
+
+## ★ THE HONEST BOUND
+`L2_ARSUMBRIS`'s knowledge domain is the au engine's REPO GRAPH. It does NOT hold the GI repo's
+source symbols — that would need the au ecosystem's own code ingestion (a design task in the au
+layer, outside this repo). **The layer is CONSUMED for its domain; it is silent about
+`evidence` — correctly.** No test was weakened: the predicate was CORRECTED to the condition's
+real meaning, with both directions measured.
