@@ -187651,7 +187651,9 @@ ${lines.join(`
     subject: zstr().optional(),
     scopeRoot: zstr().optional(),
     target: zstr().optional(),
-    toolName: zstr().optional()
+    toolName: zstr().optional(),
+    queriedBefore: zstr().optional(),
+    claims: zstr().optional()
   });
   pi.registerTool({
     name: "gi-decide",
@@ -187691,10 +187693,19 @@ ${lines.join(`
           };
           fire.ledger.append(row);
         };
+        let callClaims = [];
+        if (typeof p.claims === "string" && p.claims.trim().length > 0) {
+          try {
+            callClaims = JSON.parse(p.claims);
+          } catch {
+            callClaims = [];
+          }
+        }
         const ev = decideFromRegistry(root, subject, {
           toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
           target: fireTarget,
-          queriedBefore: false
+          queriedBefore: p.queriedBefore === "true",
+          claims: callClaims
         }, recordSink);
         const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}	${s.outcome}	${s.detail}`);
         const fireLines = fire.verdicts.map((v) => `  ${v.rule}	settles=${v.settles}	action=${v.action ?? "none"}	${v.reason}`);

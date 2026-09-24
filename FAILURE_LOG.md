@@ -1618,3 +1618,27 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **THE RECORD MUST SURVIVE THE REFUSAL.** A verdict — especially a refusal — is
   the event the ledger exists to capture; an early return that skips the sink loses the most
   important rows.
+
+---
+
+### F-122 — `gi-decide` HARDCODED `queriedBefore: false` (the tool could ONLY record the dumb class) (2026-09-24)
+
+- **What happened:** driving `gi-decide` with a THEATRICAL act, a DESTRUCTIVE act, and a GROUNDED
+  act through the tool — **ALL FOUR returned `verdict=STEER class=dumb code=GI_BLIND_ACT`.** The
+  tool's invocation site (`src/omp/extension.ts:729`) hardcoded `queriedBefore: false`.
+- **Found:** W2's live-ledger seed — the 4 varied acts produced 1 distinct ledger row, and the
+  reason was NOT the kernel (which correctly distinguishes the classes — measured via the library)
+  but the TOOL's fixed input.
+- **Root cause:** the tool's params carried no `queriedBefore`/`claims`; the call site passed a
+  literal `false`, so the dumb detector fired on EVERY act, and the theatrical/destructive/
+  grounded paths were UNREACHABLE through the tool.
+- **Impact:** ★ the tool could ONLY ever record the dumb class — the live ledger read `distinct=1`
+  across 34-46 rows. **The HOLLOW LEDGER (F-116) was PARTLY the TOOL's fault, not the kernel's.**
+- **Disposition:** **FIXED + PROVEN.** `gi-decide` now takes `queriedBefore` ("true") + `claims`
+  (a JSON array); the call honors them. **MEASURED via the LIBRARY (the kernel's own truth):**
+  ACT-DUMB `STEER dumb GI_BLIND_ACT` · ACT-THEATRICAL `REFUSE theatrical GI_FABRICATED_CLAIM` ·
+  ACT-DESTRUCTIVE `REFUSE destructive GI_VIOLATION` · ACT-GROUNDED `ALLOW benign none` →
+  the LIVE ledger: **`rows=46 | distinct=4`**.
+- **The lesson:** ★ **A TOOL THAT FIXES ITS INPUT CAN ONLY EVER PRODUCE ONE OUTPUT.** The kernel
+  distinguished 4 classes; the tool flattened them to 1 with a hardcoded literal. Test the TOOL's
+  reachability, not just the library's logic.

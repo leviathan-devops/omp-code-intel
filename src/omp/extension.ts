@@ -676,13 +676,18 @@ createBugHuntTool(pi, { cwdOf });
     scopeRoot: zstr().optional(),
     target: zstr().optional(),
     toolName: zstr().optional(),
+    // ★ F-122 FIX (2026-09-24): the tool HARDCODED queriedBefore:false, so it could ONLY ever
+    //   record the dumb class — the live ledger read 1-distinct across 34 rows. These inputs
+    //   let the CALLER state the act's shape, so the tool records varied decisions.
+    queriedBefore: zstr().optional(), // "true" ⇒ the target was queried before the act
+    claims: zstr().optional(), // a JSON array of {text, spans}; "" / absent ⇒ no claims
   });
   pi.registerTool({
     name: "gi-decide",
     description: "THE 6L+2E DECISION. Runs the KERNEL over the layer REGISTRY: the registry's 6 graph layers become the kernel's PREFLIGHT declarations, its ANCHORED facts become the certifications the detectors read, and the kernel returns the verdict (ALLOW/STEER/REFUSE/ABORT) with the class (dumb/theatrical/destructive/benign). A layer DOWN refuses the stack with `GI_STACK_INCOMPLETE:<id>` — never an empty pass. The decision consults the REGISTRY, never a raw store.",
     parameters: decideParams,
     execute: (async (_id: unknown, params: unknown, _sig: unknown, _upd: unknown, ctx: unknown) => {
-      const p = (params ?? {}) as { subject?: string; scopeRoot?: string; target?: string; toolName?: string };
+      const p = (params ?? {}) as { subject?: string; scopeRoot?: string; target?: string; toolName?: string; queriedBefore?: string; claims?: string };
       const callerCwd = cwdOf(ctx as { cwd?: string; sessionID?: string } | undefined);
       const rawRoot = p.scopeRoot && p.scopeRoot.length > 0 ? p.scopeRoot : callerCwd;
       const confined = confineTargetPath(path.normalize(rawRoot), callerCwd);
@@ -723,10 +728,16 @@ createBugHuntTool(pi, { cwdOf });
           };
           fire.ledger.append(row);
         };
+        // ★ F-122 FIX: honor the caller's queriedBefore + claims (never hardcode false).
+        let callClaims: Array<{ text: string; spans: number }> = [];
+        if (typeof p.claims === "string" && p.claims.trim().length > 0) {
+          try { callClaims = JSON.parse(p.claims) as Array<{ text: string; spans: number }>; } catch { callClaims = []; }
+        }
         const ev = decideFromRegistry(root, subject, {
           toolName: p.toolName && p.toolName.length > 0 ? p.toolName : "gi-decide",
           target: fireTarget,
-          queriedBefore: false,
+          queriedBefore: p.queriedBefore === "true",
+          claims: callClaims,
         }, recordSink);
         const stageLines = ev.run.stages.map((s) => `  stage ${s.stage} ${s.name}\t${s.outcome}\t${s.detail}`);
         const fireLines = fire.verdicts.map((v) => `  ${v.rule}\tsettles=${v.settles}\taction=${v.action ?? "none"}\t${v.reason}`);
