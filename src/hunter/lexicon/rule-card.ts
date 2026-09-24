@@ -144,7 +144,7 @@ function voiceAmbiguous(text: string): boolean {
 // The vote remains the fallback for undeclared rules — never a removal.
 // ---------------------------------------------------------------------------
 
-// ★ F-503/F-504 FIX (2026-09-24): the DECLARED regexes keep the `i` flag (they ACCEPT
+// ★ F-553/F-554 FIX (2026-09-24): the DECLARED regexes keep the `i` flag (they ACCEPT
 //   lowercase `classification: arch` / `severity: crit`) but the capture is NORMALIZED via
 //   toUpperCase() before the strict guards below — removing `i` would reject the lowercase
 //   form at the regex instead of at the guard (still lost); normalization honors the

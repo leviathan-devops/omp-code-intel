@@ -47,7 +47,11 @@ export interface KevCliAnswer {
 
 /** ★ A UNIFORM DISTRIBUTION IS A DEFECT. With N options the uniform value is 1/N; within a
  *  tolerance, every option equal means the pointer head found nothing to point at (the
- *  all-zero-logit class). This is the guard that turns a silent wrong answer into a LOUD one. */
+ *  all-zero-logit class). This is the guard that turns a silent wrong answer into a LOUD one.
+ *  ★ F-556 NOTE (2026-09-24, REAL-DEFERRED): tol=1e-3 is UNCALIBRATED — it pins the exact
+ *  all-zero-logit class only. A wider near-uniform tolerance (e.g. 0.05) needs measured
+ *  model-variance data and would flip the battery-pinned [0.26,0.24,0.25,0.25]→false pin
+ *  (st-redteam-kernel.test.ts); deferred to a calibration run with labeled provenance. */
 export function isUniform(dist: readonly number[], tol = 1e-3): boolean {
   if (dist.length === 0) return true;
   const eq = 1 / dist.length;
@@ -121,6 +125,12 @@ export function kevProbe(scopeRoot: string): ConsumerProbe {
       if (!ans.ok) throw new Error(`GI_ENFORCE_KEV: ${ans.error ?? "the KEV decision failed"}`);
       const dist = ans.answers?.[0];
       if (dist === undefined || dist.length === 0) throw new Error("GI_ENFORCE_KEV: the KEV decision carried no distribution");
+      // ★ F-557 FIX (2026-09-24): finite-number guard — a CLI emitting NaN/Infinity slips past
+      //   isUniform (every NaN comparison is false) and the argmax then defaults to index 0,
+      //   manufacturing a verdict from garbage. Non-finite input is a DEFECT, never a verdict.
+      if (!dist.every((x) => Number.isFinite(x))) {
+        throw new Error(`GI_ENFORCE_KEV: the KEV decision carried a non-finite distribution ${JSON.stringify(dist)} — refusing to report a verdict`);
+      }
       // ★ THE UNIFORM GUARD — a pointer head that points at nothing is a DEFECT, not a verdict.
       if (isUniform(dist)) {
         throw new Error(`GI_ENFORCE_KEV: KEV returned a UNIFORM distribution ${JSON.stringify(dist)} — the pointer head found no signal (the all-zero-logit class); refusing to report a verdict`);

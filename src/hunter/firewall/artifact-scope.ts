@@ -161,6 +161,13 @@ export async function classify(
     console.warn(`[artifact-scope] master dir realpath failed (the CREATE path): ${e instanceof Error ? e.message : String(e)}`);
   }
   if (masterReal !== null) {
+    // ★ F-550 FIX (2026-09-24): verify the resolved master dir itself stays inside the
+    //   project root — a pre-existing MASTER_CONTEXT symlink to an external path resolves
+    //   parentReal and masterReal to the SAME external dir, so the parent-vs-master check
+    //   below passes while the write lands outside the project. Mirrors the F-30 CREATE-path guard.
+    if (masterReal !== projectRootReal && !masterReal.startsWith(projectRootReal + path.sep)) {
+      return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    }
     if (parentReal !== masterReal && !parentReal.startsWith(masterReal + path.sep)) {
       return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
     }

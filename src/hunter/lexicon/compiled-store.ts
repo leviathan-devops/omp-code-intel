@@ -42,6 +42,14 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
   // ★ F-6 FIX (2026-09-24): atomic battery commit — BEGIN/COMMIT/ROLLBACK like
   // writeRuleCards below; a mid-loop failure rolls back instead of half-writing.
   db.exec('BEGIN');
+  // ★ F-552 FIX (2026-09-24): the committed latch — COMMIT rides inside the inner try whose
+  //   finally finalizes the statement; a finalize-time throw after a successful COMMIT used to
+  //   reach the outer catch's unconditional ROLLBACK (a spurious ROLLBACK on a committed
+  //   transaction). The catch rolls back ONLY while COMMIT has not succeeded. (writeRuleCards
+  //   needs no latch: its COMMIT sits in the same try the catch guards and its finally's
+  //   finalizes are THEMSELVES try/caught best-effort, so no finalize throw can reach a
+  //   ROLLBACK — verified by reading lines 94-109, not assumed.)
+  let committed = false;
   try {
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -66,11 +74,12 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
     );
   }
     db.exec('COMMIT');
+    committed = true;
   } finally {
     try { stmt.finalize(); } catch { /* already finalized or driver-closed — the ROLLBACK below is what matters */ }
   }
   } catch (e: unknown) {
-    db.exec('ROLLBACK');
+    if (!committed) db.exec('ROLLBACK');
     throw e;
   }
 }

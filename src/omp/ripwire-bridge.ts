@@ -197,10 +197,12 @@ export function ripwireSafeDelete(root: string, symbol: string, opts?: { timeout
     present: true, ok: true,
     summary: `safe-delete callers=${a.callers ?? "?"} impact_reaches=${a.impact_reaches ?? "?"} uses=${a.uses ?? "?"} tested_self=${a.tested_self ?? "?"} risk=${a.risk ?? "?"}`,
     data: {
-      callers: Number(a.callers ?? 0),
-      impact_reaches: Number(a.impact_reaches ?? 0),
-      uses: Number(a.uses ?? 0),
-      tested_self: Number(a.tested_self ?? 0),
+      // ★ F-559 FIX (2026-09-24): safeNum on every external-binary numeric — bare Number()
+      //   let non-numeric XML attrs propagate as NaN into data records.
+      callers: safeNum(a.callers, 0),
+      impact_reaches: safeNum(a.impact_reaches, 0),
+      uses: safeNum(a.uses, 0),
+      tested_self: safeNum(a.tested_self, 0),
       risk: a.risk ?? "",
     },
   };
@@ -218,7 +220,7 @@ export function ripwirePath(root: string, from: string, to: string, opts?: { tim
   return {
     present: true, ok: true,
     summary: `path reachable=${a.reachable ?? "?"} hops=${a.hops ?? "?"}${steps.length > 0 ? ` (${steps.slice(0, 4).map((s) => s.name).join(" → ")})` : ""}`,
-    data: { reachable: a.reachable === "1", hops: Number(a.hops ?? 0), steps },
+    data: { reachable: a.reachable === "1", hops: safeNum(a.hops, 0), steps }, // ★ F-559 FIX (2026-09-24)
   };
 }
 
@@ -233,7 +235,7 @@ export function ripwireDeadCode(root: string, opts?: { timeoutMs?: number; env?:
   return {
     present: true, ok: true,
     summary: `dead-code count=${a.count ?? "?"} confidence=${a.confidence ?? "?"}`,
-    data: { count: Number(a.count ?? 0), confidence: a.confidence ?? "" },
+    data: { count: safeNum(a.count, 0), confidence: a.confidence ?? "" }, // ★ F-559 FIX (2026-09-24)
   };
 }
 
@@ -254,6 +256,6 @@ export function ripwireVerify(root: string, claim: string, opts?: { timeoutMs?: 
   return {
     present: true, ok: true,
     summary: `${a.verdict ?? "?"} shape=${a.shape ?? "?"}${a.hops !== undefined ? ` hops=${a.hops}` : ""}${a.count !== undefined ? ` count=${a.count}` : ""}${steps.length > 0 ? ` (${steps.slice(0, 3).map((s) => s.name).join(" → ")})` : ""}`,
-    data: { verdict: a.verdict ?? "", shape: a.shape ?? "", hops: Number(a.hops ?? 0), count: Number(a.count ?? 0), steps },
+    data: { verdict: a.verdict ?? "", shape: a.shape ?? "", hops: safeNum(a.hops, 0), count: safeNum(a.count, 0), steps }, // ★ F-559 FIX (2026-09-24)
   };
 }

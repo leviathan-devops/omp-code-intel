@@ -139,6 +139,10 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
   // W44 (supersedes the V21 ':' note): the split lives in parseTargetRoots
   // ('|' only — never ':').
   const allowRoots = parseTargetRoots(process.env.GI_TARGET_ROOTS ?? "");
+  // ★ F-558 NOTE (2026-09-24, REAL-DEFERRED): the "/tmp" fallback is a deliberate sandbox-scoped
+  //   grant — the battery pins mkdtemp scopes under /tmp and GI_TARGET_ROOTS overrides for tighter
+  //   scope. Narrowing the default is an operator threat-model call (single-user scope guard vs
+  //   multi-user boundary); deferred rather than breaking the suite silently.
   const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
   const within = roots.some((root) => {
     // P1.2.3 (W2/W3): the allowlist ROOT is canonicalized before the compare —

@@ -97,8 +97,14 @@ export async function generateLocalReport(input: ReportWriterInput): Promise<Rep
     const raw = await fs.promises.readFile(result.reportPath, "utf-8");
     const stripped = stripBeforeSeal(raw);
     if (stripped !== raw) {
-      await fs.promises.writeFile(result.reportPath, stripped, "utf-8");
-      console.log(`[report-writer-local] thinking-strip applied — removed ${raw.length - stripped.length} chars of meta-commentary`);
+      // ★ F-555 FIX (2026-09-24): the empty-strip guard — a strip that yields nothing (the whole
+      //   report was <think> blocks) must never seal an empty file over the landed report.
+      if (stripped.trim().length === 0) {
+        console.error(`[report-writer-local] stripBeforeSeal produced empty output for runId=${input.runId} — leaving original file intact to avoid data loss`);
+      } else {
+        await fs.promises.writeFile(result.reportPath, stripped, "utf-8");
+        console.log(`[report-writer-local] thinking-strip applied — removed ${raw.length - stripped.length} chars of meta-commentary`);
+      }
     }
   } catch (stripErr: unknown) {
     console.warn(`[report-writer-local] thinking-strip failed (non-fatal): ${stripErr instanceof Error ? stripErr.message : String(stripErr)}`);

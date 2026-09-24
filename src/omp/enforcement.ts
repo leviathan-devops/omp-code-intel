@@ -192,14 +192,15 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
   try {
     // ★ F-32 FIX (2026-09-24): same undefined-find guard on the close path — a missing TSG/JEV must read as the named fail-closed code.
     const tsgDecl = deps.register.find((c) => c.id === "TSG");
-    if (!tsgDecl) throw Object.assign(new Error("TSG is not registered"), { code: "CLAIM_FW_JEV_NO_KEY" });
+    // ★ F-530 FIX (2026-09-24): the TSG-absent throw carried the JEV code CLAIM_FW_JEV_NO_KEY — a TSG-deployment failure misdirected to the JEV key path. The code now names the TSG load unit; the JEV judge keeps GI_JEV_DOWN.
+    if (!tsgDecl) throw Object.assign(new Error("TSG is not registered"), { code: "CLAIM_FW_TSG_DOWN" });
     requireUp(tsgDecl);
   } catch (e) {
     return {
       verdict: "FAIL_CLOSED",
-      code: (e as { code?: string }).code ?? "CLAIM_FW_JEV_NO_KEY",
+      code: (e as { code?: string }).code ?? "CLAIM_FW_TSG_DOWN",
       reason: "close layer could not bind evidence (fail-closed)",
-      evidence: (e as Error).message,
+      evidence: e instanceof Error ? e.message : String(e),
       spans: [],
     };
   }

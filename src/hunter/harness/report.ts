@@ -255,10 +255,24 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
         stripped = stripped.substring(titleMatch.index);
       }
       if (stripped !== raw) {
+        // ★ F-551 FIX (2026-09-24): post-strip integrity gate — the strip runs BEFORE the
+        //   HUNT_DONE commit below, and a strip that empties the artifact or a write that
+        //   fails to round-trip throws REPORT_STRIP_FAILED instead of landing a corpse the
+        //   DB then records as truth. The original file is left intact on the empty path.
+        if (stripped.trim().length === 0) {
+          throw new Error(`REPORT_STRIP_FAILED: the thinking-strip emptied ${writerResult.reportPath} (raw ${raw.length} chars) — leaving the original file intact; refusing to record HUNT_DONE on an empty artifact`);
+        }
         fs.writeFileSync(writerResult.reportPath, stripped, 'utf-8');
+        const sealed = fs.readFileSync(writerResult.reportPath, 'utf-8');
+        if (sealed !== stripped) {
+          throw new Error(`REPORT_STRIP_FAILED: read-back mismatch on ${writerResult.reportPath} (wrote ${stripped.length} chars, read ${sealed.length}) — refusing to record HUNT_DONE on an unverified artifact`);
+        }
         console.log('[report] thinking-strip applied — removed', raw.length - stripped.length, 'chars of meta-commentary');
       }
     } catch (stripErr: unknown) {
+      // ★ F-551 FIX: integrity failures are LOUD (they abort before HUNT_DONE); incidental
+      //   I/O failures keep the existing non-fatal contract.
+      if (stripErr instanceof Error && stripErr.message.startsWith('REPORT_STRIP_FAILED')) throw stripErr;
       console.warn('[report] thinking-strip failed (non-fatal):', stripErr instanceof Error ? stripErr.message : String(stripErr));
     }
 
