@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-22",
+  "additions": 692220,
+  "ladder": {
+    "P0_content_global": 265389,
+    "P1_file_scoped": 4330,
+    "P2_file_window_6h": 3802
+  },
+  "rates": {
+    "P0": 0.3833882291756956,
+    "P1": 0.006255236774435873,
+    "P2": 0.005492473491086649
+  },
+  "note": "P0 fires on comment rewrites and boilerplate (content-global). P1 adds the file scope. P2 adds a 6h window. The verdict names the scope at which the REPAIR PREDICATE (remedy a) becomes viable."
+}
