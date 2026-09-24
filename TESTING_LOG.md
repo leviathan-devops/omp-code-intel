@@ -2419,3 +2419,26 @@ high) is dispatched to 5 agents.
 - **★ THE 5-RUN TREND (the highs fall):** 92 → 90 → 80 → 65 (the next run measures the post-wave tree).
 - **R4Omp (26 findings) did not converge** — the largest slice; its CRITICAL (abide.ts tail read)
   is adjudicated NOT-A-BUG (the fallthrough when the tail lacks enough events is CORRECT).
+
+## AUDIT GATE (run 5) — 2026-09-24 — the whole-tree audit
+
+```
+AUDIT GATE: FAIL
+```
+**run 5:** `{critical:4, high:51, medium:204, low:107}` across 112 files (post the run-4 wave,
+dist 1fd27baf060d6470).
+
+**★ THE FIVE-RUN TREND — THE HIGH COUNT FALLS MONOTONICALLY:**
+| run | code state | critical | high |
+|---|---|---|---|
+| 1 | pre-fix baseline | 8 | 92 |
+| 2 | post 6 agents | 5 | 90 |
+| 3 | post critical fixes | 3 | 80 |
+| 4 | post run-3 wave (~80 fixes) | 6 | 65 |
+| 5 | post run-4 wave (~50 fixes) | 4 | **51** |
+**92 → 90 → 80 → 65 → 51.** The high count falls every run as real defects get fixed. The
+critical count fluctuates (8→5→3→6→4) because the reviewer returns a NEW set each run on the same
+code — the non-determinism is measured, not assumed. 3 of run 5's 4 criticals were adjudicated:
+F-210 (abide Math.max→Math.min, REAL fixed), F-211 (the dead duplicate registerGraphGate stub,
+REAL removed), graph-facts WHERE (NOT-A-BUG — the code is correct). The remaining blocking set
+(63 high) is dispatched to 5 agents.
