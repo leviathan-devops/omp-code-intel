@@ -19,7 +19,7 @@
  */
 
 import type { BashLockdownDecision, LexiconContext, MPSE } from './lexicon-types.js';
-import { BASH_ERROR_MESSAGE } from './lexicon-types.js';
+import { BASH_ERROR_MESSAGE, makeLexiconDecision } from './lexicon-types.js';
 
 /**
  * THE READ FAMILY (the L2 spec §7.2:3143-3145) — the ALLOW set.
@@ -165,7 +165,14 @@ interface ParsedCommand {
 /** THE PARSE STEP (§7.2:3107-3113) — the first-token split + the full-character metacharacter scan. */
 function parseCommand(command: string): ParsedCommand {
   const trimmed = command.trimStart();
-  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  // ★ F-1040 FIX (2026-09-25): shell-aware token split — `split(/\s+/)` broke quoted
+  // ★ args (`sed "-n"` yielded secondToken `"-n"`, missing the -n carve-out; PROBED:
+  // ★ `sed "-n" '1,20p'` → ["sed","\"-n\"","'1,20p'"]). Match quote-respecting tokens,
+  // ★ then strip one layer of matching surrounding quotes so routing compares the VALUE
+  // ★ (`-n`) while the metacharacter scan still sees the raw command string.
+  const rawTokens = trimmed.match(/[^\s"']+|"[^"]*"|'[^']*'/g) ?? [];
+  const stripQuotes = (t: string): string => (t.length >= 2 && ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))) ? t.slice(1, -1) : t;
+  const tokens = rawTokens.map(stripQuotes);
   const firstToken = tokens[0] ?? '';
   const secondToken = tokens[1] ?? '';
   // The sed -n carve-out is detected BEFORE the scan so the sanctioned quotes are exempted.
@@ -250,22 +257,25 @@ export function classify(command: string): BashLockdownDecision {
 
 /** THE ALLOW construction — the decision + the MPSE triplet recorded (no triplet = no decision). */
 function allowed(pattern: string, token: string, command: string): BashLockdownDecision {
-  const mPSE: MPSE = { Pattern: pattern, State: 'PARSED->ALLOW_READ', Evidence: command };
-  return {
-    verdict: 'ALLOW_READ', state: 'ALLOW_READ', pattern, token, message: '', mPSE, triplet: mPSE,
-  };
+  // ★ F-1041 FIX (2026-09-25): synced constructor — state/triplet derive from
+  // ★ verdict/mPSE (the F-850 desync class), never independently assigned literals.
+  return makeLexiconDecision({
+    verdict: 'ALLOW_READ', pattern, token, message: '',
+    mPSE: { Pattern: pattern, State: 'PARSED->ALLOW_READ', Evidence: command },
+  }) as BashLockdownDecision;
 }
 
 /** THE BLOCK construction — the decision + the EXACT message + the MPSE triplet; the hook throws. */
 function blocked(pattern: string, token: string, command: string): BashLockdownDecision {
-  const mPSE: MPSE = {
-    Pattern: pattern,
-    State: 'PARSED->BLOCKED',
-    Evidence: `${command} | matched token: ${token}`,
-  };
-  return {
-    verdict: 'BLOCKED', state: 'BLOCKED', pattern, token, message: BASH_ERROR_MESSAGE, mPSE, triplet: mPSE,
-  };
+  // ★ F-1041 FIX (2026-09-25): synced constructor (see allowed above).
+  return makeLexiconDecision({
+    verdict: 'BLOCKED', pattern, token, message: BASH_ERROR_MESSAGE,
+    mPSE: {
+      Pattern: pattern,
+      State: 'PARSED->BLOCKED',
+      Evidence: `${command} | matched token: ${token}`,
+    },
+  }) as BashLockdownDecision;
 }
 
 /** THE HOOK — the tool.before entry: the BLOCK throws BEFORE the shell (no execution path at all). */

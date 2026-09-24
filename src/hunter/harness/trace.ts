@@ -63,10 +63,13 @@ function severityWeight(s: Severity): number {
   }
 }
 
-function deriveRootCause(f: NormalizedFinding, evidenceLen: number): string {
-  const anchor = `${f.file}:${f.line}`;
-  const first = f.evidence.split(/\n|\.\s/)[0]?.trim() ?? f.evidence;
-  const mechanism = first.length > 120 ? `${first.slice(0, 120)}…` : first;
+  // ★ F-1032 FIX (2026-09-25): evidence is typed string, but a malformed row
+  //   (undefined/null/non-string evidence smuggled past the type boundary, e.g. a
+  //   hand-built NormalizedFinding or a JS caller) threw TypeError inside .split()
+  //   and crashed the whole batch. Coerce non-strings to '' — same class fixed at
+  //   line 83 below (the evidenceLen split in legacySolveTrace).
+  const evidenceText = typeof f.evidence === 'string' ? f.evidence : '';
+  const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
   const depth = evidenceLen > 3 ? 'a multi-step edge chain' : 'a single-edge mechanism';
   return `the ${f.ruleId} violation at ${anchor} (${depth}): ${mechanism}`;
 }
@@ -80,7 +83,8 @@ function legacySolveTrace(findings: NormalizedFinding[], graph: GraphAdapter): T
   const total = findings.length === 0 ? 1 : findings.length;
   return findings.map((f) => {
     const blast = ruleCounts.get(f.ruleId) ?? 0;
-    const evidenceLen = f.evidence.split(/\s+->\s+|,|\n/).filter((s) => s.trim().length > 0).length;
+    const evText = typeof f.evidence === 'string' ? f.evidence : '';
+    const evidenceLen = evText.split(/\s+->\s+|,|\n/).filter((s) => s.trim().length > 0).length;
     // ★ F-4 FIX (2026-09-24): the dead footprint block REMOVED. It ran a per-finding
     //   graph.whoCalls() query then `void footprint` — the L6 call-site agent is not ported
     //   (see this file's header), so the result was computed and discarded on every finding.

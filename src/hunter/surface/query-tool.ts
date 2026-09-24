@@ -387,10 +387,7 @@ function violations(input: QueryInput, db: DbClient): QueryRow[] {
   const params: string[] = [];
   if (input.runId) params.push(input.runId);
   if (input.week) params.push(input.week);
-  const rows = rowsAs<Record<string, unknown>>(
-    db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params),
-    'violations',
-  );
+  // ★ F-1054 FIX (2026-09-25): pagination is NATIVE (LIMIT/OFFSET bound after the filter params) — the old shape materialized up to MAX_QUERY_ROWS_FULL (2000) rows into JS then sliced (UNBOUNDED read on a large findings table). `, id` keeps page order stable across severity ties.
   const effectiveCap = input.format === 'llm' ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
   const off = Math.max(0, Math.floor(input.offset ?? 0));
   // ★ F-10 FIX (2026-09-24): offset/limit page the FULL findings set and the cap
@@ -402,9 +399,13 @@ function violations(input: QueryInput, db: DbClient): QueryRow[] {
   // stringified it into a garbage `pagination=[object Object]` record and every
   // consumer had to filter the last element. A full page at off+lim signals more.
   const lim = input.limit !== undefined ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap) : effectiveCap;
+  const rows = rowsAs<Record<string, unknown>>(
+    db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END, id LIMIT ? OFFSET ?`).all(...params, lim, off),
+    'violations',
+  );
   // ★ F-952 FIX (2026-09-24): the format param was silently ignored here — an llm caller got
   //   full-size rows. Route the page through formatRows.
-  return formatRows(rows.slice(off, off + lim), input.format);
+  return formatRows(rows, input.format);
 }
 
 /** consistency — the SPEC_DERIVED vs CODE_DERIVED drift alarm (the matrix vision). */

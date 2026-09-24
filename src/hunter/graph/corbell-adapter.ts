@@ -99,15 +99,39 @@ export function resolveCorbell(profile?: { graph?: { binaryPath?: string } }, en
 // loop stays free during the build.
 import { spawn } from 'node:child_process';
 
+/** ★ F-1052 FIX (2026-09-25): the coupling-env defaults for the async twin — the SAME pins
+ *  CorbellAdapter.build()'s sync path sets (months=1, bulk-commit guards, walk excludes),
+ *  derived from cwd instead of the profile. The async path is a public export; without these
+ *  an external caller got the vendor's unbounded months=6 whole-repo walk (the 742MB-store /
+ *  30-min stall class the coupling law exists to prevent). Explicit opts.env wins per-key. */
+function buildAsyncCouplingEnv(cwd: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    CORBELL_COUPLING_MONTHS: '1',
+    CORBELL_COUPLING_MAX_COMMIT_FILES: '200',
+    CORBELL_COUPLING_MAX_COMMITS: '500',
+    CORBELL_WALK_EXCLUDE_DIRS: ['Checkpoints', 'corbell-data', 'context_management', '.trident'].join(','),
+  };
+  try {
+    const gitRoot = execSync('git rev-parse --show-toplevel', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    const rel = path.relative(gitRoot, path.resolve(cwd));
+    if (rel.length > 0 && !rel.startsWith('..')) {
+      env.CORBELL_COUPLING_SCOPE = rel.split(path.sep).join('/');
+    }
+  } catch { /* no git root — the vendor walks cwd under the month/exclude pins */ }
+  return env;
+}
+
 export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): Promise<string> {
   // ★ F-252 FIX (2026-09-24): closed the async twin's two gaps vs the sync path — (1) env passthrough (CORBELL_COUPLING_*/WALK_EXCLUDE knobs were dropped); (2) optional timeoutMs SIGTERMs a hung child and rejects NAMED (default none, per no-static-timeouts order). Backward compatible.
+  // ★ F-1052 (2026-09-25): coupling DEFAULTS (same values as the sync build) merged UNDER opts.env — a caller passing nothing is scoped, not unbounded.
+  const couplingDefaults = buildAsyncCouplingEnv(cwd);
   const timeoutMs = opts?.timeoutMs;
   return new Promise((resolve, reject) => {
     console.log(`[corbell-adapter] async graph build starting: ${bin} graph build --methods (cwd: ${cwd})`);
     const proc = spawn(bin, ['graph', 'build', '--methods'], {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ...(opts?.env ?? {}) },
+      env: { ...process.env, ...couplingDefaults, ...(opts?.env ?? {}) },
     });
     let stdout = '';
     let stderr = '';

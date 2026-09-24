@@ -278,9 +278,13 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
         spans: [],
       };
     }
+    // ★ F-1056 FIX (2026-09-25): non-timeout bind failures were mislabeled TSG_TIMEOUT — an engine crash read as "slow", destroying the slow-vs-broken distinction the fire-gate vocabulary preserves. Extract the thrown code, else TSG_DOWN (mirrors the JEV catch below). The EngineTimeout branch above keeps TSG_TIMEOUT.
+    const tsgCode = e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
+      ? String((e as { code: unknown }).code)
+      : "TSG_DOWN";
     return {
       verdict: "FAIL_CLOSED",
-      code: "TSG_TIMEOUT",
+      code: tsgCode,
       reason: "the evidence scan failed (fail-closed)",
       evidence: e instanceof Error ? e.message : String(e),
       spans: [],

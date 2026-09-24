@@ -268,7 +268,7 @@ export const P6: PredicateTemplate = {
         // ★ F-1050 FIX (2026-09-25): the remediation (UNSCOPED_WALKER_REMEDIATION) demands Checkpoints AND .trident AND dist — the old two-term || let a walker excluding Checkpoints+.trident but NOT dist pass silent (SILENT miss). Third term closes it.
         } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win) || !/\bdist\b/i.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.unscoped-walker', sev);
-          findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim() + ' missing Checkpoints/.trident', 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
+          findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim() + ' missing Checkpoints/.trident/dist', 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }
       }
     }

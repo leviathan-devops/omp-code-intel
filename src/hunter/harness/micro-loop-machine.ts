@@ -448,6 +448,10 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
           const value = typeof s.value === 'string' ? s.value : Object.values(s.value as Record<string, unknown>)[0];
           if (value === 'inconclusive') { settle(); }
         });
+        // ★ F-1042 FIX (2026-09-25): handleDisposables was NEVER populated — stop()'s
+        // ★ disposal loop was dead code and stop() during a pending done() leaked sub2/sub3.
+        // ★ Register both subs so stop() tears them down; settle() already removes them.
+        handleDisposables.push(sub2, sub3);
         function settle(): void {
           if (settled) return;
           settled = true;

@@ -172,7 +172,7 @@ export function statAndReadGraphJson(graphPath: string): { text: string; size: n
   return { text, size };
 }
 
-export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
+export function loadGraphifyFileSync(graphPath: string, rootOverride?: string): GraphifyGraph {
   let text: string;
   try {
     text = statAndReadGraphJson(graphPath).text;
@@ -191,7 +191,13 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
   } catch (e: unknown) {
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed — ${e instanceof Error ? e.message : String(e)}`);
   }
-  return normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
+  // ★ F-1000 FIX (2026-09-25): the normalize root was dirname(dirname(graphPath)) while
+  //   buildSync() resolves the effective root from effectiveProfile.project.root — when
+  //   graphPath is overridden via GRAPHIFY_OUT/graphifyOut/override the two roots diverge
+  //   and the containment pass drops/mis-anchors nodes against a base the profile never
+  //   declared. Callers that know the profile root pass it (buildSync does); the default
+  //   preserves the legacy standalone-reader behavior.
+  return normalizeGraphifyGraph(raw, { root: rootOverride ?? path.dirname(path.dirname(graphPath)) });
 }
 
 /** Fork graph-mapper.ts:40-87 normalizeGraph (links|edges tolerant). */

@@ -248,6 +248,15 @@ export class DiagnosticsServer {
     // ★ missed the exact hit is a clean miss; one WITH glob chars compiles to an
     // ★ anchored regex (`*`→`.*`, `?`→`.`, every other regex char escaped).
     if (!/[*?[]/.test(candidate)) return [];
+    // ★ F-1043 FIX (2026-09-25): ReDoS guard — `*` compiles to `.*`, so a `*a*a*a*…`
+    // ★ chain backtracks catastrophically at .test() time (construction succeeds, so the
+    // ★ try/catch cannot help). Reject over-long and star-heavy patterns before compiling.
+    const GLOB_MAX_LEN = 200;
+    const GLOB_MAX_STARS = 8;
+    if (candidate.length > GLOB_MAX_LEN) return [];
+    let starCount = 0;
+    for (const ch of candidate) if (ch === '*') starCount++;
+    if (starCount > GLOB_MAX_STARS) return [];
     let rx: RegExp;
     try {
       // ★ F-49 FIX (2026-09-24): two defects — no /g flag (only the first special
