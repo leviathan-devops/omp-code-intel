@@ -413,16 +413,47 @@ export class RsiStore {
   /** RECOMPUTE from the ledger — the SC-4 self-reference kill. Counts the
    *  outcome rows; NEVER reads or increments a counter on the row. */
   recount(canonicalId: string): { confirmed: number; refuted: number; unresolved: number } {
-    const rows = this.db
-      .query(`SELECT outcome FROM ${this.evidenceTable} WHERE canonical_id = ?`)
-      .all(canonicalId) as Array<{ outcome: Outcome }>;
-    let confirmed = 0, refuted = 0, unresolved = 0;
-    for (const r of rows) {
+    // ★ F-610 FIX (2026-09-24, run-10 CRITICAL): the HMAC signatures on the evidence rows were
+    //   WRITTEN (appendFiring/appendOutcome) but NEVER VERIFIED here — `recount` read
+    //   `outcome` raw and trusted it. An attacker with direct DB write access could forge
+    //   evidence rows and move the confirmed/refuted/unresolved counts, which is exactly the
+    //   integrity the signature exists to provide. `verify()` was already the documented
+    //   contract ("a row that fails is treated as ABSENT by every reader (G4)") — this reader
+    //   was the one place that skipped it. Rows are mapped (the snake_case mapper) and
+    //   verified; a forged row counts as ABSENT, never as evidence.
+    const raw = this.db
+      .query(`SELECT canonical_id, fired_at, outcome, prev_hash, sig FROM ${this.evidenceTable} WHERE canonical_id = ? ORDER BY id`)
+      .all(canonicalId) as Array<{ canonical_id: string; fired_at: string; outcome: Outcome; prev_hash: string; sig: string }>;
+    let confirmed = 0, refuted = 0, unresolved = 0, forged = 0;
+    for (const r of raw) {
+      if (!this.verifyEvidenceRow(r)) { forged += 1; continue; } // ABSENT — never evidence
       if (r.outcome === "confirmed") confirmed++;
       else if (r.outcome === "refuted") refuted++;
       else unresolved++;
     }
+    if (forged > 0) {
+      console.error(`[rsi] recount(${canonicalId}): ${forged} row(s) FAILED signature verification and were counted as ABSENT`);
+    }
     return { confirmed, refuted, unresolved };
+  }
+
+  /** ★ F-610 (2026-09-24): the EVIDENCE row's own signature contract — a DIFFERENT byte form
+   *  from ReflexRow's `sign()`. appendFiring signs `${prevHash}|{c,at,o:'unresolved'}`;
+   *  appendOutcome signs `${prevHash}|{c,o}`. Reconstruct EXACTLY that (key order and the
+   *  'unresolved' default matter — a wrong form verifies NOTHING). A firing row has no
+   *  `fired_at` in its signed body; an outcome row has no `at`. Both are re-derived here. */
+  private verifyEvidenceRow(r: { canonical_id: string; fired_at: string; outcome: Outcome; prev_hash: string; sig: string }): boolean {
+    const forms: string[] = [
+      `${r.prev_hash}|${JSON.stringify({ c: r.canonical_id, at: r.fired_at, o: "unresolved" })}`,
+      `${r.prev_hash}|${JSON.stringify({ c: r.canonical_id, o: r.outcome })}`,
+    ];
+    for (const body of forms) {
+      const expect = crypto.createHmac("sha256", this.key).update(body).digest("hex");
+      const a = Buffer.from(expect, "hex");
+      const b = Buffer.from(r.sig, "hex");
+      if (a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b)) return true;
+    }
+    return false;
   }
 
   /** SUPERSEDE: insert the new belief, then retire the old one. TWO writes, one

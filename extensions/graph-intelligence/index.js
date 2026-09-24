@@ -184872,7 +184872,10 @@ function realNearest(target, maxClimb = 12) {
     try {
       const realDir = fs19.realpathSync(dir);
       return missing.length === 0 ? realDir : path20.join(realDir, ...missing.reverse());
-    } catch {
+    } catch (e) {
+      const code = e.code;
+      if (code !== "ENOENT" && code !== "ENOTDIR")
+        throw e;
       const parent = path20.dirname(dir);
       if (parent === dir)
         break;
@@ -184894,7 +184897,9 @@ function checkContained(target, root) {
   }
   const real = realNearest(target);
   const contained = insideRoot(real, rootReal);
-  return { real, rootReal, contained, resolved: rootResolved && real !== path20.resolve(target) || contained };
+  const targetAbs = path20.resolve(target);
+  const resolved = real !== targetAbs || fs19.existsSync(real);
+  return { real, rootReal, contained, resolved };
 }
 function requireContained(target, root, onViolation) {
   const { real, rootReal, contained } = checkContained(target, root);

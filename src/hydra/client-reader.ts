@@ -66,7 +66,15 @@ export class GraphifyClientReader {
       this.graphPath = null;
       if (old) {
         try {
-          await old.close();
+          // ★ F-611 FIX (2026-09-24, run-10 CRITICAL): `await old.close()` had NO ceiling — a
+          //   hung subprocess / broken pipe / network stall never returned, so `release()` was
+          //   never called and EVERY later attach()/disconnect() chained forever on this lock
+          //   (a permanent deadlock of the reader). The close is best-effort by construction
+          //   (the catch already releases the reference on failure) — bound it.
+          await Promise.race([
+            old.close(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')), 5000).unref?.()),
+          ]);
         } catch (e) {
           console.error("[client-reader] transport close failed (releasing reference anyway):", e instanceof Error ? e.message : e);
         }
@@ -118,7 +126,12 @@ export class GraphifyClientReader {
     try {
       if (this.transport) {
         try {
-          await this.transport.close();
+          // ★ F-612 FIX (2026-09-24, run-10 CRITICAL): the same unbounded close() — a hang here
+          //   deadlocks every later attach()/disconnect(). Bounded identically.
+          await Promise.race([
+            this.transport.close(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')), 5000).unref?.()),
+          ]);
         } catch (e) {
           console.error("[client-reader] transport close failed (releasing reference anyway):", e instanceof Error ? e.message : e);
         }
