@@ -179,6 +179,20 @@ export class JevJudge implements Judge {
   }
 }
 
+/** ★ F-1057 FIX (2026-09-25): centralized secret scrub — the old inline regex only matched
+ *  `Bearer [A-Za-z0-9_-]+`, missing base64/vendor chars (. + / =) and any non-Bearer appearance
+ *  of the key (e.g. a String(e) rejection echoing it bare). Broad charset + best-effort
+ *  verbatim scrub of the resolved key (keys shorter than 8 chars are never scrubbed verbatim
+ *  to avoid redacting ordinary words). */
+export function redactSecrets(msg: string): string {
+  let out = msg.replace(/Bearer [A-Za-z0-9_\-./+=~]+/g, "Bearer <redacted>");
+  try {
+    const key = resolveKey();
+    if (key.length >= 8) out = out.split(key).join("<redacted>");
+  } catch { /* no key resolvable — the charset scrub stands on its own */ }
+  return out;
+}
+
 /** A one-shot probe for the ops path: does the key work, and at what latency? */
 export async function probeJev(timeoutMs = 15000): Promise<{
   ok: boolean;
@@ -213,7 +227,7 @@ export async function probeJev(timeoutMs = 15000): Promise<{
       model: null,
       probability: null,
       latencyMs: Math.round(performance.now() - t0),
-      error: e instanceof Error ? e.message.replace(/Bearer [A-Za-z0-9_-]+/g, "Bearer <redacted>") : String(e),
+      error: redactSecrets(e instanceof Error ? e.message : String(e)),
     };
   }
 }

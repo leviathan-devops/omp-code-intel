@@ -64,9 +64,13 @@ export function captureSnapshot(storePath: string): GraphSnapshot {
     for (const e of edges) inbound.set(e.dst_canonical, (inbound.get(e.dst_canonical) ?? 0) + 1);
     // ★ F-934 FIX (2026-09-24): materialize the full label→inbound map beside the top-5
     //   projection (same label resolution as topDegree, so the two can never disagree).
+    // ★ F-1055 FIX (2026-09-25): label collision SILENTLY dropped data — two nodes sharing a label overwrote each other via the Record key (a blast-radius jump missed or fabricated), plus O(n) find() per edge. Prebuilt cid→label map + SUM colliding inbounds.
+    const cidToLabel = new Map<string, string>();
+    for (const nn of nodes) cidToLabel.set(nn.canonical_id, nn.label);
     const inboundByLabel: Record<string, number> = {};
     for (const [cid, n] of inbound) {
-      inboundByLabel[nodes.find((nn) => nn.canonical_id === cid)?.label ?? cid] = n;
+      const label = cidToLabel.get(cid) ?? cid;
+      inboundByLabel[label] = (inboundByLabel[label] ?? 0) + n;
     }
     const unwiredCount = nodes.filter((n) => (inbound.get(n.canonical_id) ?? 0) === 0).length;
     const topDegree = [...inbound.entries()]

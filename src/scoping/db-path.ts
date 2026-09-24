@@ -84,7 +84,8 @@ export function makeDbPath(spec: DbPathSpec): () => string {
             `(fileName="${spec.fileName}") - cannot resolve testFile`,
           );
         }
-        return testFile === TILDE ? path.join(home, spec.fileName) : path.join(home, testFile.slice(2));
+        // ★ F-1058 FIX (2026-09-25): testFile '~/' sliced to '' and path.join(home, '') returned the bare HOME dir as the DB path (a directory, not a file). An empty remainder falls back to spec.fileName, like the bare '~' case.
+        return testFile === TILDE ? path.join(home, spec.fileName) : path.join(home, testFile.slice(2) || spec.fileName);
       }
       return path.join(os.tmpdir(), testFile);
     }

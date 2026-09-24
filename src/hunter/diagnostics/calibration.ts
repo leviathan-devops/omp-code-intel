@@ -175,18 +175,25 @@ export class CalibrationGate {
   private readonly fireByPred = new Map<string, FireTestResult>();
   private readonly silentByPred = new Map<string, SilentTestResult>();
   private readonly verdicts = new Map<string, 'CALIBRATED' | 'FLAGGED'>();
+  private readonly battery: CompiledPredicate[];
   /** The session's timestamp — FIXED at construction so a session re-runs
    *  byte-identically (the O22.4 determinism: the §6.4 toEqual between two
    *  runs of the same session). */
   readonly calibratedAt: number;
 
   constructor(
-    private readonly battery: CompiledPredicate[],
+    battery: CompiledPredicate[],
     private readonly fixtures: CalibrationFixtures,
     private readonly fixtureVersion: string,
     readonly dryRun: boolean = true, // the calibration is born OFF (D28) — the live flip is the operator's curation
   ) {
     this.calibratedAt = Date.now();
+    // ★ F-1021 FIX (2026-09-25): own the battery — the gate used to hold the caller's
+    // ★ array by reference while mark() wrote p.calibrated onto its rows, so verdicts
+    // ★ leaked into the caller's scope (re-calibration contamination, live-scan
+    // ★ side-effects). The gate clones each row; markCalibrated below mutates only the
+    // ★ owned copy. State stays readable via verdictOf()/liveBattery()/excluded().
+    this.battery = battery.map((p) => ({ ...p }));
   }
 
   /** THE FIRE TEST (9.1a) — the predicate MUST produce a VIOLATION on its own
@@ -666,7 +673,12 @@ export async function runCalibration(
     const fixtureVersion = opts.fixtureVersion ?? 'v1';
     const battery = opts.battery ?? (await compile(profile));
     const gate = new CalibrationGate(battery, fixtures, fixtureVersion, opts.dryRun ?? true);
-    return gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
+    // ★ F-1020 FIX (2026-09-25): await the gate — returning the promise bare let
+    // ★ gate.run() rejections bypass the catch below (an async fn that returns a
+    // ★ promise without await never intercepts it), so DB/file failures skipped the
+    // ★ warn. Awaited: rejections land in the catch, warn, then rethrow.
+    const result = await gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
+    return result;
   } catch (e: unknown) {
     console.warn(`[calibration] runCalibration failed: ${e instanceof Error ? e.message : String(e)}`);
     throw e;

@@ -116,10 +116,12 @@ function openAndNextRunId(token: string, dbPath: string): string {
     for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
       let payload: { runId?: unknown };
       try {
+        // ★ F-1053 FIX (2026-09-25): a driver returning an already-parsed object made String() yield '[object Object]' → parse throw → silent skip → duplicate runId (SILENT). Objects assign directly; only strings/buffers go through JSON.parse.
         // THE R16 TYPE_CERTAINTY FIX — JSON.parse returns `any`; the assignment
         // to the typed variable needs no cast at all (no AsExpression to flag),
         // and the runId read below is typeof-guarded before use.
-        payload = JSON.parse(String(row['payload'] ?? '{}'));
+        const raw: unknown = row['payload'];
+        payload = raw !== null && typeof raw === 'object' ? (raw as { runId?: unknown }) : JSON.parse(String(raw ?? '{}'));
       } catch (e: unknown) {
         console.warn(`[recon] HUNT_DONE payload parse failed — skipped: ${e instanceof Error ? e.message : String(e)}`);
         continue;

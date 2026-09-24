@@ -191,14 +191,22 @@ function mergePartialHarness(
   newEntities: NewEntity[],
   existing: ExistingCanonical[],
 ): ResolutionDecision[] | null {
-  if (decisions.length === newEntities.length) return decisions;
-  if (decisions.length === 0) return null;
-  // ★ F-932 FIX (2026-09-24): the resolved set carried the harness-provided alias STRINGS
-  //   matched against BOTH id and label — an alias equal to A's id that also equaled B's label
-  //   skipped B from heuristic fallback entirely (SILENT drop: B missing from the final
-  //   decisions array). The set now carries the MATCHED entity identities (newEntity.id), so
-  //   coverage is per-entity, never per-string.
+  // ★ F-1031 FIX (2026-09-25): the length check re-introduced the F-932 silent drop —
+  //   two harness records resolving to the SAME entity satisfy length===N while some
+  //   entity has NO decision, and the early return bypassed the per-entity set below.
+  //   Dedupe to first-per-entity, then gate on UNIQUE coverage (set size), never length.
+  const seenIds = new Set<string>();
+  const uniqDecisions: ResolutionDecision[] = [];
+  for (const d of decisions) {
+    if (seenIds.has(d.newEntity.id)) continue;
+    seenIds.add(d.newEntity.id);
+    uniqDecisions.push(d);
+  }
+  decisions.length = 0;
+  decisions.push(...uniqDecisions);
   const resolvedEntityIds = new Set(decisions.map((d) => d.newEntity.id));
+  if (resolvedEntityIds.size === newEntities.length) return decisions;
+  if (resolvedEntityIds.size === 0) return null;
   for (const ne of newEntities) {
     if (!resolvedEntityIds.has(ne.id)) {
       const h = heuristicDecide(ne, existing);

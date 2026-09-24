@@ -207,9 +207,15 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
     try {
       // ★ F-940: the per-attempt exec also draws from the same deadline — a BUSY
       //   throw after a full-timeout run must not grant 7 more full timeouts.
+      // ★ F-1051 FIX (2026-09-25): explicit branch instead of NaN-coalescing arithmetic — Math.min(undefined, x) is NaN, and execSync({timeout: NaN/Infinity/0}) is an undocumented contract (works by accident on some runtimes). Infinite deadline passes the caller's per-attempt timeout as-is (undefined = no timeout); a finite deadline clamps to [1, budget].
       const execBudget = retryDeadline - Date.now();
       if (execBudget <= 0) break;
-      const execTimeout = retryDeadline === Number.POSITIVE_INFINITY ? retryTimeout : Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, Math.max(1, execBudget));
+      let execTimeout: number | undefined;
+      if (retryDeadline === Number.POSITIVE_INFINITY) {
+        execTimeout = retryTimeout;
+      } else {
+        execTimeout = Math.max(1, Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, execBudget));
+      }
       return execSync(cmd, {
         cwd: opts?.cwd,
         timeout: execTimeout,
