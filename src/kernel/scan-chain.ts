@@ -138,7 +138,11 @@ export async function callWithStallDetection(
     if (!response.ok) {
       clearInterval(stallTimer);
       let detail = "";
-      try { detail = (await response.text()).slice(0, 200); } catch { /* body unreadable — status alone is the signal */ }
+      // ★ F-943 FIX (2026-09-24): a throwing text() left the body undrained and the
+      //   socket never returned to the pool. Cancel best-effort; status stays the signal.
+      try { detail = (await response.text()).slice(0, 200); } catch {
+        try { await response.body?.cancel(); } catch { /* best-effort drain */ }
+      }
       return { ok: false, reason: `SCAN_HTTP_${response.status}: ${response.statusText ?? ""}${detail ? ` — ${detail}` : ""}` };
     }
 

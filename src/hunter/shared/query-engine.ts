@@ -366,8 +366,12 @@ export class QueryEngine {
       }
     }
     try {
-      const like = `%${query.trim()}%`;
-      const rows = this.db.prepare('SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? OR canonical_id LIKE ? OR kind LIKE ?) LIMIT ?').all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
+      // ★ F-942 FIX (2026-09-24): escape LIKE wildcards — unescaped `%`/`_`
+      //   widened matches silently (`a_b` matched `axb`). Backslash first (it
+      //   is the ESCAPE char); the value still rides a bound parameter.
+      const escaped = query.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const like = `%${escaped}%`;
+      const rows = this.db.prepare("SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? ESCAPE '\\' OR canonical_id LIKE ? ESCAPE '\\' OR kind LIKE ? ESCAPE '\\') LIMIT ?").all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
       // ★ F-445 FIX (2026-09-24): the rank-decay score went NEGATIVE past index 20
       //   (`1 - i*0.05`) while VECTOR_TOPK_MAX is 100 — consumers expecting [0,1] got
       //   values near -3.95. Clamp to the documented [0,1] band.

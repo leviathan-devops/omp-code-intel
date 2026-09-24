@@ -5,7 +5,7 @@ export function tridentLog(level: string, ns: string, msg: string): void {
   console.error(`[${level} ${ns}] ${msg}`)
 }
 export function shortFile(p: string, n = 46): string {
-  // ★ F-901 FIX (2026-09-24): null/undefined input threw TypeError on p.length — fail-closed to ''.
+  // ★ F-912 FIX (2026-09-24): null/undefined input threw TypeError on p.length — fail-closed to ''.
   if ((p as unknown) == null) return '';
   // ★ F-242 FIX (2026-09-24): small-n correctness — slice(-(n-1)) with n=1 is
   //   slice(0), the WHOLE string, so '…'+p came out longer than p. n<=1 returns a

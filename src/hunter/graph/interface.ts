@@ -229,6 +229,13 @@ export function familyPromotionPending(hash: string, detail: string): FamilyProm
 
 /** Select the adapter for the profile's substrate (spec §3.2:595-600). */
 export function selectAdapter(profile: ProjectProfile): GraphAdapter {
+    // ★ F-903 FIX (2026-09-24): profile.graph arrived unguarded — a malformed/legacy profile escaped as raw TypeError instead of the ADAPTER_FAILED contract. Shape-check first (unknown-cast, never any).
+    if (!profile || typeof (profile as unknown as { graph?: { substrate?: unknown } }).graph?.substrate !== 'string') {
+      throw adapterFailed(
+        `substrate=${String((profile as unknown as { graph?: { substrate?: unknown } }).graph?.substrate)}`,
+        'profile.graph or profile.graph.substrate is missing or not a string — set graph.substrate to corbell or graphify.',
+      );
+    }
   // THE NATIVE-AST RIP-OUT (the operator ruling 2026-09-07, stated 4+ times:
   // NO FALLBACKS — LOUD FAIL OR CLEAR PASS — HARD DEPENDENCY). The Substrate
   // type no longer includes native-ast, but a legacy profile object (or a

@@ -281,11 +281,10 @@ export class CalibrationGate {
         try {
           return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
         } catch (e) {
-          // ★ F-335 FIX (2026-09-24): a throwing whoCalls used to coerce to [] SILENTLY -
-          // ★ a topology-breaking adapter fault escaped the version hash. Still [] (a broken
-          // ★ edge read must not brick versioning) but LOUD: the node + the error are warned.
-          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} - recording empty callers in version hash`);
-          return { to: n.id, callers: [] as string[] };
+          // ★ F-902 FIX (2026-09-24): SILENT — F-335's warn+[] folded a broken adapter's empty topology into the fixturesHash (stale-reuse risk); a throwing whoCalls is the same adapter fault F-830 treats as fatal for nodes(). Loud named error, never a coerced default.
+          throw calibrationFixtureInvalid(
+            `graph.whoCalls() threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)}`,
+          );
         }
       });
       edges.sort((a, b) => String(a.to).localeCompare(String(b.to)));
@@ -376,7 +375,20 @@ export class CalibrationGate {
       if (write.db) {
         this.writeCalibrationRows(write.db, records, fixtureVersion);
       }
-      this.writeCalibrationRecord(recordPath, { version, records, excluded, coverageNote });
+      try {
+        this.writeCalibrationRecord(recordPath, { version, records, excluded, coverageNote });
+      } catch (e: unknown) {
+        // ★ F-900 FIX (2026-09-24): DB-then-file left half-evidence (committed rows, no record) on a file failure. Compensate: delete this session's rows (run_id + session calibratedAt) and throw loud CALIBRATION_PERSIST_SPLIT — never a silent split.
+        if (write.db) {
+          try {
+            write.db.prepare('DELETE FROM calibrations WHERE run_id = ? AND created_at = ?').run(`calibration-${fixtureVersion}`, this.calibratedAt);
+          } catch { /* best-effort compensation; the persist error below stands */ }
+        }
+        throw new CalibrationError(
+          'CALIBRATION_PERSIST_SPLIT',
+          `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) — this session's rows were compensated (deleted) so no half-evidence stands`,
+        );
+      }
     }
 
     return { records, liveBattery, excluded, batteryVersion: version, coverageNote, dryRun: this.dryRun };
@@ -462,7 +474,8 @@ export class CalibrationGate {
     if (!f.graph || typeof (f.graph as GraphAdapter).nodes !== 'function') {
       throw calibrationFixtureInvalid(`fire fixture ${f.ruleId} carries no graph`);
     }
-    if (typeof f.source !== 'string') {
+    // ★ F-901 FIX (2026-09-24): SILENT — an empty source passed the typeof check and calibrated zero-length input as valid code, corrupting FIRE/SILENT. Non-blank required, mirroring ruleId/file/anchor.
+    if (typeof f.source !== 'string' || f.source.trim() === '') {
       throw calibrationFixtureInvalid(`fire fixture ${f.ruleId} carries no source read`);
     }
   }
@@ -477,7 +490,8 @@ export class CalibrationGate {
     if (!g.graph || typeof (g.graph as GraphAdapter).nodes !== 'function') {
       throw calibrationFixtureInvalid(`golden fixture ${g.anchor} carries no graph`);
     }
-    if (typeof g.source !== 'string') {
+    // ★ F-901 FIX (2026-09-24): SILENT — same hole as the fire path: a blank golden source calibrated as valid known-good. Non-blank required.
+    if (typeof g.source !== 'string' || g.source.trim() === '') {
       throw calibrationFixtureInvalid(`golden fixture ${g.anchor} carries no source read`);
     }
   }

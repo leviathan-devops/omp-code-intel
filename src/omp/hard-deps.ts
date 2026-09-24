@@ -325,6 +325,12 @@ export interface RegisterConfig {
 }
 
 export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
+  // ★ F-946 FIX (2026-09-24): fail LOUD on an empty scopeRoot — join() drops
+  //   zero-length parts, so "" silently built bare relative paths resolved
+  //   against CWD (machine-dependent UP/DOWN). Fail-closed here instead.
+  if (typeof cfg.scopeRoot !== "string" || cfg.scopeRoot.trim().length === 0) {
+    throw new Error("REGISTER_CONFIG: scopeRoot is required — an empty scope root would produce relative paths that resolve against CWD");
+  }
   const env = cfg.env ?? process.env;
   // ★ F-268 FIX (2026-09-24): no slash normalization — a trailing-slash scopeRoot built `//` paths that mismatched stat evidence. Local paths only; no protocol prefixes flow through here.
   const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/").replace(/\/{2,}/g, "/");

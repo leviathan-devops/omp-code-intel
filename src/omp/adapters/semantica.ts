@@ -15,7 +15,9 @@ interface SemanticaKg {
 
 export function semanticaProbe(scopeRoot: string): ConsumerProbe {
   // ★ F-27 FIX (2026-09-24): scopeRoot reaches the fs — canonical absolute form only (`..` segments would let `/allowed/../../etc` escape the intended tree; path.join normalizes them away silently).
-  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(path.sep).includes("..")) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
+  // ★ F-945 FIX (2026-09-24): split on BOTH separators — split(path.sep) missed `..`
+  //   on Windows (sep `\\`, so `C:/foo/../etc` never split and the tripwire was bypassed).
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(/[/\\]/).includes("..")) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   // ★ F-356 FIX (2026-09-24): symlink escape — `..` rejection stops lexical traversal
   //   but a symlinked ancestor inside scopeRoot resolves outside the tree and sails
   //   through path.join silently. Canonicalize through the live filesystem; when the
@@ -74,7 +76,15 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
       if (kg !== null && typeof kg === "object" && !Array.isArray(kg) && kg.entities !== undefined && !Array.isArray(kg.entities)) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expected array, got ${typeof kg.entities})`);
       }
-      const hits = (kg.entities ?? []).filter((e) => (e.name ?? "").includes(subject));
+      // ★ F-944 FIX (2026-09-24): per-element shape guard — F-825 validated the array
+      //   but one corrupt entry (`{"name": 42}`, null) threw inside .filter() and failed
+      //   the whole call. Bad entries skip; good ones still match.
+      const hits = (kg.entities ?? []).filter((e) => {
+        if (e === null || e === undefined || typeof e !== "object") return false;
+        const nm: unknown = (e as { name?: unknown }).name;
+        if (typeof nm !== "string") return false;
+        return nm.includes(subject);
+      });
       return hits.map((e) => ({
         consumer: "L1_SEMANTICA" as const,
         rung: "decision" as const,

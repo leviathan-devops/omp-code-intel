@@ -136,7 +136,9 @@ function populateGraphifySessionStore(storePath: string, root: string, runTag: s
         ["populated_at", new Date().toISOString()],
       ]);
     } catch (e) {
-      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
+      // ★ F-947 FIX (2026-09-24): keep the cause chain — the re-wrap kept only the
+      //   message and dropped the original stack/properties. Text unchanged.
+      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`, { cause: e });
     }
   } finally {
     try { db.close(); } catch { /* close best-effort on every path */ }

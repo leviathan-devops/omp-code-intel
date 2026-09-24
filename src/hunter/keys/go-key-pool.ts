@@ -392,12 +392,26 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
           // ★ row is already home) was DELETED by the else branch - its exile window was lost and
           // ★ the still-limited key got hammered. Same-slot is a no-op: the INSERT below refreshes it.
         } else {
-          // ★ F-512 FIX (2026-09-24): a reload-removed key (home === -1) keeps its exile ATTACHED
-          // ★ to the keyid instead of being deleted. The next reload that restores the key re-homes
-          // ★ it (the home>=0 branch); deletion would hammer a still-limited key after a key-set edit.
-          // ★ Keyed by keyid so a restored key re-attaches; the UPSERT below cannot clobber it
-          // ★ because it writes under the CURRENT keyid.
-          conn.run('UPDATE go_key_pool SET dead_until = max(dead_until, ?) WHERE keyid = ? AND idx = ?', [until, displaced.keyid, idx]);
+          // ★ F-941 FIX (2026-09-24): the F-512 UPDATE kept the orphan exile on
+          //   the SAME idx the UPSERT below writes — ON CONFLICT(idx) then
+          //   replaced keyid + dead_until, so a reload-removed key's exile was
+          //   ALWAYS lost and the still-limited key got hammered. The orphan
+          //   moves to a FREE sentinel idx (MIN(idx)-1, always negative, never
+          //   colliding) BEFORE the UPSERT, carrying max(old, until). Reads
+          //   stay correct: mergedDeadViews resolves by keyid over ALL rows, so
+          //   the sentinel row still exiles its key if restored, and
+          //   markGoKeyAlive clears by keyid too. Bounded: one row per keyid.
+          const minRow = conn.query('SELECT MIN(idx) AS m FROM go_key_pool').get() as { m: number | null } | null;
+          const sentinel = Math.min(-1, (minRow?.m ?? 0) - 1);
+          // ★ F-941b: fold any older sentinel for the same keyid first — a
+          //   remove/restore/remove cycle must not stack one sentinel per mark.
+          conn.run('UPDATE go_key_pool SET dead_until = max(dead_until, ?) WHERE keyid = ? AND idx < 0', [until, displaced.keyid]);
+          const already = conn.query('SELECT idx FROM go_key_pool WHERE keyid = ? AND idx < 0').get(displaced.keyid) as { idx: number } | null;
+          if (already) {
+            conn.run('UPDATE go_key_pool SET dead_until = max(dead_until, ?) WHERE keyid = ? AND idx = ?', [until, displaced.keyid, already.idx]);
+          } else {
+            conn.run('UPDATE go_key_pool SET idx = ?, dead_until = max(dead_until, ?) WHERE keyid = ? AND idx = ?', [sentinel, until, displaced.keyid, idx]);
+          }
         }
       }
       conn.run(

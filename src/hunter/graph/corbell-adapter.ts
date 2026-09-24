@@ -194,12 +194,25 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
   // writer collisions can still surface SQLITE_BUSY. Retry with backoff —
   // with WAL the holder's transaction clears in ms, so retries always land.
   const ATTEMPTS = 8;
+  // ★ F-940 FIX (2026-09-24): Atomics.wait is sync BY CONTRACT (ExecFn returns
+  //   a string), so the BLOCK itself stays — but it must never sleep past the
+  //   caller's budget. retryT0/retryDeadline pin the loop to opts.timeout when
+  //   one is given (Infinity = no timeout, old behavior). Async callers that
+  //   must not block the loop use buildCorbellGraphAsync instead.
+  const retryT0 = Date.now();
+  const retryTimeout = opts?.timeout;
+  const retryDeadline = typeof retryTimeout === "number" && retryTimeout > 0 ? retryT0 + retryTimeout : Number.POSITIVE_INFINITY;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
+      // ★ F-940: the per-attempt exec also draws from the same deadline — a BUSY
+      //   throw after a full-timeout run must not grant 7 more full timeouts.
+      const execBudget = retryDeadline - Date.now();
+      if (execBudget <= 0) break;
+      const execTimeout = retryDeadline === Number.POSITIVE_INFINITY ? retryTimeout : Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, Math.max(1, execBudget));
       return execSync(cmd, {
         cwd: opts?.cwd,
-        timeout: opts?.timeout,
+        timeout: execTimeout,
         encoding: 'utf8',
         maxBuffer: 64 * 1024 * 1024,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -209,7 +222,10 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
       lastErr = e;
       const msg = e instanceof Error ? e.message : String(e);
       if (!/database is locked|SQLITE_BUSY/i.test(msg) || attempt === ATTEMPTS) break;
-      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1));
+      // ★ F-940: cap the sleep at the remaining budget; spent budget stops the loop.
+      const remaining = retryDeadline - Date.now();
+      if (remaining <= 0) break;
+      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1), remaining);
       console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) — retrying in ${backoff}ms`);
       // ★ F-1 FIX (2026-09-24): blocking sleep WITHOUT a shell spawn — the old
       // execSync('sleep …') forked /bin/sh + /bin/sleep per retry on top of the
