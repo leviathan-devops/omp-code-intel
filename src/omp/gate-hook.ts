@@ -281,12 +281,28 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       }
       return null;
     })();
+    // ★ F-890 FIX (2026-09-24, reported by R12High3 and reproduced): THE DETECTOR COULD NEVER
+    //   PASS FOR RIPWIRE. Its three arms matched a `rows:`/`count:` JSON shape and a
+    //   `src/…:N` line — but ripwire's answer is XML-ish (`<callers>` rows) or a JSON with
+    //   `"callers":[…]`/`"defs":[…]`. So a query that RETURNED CALLERS still recorded
+    //   `resolved=false`, the drift could only GROW, and the gate hard-stopped agents doing
+    //   legitimate work (the F-620 class: a gate whose success condition is unreachable).
+    //   The detector now covers the ACTUAL output shapes of BOTH tools.
     const hasRows = structuredRows !== null
       ? structuredRows > 0
-      : /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
+      : /rows?\s*[:=]\s*[1-9]/.test(text)
+        || /"count":\s*[1-9]/.test(text)
+        || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text)
+        // ★ the ripwire shapes (the missing arms)
+        || /<callers>|<defs>|<impact>|<rows>/i.test(text)
+        || /"(?:callers|defs|impact|results|matches)":\s*\[\s*\{/.test(text)
+        || /^\s*(?:src|lib|tests|packages)\/[^\s]+\s*:\s*\d+/m.test(text);
     const noRows = structuredRows !== null
       ? structuredRows === 0
-      : /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
+      : /rows?\s*[:=]\s*0\b/.test(text)
+        || /"count":\s*0\b/.test(text)
+        || /"(?:callers|defs|impact|results|matches)":\s*\[\s*\]/.test(text)
+        || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
     // ★ AUDIT H-5 FIXED: `|| !noRows` made an EMPTY/ambiguous result count as resolved
     //   (neither marker present -> hasRows=false, noRows=false -> true). The T-16 intent is
     //   explicit: rows=0 is a legitimate ANSWER but NOT coverage. Coverage now REQUIRES

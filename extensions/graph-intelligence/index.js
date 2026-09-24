@@ -176552,6 +176552,62 @@ var init_zod = __esm(() => {
   init_external();
 });
 
+// src/hunter/shared/containment.ts
+import * as fs18 from "fs";
+import * as path20 from "path";
+function rootPrefixOf(rootReal) {
+  if (rootReal.length === 0)
+    throw new Error("CONTAINMENT_BAD_ROOT: rootReal must not be empty");
+  return rootReal === path20.sep ? path20.sep : rootReal + path20.sep;
+}
+function insideRoot(real, rootReal) {
+  return real === rootReal || real.startsWith(rootPrefixOf(rootReal));
+}
+function realNearest(target, maxClimb = 12) {
+  const abs = path20.resolve(target);
+  const missing = [];
+  let dir = abs;
+  for (let i = 0;i <= maxClimb; i += 1) {
+    try {
+      const realDir = fs18.realpathSync(dir);
+      return missing.length === 0 ? realDir : path20.join(realDir, ...missing.reverse());
+    } catch (e) {
+      const code = e.code;
+      if (code !== "ENOENT" && code !== "ENOTDIR")
+        throw e;
+      const parent = path20.dirname(dir);
+      if (parent === dir)
+        break;
+      missing.push(path20.basename(dir));
+      dir = parent;
+    }
+  }
+  return abs;
+}
+function checkContained(target, root) {
+  let rootReal;
+  let rootResolved;
+  try {
+    rootReal = fs18.realpathSync(root);
+    rootResolved = true;
+  } catch {
+    rootReal = realNearest(root);
+    rootResolved = false;
+  }
+  const real = realNearest(target);
+  const contained = insideRoot(real, rootReal);
+  const targetAbs = path20.resolve(target);
+  const resolved = real !== targetAbs || fs18.existsSync(real);
+  return { real, rootReal, contained, resolved };
+}
+function requireContained(target, root, onViolation) {
+  const { real, rootReal, contained } = checkContained(target, root);
+  if (!contained)
+    onViolation({ real, rootReal, target, root });
+  return real;
+}
+var init_containment = () => {};
+
 // src/hydra/templates/types.ts
 var LayerCandidateSchema, SubagentOutputSchema;
 var init_types = __esm(() => {
@@ -177185,7 +177241,7 @@ function realResolve(p) {
   }
 }
 function isWithinRoot(realPath, realRoot) {
-  return realPath === realRoot || realPath.startsWith(realRoot + path36.sep);
+  return insideRoot(realPath, realRoot);
 }
 function makeCappedReadTool(targetRoot) {
   return {
@@ -178079,6 +178135,7 @@ ${summary}
 }
 var execFileAsync, READ_CAP = 320, GREP_CAP = 120, GRAPH_TOOL_VIOLATION = "GRAPH_TOOL_VIOLATION", WRITE_SCOPE_VIOLATION = "WRITE_SCOPE_VIOLATION", GRAPH_TAG_INVALID_PREDICATE = "GRAPH_TAG_INVALID_PREDICATE", GRAPH_TAG_INVALID_KIND = "GRAPH_TAG_INVALID_KIND", READ_SCOPE_VIOLATION = "READ_SCOPE_VIOLATION", MD_FINDING_HEADER = "## FINDING:", MD_REQUIRED_FIELDS;
 var init_auditor = __esm(() => {
+  init_containment();
   init_ontology();
   init_map_reader();
   execFileAsync = promisify(execFile);
@@ -178103,8 +178160,17 @@ function makeDbPath(spec) {
     const TILDE_SLASH = TILDE + "/";
     for (const env of spec.envVars) {
       const v = process.env[env];
-      if (v && v.trim().length > 0)
-        return path.join(v.trim(), spec.fileName);
+      if (v && v.trim().length > 0) {
+        const raw = v.trim();
+        if (raw === TILDE || raw.startsWith(TILDE_SLASH)) {
+          const home = process.env.HOME ?? process.env.USERPROFILE;
+          if (!home) {
+            throw new Error(`[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` + `(fileName="${spec.fileName}") \u2014 cannot resolve ${env}`);
+          }
+          return raw === TILDE ? path.join(home, spec.fileName) : path.join(home, raw.slice(2), spec.fileName);
+        }
+        return path.join(raw, spec.fileName);
+      }
     }
     if (process.env.BUN_TEST === "1") {
       if (!spec.testFile) {
@@ -179625,8 +179691,8 @@ function registerGraphGate(pi) {
       }
       return null;
     })();
-    const hasRows = structuredRows !== null ? structuredRows > 0 : /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
-    const noRows = structuredRows !== null ? structuredRows === 0 : /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
+    const hasRows = structuredRows !== null ? structuredRows > 0 : /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text) || /<callers>|<defs>|<impact>|<rows>/i.test(text) || /"(?:callers|defs|impact|results|matches)":\s*\[\s*\{/.test(text) || /^\s*(?:src|lib|tests|packages)\/[^\s]+\s*:\s*\d+/m.test(text);
+    const noRows = structuredRows !== null ? structuredRows === 0 : /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /"(?:callers|defs|impact|results|matches)":\s*\[\s*\]/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
     const resolved = !errored && hasRows;
     recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
     if (!pendingQueries.has(sid))
@@ -179706,12 +179772,19 @@ var defaultExec = (cmdRaw, opts) => {
   }
   const cmd = "exec " + cmdRaw;
   const ATTEMPTS = 8;
+  const retryT0 = Date.now();
+  const retryTimeout = opts?.timeout;
+  const retryDeadline = typeof retryTimeout === "number" && retryTimeout > 0 ? retryT0 + retryTimeout : Number.POSITIVE_INFINITY;
   let lastErr;
   for (let attempt = 1;attempt <= ATTEMPTS; attempt++) {
     try {
+      const execBudget = retryDeadline - Date.now();
+      if (execBudget <= 0)
+        break;
+      const execTimeout = retryDeadline === Number.POSITIVE_INFINITY ? retryTimeout : Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, Math.max(1, execBudget));
       return execSync(cmd, {
         cwd: opts?.cwd,
-        timeout: opts?.timeout,
+        timeout: execTimeout,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
         stdio: ["ignore", "pipe", "pipe"],
@@ -179722,7 +179795,10 @@ var defaultExec = (cmdRaw, opts) => {
       const msg = e instanceof Error ? e.message : String(e);
       if (!/database is locked|SQLITE_BUSY/i.test(msg) || attempt === ATTEMPTS)
         break;
-      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1));
+      const remaining = retryDeadline - Date.now();
+      if (remaining <= 0)
+        break;
+      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1), remaining);
       console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) \u2014 retrying in ${backoff}ms`);
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
     }
@@ -180342,6 +180418,9 @@ function graphEmpty(detail) {
   return new GraphEmptyError(detail);
 }
 function selectAdapter(profile) {
+  if (!profile || typeof profile.graph?.substrate !== "string") {
+    throw adapterFailed(`substrate=${String(profile.graph?.substrate)}`, "profile.graph or profile.graph.substrate is missing or not a string \u2014 set graph.substrate to corbell or graphify.");
+  }
   if (profile.graph.substrate === "native-ast") {
     throw adapterFailed(`substrate='native-ast'`, "REMOVED: the native-ast fallback was ripped out per the operator ruling \u2014 corbell is the hard dependency. Install corbell (pip install git+https://github.com/Corbell-AI/Corbell.git into a py3.11+ venv, or set CORBELL_BIN) or fix graph.binaryPath. No fallback exists.");
   }
@@ -181697,7 +181776,7 @@ function populateGraphifySessionStore(storePath, root, runTag, scope) {
         ["populated_at", new Date().toISOString()]
       ]);
     } catch (e) {
-      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
+      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`, { cause: e });
     }
   } finally {
     try {
@@ -183989,7 +184068,10 @@ function violationFrequencies(profile, ruleIds) {
   for (const id of ruleIds)
     counts.set(id, 0);
   const rootReal = fs15.realpathSync(profile.project.root);
-  const rootPrefix = rootReal === path16.sep ? path16.sep : rootReal + path16.sep;
+  if (rootReal === path16.sep) {
+    throw historyLogUnreadable(profile.project.root, 'project root resolves to the filesystem root \u2014 containment against "/" admits every path and is not a boundary');
+  }
+  const rootPrefix = rootReal + path16.sep;
   const containedIn = (parentReal) => parentReal === rootReal || parentReal.startsWith(rootPrefix);
   for (const logPath of profile.history.failureLogs) {
     const abs = path16.resolve(profile.project.root, logPath);
@@ -184035,7 +184117,10 @@ function lockdownReadSource(profile) {
   return {
     read(file, range) {
       const abs = path16.resolve(profile.project.root, file);
-      const rootPrefix = rootReal === path16.sep ? path16.sep : rootReal + path16.sep;
+      if (rootReal === path16.sep) {
+        throw sourceReadFailed(file, 'project root resolves to the filesystem root \u2014 containment against "/" admits every path and is not a boundary');
+      }
+      const rootPrefix = rootReal + path16.sep;
       const inside = (q) => q === rootReal || q.startsWith(rootPrefix);
       const parentReal = fs15.realpathSync(path16.dirname(abs));
       if (!inside(parentReal))
@@ -184636,10 +184721,11 @@ function compileDeclared(profile, version) {
     if (!template) {
       throw new LexiconError("TEMPLATE_UNKNOWN", `TEMPLATE_UNKNOWN: declaredPredicate ${ruleId} names template '${templateId}' which is not in the library`);
     }
-    const verbatimQuote = String(binding["verbatimQuote"] ?? "");
-    if (!verbatimQuote || verbatimQuote.trim() === "") {
+    const rawQuote = binding["verbatimQuote"];
+    if (typeof rawQuote !== "string" || rawQuote.trim() === "") {
       throw new LexiconError("D13_VIOLATION", `D13_VIOLATION: declaredPredicate ${ruleId} lacks a verbatim quote \u2014 doctrine is QUOTED, never synthesized`);
     }
+    const verbatimQuote = rawQuote;
     const anchor = String(binding["anchor"] ?? `${ruleId}`);
     const severity = severityFromBinding(binding["severity"]);
     battery.push(compileTemplate(template, binding, { verbatimQuote, anchor, severity }, version));
@@ -184770,8 +184856,7 @@ ${p.verbatimQuote}`).join(`
         try {
           return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
         } catch (e) {
-          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} - recording empty callers in version hash`);
-          return { to: n.id, callers: [] };
+          throw calibrationFixtureInvalid(`graph.whoCalls() threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)}`);
         }
       });
       edges.sort((a, b) => String(a.to).localeCompare(String(b.to)));
@@ -184837,7 +184922,16 @@ ${p.verbatimQuote}`).join(`
       if (write.db) {
         this.writeCalibrationRows(write.db, records, fixtureVersion);
       }
-      this.writeCalibrationRecord(recordPath, { version, records, excluded, coverageNote });
+      try {
+        this.writeCalibrationRecord(recordPath, { version, records, excluded, coverageNote });
+      } catch (e) {
+        if (write.db) {
+          try {
+            write.db.prepare("DELETE FROM calibrations WHERE run_id = ? AND created_at = ?").run(`calibration-${fixtureVersion}`, this.calibratedAt);
+          } catch {}
+        }
+        throw new CalibrationError("CALIBRATION_PERSIST_SPLIT", `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) \u2014 this session's rows were compensated (deleted) so no half-evidence stands`);
+      }
     }
     return { records, liveBattery, excluded, batteryVersion: version, coverageNote, dryRun: this.dryRun };
   }
@@ -184902,7 +184996,7 @@ ${p.verbatimQuote}`).join(`
     if (!f.graph || typeof f.graph.nodes !== "function") {
       throw calibrationFixtureInvalid(`fire fixture ${f.ruleId} carries no graph`);
     }
-    if (typeof f.source !== "string") {
+    if (typeof f.source !== "string" || f.source.trim() === "") {
       throw calibrationFixtureInvalid(`fire fixture ${f.ruleId} carries no source read`);
     }
   }
@@ -184916,7 +185010,7 @@ ${p.verbatimQuote}`).join(`
     if (!g.graph || typeof g.graph.nodes !== "function") {
       throw calibrationFixtureInvalid(`golden fixture ${g.anchor} carries no graph`);
     }
-    if (typeof g.source !== "string") {
+    if (typeof g.source !== "string" || g.source.trim() === "") {
       throw calibrationFixtureInvalid(`golden fixture ${g.anchor} carries no source read`);
     }
   }
@@ -185042,62 +185136,8 @@ function markCalibrated(p, verdict) {
   throw calibrationFixtureInvalid("the predicate row is missing for the calibrated mark");
 }
 
-// src/hunter/shared/containment.ts
-import * as fs18 from "fs";
-import * as path20 from "path";
-function rootPrefixOf(rootReal) {
-  if (rootReal.length === 0)
-    throw new Error("CONTAINMENT_BAD_ROOT: rootReal must not be empty");
-  return rootReal === path20.sep ? path20.sep : rootReal + path20.sep;
-}
-function insideRoot(real, rootReal) {
-  return real === rootReal || real.startsWith(rootPrefixOf(rootReal));
-}
-function realNearest(target, maxClimb = 12) {
-  const abs = path20.resolve(target);
-  const missing = [];
-  let dir = abs;
-  for (let i = 0;i <= maxClimb; i += 1) {
-    try {
-      const realDir = fs18.realpathSync(dir);
-      return missing.length === 0 ? realDir : path20.join(realDir, ...missing.reverse());
-    } catch (e) {
-      const code = e.code;
-      if (code !== "ENOENT" && code !== "ENOTDIR")
-        throw e;
-      const parent = path20.dirname(dir);
-      if (parent === dir)
-        break;
-      missing.push(path20.basename(dir));
-      dir = parent;
-    }
-  }
-  return abs;
-}
-function checkContained(target, root) {
-  let rootReal;
-  let rootResolved;
-  try {
-    rootReal = fs18.realpathSync(root);
-    rootResolved = true;
-  } catch {
-    rootReal = realNearest(root);
-    rootResolved = false;
-  }
-  const real = realNearest(target);
-  const contained = insideRoot(real, rootReal);
-  const targetAbs = path20.resolve(target);
-  const resolved = real !== targetAbs || fs18.existsSync(real);
-  return { real, rootReal, contained, resolved };
-}
-function requireContained(target, root, onViolation) {
-  const { real, rootReal, contained } = checkContained(target, root);
-  if (!contained)
-    onViolation({ real, rootReal, target, root });
-  return real;
-}
-
 // src/hunter/harness/scan.ts
+init_containment();
 function resolveCorpusPaths(profile) {
   const root = path21.resolve(profile.project.root);
   const corpus = profile.rules.corpus.map((entry) => {
@@ -186428,7 +186468,9 @@ async function runQueryTool(args) {
     }, db, undefined, undefined);
     return JSON.stringify(rows, null, 2);
   } finally {
-    db.close();
+    try {
+      db.close();
+    } catch {}
   }
 }
 
@@ -186790,6 +186832,7 @@ function uaProbe(scopeRoot) {
 }
 
 // src/omp/adapters/arsumbris.ts
+init_containment();
 import * as fs23 from "fs";
 import * as os6 from "os";
 import * as path29 from "path";
@@ -186805,8 +186848,9 @@ function auEngineRead(repoRoot, read, subject) {
     throw new Error(`GI_LAYER_ARSUMBRIS: subject carries NUL \u2014 refusing`);
   const repoCanon = path29.resolve(repoRoot);
   const script = path29.join(repoCanon, "scripts/au-read.ts");
-  if (!path29.resolve(script).startsWith(repoCanon + path29.sep))
+  requireContained(script, repoCanon, () => {
     throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root \u2014 refusing`);
+  });
   if (!fs23.existsSync(script))
     throw new Error(`GI_LAYER_ARSUMBRIS: the reader is absent at ${script}`);
   let out;
@@ -186880,7 +186924,7 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
 import * as fs24 from "fs";
 import * as path30 from "path";
 function semanticaProbe(scopeRoot) {
-  if (!path30.isAbsolute(scopeRoot) || scopeRoot.split(path30.sep).includes(".."))
+  if (!path30.isAbsolute(scopeRoot) || scopeRoot.split(/[/\\]/).includes(".."))
     throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   let resolvedRoot;
   let needsRealpathCheck = false;
@@ -186923,7 +186967,14 @@ function semanticaProbe(scopeRoot) {
       if (kg !== null && typeof kg === "object" && !Array.isArray(kg) && kg.entities !== undefined && !Array.isArray(kg.entities)) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expected array, got ${typeof kg.entities})`);
       }
-      const hits = (kg.entities ?? []).filter((e) => (e.name ?? "").includes(subject));
+      const hits = (kg.entities ?? []).filter((e) => {
+        if (e === null || e === undefined || typeof e !== "object")
+          return false;
+        const nm = e.name;
+        if (typeof nm !== "string")
+          return false;
+        return nm.includes(subject);
+      });
       return hits.map((e) => ({
         consumer: "L1_SEMANTICA",
         rung: "decision",
@@ -187274,6 +187325,8 @@ function abideProbe(scopeRoot, abideRoot) {
       if (!fs27.existsSync(eventsPath)) {
         throw new Error(`GI_ENFORCE_ABIDE: the Abide event ledger is absent at ${eventsPath}`);
       }
+      if (!subject || subject.trim().length === 0)
+        return [];
       const events = tailEvents(eventsPath, 4000);
       const hits = events.filter((e) => {
         if (e.band !== "flag")
@@ -188222,6 +188275,9 @@ function decideFromRegistry(scopeRoot, subject, act, record) {
   if (typeof a.queriedBefore !== "boolean") {
     throw new Error("GI_DECIDE_BAD_INPUT: act.queriedBefore must be a boolean (undefined would silently read as blind)");
   }
+  if (!path34.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]/).includes("..") || scopeRoot.includes("\x00")) {
+    throw new Error(`GI_DECIDE_BAD_INPUT: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
+  }
   const registry = buildRegistry(scopeRoot);
   const facts = registry.factsFor(subject);
   const influenced = [...new Set(facts.map((f) => f.consumer))];
@@ -188263,6 +188319,9 @@ function decideFireFromGraph(scopeRoot, target, intent) {
   }
   if (intent !== "consume" && intent !== "declare" && intent !== "mutate" && intent !== "measure") {
     throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of consume|declare|mutate|measure (got ${String(intent)})`);
+  }
+  if (!path34.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]/).includes("..") || scopeRoot.includes("\x00")) {
+    throw new Error(`GI_DECIDE_BAD_INPUT: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   }
   const storePath = corbellCheckoutPath(scopeRoot);
   const verdicts = graphFacts({ storePath, target, intent });
