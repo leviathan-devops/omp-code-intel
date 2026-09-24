@@ -680,3 +680,50 @@ workspace-ancestor ledger walk).
 **★ RUN 8 LAUNCHED** on the frozen tree at `873abf5` (12 workers, muse-go-mimo).
 
 **THE SEVEN-RUN CURVE:** criticals 8→5→3→6→4→4→1 · highs 92→90→80→65→51→65→61.
+
+---
+
+## 2026-09-25 ~02:00 — THE R12 WAVE CLOSED + THE SUBSTRATE RESTORED
+
+**HEAD** `17dec7d` · **dist** `c8366b1f1ffd0c7e` · **the battery** 438/0 + 536/0, exit 0.
+
+**THE WAVE (~43 REAL across 5 agents):**
+- **R12High1** 9 REAL + 2 NOT-A-BUG — calibration persistence-split, fixture validation, whoCalls
+  loud, ADAPTER_FAILED shape, D13 coercion, close-masking, blank-subject facts, scopeRoot traversal.
+- **R12High2** 11 REAL — AST depth guard, shortFile null, fenced-code heading skip, key-tail
+  redaction, steer TTL/cap, states TTL/eviction, GI_LAYER_ERROR bucket, NaN confidence clamp, WAL
+  loud, attempt-2 close.
+- **R12High3** 10 REAL — F-930..F-939 (fixture-calibration, resolver, loader, graph-diff,
+  enforcement, layer-registry, populate-graphify, db-path).
+- **R12High4** 5 REAL + 4 NOT-A-BUG (quote-proofs) — chain step numbering, the format param
+  threading, the dedup cleanup.
+- **R12High5** 8 REAL — corbell retry budget, orphan exile preservation, LIKE escaping, body
+  cancel, semantica element guard + Windows `..`, REGISTER_CONFIG, cause chaining.
+
+**★ THE THREE STRUCTURAL WINS:**
+1. **THE CONTAINMENT CLASS CLOSED AT THE SOURCE.** The family produced criticals in runs 6, 7, 8,
+   10 AND 12 because each fix closed ONE site and left its PRIVATE COPY. This wave found **15
+   private copies**; the shared primitive (`src/hunter/shared/containment.ts`) is now called by
+   scan/auditor/arsumbris/artifact-scope, and the vacuous-root bug (F-601 → F-870 → F-880/F-881)
+   is refused at every remaining copy. **Pinned by `tests/st-containment-contract.test.ts` (8/0:
+   the symlink escape, the vacuous root, and the path-preservation rule — positive AND negative).**
+2. **F-890 — THE GATE'S REMEDY MADE REACHABLE.** The resolution detector matched only
+   `rows:`/`count:`/`src/:N` — but ripwire answers in XML (`<callers>`) or JSON
+   (`"callers":[…]`), so **a query that RETURNED CALLERS still recorded `resolved=false`**, the
+   drift could only GROW, and the gate hard-stopped two agents. Fixed + probed 6/6.
+3. **THE ABSENT SUBSTRATE PRODUCED (EN-SUBSTRATE-1).** One dead daemon (L2_ARSUMBRIS) caused FIVE
+   test failures: `runKernelV2`'s preflight REFUSEs when a declared layer is DOWN, before the
+   detectors run. `au daemon start` → the register honest, the battery green. **A missing substrate
+   presents as N code defects; read the register before editing code.**
+
+**★ THE RUN-12 CRITICALS — ALL THREE WERE INCOMPLETE EARLIER FIXES:** F-870 (a private copy of
+the prefix logic), F-871 (`pendingSettle` declared + called but never ASSIGNED), F-872 (the full
+node set passed as `changedNodeIds`, so `assertNoBlindness` threw on every CLEAN run). **A fix is
+not done when it compiles or when its comment says so — the check is whether the broken PATH takes
+the new branch.**
+
+**★ A COORDINATION LAW ISSUED:** a sibling agent ran `git checkout` on another's uncommitted work
+(destroying 3 fixes, since re-landed). **NEVER `git checkout` / `git restore` / `git stash` in this
+shared tree** — an uncommitted edit you did not write is a sibling's in-flight work.
+
+**★ THE LANE: 8 of 8 keys now `ok`** (was 5 of 8).
