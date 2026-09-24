@@ -79,7 +79,7 @@ export interface LexiconDecision {
   /** THE MPSE TRIPLET — recorded on EVERY decision, no exceptions. */
   mPSE: MPSE;
   // THE TEST ALIASES (the spec's 6.2 pseudocode asserts these names — §6.2:2588-2594):
-  // ★ F-800 FIX (2026-09-24): CONTAIN the alias-desync class — state/triplet were
+  // ★ F-850 FIX (2026-09-24): CONTAIN the alias-desync class — state/triplet were
   //   independently-assignable fields, so verdict BLOCKED + state ALLOW_READ typechecked
   //   silently. readonly freezes post-construction drift (zero src/ mutations — grep-verified);
   //   makeLexiconDecision/assertLexiconDecisionConsistent below are the synced constructor

@@ -55,6 +55,32 @@ export function resolveCorpusPaths(profile: ProjectProfile): ProjectProfile {
     rules: { ...profile.rules, corpus },
   };
 }
+/** THE FIXTURE EXTRACTOR — typed, LOUD on schema drift (never a silent skip).
+ *  ★ F-851 FIX (2026-09-24): the double-cast chain below yielded undefined → empty
+ *  arrays → hasFixtures=false on ANY shape drift, no-opping the D17 gate fail-open.
+ *  Absent calibrationFixtures is still an honest null (gate no-ops, documented); a
+ *  PRESENT-but-malformed value throws SCAN_INVALID_BINDINGS, which the F-347 catch
+ *  below escalates to SCAN_CALIBRATION_FAILED (fail-closed). */
+function extractCalibrationFixtures(
+  bindings: Record<string, unknown> | undefined,
+): { fire: FireFixture[]; golden: GoldenFixture[] } | null {
+  const raw: unknown = bindings?.calibrationFixtures;
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`SCAN_INVALID_BINDINGS: calibrationFixtures must be an object with fire/golden arrays, got ${Array.isArray(raw) ? 'array' : typeof raw} — refusing a silent calibration skip`);
+  }
+  const rec = raw as Record<string, unknown>;
+  for (const key of ['fire', 'golden'] as const) {
+    const v: unknown = rec[key];
+    if (v !== undefined && !Array.isArray(v)) {
+      throw new Error(`SCAN_INVALID_BINDINGS: calibrationFixtures.${key} must be an array, got ${typeof v} — refusing a silent calibration skip`);
+    }
+  }
+  return {
+    fire: (Array.isArray(rec.fire) ? rec.fire : []) as FireFixture[],
+    golden: (Array.isArray(rec.golden) ? rec.golden : []) as GoldenFixture[],
+  };
+}
 
 /** THE SCAN ACTOR — compile + run. Throws the engine's named errors
  *  (ENGINE_GRAPH_EMPTY / FINDING_CHECK_FAILED / FINDING_NO_TRIPLET /
@@ -101,15 +127,9 @@ export async function scan(
     // (no fire+golden), the gate no-ops as honest [].
     let liveBattery = battery;
     try {
-      const bindingsAny = (normalized as unknown as { rules?: { bindings?: Record<string, unknown> } }).rules?.bindings ?? {};
-      const rawFixtures: unknown = (bindingsAny as Record<string, unknown>).calibrationFixtures;
-      const isRecord = typeof rawFixtures === 'object' && rawFixtures !== null;
-      const fireField: unknown = isRecord ? (rawFixtures as Record<string, unknown>).fire : undefined;
-      const goldenField: unknown = isRecord ? (rawFixtures as Record<string, unknown>).golden : undefined;
-      const fixtures: { fire: FireFixture[]; golden: GoldenFixture[] } = {
-        fire: (Array.isArray(fireField) ? fireField : []) as FireFixture[],
-        golden: (Array.isArray(goldenField) ? goldenField : []) as GoldenFixture[],
-      };
+      // F-851 CALL (2026-09-24): typed extractor — SCAN_INVALID_BINDINGS on drift, null when absent.
+      const fixtures = extractCalibrationFixtures(normalized.rules.bindings as unknown as Record<string, unknown> | undefined)
+        ?? { fire: [] as FireFixture[], golden: [] as GoldenFixture[] };
       const hasFixtures = fixtures.fire.length > 0 || fixtures.golden.length > 0;
       if (hasFixtures) {
         const cal = await runCalibration(normalized, fixtures, { battery, dryRun: true });
