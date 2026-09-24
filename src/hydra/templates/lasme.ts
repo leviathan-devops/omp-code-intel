@@ -22,7 +22,9 @@ function lasmeTemplate(
     layerNumber,
     graphQueries,
     filterTags,
-    outputSchema: SubagentOutputSchema as unknown as z.ZodSchema,
+    // ★ F-413 FIX (2026-09-24): the `as unknown as z.ZodSchema` cast hid type drift —
+    // ★ ZodObject already extends ZodSchema (sro.ts assigns it bare), so no cast is needed.
+    outputSchema: SubagentOutputSchema,
     staticPrompt: `IDENTITY: ${anchorPredicate.toUpperCase()} hunter — ${mandate} Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge); never fire on test fixtures/mocks/calib:-exempted sites. GRAPH LAW: query graph before files; prefer EXTRACTED; path-trace connections; subgraph depth 3 for blast radius; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks (predicate/file path:line/evidence/spec) + ## SUMMARY.`,
   };
 }

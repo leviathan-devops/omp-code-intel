@@ -116,6 +116,17 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
       if (fd !== null) { try { fs.closeSync(fd); } catch { /* ignore */ } }
     }
   }
+  // ★ F-414 FIX (2026-09-24): reaching here means the bounded tail FAILED (fd error or
+  // ★ loop exhaustion) — the full read below undoes the F-23/F-AB1/F-210 optimization
+  // ★ silently. A ledger above the safety threshold throws instead of materializing,
+  // ★ and the degraded path warns so operators can detect the fallback.
+  const MAX_SAFE_FULL_READ = 32 * 1024 * 1024; // 32 MiB
+  if (st && st.size > MAX_SAFE_FULL_READ) {
+    throw new Error(
+      `GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${st.size}B) and full read exceeds ${MAX_SAFE_FULL_READ}B — refusing to materialize the ledger`,
+    );
+  }
+  console.warn(`[gi-abide] bounded tail failed for ${eventsPath} — degraded full read (counted, never silent)`);
   const raw = fs.readFileSync(eventsPath, "utf8");
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   const out: AbideEvent[] = [];
