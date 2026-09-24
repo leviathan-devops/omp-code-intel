@@ -103,9 +103,11 @@ export async function runWorkLayer(deps: EnforcementDeps, input: WorkInput): Pro
   if (input.diff.trim() === "") {
     return { verdict: "SILENT", repair: null, reason: "empty diff", evidence: "diff_len=0" };
   }
+  // ★ F-EN-ABIDE-CODE (2026-09-24): declare OUTSIDE the try so the catch can read it.
+  let abideDecl: (typeof deps.register)[number] | undefined;
   try {
     // ★ F-32 FIX (2026-09-24): `find(...)!` passed undefined into requireUp on a missing component — a bare TypeError instead of the named code. Guard first.
-    const abideDecl = deps.register.find((c) => c.id === "ABIDE");
+    abideDecl = deps.register.find((c) => c.id === "ABIDE");
     if (!abideDecl) throw Object.assign(new Error("GI_ENFORCE_ABIDE: ABIDE is not registered"), { code: "GI_ENFORCE_ABIDE" });
     requireUp(abideDecl);
     const jevDecl = deps.register.find((c) => c.id === "JEV");
@@ -113,7 +115,8 @@ export async function runWorkLayer(deps: EnforcementDeps, input: WorkInput): Pro
     requireUp(jevDecl);
   } catch (e) {
     // FAIL-OPEN — and LOUD about it. The named dependency code rides the result.
-    const code = (e as { code?: string }).code ?? "GI_ENFORCE_ABIDE";
+    // ★ F-EN-ABIDE-CODE FIX (2026-09-24): the work-layer fallback code was hardcoded to ABIDE even when JEV registration was the failure; preserve the actual error code so callers attribute the right missing component.
+    const code = (e as { code?: string }).code ?? (abideDecl ? "GI_ENFORCE_JEV" : "GI_ENFORCE_ABIDE");
     return { verdict: "SKIPPED", repair: null, reason: `work layer skipped: ${code}`, evidence: (e as Error).message };
   }
   let answers: readonly JudgeAnswer[];

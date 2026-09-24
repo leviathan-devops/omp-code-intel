@@ -208,6 +208,10 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     if (qi === -1) return undefined;      // ★ the result must match a pending tool
     const q = queue.splice(qi, 1)[0]!;
     if (queue.length === 0) pendingQueries.delete(sid);
+    // ★ F-GH-MEM FIX (2026-09-24): the per-session maps grew indefinitely in long-lived hosts; release session bookkeeping once both queues drain so stale sessions do not accumulate.
+    // ★ F-GH-MEM (2026-09-24): only the maps in THIS function's scope are checked (pendingSteer
+    //   lives in the tool_call handler); a session with a drained query queue releases its state.
+    if (!pendingQueries.has(sid)) states.delete(sid);
     const st = states.get(sid);
     if (!st) return undefined;
     // ★ AUDIT H-7 FIXED: every tool in extension.ts reports failure via `details:{ok:false}`,

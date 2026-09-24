@@ -178794,7 +178794,7 @@ function impactInDb(db, symbol, depth = 8) {
   for (const id of startIds)
     seen.add(id);
   let frontier = startIds;
-  for (let d = 1;d <= depth && frontier.length > 0; d++) {
+  for (let d = 1;d <= depth && frontier.length > 0 && !ledgerTruncated; d++) {
     const next = [];
     for (let i = 0;i < frontier.length; i += 64) {
       const chunk = frontier.slice(i, i + 64);
@@ -179209,7 +179209,7 @@ function computeDrift(state, now = Date.now()) {
     }
   }
   for (const q of state.graphQueries) {
-    if (!verifiedSymbols.includes(q.target))
+    if (q.resolved === true && !verifiedSymbols.includes(q.target))
       verifiedSymbols.push(q.target);
   }
   const drift = totalWeight <= 0 ? 0 : Math.min(1, unverifiedWeight / totalWeight);
@@ -179447,6 +179447,8 @@ function registerGraphGate(pi) {
     const q = queue.splice(qi, 1)[0];
     if (queue.length === 0)
       pendingQueries.delete(sid);
+    if (!pendingQueries.has(sid))
+      states.delete(sid);
     const st = states.get(sid);
     if (!st)
       return;
@@ -186518,30 +186520,40 @@ function tailEvents(eventsPath, limit) {
     const hit = tailCache.get(eventsPath);
     if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs)
       return hit.events.slice(-limit);
-    const TAIL_BYTES = 1024 * 1024;
-    const start = Math.max(0, st.size - TAIL_BYTES);
+    const TAIL_BYTES_START = 1024 * 1024;
+    const TAIL_BYTES_MAX = Math.max(st.size, 64 * 1024 * 1024);
     let fd = null;
     try {
       fd = fs26.openSync(eventsPath, "r");
-      const buf = Buffer.alloc(st.size - start);
-      fs26.readSync(fd, buf, 0, buf.length, start);
-      let text = buf.toString("utf8");
-      if (start > 0) {
-        const nl = text.indexOf(`
+      let accepted = false;
+      let tailBytes = TAIL_BYTES_START;
+      while (tailBytes <= TAIL_BYTES_MAX && !accepted) {
+        const start = Math.max(0, st.size - tailBytes);
+        const buf = Buffer.alloc(st.size - start);
+        fs26.readSync(fd, buf, 0, buf.length, start);
+        let text = buf.toString("utf8");
+        if (start > 0) {
+          const nl = text.indexOf(`
 `);
-        text = nl === -1 ? "" : text.slice(nl + 1);
-      }
-      const lines = text.split(`
-`).filter((l) => l.trim().length > 0);
-      if (lines.length >= limit || start === 0) {
-        const out = [];
-        for (const l of lines.slice(-limit)) {
-          try {
-            out.push(JSON.parse(l));
-          } catch {}
+          if (nl === -1) {
+            tailBytes *= 2;
+            continue;
+          }
+          text = text.slice(nl + 1);
         }
-        tailCache.set(eventsPath, { size: st.size, mtimeMs: st.mtimeMs, events: out });
-        return out;
+        const lines = text.split(`
+`).filter((l) => l.trim().length > 0);
+        if (lines.length >= limit || start === 0) {
+          const out = [];
+          for (const l of lines.slice(-limit)) {
+            try {
+              out.push(JSON.parse(l));
+            } catch {}
+          }
+          tailCache.set(eventsPath, { size: st.size, mtimeMs: st.mtimeMs, events: out });
+          return out;
+        }
+        tailBytes *= 2;
       }
     } catch {} finally {
       if (fd !== null) {
@@ -186794,7 +186806,9 @@ function graphFacts(input) {
       evidence: `GI_GRAPH_FACTS_QUERY_FAILED: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`
     }];
   } finally {
-    db.close();
+    try {
+      db.close();
+    } catch {}
   }
 }
 
@@ -186959,7 +186973,7 @@ function runKernelV2(input) {
   });
   let verdict;
   if (worst.outcome.verdict === "VIOLATION") {
-    verdict = TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] ? "REFUSE" : "STEER";
+    verdict = TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] || worst.detector.class === "destructive" ? "REFUSE" : "STEER";
   } else if (worst.outcome.verdict === "UNCERTIFIABLE") {
     verdict = "REFUSE";
   } else {

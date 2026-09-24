@@ -111,8 +111,13 @@ export class JevJudge implements Judge {
       throw new JevError("GI_JEV_BAD_JSON", `non-JSON response from ${this.opts.url ?? TYPESAFE_URL}: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`, res.status);
     }
     const out: JudgeAnswer[] = [];
+    // ★ F-JEVAL FIX (2026-09-24): the upstream payload is validated only as ApiResponse; malformed shapes with missing/null answers were dereferenced directly and produced raw TypeError crashes instead of a named judge failure.
+    const answers = json.answers;
+    if (!answers || typeof answers !== "object") {
+      throw new JevError("GI_JEV_BAD_RESPONSE", "the upstream returned no answers map", res.status);
+    }
     for (const q of questions) {
-      const a = json.answers[q.id];
+      const a = answers[q.id];
       if (a === undefined) continue;
       // A Noul answer carries the probability in `noul`; anything else is a shape
       // we did not ask for and is DROPPED (the caller sees fewer answers and must

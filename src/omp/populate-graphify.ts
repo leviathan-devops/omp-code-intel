@@ -472,11 +472,11 @@ export function supersedeThenInsert(
       db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [k, v]);
     }
     try {
-    db.exec("COMMIT;");
-  } catch (commitErr) {
-    try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
-    throw commitErr;
-  }
+      db.exec("COMMIT;");
+    } catch (commitErr) {
+      try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw commitErr;
+    }
   } catch (e) {
     try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back */ }
     throw e;

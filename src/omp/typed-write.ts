@@ -1093,7 +1093,8 @@ export function impactInDb(db: Database, symbol: string, depth = 8): ImpactResul
   let ledgerTruncated = false;
   for (const id of startIds) seen.add(id);
   let frontier: string[] = startIds;
-  for (let d = 1; d <= depth && frontier.length > 0; d++) {
+  // ★ F-TW-CAP FIX (2026-09-24): once the ledger cap is hit, the BFS frontier must stop expanding — the old code still pushed to next/seen, so a large graph evicted nothing and grew unboundedly.
+  for (let d = 1; d <= depth && frontier.length > 0 && !ledgerTruncated; d++) {
     const next: string[] = [];
     for (let i = 0; i < frontier.length; i += 64) {
       const chunk = frontier.slice(i, i + 64);

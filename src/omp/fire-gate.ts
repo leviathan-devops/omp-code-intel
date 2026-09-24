@@ -746,9 +746,11 @@ export interface Advisory {
 const DESTRUCTIVE_COMMANDS = new Set(["rm", "rmdir", "dd", "mkfs", "shutdown", "reboot", "kill", "pkill", "drop", "truncate"]);
 const DESTRUCTIVE_FLAG = /--force|--hard|-rf\b|:\s*>|>\s*\/dev\/sd/;
 /** Whole-token test: `farm/rm-logs` tokenizes to `rm-logs` (no match); `rm -rf /` carries `rm` (match). Case-insensitive. */
+const DESTRUCTIVE_TOKEN = /(?:^|[\s"'\\;:|&/])(rm|rmdir|dd|mkfs|shutdown|reboot|kill|pkill|drop|truncate)(?:$|[\s"'\\;:|&/])/i;
+/** Whole-token test: path components no longer produce false matches (`/opt/kill/process.txt`), but real command tokens still match even with adjacent slashes or quotes. Case-insensitive. */
 export function hasDestructiveToken(probe: string): boolean {
   if (DESTRUCTIVE_FLAG.test(probe)) return true;
-  return probe.toLowerCase().split(/[\s"'/\\;:|&]+/).some((t) => DESTRUCTIVE_COMMANDS.has(t));
+  return DESTRUCTIVE_TOKEN.test(probe);
 }
 const CLOSE_HINT = /(complete|close|done|finish|ship|finalize|merge)/i;
 

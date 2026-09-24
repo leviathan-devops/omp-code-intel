@@ -202,8 +202,9 @@ export function computeDrift(state: GraphGateSessionState, now: number = Date.no
       unverifiedCount += 1;
     }
   }
+  // ★ F-GG-VER FIX (2026-09-24): verifiedSymbols included targets from ALL queries including unresolved ones (rows=0, errors); only resolved queries constitute evidence.
   for (const q of state.graphQueries) {
-    if (!verifiedSymbols.includes(q.target)) verifiedSymbols.push(q.target);
+    if (q.resolved === true && !verifiedSymbols.includes(q.target)) verifiedSymbols.push(q.target);
   }
   const drift = totalWeight <= 0 ? 0 : Math.min(1, unverifiedWeight / totalWeight);
   let lastGraphQuery: number | null = null;
@@ -319,7 +320,9 @@ export function loadGateState(storePath: string, sessionId: string): GraphGateSe
       gateState: row.state,
       drift: row.drift,
     };
-  } catch {
+  } catch (e) {
+    // ★ F-GG-LOAD FIX (2026-09-24): the gate silently swallowed corruption/permission errors and reset drift from scratch; log the failure so stale state is diagnosable.
+    console.error(`GI_GATE_STATE_LOAD_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);
     return null;
   } finally {
     try { db?.close(); } catch { /* already closed */ }

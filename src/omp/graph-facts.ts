@@ -263,6 +263,7 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
       evidence: `GI_GRAPH_FACTS_QUERY_FAILED: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`,
     }];
   } finally {
-    db.close();
+    // F-GF-FINALLY FIX (2026-09-24): db.close() throwing would replace the catch-block return with an unhandled exception; guard the close so the catch verdict is always delivered.
+    try { db.close(); } catch { /* best-effort close */ }
   }
 }

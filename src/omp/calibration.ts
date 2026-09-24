@@ -41,7 +41,9 @@ export function firesNeededForGap(p: number, gap: number, z = 1.96): number {
   if (!(p > 0 && p < 1)) return Number.POSITIVE_INFINITY;
   if (!(gap > 0) || !Number.isFinite(gap)) return Number.POSITIVE_INFINITY;
   // the Wilson half-width at n is ~ z*sqrt(p(1-p)/n); solve for the gap.
-  const hw = z * Math.sqrt(p * (1 - p));
+  // ★ F-CAL-Z FIX (2026-09-24): a public z <= 0 collapsed the Wilson half-width to 0, so the derived sample size underflowed to 0 ("zero fires needed") — the opposite of truth.
+  const zAbs = Math.abs(z) || 1.96;
+  const hw = zAbs * Math.sqrt(p * (1 - p));
   return Math.ceil((hw / gap) ** 2);
 }
 
@@ -139,7 +141,8 @@ export function derivePolicy(profile: RuleProfile, counts: ResolvedCounts | null
       flag: Math.max(0.05, costCut / 2),
       basis: `cost matrix only (C_block=${profile.cost.falseBlock}, C_miss=${profile.cost.missed}) → t=${costCut.toFixed(3)}; NO measured counts yet (needs ${profile.minFiresForAct} resolved)`,
       calibrated: false,
-      estimate: counts === null ? null : precisionFromCounts(counts),
+      // ★ F-CAL-EST FIX (2026-09-24): expose the raw estimate alongside calibrated:false only when counts exist; a null counts set should not pretend a numeric estimate exists downstream.
+      estimate: counts !== null && counts.confirmed + counts.refuted > 0 ? precisionFromCounts(counts) : null,
     };
   }
   const est = precisionFromCounts(counts);
