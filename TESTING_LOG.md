@@ -2319,3 +2319,28 @@ the dist 82bad22c3687d21e
   file — so OmpCore's F-GR1 test-context change (`BUN_TEST===1 || argv1.includes('st-gi-omp')`)
   matched NEITHER signal, and the wipe test read the PROD registry path. FIX: the repo's own
   test-dir signal `argv1.includes('/tests/st-')` (precise; never a prod binary path).
+
+---
+
+## AUDIT GATE — 2026-09-24 — the whole-tree audit (W3, FR-3+FR-4)
+
+```
+AUDIT GATE: FAIL
+```
+
+**The measured state (this session):**
+- **Run 1** (baseline): `{critical:8, high:92, medium:240, low:109}` across 105/112 files — the
+  prior "PASS" covered 3 files (2.7%). All 8 criticals adjudicated (6 REAL fixed, 2 NOT-A-BUG).
+- **Run 2** (post all 6 fix agents, frozen tree, dist 1b5a99a20d2f3a78):
+  `{critical:5, high:90, medium:207, low:102}` across 104/112 files. The 5 criticals adjudicated:
+  F-16 (query-engine bind) + F-17 (bug-hunt stop) + F-18 (loader traversal) **REAL fixed**;
+  F-15 (graph-test-target) + artifact-scope `masterReal` **NOT-A-BUG** (the audit misread the API).
+- **★ THE MEASURED PROPERTY: the LLM audit is NON-DETERMINISTIC** — each run returns a DIFFERENT
+  finding set on the same code. The "0 critical / 0 high" STOP is therefore a moving target; the
+  honest gate is the LAST run's output for the CURRENT code.
+- **The artifacts:** `artifacts/whole-tree-audit.json` (run 1) · `/tmp/auditfinalparts/` (run 2, 112
+  parts) · `artifacts/w3-blocking-findings.txt` · `artifacts/w4-container-ceiling.json` (FR-5).
+
+**Verdict: FAIL** — the ship-ready claim stays WITHHELD. The mechanism (a non-deterministic LLM
+reviewer) is named; every adjudicated-REAL defect across both runs is FIXED + PINNED
+(`st-w3-criticals` 9/0, `st-w3-highs` 14/0, `st-w3-audit-coverage` 3/0).
