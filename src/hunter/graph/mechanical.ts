@@ -239,7 +239,12 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
 
     let currentClass: string | null = null;
     let currentFnId: string | null = null;
-    const visit = (node: tsImport.Node, parent: tsImport.Node | undefined): void => {
+    // ★ F-900 FIX (2026-09-24): UNBOUNDED recursion — visit() recursed via ts.forEachChild with no depth ceiling, so a pathological AST (deep binary chains / nested callbacks) blew the call stack. Depth-threaded with a throwing ceiling; the deep-AST path now takes the new branch.
+    const MAX_DEPTH = 1000;
+    const visit = (node: tsImport.Node, parent: tsImport.Node | undefined, depth = 0): void => {
+      if (depth > MAX_DEPTH) {
+        throw new MechanicalExtractionError(`AST depth exceeds ${MAX_DEPTH} at ${relPosix}:${lineOf(sf, node)} — possible pathological input`);
+      }
       const prevClass = currentClass;
       const prevFn = currentFnId;
       try {
@@ -269,7 +274,7 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         if (e instanceof MechanicalExtractionError) throw e;
         throw new MechanicalExtractionError(`walk failed at ${relPosix}:${lineOf(sf, node)} — ${e instanceof Error ? e.message : String(e)}`);
       }
-      ts.forEachChild(node, (child) => visit(child, node));
+      ts.forEachChild(node, (child) => visit(child, node, depth + 1));
       currentClass = prevClass;
       currentFnId = prevFn;
     };

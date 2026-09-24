@@ -4,6 +4,10 @@ export function kindForLayer(layerId: string): string {
   // ★ F-7 FIX (2026-09-24): the null/undefined guard. Callers pass `layerId` read off graph
   //   data, which can be null; the old `.toLowerCase()` threw a TypeError (a crash-wearing-
   //   failure). The honest degrade: the 'Threshold' default.
+  // ★ F-922 NOTE (2026-09-24): NOT-A-BUG — `== null` (null+undefined) is idiomatic here, not a
+  //   standards violation: the repo has no eqeqeq lint surface (root holds only package.json +
+  //   tsconfig.json) and `== null`/`!= null` guards are used project-wide (findings-store.ts:164,181;
+  //   graphify-adapter.ts:658). The strict expansion is behavior-identical; churn refused.
   if (layerId == null || typeof layerId !== 'string') return 'Threshold';
   const low = layerId.toLowerCase();
   if (low.includes('r28')) return 'Gate';

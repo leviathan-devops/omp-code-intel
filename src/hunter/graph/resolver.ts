@@ -193,9 +193,14 @@ function mergePartialHarness(
 ): ResolutionDecision[] | null {
   if (decisions.length === newEntities.length) return decisions;
   if (decisions.length === 0) return null;
-  const resolvedAliases = new Set(decisions.map((d) => d.alias));
+  // ★ F-932 FIX (2026-09-24): the resolved set carried the harness-provided alias STRINGS
+  //   matched against BOTH id and label — an alias equal to A's id that also equaled B's label
+  //   skipped B from heuristic fallback entirely (SILENT drop: B missing from the final
+  //   decisions array). The set now carries the MATCHED entity identities (newEntity.id), so
+  //   coverage is per-entity, never per-string.
+  const resolvedEntityIds = new Set(decisions.map((d) => d.newEntity.id));
   for (const ne of newEntities) {
-    if (!resolvedAliases.has(ne.id) && !resolvedAliases.has(ne.label)) {
+    if (!resolvedEntityIds.has(ne.id)) {
       const h = heuristicDecide(ne, existing);
       decisions.push({ alias: ne.id, canonicalId: h.canonical ? h.canonical.canonical_id : ne.id, verdict: h.verdict, reasoning: `harness partial — heuristic fallback for '${ne.id}': ${h.reasoning}`, destructive: h.destructive, newEntity: ne, existingCanonical: h.canonical });
     }

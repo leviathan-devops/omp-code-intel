@@ -41,7 +41,25 @@ export function makeDbPath(spec: DbPathSpec): () => string {
     const TILDE_SLASH = TILDE + '/';
     for (const env of spec.envVars) {
       const v = process.env[env];
-      if (v && v.trim().length > 0) return path.join(v.trim(), spec.fileName);
+      if (v && v.trim().length > 0) {
+        // ★ F-939 FIX (2026-09-24): the env-var override (the highest-priority source) never
+        //   tilde-expanded — `MY_DB_DIR=~/data` resolved literally to `~/data/file.db` while
+        //   defaultDir/testFile expanded (SILENT mis-resolution to the wrong location). Same
+        //   TILDE law as the F-855/F-856 branches (bare `~` is HOME too; missing HOME fails
+        //   CLOSED with HOME_NOT_SET instead of resolving against an unpredictable cwd).
+        const raw = v.trim();
+        if (raw === TILDE || raw.startsWith(TILDE_SLASH)) {
+          const home = process.env.HOME ?? process.env.USERPROFILE;
+          if (!home) {
+            throw new Error(
+              `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
+              `(fileName="${spec.fileName}") — cannot resolve ${env}`,
+            );
+          }
+          return raw === TILDE ? path.join(home, spec.fileName) : path.join(home, raw.slice(2), spec.fileName);
+        }
+        return path.join(raw, spec.fileName);
+      }
     }
     if (process.env.BUN_TEST === '1') {
       if (!spec.testFile) {
