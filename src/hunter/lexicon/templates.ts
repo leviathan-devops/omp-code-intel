@@ -137,6 +137,12 @@ function readPath(obj: Record<string, unknown>, dotted: string): unknown {
     //   could surface an INHERITED value as if it were a binding. The predicate's
     //   bindings are the template's INPUT, so the read is a trust boundary.
     if (!Object.hasOwn(cur, part)) return undefined;
+    // ★ F-412 FIX (2026-09-24): `constructor`/`__proto__`/`prototype` can be OWN
+    // ★ properties (JSON.parse creates own `__proto__`), so the F-333 hasOwn guard
+    // ★ alone does not stop a crafted bindings object from walking into
+    // ★ Function.prototype. Blocklisted before the read — no binding legitimately
+    // ★ names these keys.
+    if (part === '__proto__' || part === 'constructor' || part === 'prototype') return undefined;
     cur = (cur as Record<string, unknown>)[part];
   }
   return cur;

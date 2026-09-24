@@ -131,6 +131,18 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
   // ★ matches blockVerbExemption via ECHO_VERB and printf via EXECUTION_VERBS, so
   // ★ both returned above and this branch never ran. Removed (the exemption's
   // ★ splitter scan — | ; & > < newline $ backtick — is the live guard for both).
+  // ★ F-411 FIX (2026-09-24): READ verbs got the FULL BYPASS scan — quotes in
+  // ★ ordinary arguments (`grep 'error' log.txt`, `find . -name '*.ts'`) fired
+  // ★ BASH_BYPASS, blocking virtually every quoted read. READ verbs cannot execute
+  // ★ code, so only the TRUE SPLITTERS fire (| ; & > < newline $ `) — same list
+  // ★ as the block-verb exemption. The A4 pipe case (`cat file | python -c x`)
+  // ★ still blocks via `|`.
+  if (READ_VERBS.has(firstToken)) {
+    for (const ch of command) {
+      if (ch === '|' || ch === ';' || ch === '&' || ch === '>' || ch === '<' || ch === '\n' || ch === '$' || ch === '`') return ch;
+    }
+    return null;
+  }
   for (const ch of command) {
     if (BYPASS_METACHARACTERS.has(ch)) return ch;
   }

@@ -242,18 +242,25 @@ export function selectAdapter(profile: ProjectProfile): GraphAdapter {
       'REMOVED: the native-ast fallback was ripped out per the operator ruling — corbell is the hard dependency. Install corbell (pip install git+https://github.com/Corbell-AI/Corbell.git into a py3.11+ venv, or set CORBELL_BIN) or fix graph.binaryPath. No fallback exists.',
     );
   }
+  // ★ F-405 FIX (2026-09-24): the `ix` guard rides the SAME shape as the `native-ast` guard
+  //   above — a raw-string compare BEFORE the switch. `Substrate` is the closed union
+  //   'corbell' | 'graphify', so `case 'ix':` is TS2678 (not comparable) and would only
+  //   ever compile by widening the union the port deliberately narrowed. The runtime value
+  //   can still BE 'ix' (a profile.yaml is data), so the exclusion is enforced here.
+  //   PORT SEAM (exclude ruling): the ix adapter (ArangoDB breadth) is EXCLUDED by the port
+  //   manifest; loud REMOVED — the same posture the fork uses for native-ast (no silent
+  //   substitutes).
+  if ((profile.graph.substrate as string) === 'ix') {
+    throw adapterFailed(
+      'substrate=ix',
+      'REMOVED in the OMP port: the ix adapter is excluded (manifest #12); corbell is the substrate — set graph.substrate=corbell.',
+    );
+  }
   switch (profile.graph.substrate) {
     case 'corbell':
       return new CorbellAdapter(profile);
     case 'graphify':
       return new GraphifyAdapter(profile);
-    case 'ix':
-      // PORT SEAM (exclude ruling): the ix adapter (ArangoDB breadth) is EXCLUDED by the port manifest;
-      // loud REMOVED — the same posture the fork uses for native-ast (no silent substitutes).
-      throw adapterFailed(
-        'substrate=ix',
-        'REMOVED in the OMP port: the ix adapter is excluded (manifest #12); corbell is the substrate — set graph.substrate=corbell.',
-      );
     default:
       throw adapterFailed(`substrate=${String(profile.graph.substrate)}`, 'no adapter for the selected substrate');
   }
