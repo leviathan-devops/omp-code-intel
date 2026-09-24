@@ -23,10 +23,15 @@ export interface GraphifyToolDef {
 }
 
 const GRAPHIFY_TOOL_DEFS: GraphifyToolDef[] = [
-  { name: "graphify_query", label: "Graph Query", description: "Ask a natural-language question about the codebase structure. Returns a scoped subgraph." },
-  { name: "graphify_path", label: "Path Trace", description: "Find the shortest path between two concepts in the code graph." },
-  { name: "graphify_explain", label: "Explain Concept", description: "Get detailed info about a concept: connections, community, degree, source file." },
-  { name: "graphify_subgraph", label: "Subgraph Extraction", description: "Extract a scoped subgraph around a concept. Use for blast-radius analysis." },
+  // ★ F-201 FIX (2026-09-24): names match the pinned wire surface — map-reader
+  //   calls query_graph/shortest_path/get_node and the battery's listTools pins
+  //   query_graph/shortest_path/get_node/get_neighbors. The old graphify_*
+  //   names were display-only drift (never dispatched) that the auditor would
+  //   advertise to callers.
+  { name: "query_graph", label: "Graph Query", description: "Ask a natural-language question about the codebase structure. Returns a scoped subgraph." },
+  { name: "shortest_path", label: "Path Trace", description: "Find the shortest path between two concepts in the code graph." },
+  { name: "get_node", label: "Explain Concept", description: "Get detailed info about a concept: connections, community, degree, source file." },
+  { name: "get_neighbors", label: "Subgraph Extraction", description: "Extract a scoped subgraph around a concept. Use for blast-radius analysis." },
 ];
 
 /**

@@ -90,11 +90,14 @@ export async function generateLocalReport(input: ReportWriterInput): Promise<Rep
   } catch (e: unknown) {
     throw new Error(`REPORT_WRITE_FAILED: runId=${input.runId} detail=${e instanceof Error ? e.message : String(e)} (the N-versioned write failed — disk full, permission, or missing MASTER_CONTEXT)`);
   }
+  // ★ F-74 FIX (2026-09-24): readFileSync/writeFileSync inside the async writer blocked the
+  //   event loop for the whole read+write — the promise forms yield instead (fs.promises, no
+  //   new import, same loud non-fatal strip contract).
   try {
-    const raw = fs.readFileSync(result.reportPath, "utf-8");
+    const raw = await fs.promises.readFile(result.reportPath, "utf-8");
     const stripped = stripBeforeSeal(raw);
     if (stripped !== raw) {
-      fs.writeFileSync(result.reportPath, stripped, "utf-8");
+      await fs.promises.writeFile(result.reportPath, stripped, "utf-8");
       console.log(`[report-writer-local] thinking-strip applied — removed ${raw.length - stripped.length} chars of meta-commentary`);
     }
   } catch (stripErr: unknown) {

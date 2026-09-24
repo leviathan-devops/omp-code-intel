@@ -70,7 +70,10 @@ export function sectionFromFinding(
   return {
     findingId: findingIdOf(f),
     howBroken: mechanism,
-    whyBroken: trace?.rootCause ?? `the ${f.ruleId} predicate fired on the evidence at ${anchor}`,
+    // ★ F-63 FIX (2026-09-24): howBroken and whyBroken both resolved to trace.rootCause
+    //   (identical columns). whyBroken now names the predicate + anchor the cause fired
+    //   through, so the two columns carry distinct truths.
+    whyBroken: trace?.rootCause ? `the ${f.ruleId} predicate fired because ${trace.rootCause} (at ${anchor})` : `the ${f.ruleId} predicate fired on the evidence at ${anchor}`,
     whatViolates: f.evidence,
     howToFix: `resolve the ${f.ruleId} violation at ${anchor}`,
     whatToDo: `1. fix ${f.file}:${f.line} per the evidence; 2. re-run the battery to confirm the ${f.ruleId} predicate is silent`,

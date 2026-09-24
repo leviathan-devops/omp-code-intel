@@ -131,37 +131,12 @@ export class QueryEngine {
     const predicateFilter = opts?.predicateFilter;
     if (predicateFilter !== undefined && !Array.isArray(predicateFilter)) throw new Error('PATH_INVALID: predicateFilter must be array');
     try {
-      const liveClause = liveOnly ? 'AND superseded_run IS NULL' : '';
-      const predClause = predicateFilter && predicateFilter.length > 0 ? `AND predicate IN (${predicateFilter.map(() => '?').join(',')})` : '';
-      // ★ F-16 FIX (2026-09-24): baseParams carries ONLY `from`; the predicate params are
-      //   inserted at the TWO predClause positions below (SQL order: from, P, maxDepth, P, to).
-      const baseParams: unknown[] = [from.trim()];
-      const sql = `
-        WITH RECURSIVE search(src, dst, predicate, evidence_quote, confidence, created_run, superseded_run, depth, path) AS (
-          SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run, 1 as depth, src_canonical || '->' || dst_canonical as path
-          FROM typed_edges WHERE src_canonical = ? ${predClause} ${liveClause}
-          UNION ALL
-          SELECT e.src_canonical, e.dst_canonical, e.predicate, e.evidence_quote, e.confidence, e.created_run, e.superseded_run, s.depth + 1, s.path || '->' || e.dst_canonical
-          FROM typed_edges e JOIN search s ON e.src_canonical = s.dst
-          WHERE s.depth < ? AND e.superseded_run IS NULL AND instr(',' || s.path || ',', ',' || e.dst_canonical || ',') = 0 ${predClause.replace('predicate', 'e.predicate')}
-        )
-        SELECT src as src_canonical, dst as dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run FROM search WHERE dst = ? ORDER BY depth ASC LIMIT 1
-      `;
-      const params: unknown[] = [...baseParams, maxDepth, to.trim()];
-      if (predicateFilter && predicateFilter.length > 0) {
-        // ★ F-16 FIX (2026-09-24): the predClause appears TWICE in the CTE — insert the
-        //   predicate params at EACH position (after `from`; before `to`), never twice at one.
-        params.splice(baseParams.length, 0, ...predicateFilter);
-        params.splice(params.length - 1, 0, ...predicateFilter);
-      }
-      const row = this.db.prepare(sql).get(...(params as SQLQueryBindings[])) as Record<string, unknown> | null | undefined;
-      if (!row) return [];
-      // ★ F-38 FIX (2026-09-24): the second recursive CTE (pathStr) re-ran the same
-      //   expensive shortest-path search and was voided — pure waste (double recursion
-      //   per path() call). Removed; the first CTE stays as the existence probe, the
-      //   answer rides buildPathEdges below.
-      const full = this.buildPathEdges(from.trim(), to.trim(), maxDepth, liveOnly, predicateFilter);
-      return full;
+      // ★ F-71 FIX (2026-09-24): the recursive CTE ran a FULL shortest-path search whose only
+      //   consumer was the null check below — then buildPathEdges re-ran the same search (2x
+      //   traversal per path() call). The CTE is removed; the BFS below is the single search
+      //   and its [] is the authoritative no-path answer (the old return was ALWAYS the BFS
+      //   result anyway — the probe only gated the early []).
+      return this.buildPathEdges(from.trim(), to.trim(), maxDepth, liveOnly, predicateFilter);
     } catch (e: unknown) {
       if (e instanceof Error && e.message.startsWith('PATH_')) throw e;
       throw new Error(`PATH_QUERY_FAILED: ${e instanceof Error ? e.message : String(e)}`);
@@ -171,16 +146,32 @@ export class QueryEngine {
   private buildPathEdges(from: string, to: string, maxDepth: number, liveOnly: boolean, predicateFilter?: string[]): TypedEdgeRow[] {
     const liveClause = liveOnly ? 'AND superseded_run IS NULL' : '';
     const predList = predicateFilter && predicateFilter.length > 0 ? predicateFilter : null;
-    const visited = new Set<string>();
-    const queue: Array<{ node: string; path: TypedEdgeRow[] }> = [{ node: from, path: [] }];
-    visited.add(from);
+    // ★ F-72 FIX (2026-09-24): every queue entry carried a full path copy ([...cur.path, e]) —
+    //   O(depth) memory per frontier node on dense graphs. Parent pointers (edge + depth per
+    //   node) make the frontier O(1) per node; the path is reconstructed once at the target.
+    const visited = new Set<string>([from]);
+    const depthOf = new Map<string, number>([[from, 0]]);
+    const cameFrom = new Map<string, { prev: string; edge: TypedEdgeRow }>();
+    const queue: string[] = [from];
     let head = 0;
+    const buildPath = (target: string): TypedEdgeRow[] => {
+      const rev: TypedEdgeRow[] = [];
+      let n = target;
+      while (n !== from) {
+        const c = cameFrom.get(n);
+        if (!c) return [];
+        rev.push(c.edge);
+        n = c.prev;
+      }
+      return rev.reverse();
+    };
     while (head < queue.length) {
-      const cur = queue[head++];
-      if (cur.path.length > maxDepth) continue;
-      if (cur.node === to && cur.path.length > 0) return cur.path;
+      const node = queue[head++];
+      const depth = depthOf.get(node) ?? 0;
+      if (depth > maxDepth) continue;
+      if (node === to && cameFrom.has(to)) return buildPath(to);
       const sql = `SELECT id, src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run FROM typed_edges WHERE src_canonical = ? ${liveClause} ${predList ? `AND predicate IN (${predList.map(() => '?').join(',')})` : ''}`;
-      const params: unknown[] = [cur.node, ...(predList ?? [])];
+      const params: unknown[] = [node, ...(predList ?? [])];
       let edges: TypedEdgeRow[] = [];
       try {
         const rows = this.db.prepare(sql).all(...(params as SQLQueryBindings[])) as Record<string, unknown>[];
@@ -208,11 +199,16 @@ export class QueryEngine {
       }
       for (const e of edges) {
         if (visited.has(e.dst_canonical) && e.dst_canonical !== to) continue;
-        if (cur.path.length + 1 > maxDepth) continue;
-        if (e.dst_canonical === to) return [...cur.path, e];
+        if (depth + 1 > maxDepth) continue;
+        if (e.dst_canonical === to) {
+          if (!cameFrom.has(to)) cameFrom.set(to, { prev: node, edge: e });
+          return buildPath(to);
+        }
         if (!visited.has(e.dst_canonical)) {
           visited.add(e.dst_canonical);
-          queue.push({ node: e.dst_canonical, path: [...cur.path, e] });
+          depthOf.set(e.dst_canonical, depth + 1);
+          cameFrom.set(e.dst_canonical, { prev: node, edge: e });
+          queue.push(e.dst_canonical);
         }
       }
     }

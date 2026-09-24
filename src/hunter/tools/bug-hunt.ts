@@ -51,7 +51,26 @@ export interface BugHuntLoopOverrides {
 
 /** Run the micro-loop to completion and return the result — fail-closed. */
 export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverrides): Promise<BugHuntResult> {
-  acquireHuntLock(args.targetPath);
+  // ★ F-73 FIX (2026-09-24): the hunt path passed user-supplied target/profile straight to
+  //   the lock + the loop (the status path validates scopeRoot; the hunt path did not — a
+  //   `../../etc/passwd`-style target could aim the lock writer outside the scope). Fail closed
+  //   here: canonicalize, require an existing directory target + an existing profile file.
+  //   The lock is taken on the ABSOLUTE target (one dir = one lock; relative spellings shared
+  //   nothing before). The fs import is dynamic so the tool layer never grows a static dep.
+  const fsDyn = await import('node:fs');
+  const absTarget: string = path.resolve(args.targetPath);
+  let targetOk = false;
+  try { targetOk = fsDyn.statSync(absTarget).isDirectory(); } catch { targetOk = false; }
+  if (!targetOk) {
+    throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} — the hunt target must be a real directory inside the scope)`);
+  }
+  if (typeof args.profilePath === 'string' && args.profilePath.length > 0) {
+    const absProfile: string = path.resolve(args.profilePath);
+    if (!fsDyn.existsSync(absProfile)) {
+      throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
+    }
+  }
+  acquireHuntLock(absTarget);
   try {
     const machine = createMicroLoop({
       targetPath: args.targetPath,
@@ -100,7 +119,7 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
     }
   } finally {
     try {
-      releaseHuntLock(args.targetPath);
+      releaseHuntLock(absTarget);
     } catch (e: unknown) {
       console.error(`[bug-hunt] HUNT_LOCK_RELEASE_FAILED target=${args.targetPath} error=${e instanceof Error ? e.message : String(e)} (loud, never masking the hunt RESULT)`);
     }

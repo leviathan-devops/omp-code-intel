@@ -769,6 +769,10 @@ export class FamilyGraphStore {
   }
 
   private pendingPromotions = new Map<string, string>();
+  // ★ F-69 NOTE (2026-09-24): NOT-A-BUG — the throw IS this method's contract (the
+  //   operator-gate signal the caller catches as FAMILY_PROMOTION_PENDING); the writes are
+  //   the idempotent pending record (Map.set + INSERT OR REPLACE rerun safely on retry).
+  //   No state corrupts across the throw.
   requestPromotion(hash: string, detail: string): void {
     this.pendingPromotions.set(hash, detail);
     try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES (?,?)").run(`promotion_pending:${hash}`, detail); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #6:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }

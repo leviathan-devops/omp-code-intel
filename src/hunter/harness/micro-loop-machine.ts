@@ -404,16 +404,30 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
     done(): Promise<void> {
       return new Promise<void>((resolve): void => {
         if (actor.getSnapshot().status === 'done') { resolve(); return; }
+        // ★ F-62 FIX (2026-09-24): done() after stop() (or on an errored actor) never
+        //   resolved — neither subscription fires on a dead actor (an eternal promise hang).
+        //   A stopped/errored actor is terminal: resolve so the caller tears down.
+        //   Either terminal (done state OR inconclusive value) settles BOTH subscriptions.
+        const snapStatus: unknown = (actor.getSnapshot() as { status?: unknown }).status;
+        if (snapStatus === 'stopped' || snapStatus === 'error') { resolve(); return; }
+        let settled = false;
         const sub2 = actor.subscribe((s): void => {
-          if (s.status === 'done') { sub2.unsubscribe(); resolve(); }
+          if (s.status === 'done') { settle(); }
         });
         // the INCONCLUSIVE terminal resolves too (a legitimate terminal state —
         // the fail-state is a RESULT, not an unhandled rejection). The error is
         // carried in the context for the getSnapshot() reader.
         const sub3 = actor.subscribe((s): void => {
           const value = typeof s.value === 'string' ? s.value : Object.values(s.value as Record<string, unknown>)[0];
-          if (value === 'inconclusive') { sub3.unsubscribe(); resolve(); }
+          if (value === 'inconclusive') { settle(); }
         });
+        function settle(): void {
+          if (settled) return;
+          settled = true;
+          sub2.unsubscribe();
+          sub3.unsubscribe();
+          resolve();
+        }
         // THE OWNED TELEMETRY (the R19 orphaned-subscription fix): the progress
         // subscriptions ride the run scope and tear down with it — registered
         // on the handle's disposables, never void-dropped.

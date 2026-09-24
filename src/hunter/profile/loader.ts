@@ -323,7 +323,11 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
   let pos = 0;
   const keyPath: string[] = [];
 
-  function parseMapping(indent: number): Record<string, unknown> {
+  function parseMapping(indent: number, depth = 0): Record<string, unknown> {
+    // ★ F-67 FIX (2026-09-24): recursion-depth cap — a crafted profile with 10,000+ nested
+    //   blocks overflowed the stack (a RangeError outside the named-error contract). Depth 100
+    //   is 10x any legitimate profile; beyond it the profile is hostile, not complex.
+    if (depth > 100) yamlErr(keyPath, '(nested mapping)', pos < logical.length ? logical[pos].line : 0, 'maximum profile nesting depth (100) exceeded');
     const obj: Record<string, unknown> = {};
     while (pos < logical.length) {
       const l = logical[pos];
@@ -341,7 +345,7 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
       if (rest === '') {
         if (pos < logical.length && logical[pos].indent > indent) {
           const childIndent = logical[pos].indent;
-          obj[key] = logical[pos].text.startsWith('-') ? parseSequence(childIndent) : parseMapping(childIndent);
+          obj[key] = logical[pos].text.startsWith('-') ? parseSequence(childIndent, depth + 1) : parseMapping(childIndent, depth + 1);
         } else {
           obj[key] = null;
         }
@@ -353,7 +357,9 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
     return obj;
   }
 
-  function parseSequence(indent: number): unknown[] {
+  function parseSequence(indent: number, depth = 0): unknown[] {
+    // ★ F-67 FIX (2026-09-24): same depth cap as parseMapping (mutual recursion — one cap covers both).
+    if (depth > 100) yamlErr(keyPath, '(nested sequence)', pos < logical.length ? logical[pos].line : 0, 'maximum profile nesting depth (100) exceeded');
     const arr: unknown[] = [];
     while (pos < logical.length) {
       const l = logical[pos];
@@ -376,7 +382,7 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
         if (rest === '') {
           if (pos < logical.length && logical[pos].indent > indent) {
             const childIndent = logical[pos].indent;
-            itemMap[key] = logical[pos].text.startsWith('-') ? parseSequence(childIndent) : parseMapping(childIndent);
+            itemMap[key] = logical[pos].text.startsWith('-') ? parseSequence(childIndent, depth + 1) : parseMapping(childIndent, depth + 1);
           } else {
             itemMap[key] = null;
           }
@@ -384,7 +390,7 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
           itemMap[key] = parseFlowValue(rest, l.line);
           // continuation keys (entry:/contract:) at a deeper indent belong to this item
           if (pos < logical.length && logical[pos].indent > indent) {
-            Object.assign(itemMap, parseMapping(logical[pos].indent));
+            Object.assign(itemMap, parseMapping(logical[pos].indent, depth + 1));
           }
         }
         arr.push(itemMap);
@@ -506,25 +512,27 @@ export function loadProfile(profilePath: string): ProjectProfile {
   // ★ F-18 FIX (2026-09-24): CONTAINMENT. `path.resolve(resolvedRoot, entry)` let an entry
   //   like `../../etc/passwd` resolve OUTSIDE the project root (a path-traversal oracle).
   //   Resolve + require the result stay under resolvedRoot.
+  // ★ F-66 FIX (2026-09-24): TOCTOU — the old helper fell back to the lexical path when
+  //   realpathSync threw, and existence was checked on a different resolution. Now existence
+  //   is checked FIRST inside this helper, then realpath (which cannot throw for an existing
+  //   entry), then containment on the REAL path — one resolution, no lexical fallback.
   const contained = (entry: string): boolean => {
-    // ★ F-22 FIX (2026-09-24): realpath the entry so a SYMLINK inside the root pointing OUT
-    //   is caught — path.resolve alone is lexical.
     const abs = path.resolve(resolvedRoot, entry);
-    let real = abs;
-    try { real = fs.realpathSync(abs); } catch { /* not yet on disk */ }
+    if (!fs.existsSync(abs)) return false;
+    let real: string;
+    try { real = fs.realpathSync(abs); } catch { return false; }
     return real === resolvedRoot || real.startsWith(resolvedRoot + path.sep);
   };
   // (f) every rules.corpus path EXISTS (resolved against the project root), else CORPUS_MISSING {path}
   for (const entry of profile.rules.corpus) {
-    if (!contained(entry) || !fs.existsSync(path.resolve(resolvedRoot, entry))) {
+    if (!contained(entry)) {
       throw corpusMissing(entry);
     }
   }
 
   // (g) every listed history.failureLogs path EXISTS, else HISTORY_MISSING {path}
-  //     — the named-error contract at line 1794 WINS over the §3.1:479 comment
   for (const entry of profile.history.failureLogs) {
-    if (!contained(entry) || !fs.existsSync(path.resolve(resolvedRoot, entry))) {
+    if (!contained(entry)) {
       throw historyMissing(entry);
     }
   }

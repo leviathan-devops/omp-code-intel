@@ -29,9 +29,17 @@ export interface ScanResult {
 
 /** Resolve the profile's corpus entries to absolute paths (the W7 seam). */
 export function resolveCorpusPaths(profile: ProjectProfile): ProjectProfile {
-  const corpus = profile.rules.corpus.map((entry) =>
-    path.isAbsolute(entry) ? entry : path.resolve(profile.project.root, entry),
-  );
+  // ★ F-64 FIX (2026-09-24): entries like ../../etc/passwd resolved OUTSIDE the project
+  //   root (a path-traversal oracle). The loader enforces containment at load; the scan
+  //   re-enforces it here (defense in depth — the scan also runs on loader-bypassing overrides).
+  const root = path.resolve(profile.project.root);
+  const corpus = profile.rules.corpus.map((entry) => {
+    const abs = path.isAbsolute(entry) ? path.normalize(entry) : path.resolve(root, entry);
+    if (abs !== root && !abs.startsWith(root + path.sep)) {
+      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} escapes the project root (${root}) — corpus entries must stay under the root.`);
+    }
+    return abs;
+  });
   return {
     ...profile,
     rules: { ...profile.rules, corpus },

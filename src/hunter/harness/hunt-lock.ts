@@ -69,10 +69,41 @@ export function acquireHuntLock(targetPath: string): HuntLockPayload {
       : undefined;
     if (code !== 'EEXIST') throw e;
     const existing = readPayload(lockPath);
-    if (existing && isStale(existing)) {
+    // ★ F-60 FIX (2026-09-24): a null payload (corrupted/unreadable lock) skipped
+    //   stale-recovery and threw HUNT_ALREADY_RUNNING forever (a permanent block — the
+    //   file could never be acquired OR released). A null payload is now treated as stale
+    //   ONLY when the file is older than the TTL (a fresh-but-racing writer is never
+    //   deleted); otherwise the fail-closed throw below stands.
+    let stale = existing ? isStale(existing) : false;
+    if (!existing) {
+      try {
+        const ageMs = Date.now() - fs.statSync(lockPath).mtimeMs;
+        if (!Number.isNaN(ageMs) && ageMs > STALE_LOCK_TTL_MS) stale = true;
+      } catch { /* stat failed: fail closed below */ }
+    }
+    if (stale) {
+      // ★ F-61 FIX (2026-09-24): CRITICAL stale-lock race — two processes could both read
+      //   the stale payload, both unlink, and the loser deletes the winner's FRESH lock
+      //   (both then hold wx-created locks). Re-read before unlink (abort when the payload
+      //   changed) and treat an ENOENT unlink as a lost race (throw so the caller retries
+      //   instead of racing the winner through wx).
+      const reread = readPayload(lockPath);
+      if (existing) {
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
+      } else if (reread) {
+        throw new Error(`HUNT_ALREADY_RUNNING: pid=${reread.pid} acquiredAt=${reread.acquiredAt} holds ${lockPath} — wait for it to finish or delete the stale lock.`);
+      }
       try {
         fs.unlinkSync(lockPath);
       } catch (err: unknown) {
+        const unlinkCode = err !== undefined && err !== null && typeof err === 'object' && 'code' in err
+          ? (err as { code: unknown }).code
+          : undefined;
+        if (unlinkCode === 'ENOENT') {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
         console.warn(`[hunt-lock] stale unlink failed for ${lockPath}: ${err instanceof Error ? err.message : String(err)}`);
       }
       try {

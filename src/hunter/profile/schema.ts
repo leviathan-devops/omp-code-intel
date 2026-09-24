@@ -54,7 +54,7 @@ export const ProjectProfileSchema = z.object({
     corpus: z.array(z.string()).min(1),      // the spec/bible/context .md paths (validated to EXIST at load)
     // zod 4.1.8: z.record requires the key type + the value type (the zod-3
     // one-arg form does not typecheck; the spec was written against the object API).
-    bindings: z.record(z.string(), z.any()).default({}), // the predicate parameters (the P1-P22 bindings for Plutus)
+    bindings: z.record(z.string(), z.any()).default({}).refine((b) => Object.keys(b).length <= 500, { message: 'the bindings map is capped at 500 keys (abuse cap — split the profile)' }), // the predicate parameters (the P1-P22 bindings for Plutus). ★ F-68 FIX (2026-09-24): arbitrary-shape VALUES are by-design (P1-P22 heterogeneity, validated at use sites e.g. scan.ts) but the map was unbounded — the key-count cap bounds the abuse surface with zero effect on valid profiles.
   }),
   pipeline: z.object({
     stages: z.array(PipelineStageSchema).min(1), // the declared stages (id/entry/contract)

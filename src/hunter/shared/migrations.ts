@@ -73,12 +73,16 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
   //   transaction — a late-statement failure left a half-migrated schema.
   //   BEGIN/COMMIT makes it atomic; a driver without explicit-BEGIN support
   //   falls through to the bare exec, still failing loud below.
+  // ★ F-70 FIX (2026-09-24): the COMMIT catch-all swallowed REAL commit failures (disk full,
+  //   I/O error) after a successful BEGIN — the caller saw success on a rolled-back schema.
+  //   The swallow now applies ONLY when BEGIN itself failed (no transaction to commit).
+  let began = false;
   try {
-    try { db.exec('BEGIN IMMEDIATE'); } catch { /* no explicit-BEGIN support: bare exec below */ }
+    try { db.exec('BEGIN IMMEDIATE'); began = true; } catch { began = false; /* no explicit-BEGIN support: bare exec below */ }
     db.exec(TYPED_GRAPH_DDL);
-    try { db.exec('COMMIT'); } catch { /* no explicit BEGIN above: nothing to commit */ }
+    try { db.exec('COMMIT'); } catch (commitErr: unknown) { if (began) throw commitErr; /* else: nothing to commit */ }
   } catch (e: unknown) {
-    try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is the truth */ }
+    if (began) { try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is the truth */ } }
     throw new Error(`TYPED_MIGRATION_FAILED: ${e instanceof Error ? e.message : String(e)}`);
   }
 }

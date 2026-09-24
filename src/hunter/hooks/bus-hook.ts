@@ -72,14 +72,19 @@ export class HydraBus {
     this.polling = true;
     try {
     const rows = rowsAs<EventRow>(db.prepare('SELECT id, kind, payload FROM events WHERE id > ? ORDER BY id ASC').all(this.cursor), 'events');
-    // ★ F-41 FIX (2026-09-24): rowsAs only checked Array — a row missing id/kind
-    //   (schema drift) poisoned the cursor/payload silently. Validate the shape loud.
+    // ★ F-65 FIX (2026-09-24): the F-41 shape throw left the cursor behind the poison row —
+    //   every later poll re-selected it (a permanent retry loop). Malformed rows are now
+    //   skipped LOUDLY with the cursor advanced past them; the bus can never stall here.
+    const clean: EventRow[] = [];
     for (const row of rows) {
       if (typeof row.id !== 'number' || typeof row.kind !== 'string') {
-        throw new Error(`[hydra-bus] events row shape: expected {id:number,kind:string,...}, got ${JSON.stringify(row).slice(0, 160)}`);
+        console.error(`[hydra-bus] skipping malformed events row: ${JSON.stringify(row).slice(0, 160)}`);
+        if (typeof row.id === 'number') this.cursor = row.id;
+        continue;
       }
+      clean.push(row);
     }
-    for (const row of rows) {
+    for (const row of clean) {
       let payload: Record<string, unknown> = {};
       try {
         payload = JSON.parse(row.payload) as Record<string, unknown>;
@@ -101,7 +106,7 @@ export class HydraBus {
       }
       this.cursor = row.id;
     }
-      return rows;
+      return clean;
     } finally {
       this.polling = false;
     }

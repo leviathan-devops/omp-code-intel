@@ -41,7 +41,8 @@ export function isEvidenceTriad(v: unknown): v is EvidenceTriad {
   const sta = t.state as Record<string, unknown> | undefined;
   const ev = t.evidence as Record<string, unknown> | undefined;
   if (!pat || typeof pat.memberId !== 'string' || pat.memberId.trim() === '') return false;
-  if (!pat.familySeverity || typeof pat.familySeverity !== 'string') return false;
+  // ★ F-75 FIX (2026-09-24): the guard accepted ANY string ('BOGUS' passed the Severity union).
+  if (pat.familySeverity !== 'CRITICAL' && pat.familySeverity !== 'HIGH' && pat.familySeverity !== 'MEDIUM' && pat.familySeverity !== 'LOW') return false;
   if (!sta || typeof sta.machineId !== 'string' || sta.machineId.trim() === '') return false;
   if (typeof sta.from !== 'string' || typeof sta.to !== 'string') return false;
   if (!ev || typeof ev.file !== 'string' || ev.file.trim() === '') return false;
