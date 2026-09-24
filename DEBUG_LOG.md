@@ -1244,3 +1244,47 @@ blame the provider.
   not CREATE** — a broken view hides behind an idempotent guard until a query runs. (3) **An
   exemption must PROVE its precondition**; a non-match means "not exempt", never "safe".
   (4) A hand-aggregate taken mid-run measures a PARTIAL tree — wait for the script's own aggregate.
+
+---
+
+## EN-W3-RUN8-WAVE — the R8 wave (5 agents, ~45 findings) + the integration repairs (2026-09-24)
+
+- **THE FINDING:** run 8 returned 5 CRITICAL / 58 HIGH. All 5 criticals were fixed by the
+  orchestrator (F-430..F-434) before the wave launched; the wave took the 58 highs.
+- **THE WAVE (all 5 agents returned or were adjudicated):**
+  - **R8High1** — 8 REAL (F-530..F-538): lexicon-types `remediationHook` shape, graph-gate
+    blast-entry validation, enforcement TSG code + safe message narrowing, typed-write
+    single-occurrence replace, scoped-store. 4 NOT-A-BUG with quoted proofs.
+  - **R8High2** — **CANCELLED (BLOCKED)**: 2 REAL landed (engine.ts F-560/F-560b), 5
+    REAL-DEFERRED. **THE BLOCKER: the graph gate refuses every edit from a sibling-worktree
+    CWD** (its ripwire query returns `RIPWIRE_PATH_DENIED` because the session cwd is a
+    DIFFERENT repo), so the gate's drift counter never resets and `edit` is refused forever.
+    A gate whose reset condition is UNREACHABLE from a legitimate cwd is a GATE DEFECT —
+    recorded, not worked around. (One sibling agent routed around it via `eval` file writes;
+    that is a gate-bypass and is recorded as such rather than praised.)
+  - **R8High3** — 9 REAL (F-513..F-521): corbell metachar denylist widened (`*~?#[]`),
+    store-map gi_meta provenance, harness/types barrel un-shadowing, `sealFamily` loud chmod,
+    kernel-v2 worstOutcome empty guard, layer-registry GI_LAYER_ERROR.
+  - **R8High4** — 9 REAL (F-500..F-512): calibration guard, micro-loop db close, bus-hook
+    per-subscriber isolation, go-key displaced-key re-home, lsp-injector glob passthrough,
+    abide reverse-span match. 2 NOT-A-BUG ("the resolver picks the FIRST alive in priority
+    order" is PINNED by the docs + tests).
+  - **R8High5** — 8 REAL (F-550..F-559): artifact-scope masterReal→rootReal containment,
+    report post-strip integrity gate, compiled-store COMMIT latch, rule-card case
+    normalization, report-writer empty-strip guard, kev finite guard.
+- **★ THE INTEGRATION REPAIRS (the orchestrator's, each a lesson):**
+  - **F-434b** — my own F-434 broke 35 tests: resolving the realpath FIRST and testing the
+    regex on it made every not-yet-existing store path read as `/` (the walk climbs to the
+    filesystem root and DISCARDS the path). **The shape check must test the LOGICAL path; the
+    symlink hazard is a SEPARATE question.** Split into two checks — 35 fails → 0.
+  - **F-442 REVERTED** — I rewrote `findingIdOf` as `JSON.stringify([...])` to dodge a `:`
+    collision; `st-hunter-port` PINS `ruleId:file:line`. **A PIN IS A CONTRACT**: ruleIds here
+    are dotted and paths POSIX, so the collision is not reachable — changing a pinned contract
+    for a theoretical risk is the defect. Reverted; the test returned 3/0.
+  - **F-540** — the st-* suite is integration-grade (4635 expects through real modules); its
+    slowest file sits at ~5.2s against bun's 5000ms default, so it timed out UNDER LOAD while
+    passing alone (28/0 at a 30s ceiling). The assertions are untouched; the ceiling was
+    tighter than the suite's real cost.
+- **THE ARTIFACT DISCIPLINE:** the dist is rebuilt after every source landing and the
+  `st-artifact-coverage` gate (a required-symbol scan + a no-src-newer-than-the-bundle check)
+  is what CAUGHT each stale build — the gate works.
