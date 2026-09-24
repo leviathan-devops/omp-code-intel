@@ -176743,6 +176743,7 @@ var init_mpse = __esm(() => {
       "path spec clause reference to code implementation",
       "find unreachable spec declarations"
     ],
+    filterTags: ["trace-gap", "unreachable", "provenance"],
     outputSchema: MpseProvenanceOutputSchema,
     staticPrompt: `IDENTITY: PROVENANCE hunter \u2014 hunt trace gaps (spec clauses with no implementing code, unreachable declarations). Missing trace = TRACE_GAP. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`
   };
@@ -176869,11 +176870,36 @@ function parseGraphJson(contents, size) {
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES2) {
     throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES2} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
   }
+  let maxDepth = 0;
+  let depth = 0;
+  for (let i = 0;i < contents.length; i++) {
+    const c = contents.charCodeAt(i);
+    if (c === 123 || c === 91) {
+      depth++;
+      if (depth > maxDepth)
+        maxDepth = depth;
+    } else if (c === 125 || c === 93)
+      depth--;
+  }
+  if (maxDepth > 64) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_DEEP: graph.json nesting depth ${maxDepth} (> 64) \u2014 likely adversarial or corrupted payload`);
+  }
   return JSON.parse(contents);
 }
 function normalizeGraph(raw) {
   const rawNodes = raw["nodes"] ?? [];
   const rawLinks = raw["links"] ?? raw["edges"] ?? [];
+  for (const [i, n] of rawNodes.entries()) {
+    if (n === null || typeof n !== "object" || Array.isArray(n)) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: nodes[${i}] is not an object \u2014 got ${typeof n}`);
+    }
+  }
+  const rawLinksValidated = rawLinks.map((e, i) => {
+    if (e === null || typeof e !== "object" || Array.isArray(e)) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: edges[${i}] is not an object \u2014 got ${typeof e}`);
+    }
+    return e;
+  });
   const nodes = rawNodes.map((n) => {
     const r = n;
     return {
@@ -176884,7 +176910,7 @@ function normalizeGraph(raw) {
       data: r
     };
   });
-  const edges = rawLinks.map((e) => {
+  const edges = rawLinksValidated.map((e) => {
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return {
       src: String(e["source"] ?? e["src"] ?? ""),
@@ -176920,7 +176946,7 @@ async function readGraphJson(graphPath) {
   const resolved = path34.resolve(graphPath);
   let stat;
   try {
-    stat = fs29.statSync(resolved);
+    stat = await fs29.promises.stat(resolved);
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} \u2014 remedy: run the explicit graphify build for this target, then re-run the audit`);
   }
@@ -176933,7 +176959,7 @@ async function readGraphJson(graphPath) {
   }
   let raw;
   try {
-    raw = parseGraphJson(fs29.readFileSync(resolved, "utf-8"), gSize);
+    raw = parseGraphJson(await fs29.promises.readFile(resolved, "utf-8"), gSize);
   } catch (err) {
     const msg = String(err.message ?? err);
     if (msg.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
@@ -176998,17 +177024,27 @@ class GraphifyMapReader {
       adj.set(e.src, [...adj.get(e.src) ?? [], e.dst]);
       adj.set(e.dst, [...adj.get(e.dst) ?? [], e.src]);
     }
-    const queue = [[fromId]];
     const visited = new Set([fromId]);
-    while (queue.length > 0) {
-      const cur = queue.shift();
-      const last = cur[cur.length - 1];
-      if (last === toId)
-        return { from, to, hops: cur, length: cur.length - 1 };
+    const parent = new Map([[fromId, null]]);
+    const queue = [fromId];
+    let head = 0;
+    while (head < queue.length) {
+      const last = queue[head++];
+      if (last === toId) {
+        const rev = [];
+        let cur = toId;
+        while (cur !== null) {
+          rev.push(cur);
+          cur = parent.get(cur) ?? null;
+        }
+        rev.reverse();
+        return { from, to, hops: rev, length: rev.length - 1 };
+      }
       for (const nb of adj.get(last) ?? []) {
         if (!visited.has(nb)) {
           visited.add(nb);
-          queue.push([...cur, nb]);
+          parent.set(nb, last);
+          queue.push(nb);
         }
       }
     }
@@ -177455,7 +177491,7 @@ function sourceLineQuote(targetRoot, relFile, line) {
       const buf = Buffer.alloc(size);
       let total = 0;
       while (total < size) {
-        const n = fs30.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        const n = fs30.readSync(fd, buf, total, size - total, total);
         if (n <= 0)
           break;
         total += n;
@@ -177976,7 +178012,7 @@ ${summary}
   const reportPath = path35.join(ledgerDir, "findings", "report.md");
   try {
     const st = fs30.statSync(reportPath);
-    const REPORT_MTIME_SLACK_MS = 100;
+    const REPORT_MTIME_SLACK_MS = 1500;
     if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} \u2014 not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
     }
@@ -178042,11 +178078,15 @@ function makeDbPath(spec) {
       if (!spec.testFile) {
         throw new Error(`[db-path] GI_TEST_ISOLATION_BROKEN: BUN_TEST=1 but no testFile in spec ` + `(fileName="${spec.fileName}") \u2014 cannot isolate from production DB`);
       }
-      return spec.testFile.startsWith("/") ? spec.testFile : path.join(os.tmpdir(), spec.testFile);
+      return path.isAbsolute(spec.testFile) ? spec.testFile : path.join(os.tmpdir(), spec.testFile);
     }
     let dir = spec.defaultDir;
     if (dir.startsWith("~/")) {
-      dir = path.join(process.env.HOME ?? process.env.USERPROFILE ?? ".", dir.slice(2));
+      const home = process.env.HOME ?? process.env.USERPROFILE;
+      if (!home) {
+        throw new Error(`[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` + `(fileName="${spec.fileName}") \u2014 cannot resolve defaultDir`);
+      }
+      dir = path.join(home, dir.slice(2));
     }
     return path.join(dir, spec.fileName);
   };
@@ -178107,6 +178147,7 @@ function getStoreDb(opts) {
   storeDbPath = want;
   return storeDb;
 }
+var storeOpenInFlightByPath = new Map;
 function upsertRow(table, pkColumn, pk, dataJson, extra) {
   const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
   if (!IDENT.test(table) || !IDENT.test(pkColumn))
@@ -178260,14 +178301,6 @@ function getMeta(storePath, key) {
   try {
     const row = db.query("SELECT value FROM gi_meta WHERE key = ?").get(key);
     return row?.value ?? null;
-  } finally {
-    db.close();
-  }
-}
-function setMeta(storePath, key, value) {
-  const db = openTypedStore(storePath);
-  try {
-    db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [key, value]);
   } finally {
     db.close();
   }
@@ -178728,7 +178761,10 @@ function chainCalls(storePath, from, to, maxDepth = 64, visitCap = 20000) {
           line: e.dst_line ?? 0
         };
         if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
-          return [...cur.steps, step];
+          const result = [...cur.steps, step];
+          if (truncated)
+            result.truncated = true;
+          return result;
         }
         if (!visited.has(e.dst_id)) {
           visited.add(e.dst_id);
@@ -178899,7 +178935,8 @@ var GI_REGISTRY_SCHEMA = [
     scope_root TEXT NOT NULL,
     store_path TEXT NOT NULL,
     opened_at TEXT NOT NULL
-  )`
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_gi_sessions_store_path ON gi_sessions(store_path)`
 ];
 var resolveRegistryPath = makeDbPath({
   envVars: ["GI_OMP_DB_DIR"],
@@ -178969,7 +179006,13 @@ function openSessionStore(input) {
   if (!path6.isAbsolute(input.scopeRoot) || input.scopeRoot.split(/[\\/]/).includes("..") || input.scopeRoot.includes("\x00")) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
   }
-  const storePath = sessionStorePath(input.scopeRoot, input.sessionId);
+  let resolvedScopeRoot;
+  try {
+    resolvedScopeRoot = fs3.realpathSync(input.scopeRoot);
+  } catch {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot does not resolve: ${JSON.stringify(input.scopeRoot)}`);
+  }
+  const storePath = sessionStorePath(resolvedScopeRoot, input.sessionId);
   const existing = findGiSessionByStorePath(storePath);
   if (existing && existing.session_id !== ownerKey) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} owned by ${existing.session_id}; caller ${callerKey}`);
@@ -178990,7 +179033,7 @@ function openSessionStore(input) {
   if (!current) {
     upsertGiSession({
       sessionId: ownerKey,
-      scopeRoot: input.scopeRoot,
+      scopeRoot: resolvedScopeRoot,
       storePath
     });
   }
@@ -179016,37 +179059,43 @@ function eachDestructuredName(list, cb) {
 }
 var EXPORT_BRACES_RE = /export\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]*['"])?/g;
 var EXPORT_DEFAULT_RE = /export\s+default\b/g;
-function parseExports(src) {
-  const out = new Set;
+function eachExportName(src, cb) {
   let m;
   EXPORT_PARSE_RE.lastIndex = 0;
   while (m = EXPORT_PARSE_RE.exec(src))
-    out.add(m[1]);
+    cb(m[1], m.index);
   EXPORT_GEN_RE.lastIndex = 0;
   while (m = EXPORT_GEN_RE.exec(src))
-    out.add(m[1]);
+    cb(m[1], m.index);
   EXPORT_DESTRUCT_RE.lastIndex = 0;
-  while (m = EXPORT_DESTRUCT_RE.exec(src))
-    eachDestructuredName(m[1].slice(1, -1), (n) => out.add(n));
+  while (m = EXPORT_DESTRUCT_RE.exec(src)) {
+    const idx = m.index;
+    eachDestructuredName(m[1].slice(1, -1), (n) => cb(n, idx));
+  }
   EXPORT_BRACES_RE.lastIndex = 0;
   while (m = EXPORT_BRACES_RE.exec(src)) {
+    const idx = m.index;
     for (const spec of m[1].split(",")) {
       const s = spec.trim();
       if (!s)
         continue;
       const asMatch = /\bas\s+(\w+)\s*$/.exec(s);
       if (asMatch) {
-        out.add(asMatch[1]);
+        cb(asMatch[1], idx);
         continue;
       }
       const plain = /^(\w+)$/.exec(s);
       if (plain)
-        out.add(plain[1]);
+        cb(plain[1], idx);
     }
   }
   EXPORT_DEFAULT_RE.lastIndex = 0;
   while (m = EXPORT_DEFAULT_RE.exec(src))
-    out.add("default");
+    cb("default", m.index);
+}
+function parseExports(src) {
+  const out = new Set;
+  eachExportName(src, (n) => out.add(n));
   return [...out];
 }
 function resolveDial(env = process.env, dialFile) {
@@ -179140,7 +179189,7 @@ function classifyEdit(toolName, args) {
   const body = `${args.oldString ?? ""}
 ${args.newString ?? ""}
 ${args.content ?? ""}`;
-  const oldSyms = extractExportSymbols(args.oldString ?? args.content ?? "");
+  const oldSyms = extractExportSymbols(args.oldString ?? "");
   const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
   const structural = oldSyms.length > 0 || newSyms.length > 0 || /\bimport\s+.*\bfrom\b/.test(body) || /\bexport\s+default\b/.test(body) || /\bdelete\s+function\b/.test(body) || /:\s*[A-Za-z_$][A-Za-z0-9_$<>[\]|]*\s*[=;{]/.test(body) && /export\s+(type|interface)/.test(body);
   const touchedSymbols = [...new Set([...oldSyms, ...newSyms])];
@@ -179273,6 +179322,9 @@ function gateDecision(d, state, now = Date.now()) {
 function str(v) {
   return typeof v === "string" ? v : "";
 }
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 function filePathOf(input) {
   return str(input.file_path) || str(input.filePath) || str(input.path);
 }
@@ -179311,9 +179363,9 @@ function reconstruct(toolName, input) {
     newText = oldText;
     for (const full of names) {
       const n = full.replace(/export\s+(?:async\s+)?function\s+/, "");
-      const stripped = new RegExp(String.raw`function\s+` + n);
-      if (stripped.test(dsl) && !new RegExp(String.raw`export\s+(?:async\s+)?function\s+` + n).test(dsl)) {
-        newText = newText.replace(new RegExp(String.raw`export\s+(async\s+)?function\s+` + n), "function " + n);
+      const stripped = new RegExp(String.raw`function\s+` + escapeRegExp(n));
+      if (stripped.test(dsl) && !new RegExp(String.raw`export\s+(?:async\s+)?function\s+` + escapeRegExp(n)).test(dsl)) {
+        newText = newText.replace(new RegExp(String.raw`export\s+(async\s+)?function\s+` + escapeRegExp(n)), "function " + n);
       }
     }
   }
@@ -179530,6 +179582,9 @@ function resolveCorbell(profile, env = process.env) {
   throw new Error("CORBELL_NOT_FOUND - the corbell binary is missing; install it with 'pip install git+https://github.com/Corbell-AI/Corbell.git' or set CORBELL_BIN or graph.binaryPath");
 }
 var defaultExec = (cmdRaw, opts) => {
+  if (/[;&|`$(){}!<>\n\r]/.test(cmdRaw)) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
+  }
   const cmd = "exec " + cmdRaw;
   const ATTEMPTS = 8;
   let lastErr;
@@ -180169,13 +180224,14 @@ function selectAdapter(profile) {
   if (profile.graph.substrate === "native-ast") {
     throw adapterFailed(`substrate='native-ast'`, "REMOVED: the native-ast fallback was ripped out per the operator ruling \u2014 corbell is the hard dependency. Install corbell (pip install git+https://github.com/Corbell-AI/Corbell.git into a py3.11+ venv, or set CORBELL_BIN) or fix graph.binaryPath. No fallback exists.");
   }
+  if (profile.graph.substrate === "ix") {
+    throw adapterFailed("substrate=ix", "REMOVED in the OMP port: the ix adapter is excluded (manifest #12); corbell is the substrate \u2014 set graph.substrate=corbell.");
+  }
   switch (profile.graph.substrate) {
     case "corbell":
       return new CorbellAdapter(profile);
     case "graphify":
       return new GraphifyAdapter(profile);
-    case "ix":
-      throw adapterFailed("substrate=ix", "REMOVED in the OMP port: the ix adapter is excluded (manifest #12); corbell is the substrate \u2014 set graph.substrate=corbell.");
     default:
       throw adapterFailed(`substrate=${String(profile.graph.substrate)}`, "no adapter for the selected substrate");
   }
@@ -181172,6 +181228,26 @@ function hashSourceTree(root, scope, excludes, budgetN) {
 function computeSourceHash(root, scope, excludes) {
   return hashSourceTree(root, scope, excludes, 500);
 }
+function minimalGraphifyProfile(root) {
+  const resolved = path9.resolve(root);
+  const slug = path9.basename(resolved).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "target";
+  return {
+    profileVersion: 1,
+    project: {
+      name: slug,
+      root: resolved,
+      languages: ["typescript"],
+      entryPoints: ["src/main.ts"],
+      build: "bun run build",
+      test: "bun test"
+    },
+    graph: { substrate: "graphify", scope: ["src"], excludes: [] },
+    rules: { corpus: [], bindings: {} },
+    pipeline: { stages: [{ id: "s1", entry: "main", contract: "graphify-populate" }] },
+    history: { failureLogs: [] },
+    awareness: { docs: [] }
+  };
+}
 function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
   if (nodeRows.length === 0 && edgeRows.length === 0) {
     throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
@@ -181385,9 +181461,23 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
   if (corbell.ok) {
-    setMeta(storePath, "substrate", "corbell");
-    setMeta(storePath, "corbell_checkout", corbell.checkoutPath);
-    setMeta(storePath, "populated_at", new Date().toISOString());
+    const db = openTypedStore(storePath);
+    try {
+      db.exec("BEGIN IMMEDIATE;");
+      try {
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
+        db.exec("COMMIT;");
+      } catch (e) {
+        try {
+          db.exec("ROLLBACK;");
+        } catch {}
+        throw new Error(`GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)})`);
+      }
+    } finally {
+      db.close();
+    }
     console.error(`[gi-omp] populate substrate=corbell checkout=${corbell.checkoutPath} nodes=${corbell.nodes} edges=${corbell.edges}`);
     return {
       filesIndexed: 0,
@@ -181421,7 +181511,7 @@ function populateGraphifySessionStore(storePath, root, runTag, scope) {
     console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (build with: bun scripts/graphify-build.ts --target '${root}')`);
     return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason, graphifyGraph: graphPath };
   }
-  const built = new GraphifyAdapter({ project: { root: resolvedRoot } }).buildSync(graphPath);
+  const built = new GraphifyAdapter(minimalGraphifyProfile(resolvedRoot)).buildSync(graphPath);
   const { nodeRows, edgeRows } = mapGraphifyToTyped(built.nodes, built.edges, runTag);
   if (nodeRows.length === 0) {
     const reason = "GRAPH_EMPTY:graphify graph produced zero nodes";
@@ -181519,7 +181609,7 @@ function childRows(payload, tags) {
       out.push({
         name: String(a.n ?? "?"),
         file: idx >= 0 ? p.slice(0, idx) : p,
-        line: idx >= 0 ? Number(p.slice(idx + 1)) || 0 : 0
+        line: idx >= 0 ? safeNum(p.slice(idx + 1), 0) : 0
       });
     }
   }
@@ -181541,6 +181631,10 @@ function jsonOf(stdout) {
     return null;
   }
 }
+function safeNum(v, fallback) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
 function ripwireCallers(root, symbol, opts) {
   const run = runRaw(root, [`--callers=${symbol}`, "--json"], opts?.timeoutMs, opts?.env);
   if (!run.bin)
@@ -181556,7 +181650,7 @@ function ripwireCallers(root, symbol, opts) {
     const idx = p.lastIndexOf(":");
     return { name: String(r.n ?? "?"), file: idx >= 0 ? p.slice(0, idx) : p, line: idx >= 0 ? Number(p.slice(idx + 1)) || 0 : 0 };
   });
-  const count = Number(j.count ?? callers.length);
+  const count = safeNum(j.count, callers.length);
   return {
     present: true,
     ok: true,
@@ -181573,7 +181667,7 @@ function ripwireImpact(root, symbol, opts) {
   const j = jsonOf(run.stdout);
   if (!j)
     return failLeg(run, run.stderr.trim() || `no JSON (exit ${String(run.status)})`);
-  const reaches = Number(j.reaches ?? 0);
+  const reaches = safeNum(j.reaches, 0);
   return {
     present: true,
     ok: true,
@@ -181596,7 +181690,7 @@ function ripwireEditCheck(root, symbol, opts) {
     present: true,
     ok: true,
     summary: `edit-check status=${a.status ?? "?"} callers=${a.callers ?? "?"} incompatible=${a.incompatible ?? "?"}${callers.length > 0 ? ` (e.g. ${callers.slice(0, 3).map((c) => `${c.name} ${c.file}:${c.line}`).join(", ")})` : ""}`,
-    data: { status: a.status, callers: Number(a.callers ?? 0), incompatible: Number(a.incompatible ?? 0), rows: callers }
+    data: { status: a.status, callers: safeNum(a.callers, 0), incompatible: safeNum(a.incompatible, 0), rows: callers }
   };
 }
 function ripwireSafeDelete(root, symbol, opts) {
@@ -181710,6 +181804,8 @@ function isStale(payload) {
     return true;
   if (age > STALE_LOCK_TTL_MS)
     return true;
+  if (typeof payload.hostname === "string" && payload.hostname !== os5.hostname())
+    return false;
   if (!isPidAlive(payload.pid))
     return true;
   return false;
@@ -181753,7 +181849,7 @@ function acquireHuntLock(targetPath) {
     if (stale) {
       const reread = readPayload(lockPath);
       if (existing) {
-        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt) {
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt || reread.hostname !== existing.hostname) {
           throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) \u2014 retry the hunt.`);
         }
       } else if (reread) {
@@ -181797,6 +181893,10 @@ function releaseHuntLock(targetPath) {
     }
     if (existing.pid !== process.pid)
       return;
+    if (typeof existing.hostname === "string" && existing.hostname !== os5.hostname()) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: held by host ${existing.hostname} (this host ${os5.hostname()} \u2014 a colliding PID must not unlink a foreign lock)`);
+      return;
+    }
     fs11.unlinkSync(lockPath);
   } catch (e) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
@@ -182227,7 +182327,7 @@ var ProjectProfileSchema = object({
     test: string2().min(1)
   }),
   graph: object({
-    substrate: _enum(["corbell", "ix", "graphify"]),
+    substrate: _enum(["corbell", "graphify"]),
     scope: array(string2()).min(1),
     excludes: array(string2()).default([]),
     rebuild: boolean2().optional(),
@@ -182809,6 +182909,8 @@ function readPath(obj, dotted) {
       return;
     if (!Object.hasOwn(cur, part))
       return;
+    if (part === "__proto__" || part === "constructor" || part === "prototype")
+      return;
     cur = cur[part];
   }
   return cur;
@@ -183273,7 +183375,7 @@ function isEvidenceTriad(v) {
     return false;
   if (!ev || typeof ev.file !== "string" || ev.file.trim() === "")
     return false;
-  if (typeof ev.line !== "number" || !Number.isFinite(ev.line))
+  if (typeof ev.line !== "number" || !Number.isFinite(ev.line) || ev.line < 1 || !Number.isInteger(ev.line))
     return false;
   return true;
 }
@@ -183396,6 +183498,11 @@ var P2 = {
     return findings;
   }
 };
+var P3_SPEC = {
+  callSymbols: ["enforce", "enforceStateGate", "guard", "gate"],
+  importMatchers: ["enforce", "gate", "guard", "firewall"],
+  defMatchers: [/(enforce|gate|guard|STATE_GATE)/i]
+};
 var P3 = {
   id: "semantic.unwired-enforcement",
   family: "WIRING",
@@ -183403,10 +183510,18 @@ var P3 = {
   check(ctx) {
     const findings = [];
     const sev = bindSeverity2(ctx.bindings);
+    const anchor = anchored(ctx, P3_SPEC);
+    if (anchor === null)
+      return findings;
     for (const node of ctx.graph.nodes()) {
       if (node.kind !== "function" && node.kind !== "method" && node.kind !== "class")
         continue;
       if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name))
+        continue;
+      const file = node.file ?? "";
+      if (!file)
+        continue;
+      if (!anchor.files.has(file))
         continue;
       let callers;
       try {
@@ -183417,16 +183532,13 @@ var P3 = {
       }
       if (callers.length !== 0)
         continue;
-      const file = node.file ?? "";
-      if (!file)
-        continue;
       const text = windowText(ctx, file);
       if (text === undefined)
         continue;
       if (!/(enforcer|gate|firewall)/i.test(file) && !/(enforcer|gate)/i.test(text.slice(0, 2000)))
         continue;
       const triad = makeTriad(file, node.line ?? 1, "semantic.unwired-enforcement", sev);
-      const evidence = `[wired-dead] semantic.unwired-enforcement at ${file}:${node.line ?? 1} \u2014 ${node.name} | edge NONE inbound calls->${node.name} (whoCalls('${node.name}')=[]) | triad=semantic.unwired-enforcement`;
+      const evidence = evEdge("semantic.unwired-enforcement", file, node.line ?? 1, `${node.name} \u2014 whoCalls("${node.name}")=[] over the calls edges (no inbound caller in the edge store)`, "wired-dead", anchor);
       findings.push({ ruleId: "semantic.unwired-enforcement", severity: sev, file, line: node.line ?? 1, evidence, verdict: "VIOLATION", triad });
     }
     return findings;
@@ -183944,9 +184056,13 @@ var LINELESS_EXEMPT_KIND = {
 function assertMappableLines(buildResult) {
   const edgeLocByTarget = {};
   for (const e of buildResult.edges) {
-    if (edgeLocByTarget[e.targetId] === undefined) {
-      const rec = e;
-      edgeLocByTarget[e.targetId] = { source_location: rec["source_location"], metadata: rec["metadata"] };
+    const rec = e;
+    const cand = { source_location: rec["source_location"], metadata: rec["metadata"] };
+    const prev = edgeLocByTarget[e.targetId];
+    if (prev === undefined) {
+      edgeLocByTarget[e.targetId] = cand;
+    } else if (tryResolveLine({}, prev) === undefined && tryResolveLine({}, cand) !== undefined) {
+      edgeLocByTarget[e.targetId] = cand;
     }
   }
   for (const n of buildResult.nodes) {
@@ -184133,11 +184249,17 @@ function writeBattery(db, battery) {
   db.exec("BEGIN");
   try {
     const stmt = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
-    for (const p of battery) {
-      const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
-      stmt.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
+    try {
+      for (const p of battery) {
+        const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
+        stmt.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
+      }
+      db.exec("COMMIT");
+    } finally {
+      try {
+        stmt.finalize();
+      } catch {}
     }
-    db.exec("COMMIT");
   } catch (e) {
     db.exec("ROLLBACK");
     throw e;
@@ -184145,9 +184267,10 @@ function writeBattery(db, battery) {
 }
 function writeRuleCards(db, cards, corpusHash) {
   db.exec("BEGIN");
+  const del = db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?");
+  const ins = db.prepare("INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)");
   try {
-    db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?").run(corpusHash);
-    const ins = db.prepare("INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)");
+    del.run(corpusHash);
     for (const c of cards) {
       ins.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
     }
@@ -184155,6 +184278,13 @@ function writeRuleCards(db, cards, corpusHash) {
   } catch (e) {
     db.exec("ROLLBACK");
     throw e;
+  } finally {
+    try {
+      ins.finalize();
+    } catch {}
+    try {
+      del.finalize();
+    } catch {}
   }
 }
 function loadBattery(db, batteryVersion) {
@@ -184591,7 +184721,9 @@ ${p.verbatimQuote}`).join(`
     } catch (e) {
       try {
         db.exec("ROLLBACK");
-      } catch {}
+      } catch (rb) {
+        throw new CalibrationError("CALIBRATION_ROLLBACK_FAILED", `CALIBRATION_ROLLBACK_FAILED: batch error=${e instanceof Error ? e.message : String(e)} rollback error=${rb instanceof Error ? rb.message : String(rb)} (the transaction may still be open \u2014 do not reuse this handle for writes)`);
+      }
       throw e;
     }
   }
@@ -184718,7 +184850,9 @@ async function scan(profile, adapter, runId, db) {
         }
       }
     } catch (calErr) {
-      console.warn(`[scan] D17 calibration gate failed (non-fatal, battery unchanged): ${calErr instanceof Error ? calErr.message : String(calErr)}`);
+      const msg = calErr instanceof Error ? calErr.message : String(calErr);
+      console.warn(`[scan] D17 calibration gate failed: ${msg}`);
+      throw new Error(`SCAN_CALIBRATION_FAILED: the D17 gate faulted (${msg.slice(0, 200)}) \u2014 the battery is unvalidated, refusing the run`);
     }
     const run = runBattery(liveBattery, adapter, normalized, runId, db);
     return { battery: liveBattery, batteryVersion, run };
@@ -184994,6 +185128,7 @@ async function report(input) {
         batteryVersion: input.batteryVersion,
         fixOrder: input.fixOrder
       });
+      input.db.exec("COMMIT");
     } catch (dbErr) {
       try {
         input.db.exec("ROLLBACK");
@@ -185002,7 +185137,6 @@ async function report(input) {
       }
       throw dbErr;
     }
-    input.db.exec("COMMIT");
     try {
       const insertFact = input.db.prepare("INSERT INTO graph_facts (subject, predicate, object, evidence, confidence, created_at) VALUES (?,?,?,?,?,?)");
       for (const f of input.findings) {
@@ -185273,9 +185407,14 @@ function createMicroLoop(options) {
   });
   const handleDisposables = [];
   let pendingDone = null;
+  let pendingSettle = null;
   const handle = {
     stop() {
       sub.unsubscribe();
+      if (pendingSettle !== null) {
+        pendingSettle();
+        pendingSettle = null;
+      }
       for (const d of handleDisposables.splice(0))
         d.unsubscribe();
       try {
@@ -185317,10 +185456,12 @@ function createMicroLoop(options) {
           if (settled)
             return;
           settled = true;
+          pendingSettle = null;
           sub2.unsubscribe();
           sub3.unsubscribe();
           resolve();
         }
+        pendingSettle = settle;
         handleDisposables.push(sub2, sub3);
       });
       return pendingDone;
@@ -185419,11 +185560,11 @@ async function spawnBugHunterLoop(args) {
     throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} \u2014 the hunt target must be a real directory inside the scope)`);
   }
   if (scopeReal !== null) {
-    let targetReal = absTarget;
+    let targetReal;
     try {
       targetReal = fsDyn.realpathSync(absTarget);
     } catch {
-      targetReal = absTarget;
+      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scopeReal} realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
     }
     if (!inScope(targetReal)) {
       throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
@@ -185449,11 +185590,11 @@ async function spawnBugHunterLoop(args) {
         throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
       }
       if (scopeReal !== null) {
-        let profileReal = absProfile;
+        let profileReal;
         try {
           profileReal = fsDyn.realpathSync(absProfile);
         } catch {
-          profileReal = absProfile;
+          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} cannot resolve for scope check (scope=${scopeReal} realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
         }
         if (!inScope(profileReal)) {
           throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
@@ -185684,34 +185825,62 @@ function chain(input, db) {
   const toLabels = rowsAs(db.prepare("SELECT DISTINCT label FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(to), "chain target labels");
   const toSet = new Set(toLabels.map((r) => r.label));
   const visited = new Set;
-  const queue = startIds.map((s) => ({ id: s.canonical_id, steps: [] }));
-  while (queue.length > 0 && queue[0].steps.length < MAX_DEPTH) {
-    const cur = queue.shift();
-    if (visited.has(cur.id))
+  const parent = new Map;
+  const depthOf = new Map;
+  const queue = [];
+  for (const st of startIds) {
+    if (visited.has(st.canonical_id))
       continue;
-    visited.add(cur.id);
+    visited.add(st.canonical_id);
+    parent.set(st.canonical_id, { parent: null, step: null });
+    depthOf.set(st.canonical_id, 0);
+    queue.push(st.canonical_id);
+  }
+  let head = 0;
+  const buildPath = (curId, finalStep) => {
+    const rev = [];
+    let c = curId;
+    while (c !== null) {
+      const ent = parent.get(c);
+      if (!ent || !ent.step)
+        break;
+      rev.push(ent.step);
+      c = ent.parent;
+    }
+    rev.reverse();
+    rev.push(finalStep);
+    return rev;
+  };
+  while (head < queue.length) {
+    const curId = queue[head];
+    const curDepth = depthOf.get(curId) ?? 0;
+    head += 1;
+    if (curDepth >= MAX_DEPTH)
+      continue;
     const out = rowsAs(db.prepare(`
         SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
                dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
         FROM typed_edges e
         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
         WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL
-      `).all(cur.id), "chain edges");
+      `).all(curId), "chain edges");
     for (const e of out) {
       const step = {
-        from: cur.id,
+        from: curId,
         to: e.dst_label,
         kind: e.predicate,
         file: e.dst_file ?? "",
         line: e.dst_line ?? 0
       };
-      if (toSet.has(e.dst_label) && !(from === to && cur.steps.length === 0)) {
-        return formatRows([...cur.steps, step], input.format);
+      if (toSet.has(e.dst_label) && !(from === to && curDepth === 0)) {
+        return formatRows(buildPath(curId, step), input.format);
       }
       if (visited.has(e.dst_id))
         continue;
       visited.add(e.dst_id);
-      queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+      parent.set(e.dst_id, { parent: curId, step });
+      depthOf.set(e.dst_id, curDepth + 1);
+      queue.push(e.dst_id);
     }
   }
   return formatRows([], input.format);
@@ -185838,38 +186007,35 @@ function blastRadius2(input, db) {
   const root = (input.symbol ?? input.from ?? "").trim();
   if (!root)
     return [{ root: "", depth: 0, nodes: [] }];
-  const files = rowsAs(db.prepare("SELECT DISTINCT file FROM typed_nodes WHERE label = ? AND superseded_run IS NULL AND file IS NOT NULL").all(root), "blast-radius files");
-  if (files.length === 0)
+  let ids = rowsAs(db.prepare("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL").all(root), "blast-radius ids").map((r) => r.canonical_id);
+  if (ids.length === 0)
     return [{ root, depth: 0, nodes: [] }];
-  const seen = new Set;
-  const nodes = [];
-  let maxDepth = 0;
-  for (const f of files) {
-    const rows = rowsAs(db.prepare(`
-        WITH RECURSIVE blast(file, depth) AS (
-          SELECT ?, 0
-          UNION
-          SELECT src.file, blast.depth + 1
-          FROM blast
-          CROSS JOIN typed_nodes dst ON dst.file = blast.file
-          CROSS JOIN typed_edges e ON e.dst_canonical = dst.canonical_id
-          CROSS JOIN typed_nodes src ON src.canonical_id = e.src_canonical
-          WHERE e.predicate IN ('calls', 'imports')
-            AND e.superseded_run IS NULL
-            AND src.file IS NOT NULL
-            AND blast.depth < ?
-        )
-        SELECT file, MIN(depth) AS depth FROM blast WHERE depth > 0 GROUP BY file
-      `).all(f.file, Math.min(input.depth ?? DEFAULT_BLAST_DEPTH, MAX_BLAST_DEPTH)), "blast-radius walk");
-    for (const r of rows) {
-      if (seen.has(r.file))
-        continue;
-      seen.add(r.file);
-      nodes.push({ file: r.file, depth: r.depth });
-      if (r.depth > maxDepth)
-        maxDepth = r.depth;
-    }
-  }
+  if (ids.length > 500)
+    ids = ids.slice(0, 500);
+  const ph = ids.map(() => "?").join(", ");
+  const cap = Math.min(input.depth ?? DEFAULT_BLAST_DEPTH, MAX_BLAST_DEPTH);
+  const rows = rowsAs(db.prepare(`
+      WITH RECURSIVE blast(cid, depth) AS (
+        SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph}) AND superseded_run IS NULL
+        UNION
+        SELECT src.canonical_id, blast.depth + 1
+        FROM blast
+        JOIN typed_edges e ON e.dst_canonical = blast.cid
+        JOIN typed_nodes src ON src.canonical_id = e.src_canonical
+        WHERE e.predicate IN ('calls', 'imports')
+          AND e.superseded_run IS NULL
+          AND src.superseded_run IS NULL
+          AND src.file IS NOT NULL
+          AND blast.depth < ?
+      )
+      SELECT n.file AS file, MIN(blast.depth) AS depth
+      FROM blast
+      JOIN typed_nodes n ON n.canonical_id = blast.cid
+      WHERE blast.depth > 0 AND n.file IS NOT NULL
+      GROUP BY n.file
+    `).all(...ids, cap), "blast-radius walk");
+  const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
+  const maxDepth = nodes.reduce((m, n) => n.depth > m ? n.depth : m, 0);
   return [{ root, depth: maxDepth, nodes }];
 }
 function wouldBreak2(input, db) {
@@ -186019,11 +186185,16 @@ function createLayerRegistry() {
       const out = [];
       for (const p of byId.values()) {
         try {
-          if (!p.up().up)
+          const rawProbe = p.up();
+          if (typeof rawProbe !== "object" || rawProbe === null || rawProbe.up !== true)
             continue;
-          for (const f of p.facts(subject))
-            if (isAnchored(f))
+          const got = p.facts(subject);
+          if (!Array.isArray(got))
+            continue;
+          for (const f of got) {
+            if (f !== null && typeof f === "object" && isAnchored(f))
               out.push(f);
+          }
         } catch {
           continue;
         }
@@ -186328,15 +186499,23 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
       const instances = res.reply?.result?.instances ?? [];
       const hits = subject.length === 0 ? instances : instances.filter((i) => {
         const values = [];
+        const seen = new WeakSet;
         const walk = (v) => {
           if (typeof v === "string")
             values.push(v);
-          else if (Array.isArray(v))
+          else if (Array.isArray(v)) {
+            if (seen.has(v))
+              return;
+            seen.add(v);
             for (const x of v)
               walk(x);
-          else if (v && typeof v === "object")
+          } else if (v && typeof v === "object") {
+            if (seen.has(v))
+              return;
+            seen.add(v);
             for (const x of Object.values(v))
               walk(x);
+          }
         };
         walk(i);
         return values.some((v) => v.includes(subject));
@@ -186361,7 +186540,13 @@ import * as path29 from "path";
 function semanticaProbe(scopeRoot) {
   if (!path29.isAbsolute(scopeRoot) || scopeRoot.split(path29.sep).includes(".."))
     throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
-  const kgPath = path29.join(path29.resolve(scopeRoot), ".omp/graph-intelligence/layers/semantica/kg.json");
+  let resolvedRoot;
+  try {
+    resolvedRoot = fs23.realpathSync(path29.resolve(scopeRoot));
+  } catch {
+    resolvedRoot = path29.resolve(scopeRoot);
+  }
+  const kgPath = path29.join(resolvedRoot, ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",
     rung: "decision",
@@ -186679,6 +186864,11 @@ function tailEvents(eventsPath, limit) {
       }
     }
   }
+  const MAX_SAFE_FULL_READ = 32 * 1024 * 1024;
+  if (st && st.size > MAX_SAFE_FULL_READ) {
+    throw new Error(`GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${st.size}B) and full read exceeds ${MAX_SAFE_FULL_READ}B \u2014 refusing to materialize the ledger`);
+  }
+  console.warn(`[gi-abide] bounded tail failed for ${eventsPath} \u2014 degraded full read (counted, never silent)`);
   const raw = fs26.readFileSync(eventsPath, "utf8");
   const lines = raw.split(`
 `).filter((l) => l.trim().length > 0);
@@ -186919,7 +187109,7 @@ function graphFacts(input) {
       });
     }
     if (input.intent === "measure") {
-      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
+      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical = dst_canonical AND src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
       verdicts.push(self2 > 0 ? {
         rule: "M-GRAPH-5",
         settles: true,
@@ -187458,6 +187648,8 @@ function toPersisted(raw) {
   };
 }
 var drained = new Map;
+var poisoned = new Map;
+var POISON_CODES = new Set(["MALFORMED_ROW", "EMPTY_STATE_HASH", "BAD_PROBABILITY", "BAD_NUMBER", "BAD_DOMAIN", "TRUTH_AT_FIRING", "BAD_LIMIT", "BAD_RULE_ID", "BAD_STATE_HASH", "BAD_TRUTH", "BAD_TRUTH_AT", "NOT_PERSISTENT"]);
 
 // src/omp/policy-store.ts
 import * as fs27 from "fs";
@@ -187828,6 +188020,15 @@ var confineTargetPath = (normalized, callerCwd) => {
   if (realAfter !== real) {
     return { ok: false, error: `GI_PATH_DENIED: the path changed during the confinement check (TOCTOU) \u2014 '${normalized.slice(0, 120)}'` };
   }
+  let stAfter = null;
+  try {
+    stAfter = fs31.statSync(realAfter);
+  } catch {
+    stAfter = null;
+  }
+  if (!stAfter || !stAfter.isDirectory()) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory after re-resolve: '${realAfter.slice(0, 120)}'` };
+  }
   return { ok: true, real };
 };
 function textResult2(text, details) {
@@ -188124,7 +188325,20 @@ ${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false 
       }
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      fs31.mkdirSync(auditRoot, { recursive: true });
+      let auditPre = null;
+      try {
+        auditPre = fs31.lstatSync(auditRoot);
+      } catch {
+        auditPre = null;
+      }
+      if (auditPre && auditPre.isSymbolicLink()) {
+        return textResult2("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
+      }
+      try {
+        fs31.mkdirSync(auditRoot, { recursive: true });
+      } catch (mkErr) {
+        return textResult2(`GI_LEDGER_DENIED: cannot create audit root: ${mkErr instanceof Error ? mkErr.message : String(mkErr)}`.slice(0, 200), { ok: false, error: "GI_LEDGER_DENIED" });
+      }
       const auditRootReal = fs31.realpathSync(auditRoot);
       const ledgerRel = path36.relative(targetReal, auditRootReal);
       if (ledgerRel === "" || ledgerRel.startsWith("..") || path36.isAbsolute(ledgerRel)) {

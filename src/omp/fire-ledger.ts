@@ -553,10 +553,25 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
 // a property of the LEDGER (the file), not of whichever handle happens to call.
 const drained = new Map<string, WeakSet<object>>();
 // ★ F-341 FIX (2026-09-24): poison rows — a PERSISTENTLY malformed row failed in the per-row fallback, never joined the seen set, and was retried on every later drain (persistFailureCount flood, lastPersistError churn). Deterministic rejections (bad shape, bad domain, truth-at-firing) are quarantined after the first report; transient write faults keep the retry path below.
-const poisoned = new Map<string, WeakSet<object>>();
+// ★ F-420 FIX (2026-09-24): THE POISON KEY IS CONTENT, NOT IDENTITY.
+//   F-341 quarantined deterministic rejections in a WeakSet keyed by the row OBJECT —
+//   which made an IN-PLACE REPAIR impossible: the regression test repairs a rejected
+//   row's stateHash on the SAME object and the next drain must WRITE it (the F0b
+//   critical: "a row that FAILED to commit is retried on the next drain"). Object
+//   identity is unchanged by a field write, so the repaired row stayed quarantined
+//   forever — the test caught it (`drain` returned 0, expected 1).
+//   The quarantine must key on the row's CONTENT SIGNATURE: an unrepaired malformed row
+//   keeps its signature (still quarantined, no unbounded retry — F-341's guarantee
+//   holds), and a REPAIRED row has a NEW signature and is retried. A Set of strings is
+//   bounded by the number of DISTINCT malformed rows, which is what "persistent" means.
+const poisoned = new Map<string, Set<string>>();
 const POISON_CODES = new Set(["MALFORMED_ROW", "EMPTY_STATE_HASH", "BAD_PROBABILITY", "BAD_NUMBER", "BAD_DOMAIN", "TRUTH_AT_FIRING", "BAD_LIMIT", "BAD_RULE_ID", "BAD_STATE_HASH", "BAD_TRUTH", "BAD_TRUTH_AT", "NOT_PERSISTENT"]);
 function poisonCodeOf(code: string): string {
   return code.startsWith("GI_LEDGER_") ? code.slice("GI_LEDGER_".length) : code;
+}
+/** The row's content signature — stable across a clone, CHANGED by a repair. */
+function poisonSignature(row: object): string {
+  try { return JSON.stringify(row); } catch { return String(row); }
 }
 
 /** Persist every row the gate has produced that this ledger has not seen.
@@ -577,9 +592,9 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   }
   const fresh: DecisionRow[] = [];
   let poison = poisoned.get(key);
-  if (poison === undefined) { poison = new WeakSet<object>(); poisoned.set(key, poison); }
+  if (poison === undefined) { poison = new Set<string>(); poisoned.set(key, poison); }
   for (const row of gate.rows()) {
-    if (!seen.has(row) && !poison.has(row)) fresh.push(row);
+    if (!seen.has(row) && !poison.has(poisonSignature(row))) fresh.push(row);
   }
   if (fresh.length === 0) return 0;
   // ★ AUDIT FINDING 0 (HIGH) — THE WATERMARK ADVANCES ONLY AFTER THE COMMIT.
@@ -593,7 +608,7 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   // fallback as a disguise: a partially-committed batch lost its failures forever.
   const { committed, failed } = ledger.appendManyDetailed(fresh);
   for (const row of committed) seen.add(row);
-  for (const f of failed) { if (POISON_CODES.has(poisonCodeOf(f.error.code))) poison.add(f.row); }
+  for (const f of failed) { if (POISON_CODES.has(poisonCodeOf(f.error.code))) poison.add(poisonSignature(f.row)); }
   return committed.length;
 }
 

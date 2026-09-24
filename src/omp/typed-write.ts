@@ -992,7 +992,11 @@ export function chainCalls(storePath: string, from: string, to: string, maxDepth
           line: e.dst_line ?? 0,
         };
         if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
-          return [...cur.steps, step];
+          // ★ F-417 FIX (2026-09-24): propagate truncated flag — the old plain array return
+          //   lost the flag accumulated during BFS, reporting untruncated to callers.
+          const result = [...cur.steps, step] as ChainStep[] & { truncated?: boolean };
+          if (truncated) result.truncated = true;
+          return result;
         }
         if (!visited.has(e.dst_id)) {
           visited.add(e.dst_id);

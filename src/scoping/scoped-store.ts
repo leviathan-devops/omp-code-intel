@@ -102,7 +102,9 @@ export function closeStoreDb(): void {
  *  storeOpenInFlight synchronously, the rest await it. Async callers (runWithRetry,
  *  withImmediateTx) enter through here; sync upsertRow keeps getStoreDb (the open itself
  *  is synchronous — the guard covers the await-interleave window). */
-let storeOpenInFlight: Promise<Database> | null = null;
+// ★ F-419 FIX (2026-09-24): key the in-flight gate by dbPath — the old shared gate returned
+//   the wrong handle when two different dbPaths opened concurrently.
+const storeOpenInFlightByPath = new Map<string, Promise<Database>>();
 export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Database> {
   if (!opts && storeDb) {
     try {
@@ -110,11 +112,13 @@ export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Databa
       return storeDb;
     } catch (_sick) { /* fall through to the shared open below */ }
   }
-  if (storeOpenInFlight) return storeOpenInFlight;
+  const want = opts?.dbPath ?? storeDbPath;
+  const existingGate = want ? storeOpenInFlightByPath.get(want) : null;
+  if (existingGate) return existingGate;
   let resolveOpen!: (db: Database) => void;
   let rejectOpen!: (e: unknown) => void;
   const gate = new Promise<Database>((res, rej) => { resolveOpen = res; rejectOpen = rej; });
-  storeOpenInFlight = gate;
+  if (want) storeOpenInFlightByPath.set(want, gate);
   try {
     const db = getStoreDb(opts);
     resolveOpen(db);
@@ -123,7 +127,8 @@ export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Databa
     rejectOpen(e);
     throw e;
   } finally {
-    storeOpenInFlight = null;
+    const k = want ?? '';
+    if (storeOpenInFlightByPath.get(k) === gate) storeOpenInFlightByPath.delete(k);
   }
 }
 
