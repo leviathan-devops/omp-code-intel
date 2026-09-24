@@ -104,8 +104,13 @@ export async function runWorkLayer(deps: EnforcementDeps, input: WorkInput): Pro
     return { verdict: "SILENT", repair: null, reason: "empty diff", evidence: "diff_len=0" };
   }
   try {
-    requireUp(deps.register.find((c) => c.id === "ABIDE")!);
-    requireUp(deps.register.find((c) => c.id === "JEV")!);
+    // ★ F-32 FIX (2026-09-24): `find(...)!` passed undefined into requireUp on a missing component — a bare TypeError instead of the named code. Guard first.
+    const abideDecl = deps.register.find((c) => c.id === "ABIDE");
+    if (!abideDecl) throw Object.assign(new Error("GI_ENFORCE_ABIDE: ABIDE is not registered"), { code: "GI_ENFORCE_ABIDE" });
+    requireUp(abideDecl);
+    const jevDecl = deps.register.find((c) => c.id === "JEV");
+    if (!jevDecl) throw Object.assign(new Error("GI_ENFORCE_JEV: JEV is not registered"), { code: "GI_ENFORCE_JEV" });
+    requireUp(jevDecl);
   } catch (e) {
     // FAIL-OPEN — and LOUD about it. The named dependency code rides the result.
     const code = (e as { code?: string }).code ?? "GI_ENFORCE_ABIDE";
@@ -178,7 +183,10 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
 
   // 2 BIND — the load unit's dependency is checked BEFORE it is used.
   try {
-    requireUp(deps.register.find((c) => c.id === "TSG")!);
+    // ★ F-32 FIX (2026-09-24): same undefined-find guard on the close path — a missing TSG/JEV must read as the named fail-closed code.
+    const tsgDecl = deps.register.find((c) => c.id === "TSG");
+    if (!tsgDecl) throw Object.assign(new Error("TSG is not registered"), { code: "CLAIM_FW_JEV_NO_KEY" });
+    requireUp(tsgDecl);
   } catch (e) {
     return {
       verdict: "FAIL_CLOSED",
@@ -227,7 +235,9 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
 
   // 3 JUDGE — one question, over the BOUND spans only.
   try {
-    requireUp(deps.register.find((c) => c.id === "JEV")!);
+    const jevCloseDecl = deps.register.find((c) => c.id === "JEV");
+    if (!jevCloseDecl) throw Object.assign(new Error("JEV is not registered"), { code: "GI_JEV_DOWN" });
+    requireUp(jevCloseDecl);
   } catch (e) {
     return {
       verdict: "FAIL_CLOSED",

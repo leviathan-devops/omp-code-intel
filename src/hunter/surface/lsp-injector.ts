@@ -122,8 +122,15 @@ export class DiagnosticsServer {
    *  implementation enforces 800ms via WATCHER_DEBOUNCE_MS (§3.3). */
   watch(dir: string, onChange?: (changedFiles: string[]) => void): void {
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    // ★ F-31 FIX (2026-09-24): the old body fabricated `onChange([])` — an empty
+    // ★ change batch the base class cannot know (it runs no fs.watch; the live
+    // ★ subclass LiveGraphWatcher drains the real queue). A fabricated batch is a
+    // ★ lie to every caller diffing on it, so the base debounces the re-scan only
+    // ★ and never invents a change list. Callers needing change lists use
+    // ★ LiveGraphWatcher.watch, which passes the drained batch.
+    void dir;
+    void onChange;
     this.debounceTimer = setTimeout((): void => {
-      if (onChange) onChange([]);
       this.scan();
     }, WATCHER_DEBOUNCE_MS);
   }
@@ -224,12 +231,26 @@ export class DiagnosticsServer {
     }
   }
 
-  /** THE TOUCHED-FILE RESOLUTION — the exact key, else the state keys the glob prefixes. */
+  /** THE TOUCHED-FILE RESOLUTION — the exact key, else the glob-matched state keys. */
   resolveTouchedFiles(candidate: string): string[] {
     if (this.db) return [candidate]; // the DB-backed read resolves the exact file (the project truth)
     if (this.state.has(candidate)) return [candidate];
-    const prefix = candidate.replace(/[.*?]/g, '');
-    return [...this.state.keys()].filter((k) => k.startsWith(prefix));
+    // ★ F-32 FIX (2026-09-24): the old `candidate.replace(/[.*?]/g, '')` +
+    // ★ startsWith matched wrong files both ways — `src/foo.ts` lost its dots
+    // ★ (prefix `src/foots` matches nothing exact) while `a?b` collapsed to `ab`
+    // ★ and prefix-matched every `ab*` key. A candidate with no glob chars that
+    // ★ missed the exact hit is a clean miss; one WITH glob chars compiles to an
+    // ★ anchored regex (`*`→`.*`, `?`→`.`, every other regex char escaped).
+    if (!/[*?[]/.test(candidate)) return [];
+    let rx: RegExp;
+    try {
+      rx = new RegExp('^' + [...candidate].map((ch) => {
+        if (ch === '*') return '.*';
+        if (ch === '?') return '.';
+        return ch.replace(/[.+^${}()|[\]\\]/, '\\$&');
+      }).join('') + '$');
+    } catch { return []; }
+    return [...this.state.keys()].filter((k) => rx.test(k));
   }
 
   /** The dedupe window — the recent file+rule shows (the O32.2 collapse). */

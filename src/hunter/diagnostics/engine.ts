@@ -112,19 +112,29 @@ export function historyLogUnreadable(p: string, detail: string): EngineError {
 // The run surface
 // ---------------------------------------------------------------------------
 
-export function buildFileContentMap(nodes: GraphNode[], source: { read(file: string, range?: [number, number]): string }): Map<string, string> {
-  const map = new Map<string, string>();
-  const uniq = new Set<string>();
-  for (const n of nodes) if (n.file) uniq.add(n.file);
-  for (const file of uniq) {
-    try {
-      map.set(file, source.read(file));
-    } catch (e: unknown) {
-      console.error(`[engine] source read failed for ${file}: ${String(e)}`);
+  // ★ F-34 FIX (2026-09-24): the old body caught the lockdown read's loud
+  // ★ SOURCE_READ_FAILED and downgraded it to console.error+continue — a file the
+  // ★ graph anchors silently vanished from the map, and every predicate read an
+  // ★ incomplete scope as if it were whole. Per this file's own fail-closed law
+  // ★ (an unreadable source is a loud named fail, never an empty read), the
+  // ★ failures are collected and thrown as one named SOURCE_READ_FAILED.
+  export function buildFileContentMap(nodes: GraphNode[], source: { read(file: string, range?: [number, number]): string }): Map<string, string> {
+    const map = new Map<string, string>();
+    const uniq = new Set<string>();
+    for (const n of nodes) if (n.file) uniq.add(n.file);
+    const failed: string[] = [];
+    for (const file of uniq) {
+      try {
+        map.set(file, source.read(file));
+      } catch (e: unknown) {
+        failed.push(`${file}: ${String(e)}`);
+      }
     }
+    if (failed.length > 0) {
+      throw sourceReadFailed(failed.join('; '), 'buildFileContentMap refuses a partial scope — every anchored file must read');
+    }
+    return map;
   }
-  return map;
-}
 
 /** The engine's run context — the graph adapter + the lockdown source read.
  *  The bindings ride the per-predicate compile (the engine injects each
@@ -749,11 +759,14 @@ export function assertNoBlindness(checkpoint: {
   rerunNodeIds: Set<string>;
   runResult: NormalizedFinding[];
 }): void {
+  // ★ F-33 FIX (2026-09-24): the first branch (`size > 0 && after === before`
+  // ★ INSIDE `after !== before`) was unsatisfiable dead code with an empty body —
+  // ★ the GRAPH_INCOMPLETE arm below it could never fire through that branch.
+  // ★ Collapsed to the single live condition: graph changed with zero changed ids.
   if (checkpoint.graphNodesAfter !== checkpoint.graphNodesBefore) {
     const before = checkpoint.graphNodesBefore;
     const after = checkpoint.graphNodesAfter;
-    if (checkpoint.changedNodeIds.size > 0 && after === before) {
-    } else if (after !== before && checkpoint.changedNodeIds.size === 0) {
+    if (checkpoint.changedNodeIds.size === 0) {
       throw new EngineError('GRAPH_INCOMPLETE', `GRAPH_INCOMPLETE: graphNodesAfter=${after} graphNodesBefore=${before} — the graph changed without a re-parse`);
     }
   }

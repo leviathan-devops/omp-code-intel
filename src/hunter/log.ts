@@ -18,5 +18,11 @@ const CONF_LABEL_MED = 0.85
 // calib: 0.7 — LOW floor (below it the finding is NOISE — the scoring cutoff)
 const CONF_LABEL_LOW = 0.7
 export function confidenceLabel(c: number): string {
-  return c >= CONF_LABEL_VERIFIED ? 'VERIFIED' : c >= CONF_LABEL_HIGH ? 'HIGH' : c >= CONF_LABEL_MED ? 'MED' : c >= CONF_LABEL_LOW ? 'LOW' : 'NOISE'
+  // ★ F-31 FIX (2026-09-24): the nested-ternary chain violated the no-nested-ternary
+  //   standard — if/else ladder, identical thresholds.
+  if (c >= CONF_LABEL_VERIFIED) return 'VERIFIED';
+  if (c >= CONF_LABEL_HIGH) return 'HIGH';
+  if (c >= CONF_LABEL_MED) return 'MED';
+  if (c >= CONF_LABEL_LOW) return 'LOW';
+  return 'NOISE';
 }

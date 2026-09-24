@@ -213,8 +213,11 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
           action: p.action ?? "status",
         });
       } catch (e) {
-        const err = e as GiScopeError | GiPathError;
-        const code = "code" in err ? String(err.code) : "GI_QUERY_FAIL";
+        // ★ F-33 FIX (2026-09-24): `"code" in err` throws TypeError when the caught
+        //   value is a primitive (string/number/null) — `in` requires an object.
+        //   Narrow first; primitives fall through to GI_QUERY_FAIL.
+        const errObj = (typeof e === 'object' && e !== null ? e : {}) as GiScopeError | GiPathError;
+        const code = (typeof errObj === 'object' && errObj !== null && 'code' in errObj && typeof errObj.code === 'string') ? String(errObj.code) : "GI_QUERY_FAIL";
         return textResult(`${code}: ${String(e)}`, { ok: false, error: code });
       }
     },

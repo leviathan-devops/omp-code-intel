@@ -137,8 +137,15 @@ export async function classify(
     if (parentReal !== masterReal && !parentReal.startsWith(masterReal + path.sep)) {
       return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
     }
+  } else {
+    // ★ F-30 FIX (2026-09-24): the CREATE path compared nothing real — a
+    // ★ symlinked ancestor (e.g. a pre-existing `MASTER_CONTEXT` symlink to /tmp)
+    // ★ passed the normalized containment above while resolving outside the
+    // ★ project. The resolved parent must stay inside the resolved project root.
+    if (parentReal !== projectRootReal && !parentReal.startsWith(projectRootReal + path.sep)) {
+      return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    }
   }
-
   // THE FILENAME DETECTOR — the EXACT naming convention.
   const nameMatch = REPORT_FILENAME_RE.exec(base);
   if (nameMatch === null) {

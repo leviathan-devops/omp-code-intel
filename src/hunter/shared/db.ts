@@ -541,34 +541,41 @@ export class SharedDb implements DbClient {
       fs.mkdirSync(mirrorDir, { recursive: true });
       mirror = new Database(mirrorPath);
       applyPragmas(mirror);
-      mirror.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;');
-      mirror.exec(MIRROR_SCHEMA_SQL);
     } catch (e: unknown) {
       throw mirrorWriteFailed(mirrorPath, `mirror open failed: ${String(e)}`);
     }
 
+    // ★ F-35 FIX (2026-09-24): the whole rebuild (DROP + schema + row copies)
+    //   rides ONE transaction — a crash mid-copy rolls back to the previous mirror
+    //   instead of a half-schema/half-data file (bun:sqlite DDL is transactional on
+    //   the same handle, same as writeGraph's rebuild above).
     try {
-      // the graph (the nodes + the edges)
-      const nodeIns = mirror.prepare('INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)');
-      for (const row of this.handle.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[]) {
-        nodeIns.run(row['id'], row['kind'], row['name'], row['file'], row['line'], row['lineage'], row['source'], row['data']);
-      }
-      const edgeIns = mirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)');
-      for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges').all() as Record<string, SQLQueryBindings>[]) {
-        edgeIns.run(row['source_id'], row['target_id'], row['kind'], row['lineage'], row['created_at']);
-      }
-      // the findings summaries (never the report_sections bodies — line 2229)
-      const findIns = mirror.prepare(
-        'INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-      );
-      for (const row of this.handle.prepare('SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings').all() as Record<string, SQLQueryBindings>[]) {
-        findIns.run(row['rule_id'], row['severity'], row['file'], row['line'], row['range_start'], row['range_end'], row['evidence'], row['verdict'], row['week'], row['run_id'], row['created_at']);
-      }
-      // the events (the HUNT_DONE/BUILD_DONE/AUDIT_DONE bus + the report pointers)
-      const evIns = mirror.prepare('INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)');
-      for (const row of this.handle.prepare('SELECT kind,payload,created_at FROM events').all() as Record<string, SQLQueryBindings>[]) {
-        evIns.run(row['kind'], row['payload'], row['created_at']);
-      }
+      const rebuild = mirror.transaction((): void => {
+        mirror.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;');
+        mirror.exec(MIRROR_SCHEMA_SQL);
+        // the graph (the nodes + the edges)
+        const nodeIns = mirror.prepare('INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)');
+        for (const row of this.handle.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[]) {
+          nodeIns.run(row['id'], row['kind'], row['name'], row['file'], row['line'], row['lineage'], row['source'], row['data']);
+        }
+        const edgeIns = mirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)');
+        for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges').all() as Record<string, SQLQueryBindings>[]) {
+          edgeIns.run(row['source_id'], row['target_id'], row['kind'], row['lineage'], row['created_at']);
+        }
+        // the findings summaries (never the report_sections bodies — line 2229)
+        const findIns = mirror.prepare(
+          'INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        );
+        for (const row of this.handle.prepare('SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings').all() as Record<string, SQLQueryBindings>[]) {
+          findIns.run(row['rule_id'], row['severity'], row['file'], row['line'], row['range_start'], row['range_end'], row['evidence'], row['verdict'], row['week'], row['run_id'], row['created_at']);
+        }
+        // the events (the HUNT_DONE/BUILD_DONE/AUDIT_DONE bus + the report pointers)
+        const evIns = mirror.prepare('INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)');
+        for (const row of this.handle.prepare('SELECT kind,payload,created_at FROM events').all() as Record<string, SQLQueryBindings>[]) {
+          evIns.run(row['kind'], row['payload'], row['created_at']);
+        }
+      });
+      rebuild();
     } catch (e: unknown) {
       throw mirrorWriteFailed(mirrorPath, `mirror copy failed: ${String(e)}`);
     } finally {

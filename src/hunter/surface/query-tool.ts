@@ -237,6 +237,13 @@ function chain(input: QueryInput, db: DbClient): QueryRow[] {
       if (toSet.has(e.dst_label) && !(from === to && cur.steps.length === 0)) {
         return formatRows([...cur.steps, step], input.format);
       }
+      // ★ F-29 FIX (2026-09-24): mark visited at ENQUEUE time — the old code only
+      // ★ marked at dequeue, so a high fan-out node re-queued the same dst once per
+      // ★ inbound edge (a path copy per duplicate) before the guard ever fired.
+      // ★ Enqueue-marking bounds the queue to one entry per node; BFS still finds
+      // ★ the shortest path first.
+      if (visited.has(e.dst_id)) continue;
+      visited.add(e.dst_id);
       queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
     }
   }

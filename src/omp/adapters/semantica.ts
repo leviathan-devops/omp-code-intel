@@ -14,8 +14,9 @@ interface SemanticaKg {
 }
 
 export function semanticaProbe(scopeRoot: string): ConsumerProbe {
-  const kgPath = path.join(scopeRoot, ".omp/graph-intelligence/layers/semantica/kg.json");
-  const dir = path.join(scopeRoot, ".omp/graph-intelligence/layers/semantica");
+  // ★ F-27 FIX (2026-09-24): scopeRoot reaches the fs — it must be an absolute path, never a relative traversal.
+  if (!path.isAbsolute(scopeRoot)) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be absolute, got ${JSON.stringify(scopeRoot)}`);
+  const kgPath = path.join(path.resolve(scopeRoot), ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",
     rung: "decision",
@@ -26,13 +27,16 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
     //   label over a missing substrate. The probe now asks for the FILE it actually reads.
     up: () => probePath(kgPath, true),
     facts: (subject: string): LayerFact[] => {
-      // ★ GATE M-6 FIXED (the H-2 class, swept): a substrate fault THROWS.
-      if (!fs.existsSync(kgPath)) {
-        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent at ${kgPath}`);
+      // ★ F-28 FIX (2026-09-24): existsSync-then-read is a TOCTOU pair — read directly, name the failure once.
+      let raw: string;
+      try {
+        raw = fs.readFileSync(kgPath, "utf8");
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent/unreadable at ${kgPath} — ${(e as NodeJS.ErrnoException).code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
       }
       let kg: SemanticaKg;
       try {
-        kg = JSON.parse(fs.readFileSync(kgPath, "utf8")) as SemanticaKg;
+        kg = JSON.parse(raw) as SemanticaKg;
       } catch (e) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }

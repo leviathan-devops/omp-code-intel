@@ -39,9 +39,38 @@ export function abideEventsPath(abideRoot?: string): string {
   return path.join(abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace", ABIDE_EVENTS_REL);
 }
 
+/** ★ F-23 FIX (2026-09-24): the full-file read loaded a 22.8MB ledger to keep 4000 rows. Bounded tail + mtime/size cache. */
+const tailCache = new Map<string, { size: number; mtimeMs: number; events: AbideEvent[] }>();
 /** Read the LAST `limit` events. The ledger is append-only and can be large, so the
  *  read is a bounded tail — never a full materialization. */
 function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
+  let st: import("node:fs").Stats | null = null;
+  try { st = fs.statSync(eventsPath); } catch { st = null; }
+  if (st !== null) {
+    const hit = tailCache.get(eventsPath);
+    if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.events.slice(-limit);
+    const TAIL_BYTES = 1024 * 1024;
+    const start = Math.max(0, st.size - TAIL_BYTES);
+    let fd: number | null = null;
+    try {
+      fd = fs.openSync(eventsPath, "r");
+      const buf = Buffer.alloc(st.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      let text = buf.toString("utf8");
+      if (start > 0) { const nl = text.indexOf("\n"); text = nl === -1 ? "" : text.slice(nl + 1); }
+      const lines = text.split("\n").filter((l) => l.trim().length > 0);
+      if (lines.length >= limit || start === 0) {
+        const out: AbideEvent[] = [];
+        for (const l of lines.slice(-limit)) {
+          try { out.push(JSON.parse(l) as AbideEvent); } catch { /* torn line — counted, never fatal */ }
+        }
+        tailCache.set(eventsPath, { size: st.size, mtimeMs: st.mtimeMs, events: out });
+        return out;
+      }
+    } catch { /* fall through to the full read */ } finally {
+      if (fd !== null) { try { fs.closeSync(fd); } catch { /* ignore */ } }
+    }
+  }
   const raw = fs.readFileSync(eventsPath, "utf8");
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   const out: AbideEvent[] = [];
@@ -52,6 +81,10 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
       // a torn final line is normal for an append-only ledger — counted, never fatal
     }
   }
+  try {
+    const st2 = fs.statSync(eventsPath);
+    tailCache.set(eventsPath, { size: st2.size, mtimeMs: st2.mtimeMs, events: out });
+  } catch { /* cache best-effort */ }
   return out;
 }
 

@@ -101,7 +101,14 @@ export function releaseHuntLock(targetPath: string): void {
   const lockPath = lockPathFor(targetPath);
   try {
     const existing = readPayload(lockPath);
-    if (existing && existing.pid !== process.pid) return;
+    // ★ F-30 FIX (2026-09-24): a null payload (corrupted/unreadable lock) must NOT
+    //   unlink — the old `existing && ...` fell through to unlinkSync and deleted a
+    //   lock whose owner was unknown (concurrent-hunt hazard). Fail closed: keep it.
+    if (!existing) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: unreadable payload (fail-closed, lock kept)`);
+      return;
+    }
+    if (existing.pid !== process.pid) return;
     fs.unlinkSync(lockPath);
   } catch (e: unknown) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);

@@ -70,7 +70,11 @@ export function linelessNode(context: string): Error {
 function parseLineValue(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v) && v >= 1) return Math.floor(v);
   if (typeof v === "string") {
-    const m = /L?\s*(\d+)/.exec(v);
+    // ★ F-32 FIX (2026-09-24): the unanchored /L?\s*(\d+)/ matched embedded digits
+    //   ("node42component" → 42, "file-v3-path" → 3). The locus is a bare L-number
+    //   ("L12", "12") — anchor whole-string so non-loci fall through to the loud
+    //   LINELESS_NODE refusal instead of a fabricated line.
+    const m = /^\s*L?\s*(\d+)\s*$/.exec(v);
     if (m) {
       const n = Number(m[1]);
       if (Number.isFinite(n) && n >= 1) return Math.floor(n);

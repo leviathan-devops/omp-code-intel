@@ -46,10 +46,15 @@ function eventKind(v: unknown): EventKind {
   if (typeof v === 'string' && isBusKind(v)) {
     return v;
   }
-  return 'HUNT_DONE';
+  // ★ F-40 FIX (2026-09-24): no silent HUNT_DONE default — an unrecognized kind
+  //   here means a corrupt row or a bypassed guard; fail closed and loud.
+  throw new Error(`[hydra-bus] EVENT_INVALID kind=${JSON.stringify(v)} (expected HUNT_DONE|BUILD_DONE|AUDIT_DONE)`);
 }
 export class HydraBus {
   private cursor = 0;
+  // ★ F-41 FIX (2026-09-24): reentrancy guard — concurrent poll() calls read the
+  //   same cursor and double-deliver. A reentrant poll is a no-op with a loud log.
+  private polling = false;
   private readonly subscribers: BusSubscriber[] = [];
 
   subscribe(fn: BusSubscriber): void {
@@ -60,7 +65,20 @@ export class HydraBus {
    *  subscribers; advance the cursor. Returns the pushed rows (the test +
    *  the audit surface). */
   poll(db: DbClient): EventRow[] {
+    if (this.polling) {
+      console.warn('[hydra-bus] poll reentered concurrently — skipped (the in-flight poll owns the cursor)');
+      return [];
+    }
+    this.polling = true;
+    try {
     const rows = rowsAs<EventRow>(db.prepare('SELECT id, kind, payload FROM events WHERE id > ? ORDER BY id ASC').all(this.cursor), 'events');
+    // ★ F-41 FIX (2026-09-24): rowsAs only checked Array — a row missing id/kind
+    //   (schema drift) poisoned the cursor/payload silently. Validate the shape loud.
+    for (const row of rows) {
+      if (typeof row.id !== 'number' || typeof row.kind !== 'string') {
+        throw new Error(`[hydra-bus] events row shape: expected {id:number,kind:string,...}, got ${JSON.stringify(row).slice(0, 160)}`);
+      }
+    }
     for (const row of rows) {
       let payload: Record<string, unknown> = {};
       try {
@@ -83,7 +101,10 @@ export class HydraBus {
       }
       this.cursor = row.id;
     }
-    return rows;
+      return rows;
+    } finally {
+      this.polling = false;
+    }
   }
 
   /** The cursor — the audit + the test surface. */

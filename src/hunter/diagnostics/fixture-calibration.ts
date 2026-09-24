@@ -112,13 +112,16 @@ export function graphFromManifest(nodes: FixtureNodeManifest[]): GraphAdapter {
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — a fixture manifest is parsed + the
  *  parsed shape is typeof/!== null-guarded before the typed assertion. */
-function asFixture<T extends object>(raw: string, label: string): T {
-  const parsed = JSON.parse(raw) as unknown;
-  if (parsed !== undefined && parsed !== null && typeof parsed === 'object') {
-    return parsed as T;
+  // ★ F-27 FIX (2026-09-24): the old guard accepted ANY non-null object —
+  // ★ including arrays — as T with zero shape validation. Arrays are rejected
+  // ★ here; the required anchor fields are validated at each loader below.
+  function asFixture<T extends object>(raw: string, label: string): T {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed !== undefined && parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as T;
+    }
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} parsed to a non-object`);
   }
-  throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} parsed to a non-object`);
-}
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the declaredPredicates binding (an
  *  unknown value) is typeof/!== null-guarded before the map assertion. */

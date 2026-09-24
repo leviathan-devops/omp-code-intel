@@ -37,6 +37,9 @@ export function thresholdFromCost(c: CostMatrix): number {
 /** The smallest n at which a proportion can be resolved to a given gap — used
  *  to set the FIRE FLOOR honestly (§6.4.6, the starvation trap's inverse). */
 export function firesNeededForGap(p: number, gap: number, z = 1.96): number {
+  // ★ F-31 FIX (2026-09-24): at p=0|1 the variance is 0 so the formula returned 0 ("no fires needed") — the opposite of truth. A boundary proportion needs an unbounded sample.
+  if (!(p > 0 && p < 1)) return Number.POSITIVE_INFINITY;
+  if (!(gap > 0) || !Number.isFinite(gap)) return Number.POSITIVE_INFINITY;
   // the Wilson half-width at n is ~ z*sqrt(p(1-p)/n); solve for the gap.
   const hw = z * Math.sqrt(p * (1 - p));
   return Math.ceil((hw / gap) ** 2);

@@ -473,14 +473,24 @@ export class CalibrationGate {
   // ★ F-1 FIX (2026-09-24): created_at rides the SESSION timestamp
   // ★ (this.calibratedAt, fixed at construction per O22.4) — per-row Date.now()
   // ★ makes rows in one session differ and replays diverge.
+  // ★ F-23 FIX (2026-09-24): the loop ran N autocommitted INSERTs — a mid-loop
+  // ★ failure left partial calibration rows for the session. One transaction:
+  // ★ all rows land or none do (ROLLBACK rethrows the original error).
   private writeCalibrationRows(db: DbClient, records: CalibrationRecord[], fixtureVersion: string): void {
     const ins = db.prepare(
       'INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)',
     );
     const runId = `calibration-${fixtureVersion}`;
-    for (const r of records) {
-      ins.run(r.predicateId, 'FIRE', r.fire.fixtureAnchor, r.fire.fired ? 'FIRED' : 'MISS', r.fire.evidence, runId, this.calibratedAt);
-      ins.run(r.predicateId, 'SILENT', r.silent.goldenFixture, r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE', r.silent.evidence, runId, this.calibratedAt);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const r of records) {
+        ins.run(r.predicateId, 'FIRE', r.fire.fixtureAnchor, r.fire.fired ? 'FIRED' : 'MISS', r.fire.evidence, runId, this.calibratedAt);
+        ins.run(r.predicateId, 'SILENT', r.silent.goldenFixture, r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE', r.silent.evidence, runId, this.calibratedAt);
+      }
+      db.exec('COMMIT');
+    } catch (e: unknown) {
+      try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is what the caller sees */ }
+      throw e;
     }
   }
 

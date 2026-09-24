@@ -14,7 +14,9 @@ interface UaGraph {
 }
 
 export function uaProbe(scopeRoot: string): ConsumerProbe {
-  const graphPath = path.join(scopeRoot, ".ua/knowledge-graph.json");
+  // ★ F-29 FIX (2026-09-24): scopeRoot reaches the fs — it must be an absolute path, never a relative traversal.
+  if (!path.isAbsolute(scopeRoot)) throw new Error(`GI_LAYER_UA: scopeRoot must be absolute, got ${JSON.stringify(scopeRoot)}`);
+  const graphPath = path.join(path.resolve(scopeRoot), ".ua/knowledge-graph.json");
   return {
     id: "L3_UA",
     rung: "context",
@@ -22,13 +24,16 @@ export function uaProbe(scopeRoot: string): ConsumerProbe {
     errorCode: "GI_LAYER_UA",
     up: () => probePath(graphPath, true),
     facts: (subject: string): LayerFact[] => {
-      // ★ GATE M-7 FIXED (the H-2 class, swept): a substrate fault THROWS.
-      if (!fs.existsSync(graphPath)) {
-        throw new Error(`GI_LAYER_UA: the knowledge graph is absent at ${graphPath}`);
+      // ★ F-30 FIX (2026-09-24): existsSync-then-read is a TOCTOU pair — read directly, name the failure once.
+      let raw: string;
+      try {
+        raw = fs.readFileSync(graphPath, "utf8");
+      } catch (e) {
+        throw new Error(`GI_LAYER_UA: the knowledge graph is absent/unreadable at ${graphPath} — ${(e as NodeJS.ErrnoException).code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
       }
       let g: UaGraph;
       try {
-        g = JSON.parse(fs.readFileSync(graphPath, "utf8")) as UaGraph;
+        g = JSON.parse(raw) as UaGraph;
       } catch (e) {
         throw new Error(`GI_LAYER_UA: the knowledge graph is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }

@@ -21,8 +21,12 @@ import { probeSocketConnect } from "./_shared.ts";
  *  answers framed reads over `<contentHash(entry)>.sock` and returned 844 INSTANCES
  *  of typed repo knowledge on the first call. The stub is replaced with the real read. */
 export function auEngineRead(repoRoot: string, read: string, subject: string): unknown {
-  const script = path.join(repoRoot, "scripts/au-read.ts");
-  if (!fs.existsSync(script)) throw new Error(`GI_LAYER_ARSUMBRIS: the reader is absent at ${script}`);
+  // ★ F-24 FIX (2026-09-24): repoRoot/read reach a child-process path+argv — absolute-root + charset gate, never raw.
+  if (!path.isAbsolute(repoRoot)) throw new Error(`GI_LAYER_ARSUMBRIS: repoRoot must be absolute, got ${JSON.stringify(repoRoot)}`);
+  if (!/^[A-Za-z0-9_-]+$/.test(read)) throw new Error(`GI_LAYER_ARSUMBRIS: refusing unknown engine read ${JSON.stringify(read)}`);
+  const repoCanon = path.resolve(repoRoot);
+  const script = path.join(repoCanon, "scripts/au-read.ts");
+  if (!path.resolve(script).startsWith(repoCanon + path.sep)) throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root — refusing`);
   let out: string;
   try {
     out = execFileSync(process.execPath, ["run", script, read, subject], {
@@ -74,7 +78,15 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
       const instances = res.reply?.result?.instances ?? [];
       const hits = subject.length === 0
         ? instances
-        : instances.filter((i) => JSON.stringify(i).includes(subject));
+        : instances.filter((i) => {
+            // ★ F-25 FIX (2026-09-24): whole-JSON substring matched keys/unrelated values — match the semantic fields only.
+            const claim = Array.isArray(i["claim"]) ? (i["claim"] as unknown[]).map(String).join("\n") : "";
+            const closureRaw = i["closure"];
+            const closure = typeof closureRaw === "string" ? closureRaw : JSON.stringify(closureRaw ?? "");
+            const shapeRaw = i["effective_shape"];
+            const shape = typeof shapeRaw === "string" ? shapeRaw : JSON.stringify(shapeRaw ?? "");
+            return claim.includes(subject) || closure.includes(subject) || shape.includes(subject);
+          });
       return hits.slice(0, 50).map((i) => {
         const claim = Array.isArray(i["claim"]) ? (i["claim"] as unknown[]).map(String) : [];
         return {

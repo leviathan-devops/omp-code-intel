@@ -96,27 +96,38 @@ export interface AppendFindingsResult {
  * remaining counts (landed=i, remaining=N-i of N) — the caller sees exactly
  * how far the batch got, never a swallowed row.
  */
-export function appendFindings(
-  db: DbClient,
-  findings: NormalizedFinding[],
-  runId: string,
-  week?: string | null,
-): AppendFindingsResult {
-  // ★ F-5 FIX (2026-09-24): same empty-runId fail-loud as append() above.
-  if (typeof runId !== 'string' || runId.trim() === '') {
-    throw findingNoTriplet(`refusing appendFindings of ${findings.length} findings with an empty runId — the run scope is mandatory (K21.2 determinism)`);
-  }
-  for (let i = 0; i < findings.length; i++) {
-    const f = findings[i];
-    if (typeof f.evidence !== 'string' || f.evidence.trim() === '') {
-      throw findingNoTriplet(
-        `finding ${f.ruleId} at ${f.file}:${f.line} carries an empty evidence string (landed=${i} remaining=${findings.length - i} of ${findings.length})`,
-      );
+  // ★ F-26 FIX (2026-09-24): the loop ran N autocommitted appends — a
+  // ★ FINDING_NO_TRIPLET at index i left rows 0..i-1 landed with no atomicity.
+  // ★ One transaction: all rows land or none do (the landed/remaining counts in
+  // ★ the error name the batch position, the DB no longer keeps the prefix).
+  export function appendFindings(
+    db: DbClient,
+    findings: NormalizedFinding[],
+    runId: string,
+    week?: string | null,
+  ): AppendFindingsResult {
+    // ★ F-5 FIX (2026-09-24): same empty-runId fail-loud as append() above.
+    if (typeof runId !== 'string' || runId.trim() === '') {
+      throw findingNoTriplet(`refusing appendFindings of ${findings.length} findings with an empty runId — the run scope is mandatory (K21.2 determinism)`);
     }
-    db.appendFinding(toFindingInput(f), runId, week);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      for (let i = 0; i < findings.length; i++) {
+        const f = findings[i];
+        if (typeof f.evidence !== 'string' || f.evidence.trim() === '') {
+          throw findingNoTriplet(
+            `finding ${f.ruleId} at ${f.file}:${f.line} carries an empty evidence string (landed=${i} remaining=${findings.length - i} of ${findings.length})`,
+          );
+        }
+        db.appendFinding(toFindingInput(f), runId, week);
+      }
+      db.exec('COMMIT');
+    } catch (e: unknown) {
+      try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is what the caller sees */ }
+      throw e;
+    }
+    return { runId, week: week ?? null, appended: findings.length };
   }
-  return { runId, week: week ?? null, appended: findings.length };
-}
 
 // ---------------------------------------------------------------------------
 // THE READ SURFACE — the ledger queries

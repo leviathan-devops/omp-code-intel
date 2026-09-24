@@ -103,15 +103,26 @@ export class GraphifyClientReader {
   }
 
   async disconnect(): Promise<void> {
-    if (this.transport) {
-      try {
-        await this.transport.close();
-      } catch (e) {
-        console.error("[client-reader] transport close failed (releasing reference anyway):", e instanceof Error ? e.message : e);
+    // ★ F-139 FIX (2026-09-24): serialize through attachLock — an unsynchronized
+    //   disconnect() racing a concurrent attach() could close the NEWLY-attached
+    //   transport (destroy-a-new-attach). Same chain pattern as attach().
+    const prev = this.attachLock;
+    let release!: () => void;
+    this.attachLock = new Promise<void>((r) => { release = r; });
+    await prev;
+    try {
+      if (this.transport) {
+        try {
+          await this.transport.close();
+        } catch (e) {
+          console.error("[client-reader] transport close failed (releasing reference anyway):", e instanceof Error ? e.message : e);
+        }
+        this.transport = null;
       }
-      this.transport = null;
+      this.graphPath = null;
+    } finally {
+      release();
     }
-    this.graphPath = null;
   }
 
   isConnected(): boolean {

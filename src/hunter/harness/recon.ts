@@ -42,11 +42,10 @@ function countQuotedRules(profile: ProjectProfile): number {
     try {
       text = fs.readFileSync(abs, 'utf8');
     } catch (e: unknown) {
-      // the loader already validated the corpus EXISTS — an unreadable here is
-      // the same failure class the compiler would hit; let the scan actor's
-      // named error surface it (CORPUS_UNREADABLE), never a silent zero here.
-      console.warn(`[recon] corpus file unreadable at ${abs}: ${e instanceof Error ? e.message : String(e)}`);
-      continue;
+      // ★ F-39 FIX (2026-09-24): the old warn+continue undercounted batteryCount
+      //   against the "never a silent zero" contract — an unreadable corpus file is
+      //   the CORPUS_UNREADABLE named error (the micro-loop routes it INCONCLUSIVE).
+      throw new Error(`CORPUS_UNREADABLE: path=${abs} detail=${e instanceof Error ? e.message : String(e)} (a corpus path that cannot be read is a loud named error, never a silent skip)`);
     }
     for (const line of text.split('\n')) {
       if (QUOTE_MARKER_RE.test(line)) count += 1;

@@ -156,12 +156,10 @@ export class QueryEngine {
       }
       const row = this.db.prepare(sql).get(...(params as SQLQueryBindings[])) as Record<string, unknown> | null | undefined;
       if (!row) return [];
-      const pathStr = (this.db.prepare(`WITH RECURSIVE search(src,dst,predicate,evidence_quote,confidence,created_run,superseded_run,depth,path) AS (
-          SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run, 1, src_canonical || '->' || dst_canonical FROM typed_edges WHERE src_canonical = ? ${predClause} ${liveClause}
-          UNION ALL
-          SELECT e.src_canonical, e.dst_canonical, e.predicate, e.evidence_quote, e.confidence, e.created_run, e.superseded_run, s.depth+1, s.path || '->' || e.dst_canonical FROM typed_edges e JOIN search s ON e.src_canonical=s.dst WHERE s.depth < ? AND instr(','||s.path||',',','||e.dst_canonical||',')=0 ${predClause.replace('predicate','e.predicate')} ${liveOnly ? 'AND e.superseded_run IS NULL' : ''}
-        ) SELECT path FROM search WHERE dst=? ORDER BY depth ASC LIMIT 1`).get(...(params as SQLQueryBindings[])) as Record<string, unknown> | null | undefined);
-      void pathStr;
+      // ★ F-38 FIX (2026-09-24): the second recursive CTE (pathStr) re-ran the same
+      //   expensive shortest-path search and was voided — pure waste (double recursion
+      //   per path() call). Removed; the first CTE stays as the existence probe, the
+      //   answer rides buildPathEdges below.
       const full = this.buildPathEdges(from.trim(), to.trim(), maxDepth, liveOnly, predicateFilter);
       return full;
     } catch (e: unknown) {

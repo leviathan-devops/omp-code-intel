@@ -126,8 +126,14 @@ export function kevProbe(scopeRoot: string): ConsumerProbe {
         throw new Error(`GI_ENFORCE_KEV: KEV returned a UNIFORM distribution ${JSON.stringify(dist)} — the pointer head found no signal (the all-zero-logit class); refusing to report a verdict`);
       }
       const labels = ans.labels?.[0] ?? [];
-      const best = ans.best?.[0] ?? 0;
-      const verdict = labels[best] ?? "unknown";
+      // ★ F-26 FIX (2026-09-24): the CLI's `best` index was trusted blindly — an out-of-range index mislabels the verdict. Clamp to the argmax.
+      let best = ans.best?.[0] ?? 0;
+      if (!Number.isInteger(best) || best < 0 || best >= dist.length) {
+        let m = 0;
+        for (let k = 1; k < dist.length; k++) if (dist[k]! > dist[m]!) m = k;
+        best = m;
+      }
+      const verdict = best < labels.length ? (labels[best] ?? "unknown") : "unknown";
       return [
         {
           consumer: "TSG" as const,

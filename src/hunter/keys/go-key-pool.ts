@@ -342,8 +342,11 @@ export function redactKeyMaterial(err: string): string {
   // missed non-sk alphabets (opaque/hex/go-prefixed), leaking raw bytes into
   // the world-readable tmp sqlite reason column.
   let out = String(err ?? '');
-  for (const k of GO_KEYS) {
-    if (k && k.length >= 8) out = out.split(k).join('[REDACTED-KEY]');
+  // ★ F-25 FIX (2026-09-24): LONGEST keys FIRST. Replacing a short key that is a SUBSTRING
+  //   of a longer key leaves the longer key's suffix in the clear ('abcdefghijkl' with the
+  //   short 'abcdefgh' replaced → '[REDACTED-KEY]ijkl'). Sorting desc by length closes it.
+  for (const k of [...GO_KEYS].filter((x) => x && x.length >= 8).sort((a, b) => b.length - a.length)) {
+    out = out.split(k).join('[REDACTED-KEY]');
   }
   return out
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-[REDACTED]')

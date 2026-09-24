@@ -38,6 +38,16 @@ export const READ_SCOPE_VIOLATION = "READ_SCOPE_VIOLATION";
 export const MD_FINDING_HEADER = "## FINDING:";
 export const MD_SUMMARY_HEADER = "## SUMMARY";
 export const MD_REQUIRED_FIELDS = ["predicate", "file", "evidence", "spec"] as const;
+// ★ F-137 FIX (2026-09-24): report-field sanitizer — the inline `sanitize` in
+//   runTemplateAudit stripped CR/LF only; Unicode line separators (U+2028,
+//   U+2029) and vertical tab / form feed (U+000B/U+000C) survive as line breaks
+//   in markdown parsers. Hoisted here so the brief writer can use it too.
+export function sanitizeReportField(v: unknown): string {
+  return String(v ?? "")
+    .replace(/[\n\u2028\u2029\u000B\u000C]+/g, " ")
+    .replace(/^##\s*/g, "")
+    .replace(/\s*##\s*/g, " ");
+}
 
 // ── Settlement (fork aether-auditor.ts:18-38) ──
 export interface HunterTelemetry {
@@ -994,7 +1004,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
 
   // Brief (fork :121-127) — input data + graph digest the sweep consumed.
   const brief = [
-    `# HUNT BRIEF — ${layerId}`,
+    `# HUNT BRIEF — ${sanitizeReportField(layerId)}`,
     `- anchorPredicate: ${template.anchorPredicate}`,
     `- layerNumber: ${template.layerNumber}`,
     `- targetRoot: ${targetRoot}`,
@@ -1043,7 +1053,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   // Report via the force-bound tool (fork systemPrompt law: ONLY write_findings produces it).
   // W40 (frozen-scan HIGH): grammar-injection guard — newlines and '## '
   // prefixes in label/evidence/spec fields could forge FINDING blocks.
-  const sanitize = (v: string): string => String(v ?? "").replace(/[\r\n]+/g, " ").replace(/^##\s*/g, "").replace(/\s*##\s*/g, " ");
+  const sanitize = (v: string): string => sanitizeReportField(v);
   const blocks = swept.map((c) => [
     `## FINDING: ${sanitize(c.subject)}`,
     `- layer: ${layerId}`,
@@ -1055,7 +1065,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
     `- severity: ${c.severity}`,
     `- confidence: ${c.confidence}`,
   ].join("\n")).join("\n\n");
-  const summary = `${layerId}: ${swept.length} finding(s) — ${swept[0]?.subject ?? "no findings"}. ${sliceNote}.`;
+  const summary = `${sanitizeReportField(layerId)}: ${swept.length} finding(s) — ${sanitize(swept[0]?.subject ?? "no findings")}. ${sliceNote}.`;
   const report = `${blocks}\n\n## SUMMARY\n${summary}\n`;
   const writeOut = await belt.writeFindings.invoke({ content: report });
   calls.count += 1;

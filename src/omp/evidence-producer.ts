@@ -72,6 +72,10 @@ export interface Permit {
 const VERIFY_COMMAND = /\b(bun|npm|pnpm|yarn)\s+(test|run\s+test)\b|\btsc\b|\bpytest\b|\bcargo\s+test\b|\bgo\s+test\b/;
 
 /** Does this event touch the fire's subject? */
+// ★ F-33 FIX (2026-09-24): LIKE metacharacters (%, _) in a target widened the match — escape them, with an explicit ESCAPE clause at the query.
+function escapeLike(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
 function touches(event: ToolEvent, subject: Subject): boolean {
   if (event.target === undefined) return subject.tool === event.tool;
   // exact match, or the event names a path/symbol the subject contains (a fire names a file,
@@ -180,9 +184,9 @@ export function laterEditFromGraph(
     //   parsed yields NO record rather than a guessed one.
     const rows = db
       .query(`SELECT file, created_run, superseded_run FROM typed_nodes
-              WHERE layer_id = 'structural' AND (file LIKE ?1 OR label LIKE ?2)
+              WHERE layer_id = 'structural' AND (file LIKE ?1 ESCAPE '\\' OR label LIKE ?2 ESCAPE '\\')
               ORDER BY id DESC LIMIT 50`)
-      .all(`%${subject.target}%`, `%${subject.target}%`) as { file: string; created_run: string; superseded_run: string | null }[];
+      .all(`%${escapeLike(subject.target)}%`, `%${escapeLike(subject.target)}%`) as { file: string; created_run: string; superseded_run: string | null }[];
     for (const r of rows) {
       if (r.superseded_run !== null) continue;                 // only LIVE declarations
       const m = /^structural-([0-9a-f]+)$/.exec(r.created_run);

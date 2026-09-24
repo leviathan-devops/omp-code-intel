@@ -1,6 +1,6 @@
 // PORTED FROM fork-v143 live-tree/graph-intelligence/ (extraction chain / query-engine) — verbatim; SEAM: import path rewrites to ported siblings.
 import type { TypedTriple } from './mechanical.ts';
-import type { Predicate } from '../shared/ontology.ts';
+import { PREDICATE_SET, type Predicate } from '../shared/ontology.ts';
 
 export interface MergedTriple extends TypedTriple {
   source: 'mechanical' | 'semantic' | 'both';
@@ -79,6 +79,9 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
     if (typeof t.subject !== 'string' || t.subject.trim().length === 0) throw new MergeError(`MERGE_FAILED: triple missing subject: ${JSON.stringify(t).slice(0, 200)}`);
     if (typeof t.object !== 'string' || t.object.trim().length === 0) throw new MergeError(`MERGE_FAILED: triple missing object: ${JSON.stringify(t).slice(0, 200)}`);
     if (typeof t.predicate !== 'string' || t.predicate.trim().length === 0) throw new MergeError(`MERGE_FAILED: triple missing predicate: ${JSON.stringify(t).slice(0, 200)}`);
+    // ★ F-28 FIX (2026-09-24): validate the predicate against the PREDICATE_SET canon — the
+    //   old string check let an ARBITRARY predicate through to the typed store.
+    if (!PREDICATE_SET.has(t.predicate)) throw new MergeError(`MERGE_FAILED: unknown predicate '${t.predicate}' (the canon: ${[...PREDICATE_SET].join('|')})`);
     if (typeof t.evidence !== 'string' || t.evidence.trim().length === 0) throw new MergeError(`MERGE_FAILED: triple missing evidence (MC-B-02): ${JSON.stringify(t).slice(0, 200)}`);
   }
 

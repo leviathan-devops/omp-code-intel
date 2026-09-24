@@ -333,7 +333,12 @@ export function scopeBuildToProfile(
   // unresolvable mid-pass aborted the whole filter on containedRel's named
   // throw. Fail-closed stays: unresolvable base = zero rows, full drop.
   let rootCanon: string | null = null;
-  try { rootCanon = fs.realpathSync(root); } catch { rootCanon = null; }
+  try { rootCanon = fs.realpathSync(root); } catch (e: unknown) {
+    // ★ F-27 FIX (2026-09-24): the fail-closed DROP stays (W44) but is now NAMED — the old
+    //   silent return masked WHY every row vanished (an unresolvable root reads as "empty graph").
+    console.warn(`[graphify-adapter] scope root unresolvable (fail-closed, ${nodes.length} rows dropped): ${e instanceof Error ? e.message : String(e)}`);
+    rootCanon = null;
+  }
   if (rootCanon === null) {
     return { nodes: [], edges: [], dropped: nodes.length };
   }

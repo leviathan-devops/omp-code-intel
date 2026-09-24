@@ -164,10 +164,13 @@ function compareOperator(op: 'lt' | 'lte' | 'gt' | 'gte', value: number, thresho
  *  loud error, never a silent cast — the check claims only validated input. */
 function bindSeverity(bindings: Record<string, unknown>): Severity {
   const sev = bindings['severity'];
-  if (typeof sev === 'string') {
+  // ★ F-26 FIX (2026-09-24): validate against the SEVERITIES canon — the old cast accepted
+  //   ANY string ('HIGH ' with a trailing space, 'CRITICAL'), which the strict Severity
+  //   union forbids and which a downstream severity-weight lookup would silently mis-rank.
+  if (typeof sev === 'string' && (SEVERITIES as readonly string[]).includes(sev)) {
     return sev as Severity;
   }
-  throw templateBindingInvalid('severity', 'the severity binding must be a string');
+  throw templateBindingInvalid('severity', `the severity binding must be one of ${SEVERITIES.join('|')}`);
 }
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — a string[] binding (default []). */

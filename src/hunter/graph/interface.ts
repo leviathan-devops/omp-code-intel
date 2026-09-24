@@ -199,9 +199,13 @@ export class FamilyRootDriftError extends GraphError {
 /** FAMILY_PROMOTION_PENDING — new file promotion to the core awaits the operator gate (never automatic). */
 export class FamilyPromotionPendingError extends GraphError {
   readonly hash: string;
+  // ★ F-24 FIX (2026-09-24): `detail` is STORED (every sibling error class exposes its
+  //   fields; a caller catching this could not read the detail before).
+  readonly detail: string;
   constructor(hash: string, detail: string) {
     super('FAMILY_PROMOTION_PENDING', `FAMILY_PROMOTION_PENDING: hash=${hash} detail=${detail} (a new file awaits the operator gate — never auto-promoted)`);
     this.hash = hash;
+    this.detail = detail;
   }
 }
 

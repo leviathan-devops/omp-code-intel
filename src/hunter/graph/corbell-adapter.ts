@@ -358,7 +358,9 @@ export class CorbellAdapter implements GraphAdapter {
     }
     const t0 = Date.now();
     let stdout: string;
-    var warmIndexSkipped = false;
+    // ★ F-23 FIX (2026-09-24): `let`, not `var` (the project rule — var's function scope is a
+    //   hoisting-bug class; the binding is block-scoped here).
+    let warmIndexSkipped = false;
     // THE WARM-INDEX SKIP (HT-BUG-16 — the orphan-spiral fix): `graph build`
     // is a MINUTES-long synchronous scan; inside a tool call the platform's
     // own timeout kills the shell while the python grandchild lives on as an

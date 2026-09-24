@@ -81,7 +81,15 @@ export async function generateLocalReport(input: ReportWriterInput): Promise<Rep
     sections = sections.filter((s) => keep.has(s.finding_id));
     findings = findings.slice(0, MAX_REPORT_FINDINGS);
   }
-  const result = await writeReportDirect({ ...input, findings, sections });
+  // ★ F-34 FIX (2026-09-24): the writer throw (disk full/perm/missing dir) was an
+  //   uncontextualized propagation — wrap with the named REPORT_WRITE_FAILED token
+  //   naming the run so the caller can attribute the failure.
+  let result: ReportWriterResult;
+  try {
+    result = await writeReportDirect({ ...input, findings, sections });
+  } catch (e: unknown) {
+    throw new Error(`REPORT_WRITE_FAILED: runId=${input.runId} detail=${e instanceof Error ? e.message : String(e)} (the N-versioned write failed — disk full, permission, or missing MASTER_CONTEXT)`);
+  }
   try {
     const raw = fs.readFileSync(result.reportPath, "utf-8");
     const stripped = stripBeforeSeal(raw);

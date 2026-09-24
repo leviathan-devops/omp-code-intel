@@ -180,7 +180,16 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
     lines.push('');
   }
   const document = lines.join('\n');
-  fs.writeFileSync(reportPath, document, 'utf-8');
+  // ★ F-37 FIX (2026-09-24): exclusive create — a concurrent report that already
+  //   landed this version no longer gets silently overwritten; the collision is a
+  //   loud named error (hunts ride the hunt-lock, so this is pathological-only).
+  try {
+    fs.writeFileSync(reportPath, document, { encoding: 'utf-8', flag: 'wx' });
+  } catch (e: unknown) {
+    const code = (e !== null && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : '';
+    if (code === 'EEXIST') throw new Error(`REPORT_VERSION_COLLISION: path=${reportPath} (another report landed v${version} concurrently — re-run the report actor)`);
+    throw new Error(`REPORT_WRITE_FAILED: path=${reportPath} detail=${e instanceof Error ? e.message : String(e)}`);
+  }
   const bytes = Buffer.byteLength(document, 'utf-8');
   return {
     reportPath,
@@ -200,15 +209,14 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
  *  before, never blocking the return). */
 export async function report(input: ReportActorInput): Promise<ReportResult> {
   try {
-    // 1. THE REPORT_SECTIONS ROWS (the 6-part contract) — one row per finding,
-    //    the empty set for the honest-zero run (a clean project still reports).
+    // 1. THE REPORT_SECTIONS ROWS (built in-memory here; the DB commit rides step
+    //    3, AFTER the writer file landed — ★ F-36 FIX 2026-09-24: committing here
+    //    left sections without an event when the writer/appendEvent threw).
+    //    The empty set for the honest-zero run (a clean project still reports).
     const sections: ReportSectionInput[] = [];
     for (const f of input.findings) {
       const trace = input.traces.find((t) => t.findingId === findingIdOf(f));
       sections.push(sectionFromFinding(f, trace));
-    }
-    for (const s of sections) {
-      appendReportSection(input.db, s, input.runId);
     }
 
     // 2. THE WRITER CALL (direct file writer — the W8 network generation is a
@@ -246,6 +254,13 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
       }
     } catch (stripErr: unknown) {
       console.warn('[report] thinking-strip failed (non-fatal):', stripErr instanceof Error ? stripErr.message : String(stripErr));
+    }
+
+    // ★ F-36 FIX (2026-09-24): the section rows commit only after the writer file
+    //   landed — a writer failure now leaves zero DB writes (clean), and a later DB
+    //   failure leaves at most an unpointed N-versioned file (benign, never overwrite).
+    for (const s of sections) {
+      appendReportSection(input.db, s, input.runId);
     }
 
     // 3. THE HUNT_DONE EVENT (the Hydra bus, spec §4.11:1692-1697 + §2.8:381 —
