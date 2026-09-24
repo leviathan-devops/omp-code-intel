@@ -118,6 +118,16 @@ export function graphFromManifest(nodes: FixtureNodeManifest[]): GraphAdapter {
   function asFixture<T extends object>(raw: string, label: string): T {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed !== undefined && parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      // ★ F-306 FIX (2026-09-24): the guard accepted ANY non-array object as T — a manifest
+      // ★ with graph.nodes missing/non-array reached graphFromManifest().map and died with a bare
+      // ★ TypeError. The loader's expectation (graph.nodes is FixtureNodeManifest[]) is enforced
+      // ★ here with the loud CALIBRATION_FIXTURE_INVALID naming the offending label.
+      const g = (parsed as { graph?: unknown }).graph;
+      if (g !== undefined) {
+        if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {
+          throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);
+        }
+      }
       return parsed as T;
     }
     throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} parsed to a non-object`);

@@ -16,7 +16,18 @@ interface SemanticaKg {
 export function semanticaProbe(scopeRoot: string): ConsumerProbe {
   // ★ F-27 FIX (2026-09-24): scopeRoot reaches the fs — canonical absolute form only (`..` segments would let `/allowed/../../etc` escape the intended tree; path.join normalizes them away silently).
   if (!path.isAbsolute(scopeRoot) || scopeRoot.split(path.sep).includes("..")) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
-  const kgPath = path.join(path.resolve(scopeRoot), ".omp/graph-intelligence/layers/semantica/kg.json");
+  // ★ F-356 FIX (2026-09-24): symlink escape — `..` rejection stops lexical traversal
+  //   but a symlinked ancestor inside scopeRoot resolves outside the tree and sails
+  //   through path.join silently. Canonicalize through the live filesystem; when the
+  //   path does not exist yet realpathSync throws and the unresolved form stands
+  //   (the probe reports DOWN, never throws at construction).
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
+  } catch {
+    resolvedRoot = path.resolve(scopeRoot);
+  }
+  const kgPath = path.join(resolvedRoot, ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",
     rung: "decision",

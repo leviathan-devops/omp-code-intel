@@ -182,7 +182,10 @@ export function queryFindings(
     // dedupes within a run at the write; two runs reporting the same violation
     // at the same place are DIFFERENT ledger events (distinct runIds +
     // evidence) and are never collapsed here.
-    const key = `${String(row['run_id'])}|${ruleId}|${file}|${line}`;
+    // ★ F-305 FIX (2026-09-24): the '|' join collides — a ruleId/file containing '|'
+    // ★ merges distinct rows (false dedupe drops a real finding). JSON-tuple encoding is
+    // ★ injective over (runId, ruleId, file, line); engine.ts dedupe fixed identically (F-281).
+    const key = JSON.stringify([String(row['run_id']), ruleId, file, line]);
     if (seen.has(key)) continue; // the within-run duplicate (ruleId+file+line) — the first ledger row wins
     seen.add(key);
     out.push({

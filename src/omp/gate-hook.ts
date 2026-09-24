@@ -16,6 +16,13 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
+/** ★ F-309 FIX (2026-09-24): rule/id text carrying regex metacharacters (., *, +, ?, [, ], (, ),
+ *  {, }, ^, $, |, \\) built into `new RegExp(...)` would mis-match or throw. Escape before
+ *  interpolating so a literal name matches literally. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function filePathOf(input: Record<string, unknown>): string {
   return str(input.file_path) || str(input.filePath) || str(input.path);
 }
@@ -47,9 +54,9 @@ function reconstruct(toolName: string, input: Record<string, unknown>): { oldTex
     newText = oldText;
     for (const full of names) {
       const n = full.replace(/export\s+(?:async\s+)?function\s+/, "");
-      const stripped = new RegExp(String.raw`function\s+` + n);
-      if (stripped.test(dsl) && !new RegExp(String.raw`export\s+(?:async\s+)?function\s+` + n).test(dsl)) {
-        newText = newText.replace(new RegExp(String.raw`export\s+(async\s+)?function\s+` + n), "function " + n);
+      const stripped = new RegExp(String.raw`function\s+` + escapeRegExp(n));
+      if (stripped.test(dsl) && !new RegExp(String.raw`export\s+(?:async\s+)?function\s+` + escapeRegExp(n)).test(dsl)) {
+        newText = newText.replace(new RegExp(String.raw`export\s+(async\s+)?function\s+` + escapeRegExp(n)), "function " + n);
       }
     }
   }

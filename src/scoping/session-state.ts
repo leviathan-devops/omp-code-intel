@@ -48,10 +48,23 @@ export function readSessionState(statePath: string): SessionStateMap {
   }
 }
 
-export function writeSessionState(statePath: string, state: SessionStateMap): void {
+/** THE RAW ATOMIC WRITE (lock-free core): tmp+rename so a concurrent reader
+ *  never sees torn JSON. Call ONLY from inside withStateLock (tickSessionBudget)
+ *  or via writeSessionState (the lock-holding entry below). */
+function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
   const tmp = statePath + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
   fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
+}
+
+/** ★ F-287 FIX (2026-09-24): the exported write is the lock-holding entry — a
+ *  direct writeSessionState call used to bypass withStateLock, so a concurrent tick
+ *  could interleave its read-modify-write around ours (lost tick / clobbered latch).
+ *  Every write now serializes on the state lock; tickSessionBudget calls the raw core
+ *  inside the lock it already holds (no re-entrant self-deadlock; withStateLock is
+ *  hoisted so the forward reference typechecks). */
+export function writeSessionState(statePath: string, state: SessionStateMap): void {
+  withStateLock(statePath, () => { writeSessionStateRaw(statePath, state); });
 }
 
 /** ★ F-130 FIX (2026-09-24): the read-modify-write lock. tickSessionBudget reads the
@@ -105,18 +118,18 @@ export function tickSessionBudget(
     const entry = state[key];
     if (!entry) {
       state[key] = { plannedAt: new Date().toISOString(), planNote, wavesGenerated: 1, planMtimeMs };
-      writeSessionState(statePath, state);
+      writeSessionStateRaw(statePath, state);
       return 1;
     }
     if (entry.planMtimeMs !== planMtimeMs) {
       // THE MTIME LATCH: the plan changed → a fresh budget (the reset law).
       state[key] = { ...entry, plannedAt: new Date().toISOString(), planNote: planNote ?? entry.planNote, wavesGenerated: 1, planMtimeMs };
-      writeSessionState(statePath, state);
+      writeSessionStateRaw(statePath, state);
       return 1;
     }
     const n = (entry.wavesGenerated ?? 0) + 1;
     state[key] = { ...entry, wavesGenerated: n, planNote: planNote ?? entry.planNote };
-    writeSessionState(statePath, state);
+    writeSessionStateRaw(statePath, state);
     return n;
   });
 }

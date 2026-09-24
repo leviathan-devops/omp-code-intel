@@ -94,6 +94,39 @@ export function closeStoreDb(): void {
   }
 }
 
+/** ★ F-288 FIX (2026-09-24): the in-flight open guard. getStoreDb is a
+ *  check-then-act singleton (check health/path -> close -> reopen); two async callers
+ *  interleaved across an await (the sleeps in runWithRetry / withImmediateTx) could both
+ *  observe a sick/null handle and open TWICE, orphaning one handle (a leaked fd + WAL
+ *  lock contention). Concurrent callers now share ONE pending open: the first sets
+ *  storeOpenInFlight synchronously, the rest await it. Async callers (runWithRetry,
+ *  withImmediateTx) enter through here; sync upsertRow keeps getStoreDb (the open itself
+ *  is synchronous — the guard covers the await-interleave window). */
+let storeOpenInFlight: Promise<Database> | null = null;
+export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Database> {
+  if (!opts && storeDb) {
+    try {
+      storeDb.query('SELECT 1').get();
+      return storeDb;
+    } catch (_sick) { /* fall through to the shared open below */ }
+  }
+  if (storeOpenInFlight) return storeOpenInFlight;
+  let resolveOpen!: (db: Database) => void;
+  let rejectOpen!: (e: unknown) => void;
+  const gate = new Promise<Database>((res, rej) => { resolveOpen = res; rejectOpen = rej; });
+  storeOpenInFlight = gate;
+  try {
+    const db = getStoreDb(opts);
+    resolveOpen(db);
+    return db;
+  } catch (e) {
+    rejectOpen(e);
+    throw e;
+  } finally {
+    storeOpenInFlight = null;
+  }
+}
+
 /** THE ROW-KEYED UPSERT HELPER — the anti-clobber write. Each process upserts
  *  ITS row (the PK); the SQLite locking serializes the writers. NO whole-file
  *  rewrite exists in this module. */
@@ -128,7 +161,7 @@ export async function runWithRetry(sql: string, params: (string | number | null)
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      getStoreDb().run(sql, params as never);
+      (await getStoreDbAsync()).run(sql, params as never);
       return true;
     } catch (e) {
       lastErr = e;
@@ -150,7 +183,7 @@ export async function withImmediateTx<T>(fn: (db: Database) => T, attempts = 3, 
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      const db = getStoreDb();
+      const db = await getStoreDbAsync();
       db.exec('BEGIN IMMEDIATE;');
       try {
         const result = fn(db);

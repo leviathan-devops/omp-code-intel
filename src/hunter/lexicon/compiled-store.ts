@@ -46,6 +46,10 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
   );
+  // ★ F-358 FIX (2026-09-24): finalize the prepared statement — bun:sqlite holds
+  //   a native handle per prepare; a mid-loop/COMMIT throw leaked it. finally runs
+  //   before the outer catch's ROLLBACK; finalize itself is best-effort.
+  try {
   for (const p of battery) {
     const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
     stmt.run(
@@ -62,6 +66,9 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
     );
   }
     db.exec('COMMIT');
+  } finally {
+    try { stmt.finalize(); } catch { /* already finalized or driver-closed — the ROLLBACK below is what matters */ }
+  }
   } catch (e: unknown) {
     db.exec('ROLLBACK');
     throw e;
@@ -77,11 +84,15 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
  */
 export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: string): void {
   db.exec('BEGIN');
+  const del = db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?');
+  // ★ F-358b FIX (2026-09-24): `ins` is declared BEFORE the try — the finally block
+  //   finalizes it, and a `const` inside the try is out of scope there (TS2304 on the
+  //   finally's `ins.finalize()`). Scope it to the function, not the try body.
+  const ins = db.prepare(
+    'INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)',
+  );
   try {
-    db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?').run(corpusHash);
-    const ins = db.prepare(
-      'INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)',
-    );
+    del.run(corpusHash);
     for (const c of cards) {
       ins.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
     }
@@ -89,6 +100,11 @@ export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: stri
   } catch (e: unknown) {
     db.exec('ROLLBACK');
     throw e;
+  } finally {
+    // ★ F-358 FIX (2026-09-24): finalize BOTH statements — same native-handle leak
+    //   as writeBattery (the DELETE was an anonymous one-shot, never finalizable).
+    try { ins.finalize(); } catch { /* best-effort — the ROLLBACK above is what matters */ }
+    try { del.finalize(); } catch { /* best-effort — the ROLLBACK above is what matters */ }
   }
 }
 

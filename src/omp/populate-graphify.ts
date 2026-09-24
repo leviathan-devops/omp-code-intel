@@ -303,7 +303,10 @@ export const computeSourceHashForTest = computeSourceHash;
 export function computeSourceHashWithBudget(root: string, scope: string[], excludes: string[], budgetN: number): string {
   return hashSourceTree(root, scope, excludes, budgetN);
 }
-function minimalGraphifyProfile(root: string): ProjectProfile {
+// ★ F-359 FIX (2026-09-24): EXPORTED — populate.ts's graphify path constructed a bare
+//   `{ project: { root } }` which is missing name/languages/entryPoints/build/test
+//   (TS2739). One profile builder, two callers, so the shape can never drift.
+export function minimalGraphifyProfile(root: string): ProjectProfile {
   const resolved = path.resolve(root);
   const slug = path.basename(resolved).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "target";
   return {

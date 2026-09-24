@@ -184,6 +184,14 @@ class ScopeBindingImpl implements ScopeBinding {
         );
       }
     }
+    // ★ F-357 FIX (2026-09-24): the unbound session was SILENT — a stale/typo-ed id
+    //   sailed through indistinguishable from a bound one in every log. Name it LOUD
+    //   and proceed: the refusal point for unknown sessions is the action's own
+    //   not-found handling, which names the id again at the point of use.
+    //   Silence becomes a named warning; control flow unchanged.
+    console.warn(
+      `[${this.label} SCOPE] unbound session: ${action} with session ${sessionId} — bound to NO known ecosystem (neither ${this.ecosystem} nor any sibling); proceeding to the action's own not-found handling. A typo'd or stale session id surfaces here first.`,
+    );
   }
 
   private siblingsFn?: () => Record<string, RegistrySurface>;

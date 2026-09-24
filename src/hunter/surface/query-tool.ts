@@ -211,12 +211,40 @@ function chain(input: QueryInput, db: DbClient): QueryRow[] {
     'chain target labels',
   );
   const toSet = new Set(toLabels.map((r) => r.label));
+  // ★ F-307 FIX (2026-09-24): the queue carried a full path copy per entry (steps: [...cur.steps, step])
+  // ★ — O(depth) array alloc + copy per edge. Parent pointers store one {parent, step} per node and
+  // ★ materialize the path ONCE at the target. F-29's enqueue-marking is kept verbatim (one queue
+  // ★ entry per node), so the queue bound is unchanged; BFS still finds the shortest path first.
   const visited = new Set<string>();
-  const queue: Array<{ id: string; steps: QueryRow[] }> = startIds.map((s) => ({ id: s.canonical_id, steps: [] }));
-  while (queue.length > 0 && queue[0].steps.length < MAX_DEPTH) {
-    const cur = queue.shift()!;
-    if (visited.has(cur.id)) continue;
-    visited.add(cur.id);
+  const parent = new Map<string, { parent: string | null; step: QueryRow | null }>();
+  const depthOf = new Map<string, number>();
+  const queue: string[] = [];
+  for (const st of startIds) {
+    if (visited.has(st.canonical_id)) continue;
+    visited.add(st.canonical_id);
+    parent.set(st.canonical_id, { parent: null, step: null });
+    depthOf.set(st.canonical_id, 0);
+    queue.push(st.canonical_id);
+  }
+  let head = 0;
+  const buildPath = (curId: string, finalStep: QueryRow): QueryRow[] => {
+    const rev: QueryRow[] = [];
+    let c: string | null = curId;
+    while (c !== null) {
+      const ent = parent.get(c);
+      if (!ent || !ent.step) break;
+      rev.push(ent.step);
+      c = ent.parent;
+    }
+    rev.reverse();
+    rev.push(finalStep);
+    return rev;
+  };
+  while (head < queue.length) {
+    const curId = queue[head]!;
+    const curDepth = depthOf.get(curId) ?? 0;
+    head += 1;
+    if (curDepth >= MAX_DEPTH) continue;
     const out = rowsAs<{ dst_id: string; dst_label: string; dst_file: string; dst_line: number; predicate: string }>(
       db.prepare(`
         SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
@@ -224,31 +252,29 @@ function chain(input: QueryInput, db: DbClient): QueryRow[] {
         FROM typed_edges e
         JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
         WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL
-      `).all(cur.id),
+      `).all(curId),
       'chain edges',
     );
     for (const e of out) {
       const step: QueryRow = {
-        from: cur.id, to: e.dst_label, kind: e.predicate,
+        from: curId, to: e.dst_label, kind: e.predicate,
         file: e.dst_file ?? '', line: e.dst_line ?? 0,
       };
       // the target reached: return the path INCLUDING this step — unless the
       // degenerate from===to start (the trivial self-match at depth 0).
-      if (toSet.has(e.dst_label) && !(from === to && cur.steps.length === 0)) {
-        return formatRows([...cur.steps, step], input.format);
+      if (toSet.has(e.dst_label) && !(from === to && curDepth === 0)) {
+        return formatRows(buildPath(curId, step), input.format);
       }
-      // ★ F-29 FIX (2026-09-24): mark visited at ENQUEUE time — the old code only
-      // ★ marked at dequeue, so a high fan-out node re-queued the same dst once per
-      // ★ inbound edge (a path copy per duplicate) before the guard ever fired.
-      // ★ Enqueue-marking bounds the queue to one entry per node; BFS still finds
-      // ★ the shortest path first.
+      // ★ F-29 enqueue-marking, unchanged: one queue entry per node.
       if (visited.has(e.dst_id)) continue;
       visited.add(e.dst_id);
-      queue.push({ id: e.dst_id, steps: [...cur.steps, step] });
+      parent.set(e.dst_id, { parent: curId, step });
+      depthOf.set(e.dst_id, curDepth + 1);
+      queue.push(e.dst_id);
     }
   }
   return formatRows([], input.format); // no path — the honest empty
-}
+};
 
 /** The stage's declared entry symbol — the data.entry JSON field, else the node name. */
 function stageEntry(node: { name: string; data?: string | null }): string {
@@ -442,43 +468,50 @@ function blastRadius(input: QueryInput, db: DbClient): QueryRow[] {
   // through typed_nodes → its file(s) → the SAME depth-capped recursive CTE
   // the graph gate's CHECK 3 uses (the one-truth law: the gate and the query
   // verbs answer from the same substrate with the same walk).
-  const files = rowsAs<{ file: string }>(
-    db.prepare('SELECT DISTINCT file FROM typed_nodes WHERE label = ? AND superseded_run IS NULL AND file IS NOT NULL').all(root),
-    'blast-radius files',
+  // ★ F-308 FIX (2026-09-24): the old walk joined per FILE (CROSS JOIN nodes-by-file x all
+  // ★ edges = O(V*E) fan-out, conflating same-label nodes sharing a file). Ported to the proven
+  // ★ id-walk JOIN shape from src/omp/typed-write.ts:868-887 — the recursion walks CANONICAL IDS
+  // ★ (JOIN typed_edges ON dst_canonical = blast.cid, JOIN src ON canonical_id), collapsing to
+  // ★ per-file rows only in the outer SELECT. Predicate set stays ('calls','imports'): this store's
+  // ★ CHECK-closed vocabulary (ontology.ts) has no 'traces-to' — importing the OMP predicate list
+  // ★ verbatim would match nothing. Single BFS from all root ids gives MIN depth from ANY root id
+  // ★ (the old per-file loop kept the FIRST file's depth on shared files; identical on single-file
+  // ★ symbols, the common case — verified against st-verbs-parse + st-gi-omp-populate blast tests).
+  let ids = rowsAs<{ canonical_id: string }>(
+    db.prepare('SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL').all(root),
+    'blast-radius ids',
+  ).map((r) => r.canonical_id);
+  if (ids.length === 0) return [{ root, depth: 0, nodes: [] }];
+  if (ids.length > 500) ids = ids.slice(0, 500); // SQLite variable cap; same deterministic truncation as typed-write.ts
+  const ph = ids.map(() => '?').join(', ');
+  const cap = Math.min(input.depth ?? DEFAULT_BLAST_DEPTH, MAX_BLAST_DEPTH); // GI-PORT DEV-4 + F-126 cap
+  const rows = rowsAs<{ file: string; depth: number }>(
+    db.prepare(`
+      WITH RECURSIVE blast(cid, depth) AS (
+        SELECT canonical_id, 0 FROM typed_nodes WHERE canonical_id IN (${ph}) AND superseded_run IS NULL
+        UNION
+        SELECT src.canonical_id, blast.depth + 1
+        FROM blast
+        JOIN typed_edges e ON e.dst_canonical = blast.cid
+        JOIN typed_nodes src ON src.canonical_id = e.src_canonical
+        WHERE e.predicate IN ('calls', 'imports')
+          AND e.superseded_run IS NULL
+          AND src.superseded_run IS NULL
+          AND src.file IS NOT NULL
+          AND blast.depth < ?
+      )
+      SELECT n.file AS file, MIN(blast.depth) AS depth
+      FROM blast
+      JOIN typed_nodes n ON n.canonical_id = blast.cid
+      WHERE blast.depth > 0 AND n.file IS NOT NULL
+      GROUP BY n.file
+    `).all(...ids, cap),
+    'blast-radius walk',
   );
-  if (files.length === 0) return [{ root, depth: 0, nodes: [] }];
-  const seen = new Set<string>();
-  const nodes: Array<{ file: string; depth: number }> = [];
-  let maxDepth = 0;
-  for (const f of files) {
-    const rows = rowsAs<{ file: string; depth: number }>(
-      db.prepare(`
-        WITH RECURSIVE blast(file, depth) AS (
-          SELECT ?, 0
-          UNION
-          SELECT src.file, blast.depth + 1
-          FROM blast
-          CROSS JOIN typed_nodes dst ON dst.file = blast.file
-          CROSS JOIN typed_edges e ON e.dst_canonical = dst.canonical_id
-          CROSS JOIN typed_nodes src ON src.canonical_id = e.src_canonical
-          WHERE e.predicate IN ('calls', 'imports')
-            AND e.superseded_run IS NULL
-            AND src.file IS NOT NULL
-            AND blast.depth < ?
-        )
-        SELECT file, MIN(depth) AS depth FROM blast WHERE depth > 0 GROUP BY file
-      `).all(f.file, Math.min(input.depth ?? DEFAULT_BLAST_DEPTH, MAX_BLAST_DEPTH)), // GI-PORT DEV-4 + F-126 cap
-      'blast-radius walk',
-    );
-    for (const r of rows) {
-      if (seen.has(r.file)) continue;
-      seen.add(r.file);
-      nodes.push({ file: r.file, depth: r.depth });
-      if (r.depth > maxDepth) maxDepth = r.depth;
-    }
-  }
+  const nodes = rows.map((r) => ({ file: r.file, depth: Number(r.depth) }));
+  const maxDepth = nodes.reduce((m, n) => (n.depth > m ? n.depth : m), 0);
   return [{ root, depth: maxDepth, nodes }];
-}
+};
 
 function wouldBreak(input: QueryInput, db: DbClient): QueryRow[] {
   const symbol = (input.symbol ?? '').trim();

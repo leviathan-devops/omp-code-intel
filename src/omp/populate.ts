@@ -8,7 +8,7 @@ import * as path from "node:path";
 import { setMeta } from "./typed-write.ts";
 import { populateFromCorbellCheckout } from "./populate-corbell.ts";
 import { GraphifyAdapter, mapGraphifyToTyped } from "../hunter/graph/graphify-adapter.ts";
-import { graphifyOutPath, isGraphifyCheckoutFreshFor, supersedeThenInsert } from "./populate-graphify.ts";
+import { graphifyOutPath, isGraphifyCheckoutFreshFor, supersedeThenInsert, minimalGraphifyProfile } from "./populate-graphify.ts";
 import { openTypedStore } from "./typed-write.ts";
 // ★ F-PO1 (2026-09-24): the single-txn helper — supersede + inserts + meta ride one
 //   BEGIN/COMMIT (populate-corbell.ts already rides it; same discipline here).
@@ -38,9 +38,24 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
   if (corbell.ok) {
-    setMeta(storePath, "substrate", "corbell");
-    setMeta(storePath, "corbell_checkout", corbell.checkoutPath);
-    setMeta(storePath, "populated_at", new Date().toISOString());
+    // ★ F-310 FIX (2026-09-24): three setMeta() calls each opened+closed the store (3 handles
+    // ★ per populate, 3x the open/verify/open-close overhead + 3 non-atomic commits). One handle,
+    // ★ one transaction: all three meta rows land atomically or none do.
+    const db = openTypedStore(storePath);
+    try {
+      db.exec("BEGIN IMMEDIATE;");
+      try {
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
+        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
+        db.exec("COMMIT;");
+      } catch (e) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        throw new Error(`GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)})`);
+      }
+    } finally {
+      db.close();
+    }
     console.error(`[gi-omp] populate substrate=corbell checkout=${corbell.checkoutPath} nodes=${corbell.nodes} edges=${corbell.edges}`);
     return {
       filesIndexed: 0,
@@ -80,7 +95,9 @@ function populateGraphifySessionStore(storePath: string, root: string, runTag: s
     console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (build with: bun scripts/graphify-build.ts --target '${root}')`);
     return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason, graphifyGraph: graphPath };
   }
-  const built = new GraphifyAdapter({ project: { root: resolvedRoot } } as never).buildSync(graphPath);
+  // ★ F-359 FIX (2026-09-24): ride the SHARED profile builder — the inline
+  //   `{ project: { root } }` lacked name/languages/entryPoints/build/test (TS2739).
+  const built = new GraphifyAdapter(minimalGraphifyProfile(resolvedRoot)).buildSync(graphPath);
   const { nodeRows, edgeRows } = mapGraphifyToTyped(built.nodes, built.edges, runTag);
   if (nodeRows.length === 0) {
     const reason = "GRAPH_EMPTY:graphify graph produced zero nodes";
