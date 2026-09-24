@@ -98,9 +98,13 @@ export class HydraBus {
         const sig = JSON.stringify(row).slice(0, 160);
         if (!this.poisonLogged.has(sig)) {
           this.poisonLogged.add(sig);
-          console.error(`[hydra-bus] POISON events row (non-numeric id, intake halted past cursor ${this.cursor}): ${sig}`);
+          console.error(`[hydra-bus] POISON events row (non-numeric id, skipped past cursor ${this.cursor}): ${sig}`);
         }
-        break;
+        // F-401 FIX: poison rows SKIP, never HALT — old break stalled intake without covering
+        // the poison id, so WHERE id > ? re-selected it every poll (permanent stall).
+        // continue delivers all clean numerics; non-numeric id stays un-coverable by cursor
+        // (logged ONCE via poisonLogged) but can never block clean intake. Unreachable on real store.
+        continue;
       }
       clean.push(row);
     }

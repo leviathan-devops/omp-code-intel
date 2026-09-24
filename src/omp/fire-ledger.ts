@@ -638,11 +638,20 @@ export function withLedger(gate: FireGate, ledger: FireLedger): FireGate {
     }
     return decision;
   };
+  // ★ F-406 FIX (2026-09-24): ALL bound methods must be cached, not just judge —
+  //   a new .bind() on every get() breaks method identity (gated.close === gated.close)
+  //   which breaks memoisation keys, effect deps, spy assertions, and reference checks.
+  const methodCache = new Map<string | symbol, Function>();
   return new Proxy(original, {
     get(target, prop) {
       if (prop === "judge") return judgeWithPersist;
+      const cached = methodCache.get(prop);
+      if (cached) return cached;
       const v = Reflect.get(target, prop, target);
-      return typeof v === "function" ? v.bind(target) : v;
+      if (typeof v !== "function") return v;
+      const bound = v.bind(target);
+      methodCache.set(prop, bound);
+      return bound;
     },
   }) as FireGate;
 }

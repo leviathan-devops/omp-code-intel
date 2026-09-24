@@ -152,12 +152,20 @@ export async function callWithStallDetection(
     }
     const decoder = new TextDecoder();
     let full = '';
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      lastActivity = Date.now(); // ← THE EVENT: tokens are flowing, reset the timer
-      full += decoder.decode(value, { stream: true });
-      if (dead) break;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        lastActivity = Date.now(); // ← THE EVENT: tokens are flowing, reset the timer
+        full += decoder.decode(value, { stream: true });
+        if (dead) break;
+      }
+    } catch {
+      // ★ F-405 FIX (2026-09-24): reader.read() may throw after abort — fall through
+      //   to finally for deterministic cleanup (the old code leaked the underlying
+      //   TCP/socket connection held by the Response body on abort or exception).
+    } finally {
+      reader.cancel().catch(() => {}); // release the underlying connection
     }
     clearInterval(stallTimer);
 

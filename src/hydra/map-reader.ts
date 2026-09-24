@@ -76,12 +76,41 @@ function parseGraphJson(contents: string, size: number): Record<string, unknown>
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
     throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
   }
+  // ★ F-404 FIX (2026-09-24): heap-expansion guard — a 128MB file with deeply nested
+  //   objects can expand to gigabytes during JSON.parse. The byte budget guards file
+  //   size on disk but not in-memory expansion. A linear pre-scan of nesting depth
+  //   is cheap (single pass over the byte string, no allocation) and catches the
+  //   adversarial expansion class before parse begins.
+  let maxDepth = 0;
+  let depth = 0;
+  for (let i = 0; i < contents.length; i++) {
+    const c = contents.charCodeAt(i);
+    if (c === 0x7B /* { */ || c === 0x5B /* [ */) { depth++; if (depth > maxDepth) maxDepth = depth; }
+    else if (c === 0x7D /* } */ || c === 0x5D /* ] */) depth--;
+  }
+  if (maxDepth > 64) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_DEEP: graph.json nesting depth ${maxDepth} (> 64) — likely adversarial or corrupted payload`);
+  }
   return JSON.parse(contents) as Record<string, unknown>;
 }
 
 export function normalizeGraph(raw: Record<string, unknown>): GraphifyGraph {
   const rawNodes = (raw["nodes"] as unknown[]) ?? [];
-  const rawLinks = ((raw["links"] as unknown[]) ?? (raw["edges"] as unknown[]) ?? []) as Record<string, unknown>[];
+  const rawLinks = ((raw["links"] as unknown[]) ?? (raw["edges"] as unknown[]) ?? []) as unknown[];
+  // ★ F-403 FIX (2026-09-24): validate array elements before property access — non-object
+  //   elements (null, numbers, strings, arrays) silently produce empty-string IDs via
+  //   String(undefined), creating phantom nodes/edges that are hard to trace to graph.json.
+  for (const [i, n] of rawNodes.entries()) {
+    if (n === null || typeof n !== 'object' || Array.isArray(n)) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: nodes[${i}] is not an object — got ${typeof n}`);
+    }
+  }
+  const rawLinksValidated = rawLinks.map((e, i) => {
+    if (e === null || typeof e !== 'object' || Array.isArray(e)) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: edges[${i}] is not an object — got ${typeof e}`);
+    }
+    return e as Record<string, unknown>;
+  });
   const nodes: GraphifyNode[] = rawNodes.map((n) => {
     const r = n as Record<string, unknown>;
     return {
@@ -92,7 +121,7 @@ export function normalizeGraph(raw: Record<string, unknown>): GraphifyGraph {
       data: r as Record<string, unknown>,
     };
   });
-  const edges: GraphifyEdge[] = rawLinks.map((e) => {
+  const edges: GraphifyEdge[] = rawLinksValidated.map((e) => {
     const rawConf = String(e["confidence"] ?? "EXTRACTED");
     return {
       src: String(e["source"] ?? e["src"] ?? ""),
@@ -102,6 +131,7 @@ export function normalizeGraph(raw: Record<string, unknown>): GraphifyGraph {
     };
   });
   const communityMap = new Map<number, string[]>();
+  // rawNodes are already validated as objects above
   for (const n of rawNodes as Record<string, unknown>[]) {
     if (typeof n["community"] === "number") {
       const arr = communityMap.get(n["community"] as number) ?? [];

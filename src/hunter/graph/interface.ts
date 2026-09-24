@@ -48,7 +48,9 @@ export type GraphEdgeKind =
   | 'imports' | 'calls' | 'awaits' | 'wires' | 'traces-to'
   | 'constrains' | 'implements' | 'extends';
 
-export type Substrate = 'corbell' | 'ix' | 'graphify';
+// ★ F-407 FIX (2026-09-24): 'ix' was REMOVED (selectAdapter throws REMOVED) but stayed in the
+// ★ type, so callers compiled against a substrate that can never build — rejected at compile time now.
+export type Substrate = 'corbell' | 'graphify';
 
 /** A graph node. The lineage is MANDATORY; the source is the provenance anchor.
  *  file/line are optional because the SPEC_DERIVED nodes (stage/rule) carry a

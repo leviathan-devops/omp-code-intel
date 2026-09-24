@@ -41,7 +41,8 @@ export const ProjectProfileSchema = z.object({
     test: z.string().min(1),           // the test command
   }),
   graph: z.object({
-    substrate: z.enum(['corbell', 'ix', 'graphify']), // D2/D4 + GI-OMP full-port W1 — the graphify substrate selects GraphifyAdapter (fork hydra graphify.ts/graph-mapper.ts read path); native-ast REMOVED per the operator ruling 2026-09-07: NO FALLBACKS — a profile declaring native-ast fails here with PROFILE_INVALID
+    // ★ F-407 FIX (2026-09-24): 'ix' REMOVED — selectAdapter throws REMOVED, so validation rejects it here (PROFILE_INVALID) instead of failing deep in the build. D2/D4 + GI-OMP full-port W1 — the graphify substrate selects GraphifyAdapter (fork hydra graphify.ts/graph-mapper.ts read path); native-ast REMOVED per the operator ruling 2026-09-07: NO FALLBACKS — a profile declaring native-ast fails here with PROFILE_INVALID
+    substrate: z.enum(['corbell', 'graphify']),
     scope: z.array(z.string()).min(1),                  // the dirs the graph builds (e.g. ['src', 'identity'])
     excludes: z.array(z.string()).default([]),          // e.g. ['node_modules', 'dist', '.trident']
     // THE WARM-INDEX SKIP (HT-BUG-16): rebuild=false → the adapter skips the

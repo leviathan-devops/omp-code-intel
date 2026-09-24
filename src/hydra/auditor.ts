@@ -514,7 +514,13 @@ function sourceLineQuote(targetRoot: string, relFile: string, line: number): str
       const buf = Buffer.alloc(size);
       let total = 0;
       while (total < size) {
-        const n = fs.readSync(fd, total >= 0 ? buf.subarray(total) : buf, 0, size - total, total);
+        // ★ F-402 NOTE (2026-09-24): NOT-A-BUG — reviewer claimed buffer corruption from
+        //   subarray(total),0 but the subarray creates a VIEW starting at total; offset 0
+        //   means 'start writing at the beginning of that view' = buffer position total.
+        //   This is equivalent to the makeCappedReadTool's (fd, buf, total, ...) form.
+        //   The ternary total >= 0 is always true (total starts at 0 and only increases)
+        //   making the dead branch unreachable but harmless — simplified for clarity.
+        const n = fs.readSync(fd, buf, total, size - total, total);
         if (n <= 0) break;
         total += n;
       }

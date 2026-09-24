@@ -102,7 +102,7 @@ function childRows(payload: string, tags: string): { name: string; file: string;
       out.push({
         name: String(a.n ?? "?"),
         file: idx >= 0 ? p.slice(0, idx) : p,
-        line: idx >= 0 ? Number(p.slice(idx + 1)) || 0 : 0,
+        line: idx >= 0 ? safeNum(p.slice(idx + 1), 0) : 0,
       });
     }
   }
@@ -123,6 +123,14 @@ function jsonOf(stdout: string): Record<string, unknown> | null {
   try { return JSON.parse(stdout.slice(i)) as Record<string, unknown>; } catch { return null; }
 }
 
+// ★ F-407 FIX (2026-09-24): NaN-safe numeric parse — the external binary's JSON output
+//   may drift (non-numeric string, missing field). Bare Number() returns NaN which silently
+//   propagates into data records and summary strings (e.g. "impact_reaches=NaN").
+function safeNum(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 // ── the consults (one per GI verb that has a ripwire twin) ─────────────────
 
 /** who-calls ↔ --callers=SYM (JSON: {of,defs,count,callers:[{t,n,p}]}) */
@@ -138,7 +146,7 @@ export function ripwireCallers(root: string, symbol: string, opts?: { timeoutMs?
     const idx = p.lastIndexOf(":");
     return { name: String(r.n ?? "?"), file: idx >= 0 ? p.slice(0, idx) : p, line: idx >= 0 ? Number(p.slice(idx + 1)) || 0 : 0 };
   });
-  const count = Number(j.count ?? callers.length);
+  const count = safeNum(j.count, callers.length);
   return {
     present: true, ok: true,
     summary: `${count} callers${callers.length > 0 ? ` (e.g. ${callers.slice(0, 3).map((c) => `${c.name} ${c.file}:${c.line}`).join(", ")})` : ""}`,
@@ -153,7 +161,7 @@ export function ripwireImpact(root: string, symbol: string, opts?: { timeoutMs?:
   if (run.execError) return failLeg(run, `exec error: ${run.execError}`);
   const j = jsonOf(run.stdout);
   if (!j) return failLeg(run, run.stderr.trim() || `no JSON (exit ${String(run.status)})`);
-  const reaches = Number(j.reaches ?? 0);
+  const reaches = safeNum(j.reaches, 0);
   return {
     present: true, ok: true,
     summary: `impact_reaches=${reaches} radius_untested=${String(j.radius_untested ?? "?")}`,
@@ -173,7 +181,7 @@ export function ripwireEditCheck(root: string, symbol: string, opts?: { timeoutM
   return {
     present: true, ok: true,
     summary: `edit-check status=${a.status ?? "?"} callers=${a.callers ?? "?"} incompatible=${a.incompatible ?? "?"}${callers.length > 0 ? ` (e.g. ${callers.slice(0, 3).map((c) => `${c.name} ${c.file}:${c.line}`).join(", ")})` : ""}`,
-    data: { status: a.status, callers: Number(a.callers ?? 0), incompatible: Number(a.incompatible ?? 0), rows: callers },
+    data: { status: a.status, callers: safeNum(a.callers, 0), incompatible: safeNum(a.incompatible, 0), rows: callers },
   };
 }
 
