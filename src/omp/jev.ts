@@ -82,12 +82,21 @@ export class JevJudge implements Judge {
         criteria: { true: q.whenTrue, false: q.whenFalse },
       };
     }
-    const res = await fetch(this.opts.url ?? TYPESAFE_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: TYPESAFE_MODEL, state, questions: apiQuestions }),
-      signal: AbortSignal.timeout(this.opts.timeoutMs ?? 8000),
-    });
+    // ★ F-JV1 FIX (2026-09-24): a network-level failure (DNS, refused, TLS, gate timeout)
+    //   threw a RAW TypeError/DOMException past callers that contract on JevError —
+    //   notably the E2 fail-CLOSED path, which keys its refusal on the error code.
+    //   Named, never raw.
+    let res: Response;
+    try {
+      res = await fetch(this.opts.url ?? TYPESAFE_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: TYPESAFE_MODEL, state, questions: apiQuestions }),
+        signal: AbortSignal.timeout(this.opts.timeoutMs ?? 8000),
+      });
+    } catch (e) {
+      throw new JevError("GI_JEV_NETWORK", `network failure reaching ${this.opts.url ?? TYPESAFE_URL}: ${e instanceof Error ? e.message : String(e)}`);
+    }
     if (res.status === 401) throw new JevError("GI_JEV_AUTH", "401 unauthorized", 401);
     if (res.status === 429) throw new JevError("GI_JEV_RATE_LIMIT", "429 rate limited", 429);
     if (!res.ok) {

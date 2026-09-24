@@ -26,8 +26,11 @@ import { kevProbe, resolveKevCli, resolveKevRuntime } from "./adapters/kev.ts";
 import { abideProbe } from "./adapters/abide.ts";
 
 /** ★ THE 8. The consumer set is CLOSED and named here — the registry cannot be
- *  built with a subset without this list changing. */
-export const SIX_L2E_CONSUMERS: readonly ConsumerId[] = [
+ *  built with a subset without this list changing.
+ *  ★ F-LC1 FIX (2026-09-24): the old name claimed 6 but the set holds 8 (6 layers +
+ *  TSG + ABIDE). L2E_CONSUMERS is the accurate canonical name; SIX_L2E_CONSUMERS
+ *  remains as a deprecated alias (extension.ts + tests import it, outside this slice). */
+export const L2E_CONSUMERS: readonly ConsumerId[] = [
   "L1_SEMANTICA",
   "L2_ARSUMBRIS",
   "L3_UA",
@@ -66,14 +69,16 @@ export function buildRegistry(
     const override = overrides?.[p.id];
     registry.register(override ?? p);
   }
-  // ★ A CLOSED SET: registering anything outside SIX_L2E_CONSUMERS is a wiring bug,
+  // ★ A CLOSED SET: registering anything outside L2E_CONSUMERS is a wiring bug,
   //   not a feature. This assertion is what makes "8 consumers" checkable.
-  const missing = SIX_L2E_CONSUMERS.filter((id) => !registry.consumers().some((c) => c.id === id));
+  const missing = L2E_CONSUMERS.filter((id) => !registry.consumers().some((c) => c.id === id));
   if (missing.length > 0) {
     throw new Error(`GI_REGISTRY_INCOMPLETE: no probe registered for ${missing.join(",")}`);
   }
   return registry;
 }
+/** Deprecated alias of L2E_CONSUMERS — kept so out-of-slice importers keep compiling. */
+export const SIX_L2E_CONSUMERS: readonly ConsumerId[] = L2E_CONSUMERS;
 
 export interface ConsumptionAudit {
   scopeRoot: string;

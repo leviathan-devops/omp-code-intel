@@ -37,6 +37,11 @@ const GRAPHIFY_TOOL_DEFS: GraphifyToolDef[] = [
 export class GraphifyClientReader {
   private transport: GraphifyTransport | null = null;
   private graphPath: string | null = null;
+  // ★ F-1 FIX (2026-09-24): serialize concurrent attach() calls — two attachers
+  //   interleaved at `await disconnect()` both closed the SAME old transport
+  //   (double-close) and the loser overwrote the winner. The chain plus the
+  //   synchronous clear below makes each re-attach atomic per attacher.
+  private attachLock: Promise<void> = Promise.resolve();
 
   /** Attach an operator-owned connected transport for graphPath. Re-attach disconnects first. */
   async attach(graphPath: string, transport: GraphifyTransport): Promise<void> {
@@ -46,27 +51,51 @@ export class GraphifyClientReader {
     if (!transport || typeof transport.callTool !== "function" || typeof transport.close !== "function" || typeof transport.listTools !== "function") {
       throw new Error("GRAPHIFY_TOOLS_INVALID: transport with listTools/callTool/close required");
     }
-    if (this.transport) await this.disconnect();
-    this.transport = transport;
-    this.graphPath = graphPath;
+    const prev = this.attachLock;
+    let release!: () => void;
+    this.attachLock = new Promise<void>((r) => { release = r; });
+    await prev;
+    try {
+      const old = this.transport;
+      this.transport = null;
+      this.graphPath = null;
+      if (old) {
+        try {
+          await old.close();
+        } catch (e) {
+          console.error("[client-reader] transport close failed (releasing reference anyway):", e instanceof Error ? e.message : e);
+        }
+      }
+      this.transport = transport;
+      this.graphPath = graphPath;
+    } finally {
+      release();
+    }
   }
 
   async listTools(): Promise<string[]> {
-    if (!this.transport) throw new Error("GRAPHIFY_NOT_CONNECTED: no transport attached — attach() an operator-side transport first");
+    // ★ F-2 FIX (2026-09-24): capture the reference — a concurrent disconnect()
+    //   may null the field mid-flight; the call proceeds on the captured
+    //   transport instead of throwing a raw TypeError on null.
+    const t = this.transport;
+    if (!t) throw new Error("GRAPHIFY_NOT_CONNECTED: no transport attached — attach() an operator-side transport first");
     try {
-      return await this.transport.listTools();
+      return await t.listTools();
     } catch (err) {
       throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
     }
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-    if (!this.transport) throw new Error("GRAPHIFY_NOT_CONNECTED: no transport attached — attach() an operator-side transport first");
+    // ★ F-2 FIX (2026-09-24): same capture as listTools — the in-flight call
+    //   keeps its transport even if disconnect() lands concurrently.
+    const t = this.transport;
+    if (!t) throw new Error("GRAPHIFY_NOT_CONNECTED: no transport attached — attach() an operator-side transport first");
     if (typeof name !== "string" || name.trim() === "") {
       throw new Error("GRAPHIFY_CALL_INVALID: name must be non-empty string");
     }
     try {
-      return await this.transport.callTool(name, args ?? {});
+      return await t.callTool(name, args ?? {});
     } catch (err) {
       if (String((err as Error).message ?? "").includes("GRAPHIFY_NOT_CONNECTED")) throw err;
       throw new Error(`GRAPHIFY_MCP_CALL_FAILED: ${name} — ${String((err as Error).message ?? err)}`);

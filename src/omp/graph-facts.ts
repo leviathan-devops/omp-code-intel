@@ -162,7 +162,9 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     //     the node is ABSENT                → THE GRAPH DOES NOT KNOW   (no fact at all)
     //   The pin's own rule: "a GENERIC gate preempting a specific one = UNOBSERVED, never
     //   PASS." A rule that fires on absence is a generic gate wearing a specific name.
-    const known = (db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1`).get(LIKE(input.target)) as { n: number }).n;
+    // ★ F-GF2 FIX (2026-09-24): a superseded (dead) node still counted as KNOWN — the
+    //   absence branch never ran for it. Live-only, like every typed_edges read.
+    const known = (db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
     if (known === 0) {
       return [{
         rule: "M-GRAPH-1",
@@ -183,7 +185,9 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
       const producers = inDegree(db, input.target, "calls");
       verdicts.push(producers.n === 0
         ? { rule: "M-GRAPH-1", settles: true, action: "FIRE",
-            reason: `the consumed symbol "${input.target}" has ZERO incoming edges — nothing constructs or calls it`,
+            // ★ F-GF3 FIX (2026-09-24): the reason claimed ZERO incoming edges of ANY kind
+            //   while the check reads only `calls` (deliberate — see table). Name the check.
+            reason: `the consumed symbol "${input.target}" has ZERO incoming ` + "`calls`" + ` edges — nothing constructs or calls it`,
             evidence: `in-degree 0 (calls) · out-degree ${outD}` }
         : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
             reason: `the consumed symbol "${input.target}" has producers`,

@@ -243,29 +243,38 @@ export async function resolveEntities(
     };
   });
   if (db) {
-    for (const d of decisions) {
-      if (d.verdict === 'unrelated' && d.destructive) {
-        try {
-          db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, d.alias, d.verdict, d.reasoning, runId);
-        } catch (e: unknown) {
-          throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} — ${e instanceof Error ? e.message : String(e)}`);
+    // ★ F-4 FIX (2026-09-24): atomic resolutions commit — one BEGIN/COMMIT
+    // around the loop; a mid-loop failure rolls back instead of half-writing.
+    db.exec('BEGIN');
+    try {
+      for (const d of decisions) {
+        if (d.verdict === 'unrelated' && d.destructive) {
+          try {
+            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, d.alias, d.verdict, d.reasoning, runId);
+          } catch (e: unknown) {
+            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} — ${e instanceof Error ? e.message : String(e)}`);
+          }
+          continue;
         }
-        continue;
+        if (d.verdict === 'same') {
+          const target = d.existingCanonical ? d.existingCanonical.canonical_id : d.canonicalId;
+          try {
+            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, target, d.verdict, d.reasoning, runId);
+          } catch (e: unknown) {
+            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} → ${target} — ${e instanceof Error ? e.message : String(e)}`);
+          }
+        } else {
+          try {
+            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, d.canonicalId, d.verdict, d.reasoning, runId);
+          } catch (e: unknown) {
+            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} — ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
       }
-      if (d.verdict === 'same') {
-        const target = d.existingCanonical ? d.existingCanonical.canonical_id : d.canonicalId;
-        try {
-          db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, target, d.verdict, d.reasoning, runId);
-        } catch (e: unknown) {
-          throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} → ${target} — ${e instanceof Error ? e.message : String(e)}`);
-        }
-      } else {
-        try {
-          db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, d.canonicalId, d.verdict, d.reasoning, runId);
-        } catch (e: unknown) {
-          throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} — ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+      db.exec('COMMIT');
+    } catch (e: unknown) {
+      try { db.exec('ROLLBACK'); } catch { /* best-effort: the write error above is the one that matters */ }
+      throw e;
     }
   }
   return decisions;

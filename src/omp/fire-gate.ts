@@ -421,7 +421,9 @@ export class FireGate {
     //   the policy: an explicit per-rule override, else the class seed.
     const policy = this.cfg.policies?.[fire.ruleId] ?? SEED_POLICY[fire.cls] ?? SEED_POLICY["destructive"]!;
     const state = buildState(fire, ctx);
-    const stateHash = crypto.createHash("sha256").update(JSON.stringify(state)).digest("hex").slice(0, 16);
+    // ★ F-FG1a (2026-09-24): reassigned after the graph rung splices below — the hash
+    //   must cover the envelope the model receives, including graph_facts.
+    let stateHash = crypto.createHash("sha256").update(JSON.stringify(state)).digest("hex").slice(0, 16);
 
     // ═══ THE GRAPH-FACT RUNG (P1, 2026-09-22) — THE CHEAPEST RUNG GETS EYES ═══════
     // ★ THE LADDER IS NOW: graph → MPSE → cache → Jev. The graph answers FACTS; a fact is
@@ -459,6 +461,18 @@ export class FireGate {
         (state["context_meta"] as Record<string, unknown>)["graph_facts"] =
           facts.map((v) => `${v.rule}:${v.settles ? v.action : "ESCALATE"}`);
       }
+      // ★ F-FG1 FIX (2026-09-24): the splice mutates the measured envelope — re-measure
+      //   (the PASS-7 fixed point, extended to this rung) and re-hash, so the cache key,
+      //   serializedBytes, estTokens and overTarget describe what the model receives.
+      const metaAfter = state["context_meta"] as Record<string, unknown>;
+      for (let pass = 0; pass < 3; pass++) {
+        const m = Buffer.byteLength(JSON.stringify(state), "utf8");
+        if (metaAfter["serializedBytes"] === m) break;
+        metaAfter["serializedBytes"] = m;
+        metaAfter["estTokens"] = Math.round(m / 4);
+        metaAfter["overTarget"] = m > STATE_BYTE_CAP;
+      }
+      stateHash = crypto.createHash("sha256").update(JSON.stringify(state)).digest("hex").slice(0, 16);
     }
 
     // MPSE — the second deterministic rung; it settles a fire for $0.
@@ -541,7 +555,10 @@ export class FireGate {
       const timedOut = e instanceof FireGateTimeout;
       // ★ EN-075 — A TIMED-OUT CALL IS ABANDONED. Its promise never settles, so nothing else
       //   would ever remove it; and a later same-state fire would inherit the hang.
-      if (timedOut && thisCall !== null) this.abandonInFlight(cacheKey, thisCall);
+      // ★ F-FG2 FIX (2026-09-24): a timed-out SHARER holds the CREATOR's promise (same
+      //   identity), so abandoning evicted a live call and forced a duplicate model call.
+      //   Only the creator abandons; the creator's own ceiling guarantees the entry dies.
+      if (timedOut && thisCall !== null && !sharedCall) this.abandonInFlight(cacheKey, thisCall);
       // ★ AND A FIRE THAT REACHED THE MODEL AND GAVE UP IS STILL A FIRE — its slot was
       //   already reserved at admission; only the economic meter moves here.
       if (!sharedCall) this.modelCalls += 1;

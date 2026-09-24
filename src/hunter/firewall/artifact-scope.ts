@@ -113,18 +113,27 @@ export async function classify(
   // THE SYMLINK-ESCAPE RESOLUTION — the parent's realpath must stay inside the master realpath
   // (when the master dir exists; a non-existent master dir cannot contain a symlink — the
   // normalized containment above is then the only gate, and the CREATE path proceeds).
-  const parentReal = await fs.realpath(path.dirname(targetNorm)).catch((e) => {
-    console.warn(`[artifact-scope] parent realpath failed (the CREATE path): ${e instanceof Error ? e.message : String(e)}`);
-    return null;
-  });
-  if (parentReal !== null) {
-    let masterReal = masterNorm;
-    try {
-      masterReal = await fs.realpath(masterNorm);
-    } catch (e: unknown) {
-      // the master dir does not exist yet — the CREATE path
-      console.warn(`[artifact-scope] master dir realpath failed (the CREATE path): ${e instanceof Error ? e.message : String(e)}`);
-    }
+  // ★ F-9 FIX (2026-09-24): parent-realpath failure FAILS CLOSED (BLOCKED), never
+  // ★ skips the escape check — an unresolvable parent is indistinguishable from a
+  // ★ hostile one at this layer.
+  // ★ F-10 FIX (2026-09-24): compare real-vs-real ONLY. When the master dir does not
+  // ★ exist yet there is no master realpath — the normalized containment above is the
+  // ★ only gate then (symmetric), never a real-vs-normalized comparison (asymmetric).
+  let parentReal: string;
+  try {
+    parentReal = await fs.realpath(path.dirname(targetNorm));
+  } catch (e: unknown) {
+    console.warn(`[artifact-scope] parent realpath failed (fail-closed): ${e instanceof Error ? e.message : String(e)}`);
+    return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+  }
+  let masterReal: string | null = null;
+  try {
+    masterReal = await fs.realpath(masterNorm);
+  } catch (e: unknown) {
+    // the master dir does not exist yet — the CREATE path
+    console.warn(`[artifact-scope] master dir realpath failed (the CREATE path): ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (masterReal !== null) {
     if (parentReal !== masterReal && !parentReal.startsWith(masterReal + path.sep)) {
       return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
     }
@@ -142,7 +151,14 @@ export async function classify(
     // The target EXISTS -> the explicit overwrite is BLOCKED (the N-versioning: v1 exists -> v2 allowed).
     return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
   } catch (e: unknown) {
-    // The target does NOT exist -> the CREATE path — ALLOW_REPORT.
+    // ★ F-8 FIX (2026-09-24): ONLY ENOENT means "does not exist" (the CREATE path).
+    // ★ Any other stat failure (EACCES/EPERM/ELOOP/…) FAILS CLOSED — a permission
+    // ★ error must never become an ALLOW.
+    const code = (e as NodeJS.ErrnoException)?.code;
+    if (code !== 'ENOENT') {
+      console.warn(`[artifact-scope] target stat failed (fail-closed, code=${code ?? 'unknown'}): ${e instanceof Error ? e.message : String(e)}`);
+      return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    }
     console.warn(`[artifact-scope] target stat failed (the CREATE path): ${e instanceof Error ? e.message : String(e)}`);
   }
 

@@ -389,14 +389,19 @@ export function runKernelV2(input: KernelInput): KernelRun {
 
   // STAGE 6 — RECORD. Optional sink; the run is returned regardless so a caller
   // that has no ledger yet still gets an explainable verdict.
-  stages.push({ stage: 6, name: "RECORD", outcome: input.record ? "WRITTEN" : "SKIPPED", detail: input.record ? "enforcement ledger" : "no sink supplied" });
-  if (input.record) {
+  // ★ F-KV2 FIX (2026-09-24): the stage was pushed WRITTEN *before* the sink ran, so a
+  //   throwing sink left TWO stage-6 entries (WRITTEN + FAILED) contradicting each other.
+  //   Exactly one RECORD entry is pushed — the outcome AFTER the sink settles.
+  if (!input.record) {
+    stages.push({ stage: 6, name: "RECORD", outcome: "SKIPPED", detail: "no sink supplied" });
+  } else {
     try {
       input.record(run);
+      stages.push({ stage: 6, name: "RECORD", outcome: "WRITTEN", detail: "enforcement ledger" });
     } catch (e) {
       // The RECORD stage failing must not silently drop the verdict — it is
       // reported on the run itself (T-6: a silent catch is the dangerous class).
-      run.stages.push({ stage: 6, name: "RECORD", outcome: "FAILED", detail: e instanceof Error ? e.message : String(e) });
+      stages.push({ stage: 6, name: "RECORD", outcome: "FAILED", detail: e instanceof Error ? e.message : String(e) });
     }
   }
   return run;
@@ -502,18 +507,19 @@ export async function runKernelV2Gated(
     });
   }
 
-  // THE SAME WORST OUTCOME THE KERNEL CHOSE — via the shared helper, so the
-  // gate can never adjudicate a different detector than the one that refused.
-  const detectors = input.detectors ?? DEFAULT_DETECTORS;
-  const outcomes = classifyByDetectors(detectors, input);
-  const worst = worstOutcome(outcomes);
+  // ★ F-KV1 FIX (2026-09-24): this ran classifyByDetectors a SECOND time (runKernelV2
+  //   already ran it at stage 1) — wasted work, and a future stateful detector would
+  //   DIVERGE between the kernel's verdict and the gate's adjudication. The verdict the
+  //   kernel chose IS the worst outcome (it fed stages 4-5 and the class/reason/evidence
+  //   on `base`), so the Fire is rebuilt from `base` — the SAME computation, reused.
+  //   (Non-ALLOW here implies a non-PASS worst, so base.class is the firing class.)
   const fire: Fire = {
-    ruleId: `*${worst.detector.class}`,
-    cls: worst.detector.class,
-    shape: worst.outcome.reason,
+    ruleId: `*${base.class}`,
+    cls: base.class,
+    shape: base.reason,
     tool: input.toolName,
     target: input.target,
-    evidence: worst.outcome.evidence,
+    evidence: base.evidence,
   };
   const ctx = absorbContext(fire, opts.stream ?? streamFromInput(input));
 
@@ -539,7 +545,7 @@ export async function runKernelV2Gated(
 
   const adjudication: GateAdjudication = {
     ruleId: fire.ruleId,
-    cls: worst.detector.class,
+    cls: base.class,
     probability: d.probability,
     band: d.band,
     action: d.action as GateAdjudication["action"],

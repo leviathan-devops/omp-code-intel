@@ -29,12 +29,14 @@ const resolveRegistryPath = makeDbPath({
 
 export function giRegistryPath(): string {
   if (!process.env.GI_OMP_DB_DIR) {
+    // ★ F-GR1 FIX (2026-09-24): the '.test.'/'_test_' substring checks false-positive
+    //   in production (e.g. /opt/myapp/integration-test-runner/bin/app) and silently
+    //   routed PROD traffic to the tmp test DB. BUN_TEST=1 (set by `bun test`) is the
+    //   primary signal; only the repo's own test-file prefix remains as a fallback.
     const argv1 = process.argv[1] ?? "";
-    const bunTestUnset = process.env.BUN_TEST === "1"
-      || argv1.includes("st-gi-omp")
-      || argv1.includes(".test.")
-      || argv1.includes("_test_");
-    if (bunTestUnset) {
+    const inTestContext = process.env.BUN_TEST === "1"
+      || argv1.includes("st-gi-omp");
+    if (inTestContext) {
       return path.join(os.tmpdir(), "gi-omp-registry-test.sqlite");
     }
   }

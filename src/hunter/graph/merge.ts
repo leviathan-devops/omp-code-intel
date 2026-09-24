@@ -33,12 +33,14 @@ function buildMechanicalIndex(mechanical: TypedTriple[]): {
   byKey: Map<string, TypedTriple>;
   byPair: Map<string, TypedTriple[]>;
   bySubject: Map<string, TypedTriple[]>;
+  byObject: Map<string, TypedTriple[]>;
   subjects: Set<string>;
   objects: Set<string>;
 } {
   const byKey = new Map<string, TypedTriple[]>();
   const byPair = new Map<string, TypedTriple[]>();
   const bySubject = new Map<string, TypedTriple[]>();
+  const byObject = new Map<string, TypedTriple[]>();
   const subjects = new Set<string>();
   const objects = new Set<string>();
   for (const t of mechanical) {
@@ -54,11 +56,13 @@ function buildMechanicalIndex(mechanical: TypedTriple[]): {
     byPair.get(p)!.push(t);
     if (!bySubject.has(sn)) bySubject.set(sn, []);
     bySubject.get(sn)!.push(t);
+    if (!byObject.has(on)) byObject.set(on, []);
+    byObject.get(on)!.push(t);
   }
   // Collapse to single representative per key (take first — mechanical triples with same key are deduped by file:line)
   const singleByKey = new Map<string, TypedTriple>();
   for (const [k, arr] of byKey.entries()) singleByKey.set(k, arr[0]);
-  return { byKey: singleByKey, byPair, bySubject, subjects, objects };
+  return { byKey: singleByKey, byPair, bySubject, byObject, subjects, objects };
 }
 
 export interface MergeOptions {
@@ -81,12 +85,15 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
   const index = buildMechanicalIndex(mechanical);
   const merged: MergedTriple[] = [];
   const seenMechanicalKeys = new Set<string>();
+  // ★ F-3 FIX (2026-09-24): index the emitted rows by key — the retro-flag
+  // below was a linear merged.find per semantic triple (O(n*m)).
+  const mergedByKey = new Map<string, MergedTriple>();
 
   for (const m of mechanical) {
     const k = tripleKey(m);
     if (seenMechanicalKeys.has(k)) continue;
     seenMechanicalKeys.add(k);
-    merged.push({
+    const row: MergedTriple = {
       ...m,
       evidence: m.evidence.trim().slice(0, 500),
       confidence: 1.0,
@@ -95,7 +102,9 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
       conflictReason: null,
       anchorFile: m.file ?? null,
       anchorLine: m.line ?? null,
-    });
+    };
+    merged.push(row);
+    mergedByKey.set(k, row);
   }
 
   for (const s of semantic) {
@@ -134,8 +143,8 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
       const inheritedLine = anchor.line;
       // CONFLICT: same subject/object pair but different predicate — both kept + flagged (L8 contradiction class, never silently resolved)
       for (const mech of mechPairGroup) {
-        // mark the mechanical already emitted as conflicted (retro-flag)
-        const existing = merged.find((x) => tripleKey(x) === tripleKey(mech));
+        // ★ F-3 FIX (2026-09-24): O(1) retro-flag via the emitted-row index.
+        const existing = mergedByKey.get(tripleKey(mech));
         if (existing && !existing.conflict) {
           existing.conflict = true;
           existing.conflictReason = `CONTRADICTION: mechanical predicate=${mech.predicate} vs semantic predicate=${s.predicate} for ${s.subject}->${s.object} (both preserved, flagged as L8 contradiction)`;
@@ -168,15 +177,13 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
     let anchorFile: string | null = null;
     let anchorLine: number | null = null;
     if (subjectResolves || objectResolves) {
+      // ★ F-3 FIX (2026-09-24): anchor lookup rides the indices — the old loop
+      // scanned every mechanical triple per semantic triple (O(n*m)).
       const candidates: TypedTriple[] = [];
-      const subjHits = index.bySubject.get(subjNorm) ?? [];
-      candidates.push(...subjHits);
-      // also search objects index for either side
-      for (const m of mechanical) {
-        if (normalizeCanonical(m.object) === subjNorm || normalizeCanonical(m.subject) === objNorm || normalizeCanonical(m.object) === objNorm) {
-          if (!candidates.includes(m)) candidates.push(m);
-        }
-      }
+      for (const hit of index.bySubject.get(subjNorm) ?? []) candidates.push(hit);
+      for (const hit of index.byObject.get(subjNorm) ?? []) if (!candidates.includes(hit)) candidates.push(hit);
+      for (const hit of index.bySubject.get(objNorm) ?? []) if (!candidates.includes(hit)) candidates.push(hit);
+      for (const hit of index.byObject.get(objNorm) ?? []) if (!candidates.includes(hit)) candidates.push(hit);
       if (candidates.length > 0) {
         anchorFile = candidates[0].file ?? null;
         anchorLine = candidates[0].line ?? null;

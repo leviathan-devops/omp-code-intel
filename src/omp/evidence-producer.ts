@@ -104,6 +104,7 @@ export function produce(
   if (!Number.isFinite(from)) {
     throw new Error(`GI_EVIDENCE_BAD_FIRE_AT: fireAt ${JSON.stringify(fireAt)} is unparseable — refusing to emit post-fire evidence with no forward window`);
   }
+  const out: OutcomeRecord[] = [];
 
   for (const e of events) {
     const at = Date.parse(e.at);

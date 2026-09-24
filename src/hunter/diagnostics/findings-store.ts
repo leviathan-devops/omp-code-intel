@@ -79,6 +79,7 @@ export function append(db: DbClient, finding: FindingInput, runId: string, week?
     throw findingNoTriplet(
       `finding ${finding.ruleId} at ${finding.file ?? '?'}:${finding.line ?? '?'} carries an empty evidence string`,
     );
+  }
   db.appendFinding(finding, runId, week);
 }
 
@@ -101,6 +102,10 @@ export function appendFindings(
   runId: string,
   week?: string | null,
 ): AppendFindingsResult {
+  // ★ F-5 FIX (2026-09-24): same empty-runId fail-loud as append() above.
+  if (typeof runId !== 'string' || runId.trim() === '') {
+    throw findingNoTriplet(`refusing appendFindings of ${findings.length} findings with an empty runId — the run scope is mandatory (K21.2 determinism)`);
+  }
   for (let i = 0; i < findings.length; i++) {
     const f = findings[i];
     if (typeof f.evidence !== 'string' || f.evidence.trim() === '') {

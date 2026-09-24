@@ -142,12 +142,24 @@ export class RsiStore {
   private readonly evidenceTable: string;
 
   constructor(cfg: RsiConfig) {
+    // ★ F-RS1 FIX (2026-09-24): table names are interpolated into SQL — refuse anything
+    //   that is not a bare identifier (defense-in-depth; today only literals reach here).
+    for (const [label, name] of [["table", cfg.table ?? "gi_reflex"], ["evidenceTable", cfg.evidenceTable ?? "gi_reflex_evidence"]] as const) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+        throw new Error(`GI_RSI_BAD_TABLE: ${label} ${JSON.stringify(name)} is not a bare SQL identifier — refusing to interpolate it`);
+      }
+    }
     this.table = cfg.table ?? "gi_reflex";
     this.evidenceTable = cfg.evidenceTable ?? "gi_reflex_evidence";
     const dir = path.dirname(cfg.storePath);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    if (!fs.existsSync(cfg.keyPath)) {
-      fs.writeFileSync(cfg.keyPath, crypto.randomBytes(32), { mode: 0o600 });
+    // ★ F-RS2 FIX (2026-09-24): exists-check-then-write let a second concurrent creator
+    //   OVERWRITE the first's key (rows signed under it became unverifiable). O_EXCL makes
+    //   creation atomic: EEXIST means a sibling won — read THEIR key, never overwrite it.
+    try {
+      fs.writeFileSync(cfg.keyPath, crypto.randomBytes(32), { mode: 0o600, flag: "wx" });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST" || !fs.existsSync(cfg.keyPath)) throw e;
     }
     this.key = fs.readFileSync(cfg.keyPath);
     this.db = new Database(cfg.storePath);

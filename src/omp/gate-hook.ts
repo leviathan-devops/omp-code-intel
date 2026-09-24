@@ -57,18 +57,24 @@ function reconstruct(toolName: string, input: Record<string, unknown>): { oldTex
 }
 
 export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => void }): void {
-  let pendingSteer: string | null = null;
+  // ★ F-PS1 FIX (2026-09-24): keyed per tool name — a single slot let two interleaved
+  //   write/edit calls overwrite each other's steer note, delivering the wrong advisory.
+  const pendingSteer = new Map<string, string>();
   pi.on("tool_call", (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = (event.input && typeof event.input === "object" ? event.input : {}) as Record<string, unknown>;
-    try {
-      fs.appendFileSync("/tmp/gi-gate.log", JSON.stringify({
-        name,
-        keys: Object.keys(input),
-        dial: process.env.GI_DIAL ?? "",
-        origin: event.isAgentOrigin,
-      }) + "\n");
-    } catch { /* ignore log failures */ }
+    // ★ F-GH1 FIX (2026-09-24): the per-call debug append ran on EVERY tool_call (sync I/O
+    //   on the hot path, unbounded file). Opt-in via GI_GATE_DEBUG=1; zero readers exist.
+    if (process.env.GI_GATE_DEBUG === "1") {
+      try {
+        fs.appendFileSync("/tmp/gi-gate.log", JSON.stringify({
+          name,
+          keys: Object.keys(input),
+          dial: process.env.GI_DIAL ?? "",
+          origin: event.isAgentOrigin,
+        }) + "\n");
+      } catch { /* ignore log failures */ }
+    }
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
       return undefined;
     }
@@ -82,25 +88,28 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       file: rec.file,
       hasStore: true,
     });
-    try {
-      fs.appendFileSync("/tmp/gi-gate.log", JSON.stringify({ recFile: rec.file, dial, verdict }) + "\n");
-    } catch { /* ignore */ }
+    if (process.env.GI_GATE_DEBUG === "1") {
+      try {
+        fs.appendFileSync("/tmp/gi-gate.log", JSON.stringify({ recFile: rec.file, dial, verdict }) + "\n");
+      } catch { /* ignore */ }
+    }
     if (verdict.cancel && verdict.token) {
-      pendingSteer = null;
+      pendingSteer.delete(name);
       throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
     }
-    pendingSteer = verdict.token === "[GATE STEER]" ? `[GATE STEER] ${verdict.advisory ?? ""}`.trim() : null;
+    if (verdict.token === "[GATE STEER]") pendingSteer.set(name, `[GATE STEER] ${verdict.advisory ?? ""}`.trim());
+    else pendingSteer.delete(name);
     return undefined;
   });
   pi.on("tool_result", (event: Record<string, unknown>) => {
-    if (!pendingSteer) return undefined;
     const name = String(event.toolName ?? "").toLowerCase();
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
-      pendingSteer = null;
+      pendingSteer.delete(name);
       return undefined;
     }
-    const note = pendingSteer;
-    pendingSteer = null;
+    const note = pendingSteer.get(name);
+    if (!note) return undefined;
+    pendingSteer.delete(name);
     const extra = { type: "text", text: note };
     const prev = Array.isArray(event.content) ? event.content : [];
     return { content: [extra, ...prev], details: { ...(typeof event.details === "object" && event.details ? event.details : {}), giSteer: note } };
@@ -132,7 +141,10 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   // ★ AUDIT F-4 FIXED (2026-09-22): a SINGLE global slot loses/misattributes resolutions
   //   (two interleaved tool_calls overwrite each other; a query with no target leaves a
   //   stale slot). Keyed by sid, and the tool_result must MATCH the tool name.
-  const pendingQueries = new Map<string, { target: string; tool: string }>();
+  // ★ F-GQ1 FIX (2026-09-24): a FIFO per sid — a single slot lost/misattributed
+  //   resolutions when two graph-queries interleaved (the second tool_call overwrote the
+  //   first's entry). tool_result shifts the OLDEST entry for its tool.
+  const pendingQueries = new Map<string, Array<{ target: string; tool: string }>>();
   pi.on("tool_call", (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
@@ -151,7 +163,9 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
       if (target) {
         // the call is made; the ANSWER is unknown until the matching tool_result.
-        pendingQueries.set(sid, { target, tool: name });
+        const queue = pendingQueries.get(sid) ?? [];
+        queue.push({ target, tool: name });
+        pendingQueries.set(sid, queue);
       }
       return undefined;
     }
@@ -175,10 +189,12 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     const name = String(event.toolName ?? "").toLowerCase();
     if (name !== "graph-query" && name !== "ripwire") return undefined;
     const sid = resolveSessionIdFromEvent(event).id;
-    const q = pendingQueries.get(sid);
-    if (!q) return undefined;
-    if (q.tool !== name) return undefined;      // ★ the result must match the pending tool
-    pendingQueries.delete(sid);
+    const queue = pendingQueries.get(sid);
+    if (!queue || queue.length === 0) return undefined;
+    const qi = queue.findIndex((e) => e.tool === name);
+    if (qi === -1) return undefined;      // ★ the result must match a pending tool
+    const q = queue.splice(qi, 1)[0]!;
+    if (queue.length === 0) pendingQueries.delete(sid);
     const st = states.get(sid);
     if (!st) return undefined;
     // ★ AUDIT H-7 FIXED: every tool in extension.ts reports failure via `details:{ok:false}`,

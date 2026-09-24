@@ -8,8 +8,10 @@ import * as path from "node:path";
 import { setMeta } from "./typed-write.ts";
 import { populateFromCorbellCheckout } from "./populate-corbell.ts";
 import { GraphifyAdapter, mapGraphifyToTyped } from "../hunter/graph/graphify-adapter.ts";
-import { graphifyOutPath, isGraphifyCheckoutFreshFor } from "./populate-graphify.ts";
-import { openTypedStore, insertForkNodesBatch, insertForkEdgesBatch } from "./typed-write.ts";
+import { graphifyOutPath, isGraphifyCheckoutFreshFor, supersedeThenInsert } from "./populate-graphify.ts";
+import { openTypedStore } from "./typed-write.ts";
+// ★ F-PO1 (2026-09-24): the single-txn helper — supersede + inserts + meta ride one
+//   BEGIN/COMMIT (populate-corbell.ts already rides it; same discipline here).
 export interface PopulateResult {
   filesIndexed: number;
   nodes: number;
@@ -85,22 +87,24 @@ function populateGraphifySessionStore(storePath: string, root: string, runTag: s
     console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph=${graphPath})`);
     return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason, graphifyGraph: graphPath };
   }
+  // ★ F-PO1 FIX (2026-09-24): the supersede UPDATEs ran in autocommit BEFORE BEGIN and
+  //   no ROLLBACK existed — an insert throw voided live rows with no replacement, and the
+  //   5x setMeta reopened the DB after close (partial meta on failure). One BEGIN/COMMIT
+  //   covers supersede + inserts + meta; any throw → ROLLBACK → NAMED throw.
   const db = openTypedStore(storePath);
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
-    db.exec("COMMIT;");
-  } finally {
-    db.close();
+    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
+      ["substrate", "graphify"],
+      ["graphify_graph", graphPath],
+      ["graphify_nodes", String(nodeRows.length)],
+      ["graphify_edges", String(edgeRows.length)],
+      ["populated_at", new Date().toISOString()],
+    ]);
+  } catch (e) {
+    try { db.close(); } catch { /* close best-effort after a failed write */ }
+    throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
   }
-  setMeta(storePath, "substrate", "graphify");
-  setMeta(storePath, "graphify_graph", graphPath);
-  setMeta(storePath, "graphify_nodes", String(nodeRows.length));
-  setMeta(storePath, "graphify_edges", String(edgeRows.length));
-  setMeta(storePath, "populated_at", new Date().toISOString());
+  db.close();
   console.error(`[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`);
   return { filesIndexed: 0, nodes: nodeRows.length, edges: edgeRows.length, runTag, skipped: false, substrate: "graphify", graphifyGraph: graphPath };
 }

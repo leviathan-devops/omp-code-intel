@@ -120,8 +120,10 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
   // verb — the full scan below applies, the pipe fires.
   const blockVerbExemption = EXECUTION_VERBS.has(firstToken) || MUTATION_VERBS.has(firstToken) || firstToken === ECHO_VERB;
   if (blockVerbExemption) {
+    // ★ F-13 FIX (2026-09-24): `$` and backtick ride the splitter list — without them
+    // ★ `node -e "$(whoami)"` sailed through the exemption as pure argument syntax.
     for (const ch of command) {
-      if (ch === '|' || ch === ';' || ch === '&' || ch === '>' || ch === '<' || ch === '\n') return ch;
+      if (ch === '|' || ch === ';' || ch === '&' || ch === '>' || ch === '<' || ch === '\n' || ch === '$' || ch === '`') return ch;
     }
     return null;
   }

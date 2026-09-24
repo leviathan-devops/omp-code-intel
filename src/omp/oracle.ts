@@ -394,7 +394,7 @@ export function resolveAll(
   ledger: FireLedger,
   pairs: readonly { row: PersistedFireRow; subject: Subject }[],
   records: readonly OutcomeRecord[],
-  opts: { windowMs?: number; now?: () => string } = {},
+  opts: { windowMs?: number; notAfter?: string; now?: () => string } = {},
 ): ResolveReport {
   const now = opts.now ?? (() => new Date().toISOString());
   const report: ResolveReport = {
@@ -417,6 +417,12 @@ export function resolveAll(
   // kernel's law is LOUD: a resolution that does not follow its fire is a caller
   // error and it is named here, before any window logic can absorb it.
   const unresolved = pairs.filter((p) => ledger.truthOf(p.row.stateHash) === "unresolved");
+  // ★ F-OR1 FIX (2026-09-24): `opts.notAfter` was validated only inside `gather` — i.e.
+  //   INSIDE the write loop — so a malformed value aborted the batch AFTER earlier rows
+  //   were already resolved (partial write, violating O4's pre-validate law). Up front.
+  if (opts.notAfter !== undefined && !Number.isFinite(Date.parse(opts.notAfter))) {
+    throw new Error(`GI_ORACLE_BAD_WINDOW: notAfter ${JSON.stringify(opts.notAfter)} is unparseable — refusing the WHOLE batch so no partial write can occur`);
+  }
   for (const { row } of unresolved) {
     if (!Number.isFinite(stampMs) || !Number.isFinite(Date.parse(row.at)) || !(stampMs > Date.parse(row.at))) {
       throw new Error(

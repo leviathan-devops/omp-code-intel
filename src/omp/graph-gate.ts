@@ -103,7 +103,10 @@ export function classifyEdit(toolName: string, args: { file?: string; path?: str
     || /\bimport\s+.*\bfrom\b/.test(body)
     || /\bexport\s+default\b/.test(body)
     || /\bdelete\s+function\b/.test(body)
-    || /:\s*[A-Za-z_$][A-Za-z0-9_$<>[\]|]*\s*[=;{]/.test(body) && /export\s+(type|interface)/.test(body);
+    // ★ F-GG1 FIX (2026-09-24): the trailing && binds tighter than || — parenthesized to
+    //   NAME the intent: an annotation change is structural only on an EXPORTED
+    //   type/interface (a `: string`→`: number` tweak on module-private code stays MEDIUM).
+    || (/:\s*[A-Za-z_$][A-Za-z0-9_$<>[\]|]*\s*[=;{]/.test(body) && /export\s+(type|interface)/.test(body));
   const touchedSymbols = [...new Set([...oldSyms, ...newSyms])];
   const flags: string[] = [];
   if (oldSyms.length > 0 || newSyms.length > 0) flags.push("export_change");

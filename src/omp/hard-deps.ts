@@ -275,7 +275,10 @@ export function audit(register: readonly ComponentDecl[]): AuditResult {
 }
 
 /** THE REFUSAL. Call before any work that depends on the component. Throws a
- *  NAMED error on absence — never returns a substitute. */
+ *  NAMED error on absence — never returns a substitute.
+ *  ★ F-HD1 NOTE (2026-09-24): the probe runs FRESH here, never cached from audit() —
+ *  INTENTIONAL. A cached UP would license work on a component that died since the
+ *  audit; probe-at-use fails closed on the DOWN transition instead. */
 export function requireUp(decl: ComponentDecl): void {
   let r: { up: boolean; evidence: string };
   try {

@@ -177,12 +177,19 @@ export function loadCalibrationFixtures(fixtureProfileDir: string): CalibrationF
   if (!fs.existsSync(fireDir) || !fs.existsSync(goldenDir)) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: the fixture dirs ${fireDir} + ${goldenDir} must exist`);
   }
-  const fire = fs.readdirSync(fireDir)
-    .filter((f) => f === 'manifest.json')
-    .map(() => loadFireFixture(fireDir));
-  const golden = fs.readdirSync(goldenDir)
-    .filter((f) => f === 'manifest.json')
-    .map(() => loadGoldenFixture(goldenDir));
+  // ★ F-6 FIX (2026-09-24): the old filter matched a flat manifest.json and re-loaded
+  // ★ the SAME dir — a multi-fixture layout (one subdir per fixture) silently loaded
+  // ★ ZERO fixtures. Walk one level: each subdir carrying manifest.json loads as its
+  // ★ own fixture; a flat manifest.json keeps working.
+  const withManifest = (dir: string): string[] => {
+    if (fs.existsSync(path.join(dir, 'manifest.json'))) return [dir];
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => path.join(dir, e.name))
+      .filter((d) => fs.existsSync(path.join(d, 'manifest.json')));
+  };
+  const fire = withManifest(fireDir).map((d) => loadFireFixture(d));
+  const golden = withManifest(goldenDir).map((d) => loadGoldenFixture(d));
   return { fire, golden };
 }
 

@@ -21,9 +21,21 @@ export const ALL_TEMPLATES: readonly AuditorTemplate[] = [
   ...MPSE_TEMPLATES,
   ...SRO_TEMPLATES,
 ];
+// ★ F-7 FIX (2026-09-24): the registry law (line 2) is now enforced — a family
+//   edit that adds or removes a template fails LOUD at import, never drifts silent.
+if (ALL_TEMPLATES.length !== 14) {
+  throw new Error(`HUNTER_TEMPLATE_COUNT: registry law requires exactly 14 templates (6 LASME + 4 MPSE + 4 SRO), found ${ALL_TEMPLATES.length}`);
+}
 
 const BY_LAYER_ID: Record<string, AuditorTemplate> = {};
-for (const t of ALL_TEMPLATES) BY_LAYER_ID[t.layerId] = t;
+for (const t of ALL_TEMPLATES) {
+  // ★ F-8 FIX (2026-09-24): duplicate layerIds fail LOUD — the old silent
+  //   overwrite hid the loser and corrupted templateByLayerId lookups.
+  if (BY_LAYER_ID[t.layerId] !== undefined) {
+    throw new Error(`HUNTER_TEMPLATE_DUPLICATE: duplicate layerId '${t.layerId}'`);
+  }
+  BY_LAYER_ID[t.layerId] = t;
+}
 
 export function templateByLayerId(layerId: string): AuditorTemplate | null {
   if (typeof layerId !== "string" || layerId.trim() === "") return null;
