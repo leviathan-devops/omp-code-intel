@@ -95,3 +95,9 @@ The 3rd audit run returned `{critical:3, high:80→87, medium:225, low:109}`. Th
 ★ THE HONEST NOTE: the LLM audit is NON-DETERMINISTIC — fixing these 87 will not make the next run
 read 0 (it returns a NEW set). But every REAL defect fixed is real, and the critical trend
 (8→5→3) shows the code is genuinely converging. This wave continues the real work.
+
+### ★ HOST RESTART (2026-09-24) — the run-3 wave re-dispatched
+The host restarted mid-wave, killing all 5 run-3 agents with ZERO edits landed. The repo
+survived intact (HEAD fdadc86 · tsc exit 0 · dist 24ac061fda606a90 · the 5 slices on disk).
+RE-DISPATCHED: R3GraphLexicon2 · R3HarnessSharedHooks2 · R3SurfaceDiagFirewall2 · R3Omp2 ·
+R3HydraKernelScoping2 (the same 87 highs, the same disjoint slices).
