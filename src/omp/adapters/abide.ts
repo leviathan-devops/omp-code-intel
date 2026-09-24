@@ -51,7 +51,9 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
     if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.events.slice(-limit);
     // ★ F-AB1 FIX (2026-09-24): the bounded tail previously assumed the last 1 MiB contained a newline; if it did not, the function discarded the window and fell through to a full-file read. Grow exponentially so very long lines are still captured without materializing the entire ledger.
     const TAIL_BYTES_START = 1024 * 1024;
-    const TAIL_BYTES_MAX = Math.max(st.size, 64 * 1024 * 1024);
+    // ★ F-210 FIX (2026-09-24): Math.min — the cap BOUNDS the tail window. Math.max floored
+    //   every read at 64 MiB, loading the WHOLE file for anything smaller (the anti-optimization).
+    const TAIL_BYTES_MAX = Math.min(st.size, 64 * 1024 * 1024);
     let fd: number | null = null;
     try {
       fd = fs.openSync(eventsPath, "r");

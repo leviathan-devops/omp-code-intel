@@ -329,6 +329,6 @@ export function loadGateState(storePath: string, sessionId: string): GraphGateSe
   }
 }
 
-export function registerGraphGate(api: { onBeforeToolCall?: unknown; onAfterToolCall?: unknown; onTurnEnd?: unknown }): void {
-  void api;
-}
+// ★ F-211 FIX (2026-09-24): the dead DUPLICATE `registerGraphGate` stub REMOVED — the real,
+// wired implementation lives in gate-hook.ts (extension.ts:10 imports from there). This stub
+// (0 importers) shadowed the name and misled the whole-tree audit into flagging a no-op gate.
