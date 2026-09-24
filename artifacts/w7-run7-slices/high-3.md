@@ -1,16 +1,36 @@
-# HIGH slice 3 — 8 findings across 7 files
+# HIGH slice 3 — 12 findings across 10 files
 
-## src/hunter/graph/interface.ts
-- **src/hunter/graph/interface.ts:51-51** (bug)
-  The `Substrate` type includes `'ix'`, but `selectAdapter` throws a REMOVED error for it at runtime. This means TypeScript won't catch `ix` usage at compile time — callers can construct values of type `Substrate` with `'ix'` and pass them around freely, only to hit a runtime throw. The `'ix'` value should be removed from the `Substrate` type to get compile-time enforcement of the removal. Additionally, the profile schema at `src/hunter/profile/schema.ts:44` still lists `'ix'` in `z.enum(['corbell', 'ix', 'graphify'])`, so a profile with `substrate: 'ix'` passes validation, reaches `selectAdapter`, and then throws — a confusing runtime failure that should be caught at validation time instead.
+## src/hunter/diagnostics/fixture-calibration.ts
+- **src/hunter/diagnostics/fixture-calibration.ts:147-147** (security)
+  `manifest.sourceFile` is read directly from untrusted fixture JSON and used in `path.join(dir, manifest.sourceFile)` to construct a file path. A malicious or malformed manifest could set `sourceFile` to `../../etc/passwd` (path traversal), causing reads outside the fixture directory. Validate that the resolved path stays within the fixture dir.
   ```existing
-  export type Substrate = 'corbell' | 'ix' | 'graphify';
+  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');
   ```
   ```suggested
-  export type Substrate = 'corbell' | 'graphify';
+  const resolvedSource = path.resolve(dir, manifest.sourceFile);
+  if (!resolvedSource.startsWith(path.resolve(dir) + path.sep) && resolvedSource !== path.resolve(dir)) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: sourceFile '${manifest.sourceFile}' escapes fixture dir`);
+  }
+  const source = fs.readFileSync(resolvedSource, 'utf8');
+  ```
 
-// And update the profile schema enum accordingly:
-// substrate: z.enum(['corbell', 'graphify'])
+## src/hunter/graph/merge.ts
+- **src/hunter/graph/merge.ts:113-116** (bug)
+  Semantic triples are not deduplicated by key. Mechanical triples are deduplicated via `seenMechanicalKeys` (lines 105-108), but the semantic loop (line 116) iterates over all semantic triples without any key-based dedup. If two semantic triples share the same subject|predicate|object key (e.g. extracted by overlapping sources), both will be pushed into `merged`, producing duplicate output rows. Add a `seenSemanticKeys` set analogous to the mechanical one, or deduplicate `semantic` before the loop.
+  ```existing
+  for (const s of semantic) {
+    const k = tripleKey(s);
+    const pair = subjectObjectKey(s);
+    const mechExact = index.byKey.get(k);
+  ```
+  ```suggested
+  const seenSemanticKeys = new Set<string>();
+  for (const s of semantic) {
+    const k = tripleKey(s);
+    if (seenSemanticKeys.has(k)) continue;
+    seenSemanticKeys.add(k);
+    const pair = subjectObjectKey(s);
+    const mechExact = index.byKey.get(k);
   ```
 
 ## src/hunter/harness/map.ts
@@ -65,31 +85,28 @@ Consider building a `tryResolveLine`-based loop over all edges for the node befo
         if (line !== unde
   ```
 
-## src/hunter/harness/micro-loop-machine.ts
-- **src/hunter/harness/micro-loop-machine.ts:399-403** (bug)
-  BUG (High): `done()` + `stop()` lifecycle race — the pending promise never resolves.
+## src/hunter/harness/report.ts
+- **src/hunter/harness/report.ts:282-288** (bug)
+  If `COMMIT` fails (e.g., disk full, I/O error), the transaction remains open on the `DbClient` handle. Unlike the inner DB operation block which has explicit ROLLBACK handling, the COMMIT path has no error recovery. A subsequent operation on this handle could silently operate inside the stale transaction or fail in confusing ways.
 
-When `done()` is called while the machine is still running, `sub2` and `sub3` are registered on the actor and pushed to `handleDisposables`. If `stop()` is then called before the machine reaches a terminal state, `handleDisposables.splice(0)` unsubscribes both `sub2` and `sub3` (the only callbacks that can call `settle()` and resolve the promise), then `actor.stop()` kills the actor. The `pendingDone` promise is left pending forever, causing any caller awaiting `handle.done()` to hang indefinitely.
-
-Fix: resolve `pendingDone` inside `stop()` before tearing down subscriptions.
+Suggested fix: wrap the COMMIT in a try/catch and attempt ROLLBACK on failure, throwing a descriptive error.
   ```existing
-  stop(): void {
-      sub.unsubscribe();
-      for (const d of handleDisposables.splice(0)) d.unsubscribe();
-      try { actor.stop(); } catch (e) { console.error('[micro-loop] actor stop failed:', e instanceof Error ? e.message : String(e)); }
-    },
+  } catch (dbErr: unknown) {
+      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
+      }
+      throw dbErr;
+    }
+    i
   ```
   ```suggested
-  stop(): void {
-      sub.unsubscribe();
-      for (const d of handleDisposables.splice(0)) d.unsubscribe();
-      // F-337 follow-up: resolve any pending done() promise so the caller
-      // never hangs after an explicit stop().
-      if (pendingDone !== null && !settled) {
-        settled = true;
-        pendingDone.resolve();
+  } catch (dbErr: unknown) {
+      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
       }
-      try { actor.stop(); } catch (e) { console.error('[micro
+      throw dbErr;
+    }
+    t
   ```
 
 ## src/hunter/tools/bug-hunt.ts
@@ -183,4 +200,50 @@ The F-CAL-Z fix in `firesNeededForGap` (line 45) already addressed this exact pa
   } catch (e) {
     if (e instanceof JevError) throw e;
     /*
+  ```
+
+## src/omp/ripwire-bridge.ts
+- **src/omp/ripwire-bridge.ts:156-160** (bug)
+  `Number()` can return `NaN` when the external binary's output drifts (e.g. `j.reaches` is a non-numeric string or absent in an unexpected format). NaN silently propagates into the `data` record and summary strings (e.g. `"impact_reaches=NaN"`). Add validation or a safe-parse helper: `const safeNum = (v: unknown, fallback: number) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; }` and use it consistently instead of bare `Number()`.
+  ```existing
+  const reaches = Number(j.reaches ?? 0);
+  return {
+    present: true, ok: true,
+    summary: `impact_reaches=${reaches} radius_untested=${String(j.radius_untested ?? "?")}`,
+    data: { reaches, radius_tested: j.radius_tested, radius_untested: j.radius_untested },
+  ```
+
+## src/scoping/gi-session-path.ts
+- **src/scoping/gi-session-path.ts:100-101** (bug)
+  Inconsistent session ID padding/truncation between `resolveSessionId` and `sessionStorePath` can produce different final IDs for the same input, breaking the implicit contract that the resolved ID can be directly used with `sessionStorePath`.
+
+In `resolveSessionId`, the ID is truncated to 24 chars *first* (`slice(0, 24)`) and *then* padded (`(id + "-xxxxxxxx").slice(0, 8)`). In `sessionStorePath`, it is padded *first* (`(sid + "xxxxxxxx").slice(0, 8)`) and never truncated.
+
+Example: `resolveSessionId` with a 24-char slug produces `"scope-XXXXXXXXXXXXXXXXXXXX"` (24 chars). If that same 24-char string is later passed to `sessionStorePath`, `sessionKey` takes the last 24 chars (losing the "scope-" prefix), then pads — yielding a completely different ID.
+
+Recommendation: centralize the ID canonicalization in a single function (e.g. `canonicalizeSessionId`) and use it in both code paths to ensure a resolved ID round-trips through `sessionStorePath` identically.
+  ```existing
+  let id = (`scope-${slug}`).slice(0, 24);
+  if (id.length < 8) id = (id + "-xxxxxxxx").slice(0, 8);
+  ```
+  ```suggested
+  // Shared canonicalization — used by both resolveSessionId and sessionStorePath
+export function canonicalizeSessionId(raw: string): string {
+  let id = raw.slice(-24);
+  if (!id) return "";
+  if (id.length < 8) id = (id + "xxxxxxxx").slice(0, 8);
+  return id;
+}
+  ```
+- **src/scoping/gi-session-path.ts:24-24** (security)
+  The `SESSION_STORE_RE` regex does not anchor at the start of the string. After normalization (replacing backslashes), the pattern `/sessions/[A-Za-z0-9_-]{8,24}/store\.sqlite$` would match a relative path such as `evil/sessions/12345678/store.sqlite` or `sessions/12345678/store.sqlite`.
+
+While the *normal* call-site (`sessionStorePath`) always constructs an absolute path via `path.join(scopeRoot, ...)`, `assertSessionStorePath` is a public exported function. Any external caller passing a relative path would pass the check but `path.resolve` would resolve it relative to `process.cwd()`, potentially allowing containment bypass.
+
+Recommendation: anchor the regex with `^` and require a path separator before `sessions` (e.g. `^/[\w./-]+/sessions/...` or at minimum `(^|/)sessions/...` + a final `/` check) to ensure the test validates an absolute, session-scoped path.
+  ```existing
+  const SESSION_STORE_RE = /\/sessions\/[A-Za-z0-9_-]{8,24}\/store\.sqlite$/;
+  ```
+  ```suggested
+  const SESSION_STORE_RE = /\/[\w.-]+\/sessions\/[A-Za-z0-9_-]{8,24}\/store\.sqlite$/;
   ```

@@ -830,6 +830,40 @@ After `to` is computed on line ~158, add an explicit check:
   }
   ```
 
+[CRITICAL] src/omp/populate-graphify.ts:415-418 (bug)
+  The sidecar write failure (non-fatal) creates a silent infinite-rebuild loop: on each invocation, the freshness probe finds no sidecar → falls back to mtime walk → may prove fresh → build runs → sidecar write fails again → next invocation repeats. The session store is updated successfully but the sidecar stays stale forever. This should either be escalated to the caller (return a degraded status), retried with backoff, or at minimum logged at `error` level so operators can detect the loop.
+  ```existing
+  fs.writeFileSync(hashPath, vettedHash, "utf8");
+    } catch (hashErr) {
+      console.log(`[gi-omp] hash sidecar write failed (non-fatal): ${hashErr instanceof Error ? hashErr.message.slice(0, 60) : "?"}`);
+    }
+  ```
+  ```suggested
+  fs.writeFileSync(hashPath, vettedHash, "utf8");
+    } catch (hashErr) {
+      console.error(`[gi-omp] hash sidecar write failed (non-fatal, may cause infinite rebuild): ${hashErr instanceof Error ? hashErr.message.slice(0, 60) : "?"}`);
+      // Consider returning a degraded result so callers can distinguish
+      // 'sidecar-less fresh' from 'truly fresh' and avoid the rebuild loop.
+    }
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:367-368 (security)
+  TOCTOU vulnerability: `vettedHash` is captured BEFORE `GraphifyAdapter.build()` runs (line ~252), then written to the sidecar after the build + DB write (line ~286). If source files change during the build, the sidecar records a hash that never corresponded to the graph actually written to the session store. The fix comment for F-38 correctly identifies this class ('the freshness gate stats graph.json, then build() re-reads it — a swap in between builds rows the gate never vetted') but the same pattern applies to sources: the gate hashes them, the build reads them, and an edit in between is laundered. The sidecar should be re-computed from the source files AFTER the build completes (or the g
+  ```existing
+  // W46 (frozen-scan HIGH): capture the VETTED source hash at gate-pass time.
+  const vettedHash = sourceHashProvider ? sourceHashProvider() : computeSourceHash(resolvedRoot, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
+  ```
+  ```suggested
+  // Capture the source hash AFTER the build completes, not before.
+  // This ensures the sidecar hash corresponds to the exact source state
+  // that produced the graph written to the store.
+  // (The freshness gate still uses the pre-build hash to decide whether
+  // to build at all — that's correct. The sidecar records what was BUILT.)
+  let vettedHash: string;
+  // ... proceed with build ...
+  /
+  ```
+
 [HIGH] src/omp/populate.ts:44-58 (bug)
   Corbell path has a two-phase non-atomic write. `populateFromCorbellCheckout` writes data to the store on one handle/transaction, then lines 61-80 open a *second* `openTypedStore` handle to write three meta rows in its own separate transaction. A crash or competing writer between the two commits leaves the store in a half-populated state — data rows exist but substrate metadata is missing. Consider integrating the meta writes into the same transaction used by `populateFromCorbellCheckout`, or verify that the caller guarantees exclusive access.
   ```existing
@@ -861,6 +895,41 @@ After `to` is computed on line ~158, add an explicit check:
       const current = this.liveIncludingForgedRetirement(canonicalId);
   ```
 
+[HIGH] src/omp/typed-write.ts:994-996 (bug)
+  `chainCalls` return type `ChainStep[] & { truncated?: boolean }` is silently erased — TypeScript merges intersection with the array's own type. On the success path (`return [...cur.steps, step]`), the `truncated` flag accumulated during BFS is discarded. A truncated-then-found result reports untruncated to callers. The `out` variable is constructed but never returned when a path is found.
+  ```existing
+  if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
+          return [...cur.steps, step];
+        }
+  ```
+  ```suggested
+  if (toSet.has(e.dst_id) && !(from === to && cur.steps.length === 0)) {
+          const result = [...cur.steps, step] as ChainStep[] & { truncated?: boolean };
+          if (truncated) result.truncated = true;
+          return result;
+        }
+  ```
+
+[HIGH] src/omp/typed-write.ts:1120-1125 (bug)
+  `impactInDb` ledger cap does not bound work: when `ledger.length >= LEDGER_CAP` the code sets `ledgerTruncated = true` but still pushes into `next` and continues BFS for remaining depths. `seen` / `frontier` grow unbounded on mega-stores despite the comment claiming the cap stops expansion (see the F-TW-CAP FIX comment above the loop). Break out of the frontier loop once truncated.
+  ```existing
+  if (ledger.length < LEDGER_CAP) {
+          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+        } else {
+          ledgerTruncated = true;
+        }
+        next.push(c.id);
+  ```
+  ```suggested
+  if (ledger.length < LEDGER_CAP) {
+          ledger.push({ symbol: c.caller, depth: d, file: c.file ?? "", line: c.line ?? 0, via: c.predicate ?? "" });
+          next.push(c.id);
+        } else {
+          ledgerTruncated = true;
+          // Stop expanding frontier — only ledger-full, not work-full
+        }
+  ```
+
 [HIGH] src/scoping/db-path.ts:54-56 (bug)
   Using `startsWith('/')` to detect absolute paths is not cross-platform safe. On Windows, absolute paths start with a drive letter (e.g., `C:\Users\...`), so this check would incorrectly treat a Windows absolute path as relative and incorrectly join it with `os.tmpdir()`. Use `path.isAbsolute()` instead, which correctly handles all platforms.
   ```existing
@@ -874,4 +943,107 @@ After `to` is computed on line ~158, add an explicit check:
         : path.join(os.tmpdir(), spec.testFile);
   ```
 
-# total: 52
+[HIGH] src/scoping/gi-session-path.ts:100-101 (bug)
+  Inconsistent session ID padding/truncation between `resolveSessionId` and `sessionStorePath` can produce different final IDs for the same input, breaking the implicit contract that the resolved ID can be directly used with `sessionStorePath`.
+
+In `resolveSessionId`, the ID is truncated to 24 chars *first* (`slice(0, 24)`) and *then* padded (`(id + "-xxxxxxxx").slice(0, 8)`). In `sessionStorePath`, it is padded *first* (`(sid + "xxxxxxxx").slice(0, 8)`) and never truncated.
+
+Example: `resolveSessionId` with a 24-char slug produces `"scope-XXXXXXXXXXXXXXXXXXXX"` (24 chars). If that same 24-char string is later passed to `sessionStorePath`, `sessionKey` takes the last 24 chars (losing the "scop
+  ```existing
+  let id = (`scope-${slug}`).slice(0, 24);
+  if (id.length < 8) id = (id + "-xxxxxxxx").slice(0, 8);
+  ```
+  ```suggested
+  // Shared canonicalization — used by both resolveSessionId and sessionStorePath
+export function canonicalizeSessionId(raw: string): string {
+  let id = raw.slice(-24);
+  if (!id) return "";
+  if (id.length < 8) id = (id + "xxxxxxxx").slice(0, 8);
+  return id;
+}
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:24-24 (security)
+  The `SESSION_STORE_RE` regex does not anchor at the start of the string. After normalization (replacing backslashes), the pattern `/sessions/[A-Za-z0-9_-]{8,24}/store\.sqlite$` would match a relative path such as `evil/sessions/12345678/store.sqlite` or `sessions/12345678/store.sqlite`.
+
+While the *normal* call-site (`sessionStorePath`) always constructs an absolute path via `path.join(scopeRoot, ...)`, `assertSessionStorePath` is a public exported function. Any external caller passing a relative path would pass the check but `path.resolve` would resolve it relative to `process.cwd()`, potentially allowing containment bypass.
+
+Recommendation: anchor the regex with `^` and require a path sepa
+  ```existing
+  const SESSION_STORE_RE = /\/sessions\/[A-Za-z0-9_-]{8,24}\/store\.sqlite$/;
+  ```
+  ```suggested
+  const SESSION_STORE_RE = /\/[\w.-]+\/sessions\/[A-Za-z0-9_-]{8,24}\/store\.sqlite$/;
+  ```
+
+[HIGH] src/scoping/index.ts:10-10 (bug)
+  `getStoreDbAsync` (scoped-store.ts:106) is exported from the submodule but not re-exported from the barrel file. This is the async variant of `getStoreDb` — an important part of the public API for non-blocking usage. Consumers importing from the scoping barrel cannot access it.
+  ```existing
+  export { getStoreDb, closeStoreDb, upsertRow, runWithRetry, withImmediateTx } from "./scoped-store.ts";
+  ```
+  ```suggested
+  export { getStoreDb, getStoreDbAsync, closeStoreDb, upsertRow, runWithRetry, withImmediateTx, type ScopedStoreOptions } from "./scoped-store.ts";
+  ```
+
+[HIGH] src/scoping/scoped-store.ts:105-113 (bug)
+  The module-scoped `storeOpenInFlight` gate is shared across ALL database paths. If two different `dbPath` values are used concurrently (e.g., `registry.sqlite` and `sessions.sqlite`), the second async caller returns the first caller's promise and receives the wrong database handle. The gate should be keyed by `dbPath`.
+  ```existing
+  let storeOpenInFlight: Promise<Database> | null = null;
+export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Database> {
+  if (!opts && storeDb) {
+    try {
+      storeDb.query('SELECT 1').get();
+      return storeDb;
+    } catch (_sick) { /* fall through to the shared open below */ }
+  }
+  if (storeOpenInFlight) return storeOpenInFlight;
+  ```
+  ```suggested
+  const storeOpenInFlightByPath = new Map<string, Promise<Database>>();
+export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Database> {
+  if (!opts && storeDb) {
+    try {
+      storeDb.query('SELECT 1').get();
+      return storeDb;
+    } catch (_sick) { /* fall through to the shared open below */ }
+  }
+  const want = opts?.dbPath ?? storeDbPath;
+  if (want && storeOpenInFlight
+  ```
+
+[HIGH] src/scoping/session-state.ts:0-0 (bug)
+  **Lock reclaim timeout (5s) can silently break mutual exclusion.** If the critical section `fn()` takes longer than 5 seconds (e.g., slow I/O on a large state file, NFS latency, or disk pressure), a waiting peer will reclaim the lock at `ageMs > 5000` and enter the critical section concurrently. This defeats the purpose of the lock — both processes will perform read-modify-write on the same state file simultaneously, and the lost-tick / clobbered-latch problem that F-130 was meant to fix will recur.
+
+The5s floor was chosen to avoid false reclaim on coarse-granularity filesystems (F-158), but it introduces a correctness ceiling. Options:
+ 1. Add a `lastHeartbeat` timestamp to the token file t
+  ```existing
+  function withStateLock<T>(statePath: string, fn: () => T): T {
+  const lockPath = statePath + ".lock";
+  const token = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  for (;;) {
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      let ageMs = Infinity;
+
+  ```
+
+[HIGH] src/scoping/session-state.ts:54-58 (bug)
+  `fs.renameSync(tmp, statePath)` will throw `EXDEV` (Invalid cross-device link) if `statePath` and the `.tmp` file happen to reside on different filesystems. This can occur if the session state directory is on a symlinked mount, a bind mount, or a tmpfs-backed location. The exception is unhandled and will crash the process.
+
+Since `tmp` is derived as `statePath + '.tmp'` in the same directory, this is only a risk when the parent directory itself is on a different device (e.g., a symlink where the parent is a mount point). Consider adding a copy+unlink fallback:
+```typescript
+try {
+  fs.renameSync(tmp, statePath);
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code === 'EXDEV') {
+    fs.copy
+  ```existing
+  function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
+  const tmp = statePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
+}
+  ```
+
+# total: 62

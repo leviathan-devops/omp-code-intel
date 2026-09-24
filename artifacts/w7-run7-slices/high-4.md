@@ -1,42 +1,55 @@
-# HIGH slice 4 — 8 findings across 7 files
+# HIGH slice 4 — 12 findings across 10 files
 
-## src/hunter/graph/mechanical.ts
-- **src/hunter/graph/mechanical.ts:167-169** (bug)
-  Import path normalization misses `.mjs` and `.cjs` extensions. When a relative import has no recognized extension, the code always appends `.ts`, producing incorrect URIs for modules authored as `.mjs` or `.cjs`. Downstream consumers resolving `file:foo.mjs.ts` will fail to match actual files, silently corrupting the graph.
+## src/hunter/diagnostics/semantic-predicates.ts
+- **src/hunter/diagnostics/semantic-predicates.ts:134-136** (bug)
+  P3 bypasses the edge-anchored traversal contract: `ctx.graph.nodes()` iterates ALL graph nodes directly, contradicting the module's architectural mandate (header: 'never nodes() as a file list'). Every other predicate (P1, P2, P4, P5, P6) uses `resolveEdgeAnchor` to scope candidates through traversed edges. P3's direct node iteration means ANY function/method/class whose name matches `/(enforce|gate|guard|STATE_GATE)/i` becomes a candidate regardless of edge participation, generating false positives from orphaned or unrelated nodes. The edge-anchored design exists so that `DELETE FROM graph_edges` vanishes all findings — P3 violates this invariant.
   ```existing
-  if (!targetRel.endsWith('.ts') && !targetRel.endsWith('.tsx') && !targetRel.endsWith('.js')) {
-            targetRel = `${targetRel}.ts`;
-          }
+  for (const node of ctx.graph.nodes()) {
+      if (node.kind !== 'function' && node.kind !== 'method' && node.kind !== 'class') continue;
+      if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name)) continue;
   ```
   ```suggested
-  const knownExts = ['.ts', '.tsx', '.js', '.mjs', '.cjs'];
-          if (!knownExts.some((ext) => targetRel.endsWith(ext))) {
-            targetRel = `${targetRel}.ts`;
-          }
+  // Use resolveEdgeAnchor like P1-P6: define a P3_SPEC with defMatchers
+    // matching /enforce|gate|guard|STATE_GATE/i, then iterate anchor.files
+    // instead of ctx.graph.nodes(). The unwired-enforcement check would then
+    // read the source of each edge-resolved file and inspect its exported
+    // symbols for zero-caller gates — preserving the edge-anchor contract.
+    const anchor = ancho
   ```
 
-## src/hunter/harness/report.ts
-- **src/hunter/harness/report.ts:282-288** (bug)
-  If `COMMIT` fails (e.g., disk full, I/O error), the transaction remains open on the `DbClient` handle. Unlike the inner DB operation block which has explicit ROLLBACK handling, the COMMIT path has no error recovery. A subsequent operation on this handle could silently operate inside the stale transaction or fail in confusing ways.
+## src/hunter/graph/resolver.ts
+- **src/hunter/graph/resolver.ts:225-226** (bug)
+  Bug (asymmetry with `decide` path): The `run()` path resolves `newEnt` via `n.id === alias` only, while the `decide()` path uses `n.id === alias || n.label === alias` (line 193). If the AI harness returns an entity's label rather than its ID in the `alias` field, the `run()` path silently drops that record and falls back to heuristic — producing an incorrect or inconsistent result without any diagnostic signal.
 
-Suggested fix: wrap the COMMIT in a try/catch and attempt ROLLBACK on failure, throwing a descriptive error.
+Fix: add the same `|| n.label === alias` fallback to the `run()` path for parity.
   ```existing
-  } catch (dbErr: unknown) {
-      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
-        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
-      }
-      throw dbErr;
-    }
-    i
+  // ★ F-253 FIX (2026-09-24): run path — same no-fabrication rule as the decide path (skip hallucinated aliases).
+              const newEnt = newEntities.find((n) => n.id === alias);
   ```
   ```suggested
-  } catch (dbErr: unknown) {
-      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
-        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
-      }
-      throw dbErr;
-    }
-    t
+  // ★ F-253 FIX (2026-09-24): run path — same no-fabrication rule as the decide path (skip hallucinated aliases).
+              const newEnt = newEntities.find((n) => n.id === alias || n.label === alias);
+  ```
+
+## src/hunter/hooks/bus-hook.ts
+- **src/hunter/hooks/bus-hook.ts:98-103** (bug)
+  The `break` on a non-numeric-id poison row halts intake without advancing the cursor past it. On the next poll, `WHERE id > ?` re-selects the same poison row, breaking again — a permanent stall. The F-348 comment claims "the cursor already covers every clean row before it," but it does NOT cover the poison row itself. Additionally, all clean rows *after* the poison row are lost from both `clean` and cursor advancement, so they will be re-fetched (and re-broken) on every subsequent poll. Since this is supposed to be defense-in-the-depth, it should use `continue` after logging (accepting that the poison row id is unusable for the cursor) or otherwise ensure forward progress.
+  ```existing
+  const sig = JSON.stringify(row).slice(0, 160);
+        if (!this.poisonLogged.has(sig)) {
+          this.poisonLogged.add(sig);
+          console.error(`[hydra-bus] POISON events row (non-numeric id, intake halted past cursor ${this.cursor}): ${sig}`);
+        }
+        break;
+  ```
+  ```suggested
+  const sig = JSON.stringify(row).slice(0, 160);
+        if (!this.poisonLogged.has(sig)) {
+          this.poisonLogged.add(sig);
+          console.error(`[hydra-bus] POISON events row (non-numeric id, skipped past cursor ${this.cursor}): ${sig}`);
+        }
+        // Advance cursor so this non-numeric row is never re-selected.
+        // We cannot use row.id (it is not a number), so the cursor sta
   ```
 
 ## src/hunter/shared/db.ts
@@ -127,4 +140,58 @@ Suggested fix: wrap the COMMIT in a try/catch and attempt ROLLBACK on failure, t
           //   auditOne already filtered before isAnchored, factsFor did not. Same
           //   filter here: only the bad fact is discarded, never the whole consumer.
           const got:
+  ```
+
+## src/omp/rsi.ts
+- **src/omp/rsi.ts:444-448** (bug)
+  TOCTOU race condition: `liveIncludingForgedRetirement()` is called BEFORE `BEGIN IMMEDIATE`, so `current` may be stale. A concurrent `write()` with the same `canonicalId` could insert a new live row between the read and the lock acquisition. The subsequent `head()` (inside the txn) would then correctly read the new tip, but the early-return guard `current.kind === d.tier` still uses the stale `current`. Additionally, the `label` and `evidenceQuote` inherited from `current` may correspond to the wrong row. The derivation (`recount`) and `head()` are correctly inside the txn, but `current` is not. Either move `liveIncludingForgedRetirement()` inside the transaction, or re-read it after BEGIN IMMEDIATE.
+  ```existing
+  this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const counts = this.recount(canonicalId);
+      const d = deriveTier(counts.confirmed, counts.refuted, counts.unresolved);
+      const current = this.liveIncludingForgedRetirement(canonicalId);
+  ```
+
+## src/scoping/session-state.ts
+- **src/scoping/session-state.ts:0-0** (bug)
+  **Lock reclaim timeout (5s) can silently break mutual exclusion.** If the critical section `fn()` takes longer than 5 seconds (e.g., slow I/O on a large state file, NFS latency, or disk pressure), a waiting peer will reclaim the lock at `ageMs > 5000` and enter the critical section concurrently. This defeats the purpose of the lock — both processes will perform read-modify-write on the same state file simultaneously, and the lost-tick / clobbered-latch problem that F-130 was meant to fix will recur.
+
+The5s floor was chosen to avoid false reclaim on coarse-granularity filesystems (F-158), but it introduces a correctness ceiling. Options:
+ 1. Add a `lastHeartbeat` timestamp to the token file that the lock holder periodically updates, so reclaim is based on heartbeat staleness rather than creation time.
+ 2. At minimum, log a warning when `fn()` exceeds 4s so the issue is observable.
+ 3. Document the5s hard limit on critical-section duration as a contract that callers must respect.
+  ```existing
+  function withStateLock<T>(statePath: string, fn: () => T): T {
+  const lockPath = statePath + ".lock";
+  const token = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  for (;;) {
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      let ageMs = Infinity;
+
+  ```
+- **src/scoping/session-state.ts:54-58** (bug)
+  `fs.renameSync(tmp, statePath)` will throw `EXDEV` (Invalid cross-device link) if `statePath` and the `.tmp` file happen to reside on different filesystems. This can occur if the session state directory is on a symlinked mount, a bind mount, or a tmpfs-backed location. The exception is unhandled and will crash the process.
+
+Since `tmp` is derived as `statePath + '.tmp'` in the same directory, this is only a risk when the parent directory itself is on a different device (e.g., a symlink where the parent is a mount point). Consider adding a copy+unlink fallback:
+```typescript
+try {
+  fs.renameSync(tmp, statePath);
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code === 'EXDEV') {
+    fs.copyFileSync(tmp, statePath);
+    fs.unlinkSync(tmp);
+  } else {
+    throw e;
+  }
+}
+```
+  ```existing
+  function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
+  const tmp = statePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
+}
   ```

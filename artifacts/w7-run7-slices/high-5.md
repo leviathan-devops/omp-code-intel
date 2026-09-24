@@ -1,43 +1,59 @@
-# HIGH slice 5 — 8 findings across 7 files
+# HIGH slice 5 — 11 findings across 10 files
 
-## src/hunter/graph/merge.ts
-- **src/hunter/graph/merge.ts:113-116** (bug)
-  Semantic triples are not deduplicated by key. Mechanical triples are deduplicated via `seenMechanicalKeys` (lines 105-108), but the semantic loop (line 116) iterates over all semantic triples without any key-based dedup. If two semantic triples share the same subject|predicate|object key (e.g. extracted by overlapping sources), both will be pushed into `merged`, producing duplicate output rows. Add a `seenSemanticKeys` set analogous to the mechanical one, or deduplicate `semantic` before the loop.
+## src/hunter/diagnostics/calibration.ts
+- **src/hunter/diagnostics/calibration.ts:513-516** (bug)
+  The catch block for ROLLBACK is empty — if ROLLBACK itself throws (e.g. connection lost, disk full), the original exception is re-thrown but the database connection is left in a broken transaction state. Any subsequent operations on the same DbClient will fail or produce corrupt results. At minimum, the connection should be flagged as unusable (e.g. call `db.close()` or destroy the client) to prevent silent data corruption.
   ```existing
-  for (const s of semantic) {
-    const k = tripleKey(s);
-    const pair = subjectObjectKey(s);
-    const mechExact = index.byKey.get(k);
-  ```
-  ```suggested
-  const seenSemanticKeys = new Set<string>();
-  for (const s of semantic) {
-    const k = tripleKey(s);
-    if (seenSemanticKeys.has(k)) continue;
-    seenSemanticKeys.add(k);
-    const pair = subjectObjectKey(s);
-    const mechExact = index.byKey.get(k);
+  } catch (e: unknown) {
+      try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is what the caller sees */ }
+      throw e;
+    }
   ```
 
-## src/hunter/hooks/bus-hook.ts
-- **src/hunter/hooks/bus-hook.ts:98-103** (bug)
-  The `break` on a non-numeric-id poison row halts intake without advancing the cursor past it. On the next poll, `WHERE id > ?` re-selects the same poison row, breaking again — a permanent stall. The F-348 comment claims "the cursor already covers every clean row before it," but it does NOT cover the poison row itself. Additionally, all clean rows *after* the poison row are lost from both `clean` and cursor advancement, so they will be re-fetched (and re-broken) on every subsequent poll. Since this is supposed to be defense-in-the-depth, it should use `continue` after logging (accepting that the poison row id is unusable for the cursor) or otherwise ensure forward progress.
+## src/hunter/firewall/artifact-scope.ts
+- **src/hunter/firewall/artifact-scope.ts:163-167** (security)
+  Security: When `masterReal` is not null (the master dir exists), the code verifies that `parentReal` is inside `masterReal`, but it never verifies that `masterReal` itself is inside `projectRootReal`. If `MASTER_CONTEXT` (or any variant) exists as a symlink pointing outside the project root (e.g., `/project/MASTER_CONTEXT → /tmp/evil`), then `masterReal` resolves to `/tmp/evil`, `parentReal` resolves through the same symlink to `/tmp/evil/`, and the containment check passes. The caller then writes the report to `/tmp/evil/bug_hunter_report_v<N>.md`, escaping the project boundary entirely. A defending check should verify `masterReal` is within `projectRootReal` before trusting it as the containment boundary.
   ```existing
-  const sig = JSON.stringify(row).slice(0, 160);
-        if (!this.poisonLogged.has(sig)) {
-          this.poisonLogged.add(sig);
-          console.error(`[hydra-bus] POISON events row (non-numeric id, intake halted past cursor ${this.cursor}): ${sig}`);
-        }
-        break;
+  if (masterReal !== null) {
+    if (parentReal !== masterReal && !parentReal.startsWith(masterReal + path.sep)) {
+      return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    }
+  } else {
   ```
   ```suggested
-  const sig = JSON.stringify(row).slice(0, 160);
-        if (!this.poisonLogged.has(sig)) {
-          this.poisonLogged.add(sig);
-          console.error(`[hydra-bus] POISON events row (non-numeric id, skipped past cursor ${this.cursor}): ${sig}`);
-        }
-        // Advance cursor so this non-numeric row is never re-selected.
-        // We cannot use row.id (it is not a number), so the cursor sta
+  if (masterReal !== null) {
+    // F-NEW: verify the resolved master dir itself is inside the project root —
+    // a variant symlink (e.g. MASTER_CONTEXT -> /tmp) would otherwise let writes
+    // escape the project boundary.
+    if (masterReal !== projectRootReal && !masterReal.startsWith(projectRootReal + path.sep)) {
+      console.warn(`[artifact-scope] master realpath escapes project root (mas
+  ```
+
+## src/hunter/graph/store-map.ts
+- **src/hunter/graph/store-map.ts:194-195** (bug)
+  If the same `runTag` is passed on a re-run (or the generated `Date.now()` tag collides with a previous run), the supersede UPDATE `WHERE superseded_run IS NULL` becomes a no-op: the previous successful insert already left all rows with `superseded_run = <this runTag>` (not NULL). The subsequent INSERT then adds duplicate live rows alongside the original ones from that same run, corrupting the store. Consider either: (a) generating a new unique runTag and using a different mechanism to supersede, or (b) explicitly superseding rows with the same runTag too: `UPDATE ... SET superseded_run = ?1 WHERE superseded_run IS NULL OR superseded_run = ?1`.
+  ```existing
+  db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+  ```
+
+## src/hunter/lexicon/templates.ts
+- **src/hunter/lexicon/templates.ts:135-140** (security)
+  readPath allows traversal into `constructor` as an own property: for a standard object, `Object.hasOwn(obj, 'constructor')` returns `true` because `constructor` is an inherited but also own-key-accessible property. A crafted `node.data` with a poisoned `constructor.prototype` chain (e.g., via a polluted dependency writing to `Object.prototype.constructor`) would let `readPath` walk into the prototype. Consider blocklisting `__proto__` and `constructor` explicitly — the F-333 fix was on the right track but the set of dangerous keys is larger than just prototype-chain walks via inherited properties.
+  ```existing
+  // ★ F-333 FIX (2026-09-24): OWN-PROPERTY ONLY. A bare `obj[part]` walks the
+    //   prototype chain — a polluted Object.prototype (or an Object.create'd node.data)
+    //   could surface an INHERITED value as if it were a binding. The predicate's
+    //   bindings are the template's INPUT, so the read is a trust boundary.
+    if (!Object.hasOwn(cur, part)) return undefined;
+    cur = (cur as Rec
+  ```
+  ```suggested
+  // The F-333 trust-boundary guard: own-property only, PLUS blocklist of
+    // keys that are unsafe even as own properties.
+    if (!Object.hasOwn(cur, part)) return undefined;
+    if (part === '__proto__' || part === 'constructor') return undefined;
+    cur = (cur as Record<string, unknown>)[part];
   ```
 
 ## src/hydra/auditor.ts
@@ -140,13 +156,35 @@ Additionally, the ternary `total >= 0 ? buf.subarray(total) : buf` is always tru
       if (typeof v !== "function") ret
   ```
 
-## src/omp/ripwire-bridge.ts
-- **src/omp/ripwire-bridge.ts:156-160** (bug)
-  `Number()` can return `NaN` when the external binary's output drifts (e.g. `j.reaches` is a non-numeric string or absent in an unexpected format). NaN silently propagates into the `data` record and summary strings (e.g. `"impact_reaches=NaN"`). Add validation or a safe-parse helper: `const safeNum = (v: unknown, fallback: number) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; }` and use it consistently instead of bare `Number()`.
+## src/omp/oracle.ts
+- **src/omp/oracle.ts:251-253** (bug)
+  When `notAfter` is set to a timestamp BEFORE the row's `at`, the window becomes inverted (`to < from`), which silently returns zero evidence — every record fails the `at <= from || at > to` filter. This is a caller error (an inverted resolution window), but it is handled as a silent no-op: the row is classified `unresolved` with no indication that the constraint was self-defeating. Compare with the time-travel check above, which loudly throws. The two are symmetric caller errors, but only one is caught.
+
+After `to` is computed on line ~158, add an explicit check:
   ```existing
-  const reaches = Number(j.reaches ?? 0);
-  return {
-    present: true, ok: true,
-    summary: `impact_reaches=${reaches} radius_untested=${String(j.radius_untested ?? "?")}`,
-    data: { reaches, radius_tested: j.radius_tested, radius_untested: j.radius_untested },
+  // `cap` is authoritative: a caller-supplied windowMs can only NARROW it, never
+  // widen past the resolution stamp (the R4c bypass the pass-3 scan found).
+  const to = Math.min(from + windowMs, cap);
+  ```
+  ```suggested
+  const to = Math.min(from + windowMs, cap);
+  if (to < from) {
+    throw new Error(
+      `GI_ORACLE_INVERTED_WINDOW: notAfter ${JSON.stringify(opts.notAfter)} (${to}) is before the fire at ${JSON.stringify(row.at)} (${from}) — the resolution window is inverted, so no evidence can be gathered. This is a caller error: the resolution stamp must be AFTER the fire.`,
+    );
+  }
+  ```
+
+## src/scoping/db-path.ts
+- **src/scoping/db-path.ts:54-56** (bug)
+  Using `startsWith('/')` to detect absolute paths is not cross-platform safe. On Windows, absolute paths start with a drive letter (e.g., `C:\Users\...`), so this check would incorrectly treat a Windows absolute path as relative and incorrectly join it with `os.tmpdir()`. Use `path.isAbsolute()` instead, which correctly handles all platforms.
+  ```existing
+  return spec.testFile.startsWith('/')
+        ? spec.testFile
+        : path.join(os.tmpdir(), spec.testFile);
+  ```
+  ```suggested
+  return path.isAbsolute(spec.testFile)
+        ? spec.testFile
+        : path.join(os.tmpdir(), spec.testFile);
   ```

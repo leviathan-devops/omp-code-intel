@@ -4,6 +4,7 @@
 // A global ~/.omp/graph-intelligence/store.sqlite is a LEAK. Refuse it.
 
 import * as os from "node:os";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { sessionKey } from "./session-state.ts";
 
@@ -44,7 +45,25 @@ export function assertSessionStorePath(p: string): void {
   //   escapes whose literal text matched but whose resolved path left the
   //   session dir. path.resolve collapses the traversal so the regex tests the
   //   real location (containment: only a resolved sessions/{sid}/store.sqlite passes).
-  const resolved = path.resolve(p);
+  // ★ F-434 FIX (2026-09-24, run-8 CRITICAL): SYMLINK TRAVERSAL. F-283 resolved `..`/`.`
+  //   but `path.resolve` does NOT follow symlinks — a link planted at an intermediate
+  //   component (`sessions/<sid>/evil -> /etc`) still LOOKED like a session store after
+  //   resolution. Resolve the REAL path (symlink-following) and test THAT. The store may
+  //   not exist yet (this asserts BEFORE the open), so walk up to the nearest EXISTING
+  //   ancestor and realpath that — a symlinked ancestor outside the scope then fails the
+  //   regex on its true location.
+  const realNearest = (start: string): string => {
+    let dir = path.resolve(start);
+    for (let i = 0; i < 8; i += 1) {
+      try { return fs.realpathSync(dir); } catch {
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+    }
+    return path.resolve(start);
+  };
+  const resolved = realNearest(p);
   const norm = resolved.replace(/\\/g, "/");
   if (isGlobalHomeGraph(norm)) {
     throw new GiPathError(
