@@ -512,13 +512,13 @@ export function writeGraphifyCheckout(
       if (taggedEdges.length > 0) db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
       insertForkNodesBatch(db, taggedNodes);
       insertForkEdgesBatch(db, taggedEdges);
+      // ★ F-127 FIX (2026-09-24): the populated_at marker rides INSIDE the transaction
+      //   (before COMMIT). After COMMIT it was a separate auto-commit statement; its
+      //   failure hit the catch's ROLLBACK on an ALREADY-COMMITTED tx — a swallowed error
+      //   that left the store unmarked (the exact A3 gap this line was added to close).
+      db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
       try {
     db.exec("COMMIT;");
-    // ★ GATE-A3 GAP FIXED (2026-09-23): the BUILD writer never wrote `populated_at`,
-    //   so a store the build had JUST produced read as STALE the moment the A3 freshness
-    //   gate looked at it (the session-populate path wrote the marker; the build path did
-    //   not). The build now marks its OWN output fresh — one reader, one writer, one truth.
-    db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
   } catch (commitErr) {
     try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
     throw commitErr;

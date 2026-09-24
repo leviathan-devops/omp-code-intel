@@ -49,8 +49,17 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
     );
   }
   fs.mkdirSync(path.dirname(storePath), { recursive: true });
-  const created = !fs.existsSync(storePath);
-  if (created) fs.writeFileSync(storePath, "");
+  // ★ F-128 FIX (2026-09-24): the TOCTOU truncate. `existsSync` then a plain
+  //   `writeFileSync` (flag 'w') TRUNCATES if another writer created the store between
+  //   the check and the write. The 'wx' flag creates exclusively — EEXIST means a peer
+  //   won the race, which is success (the store exists), never a truncate.
+  let created = false;
+  try {
+    fs.writeFileSync(storePath, "", { flag: "wx" });
+    created = true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+  }
   upsertGiSession({
     sessionId: ownerKey,
     scopeRoot: input.scopeRoot,

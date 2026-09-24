@@ -46,6 +46,26 @@ export function writeSessionState(statePath: string, state: SessionStateMap): vo
   fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
 }
 
+/** ★ F-130 FIX (2026-09-24): the read-modify-write lock. tickSessionBudget reads the
+ *  state file, mutates it, writes it back — two concurrent callers both read the same
+ *  snapshot, both increment, one write wins (a LOST tick). The lock serializes the RMW;
+ *  the atomic tmp+rename inside writeSessionState stays. Stale-lock reclaim after 2s. */
+function withStateLock<T>(statePath: string, fn: () => T): T {
+  const lockPath = statePath + ".lock";
+  const deadline = Date.now() + 2000;
+  let fd: number;
+  for (;;) {
+    try { fd = fs.openSync(lockPath, "wx"); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      if (Date.now() > deadline) { try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
+      const t = Date.now(); while (Date.now() - t < 3) { /* the sync spin (no async file-lock API) */ }
+    }
+  }
+  try { return fn(); }
+  finally { try { fs.closeSync(fd); } catch { /* closed */ } try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
+}
+
 /** THE BUDGET TICK — the latch semantics: (1) the plan's mtime CHANGED since
  *  the entry latched → the operator edited the plan → reset wavesGenerated to
  *  1 (the fresh contract); (2) unchanged → increment; (3) no entry → create.
@@ -58,21 +78,23 @@ export function tickSessionBudget(
 ): number | null {
   if (!sessionId) return null;
   const key = sessionKey(sessionId);
-  const state = readSessionState(statePath);
-  const entry = state[key];
-  if (!entry) {
-    state[key] = { plannedAt: new Date().toISOString(), planNote, wavesGenerated: 1, planMtimeMs };
+  return withStateLock(statePath, () => {
+    const state = readSessionState(statePath);
+    const entry = state[key];
+    if (!entry) {
+      state[key] = { plannedAt: new Date().toISOString(), planNote, wavesGenerated: 1, planMtimeMs };
+      writeSessionState(statePath, state);
+      return 1;
+    }
+    if (entry.planMtimeMs !== planMtimeMs) {
+      // THE MTIME LATCH: the plan changed → a fresh budget (the reset law).
+      state[key] = { ...entry, plannedAt: new Date().toISOString(), planNote: planNote ?? entry.planNote, wavesGenerated: 1, planMtimeMs };
+      writeSessionState(statePath, state);
+      return 1;
+    }
+    const n = (entry.wavesGenerated ?? 0) + 1;
+    state[key] = { ...entry, wavesGenerated: n, planNote: planNote ?? entry.planNote };
     writeSessionState(statePath, state);
-    return 1;
-  }
-  if (entry.planMtimeMs !== planMtimeMs) {
-    // THE MTIME LATCH: the plan changed → a fresh budget (the reset law).
-    state[key] = { ...entry, plannedAt: new Date().toISOString(), planNote: planNote ?? entry.planNote, wavesGenerated: 1, planMtimeMs };
-    writeSessionState(statePath, state);
-    return 1;
-  }
-  const n = (entry.wavesGenerated ?? 0) + 1;
-  state[key] = { ...entry, wavesGenerated: n, planNote: planNote ?? entry.planNote };
-  writeSessionState(statePath, state);
-  return n;
+    return n;
+  });
 }

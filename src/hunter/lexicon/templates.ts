@@ -315,7 +315,9 @@ const WIRING_EXPORT_IMPORTER: PredicateTemplate = {
       if (!lines) {
         lines = new Set<number>();
         try {
-          const src = readFileSync(file, 'utf-8').split('\n');
+          // ★ F-125 FIX (2026-09-24): the INJECTED source, never the raw fs read —
+          //   the file's own A3 hostile-corpus law + K20.3 determinism mandate ctx.source.
+          const src = ctx.source.read(file).split('\n');
           for (let i = 0; i < src.length; i++) if (/^\s*export\s/.test(src[i])) lines.add(i + 1);
         } catch { /* unreadable → unverified → the check stays silent for this file */ }
         exportLinesByFile.set(file, lines);

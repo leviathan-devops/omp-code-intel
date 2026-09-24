@@ -121,8 +121,8 @@ function freshnessGate(db: Database, input: GraphFactInput): GraphFactVerdict | 
 /** Count the edges into a node whose canonical_id matches the target. */
 function inDegree(db: Database, target: string, predicate?: string): { n: number; sample: string[] } {
   const rows = (predicate === undefined
-    ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 LIMIT 5`).all(LIKE(target))
-    : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 LIMIT 5`).all(LIKE(target), predicate)) as { src_canonical: string }[];
+    ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target))
+    : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target), predicate)) as { src_canonical: string }[];
   return { n: rows.length, sample: rows.map((r) => r.src_canonical) };
 }
 
@@ -168,7 +168,7 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     }
 
     const inD = inDegree(db, input.target);
-    const outD = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1`).get(LIKE(input.target)) as { n: number }).n;
+    const outD = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
 
     // ── M-GRAPH-1 · HAS-PRODUCER ────────────────────────────────────────────────
     if (input.intent === "consume") {
@@ -229,7 +229,7 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     if (input.intent === "measure") {
       // ★ A FIELD INSIDE ITS OWN COMPUTATION IS THE D-7 CLASS: the measurement changes the
       //   measured object. The graph shows it as a SELF-EDGE.
-      const self = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1`).get(LIKE(input.target)) as { n: number }).n;
+      const self = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
       verdicts.push(self > 0
         ? { rule: "M-GRAPH-5", settles: true, action: "FIRE",
             reason: `"${input.target}" appears on BOTH ends of an edge — a self-referential measurement`,

@@ -166,12 +166,21 @@ export function writeCorbellToTypedStore(
   const { nodeRows, edgeRows } = mapCorbellToTyped(nodes, edges, runTag, opts?.nodeTypeById);
   const db = openTypedStore(storePath);
   try {
-    db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-    db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+    // ★ F-124 FIX (2026-09-24): the supersede UPDATEs ride INSIDE the transaction.
+    //   The old order (supersede AUTOCOMMIT before BEGIN, no ROLLBACK) left ZERO live
+    //   rows with no replacements if a later insert threw — the exact BLAST-CRITICAL
+    //   defect the sibling path already fixed; this path was missed.
     db.exec("BEGIN IMMEDIATE;");
-    insertForkNodesBatch(db, nodeRows);
-    insertForkEdgesBatch(db, edgeRows);
-    db.exec("COMMIT;");
+    try {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+      insertForkNodesBatch(db, nodeRows);
+      insertForkEdgesBatch(db, edgeRows);
+      db.exec("COMMIT;");
+    } catch (e) {
+      try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
   } finally {
     db.close();
   }

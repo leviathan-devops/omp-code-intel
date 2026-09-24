@@ -98,7 +98,13 @@ export function closeStoreDb(): void {
  *  ITS row (the PK); the SQLite locking serializes the writers. NO whole-file
  *  rewrite exists in this module. */
 export function upsertRow(table: string, pkColumn: string, pk: string | number, dataJson: string, extra?: Record<string, string | number>): void {
+  // ★ F-129 FIX (2026-09-24): identifier validation. The single caller passes literals,
+  //   but interpolating identifiers into SQL is a footgun — refuse anything that is not
+  //   a bare SQL identifier (defense-in-depth, no behavior change for the literal caller).
+  const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  if (!IDENT.test(table) || !IDENT.test(pkColumn)) throw new Error(`[scoped-store] GI_SQL_IDENT_REFUSED: ${table}.${pkColumn}`);
   const cols = extra ? Object.keys(extra) : [];
+  for (const c of cols) if (!IDENT.test(c)) throw new Error(`[scoped-store] GI_SQL_IDENT_REFUSED: ${c}`);
   const placeholders = ['?', '?', ...cols.map(() => '?')];
   const updates = ['data = excluded.data', ...cols.map((c) => `${c} = excluded.${c}`)];
   const sql = `INSERT INTO ${table} (${pkColumn}, data${cols.length ? ', ' + cols.join(', ') : ''}) VALUES (${placeholders.join(', ')})

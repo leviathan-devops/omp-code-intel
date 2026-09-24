@@ -445,7 +445,7 @@ function blastRadius(input: QueryInput, db: DbClient): QueryRow[] {
             AND blast.depth < ?
         )
         SELECT file, MIN(depth) AS depth FROM blast WHERE depth > 0 GROUP BY file
-      `).all(f.file, input.depth ?? DEFAULT_BLAST_DEPTH), // GI-PORT DEV-4
+      `).all(f.file, Math.min(input.depth ?? DEFAULT_BLAST_DEPTH, MAX_BLAST_DEPTH)), // GI-PORT DEV-4 + F-126 cap
       'blast-radius walk',
     );
     for (const r of rows) {

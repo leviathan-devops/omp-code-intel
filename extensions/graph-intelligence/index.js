@@ -178098,7 +178098,13 @@ function getStoreDb(opts) {
   return storeDb;
 }
 function upsertRow(table, pkColumn, pk, dataJson, extra) {
+  const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  if (!IDENT.test(table) || !IDENT.test(pkColumn))
+    throw new Error(`[scoped-store] GI_SQL_IDENT_REFUSED: ${table}.${pkColumn}`);
   const cols = extra ? Object.keys(extra) : [];
+  for (const c of cols)
+    if (!IDENT.test(c))
+      throw new Error(`[scoped-store] GI_SQL_IDENT_REFUSED: ${c}`);
   const placeholders = ["?", "?", ...cols.map(() => "?")];
   const updates = ["data = excluded.data", ...cols.map((c) => `${c} = excluded.${c}`)];
   const sql = `INSERT INTO ${table} (${pkColumn}, data${cols.length ? ", " + cols.join(", ") : ""}) VALUES (${placeholders.join(", ")})
@@ -178953,9 +178959,14 @@ function openSessionStore(input) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} owned by ${existing.session_id}; caller ${callerKey}`);
   }
   fs3.mkdirSync(path6.dirname(storePath), { recursive: true });
-  const created = !fs3.existsSync(storePath);
-  if (created)
-    fs3.writeFileSync(storePath, "");
+  let created = false;
+  try {
+    fs3.writeFileSync(storePath, "", { flag: "wx" });
+    created = true;
+  } catch (e) {
+    if (e.code !== "EEXIST")
+      throw e;
+  }
   upsertGiSession({
     sessionId: ownerKey,
     scopeRoot: input.scopeRoot,
@@ -182610,7 +182621,6 @@ init_zod();
 // src/hunter/lexicon/templates.ts
 init_zod();
 import { createHash as createHash3 } from "crypto";
-import { readFileSync as readFileSync5 } from "fs";
 class LexiconError extends Error {
   code;
   constructor(code, message) {
@@ -182755,7 +182765,7 @@ var WIRING_EXPORT_IMPORTER = {
       if (!lines) {
         lines = new Set;
         try {
-          const src = readFileSync5(file, "utf-8").split(`
+          const src = ctx.source.read(file).split(`
 `);
           for (let i = 0;i < src.length; i++)
             if (/^\s*export\s/.test(src[i]))
@@ -185226,6 +185236,7 @@ function createBugHuntTool(pi, opts) {
 }
 
 // src/hunter/surface/query-tool.ts
+var MAX_BLAST_DEPTH = 64;
 var DEFAULT_BLAST_DEPTH = 8;
 var MAX_QUERY_ROWS = 200;
 var MAX_QUERY_ROWS_FULL = 2000;
@@ -185476,7 +185487,7 @@ function blastRadius2(input, db) {
             AND blast.depth < ?
         )
         SELECT file, MIN(depth) AS depth FROM blast WHERE depth > 0 GROUP BY file
-      `).all(f.file, input.depth ?? DEFAULT_BLAST_DEPTH), "blast-radius walk");
+      `).all(f.file, Math.min(input.depth ?? DEFAULT_BLAST_DEPTH, MAX_BLAST_DEPTH)), "blast-radius walk");
     for (const r of rows) {
       if (seen.has(r.file))
         continue;
@@ -186311,7 +186322,7 @@ function freshnessGate(db, input) {
   };
 }
 function inDegree(db, target, predicate) {
-  const rows = predicate === undefined ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 LIMIT 5`).all(LIKE(target)) : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 LIMIT 5`).all(LIKE(target), predicate);
+  const rows = predicate === undefined ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target)) : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target), predicate);
   return { n: rows.length, sample: rows.map((r) => r.src_canonical) };
 }
 function graphFacts(input) {
@@ -186343,7 +186354,7 @@ function graphFacts(input) {
       }];
     }
     const inD = inDegree(db, input.target);
-    const outD = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1`).get(LIKE(input.target)).n;
+    const outD = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
     if (input.intent === "consume") {
       const producers = inDegree(db, input.target, "calls");
       verdicts.push(producers.n === 0 ? {
@@ -186386,7 +186397,7 @@ function graphFacts(input) {
       });
     }
     if (input.intent === "measure") {
-      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1`).get(LIKE(input.target)).n;
+      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
       verdicts.push(self2 > 0 ? {
         rule: "M-GRAPH-5",
         settles: true,
