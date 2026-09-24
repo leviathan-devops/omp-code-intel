@@ -33,6 +33,16 @@ for (const c of all) {
 }
 
 console.log(`  parts: ${raw.length} · comments: ${all.length} · empty-file parts: ${empty}`);
+// ★ F-607 (2026-09-24): THE INSTRUMENT GATE. A run whose parts are mostly the EMPTY_RESULT
+//   marker measured a DEAD LANE, not a clean tree — run 9 reported "1 critical / 2 high" with
+//   108 of 113 parts empty (a lapsed Go subscription returned 0 bytes on every scan). A low
+//   finding count from a dead instrument is the most dangerous output this tool can produce,
+//   so it REFUSES rather than reporting. `AUDIT_INSTRUMENT_DEAD` names the failure.
+const emptyRatio = raw.length === 0 ? 1 : empty / raw.length;
+if (emptyRatio > 0.2) {
+  console.error(`\n  ✗ AUDIT_INSTRUMENT_DEAD: ${empty} of ${raw.length} parts (${Math.round(emptyRatio * 100)}%) are EMPTY_RESULT markers — the scan lane produced no bytes. THIS RUN IS VOID: verify the provider lane (go-pool-ctl snapshot + a live completion) before quoting any number.`);
+  process.exit(2);
+}
 console.log("  ── the severity breakdown ──");
 for (const [k, v] of Object.entries(sev).sort((a, b) => b[1] - a[1])) console.log(`    ${k}: ${v}`);
 
