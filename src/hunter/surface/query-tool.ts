@@ -333,14 +333,17 @@ function violations(input: QueryInput, db: DbClient): QueryRow[] {
     'violations',
   );
   const effectiveCap = input.format === 'llm' ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
-  const total = rows.length;
-  const capped = rows.slice(0, effectiveCap);
   const off = Math.max(0, Math.floor(input.offset ?? 0));
-  const lim = input.limit !== undefined ? Math.max(0, Math.floor(input.limit)) : effectiveCap;
-  const sliced = capped.slice(off, off + lim);
-  const result: QueryRow[] = [...sliced];
-  result.push({ pagination: { offset: off, limit: lim, total } } as unknown as QueryRow);
-  return result;
+  // ★ F-10 FIX (2026-09-24): offset/limit page the FULL findings set and the cap
+  // bounds the PAGE, never the base — the old order capped first, so any offset
+  // past the cap returned [] while total still claimed rows. limit is clamped to
+  // the cap so one page can never exceed the truncation budget.
+  // ★ F-11 FIX (2026-09-24): data rows ONLY — the old { pagination } trailer rode
+  // the same QueryRow[] behind an `as unknown as` cast, so formatRows(llm)
+  // stringified it into a garbage `pagination=[object Object]` record and every
+  // consumer had to filter the last element. A full page at off+lim signals more.
+  const lim = input.limit !== undefined ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap) : effectiveCap;
+  return rows.slice(off, off + lim);
 }
 
 /** consistency — the SPEC_DERIVED vs CODE_DERIVED drift alarm (the matrix vision). */

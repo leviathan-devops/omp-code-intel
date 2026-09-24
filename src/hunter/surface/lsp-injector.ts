@@ -28,6 +28,8 @@ export const WATCHER_DEBOUNCE_MS = 800;
 export const WATCHER_BACKLOG_CAP = 500;
 export const WATCHER_STALLED = 'WATCHER_STALLED';
 export const GRAPH_UPDATE_CONFLICT = 'GRAPH_UPDATE_CONFLICT';
+/** THE DEDUPE-WINDOW CAP (★ F-8 FIX 2026-09-24) — the per file+rule collapse map is bounded; eviction only resets a collapse counter. */
+export const RECENT_WINDOW_MAX = 5000;
 export interface WatcherHandle { close(): void; readonly paused: boolean; readonly dir: string; }
 
 /** THE STRUCTURED DIAGNOSTIC — the per-file row the server maintains. */
@@ -337,7 +339,11 @@ export class LiveGraphWatcher extends DiagnosticsServer {
 
   private triggerReparse(files: string[]): void {
     if (files.length === 0) return;
-    void this.reparseChanged(files).then((ids) => this.rerunBattery(ids));
+    // ★ F-9 FIX (2026-09-24): terminal catch — a throw in either stage is a named
+    // warn, never an unhandled rejection (fatal under bun --unhandled-rejections=strict).
+    void this.reparseChanged(files).then((ids) => this.rerunBattery(ids)).catch((e: unknown) => {
+      console.warn(`[lsp-injector] background reparse failed (the watcher keeps its queue): ${e instanceof Error ? e.message : String(e)}`);
+    });
   }
 }
 

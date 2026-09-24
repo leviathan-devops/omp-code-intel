@@ -457,13 +457,17 @@ export type GoErrorClass = 'quota' | 'rejected' | 'contract' | 'other' | 'server
 
 export function classifyGoError(err: string): GoErrorClass {
   const e = String(err ?? '');
-  // V21 W10: ORDERED classifier — server (500-504) BEFORE quota, so a 503
-  // body containing "overloaded" can never exile a key as quota; 529 stays
-  // quota (capacity window); no regex overlap remains between classes.
+  // ★ F-5 FIX (2026-09-24): quota BEFORE server + boundaried server phrases.
+  // A 429/quota body carrying "service unavailable"/"gateway timeout" is a quota
+  // exile (dead-mark), never a transient server pass — the old server-first order
+  // let the phrase swallow the 429 (advance-no-mark, no dead-mark, the pool
+  // hammered an exhausted key). Bare server phrases with no quota signal still
+  // route server (V21 W10: 529 stays quota; bare 'overloaded' stays server).
+  // Both phrases are word-boundaried — no match inside longer tokens.
   if (/MissingSessionID/i.test(e)) return 'contract';
-  if (/\b50[0-4]\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(e)) return 'server';
-  if (/\b529\b/i.test(e)) return 'quota';
   if (/GoUsageLimitError|usage limit|quota|rate limit|\b429\b|\b402\b/i.test(e)) return 'quota';
+  if (/\b529\b/i.test(e)) return 'quota';
+  if (/\b50[0-4]\b|\binternal server error\b|\bbad gateway\b|\bservice unavailable\b|\bgateway timeout\b/i.test(e)) return 'server';
   // V21 cleanup: bare 'overloaded' (no 529/429 code) is transient capacity —
   // short re-probe (server class), never a 1h quota exile.
   if (/overloaded/i.test(e)) return 'server';

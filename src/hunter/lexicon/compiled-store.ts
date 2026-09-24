@@ -39,6 +39,10 @@ const COMPILED_PREDICATES_COLUMNS = [
  */
 export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
   if (battery.length === 0) return;
+  // ★ F-6 FIX (2026-09-24): atomic battery commit — BEGIN/COMMIT/ROLLBACK like
+  // writeRuleCards below; a mid-loop failure rolls back instead of half-writing.
+  db.exec('BEGIN');
+  try {
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
   );
@@ -56,6 +60,11 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
       p.batteryVersion,
       'PENDING',
     );
+  }
+    db.exec('COMMIT');
+  } catch (e: unknown) {
+    db.exec('ROLLBACK');
+    throw e;
   }
 }
 
