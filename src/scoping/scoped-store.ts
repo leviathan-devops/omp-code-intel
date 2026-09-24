@@ -121,12 +121,11 @@ export function closeStoreDb(): void {
 //   the wrong handle when two different dbPaths opened concurrently.
 const storeOpenInFlightByPath = new Map<string, Promise<Database>>();
 export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Database> {
-  if (!opts && storeDb) {
-    try {
-      storeDb.query('SELECT 1').get();
-      return storeDb;
-    } catch (_sick) { /* fall through to the shared open below */ }
-  }
+  // ★ F-1030 FIX (2026-09-25): the pre-gate fast path returned the cached handle
+  // ★ WITHOUT joining the F-288 in-flight gate — a concurrent opener could
+  // ★ close/reopen underneath the fast-path caller (stale-handle use) or two
+  // ★ callers could interleave open decisions. The health check + open now BOTH run
+  // ★ inside the shared gate: one pending open per path, every caller shares it.
   const want = opts?.dbPath ?? storeDbPath;
   const existingGate = want ? storeOpenInFlightByPath.get(want) : null;
   if (existingGate) return existingGate;
@@ -135,6 +134,13 @@ export async function getStoreDbAsync(opts?: ScopedStoreOptions): Promise<Databa
   const gate = new Promise<Database>((res, rej) => { resolveOpen = res; rejectOpen = rej; });
   if (want) storeOpenInFlightByPath.set(want, gate);
   try {
+    if (!opts && storeDb) {
+      try {
+        storeDb.query('SELECT 1').get();
+        resolveOpen(storeDb);
+        return storeDb;
+      } catch (_sick) { /* fall through to the shared open below, still inside the gate */ }
+    }
     const db = getStoreDb(opts);
     resolveOpen(db);
     return db;

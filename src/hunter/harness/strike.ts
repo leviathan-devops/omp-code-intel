@@ -34,8 +34,18 @@ export function strike(
   // THE D12 TIE-BREAK — the trace relevance matrix over the engine's base
   // order: a same-score pair leads by the higher total relevance, then the
   // higher severity, then the stable id (the deterministic final fallback).
+  // ★ F-1001 FIX (2026-09-25): duplicate findingIds OVERWROTE (last-wins) so the
+  //   relevance total depended on trace ORDER, breaking the determinism guarantee.
+  //   Same findingId now SUMS per-framework relevance (order-independent total);
+  //   first row's metadata wins. PROBE: two rows same id with {a:1}/{a:2} → 3 either order.
   const traceByFinding = new Map<string, TraceRow>();
-  for (const t of traces) traceByFinding.set(t.findingId, t);
+  for (const t of traces) {
+    const existing = traceByFinding.get(t.findingId);
+    if (!existing) { traceByFinding.set(t.findingId, { ...t, relevance: { ...t.relevance } }); continue; }
+    const merged = { ...existing.relevance } as Record<string, number>;
+    for (const [k, v] of Object.entries(t.relevance)) merged[k] = (merged[k] ?? 0) + (typeof v === "number" ? v : 0);
+    traceByFinding.set(t.findingId, { ...existing, relevance: merged as TraceRow["relevance"] });
+  }
 
   const relevanceOf = (f: NormalizedFinding): number => {
     const t = traceByFinding.get(findingIdOf(f));

@@ -212,6 +212,14 @@ export function decideFireFromGraph(
   if (typeof target !== "string" || target.trim().length === 0) {
     throw new Error("GI_DECIDE_BAD_INPUT: target must be a non-empty string");
   }
+  // ★ F-1045 FIX (2026-09-25): NUL in target is never a legit symbol and truncates C-level
+  // ★ string handling downstream — fail fast. NOTE: `..` needs NO guard here (NOT-A-BUG half):
+  // ★ target never touches the filesystem — graphFacts() uses it ONLY as a SQL LIKE parameter
+  // ★ (graph-facts.ts:103 `LIKE(target)`, reads at :167/:179/:185), so `../../etc/passwd`
+  // ★ matches zero nodes (UNOBSERVED), never opens a file.
+  if (target.includes("\0")) {
+    throw new Error("GI_DECIDE_BAD_INPUT: target must not contain NUL bytes");
+  }
   // ★ F-843 FIX (2026-09-24): `intent` was the one unvalidated public input — TypeScript's union does not stop `undefined` at runtime, which sailed into graphFacts, matched NO M-GRAPH branch, and returned an empty fact set dressed as "the graph has no fact". Same fail-fast discipline as scopeRoot/target above.
   if (intent !== "consume" && intent !== "declare" && intent !== "mutate" && intent !== "measure") {
     throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of consume|declare|mutate|measure (got ${String(intent)})`);

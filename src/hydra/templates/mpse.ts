@@ -18,7 +18,10 @@ const candidateWithContract = LayerCandidateSchema.extend({
   implementationStatus: z.enum(["conformant", "violated", "unimplemented"]).optional(),
 });
 
-export const MpseContractConformanceSchema = z.object({
+// ★ F-1044 FIX (2026-09-25): the four conformance schemas were structurally identical —
+// ★ a field added to one silently diverged the rest. The shared base owns the fields once;
+// ★ each schema extends it (Oracle adds epsilon; Provenance adds nothing).
+const MpseConformanceBaseSchema = z.object({
   contractId: z.string().min(1),
   specPath: z.string().min(1),
   specLine: z.number().int().positive(),
@@ -28,6 +31,8 @@ export const MpseContractConformanceSchema = z.object({
   line: z.number().int().positive().optional(),
   evidence: z.string().optional(),
 });
+
+export const MpseContractConformanceSchema = MpseConformanceBaseSchema.extend({});
 
 export const MpseContractOutputSchema = z.object({
   candidates: z.array(candidateWithContract),
@@ -52,15 +57,7 @@ export const mpseContractTemplate: AuditorTemplate = {
   staticPrompt: `IDENTITY: CONTRACT hunter — hunt contract conformance (unimplemented/violated/missing-guard/drifted contracts). Trace spec clause → checkContract() chain → implementing function → verdict. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; path-trace connections; subgraph depth 3 for blast radius; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks (predicate/file path:line/evidence/spec) + ## SUMMARY.`,
 };
 
-export const MpseOracleConformanceSchema = z.object({
-  contractId: z.string().min(1),
-  specPath: z.string().min(1),
-  specLine: z.number().int().positive(),
-  specQuote: z.string().min(1),
-  implementationStatus: z.enum(["conformant", "violated", "unimplemented"]),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
-  evidence: z.string().optional(),
+export const MpseOracleConformanceSchema = MpseConformanceBaseSchema.extend({
   epsilon: z.number().optional(),
 });
 
@@ -85,16 +82,7 @@ export const mpseOracleTemplate: AuditorTemplate = {
   staticPrompt: `IDENTITY: ORACLE hunter — hunt epsilon/oracle threshold enforcement (unguarded numeric decisions, epsilon drift, missing oracle guards near contract calls). Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`,
 };
 
-export const MpseStageConformanceSchema = z.object({
-  contractId: z.string().min(1),
-  specPath: z.string().min(1),
-  specLine: z.number().int().positive(),
-  specQuote: z.string().min(1),
-  implementationStatus: z.enum(["conformant", "violated", "unimplemented"]),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
-  evidence: z.string().optional(),
-});
+export const MpseStageConformanceSchema = MpseConformanceBaseSchema.extend({});
 
 export const MpseStageOutputSchema = z.object({
   candidates: z.array(candidateWithContract),
@@ -129,16 +117,7 @@ export const TraceGapSchema = z.object({
   gapReason: z.string().min(1).optional(),
 });
 
-export const ProvenanceConformanceSchema = z.object({
-  contractId: z.string().min(1),
-  specPath: z.string().min(1),
-  specLine: z.number().int().positive(),
-  specQuote: z.string().min(1),
-  implementationStatus: z.enum(["conformant", "violated", "unimplemented"]),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
-  evidence: z.string().optional(),
-});
+export const ProvenanceConformanceSchema = MpseConformanceBaseSchema.extend({});
 
 export const MpseProvenanceOutputSchema = z.object({
   candidates: z.array(candidateWithContract),

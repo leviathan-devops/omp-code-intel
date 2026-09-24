@@ -144,6 +144,14 @@ export class HydraBus {
       this.cursor = row.id;
     }
       return clean;
+    } catch (e: unknown) {
+      // ★ F-1023 FIX (2026-09-25, cont.): the cursor advanced row-by-row above, so
+      // ★ an escaping throw (DB failure, subscriber bookkeeping fault) would strand
+      // ★ it past rows never delivered — the next poll skips them (silent loss).
+      // ★ Restore the entry cursor; the next poll re-selects the batch. Normal
+      // ★ poison skips return cleanly and keep their advance (no stall).
+      this.cursor = cursorBefore;
+      throw e;
     } finally {
       this.polling = false;
     }

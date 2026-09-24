@@ -174,6 +174,9 @@ export function releaseHuntLock(targetPath: string): void {
     // ★ re-read immediately before the unlink, and treat ENOENT as peer-won (warn,
     // ★ keep). Residual: path locks cannot release atomically without an fd lock —
     // ★ the window is now µs, never ms, and a lost race warns instead of corrupting.
+    // ★ PROBE NOTE: a lock missing at ENTRY exits earlier via the F-30 fail-closed
+    // ★ null path ("unreadable payload"); the ENOENT catch below covers only the
+    // ★ unlink-time race (peer deleted/replaced between fresh2 and unlinkSync).
     const fresh2 = readPayload(lockPath);
     if (!fresh2 || fresh2.pid !== existing.pid || fresh2.acquiredAt !== existing.acquiredAt || fresh2.hostname !== existing.hostname) {
       console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed just before unlink (a peer won the race) — keeping the current holder's lock`);

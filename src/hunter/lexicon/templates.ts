@@ -200,9 +200,17 @@ function bindStringArray(bindings: Record<string, unknown>, key: string): string
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the stages binding (z.array-validated
  *  at compile, Array.isArray-guarded at runtime). */
 function bindStages(bindings: Record<string, unknown>): { id: string; entry: string }[] {
+  // ★ F-1002 FIX (2026-09-25): Array.isArray confirms the SHAPE but a bare cast
+  //   smuggled null/primitive/malformed rows into cur.entry/next.entry reads (SILENT
+  //   class — same defect as bindStringArray's F-701). Element-level guard mirrors it.
   const v = bindings['stages'];
   if (Array.isArray(v)) {
-    return v as { id: string; entry: string }[];
+    return v.filter(
+      (el): el is { id: string; entry: string } =>
+        typeof el === 'object' && el !== null &&
+        typeof (el as Record<string, unknown>).id === 'string' &&
+        typeof (el as Record<string, unknown>).entry === 'string',
+    );
   }
   return [];
 }

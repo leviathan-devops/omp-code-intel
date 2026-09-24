@@ -78,9 +78,17 @@ function runRaw(root: string, args: string[], timeoutMs?: number, env?: NodeJS.P
   });
   // ★ F-271 FIX (2026-09-24): maxBuffer truncation arrived as a generic exec error and parsed as "query failed" — a WRONG verdict shape for cut-off output. ENOBUFS is NAMED at the source so every consult surfaces TRUNCATED.
   const rawErr = res.error as (NodeJS.ErrnoException & { code?: string }) | undefined;
+  // ★ F-1029 FIX (2026-09-25): some Node versions report maxBuffer overflow as
+  // ★ ERR_CHILD_PROCESS_STDIO_MAXBUFFER — or with no .code at all — so TRUNCATED
+  // ★ silently fell through to a generic 'query failed' leg. Both codes plus the
+  // ★ stdout-length heuristic (output at the buffer ceiling means cut-off bytes).
+  const stdoutLen = String(res.stdout ?? "").length;
+  const isTruncated = rawErr !== undefined && (rawErr.code === "ENOBUFS" ||
+    rawErr.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" ||
+    (rawErr.code === undefined && stdoutLen >= RIPWIRE_MAX_BUFFER));
   const execError = rawErr === undefined
     ? null
-    : rawErr.code === "ENOBUFS"
+    : isTruncated
       ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B — ${rawErr.message}`
       : rawErr.message;
   return {

@@ -196,7 +196,11 @@ export function gather(
   //   THE PRECEDENCE: THE ROW WINS — a certified value beats a guess, always.
   //   NEITHER GIVEN ⇒ A NAMED THROW, never a silent fallback to a default subject (the
   //   hard-dependency law: a named wrong answer is still a wrong answer).
-  const fromRow = row.target !== undefined && row.target !== "";
+  // ★ F-1028 FIX (2026-09-25): target is a NULLABLE db column (fire-ledger.ts:77-79:
+  // ★ pre-EN-090 rows carry NULL). `null !== undefined` is true, so a NULL target
+  // ★ passed this guard and was cast to string — a type-level lie that matched no
+  // ★ evidence. Nullish check: NULL rows fall back to the caller-supplied subject.
+  const fromRow = row.target != null && row.target !== "";
   let subject: Subject;
   if (fromRow) subject = { target: row.target as string, tool: subjectInput?.tool };
   else if (subjectInput !== undefined) subject = subjectInput;
@@ -438,7 +442,10 @@ export function resolveAll(
   //   committed (partial write, no report). Refuse the WHOLE batch up front,
   //   like the stamp (O4) and notAfter (F-OR1) validations above it.
   for (const { row, subject: subj } of unresolved) {
-    const fromRow = row.target !== undefined && row.target !== '';
+    // ★ F-1027 FIX (2026-09-25): same NULL-hole as gather (F-1028) — a NULL target
+    // ★ passed `!== undefined`, so pre-EN-090 rows skipped the NO_SUBJECT refusal and
+    // ★ died later inside gather (partial-write shape). Nullish: refused up front.
+    const fromRow = row.target != null && row.target !== '';
     if (!fromRow && subj === undefined) {
       throw new Error(
         `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — refusing the WHOLE batch so no partial write can occur`,

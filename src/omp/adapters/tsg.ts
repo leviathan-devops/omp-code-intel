@@ -122,10 +122,21 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
         // ★ F-914 FIX (2026-09-24): PARTIAL-EXPOSURE redaction — exact-only split/join missed a tail echo in a trace (proven: key.slice(-8) survived verbatim). Exact via split/join (metachar-safe) + a tail-8 heuristic for keys >= 16 chars; over-redaction is fail-closed.
         const redact = (s: string): string => {
           if (key === null || key.length === 0) return s;
+          // ★ F-1025 FIX (2026-09-25): the tail-8 heuristic still leaked first-N and
+          // ★ middle fragments (e.g. a log printing key.slice(0, 12)). Any 8+
+          // ★ contiguous substring contains a full 8-gram of the key, so EVERY
+          // ★ sliding 8-gram is scrubbed (split/join — metachar-safe, never a raw
+          // ★ regex of the key) after the exact full-key pass. Deduped via Set.
+          // ★ Over-redaction of an 8-char coincidence is fail-closed (accepted).
           let out: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
           if (key.length >= 16) {
-            const tail: string = key.slice(-8);
-            if (tail.length >= 8) out = out.split(tail).join('...[redacted-tail]');
+            const seen = new Set<string>();
+            for (let i = 0; i + 8 <= key.length; i++) {
+              const gram: string = key.slice(i, i + 8);
+              if (seen.has(gram)) continue;
+              seen.add(gram);
+              out = out.split(gram).join('...[redacted-frag]');
+            }
           }
           return out;
         };

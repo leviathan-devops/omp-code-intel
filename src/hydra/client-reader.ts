@@ -93,7 +93,13 @@ export class GraphifyClientReader {
     const t = this.transport;
     if (!t) throw new Error("GRAPHIFY_NOT_CONNECTED: no transport attached — attach() an operator-side transport first");
     try {
-      return await t.listTools();
+      // ★ F-1024 FIX (2026-09-25): a stalled transport hung listTools() forever, holding
+      // ★ the captured reference and deadlocking later ops — same class as F-611/F-612.
+      // ★ Bounded with the same 5000ms Promise.race shape as attach()/disconnect().
+      return await Promise.race([
+        t.listTools(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000).unref?.()),
+      ]);
     } catch (err) {
       throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
     }
@@ -108,7 +114,12 @@ export class GraphifyClientReader {
       throw new Error("GRAPHIFY_CALL_INVALID: name must be non-empty string");
     }
     try {
-      return await t.callTool(name, args ?? {});
+      // ★ F-1024 FIX (2026-09-25): same unbounded-hang class on the call path — a hung
+      // ★ callTool() blocked the caller indefinitely. Same 5000ms race as listTools().
+      return await Promise.race([
+        t.callTool(name, args ?? {}),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`GRAPHIFY_CALL_TIMEOUT: callTool(${name}) exceeded 5000ms`)), 5000).unref?.()),
+      ]);
     } catch (err) {
       if (String((err as Error).message ?? "").includes("GRAPHIFY_NOT_CONNECTED")) throw err;
       throw new Error(`GRAPHIFY_MCP_CALL_FAILED: ${name} — ${String((err as Error).message ?? err)}`);

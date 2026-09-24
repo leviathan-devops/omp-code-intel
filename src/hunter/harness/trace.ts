@@ -72,6 +72,7 @@ function deriveRootCause(f: NormalizedFinding, evidenceLen: number): string {
   //   line 83 below (the evidenceLen split in legacySolveTrace).
   const evidenceText = typeof f.evidence === 'string' ? f.evidence : '';
   const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
+  const mechanism = first.length > 120 ? `${first.slice(0, 120)}\u2026` : first;
   const depth = evidenceLen > 3 ? 'a multi-step edge chain' : 'a single-edge mechanism';
   // ★ F-1032b FIX (2026-09-25): the F-1032 edit referenced an undefined `mechanism` — the
   //   intended payload is the FIRST EVIDENCE SEGMENT (`first`), which the edit computed and

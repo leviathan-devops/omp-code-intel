@@ -367,7 +367,11 @@ export function mpsePreFilter(fire: Fire, ctx: AbsorbedContext): { settle: FireD
     // ★ F-266 FIX (2026-09-24): a slot mixing discussion + affirmative action ("discussed rm and then executed rm") passed every() on the "discuss" substring and settled IGNORE on a REAL act. A slot carrying an affirmative-action verb is evidence OF the act, never of its negation.
     const onlyNegated = mentionsTarget.every((s) => {
       const t = s.text.toLowerCase();
-      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out)/.test(t)) return false;
+      // ★ F-1026 FIX (2026-09-25): the F-266 affirmative list missed the destructive
+      // ★ verbs slots actually use — "deleted/removed/destroyed/dropped/killed/
+      // ★ erased/wiped/nuked" settled IGNORE on a REAL act ("discussed removing the
+      // ★ server and then deleted it"). Destructive verbs are affirmative evidence.
+      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out|delet|remov|destroy|\bdrop|\bkill|eras|\bwip|nuk|purge|truncate)/.test(t)) return false;
       return /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(t);
     });
     if (onlyNegated) {
