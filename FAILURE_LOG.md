@@ -1693,3 +1693,20 @@ Each adjudicated two-sided against the real code, then FIXED + PINNED in
 - **F-131** `src/omp/graph-facts.ts` — **all 4** `typed_edges` reads counted **DEAD** (superseded)
   edges (`superseded_run` exists but no query filtered it). **FIX:** `AND superseded_run IS NULL`
   on every one.
+
+---
+
+### W3 HIGH FINDINGS — FixHunterFwDiag's slice (13/13 REAL, all fixed) (2026-09-24)
+- **F-1** calibration.ts:479 per-row `Date.now()` → session-fixed `this.calibratedAt`.
+- **F-2** calibration.ts:493 read-dir→N→write races → `openSync(wx)` O_EXCL claim + probe N+1.
+- **F-3** engine.ts:230+278 `path.resolve(root,file)` without containment → realpath containment
+  (parent==root or startsWith(root+sep)), else loud throw. **path traversal FIXED.**
+- **F-4** engine.ts:623 `JSON.parse(r.data)` throws to outer catch → per-row try/catch, malformed
+  → {} with a named console.error; rows survive (no DB overwrite).
+- **F-5** findings-store.ts:72+98 empty runId → loud `FINDING_NO_TRIPLET` at the write boundary.
+- **F-6** fixture-calibration.ts:180 `withManifest(dir)` walks one level for manifest dirs.
+- **F-7** semantic-predicates.ts:89 `Sync?`→`(Sync)?` (never the truncated stem).
+- **F-8/9/10** artifact-scope.ts: fs.stat catch only ENOENT→CREATE else fail-closed; parent
+  realpath failure → blocked (never skips the escape check); symmetric real-vs-real comparison.
+- **F-11/12** lexicon-types.ts: `state` narrowed alongside `verdict` (2-member, not the 4-union).
+- **F-13** readonly.ts: the block-verb splitter extended with `$` + backtick → `$(...)`/`` ` `` fire.

@@ -52,7 +52,7 @@ F-128 store-open · F-129 scoped-store · F-130 session-state · F-131 graph-fac
 ### The 92 HIGHS — 6 DISJOINT AGENTS DISPATCHED
 | agent | the slice | findings | state |
 |---|---|---|---|
-| FixHunterFwDiag | src/hunter/firewall + diagnostics | 13 | running |
+| FixHunterFwDiag | src/hunter/firewall + diagnostics | 13 | ★ DONE — ALL 13 REAL, all fixed (path containment, artifact-scope fail-closed x3, bash bypass, calibration determinism+atomicity, findings-store empty-runId, fixture-calibration, semantic-predicates regex) |
 | FixHunterRest1 | src/hunter/harness + shared + hooks | 11 | ★ DONE — F-1..F-7 REAL (5 applied by the orchestrator after the agent's gate block), 4 NOT-A-BUG |
 | FixHunterRest2 | src/hunter/surface + graph + keys + lexicon | ~13 | running |
 | FixOmpCore | src/omp (top level) | 21 | running |
