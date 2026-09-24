@@ -86,5 +86,15 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
       storePath,
     });
   }
+  // ★ F-1047 FIX (2026-09-25, run-13 HIGH): check-then-upsert raced — two concurrent openers
+  // ★ could both observe `!current` and the loser silently overwrote the winner's row (the
+  // ★ F-896 class: losing a race must not fall through). Verify-after-write: re-read the row
+  // ★ just written; a foreign owner means this opener lost — refuse LOUD.
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    throw new GiScopeError(
+      `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`,
+    );
+  }
   return { storePath, ownerKey, created };
 }

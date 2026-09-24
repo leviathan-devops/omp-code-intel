@@ -353,7 +353,10 @@ export class GraphifyMapReader {
       }
       for (const e of g.edges ?? []) {
         if (!e || typeof e.src !== "string") continue;
-        const key = `${e.src}→${e.dst}:${e.relation}`;
+        // ★ F-1013 FIX (2026-09-25): the key omitted confidence — an INFERRED edge over an
+        //   EXTRACTED triplet was silently dropped, losing provenance consumers rely on.
+        //   Confidence rides the key, so both provenances survive the merge.
+        const key = `${e.src}→${e.dst}:${e.relation}:${e.confidence ?? "EXTRACTED"}`;
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
           edges.push(e);

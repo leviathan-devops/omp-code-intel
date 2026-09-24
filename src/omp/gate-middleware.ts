@@ -11,7 +11,13 @@ export type GiDial = "OFF" | "STEER" | "FULL";
 // graph-gate.ts:146): declaration form yields the name; `export { a as b }`
 // yields the ALIAS; `export default` yields 'default'. OMP baseline recall was
 // 0.366 on the 238-file live tree (564/1542) with the function-only regex.
-const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+// ★ F-1046 FIX (2026-09-25, run-13 HIGH): EXPORT_PARSE_RE's `(?:function|const|class|…)`
+// ★ alternation missed `function*` (async or not) — `export async function* foo()` matched
+// ★ NEITHER regex (PROBED: PARSE=[], GEN=[foo]). EXPORT_GEN_RE already covers both forms via
+// ★ `(?:async\s+)?`; extended the range-star to a named star so PARSE no longer silently
+// ★ depends on GEN running too (defense in depth — eachExportName runs both, but each regex
+// ★ must be correct on its own).
+const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
 // ★ F-41 FIX (2026-09-24): `export function*` (the `*` between function and name) and `export const {a}/[a]` never matched — stripped exports evaded the gate. Generator + destructured forms covered in both fns below.
 const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
 const EXPORT_DESTRUCT_RE = /export\s+(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])/g;

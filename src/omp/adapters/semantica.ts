@@ -73,7 +73,13 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
       // ★ F-825 FIX (2026-09-24): runtime guard after JSON.parse — a corrupted or adversarially
       //   shaped kg.json where `entities` is a string/number/object (not an array) would cause
       //   an unguarded TypeError in .filter(). Validate the shape before consumption.
-      if (kg !== null && typeof kg === "object" && !Array.isArray(kg) && kg.entities !== undefined && !Array.isArray(kg.entities)) {
+      // ★ F-1015 FIX (2026-09-25): a literal `null` (or array/primitive) root sailed past
+      //   the F-825 field check — which only rejects a bad `entities` field — and crashed at
+      //   `(kg.entities ?? [])` with a raw TypeError. Non-object roots refuse LOUD here.
+      if (kg === null || typeof kg !== "object" || Array.isArray(kg)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store root is not a valid object (got ${kg === null ? "null" : Array.isArray(kg) ? "array" : typeof kg})`);
+      }
+      if (kg.entities !== undefined && !Array.isArray(kg.entities)) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expected array, got ${typeof kg.entities})`);
       }
       // ★ F-944 FIX (2026-09-24): per-element shape guard — F-825 validated the array

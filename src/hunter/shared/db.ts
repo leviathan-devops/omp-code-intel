@@ -730,12 +730,15 @@ export class FamilyGraphStore {
         if (!isNodeLineage(e.lineage)) throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
         edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
       }
-    });
-    tx();
-    try {
+      // ★ F-1010 FIX (2026-09-25): the branch_union_view rebuild rode OUTSIDE the commit —
+      //   a DDL failure left committed data under a stale/missing view while the guard only
+      //   debug-logged it (the F-432 class: a wrong-shape CREATE VIEW swallowed, view stale,
+      //   getBranchUnion trusts the view when it returns rows so the manual fallback never
+      //   fires). Data + view now commit atomically — a DDL throw rolls back the whole write.
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
       this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes");
-    } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #2:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    });
+    tx();
     // attach family for union query: re-create view that unions via attached db
     // ★ F-402 FIX (2026-09-24): ATTACH throws when the alias is already attached (2nd+
     //   call) — the old single try skipped the DROP/CREATE VIEW with it, so
@@ -749,7 +752,12 @@ export class FamilyGraphStore {
     try {
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
       this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
-    } catch (viewErr) { console.debug("[kg-store] branch_union_attached rebuild failed:", viewErr instanceof Error ? viewErr.message : String(viewErr)); }
+    } catch (viewErr) {
+      // ★ F-1010 FIX (2026-09-25): propagate — the debug-only catch re-created the silent-stale
+      //   class on the attached leg (ATTACH stays idempotent-guarded per F-402; a VIEW failure
+      //   is now a loud named throw, never a committed write under a stale view).
+      throw new Error(`BRANCH_VIEW_REBUILD_FAILED: branch_union_attached rebuild failed (${viewErr instanceof Error ? viewErr.message : String(viewErr)})`);
+    }
   }
 
   getBranchUnion(): Array<GraphNode & { origin: string }> {
@@ -781,6 +789,15 @@ export class FamilyGraphStore {
     const famCount = (this.familyDb.prepare('SELECT count(*) as c FROM family_nodes').get() as Record<string, unknown>)?.['c'] as number ?? 0;
     const deltaCount = (this.branchDb.prepare('SELECT count(*) as c FROM graph_nodes').get() as Record<string, unknown>)?.['c'] as number ?? 0;
     return { family: famCount, delta: deltaCount, total: famCount + deltaCount };
+  }
+
+  // ★ F-1009 FIX (2026-09-25): the read-only factory set the private `sealed`
+  //   flag via `as unknown as Record<string, unknown>` — a rename/refactor of the
+  //   field would silently set a dead property (zero compile + zero runtime error)
+  //   leaving the store writable against a physically read-only file. The seal now
+  //   rides a public method, so a rename fails LOUD at tsc.
+  markSealed(): void {
+    this.sealed = true;
   }
 
   sealFamily(): void {
@@ -877,7 +894,7 @@ export function openFamilyReadOnly(familyPath: string): FamilyGraphStore {
   branchHandle.exec(CREATE_TABLES_SQL);
   branchHandle.exec(FAMILY_TABLES_SQL);
   const store = new FamilyGraphStore(familyPath, handle, ':memory:', branchHandle);
-  (store as unknown as Record<string, unknown>)['sealed'] = true;
+  store.markSealed();
   return store;
 }
 

@@ -38,7 +38,19 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
   // opts.substrate === 'graphify' runs the graphify graph.json leg; anything
   // else (or absent) runs the corbell-first path below, untouched.
   if (opts?.substrate === "graphify") {
-    return populateGraphifySessionStore(storePath, root, runTag);
+    // ★ F-1017 FIX (2026-09-25): populateGraphifySessionStore throws on the write path
+    //   (buildSync / mapGraphifyToTyped / GRAPHIFY_WRITE_FAILED) past a PopulateResult-typed
+    //   function, while every corbell miss returns { skipped: true, fallbackReason }. The
+    //   graphify leg mirrors the corbell shape: failure is a skipped result with the named
+    //   reason, never an exception (the extension's graphify caller already branches on
+    //   pop.skipped/fallbackReason).
+    try {
+      return populateGraphifySessionStore(storePath, root, runTag);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
+      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason };
+    }
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
   if (corbell.ok) {

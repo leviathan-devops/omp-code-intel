@@ -99,7 +99,11 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
   // '1,20p' / '5p' / '1,20' — the p is the sed print suffix, present in the C10.6 proof case);
   // THE DECISION is the BASH_DECISION state machine below.
   if (firstToken === 'sed' && secondToken === '-n') {
-    const rest = command.slice(command.indexOf('-n') + 2).trim();
+    // ★ F-1040b FIX (2026-09-25): rest was `command.slice(command.indexOf('-n') + 2)` —
+    // ★ indexOf lands INSIDE the quotes for `sed "-n" '1,20p'` (rest = `" '1,20p'`),
+    // ★ which missed the range regex AND tripped the startsWith-quote BLOCK. Strip the
+    // ★ leading `sed <-n>` (bare or single/double-quoted) quote-aware; PROBED below.
+    const rest = command.replace(/^\S+\s+(?:"-n"|'-n'|-n)\s*/, '');
     const m = SED_N_RANGE_RE.exec(rest);
     if (m) return null; // the whole command is the sanctioned range read — no other metachars possible
     // The quoted NON-range (a substitution smuggled in the quotes — 's/x/y/') must BLOCK:

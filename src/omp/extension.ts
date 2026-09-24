@@ -57,6 +57,30 @@ const withPopulateLane = async <T>(fn: () => Promise<T>): Promise<T> => {
 // string PREFIX check (the exact W16 class: breaks for targetRoot "/" which
 // builds "//", and for any sibling sharing the prefix when sep is dropped).
 // The verdict is component-based, one exported seam, tested.
+// ★ F-1016 FIX (2026-09-25): the non-recursive audit-root builder — walks the components
+//   of auditRoot under targetReal, lstat-ing each level (never following) and creating
+//   missing levels with a NON-recursive mkdir. Returns null on success, the refusal
+//   reason otherwise. A symlink at any level (final or intermediate) refuses BEFORE any
+//   directory is created outside the root.
+export function ensureAuditRoot(targetReal: string, auditRoot: string): string | null {
+  const rel = path.relative(targetReal, auditRoot);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return "audit root escapes the target root";
+  const parts = rel.split(path.sep).filter((p) => p.length > 0);
+  let cur = targetReal;
+  try {
+    for (const part of parts) {
+      if (part === ".." || part === "." || path.isAbsolute(part)) return "audit root escapes the target root";
+      cur = path.join(cur, part);
+      let st: fs.Stats | null = null;
+      try { st = fs.lstatSync(cur); } catch { st = null; }
+      if (st && st.isSymbolicLink()) return "audit root is a symlink plant";
+      if (!st) fs.mkdirSync(cur);
+    }
+  } catch (mkErr: unknown) {
+    return `cannot create audit root: ${mkErr instanceof Error ? mkErr.message : String(mkErr)}`;
+  }
+  return null;
+}
 export function ledgerDirConfined(ledgerReal: string, targetReal: string): boolean {
   const rel = path.relative(targetReal, ledgerReal);
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
@@ -601,15 +625,15 @@ createBugHuntTool(pi, { cwdOf });
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
       // ★ F-340 FIX (2026-09-24): lstat BEFORE mkdir — mkdirSync recursive follows a pre-planted symlink at auditRoot and builds outside the root before the realpath verdict below can refuse. lstat never follows; a symlink at the final component is refused with no side effect. (The post-mkdir realpath check stays for parent-component plants.)
-      let auditPre: { isSymbolicLink: () => boolean } | null = null;
-      try { auditPre = fs.lstatSync(auditRoot); } catch { auditPre = null; }
-      if (auditPre && auditPre.isSymbolicLink()) {
-        return textResult("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
-      }
-      try {
-        fs.mkdirSync(auditRoot, { recursive: true });
-      } catch (mkErr: unknown) {
-        return textResult(`GI_LEDGER_DENIED: cannot create audit root: ${mkErr instanceof Error ? mkErr.message : String(mkErr)}`.slice(0, 200), { ok: false, error: "GI_LEDGER_DENIED" });
+      // ★ F-1016 FIX (2026-09-25): mkdirSync(recursive) follows a symlink planted at an
+      //   INTERMEDIATE component (.omp/, graph-intelligence/) and creates the leaf outside
+      //   the root before the realpath verdict below can refuse (the pre-mkdir lstat only
+      //   covered the final component). The chain is built level by level via ensureAuditRoot
+      //   (exported seam, probed): lstat each level, symlink at ANY level refuses with zero
+      //   side effects, mkdir is never recursive. The post-build realpath verdict stays.
+      const rootRefusal = ensureAuditRoot(targetReal, auditRoot);
+      if (rootRefusal !== null) {
+        return textResult(`GI_LEDGER_DENIED: ${rootRefusal}`.slice(0, 200), { ok: false, error: "GI_LEDGER_DENIED" });
       }
       // W15/W16 (frozen-scan HIGH): component containment on the AUDIT ROOT —
       // refuse a pre-planted symlink BEFORE mkdtemp (path.relative verdict,
