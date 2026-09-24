@@ -1740,3 +1740,13 @@ Each adjudicated two-sided against the real code, then FIXED + PINNED in
   ALREADY the count (number, typed-write.ts:798), not a rows array; the audit misread the API.
 - **artifact-scope.ts `masterReal`** — **NOT-A-BUG**: `masterDir` is derived from `projectRootReal`
   (resolveMasterContextDir), so masterReal is always inside projectRootReal.
+
+### W3 RE-AUDIT #3 (frozen tree) — the 3 CRITICALS (2026-09-24)
+- **F-20** `src/kernel/scan-chain.ts:64` — `getNvidiaKey()` passed the auth PATH STRING to
+  `JSON.parse` (always a SyntaxError → the NVIDIA rungs never got a key). FIX: JSON.parse the
+  file's CONTENT (`readFileSync(..., 'utf8')`).
+- **F-21** `src/omp/rsi.ts:350` — `appendFiring` signed `o: "pending"` but inserted
+  `outcome: 'unresolved'` (the HMAC payload was inconsistent with the persisted row). FIX: sign
+  `"unresolved"`.
+- **F-22** `src/hunter/profile/loader.ts:509` — my F-18 `contained()` used lexical `path.resolve`,
+  so a SYMLINK planted inside the root pointing out escaped. FIX: `realpathSync` the entry.

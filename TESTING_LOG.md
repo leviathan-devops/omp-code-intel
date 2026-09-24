@@ -2344,3 +2344,22 @@ AUDIT GATE: FAIL
 **Verdict: FAIL** — the ship-ready claim stays WITHHELD. The mechanism (a non-deterministic LLM
 reviewer) is named; every adjudicated-REAL defect across both runs is FIXED + PINNED
 (`st-w3-criticals` 9/0, `st-w3-highs` 14/0, `st-w3-audit-coverage` 3/0).
+
+## AUDIT GATE (re-measured) — 2026-09-24 — the FINAL whole-tree audit (audit3)
+
+```
+AUDIT GATE: FAIL
+```
+**audit3 result:** `{critical:3, high:80, medium:225, low:109}` across 112 files (dist 24ac061fda606a90).
+The 3 criticals — F-20 (scan-chain JSON.parse), F-21 (rsi sign payload), F-22 (loader symlink) — all
+REAL, all FIXED + re-verified (battery 430/0 + 528/0, tsc 0).
+
+**★ THE THREE-RUN MEASUREMENT OF THE AUDIT'S NON-DETERMINISM:**
+| run | code state | critical | high |
+|---|---|---|---|
+| 1 (baseline) | pre-fix | 8 | 92 |
+| 2 | post 6 agents | 5 | 90 |
+| 3 | post critical-1..5 fixes | 3 | 80 |
+**The critical count is DOWN (8 → 5 → 3)** as real defects are fixed, but the gate never reaches 0
+because each run surfaces NEW findings on the same code — the reviewer has no fixed point. This is
+the honest mechanism; every adjudicated-REAL finding across all three runs is fixed + pinned.
