@@ -132,7 +132,16 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
           try { proc.kill('SIGKILL'); } catch { /* already exited */ }
         }, 5_000);
         (killTimer as unknown as { unref?: () => void }).unref?.();
-        reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child SIGTERMed (SIGKILL in 5s), no partial graph accepted`));
+        // ★ F-412 FIX (2026-09-24): reject AFTER the child exits to prevent orphaned
+        //   processes. If SIGKILL does not terminate within 10s, reject anyway with a
+        //   hard-kill error — the caller is no longer left with an unknown-lived child.
+        const forceKillTimer = setTimeout(() => {
+          done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child survived SIGKILL, no partial graph accepted`)));
+        }, 10_000);
+        (forceKillTimer as unknown as { unref?: () => void }).unref?.();
+        proc.on('exit', () => {
+          done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));
+        });
       }, timeoutMs);
       (timer as unknown as { unref?: () => void }).unref?.();
     }
@@ -152,6 +161,12 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
 }
 
 export const defaultExec: ExecFn = (cmdRaw, opts) => {
+  // ★ F-411 FIX (2026-09-24): defense-in-depth metachar guard — resolveCorbell validates
+  //   the binary path, but defaultExec is a public export; future callers may pass
+  //   user-influenced input. Fail-closed on shell metacharacters before sh -c.
+  if (/[;&|`$(){}!<>\n\r]/.test(cmdRaw)) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
+  }
   // THE ORPHAN FIX (2026-08-23 device-freeze incident): execSync runs the cmd
   // via `/bin/sh -c <cmd>` — a timeout SIGTERM killed ONLY the shell while the
   // binary (python/torch, GBs of RAM) survived as an unsupervised orphan.

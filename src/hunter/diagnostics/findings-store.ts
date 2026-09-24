@@ -159,7 +159,9 @@ export function queryFindings(
     clauses.push('run_id = ?');
     params.push(opts.runId);
   }
-  if (opts.week) {
+  // ★ F-410 FIX (2026-09-24): nullish check — '' is a valid stored week value; the truthy
+  //   test silently omitted it, returning a superset. Use != null to match append's week ?? null.
+  if (opts.week != null) {
     clauses.push('week = ?');
     params.push(opts.week);
   }

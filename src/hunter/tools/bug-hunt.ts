@@ -76,8 +76,14 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
     throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} — the hunt target must be a real directory inside the scope)`);
   }
   if (scopeReal !== null) {
-    let targetReal = absTarget;
-    try { targetReal = fsDyn.realpathSync(absTarget); } catch { targetReal = absTarget; }
+    // ★ F-409 FIX (2026-09-24): fail-closed on realpath failure — if we cannot resolve the
+    // ★ real path, we cannot confirm containment, so reject rather than checking the logical path.
+    let targetReal: string;
+    try {
+      targetReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scopeReal} realpath failed — chmod/fix permissions or remove broken symlinks)`);
+    }
     if (!inScope(targetReal)) {
       throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
     }
@@ -105,8 +111,13 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
       }
       // ★ F-303b FIX (2026-09-24): the profile obeys the SAME containment as the target.
       if (scopeReal !== null) {
-        let profileReal = absProfile;
-        try { profileReal = fsDyn.realpathSync(absProfile); } catch { profileReal = absProfile; }
+        // ★ F-409 FIX (2026-09-24): fail-closed on realpath failure (same pattern as targetPath)
+        let profileReal: string;
+        try {
+          profileReal = fsDyn.realpathSync(absProfile);
+        } catch {
+          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} cannot resolve for scope check (scope=${scopeReal} realpath failed — chmod/fix permissions or remove broken symlinks)`);
+        }
         if (!inScope(profileReal)) {
           throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
         }

@@ -27,14 +27,32 @@ export class JevError extends Error {
   }
 }
 
-/** Environment first (the run shim), then the 0600 file. Absent ⇒ THROW. */
+/** Environment first (the run shim), then the 0600 file. Absent ⇒ THROW. A group/world-
+ *  readable key file ⇒ GI_JEV_KEY_PERMS (the documented 0600 contract is enforced, not prose). */
 export function resolveKey(env: Record<string, string | undefined> = process.env): string {
   const fromEnv = env["TYPESAFE_AI_API_KEY"];
   if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
   try {
+    // ★ F-410 FIX (2026-09-24): enforce the 0600 contract — a world-readable key file is
+    // ★ silently accepted; reject it so the operator knows to chmod 600 the file.
+    if (typeof fs.statSync === 'function') {
+      try {
+        const mode = fs.statSync(KEY_FILE).mode;
+        if ((mode & 0o077) !== 0) {
+          throw new JevError(
+            "GI_JEV_KEY_PERMS",
+            `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
+          );
+        }
+      } catch (e) {
+        if (e instanceof JevError) throw e;
+        // stat failed (e.g. file doesn't exist) — fall through to readFile which handles that
+      }
+    }
     const v = fs.readFileSync(KEY_FILE, "utf8").trim();
     if (v.length > 0) return v;
-  } catch {
+  } catch (e) {
+    if (e instanceof JevError) throw e;
     /* fall through to the throw */
   }
   throw new JevError("GI_JEV_NO_KEY", `no key in TYPESAFE_AI_API_KEY and none readable at ${KEY_FILE}`);

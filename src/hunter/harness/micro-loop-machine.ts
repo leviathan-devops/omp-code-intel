@@ -395,9 +395,14 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
   // ★ call before termination doubled them (four subs, stale disposables). The pending promise
   // ★ is now cached: concurrent callers share one subscription pair, never re-subscribe.
   let pendingDone: Promise<void> | null = null;
+  // ★ F-408 FIX (2026-09-24): expose settle at handle scope so stop() can resolve
+  // ★ pendingDone before tearing down subscriptions — old code left callers hanging.
+  let pendingSettle: (() => void) | null = null;
   const handle: MicroLoopHandle = {
     stop(): void {
       sub.unsubscribe();
+      // ★ F-408: resolve any pending done() promise BEFORE teardown
+      if (pendingSettle !== null) { pendingSettle(); pendingSettle = null; }
       for (const d of handleDisposables.splice(0)) d.unsubscribe();
       try { actor.stop(); } catch (e) { console.error('[micro-loop] actor stop failed:', e instanceof Error ? e.message : String(e)); }
     },
@@ -429,10 +434,12 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
         function settle(): void {
           if (settled) return;
           settled = true;
+          pendingSettle = null;
           sub2.unsubscribe();
           sub3.unsubscribe();
           resolve();
         }
+        pendingSettle = settle;
         // THE OWNED TELEMETRY (the R19 orphaned-subscription fix): the progress
         // subscriptions ride the run scope and tear down with it — registered
         // on the handle's disposables, never void-dropped.
