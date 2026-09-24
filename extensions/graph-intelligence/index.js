@@ -181816,7 +181816,7 @@ import { Database as Database5 } from "bun:sqlite";
 // src/hunter/shared/migrations.ts
 init_ontology();
 function sqlList(values) {
-  return values.map((v) => `'${v}'`).join(",");
+  return values.map((v) => `'${v.replace(/'/g, "''")}'`).join(",");
 }
 var NODE_KINDS_SQL = sqlList(NODE_TYPES);
 var PREDICATES_SQL = sqlList(ALL_PREDICATES);
@@ -182805,6 +182805,8 @@ function readPath(obj, dotted) {
   for (const part of dotted.split(".")) {
     if (cur === null || cur === undefined || typeof cur !== "object")
       return;
+    if (!Object.hasOwn(cur, part))
+      return;
     cur = cur[part];
   }
   return cur;
@@ -183643,7 +183645,7 @@ function dedupe(findings) {
   const seen = new Set;
   const out = [];
   for (const f of findings) {
-    const key = `${f.ruleId}|${f.file}|${f.line}`;
+    const key = JSON.stringify([f.ruleId, f.file, f.line]);
     if (seen.has(key))
       continue;
     seen.add(key);
@@ -183675,9 +183677,14 @@ function violationFrequencies(profile, ruleIds) {
   for (const logPath of profile.history.failureLogs) {
     const abs = path16.resolve(profile.project.root, logPath);
     const parentReal = fs14.realpathSync(path16.dirname(abs));
-    const contained = containedIn(parentReal);
-    if (!contained)
+    if (!containedIn(parentReal))
       throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+    let logReal = abs;
+    try {
+      logReal = fs14.realpathSync(abs);
+    } catch {}
+    if (!containedIn(logReal))
+      throw historyLogUnreadable(abs, `symlink escapes project root (root=${rootReal} file=${logReal})`);
     let text;
     try {
       text = fs14.readFileSync(abs, "utf8");
@@ -183711,10 +183718,17 @@ function lockdownReadSource(profile) {
   return {
     read(file, range) {
       const abs = path16.resolve(profile.project.root, file);
+      const rootPrefix = rootReal === path16.sep ? path16.sep : rootReal + path16.sep;
+      const inside = (q) => q === rootReal || q.startsWith(rootPrefix);
       const parentReal = fs14.realpathSync(path16.dirname(abs));
-      const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path16.sep);
-      if (!contained)
+      if (!inside(parentReal))
         throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+      let fileReal = abs;
+      try {
+        fileReal = fs14.realpathSync(abs);
+      } catch {}
+      if (!inside(fileReal))
+        throw sourceReadFailed(abs, `symlink escapes project root (root=${rootReal} file=${fileReal})`);
       let text;
       try {
         text = fs14.readFileSync(abs, "utf8");
@@ -185382,6 +185396,9 @@ function machineTypes() {
 async function spawnBugHunterLoop(args) {
   const fsDyn = await import("fs");
   const absTarget = path23.resolve(args.targetPath);
+  const scopeReal = args.scopeRoot ? fsDyn.realpathSync(path23.resolve(args.scopeRoot)) : null;
+  const scopePrefix = scopeReal === null ? null : scopeReal === path23.sep ? path23.sep : scopeReal + path23.sep;
+  const inScope = (real) => scopeReal === null || real === scopeReal || scopePrefix !== null && real.startsWith(scopePrefix);
   let targetOk = false;
   try {
     targetOk = fsDyn.statSync(absTarget).isDirectory();
@@ -185390,6 +185407,17 @@ async function spawnBugHunterLoop(args) {
   }
   if (!targetOk) {
     throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} \u2014 the hunt target must be a real directory inside the scope)`);
+  }
+  if (scopeReal !== null) {
+    let targetReal = absTarget;
+    try {
+      targetReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      targetReal = absTarget;
+    }
+    if (!inScope(targetReal)) {
+      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
+    }
   }
   if (typeof args.profilePath === "string" && args.profilePath.length > 0) {
     const absProfile = path23.resolve(args.profilePath);
@@ -185409,6 +185437,17 @@ async function spawnBugHunterLoop(args) {
       }
       if (!profileOk) {
         throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
+      }
+      if (scopeReal !== null) {
+        let profileReal = absProfile;
+        try {
+          profileReal = fsDyn.realpathSync(absProfile);
+        } catch {
+          profileReal = absProfile;
+        }
+        if (!inScope(profileReal)) {
+          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
+        }
       }
     }
     const machine = createMicroLoop({
@@ -185486,7 +185525,7 @@ function createBugHuntTool(pi, opts) {
         const targetPath = typeof p.targetPath === "string" && p.targetPath.length > 0 ? p.targetPath : scopeRoot;
         const profilePath = typeof p.profilePath === "string" && p.profilePath.length > 0 ? p.profilePath : path23.join(scopeRoot, "profile.yaml");
         try {
-          const result = await spawnBugHunterLoop({ targetPath, profilePath });
+          const result = await spawnBugHunterLoop({ targetPath, profilePath, scopeRoot });
           if (result.state === "inconclusive") {
             const message = result.error ?? "HUNT_INCONCLUSIVE";
             return textResult(`${message}`, {
