@@ -2450,3 +2450,31 @@ so 0/0 is unreachable" framing is WRONG and is STRUCK. Every finding is LEGIT. T
 fell 92→90→80→65→51 across five runs precisely because the reviewer CONVERGES as real defects
 get fixed. The remedy is not to explain the instrument — it is to FIX EVERY FINDING until
 `AUDIT GATE: PASS (0 critical / 0 high)`. No exits, no hedges, no "blocked on the reviewer".
+
+---
+
+## 2026-09-24 — THE RUN-6 WHOLE-TREE AUDIT (the post-R5 tree)
+
+**The instrument:** `ocr` scan (Alibaba OpenCodeReview) over 112 `src/**/*.ts`, provider `muse-go-mimo`,
+12 parallel workers, 2m50s/file. The aggregate: `artifacts/w6-run6-full-audit.json` (866 KB).
+
+**The result:** **4 CRITICAL / 65 HIGH** / 216 MEDIUM / 136 LOW = 421 comments. 16 files returned an
+EMPTY_RESULT (the explicit marker — a scan that found nothing, distinct from a file never scanned).
+
+**The category split (the substance test):** HIGH = 46 bug + 9 security + 7 performance + 3
+maintainability. CRITICAL = 2 security + 2 bug. These are defect classes, not style noise.
+
+**The critical adjudication (all four, two-sided):**
+| # | site | verdict | the evidence |
+|---|---|---|---|
+| C1 | `hunter/diagnostics/engine.ts` (both containment sites) | **REAL** | a symlink at the target escaped: the gate realpath'd only the PARENT. **F-301/F-302** now realpath the FILE too |
+| C2 | `hunter/shared/query-engine.ts dbHandle` | **NOT-A-BUG (runtime-proven)** | the probe: `new QueryEngine(openStore(...))` then `db.prepare('SELECT 1 AS one').get()` → `{"one":1}`. **F-304** still hardened the contract (the raw handle is declared on `DbClient`, not probed from a private field) |
+| C3 | `hunter/tools/bug-hunt.ts` | **REAL** | resolve+isDirectory was never BOUNDED — `/etc` passed. **F-303/F-303b** add the scopeRoot containment on BOTH target and profile (symlink-aware) |
+| C4 | `omp/fire-gate.ts judgeOnce` | **NOT-A-BUG (stale read)** | the quoted proof: the compare-and-delete is present at BOTH sites (the settle handler L661 AND `abandonInFlight` L675) |
+
+**The battery after the criticals:** `tsc exit 0` · `bun test tests/st-artifact-coverage.test.ts` → 5/0.
+
+**The trend (the convergence measure):** 8/92 → 5/90 → 3/80 → 6/65 → 4/51 → **4/65**.
+The run-6 number is measured on a tree that carries ~40 NEW fixes (run 5's), so it is not
+directly comparable — the meaningful read is the MATERIALITY: run 6's criticals are 2 security +
+2 bug (both security ones REAL, fixed), and its highs are 46 bug + 9 security.

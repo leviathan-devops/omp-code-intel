@@ -1130,3 +1130,28 @@ blame the provider.
   the dist `812e3c6987027b19`; the deployed == the repo dist.
 - **THE LESSON:** the audit converges as real defects are fixed (92→90→80→65→51 across five runs).
   The non-determinism framing is STRUCK — all findings are legit; fix until 0/0.
+
+---
+
+## EN-W3-RUN6 — the run-6 criticals: 2 REAL fixed, 2 NOT-A-BUG proven (2026-09-24)
+
+- **THE FINDING:** the run-6 whole-tree audit returned 4 criticals.
+- **THE ROOT CAUSE (the two REAL ones share one mechanism):** **the containment gate resolved the
+  PARENT, never the FILE.** `path.dirname(abs)` is `<root>` for `<root>/link.ts` even when
+  `link.ts → /etc/passwd`, so `realpathSync(dirname)` said "contained" while `readFileSync` followed
+  the link out of the tree. The same missing BOUND (not just canonicalization) let the bug-hunt
+  tool accept `/etc` — `path.resolve` + `isDirectory` proves a path exists, never that it is inside
+  the scope.
+- **THE FIX:** **F-301/F-302** (engine.ts, both sites) realpath the FILE as well as the parent and
+  require containment on both; **F-303/F-303b** (bug-hunt.ts) thread the caller's `scopeRoot` in and
+  containment-check BOTH the target and the profile, symlink-aware.
+- **THE VERIFICATION:** `tsc exit 0`; the artifact-coverage gate 5/0; the dist rebuilt to
+  `7ef70b8ab4b8fb10` and deployed.
+- **THE TWO NOT-A-BUGs (the honest half):** C2 (`dbHandle`) was DISPROVEN at runtime — the probe
+  `new QueryEngine(openStore(p)).db.prepare('SELECT 1 AS one').get()` returned `{"one":1}`, so the
+  cast the reviewer feared does not fire. C4 (`judgeOnce`) was a STALE READ — the compare-and-delete
+  the reviewer prescribed is already present at both sites.
+- **THE LESSON:** "canonicalize" is not "contain". A containment gate must resolve the FINAL target
+  (symlink-following) AND be given a root to contain within. And a reviewer's critical is a
+  HYPOTHESIS: C2 and C4 cost one probe and one grep to adjudicate — cheaper than the "fix" a naive
+  acceptance would have applied to correct code.
