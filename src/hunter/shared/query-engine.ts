@@ -144,6 +144,13 @@ export class QueryEngine {
   }
 
   private buildPathEdges(from: string, to: string, maxDepth: number, liveOnly: boolean, predicateFilter?: string[]): TypedEdgeRow[] {
+    // ★ F-431 FIX (2026-09-24, run-8 CRITICAL): the from === to DEGENERATE CASE.
+    //   The BFS seeds `queue = [from]` but `cameFrom` is only written for SUCCESSORS, so the
+    //   guard `node === to && cameFrom.has(to)` is always FALSE on the first iteration — the
+    //   start node is never recognised as the target. The walk then explores neighbours and
+    //   returns a CYCLE (A→B→A) where the semantically correct answer is the EMPTY path (a
+    //   node reaches itself in zero edges, and findPath(A,A) must not manufacture a loop).
+    if (from === to) return [];
     const liveClause = liveOnly ? 'AND superseded_run IS NULL' : '';
     const predList = predicateFilter && predicateFilter.length > 0 ? predicateFilter : null;
     // ★ F-72 FIX (2026-09-24): every queue entry carried a full path copy ([...cur.path, e]) —

@@ -655,6 +655,14 @@ function ensureFamilyTables(db: Database): void {
 
 export type PromotionState = 'FAMILY_ROOT_READONLY' | 'DRIFT' | 'PROMOTION_PENDING';
 
+// ★ F-432 FIX (2026-09-24, run-8 CRITICAL): the branch-union VIEWS referenced EIGHT COLUMNS
+//   THAT DO NOT EXIST ON family_nodes. `family_nodes` is (id TEXT PK, content_hash TEXT,
+//   node_json TEXT, registered_by TEXT, promoted_at INTEGER) — a CONTENT-ADDRESSED row whose
+//   payload lives in node_json. The views SELECTed `kind, name, file, line, lineage, source,
+//   data` off it, so every CREATE VIEW either THREW (swallowed by the idempotent guard, which
+//   is why it went unnoticed) or — worse — silently produced a view with the wrong shape.
+//   The family side now projects the SAME shape as graph_nodes by extracting from node_json.
+//   Applied at all three sites (the constructor, writeBranchView, branch_union_attached).
 export class FamilyGraphStore {
   private readonly familyDb: Database;
   private readonly branchDb: Database;
@@ -669,7 +677,7 @@ export class FamilyGraphStore {
     this.branchDb = branchDb;
     ensureFamilyTables(this.familyDb);
     ensureFamilyTables(this.branchDb);
-    try { this.branchDb.exec("CREATE VIEW IF NOT EXISTS branch_union_view AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes"); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #1:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    try { this.branchDb.exec("CREATE VIEW IF NOT EXISTS branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes"); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #1:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     // ★ F-250 NOTE (2026-09-24): NOT-A-BUG (guard scope) — these guards wrap
     //   CREATE VIEW IF NOT EXISTS / ATTACH idempotent DDL only; every REAL write
     //   path in this file (writeGraph, appends, mirror, migrations) throws loud named
@@ -726,7 +734,7 @@ export class FamilyGraphStore {
     tx();
     try {
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
-      this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes");
+      this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes");
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #2:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     // attach family for union query: re-create view that unions via attached db
     // ★ F-402 FIX (2026-09-24): ATTACH throws when the alias is already attached (2nd+
@@ -740,7 +748,7 @@ export class FamilyGraphStore {
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #3:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     try {
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
-      this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
+      this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
     } catch (viewErr) { console.debug("[kg-store] branch_union_attached rebuild failed:", viewErr instanceof Error ? viewErr.message : String(viewErr)); }
   }
 

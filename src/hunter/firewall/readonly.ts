@@ -105,7 +105,13 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
     // The quoted NON-range (a substitution smuggled in the quotes — 's/x/y/') must BLOCK:
     // the quote char is the detected metachar (the carve-out is EXACT — §7.2:3203-3211).
     if (rest.startsWith('\'') || rest.startsWith('"')) return '\'';
-    return null; // the unquoted form — the classify's sed branch decides (the -n prefix is read-adjacent)
+    // ★ F-430 FIX (2026-09-24, run-8 CRITICAL): the unquoted non-match fell through to
+    //   `return null` — SKIPPING THE ENTIRE SCAN. `sed -n 1,20p | node -e "…execSync('rm -rf /')"`
+    //   never matched the (quote-anchored) range regex, so the carve-out returned null and the
+    //   `|` splitter was NEVER SCANNED — the command classified ALLOW_READ. The carve-out may
+    //   only EXEMPT when it actually matched; a non-match MUST continue to the metacharacter
+    //   scan below (the sed verb is in the read/exec list, so the true splitters still fire).
+    //   (No early return here — control falls through to the scan.)
   }
 
   // THE BLOCK-VERB ARGUMENT-SYNTAX EXEMPTION (the F3 reconciliation, generalized):

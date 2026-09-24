@@ -118,6 +118,8 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
     //   tsc). One latch, set by whichever settles first (close, error, or the timeout),
     //   so no handler can double-settle or reap a child another handler already closed.
     let settled = false;
+    /** ★ F-433: set when the timeout FIRES — suppresses a late close-resolve, never disarms done(). */
+    let timedOut = false;
     const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); if (killTimer !== null) clearTimeout(killTimer); fn(); };
     if (typeof timeoutMs === 'number' && timeoutMs > 0) {
       // ★ F-336 FIX (2026-09-24): SIGTERM alone leaked a trapping child — it kept running
@@ -126,7 +128,15 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
       // ★ leaked child cannot hold the event loop open after the rejection.
       timer = setTimeout(() => {
         if (settled) return;
-        settled = true;
+        // ★ F-433 FIX (2026-09-24, run-8 CRITICAL): DO NOT set `settled` here.
+        //   `done()` early-returns when `settled` is true — so setting it directly at the top
+        //   of the timeout made EVERY later settle INERT: the force-kill timer's
+        //   `done(() => reject(...))` no-op'd, and the `proc.on('exit')` handler registered
+        //   below never fires if the child had already emitted 'exit' in the same tick (Node
+        //   emits 'exit' BEFORE 'close'). The promise then NEVER SETTLED — a hung await with
+        //   no timeout and no error. `timedOut` is the separate latch: it SUPPRESSES the late
+        //   `close`-handler RESOLVE without disarming the REJECT path.
+        timedOut = true;
         try { proc.kill('SIGTERM'); } catch { /* already exited */ }
         killTimer = setTimeout(() => {
           try { proc.kill('SIGKILL'); } catch { /* already exited */ }
@@ -149,6 +159,8 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
     proc.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
     proc.on('close', (code) => {
       console.log(`[corbell-adapter] async graph build exited: code=${code} stdout=${stdout.length}B stderr=${stderr.length}B`);
+      // ★ F-433: a close AFTER the timeout must NEVER resolve — the caller already gave up.
+      if (timedOut) return;
       if (code === 0) done(() => resolve(stdout));
       // THE LOUD BUILD FAIL (the named-error vocabulary): a non-zero build exit
       // rejects with the command + the stderr head — never a silent empty graph.
