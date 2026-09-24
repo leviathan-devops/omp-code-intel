@@ -50,10 +50,26 @@ interface RawRun {
   execError: string | null;
 }
 
+/** ★ F-755 (2026-09-24, run-10): THE ARG CHOKEPOINT. `spawnSync` with an ARRAY argv is already
+ *  injection-safe (no shell), but the array is built by callers that interpolate the symbol —
+ *  so an argv element that is not a plain string (or that carries a NUL, which Node rejects at
+ *  spawn) can still derail the call. Every argv element passes through here: strings only, no
+ *  NUL, bounded length. A bad element becomes a NAMED absent leg, never a spawn throw. */
+function safeArg(a: unknown): string | null {
+  if (typeof a !== "string") return null;
+  if (a.includes("\u0000")) return null;
+  if (a.length > 4096) return null;
+  return a;
+}
+
 function runRaw(root: string, args: string[], timeoutMs?: number, env?: NodeJS.ProcessEnv): RawRun {
   const e = env ?? process.env;
   const bin = resolveRipwire(e);
   if (!bin) return { bin: null, status: null, stdout: "", stderr: "", execError: null };
+  const bad = [root, ...args].find((a) => safeArg(a) === null);
+  if (bad !== undefined) {
+    return { bin, status: null, stdout: "", stderr: "", execError: `RIPWIRE_ARG_INVALID: argv element ${JSON.stringify(String(bad).slice(0, 60))} is not a plain non-NUL string` };
+  }
   const res = spawnSync(bin, [root, ...args], {
     encoding: "utf8",
     timeout: timeoutMs ?? RIPWIRE_TIMEOUT_MS,

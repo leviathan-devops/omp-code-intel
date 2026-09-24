@@ -97,9 +97,13 @@ export function precisionFromCounts(c: ResolvedCounts, z = 1.96): PrecisionEstim
   const low = Math.max(0, centre - margin);
   const high = Math.min(1, centre + margin);
   return {
-    precision: p, low, high, halfWidth: (high - low) / 2,
+    // ★ F-752 FIX (2026-09-24, run-10): `halfWidth = (high - low) / 2` OVERSTATES the distance
+    //   from centre when the interval is clamped at 0 or 1 (the clamped side is shorter than
+    //   the margin). The honest half-width is the MAX of the two sides — the distance the
+    //   interval actually covers from the point estimate.
+    precision: p, low, high, halfWidth: Math.max(centre - low, high - centre),
     resolved, unresolvedRatio,
-    sufficient: (high - low) / 2 <= 0.10,
+    sufficient: Math.max(centre - low, high - centre) <= 0.10,
     starved: false,
   };
 }

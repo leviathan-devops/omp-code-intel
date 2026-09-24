@@ -81,10 +81,23 @@ function parseGraphJson(contents: string, size: number): Record<string, unknown>
   //   size on disk but not in-memory expansion. A linear pre-scan of nesting depth
   //   is cheap (single pass over the byte string, no allocation) and catches the
   //   adversarial expansion class before parse begins.
+  // ★ F-753 FIX (2026-09-24, run-10): the scan counted braces INSIDE STRING LITERALS —
+  //   `{"data": "a } b"}` decremented on a brace that is DATA, so the depth drifted and a
+  //   legitimate payload could be refused (or an adversarial one under-counted). A
+  //   string-aware single pass: track the in-string state and honour backslash escapes.
   let maxDepth = 0;
   let depth = 0;
+  let inString = false;
+  let escaped = false;
   for (let i = 0; i < contents.length; i++) {
     const c = contents.charCodeAt(i);
+    if (inString) {
+      if (escaped) { escaped = false; continue; }
+      if (c === 0x5C /* \ */) { escaped = true; continue; }
+      if (c === 0x22 /* " */) inString = false;
+      continue;
+    }
+    if (c === 0x22 /* " */) { inString = true; continue; }
     if (c === 0x7B /* { */ || c === 0x5B /* [ */) { depth++; if (depth > maxDepth) maxDepth = depth; }
     else if (c === 0x7D /* } */ || c === 0x5D /* ] */) depth--;
   }

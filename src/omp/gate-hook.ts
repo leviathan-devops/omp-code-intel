@@ -216,10 +216,12 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     if (qi === -1) return undefined;      // ★ the result must match a pending tool
     const q = queue.splice(qi, 1)[0]!;
     if (queue.length === 0) pendingQueries.delete(sid);
-    // ★ F-GH-MEM FIX (2026-09-24): the per-session maps grew indefinitely in long-lived hosts; release session bookkeeping once both queues drain so stale sessions do not accumulate.
-    // ★ F-GH-MEM (2026-09-24): only the maps in THIS function's scope are checked (pendingSteer
-    //   lives in the tool_call handler); a session with a drained query queue releases its state.
-    if (!pendingQueries.has(sid)) states.delete(sid);
+    // ★ F-754 FIX (2026-09-24, run-10 CRITICAL-adjacent): the F-GH-MEM eviction ran BEFORE this
+    //   handler read `states.get(sid)` — so when the LAST pending query for a session resolved,
+    //   `states.delete(sid)` ran first and `st` was undefined, and `recordGraphQuery` NEVER
+    //   FIRED. The resolution was silently LOST for exactly the query that would have cleared
+    //   the session's drift (the common case: one query, one edit). The state is read FIRST and
+    //   the eviction happens AFTER the record, only when both queues are drained.
     const st = states.get(sid);
     if (!st) return undefined;
     // ★ AUDIT H-7 FIXED: every tool in extension.ts reports failure via `details:{ok:false}`,
@@ -244,6 +246,11 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     //   positive row evidence.
     const resolved = !errored && hasRows;
     recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
+    // ★ F-754: the eviction now runs AFTER the record — release the session bookkeeping only
+    //   once the query queue has drained (F-GH-MEM's intent, ordered correctly). The steer
+    //   queue lives in the tool_call handler's scope and never accumulates across turns, so
+    //   the query queue is the only drain condition that matters here.
+    if (!pendingQueries.has(sid)) states.delete(sid);
     return undefined;
   });
 }

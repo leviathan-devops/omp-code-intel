@@ -50,7 +50,11 @@ export function strike(
     const sa = severityScore(a.severity);
     const sb = severityScore(b.severity);
     if (sa !== sb) return sb - sa;
-    return findingIdOf(a) < findingIdOf(b) ? -1 : 1;
+    // ★ F-750 FIX (2026-09-24, run-10): the comparator returned 1 for EQUAL ids —
+    //   a sort contract violation (equal elements must return 0). It breaks transitivity
+    //   and can produce a nondeterministic order across engines. Three-way compare.
+    const ia = findingIdOf(a), ib = findingIdOf(b);
+    return ia < ib ? -1 : ia > ib ? 1 : 0;
   });
 
   // THE FIX ORDER — the ranked finding ids (the report's section-5 worklist).

@@ -176872,8 +176872,27 @@ function parseGraphJson(contents, size) {
   }
   let maxDepth = 0;
   let depth = 0;
+  let inString = false;
+  let escaped = false;
   for (let i = 0;i < contents.length; i++) {
     const c = contents.charCodeAt(i);
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (c === 92) {
+        escaped = true;
+        continue;
+      }
+      if (c === 34)
+        inString = false;
+      continue;
+    }
+    if (c === 34) {
+      inString = true;
+      continue;
+    }
     if (c === 123 || c === 91) {
       depth++;
       if (depth > maxDepth)
@@ -179540,8 +179559,6 @@ function registerGraphGate(pi) {
     const q = queue.splice(qi, 1)[0];
     if (queue.length === 0)
       pendingQueries.delete(sid);
-    if (!pendingQueries.has(sid))
-      states.delete(sid);
     const st = states.get(sid);
     if (!st)
       return;
@@ -179554,6 +179571,8 @@ function registerGraphGate(pi) {
     const noRows = /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
     const resolved = !errored && hasRows;
     recordGraphQuery({ tool: q.tool, target: q.target, resolved, rows: hasRows ? 1 : 0 }, st);
+    if (!pendingQueries.has(sid))
+      states.delete(sid);
     return;
   });
 }
@@ -181610,11 +181629,24 @@ function resolveRipwire(env = process.env) {
   }
   return null;
 }
+function safeArg(a) {
+  if (typeof a !== "string")
+    return null;
+  if (a.includes("\x00"))
+    return null;
+  if (a.length > 4096)
+    return null;
+  return a;
+}
 function runRaw(root, args, timeoutMs, env) {
   const e = env ?? process.env;
   const bin = resolveRipwire(e);
   if (!bin)
     return { bin: null, status: null, stdout: "", stderr: "", execError: null };
+  const bad = [root, ...args].find((a) => safeArg(a) === null);
+  if (bad !== undefined) {
+    return { bin, status: null, stdout: "", stderr: "", execError: `RIPWIRE_ARG_INVALID: argv element ${JSON.stringify(String(bad).slice(0, 60))} is not a plain non-NUL string` };
+  }
   const res = spawnSync(bin, [root, ...args], {
     encoding: "utf8",
     timeout: timeoutMs ?? RIPWIRE_TIMEOUT_MS,
@@ -185113,7 +185145,8 @@ function strike(findings, profile, traces = []) {
     const sb = severityScore(b.severity);
     if (sa !== sb)
       return sb - sa;
-    return findingIdOf(a) < findingIdOf(b) ? -1 : 1;
+    const ia = findingIdOf(a), ib = findingIdOf(b);
+    return ia < ib ? -1 : ia > ib ? 1 : 0;
   });
   const fixOrder = ordered.map((f) => findingIdOf(f));
   return { findings: ordered, fixOrder };

@@ -29,7 +29,9 @@ export const WATCHER_BACKLOG_CAP = 500;
 export const WATCHER_STALLED = 'WATCHER_STALLED';
 export const GRAPH_UPDATE_CONFLICT = 'GRAPH_UPDATE_CONFLICT';
 /** THE DEDUPE-WINDOW CAP (★ F-8 FIX 2026-09-24) — the per file+rule collapse map is bounded; eviction only resets a collapse counter. */
-export const RECENT_WINDOW_MAX = 5000;
+export /** ★ F-756: the O32.2 collapse threshold — the spec says "shown in the last 3 results". */
+const REPEAT_COLLAPSE_AFTER = 3;
+const RECENT_WINDOW_MAX = 5000;
 export interface WatcherHandle { close(): void; readonly paused: boolean; readonly dir: string; }
 
 /** THE STRUCTURED DIAGNOSTIC — the per-file row the server maintains. */
@@ -293,6 +295,8 @@ export class LiveGraphWatcher extends DiagnosticsServer {
   private queue: string[] = [];
   private pausedFlag = false;
   private writeLock = false;
+  /** ★ F-751: true when acquireWriteLock CAUSED the pause (so release only undoes its own). */
+  private pausedByWriteLock = false;
   private graphNodesBefore = 0;
   private reparseChangedFn: ((files: string[]) => Promise<Set<string>>) | null = null;
   private rerunBatteryFn: ((nodeIds: Set<string>) => Promise<void>) | null = null;
@@ -344,10 +348,19 @@ export class LiveGraphWatcher extends DiagnosticsServer {
 
   acquireWriteLock(): void {
     if (this.writeLock) throw new EngineError(GRAPH_UPDATE_CONFLICT, `${GRAPH_UPDATE_CONFLICT}: a write is already in progress — the watcher is paused`);
-    this.writeLock = true; this.pause();
+    this.writeLock = true;
+    // ★ F-751 FIX (2026-09-24, run-10): acquire called pause() UNCONDITIONALLY and release
+    //   called resume() unconditionally — so a watcher that was ALREADY paused (an operator
+    //   pause, a prior condition) was silently RESUMED by releaseWriteLock. The lock now
+    //   records whether IT caused the pause, and only releases what it took.
+    this.pausedByWriteLock = !this.pausedFlag;
+    this.pause();
   }
 
-  releaseWriteLock(): void { this.writeLock = false; this.resume(); }
+  releaseWriteLock(): void {
+    this.writeLock = false;
+    if (this.pausedByWriteLock) { this.pausedByWriteLock = false; this.resume(); }
+  }
 
   async reparseChanged(files: string[]): Promise<Set<string>> {
     if (this.reparseChangedFn) return this.reparseChangedFn(files);
@@ -572,7 +585,11 @@ export function inject(result: ToolResultLike, server: DiagnosticsServer): Injec
     let repeated = 0;
     for (const d of diags) {
       const shown = server.shownTimes(touched, d.ruleId);
-      if (shown > 0) repeated += 1;
+      // ★ F-756 FIX (2026-09-24, run-10): the spec (line 16-17) says a file+rule shown in the
+      //   last 3 results collapses — the code collapsed after the FIRST (`shown > 0`), so a
+      //   finding that appeared once vanished from the next block. The threshold is the spec's
+      //   3, and it is now a named constant so the doc and the code cannot drift again.
+      if (shown >= REPEAT_COLLAPSE_AFTER) repeated += 1;
       else lines.push(`  ${severityPrefix(d.severity)}   ${d.ruleId}  ${d.message}  :${d.line}`);
       server.recordShow(touched, d.ruleId);
     }
