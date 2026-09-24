@@ -58,6 +58,16 @@ export interface ScopeBinding extends EcosystemSpec {
   assertOwnSession(sessionId: string, action: string): void;
 }
 
+/** THE LONGEST-PREFIX MATCH (single source of truth) — the longest registered prefix that is a
+ *  prefix of `id`, or undefined when none matches. Used by ownerOf / isForeignWave / assertOwnWave /
+ *  assertAliasNamespace so the four can never drift apart again.
+ *  ★ F-956 FIX (2026-09-24): the sort-desc + linear-scan idiom was duplicated in 4 places; one site
+ *  updated without the others reintroduces the overlap-misattribution class (F-207/F-521/F-709). */
+export function findLongestMatchingPrefix(prefixes: Iterable<string>, id: string): string | undefined {
+  if (typeof id !== 'string') return undefined;
+  return [...prefixes].sort((a, b) => b.length - a.length).find((p) => id.startsWith(p));
+}
+
 export class ScopeBindingManager {
   private readonly bindings = new Map<string, ScopeBinding>();
   private readonly prefixes = new Map<string, ScopeBinding>();
@@ -110,10 +120,11 @@ export class ScopeBindingManager {
     // ★ F-207 FIX (2026-09-24): LONGEST-prefix match — first-match over
     //   registration order misattributes overlapping namespaces (wave- vs
     //   wave-extra-). F-132 only refused exact duplicates, not overlaps.
-    const sorted = [...this.prefixes.entries()].sort((a, b) => b[0].length - a[0].length);
-    for (const [, b] of sorted) {
-      if (b.ownsWave(waveId)) return b;
-    }
+    //   ★ F-956: order from the shared helper; the ownsWave re-check keeps F-521 exact.
+    const key = findLongestMatchingPrefix(this.prefixes.keys(), waveId);
+    if (key === undefined) return null;
+    const b = this.prefixes.get(key)!;
+    if (b.ownsWave(waveId)) return b;
     return null;
   }
 }
@@ -153,7 +164,7 @@ class ScopeBindingImpl implements ScopeBinding {
     if (typeof waveId !== 'string') return false;
     // ★ F-207 FIX (2026-09-24): longest match (see ownerOf) — first-match returns
     //   the least-specific prefix when namespaces overlap.
-    const owner = [...this.allPrefixes()].sort((a, b) => b.length - a.length).find((p) => waveId.startsWith(p));
+    const owner = findLongestMatchingPrefix(this.allPrefixes(), waveId); // ★ F-956: shared helper.
     if (owner === undefined) return false; // not wave-like → not foreign
     return owner !== this.wavePrefix;
   }
@@ -162,7 +173,7 @@ class ScopeBindingImpl implements ScopeBinding {
     if (this.ownsWave(waveId)) return;
     const owner = this.isForeignWave(waveId)
       // ★ F-207 FIX (2026-09-24): longest match — the remedy must name the real owner.
-      ? [...this.allPrefixes()].sort((a, b) => b.length - a.length).find((p) => waveId.startsWith(p))
+      ? findLongestMatchingPrefix(this.allPrefixes(), waveId) // ★ F-956: shared helper.
       : undefined;
     if (owner === undefined) {
       // A bare alias or empty id: refuse with the exact-id remedy.
@@ -227,14 +238,12 @@ export function assertAliasNamespace(binding: ScopeBinding, alias: unknown, allP
   // ★ F-709 FIX (2026-09-24): LONGEST-prefix match — consistent with ownerOf /
   //   isForeignWave / assertOwnWave (F-207). Insertion-order iteration fired the
   //   shorter prefix first on overlaps (wave- vs wave-extra-) with the wrong remedy.
-  const sorted = [...allPrefixes].sort((x, y) => y.length - x.length);
-  for (const prefix of sorted) {
-    if (prefix === binding.wavePrefix) continue;
-    if (a.startsWith(prefix)) {
-      throw new Error(
-        `[${binding.label} SCOPE] the waveId alias "${a}" forges the foreign namespace (${prefix}*). ` +
-        `${binding.label} waves are ${binding.wavePrefix}* — drop the foreign prefix from the alias.`,
-      );
-    }
+  // ★ F-956: shared helper over the FOREIGN prefixes only — the longest foreign match names the remedy.
+  const forged = findLongestMatchingPrefix(allPrefixes.filter((p) => p !== binding.wavePrefix), a);
+  if (forged !== undefined) {
+    throw new Error(
+      `[${binding.label} SCOPE] the waveId alias "${a}" forges the foreign namespace (${forged}*). ` +
+      `${binding.label} waves are ${binding.wavePrefix}* — drop the foreign prefix from the alias.`,
+    );
   }
 }

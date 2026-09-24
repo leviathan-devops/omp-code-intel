@@ -31,7 +31,30 @@ const resolveRegistryPath = makeDbPath({
   testFile: path.join(os.tmpdir(), "gi-omp-registry-test.sqlite"),
 });
 
+let giRegistryWarned = false;
+
+/** Test-context detection shared by both giRegistryPath branches (the F-GR1/F-14/F-710 law). */
+function isRegistryTestContext(): boolean {
+  const argv1 = process.argv[1] ?? "";
+  return process.env.BUN_TEST != null
+    || process.env.BUN_TEST_PID != null
+    || argv1.includes("/tests/st-");
+}
+
 export function giRegistryPath(): string {
+  // ★ F-954 FIX (2026-09-24): SILENT precedence — GI_OMP_DB_DIR used to skip the whole
+  //   test-context block below, so a globally-exported GI_OMP_DB_DIR silently routed test traffic
+  //   at a shared/prod registry, defeating F-GR1/F-14/F-710. Precedence is UNCHANGED (explicit
+  //   env wins: every st-*.test.ts points it at a fresh per-test mkdtemp — test-context-first
+  //   would collapse all tests onto one shared tmp sqlite), but the bypass is now LOUD.
+  if (process.env.GI_OMP_DB_DIR && isRegistryTestContext() && !giRegistryWarned) {
+    giRegistryWarned = true;
+    console.warn(
+      `[gi-registry] GI_OMP_DB_DIR is set inside a test context — test-isolation heuristics bypassed; ` +
+      `registry resolves to GI_OMP_DB_DIR=${process.env.GI_OMP_DB_DIR} (explicit env wins by design; ` +
+      `unset it globally or point it at a per-test temp dir)`,
+    );
+  }
   if (!process.env.GI_OMP_DB_DIR) {
     // ★ F-GR1 FIX (2026-09-24): the '.test.'/'_test_' substring checks false-positive
     //   in production (e.g. /opt/myapp/integration-test-runner/bin/app) and silently

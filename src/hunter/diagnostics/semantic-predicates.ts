@@ -259,10 +259,16 @@ export const P6: PredicateTemplate = {
         if (!hasEx) {
           const triad = makeTriad(file, i + 1, 'semantic.unscoped-walker', sev);
           findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim(), 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
-        // ★ F-920 NOTE (2026-09-24): NOT-A-BUG — `||` is the correct require-BOTH shape:
+        // ★ F-948 NOTE (2026-09-24): NOT-A-BUG — `||` is the correct require-BOTH shape:
         //   the remediation (line 238) demands Checkpoints AND .trident, so the exclusion is
         //   incomplete when EITHER is absent (!A || !B). `&&` would flag only when both are
         //   missing, letting a half-scoped walker pass.
+        // ★ F-948 NOTE (2026-09-24): NOT-A-BUG — `||` is the correct require-BOTH shape: the
+        //   remediation (UNSCOPED_WALKER_REMEDIATION) demands Checkpoints AND .trident, so the
+        //   exclusion is incomplete when EITHER is absent (!A || !B). `&&` would flag only when
+        //   both are missing, letting a half-scoped walker pass. PROOF (truth table): win with
+        //   Checkpoints but no .trident → hasEx true, !A false, !B true → FIRES (correct:
+        //   half-scoped); win with both → !A false, !B false → silent (correct).
         } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.unscoped-walker', sev);
           findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim() + ' missing Checkpoints/.trident', 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);

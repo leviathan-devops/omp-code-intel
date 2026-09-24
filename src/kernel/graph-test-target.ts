@@ -74,6 +74,10 @@ export function getTestTargetsFromDb(db: ReturnType<typeof openTypedStore>, modi
     for (const id of ids) total += degByDst.get(id) ?? 0;
     degreeCache.set(label, total);
   }
+  // ★ F-953 NOTE (2026-09-24): NOT-A-BUG — the described partial-batch corruption cannot
+  //   commit: the aggregation loop (`for (const [label, ids] of labelToIds)`) sits INSIDE the same
+  //   try as both batch loops, so a mid-iteration throw skips it and degreeCache stays EMPTY;
+  //   degreeOf() below then serves correct per-label reads. A clear() in the catch is a no-op.
   } catch (e) {
   console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads: ${e instanceof Error ? e.message : String(e)}`);
 }

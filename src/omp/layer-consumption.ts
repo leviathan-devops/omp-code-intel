@@ -114,6 +114,8 @@ export function consumptionAudit(scopeRoot: string, subject: string): Consumptio
   const reports = registry.audit(subject);
   const influenced = reports.filter((r) => r.consumed).map((r) => r.consumer);
   const consumed = reports.filter((r) => r.consumed);
+  // ★ F-917 FIX (2026-09-24): two-view drift — this summary omitted GI_LAYER_ERROR (named by F-708 in registry.summary), so faulted consumers vanished here. Same bucket, same position as layer-registry.ts.
+  const errors = reports.filter((r) => r.verdict.startsWith("GI_LAYER_ERROR"));
   const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
   const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
   const parts = [
@@ -122,6 +124,7 @@ export function consumptionAudit(scopeRoot: string, subject: string): Consumptio
   ];
   if (unconsumed.length > 0) parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.consumer).join(",")}`);
   if (down.length > 0) parts.push(`GI_LAYER_DOWN=${down.map((r) => r.consumer).join(",")}`);
+  if (errors.length > 0) parts.push(`GI_LAYER_ERROR=${errors.map((r) => r.consumer).join(",")}`);
   return {
     scopeRoot,
     subject,

@@ -150,6 +150,26 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   // Drift layer (graph-gate.ts): process-local session state, keyed by an
   // explicit session id when the ctx carries one, else the shared default.
   const states = new Map<string, GraphGateSessionState>();
+  // ★ F-916 FIX (2026-09-24): UNBOUNDED states — edit-only sessions never touched the query-path eviction, so entries lived forever. Idle-TTL sweep on the tool_call clock + T3 eviction (aborting sessions keep no drift state) + a hard cap. NOTE: the sweep/delete runs ONLY at the tool_call/tool_result sites below — the declaration itself stays a plain Map so classifyEdit-shaped probes read it honestly.
+  const STATE_IDLE_TTL_MS = 600_000;
+  const STATE_MAX_ENTRIES = 1000;
+  const stateSeen = new Map<string, number>();
+  const sweepIdleStates = (now: number): void => {
+    for (const [sid] of states) {
+      const seen = stateSeen.get(sid) ?? now;
+      if (now - seen > STATE_IDLE_TTL_MS) { states.delete(sid); stateSeen.delete(sid); }
+    }
+    while (states.size > STATE_MAX_ENTRIES) {
+      let oldest: string | null = null;
+      let oldestSeen = Infinity;
+      for (const [sid] of states) {
+        const s = stateSeen.get(sid) ?? Infinity;
+        if (s < oldestSeen) { oldestSeen = s; oldest = sid; }
+      }
+      if (oldest === null) break;
+      states.delete(oldest); stateSeen.delete(oldest);
+    }
+  };
   // ★ GATE-DEFECT FIX (2026-09-22): the query's RESOLUTION must be reported or the
   //   reset condition is unreachable. Measured: five graph queries (13/0/12/25/24 rows
   //   returned) did not move the drift counter (3->4->5->6), because this handler called
@@ -190,11 +210,13 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     // NEVER a phantom; a caller that cannot resolve one gets the project scope
     // (which is this gate's actual ownership boundary: drift is per-project).
     const sid = resolveSessionIdFromEvent(event).id;
+    sweepIdleStates(Date.now());
     let st = states.get(sid);
     if (!st) {
       st = createEmptyState();
       states.set(sid, st);
     }
+    stateSeen.set(sid, Date.now());
     if (isQuery) {
       // ★ F-837 (cont.): sweep BEFORE enqueue — the tool_call stream is the only clock this
       //   handler owns, so every query arrival prunes orphans first (no timer needed).
@@ -218,6 +240,7 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     const d = computeDrift(st);
     const g = gateDecision(d, st);
     if (g.tier === "T3") {
+      states.delete(sid); stateSeen.delete(sid); // ★ F-916 (cont.): an aborting session processes no further edits — release its drift state before throwing.
       throw new Error(`${g.blockReason ?? "GRAPH_GATE_ABORT"} (rule: graph-before-structural-edit)`);
     }
     if (g.tier === "T2") {
@@ -313,7 +336,7 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     //   once the query queue has drained (F-GH-MEM's intent, ordered correctly). The steer
     //   queue lives in the tool_call handler's scope and never accumulates across turns, so
     //   the query queue is the only drain condition that matters here.
-    if (!pendingQueries.has(sid)) states.delete(sid);
+    if (!pendingQueries.has(sid)) { states.delete(sid); stateSeen.delete(sid); }
     return undefined;
   });
 }

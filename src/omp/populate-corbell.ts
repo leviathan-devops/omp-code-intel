@@ -75,8 +75,12 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
   const budget = { n: CORBELL_FRESHNESS_BUDGET };
   // ★ F-849 FIX (2026-09-24): cycle guard — same class as F-846 (graphify walks): readdirSync(withFileTypes) reports a symlinked dir via isDirectory()=true, so a symlink loop recursed until stack overflow (budget only counted files). realpath-keyed visited set; unresolvable dirs fail CLOSED as stale-read-failed, never silent-fresh.
   const visited = new Set<string>();
-  const walk = (dir: string): void => {
+  // ★ F-955 FIX (2026-09-24): UNBOUNDED recursion — a deep tree with few indexed files exhausted
+  //   the call stack before the file budget fired (RangeError: the budget counts FILES, not dirs).
+  //   Depth cap 256 fails CLOSED as stale-read-failed, never silent-fresh.
+  const walk = (dir: string, depth = 0): void => {
     if (budget.n <= 0) { exhausted = true; return; }
+    if (depth > 256) { walkFailed = true; return; } // the stack-overflow guard (see above)
     let realDir: string;
     try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
     if (visited.has(realDir)) return;
@@ -97,7 +101,7 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
       if (budget.n <= 0) { exhausted = true; return; }
       if (entry.isDirectory()) {
         if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "corbell-data", ".omp"].includes(entry.name)) continue;
-        walk(path.join(dir, entry.name));
+        walk(path.join(dir, entry.name), depth + 1);
       // H01/M06 (qwen 33d64eca/6768692f): the SAME indexed-class suffix set
       // graphify watches — .js/.py/etc. edits must count as staleness here.
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {

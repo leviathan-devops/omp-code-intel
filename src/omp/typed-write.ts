@@ -366,7 +366,9 @@ export function deriveConfidence(
   const tau = FRESHNESS_TAU_DAYS[derivation] ?? 1.0;
   const fresh =
     typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1.0;
-  const confidence = Math.max(0, Math.min(1, base * corr * fresh));
+  // ★ F-918 FIX (2026-09-24): NaN fails OPEN — Math.max/min propagate NaN, storing non-numeric confidence. Fail-closed to the unknown prior (0.30). NOTE: ageDays=NaN alone is already neutralized by the `> 0` guard (NaN > 0 is false → 1.0); this closes the whole class.
+  const raw = base * corr * fresh;
+  const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : DERIVATION_BASE["unknown"]!;
   return { confidence, derivation };
 }
 

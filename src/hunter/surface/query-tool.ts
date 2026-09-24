@@ -108,11 +108,14 @@ export function runQuery(input: QueryInput, db: DbClient, adapter?: GraphAdapter
   switch (input.verb) {
     case 'who-calls':  return whoCalls(input, db);
     case 'chain':      return chain(input, db);
-    case 'must-implement': return mustImplement(db);
-    case 'unwired':    return unwired(db, adapter);
+    case 'must-implement': return mustImplement(db, input.format);
+    case 'unwired':    return unwired(db, adapter, input.format);
+    // ★ F-952 NOTE (2026-09-24): rule / blast-radius / would-break bypass formatRows BY DESIGN —
+    //   aggregate rows with nested arrays (violations[], nodes[], breaking[]); the llm record would
+    //   collapse them to "field=[object Object]" (data loss). They are already minimal.
     case 'rule':       return rule(input, db);
     case 'violations': return violations(input, db);
-    case 'consistency': return consistency(db);
+    case 'consistency': return consistency(db, input.format);
     case 'semantic-search': return semanticVerb(input, ext?.semantic);
     case 'code-search':     return semanticVerb(input, ext?.semantic);
     case 'docs-patterns':   return docsPatternsVerb(input, ext?.docs);
@@ -238,7 +241,11 @@ function chain(input: QueryInput, db: DbClient): QueryRow[] {
     }
     rev.reverse();
     rev.push(finalStep);
-    return rev;
+    // ★ F-951 FIX (2026-09-24): the materialized steps never carried a `step` number, so
+    //   formatRows(llm) fell back to `r.step ?? 1` and printed step=1 for EVERY hop (positional
+    //   info lost). Number the path 1..N here; rows are CLONED — parent-map entries are shared
+    //   across BFS branches and must not be mutated.
+    return rev.map((r, i) => ({ ...r, step: i + 1 }));
   };
   while (head < queue.length) {
     const curId = queue[head]!;
@@ -314,15 +321,17 @@ function codeNameSet(db: DbClient): Set<string> {
   return names;
 }
 /** must-implement — the SPEC_DERIVED stages whose declared ENTRY has NO CODE_DERIVED node. */
-function mustImplement(db: DbClient): QueryRow[] {
+function mustImplement(db: DbClient, format?: QueryInput['format']): QueryRow[] {
   const spec = rowsAs<{ id: string; name: string; source: string; data?: string | null }>(
     db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED' AND kind = 'stage'").all(),
     'must-implement spec',
   );
   const codeNames = codeNameSet(db);
-  return spec
+  // ★ F-952 FIX (2026-09-24): the format param was silently ignored for this verb (no formatRows
+  //   call) — flat rows now honor format like who-calls.
+  return formatRows(spec
     .filter((s) => !codeNames.has(stageEntry(s)))
-    .map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: 'MUST_IMPLEMENT' }));
+    .map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: 'MUST_IMPLEMENT' })), format);
 }
 
 /** unwired — the TYPED Function/Class nodes with 0 incoming 'calls'/'imports'
@@ -330,9 +339,10 @@ function mustImplement(db: DbClient): QueryRow[] {
  *  CHECK 4. THE SUBSTRATE FIX: the hunt-populated typed tables, not the
  *  legacy graph_nodes lineage schema. The adapter path (the corbell cache)
  *  is preserved first when provided. */
-function unwired(db: DbClient, adapter?: GraphAdapter): QueryRow[] {
+function unwired(db: DbClient, adapter?: GraphAdapter, format?: QueryInput['format']): QueryRow[] {
   if (adapter) {
-    return adapter.unwired().map((d) => ({ name: d.name, file: d.file, line: d.line, status: 'UNWIRED' }));
+    // ★ F-952 FIX (2026-09-24): flat rows honor format (see mustImplement).
+    return formatRows(adapter.unwired().map((d) => ({ name: d.name, file: d.file, line: d.line, status: 'UNWIRED' })), format);
   }
   const code = rowsAs<{ id: string; label: string; file: string; line: number }>(
     db.prepare(`
@@ -348,7 +358,7 @@ function unwired(db: DbClient, adapter?: GraphAdapter): QueryRow[] {
     `).all(),
     'unwired code',
   );
-  return code.map((n) => ({ name: n.label, file: n.file ?? '', line: n.line ?? 0, status: 'UNWIRED' }));
+  return formatRows(code.map((n) => ({ name: n.label, file: n.file ?? '', line: n.line ?? 0, status: 'UNWIRED' })), format);
 }
 
 /** rule — the compiled predicate row + the violation rows (the verbatim quote + the anchors). */
@@ -392,19 +402,23 @@ function violations(input: QueryInput, db: DbClient): QueryRow[] {
   // stringified it into a garbage `pagination=[object Object]` record and every
   // consumer had to filter the last element. A full page at off+lim signals more.
   const lim = input.limit !== undefined ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap) : effectiveCap;
-  return rows.slice(off, off + lim);
+  // ★ F-952 FIX (2026-09-24): the format param was silently ignored here — an llm caller got
+  //   full-size rows. Route the page through formatRows.
+  return formatRows(rows.slice(off, off + lim), input.format);
 }
 
 /** consistency — the SPEC_DERIVED vs CODE_DERIVED drift alarm (the matrix vision). */
-function consistency(db: DbClient): QueryRow[] {
+function consistency(db: DbClient, format?: QueryInput['format']): QueryRow[] {
   const spec = rowsAs<{ id: string; name: string; source: string; data?: string | null }>(
     db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(),
     'consistency spec',
   );
   const codeNames = codeNameSet(db); // ★ F-40 FIX (2026-09-24): same unioned CODE leg as must-implement.
-  return spec
+  // ★ F-952 FIX (2026-09-24): the format param was silently ignored for this verb (no formatRows
+  //   call) — flat rows now honor format like who-calls.
+  return formatRows(spec
     .filter((s) => !codeNames.has(stageEntry(s)))
-    .map((s) => ({ status: 'DRIFT', specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source }));
+    .map((s) => ({ status: 'DRIFT', specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source })), format);
 }
 
 // ---------------------------------------------------------------------------

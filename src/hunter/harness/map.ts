@@ -60,6 +60,11 @@ export async function map(profile: ProjectProfile, adapterOverride?: GraphAdapte
   // kind. SPEC_DERIVED stage/rule nodes carry a corpus anchor — exempt by
   // lineage (the interface.ts contract).
   assertMappableLines(buildResult);
+  // ★ F-949 NOTE (2026-09-24): NOT-A-BUG — the run-12 claim inverts the order: the guard call
+  //   above runs BEFORE the `openStore(dbPath)` call below (only the F-244 note between), so a guard
+  //   throw leaves no handle behind. PROOF: `grep -n "assertMappableLines(buildResult)\|openStore(dbPath)"`
+  //   prints the guard line first, the open line second; the catch below closes db for post-open
+  //   (writeGraph/mirror) failures only — exactly what the F-244 comment states.
 // ★ F-244 NOTE (2026-09-24): NOT-A-BUG — the LINELESS guard (line above) runs
 //   BEFORE the open (line below), so a guard throw leaves no handle behind. The
 //   error-path close covers only post-open failures (writeGraph/mirror).
