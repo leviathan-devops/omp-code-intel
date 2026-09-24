@@ -264,7 +264,10 @@ function violationFrequencies(profile: ProjectProfile, ruleIds: string[]): Map<s
      if (!containedIn(logReal)) throw historyLogUnreadable(abs, `symlink escapes project root (root=${rootReal} file=${logReal})`);
     let text: string;
     try {
-      text = fs.readFileSync(abs, 'utf8');
+      // ★ F-550 FIX (2026-09-24): READ THE RESOLVED PATH. The containment above validated
+      //   logReal (symlink-following) but the read used abs — the same TOCTOU F-441 closed
+      //   in lockdownReadSource: the check passes on one inode, the read opens another.
+      text = fs.readFileSync(logReal, 'utf8');
     } catch (e: unknown) {
       throw historyLogUnreadable(abs, String(e));
     }

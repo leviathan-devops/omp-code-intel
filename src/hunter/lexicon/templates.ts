@@ -502,7 +502,10 @@ const DOMAIN_NUMERIC_THRESHOLD: PredicateTemplate = {
     const threshold = bindNumber(ctx.bindings, 'threshold');
     // unmeasurable (no symbol/path/threshold bound) → the honest silent — the
     // check claims only what it can measure from the graph/source reads
-    if (!symbol || !valuePath || typeof threshold !== 'number') return findings;
+    // ★ F-552 FIX (2026-09-24): a non-finite threshold (NaN/Infinity) passes typeof==='number'
+    //   and makes every comparison unsatisfiable — the same silent suppression F-444 closed for
+    //   values. Unmeasurable → the honest silent, like a missing binding.
+    if (!symbol || !valuePath || typeof threshold !== 'number' || !Number.isFinite(threshold)) return findings;
     for (const node of ctx.graph.nodes()) {
       if (node.name !== symbol) continue;
       const value = readPath(node.data ?? {}, valuePath);
