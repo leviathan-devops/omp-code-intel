@@ -1426,3 +1426,31 @@ blame the provider.
   DEFECTS.** The instinct is to "fix" the five tests; the correct move is to produce the substrate
   and re-measure. **The register named the cause on the first line** — read the register before
   editing code.
+
+---
+
+## EN-W3-RUN13 — the 3 criticals (the class matures) 2026-09-25
+
+- **THE FINDING:** run 13 returned `{critical: 3, high: 54}` on the post-R12 tree (HEAD `17dec7d`).
+- **THE THREE CRITICALS — all in code touched by the R12 wave or my own migrations:**
+  1. **F-895 (`omp/graph-gate.ts computeDrift`) — THE RATIO WAS ALWAYS EXACTLY 1.0.** The verified
+     branch `continue`d WITHOUT adding to `totalWeight`, so with any unverified edit the ratio was
+     `unverifiedWeight / unverifiedWeight`. **The decay window, the severity weights and the entire
+     T1 tier were DEAD** — drift could only ever be 1.0 or 0.0. **PROBED:** 1 verified + 1 unverified
+     of equal weight → `drift=0.500` (was 1.000).
+  2. **F-896 (`hunter/diagnostics/engine.ts`) — LOSING THE wx RACE FELL THROUGH TO THE BUILD.** Two
+     processes that both see a stale lock both `unlink`; the loser's `wx` fails, but with `rows`
+     still null the code ran the FULL local build + write — **both writers wrote the store
+     concurrently**, the exact corruption the lock exists to prevent. Now: the loser re-reads the
+     winner's rows, or FAILS CLOSED naming the race.
+  3. **F-897 (`lexicon/compiler.ts` + `compiled-store.ts`) — THE CACHE WAS TWO TRANSACTIONS.** A
+     crash BETWEEN `writeRuleCards` and `writeBattery` left orphaned `rule_cards` with no cleanup
+     path (F-147's compensation only covered a writeBattery THROW). **FIX:** `writeCompiledCache` —
+     ONE `BEGIN IMMEDIATE` over both sets, `COMMIT` once.
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **438/0 + 536/0**, exit 0; dist
+  `cb486f2ac7239195`, deployed == repo.
+- **★ THE LESSON (the maturing class):** run 12's criticals were *incomplete earlier fixes*; run
+  13's are *arithmetic/logic dead-ends the green suite never exercised*. F-895's drift was always
+  1.0, so EVERY tier test passed (T2/T3 fire at ≥0.6) while the mechanism was inert. **A constant
+  that satisfies every threshold is a red flag, not a convenience.** The probe — vary the input,
+  watch the output move — is what caught it.
