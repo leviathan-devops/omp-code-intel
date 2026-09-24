@@ -2608,3 +2608,42 @@ containment-in-engine/bug-hunt pair; run 8's are the SAME CLASS AT FIVE NEW SITE
 
 **THE ADJUDICATION:** all five are REAL (each carries a probe or a quoted/thrown proof, not a
 reading). Each was fixed and pinned in the same turn the audit finished.
+
+---
+
+## 2026-09-24 — THE RUN-10 WHOLE-TREE AUDIT (the FIRST valid run since the lane died)
+
+**The instrument, verified BEFORE the numbers:** the go-key pool was 7-of-8 dead (the stored key
+returned `403 "An active OpenCode Go subscription is required"`); the operator pinned KEY 3
+(`~/.gi-keys.json` slot idx 2 = go-3), `go-pool-ctl.ts alive 2` → `ALIVE go-3`, a REAL completion
+through the proxy returned **HTTP 200**, and a REAL `ocr scan` returned `status: success,
+files_reviewed: 1, exit 0`. **The lane is live.**
+
+**★ THE RESULT: `CRITICAL=4 HIGH=57`** / 191 MEDIUM / 131 LOW = 383 comments. **4 empty-result
+markers of 113 (96% real)** — the instrument gate (F-607) passes; run 9 by contrast had 108.
+
+**★ THE FOUR CRITICALS — adjudicated:**
+| # | the site | the verdict | the fix / the proof |
+|---|---|---|---|
+| 1 | `hunter/profile/loader.ts` — "absolute paths bypass containment" | **NOT-A-BUG (PROBED)** | `path.resolve(root, '/etc/passwd')` → `/etc/passwd` → **REJECTED**; `'/tmp'` → REJECTED; the realpath containment catches it. The reviewer assumed the resolve bypassed the check without running it. |
+| 2 | `hydra/client-reader.ts:67` — an unbounded `await old.close()` | **REAL** | **F-611** a 5s `Promise.race` ceiling — a hung close never released the attach lock, deadlocking every later attach/disconnect |
+| 3 | `hydra/client-reader.ts:119` — the same in disconnect | **REAL** | **F-612** the same bound |
+| 4 | `omp/rsi.ts:415` — the evidence HMACs were WRITTEN but NEVER VERIFIED | **REAL (the strongest)** | **F-610** `recount()` now verifies every row against the evidence table's own signature form. **PROBED LIVE:** an honest store → `{confirmed:1, refuted:0, unresolved:1}`; a row FORGED directly into the DB → the SAME counts, with `1 row(s) FAILED signature verification and were counted as ABSENT`. The forgery is INERT. |
+
+### ★ THE ELEVEN-RUN CURVE (with the void and the degraded runs named)
+
+```
+  run  critical  high    the instrument
+  ───  ────────  ────    ──────────────────────────────────────────────
+   1        8      92    live
+   …        …       …
+   8        5      58    PARTIALLY DEGRADED (15 empty parts — a floor, not a clean number)
+   9        1       2    ★ VOID — the lane was DEAD (108 of 113 parts were EMPTY markers)
+  10        4      57    live, gate-verified (4 empty of 113)
+```
+
+**THE LESSON THE CURVE NOW CARRIES:** the critical count is dominated by ONE recurring family —
+**a guard that resolves but does not CONTAIN, or validates but does not VERIFY** — and run 10's
+strongest critical (the unverified HMACs) is a new member of it. The class fix for the
+containment half is landed (the shared primitive, F-600..F-606); the VERIFY half now has its
+first instance fixed and probed.
