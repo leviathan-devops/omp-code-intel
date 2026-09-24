@@ -266,6 +266,23 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
         }
       }
       try {
+        // * F-1004 FIX (2026-09-25): the status read ran WITHOUT the hunt lock while the hunt
+        //   populates + rewrites the same session store under it - a concurrent hunt left this
+        //   read half-written (partial populate) or double-populated concurrently (CONCURRENCY
+        //   class). Status now holds the same hunt lock for the read window; a hunt in flight
+        //   refuses LOUD as HUNT_BUSY (retry after the hunt) instead of returning a snapshot
+        //   that is neither before nor after. PROBE: status while the lock is held -> HUNT_BUSY
+        //   (never a half-written count).
+        try {
+          acquireHuntLock(scopeRoot);
+        } catch (lockErr) {
+          const lockMsg = lockErr instanceof Error ? lockErr.message : String(lockErr);
+          if (lockMsg.includes("HUNT_ALREADY_RUNNING")) {
+            return textResult(`HUNT_BUSY: a hunt holds the lock for ${scopeRoot} - status refuses a half-written read (retry after the hunt releases the lock)`, { ok: false, error: "HUNT_BUSY", action: p.action ?? "status" });
+          }
+          throw lockErr;
+        }
+        try {
         const opened = openSessionStore({ sessionId: callerId, scopeRoot, callerSessionId: callerId });
         if (countTypedNodes(opened.storePath) === 0) {
           populateSessionStore(opened.storePath, scopeRoot);
@@ -292,7 +309,11 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
           findingsCount: u.length,
           fixOrder,
           action: p.action ?? "status",
-        });
+          });
+        } finally {
+          // * F-1004 (release): the status holds the hunt lock only for the read window.
+          try { releaseHuntLock(scopeRoot); } catch { /* best-effort release */ }
+        }
       } catch (e) {
         // ★ F-33 FIX (2026-09-24): `"code" in err` throws TypeError when the caught
         //   value is a primitive (string/number/null) — `in` requires an object.

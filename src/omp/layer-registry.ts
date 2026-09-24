@@ -239,7 +239,21 @@ export function createLayerRegistry(): LayerRegistry {
           // vanished in factsFor (two-view drift). Same rule as auditOne: boolean-shaped and true.
           const rawProbe: unknown = p.up();
           const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
-          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) continue;
+          // * F-1007 FIX (2026-09-25): malformed-or-DOWN vanished here with zero trace while
+          //   auditOne reports GI_LAYER_DOWN for the same consumer (two-view drift - the exact
+          //   class F-405/F-706 left open on this path). Mirror auditOne: a NAMED GI_LAYER_DOWN
+          //   fault, LOUD on stderr like every other factsFor fault (F-707/F-936). PROBE: a
+          //   truthy-non-object up() and an up:1 up() each yield one faults row AND an audit
+          //   GI_LAYER_DOWN for the same consumer.
+          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) {
+            const probeEvidence = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { evidence?: unknown }).evidence === "string" ? (rawProbe as { evidence: string }).evidence : "";
+            const reason = !probeValid
+              ? `GI_LAYER_DOWN:${p.id} - the probe returned a malformed shape (no boolean up) - DOWN by construction`
+              : `GI_LAYER_DOWN:${p.id} - the probe reports DOWN${probeEvidence ? `: ${probeEvidence}` : ""}`;
+            console.error('[layer-registry] factsFor: consumer ' + p.id + ' is DOWN or malformed - see audit GI_LAYER_DOWN:' + p.id + ': ' + reason);
+            faults.push({ consumer: p.id, reason });
+            continue;
+          }
           // ★ F-354 FIX (2026-09-24): a null/non-object fact used to throw inside
           //   isAnchored, and the catch dropped the consumer's ENTIRE contribution —
           //   auditOne already filtered before isAnchored, factsFor did not. Same

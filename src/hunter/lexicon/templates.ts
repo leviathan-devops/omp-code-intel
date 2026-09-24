@@ -567,10 +567,21 @@ const PROCESS_GATES_OUTPUTS: PredicateTemplate = {
       const callers = ctx.graph.whoCalls(next.entry);
       const connected = outgoing.some((e) => e.to.includes(next.entry)) || callers.some((c) => c.caller === cur.entry);
       if (!connected) {
+        // * F-1003 FIX (2026-09-25): `file` is a filesystem path per the Finding canon -
+        //   cur.entry is an entry-point SYMBOL, so downstream path consumers misresolved it
+        //   (SILENT class). Resolve the symbol to its defining file via the graph; when the
+        //   graph cannot anchor it the file stays unanchored ("") with the symbol carried in
+        //   evidence - never a symbol dressed as a path. PROBE: stages [{id,entry:"nope"}] on
+        //   an empty graph yields file "" (no throw, no phantom path).
+        let stageFile = "";
+        try {
+          const hit = ctx.graph.nodes().find((n) => n.name === cur.entry);
+          if (hit?.file) stageFile = hit.file;
+        } catch { /* unbuilt graph -> unanchored; evidence still names the stage */ }
         findings.push({
           ruleId: 'process.gates-measure-outputs-not-logic',
           severity: sev,
-          file: cur.entry,
+          file: stageFile,
           line: 0,
           evidence: `stage ${cur.id} (entry ${cur.entry}) has no graph edge reaching stage ${next.id} (entry ${next.entry}) — the declared sequence is not wired in the call graph`,
           verdict: 'VIOLATION',

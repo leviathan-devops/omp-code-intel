@@ -345,6 +345,10 @@ export function resolveFromSession(
   ledger: FireLedger,
   events: readonly ToolEvent[],
   opts: {
+    /** ★ F-1006 (2026-09-25): concurrent sessions MUST use distinct recordsPaths - the file
+     *  is an append-only ledger owned by one session; two workers appending to one path
+     *  interleave rows (same-hash conflation). The verdict below isolates per call, but the
+     *  ledger itself stays re-derivable only when one session owns it. */
     recordsPath: string;
     /** state_hash → the subject the fire was about. The caller holds it; the DDL does not
      *  carry a target column (§8.2 — the named gap). */
@@ -358,7 +362,7 @@ export function resolveFromSession(
   const out: ResolveFromSessionResult = {
     considered: 0, produced: 0, resolved: 0, confirmed: 0, refuted: 0, noSubject: 0, noEvidence: 0,
   };
-  const pairs: { row: PersistedFireRow; subject: Subject }[] = [];
+  const pairs: { row: PersistedFireRow; subject: Subject; records: OutcomeRecord[] }[] = [];
   for (const row of ledger.all()) {
     if (row.laterTruth !== "unresolved") continue;         // never re-judge a decision
     out.considered += 1;
@@ -371,22 +375,18 @@ export function resolveFromSession(
     });
     out.produced += persisted;
     if (records.length === 0) { out.noEvidence += 1; continue; }
-    pairs.push({ row, subject });
+    pairs.push({ row, subject, records });
   }
-  // ★ resolved with ALL records — resolveAll re-derives per row, and the records are scoped
-  //   by state_hash, so a fire only ever sees its own evidence.
-  //   ★ F-342 FIX (2026-09-24), second half: the old loop called readRecords (a full-file
-  //   read + parse) once PER fire — O(N × S). One read, partitioned in memory: O(S).
-  const allRecords = readRecordsAll(opts.recordsPath);
-  const perFire = new Map<string, OutcomeRecord[]>();
-  for (const r of allRecords) {
-    const key = (r as OutcomeRecord & { fireStateHash: string }).fireStateHash;
-    let bucket = perFire.get(key);
-    if (bucket === undefined) { bucket = []; perFire.set(key, bucket); }
-    bucket.push(r);
-  }
+  // ★ F-1006 FIX (2026-09-25): the verdict re-read the SHARED file after persisting — a
+  //   concurrent session appending between our persist and our read mixed its rows into our
+  //   verdict (same-fireStateHash conflation; CONCURRENCY class). The verdict now resolves
+  //   from exactly the records THIS call produced (in-memory, per fire — still O(S), the
+  //   F-342 single-pass shape, minus the cross-session read). The file remains the
+  //   append-only reproducibility ledger (readRecords/readRecordsAll unchanged for
+  //   re-derivation). PROBE: a foreign row for H in the file + zero local events for H —>
+  //   noEvidence (never resolved off a neighbor's row).
   for (const p of pairs) {
-    const r = resolveAll(ledger, [p], perFire.get(p.row.stateHash) ?? [], { now: opts.now });
+    const r = resolveAll(ledger, [{ row: p.row, subject: p.subject }], p.records, { now: opts.now });
     out.resolved += r.resolved;
     out.confirmed += r.confirmed;
     out.refuted += r.refuted;

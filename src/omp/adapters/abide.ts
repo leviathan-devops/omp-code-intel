@@ -190,10 +190,20 @@ export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe
         // ★ F-506 FIX (2026-09-24): one-direction hay.includes(subject) missed repairs when the
         // * subject is the broader text containing the span excerpt. Also match the reverse
         // * (subject contains the span); an empty span never matches.
-        const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
-        if (hay.includes(subject)) return true;
+        // * F-1005 FIX (2026-09-25): the concatenated hay matched ACROSS field boundaries
+        //   (a span-tail + verdict-head joined by a space phantom-matched a subject present in
+        //   no single field) and the reverse arm fired on 2-3-char spans incidentally contained
+        //   in the subject (UNBOUNDED class). Forward now matches each field separately; the
+        //   reverse arm needs a 6-char minimum span. PROBE: subject "error ful" vs row {span
+        //   "a error", verdict "ful x"} -> no hit (was a phantom hit); a subject containing a
+        //   long span still hits.
         const span = (e.matched_span ?? "").trim();
-        if (span.length > 0 && subject.includes(span)) return true;
+        const verdict = (e.verdict ?? "").trim();
+        const rule = (e.rule ?? "").trim();
+        if (span.length > 0 && span.includes(subject)) return true;
+        if (verdict.length > 0 && verdict.includes(subject)) return true;
+        if (rule.length > 0 && rule.includes(subject)) return true;
+        if (span.length >= 6 && subject.includes(span)) return true;
         return false;
       });
       return hits.map((e) => ({
