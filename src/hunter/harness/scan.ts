@@ -21,6 +21,7 @@ import { compileBattery } from '../lexicon/compiler.ts';
 import { runBattery, type RunSummary } from '../diagnostics/engine.ts';
 import { runCalibration } from '../diagnostics/calibration.ts';
 
+import { requireContained } from "../shared/containment.ts";
 /** The SCAN actor's output — the compiled battery + the run summary. */
 export interface ScanResult {
   battery: CompiledPredicate[];
@@ -38,30 +39,16 @@ export function resolveCorpusPaths(profile: ProjectProfile): ProjectProfile {
   //   inside the root pointing out (`root/evil -> /etc`) passed the string prefix test
   //   while every read followed it out of the tree. Resolve the REAL path (nearest
   //   existing ancestor, since a corpus entry may not exist yet) and contain on THAT.
+  // ★ F-440b MIGRATION (2026-09-24): the per-site containment code is REPLACED by the shared
+  //   primitive (hunter/shared/containment.ts). Runs 6/7/8 each returned criticals from this
+  //   exact family at a new site — per-site patching was the wrong unit of work. One helper,
+  //   called everywhere, is the class fix.
   const root = path.resolve(profile.project.root);
-  const rootReal = fs.realpathSync(root);
-  const rootPrefix = rootReal === path.sep ? path.sep : rootReal + path.sep;
-  const inside = (q: string): boolean => q === rootReal || q.startsWith(rootPrefix);
-  const realNearest = (start: string): string => {
-    let dir = path.resolve(start);
-    for (let i = 0; i < 8; i += 1) {
-      try { return fs.realpathSync(dir); } catch {
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-      }
-    }
-    return path.resolve(start);
-  };
   const corpus = profile.rules.corpus.map((entry) => {
     const abs = path.isAbsolute(entry) ? path.normalize(entry) : path.resolve(root, entry);
-    if (abs !== root && !abs.startsWith(rootPrefix.replace(/\/$/, '') === rootReal ? rootReal : root + path.sep)) {
-      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} escapes the project root (${root}) — corpus entries must stay under the root.`);
-    }
-    if (!inside(realNearest(abs))) {
-      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${rootReal} real=${realNearest(abs)}) — corpus entries must stay under the root.`);
-    }
-    return abs;
+    return requireContained(abs, root, (ev) => {
+      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${ev.rootReal} real=${ev.real}) — corpus entries must stay under the root.`);
+    });
   });
   return {
     ...profile,
