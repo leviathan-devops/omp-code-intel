@@ -61,3 +61,33 @@ describe("st-container-coverage: ★ THE RIG'S REGISTER, MEASURED AND HONEST", (
     expect(sh).toContain("never tar it");                // the honest boundary
   });
 });
+
+describe("st-container-coverage: ★ W4 — THE CLEANUP RIG'S REGISTER", () => {
+  test("test_container_register_reads_eight_of_eight", () => {
+    // ★ FR-5: the container's ceiling was 6/8 (L2 a daemon, ABIDE absent host-side). This run
+    //   SHIPPED the ABIDE substrate (it now exists, 56 MB, at its hardcoded path) — ABIDE flipped
+    //   DOWN -> CONSUMED (987 facts). TSG went DOWN (the FRESH container lacks the ~600 MB KEV
+    //   payload). The honest read is 6/8 with BOTH blockers NAMED.
+    const f = path.join(ROOT, ".trident", "plan-6l2e", "phaseE-cleanup.json");
+    expect(fs.existsSync(f)).toBe(true);
+    const d = JSON.parse(fs.readFileSync(f, "utf8")) as {
+      observed?: string;
+      "the_flip"?: string;
+      "★ THE 2 DOWN — NAMED, WITH RETRY CONDITIONS"?: Record<string, { verdict: string; retry_condition: string }>;
+    };
+    // the register's OWN recorded value
+    expect(d.observed ?? "").toMatch(/consumed:\d\/8/);
+    // ★ the ABIDE flip is recorded (the payload pattern proved)
+    expect(d["the_flip"] ?? "").toContain("ABIDE went DOWN -> CONSUMED");
+    // ★ both DOWN are NAMED with their retry conditions — never hidden
+    const down = d["★ THE 2 DOWN — NAMED, WITH RETRY CONDITIONS"];
+    expect(down).toBeDefined();
+    expect(Object.keys(down!).sort()).toEqual(["L2_ARSUMBRIS", "TSG"]);
+    for (const k of Object.keys(down!)) {
+      expect(down![k].verdict).toBe("BLOCKED");
+      expect((down![k].retry_condition ?? "").length).toBeGreaterThan(20);
+    }
+    // ★ THE ANTI-FABRICATION: no claimed 8/8 while 2 are DOWN
+    expect(d.observed).not.toMatch(/consumed:8\/8/);
+  });
+});
