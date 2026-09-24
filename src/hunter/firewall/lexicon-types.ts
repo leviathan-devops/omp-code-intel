@@ -52,7 +52,7 @@ export interface PatternFamily {
   /** The named-error text, verbatim. */
   messageTemplate: string;
   /** The recovery action (the throw, the triplet record, the log). */
-  // ★ F-500 FIX (2026-09-24): the hook took a lowercase {pattern,state,evidence} arg while MPSE is PascalCase — no call site could pass the triplet directly (grep: zero invocations in src/). The hook now takes MPSE itself.
+  // ★ F-533 FIX (2026-09-24): the hook took a lowercase {pattern,state,evidence} arg while MPSE is PascalCase — no call site could pass the triplet directly (grep: zero invocations in src/). The hook now takes MPSE itself. (Renamed from F-500: that number collides with sibling calibration/mechanical markers.)
   remediationHook?: (evidence: MPSE) => void;
 }
 

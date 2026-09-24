@@ -229,6 +229,9 @@ export function openTypedStore(storePath: string): Database {
     }
     postOpenVerify = !treatAsFresh;
   }
+  // ★ F-536 FIX (2026-09-24): pin the pre-open identity (dev+ino) and re-check after open — the W36 post-open magic re-read passed a swapped-in VALID sqlite (another session's store renamed over this path in the validation→open window). An identity change is now a loud GI_STORE_SWAPPED refusal.
+  const preOpenDev = st !== null ? st.dev : null;
+  const preOpenIno = st !== null ? st.ino : null;
   const db = new Database(storePath, { create: true });
   try {
     db.exec("PRAGMA journal_mode = WAL;");
@@ -236,6 +239,19 @@ export function openTypedStore(storePath: string): Database {
     // W36 (frozen-scan HIGH): post-open re-verify narrows the residual
     // validation→open window — a symlink planted, or garbage swapped in,
     // after the pre-open checks is refused here instead of opened.
+    if (postOpenVerify && preOpenDev !== null && preOpenIno !== null) {
+      let postLst: fs.Stats;
+      let postSt: fs.Stats;
+      try {
+        postLst = fs.lstatSync(storePath);
+        postSt = fs.statSync(storePath);
+      } catch {
+        throw new GiStoreCorruptError(`GI_STORE_SWAPPED: ${storePath} vanished between validation and open — refusing (identity re-verify)`);
+      }
+      if (postLst.isSymbolicLink() || postSt.dev !== preOpenDev || postSt.ino !== preOpenIno) {
+        throw new GiStoreCorruptError(`GI_STORE_SWAPPED: ${storePath} was replaced between validation and open (dev/ino changed) — refusing cross-session data`);
+      }
+    }
     if (postOpenVerify) verifyOpenedStoreFile(storePath);
     applyTypedDdl(db);
     // W21 (frozen-scan HIGH): a persisted deferral is SURFACED on every open —

@@ -64,6 +64,11 @@ export function gateCheck(diff: GraphDiffResult, criteria: GateCriteria): GateRe
   // ★ F-161 FIX (2026-09-24): default a missing blastRadiusChanges to [] — a
   //   malformed diff threw TypeError on for..of instead of gating.
   for (const b of diff.blastRadiusChanges ?? []) {
+    // ★ F-534 FIX (2026-09-24): a null/primitive entry crashed on b.after BEFORE the F-204 finite check ran (TypeError past the gate boundary). Non-object or non-numeric entries fail closed with a named failure.
+    if (!b || typeof b !== "object" || typeof (b as { before?: unknown }).before !== "number" || typeof (b as { after?: unknown }).after !== "number" || typeof (b as { label?: unknown }).label !== "string") {
+      failures.push("malformed blastRadiusChanges entry — not a {label, before, after} object, refusing to pass an unmeasured gate");
+      continue;
+    }
     // ★ F-204 FIX (2026-09-24): a malformed entry fails closed, never NaN-passes.
     const jump = b.after - b.before;
     if (!Number.isFinite(jump)) {

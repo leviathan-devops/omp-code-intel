@@ -92,6 +92,8 @@ export function closeStoreDb(): void {
     // getStoreDb() reopens at the same path (the v6 const-path behavior,
     // generalized). Only an explicit repoint changes it.
   }
+  // ★ F-537 FIX (2026-09-24): the in-flight async-open gate survived close — a later getStoreDbAsync reused the resolved gate and returned a stale/closed handle. Close clears every pending gate so the next open starts fresh.
+  storeOpenInFlightByPath.clear();
 }
 
 /** ★ F-288 FIX (2026-09-24): the in-flight open guard. getStoreDb is a
@@ -195,7 +197,14 @@ export async function withImmediateTx<T>(fn: (db: Database) => T, attempts = 3, 
         db.exec('COMMIT;');
         return result;
       } catch (e) {
-        try { db.exec('ROLLBACK;'); } catch (_r) { /* the tx is already dead */ }
+        try {
+          db.exec('ROLLBACK;');
+        } catch (_r) {
+          // ★ F-538 FIX (2026-09-24): a failed ROLLBACK left the connection broken but cached — every later op failed mysteriously while the caller only saw the original error. The dead handle is now closed + evicted (LOUD warn), so the next op reopens fresh.
+          console.error(`[scoped-store${id ? ' ' + id : ''}] ROLLBACK failed — evicting the dead handle:`, _r instanceof Error ? _r.message : String(_r));
+          try { db.close(); } catch { /* best effort */ }
+          if (storeDb === db) storeDb = null;
+        }
         throw e;
       }
     } catch (e) {

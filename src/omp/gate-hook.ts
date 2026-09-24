@@ -45,7 +45,8 @@ function reconstruct(toolName: string, input: Record<string, unknown>): { oldTex
     try { oldText = fs.readFileSync(file, "utf8"); } catch { oldText = oldString; }
   }
   if (oldString && newString) {
-    return { oldText, newText: oldText.split(oldString).join(newString), file };
+    // ★ F-535 FIX (2026-09-24): split().join() replaced EVERY occurrence file-wide, so drift/severity were evaluated against a reconstruction the agent never intended. replace() targets the single first occurrence — the edit's actual location.
+    return { oldText, newText: oldText.replace(oldString, newString), file };
   }
   const dsl = str(input.input);
   let newText = oldText;

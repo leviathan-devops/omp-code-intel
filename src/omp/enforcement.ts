@@ -247,11 +247,12 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
     if (!jevCloseDecl) throw Object.assign(new Error("JEV is not registered"), { code: "GI_JEV_DOWN" });
     requireUp(jevCloseDecl);
   } catch (e) {
+    // ★ F-531 FIX (2026-09-24): (e as Error).message threw a secondary TypeError on a non-Error throw — the decision-path catch now narrows with instanceof (the F-32/F-406 class).
     return {
       verdict: "FAIL_CLOSED",
       code: (e as { code?: string }).code ?? "GI_JEV_DOWN",
       reason: "the judge is unavailable at close (fail-closed)",
-      evidence: (e as Error).message,
+      evidence: e instanceof Error ? e.message : String(e),
       spans,
     };
   }
