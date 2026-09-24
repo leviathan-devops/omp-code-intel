@@ -63,6 +63,8 @@ function severityWeight(s: Severity): number {
   }
 }
 
+function deriveRootCause(f: NormalizedFinding, evidenceLen: number): string {
+  const anchor = `${f.file}:${f.line}`;
   // ★ F-1032 FIX (2026-09-25): evidence is typed string, but a malformed row
   //   (undefined/null/non-string evidence smuggled past the type boundary, e.g. a
   //   hand-built NormalizedFinding or a JS caller) threw TypeError inside .split()
@@ -71,7 +73,11 @@ function severityWeight(s: Severity): number {
   const evidenceText = typeof f.evidence === 'string' ? f.evidence : '';
   const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
   const depth = evidenceLen > 3 ? 'a multi-step edge chain' : 'a single-edge mechanism';
-  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${mechanism}`;
+  // ★ F-1032b FIX (2026-09-25): the F-1032 edit referenced an undefined `mechanism` — the
+  //   intended payload is the FIRST EVIDENCE SEGMENT (`first`), which the edit computed and
+  //   then dropped (TS1128/TS2304 territory: a half-applied edit). `first` is what the
+  //   sentence needs.
+  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${first}`;
 }
 
 /** Legacy deterministic solver — the port's sole path (MC-B-09 fallback law). */

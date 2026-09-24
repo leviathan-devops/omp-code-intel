@@ -138,7 +138,8 @@ describe("st-gi-v2-enforce: T-5 — the two-layer enforcement kernel", () => {
     const throwing: LoadUnit = { retrieve: async () => { throw new Error("scan aborted"); } };
     const r = await runCloseLayer(deps({ loadUnit: throwing }), { claim: "done", scope: "." });
     expect(r.verdict).toBe("FAIL_CLOSED");
-    expect(r.code).toBe("TSG_TIMEOUT");
+    // ★ F-1056 (2026-09-25): a thrown engine crash is TSG_DOWN, not TSG_TIMEOUT — the old pin enshrined the mislabel (slow vs broken).
+    expect(r.code).toBe("TSG_DOWN");
     expect(r.evidence).toContain("scan aborted");
   });
 

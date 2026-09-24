@@ -168,7 +168,27 @@ export function releaseHuntLock(targetPath: string): void {
       console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed during release (a peer won the race) — keeping the current holder's lock`);
       return;
     }
-    fs.unlinkSync(lockPath);
+    // ★ F-1022 FIX (2026-09-25): the F-831 re-read is NOT atomic with the unlink —
+    // ★ a stale-recovery in acquireHuntLock can replace the lock in between and this
+    // ★ unlink would delete the stranger's fresh lock. Narrow the window with a SECOND
+    // ★ re-read immediately before the unlink, and treat ENOENT as peer-won (warn,
+    // ★ keep). Residual: path locks cannot release atomically without an fd lock —
+    // ★ the window is now µs, never ms, and a lost race warns instead of corrupting.
+    const fresh2 = readPayload(lockPath);
+    if (!fresh2 || fresh2.pid !== existing.pid || fresh2.acquiredAt !== existing.acquiredAt || fresh2.hostname !== existing.hostname) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed just before unlink (a peer won the race) — keeping the current holder's lock`);
+      return;
+    }
+    try {
+      fs.unlinkSync(lockPath);
+    } catch (e: unknown) {
+      const code = e !== undefined && e !== null && typeof e === 'object' && 'code' in e ? (e as { code: unknown }).code : undefined;
+      if (code === 'ENOENT') {
+        console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock vanished before unlink (a peer won the race) — nothing to delete`);
+        return;
+      }
+      throw e;
+    }
   } catch (e: unknown) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
   }

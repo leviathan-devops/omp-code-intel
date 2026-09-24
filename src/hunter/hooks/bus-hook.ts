@@ -77,6 +77,10 @@ export class HydraBus {
       return [];
     }
     this.polling = true;
+    // ★ F-1023 FIX (2026-09-25): an escaping throw mid-poll must not strand the
+    // ★ cursor past rows never delivered (silent event loss on next poll). The saved
+    // ★ cursor is restored on unexpected throw; normal poison skips still advance it.
+    const cursorBefore = this.cursor;
     try {
     const rows = rowsAs<EventRow>(db.prepare('SELECT id, kind, payload FROM events WHERE id > ? ORDER BY id ASC').all(this.cursor), 'events');
     // ★ F-65 FIX (2026-09-24): the F-41 shape throw left the cursor behind the poison row —

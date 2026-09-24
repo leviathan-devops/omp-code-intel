@@ -941,7 +941,7 @@ export class GraphifyAdapter implements GraphAdapter {
     try {
       const effectiveProfile = profileOverride ?? this.profile;
       const root = path.resolve(effectiveProfile.project.root);
-      const graph = loadGraphifyFileSync(graphPath);
+      const graph = loadGraphifyFileSync(graphPath, root);
       if (graph.nodes.length === 0) {
         throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
       }

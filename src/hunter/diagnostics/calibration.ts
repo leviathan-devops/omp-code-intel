@@ -514,11 +514,17 @@ export class CalibrationGate {
     if (fire && fire.result === 'MISS') verdict = 'FLAGGED';
     else if (silent && silent.result === 'FALSE-FIRE') verdict = 'FLAGGED';
     else if (fire && silent) verdict = 'CALIBRATED';
+    // ★ F-1021 FIX (2026-09-25): the calibrated marker lands on the gate's OWNED
+    // ★ row (constructor clone), never the caller's reference — fireTest/silentTest
+    // ★ callers hand back the caller's own battery row; the old markCalibrated(p)
+    // ★ wrote straight onto it (re-calibration contamination, live-scan side
+    // ★ effects). The verdicts map stays the authority; the object mark is courtesy.
+    const owned = this.battery.find((b) => b.id === p.id) ?? p;
     if (verdict) {
       this.verdicts.set(p.id, verdict);
-      markCalibrated(p, verdict);
+      markCalibrated(owned, verdict);
     } else {
-      markCalibrated(p, 'PENDING');
+      markCalibrated(owned, 'PENDING');
     }
   }
 
