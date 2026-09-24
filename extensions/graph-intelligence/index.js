@@ -183212,7 +183212,7 @@ var DOMAIN_NUMERIC_THRESHOLD = {
     const valuePath = String(ctx.bindings["valuePath"] ?? "");
     const operator = bindOperator(ctx.bindings);
     const threshold = bindNumber(ctx.bindings, "threshold");
-    if (!symbol || !valuePath || typeof threshold !== "number")
+    if (!symbol || !valuePath || typeof threshold !== "number" || !Number.isFinite(threshold))
       return findings;
     for (const node of ctx.graph.nodes()) {
       if (node.name !== symbol)
@@ -183819,7 +183819,7 @@ function violationFrequencies(profile, ruleIds) {
       throw historyLogUnreadable(abs, `symlink escapes project root (root=${rootReal} file=${logReal})`);
     let text;
     try {
-      text = fs15.readFileSync(abs, "utf8");
+      text = fs15.readFileSync(logReal, "utf8");
     } catch (e) {
       throw historyLogUnreadable(abs, String(e));
     }

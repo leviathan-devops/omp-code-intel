@@ -16,7 +16,7 @@
 // stubbed OUT of the port (report.ts writes the report file directly).
 
 export type { ProjectProfile } from '../profile/schema.ts';
-// ★ F-503 FIX (2026-09-24): GraphNode/GraphEdge are NOT re-exported from ../shared/db.ts here —
+// ★ F-516 FIX (2026-09-24): GraphNode/GraphEdge are NOT re-exported from ../shared/db.ts here —
 //   db.ts uses kind: string (loose) while ../graph/interface.ts uses the exact GraphNodeKind /
 //   GraphEdgeKind unions (+ id/file/line on the edge). The barrel's canonical graph shapes come
 //   from the interface block below; sourcing both silently defeated the graph layer's typing.

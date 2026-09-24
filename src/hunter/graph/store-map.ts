@@ -195,7 +195,7 @@ export function writeCorbellToTypedStore(
       db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
       insertForkNodesBatch(db, nodeRows);
       insertForkEdgesBatch(db, edgeRows);
-      // ★ F-502 FIX (2026-09-24): the session writer records its own provenance IN THE SAME
+      // ★ F-515 FIX (2026-09-24): the session writer records its own provenance IN THE SAME
       //   TRANSACTION (the checkout path's P3 discipline) — a session store without
       //   populated_at is stale-by-construction to layerFreshness, whatever the caller does later.
       db.run(

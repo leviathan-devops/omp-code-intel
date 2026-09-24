@@ -176,7 +176,7 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
   // ★ F-411 FIX (2026-09-24): defense-in-depth metachar guard — resolveCorbell validates
   //   the binary path, but defaultExec is a public export; future callers may pass
   //   user-influenced input. Fail-closed on shell metacharacters before sh -c.
-  // ★ F-500 FIX (2026-09-24): harmonized with safe()'s allowlist — safe() REJECTS * and ~
+  // ★ F-513 FIX (2026-09-24): harmonized with safe()'s allowlist — safe() REJECTS * and ~
   //   (absent from its allow set), but this denylist did not, so a future caller passing a
   //   * / ~ / ? / # / [ / ] bearing string would glob-expand, tilde-expand, or comment-split
   //   under /bin/sh -c. Denied here; a path passing safe() is now also safe here.
@@ -475,7 +475,7 @@ export class CorbellAdapter implements GraphAdapter {
         // neither guard nor build consistently. Build now uses the SAME
         // resolved binary the guard validated.
         const buildBin = resolveCorbell(profile as unknown as { graph?: { binaryPath?: string } });
-        // ★ F-501 FIX (2026-09-24): build() INTENTIONALLY uses the sync ExecFn (this.exec,
+        // ★ F-514 FIX (2026-09-24): build() INTENTIONALLY uses the sync ExecFn (this.exec,
         //   defaultExec) — the ExecFn contract is what the tests stub, and the operator order
         //   is no-static-timeouts with the process exit as the event. buildCorbellGraphAsync
         //   (the spawn-based twin above) is the event-driven path for EXTERNAL callers that

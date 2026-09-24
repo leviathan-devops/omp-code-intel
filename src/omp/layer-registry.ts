@@ -71,7 +71,7 @@ export interface ConsumerProbe {
   /** ★ THE CONSUMPTION SURFACE: the facts this consumer contributes about `subject`.
    *  An EMPTY array means WIRED-BUT-SILENT → the registry reports GI_LAYER_UNCONSUMED.
    *  A fact whose `source` is empty is DISCARDED (counted, never silent). */
-  // ★ F-507 FIX (2026-09-24): probes MUST be pure/idempotent — audit() and factsFor() each call
+  // ★ F-520 FIX (2026-09-24): probes MUST be pure/idempotent — audit() and factsFor() each call
   //   up() + facts() independently, so a stateful/side-effectful probe can make the two views
   //   (audit verdicts vs the decision's facts) disagree. No shared contract change; documented.
   facts(subject: string): LayerFact[];
@@ -153,7 +153,7 @@ export function createLayerRegistry(): LayerRegistry {
       const got = p.facts(subject) as unknown;
       raw = Array.isArray(got) ? (got.filter((f) => f !== null && typeof f === "object") as LayerFact[]) : [];
       if (!Array.isArray(got)) {
-        // ★ F-506 FIX (2026-09-24): a non-array is a MID-QUERY fault (the substrate ANSWERED
+        // ★ F-519 FIX (2026-09-24): a non-array is a MID-QUERY fault (the substrate ANSWERED
         //   with the wrong shape), not an absent substrate — DOWN contradicted up:true and
         //   conflated the taxonomy. Same token as the throw path below.
         return {

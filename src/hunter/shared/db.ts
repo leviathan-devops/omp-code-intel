@@ -785,7 +785,7 @@ export class FamilyGraphStore {
 
   sealFamily(): void {
     this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES ('promotion_state','FAMILY_ROOT_READONLY')").run();
-    // ★ F-504 FIX (2026-09-24): chmod is NOT an idempotent guard — chmod succeeds on an
+    // ★ F-517 FIX (2026-09-24): chmod is NOT an idempotent guard — chmod succeeds on an
     //   already-read-only file, so ANY failure (ENOENT, EROFS, EPERM) means the seal did NOT
     //   land. The old swallow hid a still-writable family behind sealed=true. LOUD named throw.
     try { fs.chmodSync(this.familyPath, 0o444); } catch (e: unknown) {

@@ -136,7 +136,7 @@ class ScopeBindingImpl implements ScopeBinding {
   }
 
   ownsWave(waveId: string): boolean {
-    // ★ F-508 FIX (2026-09-24): longest-prefix ownership — a bare startsWith returns true for
+    // ★ F-521 FIX (2026-09-24): longest-prefix ownership — a bare startsWith returns true for
     //   the WRONG binding when namespaces overlap (wave- vs wave-extra-), so a direct
     //   ownsWave/assertOwnWave caller accepted a foreign wave that ownerOf would not. A longer
     //   registered prefix extending this one that also matches the id wins instead.
