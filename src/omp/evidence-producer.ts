@@ -96,7 +96,14 @@ export function produce(
   opts: { withdrawals?: readonly Withdrawal[]; permits?: readonly Permit[] } = {},
 ): OutcomeRecord[] {
   const from = Date.parse(fireAt);
-  const out: OutcomeRecord[] = [];
+  // ★ F-EV1 FIX (2026-09-24): an unparseable fireAt made `from` NaN, and every
+  //   `at <= from` comparison is false against NaN — so ALL events passed the
+  //   forward-only filter and pre-fire history fabricated post-fire evidence.
+  //   A bound that cannot be established is not a bound: LOUD refusal, never an
+  //   open window (mirrors oracle.ts O0 + gather's GI_ORACLE_BAD_WINDOW).
+  if (!Number.isFinite(from)) {
+    throw new Error(`GI_EVIDENCE_BAD_FIRE_AT: fireAt ${JSON.stringify(fireAt)} is unparseable — refusing to emit post-fire evidence with no forward window`);
+  }
 
   for (const e of events) {
     const at = Date.parse(e.at);

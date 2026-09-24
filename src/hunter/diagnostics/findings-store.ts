@@ -70,11 +70,15 @@ export function toFindingInput(f: NormalizedFinding): FindingInput {
  * check keeps the write boundary the machine's single evidence gate.
  */
 export function append(db: DbClient, finding: FindingInput, runId: string, week?: string | null): void {
+  // ★ F-5 FIX (2026-09-24): an empty runId lands rows under '' — unqueryable and
+  // ★ silently scoped to nothing. Fail LOUD at the write boundary instead.
+  if (typeof runId !== 'string' || runId.trim() === '') {
+    throw findingNoTriplet(`refusing append for finding ${finding.ruleId} with an empty runId — the run scope is mandatory (K21.2 determinism)`);
+  }
   if (typeof finding.evidence !== 'string' || finding.evidence.trim() === '') {
     throw findingNoTriplet(
       `finding ${finding.ruleId} at ${finding.file ?? '?'}:${finding.line ?? '?'} carries an empty evidence string`,
     );
-  }
   db.appendFinding(finding, runId, week);
 }
 

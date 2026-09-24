@@ -105,6 +105,20 @@ export function decideFromRegistry(
   if (act === null || typeof act !== "object") {
     throw new Error("GI_DECIDE_BAD_INPUT: act must be an object");
   }
+  // ★ F-1 FIX (2026-09-24): `act` carried three REQUIRED fields the kernel reads
+  //   (`toolName`, `target`, `queriedBefore`) with no validation — `{}` made the
+  //   dumb detector report "blind" (undefined is falsy) and printed "undefined" in
+  //   evidence. Same typeof+emptiness discipline as scopeRoot/subject above.
+  const a = act as { toolName?: unknown; target?: unknown; queriedBefore?: unknown };
+  if (typeof a.toolName !== "string" || a.toolName.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: act.toolName must be a non-empty string");
+  }
+  if (typeof a.target !== "string" || a.target.trim().length === 0) {
+    throw new Error("GI_DECIDE_BAD_INPUT: act.target must be a non-empty string");
+  }
+  if (typeof a.queriedBefore !== "boolean") {
+    throw new Error("GI_DECIDE_BAD_INPUT: act.queriedBefore must be a boolean (undefined would silently read as blind)");
+  }
   const registry = buildRegistry(scopeRoot);
 
   // The registry's facts for this subject — the decision's evidence base. `factsFor`
