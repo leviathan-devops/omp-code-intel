@@ -156,16 +156,26 @@ export function scoreProjectRoots(paths: Map<string, number>, stateDir: string):
   function isRoot(d: string): boolean {
     return has(d, '.git') || has(d, stateDir) || has(d, 'package.json');
   }
-  const candidates: Array<{ d: string; depth: number; hasState: boolean }> = [];
+  const candidates: Array<{ d: string; depth: number; hasState: boolean; weight: number }> = [];
   const seen = new Set<string>();
-  for (const [p] of paths) {
+  for (const [p, w] of paths) {
     // THE PATH-AS-ROOT: test the candidate itself before ascending.
     let d = isRoot(p) ? p : path.dirname(p);
     let guard = 0;
     while (guard++ < 32 && d.length > 1) {
       if (isRoot(d) && !seen.has(d)) {
         seen.add(d);
-        candidates.push({ d, depth: d.replace(/\\/g, "/").split("/").length, hasState: has(d, stateDir) }); // ★ F-284 FIX (2026-09-24): separator-agnostic depth.
+        // ★ F-860 FIX (2026-09-24, run-11): the WEIGHT was read off the map and DISCARDED —
+        //   `for (const [p] of paths)` ignored the value, so the documented "workdir ×2 — the
+        //   deliberate project anchor" never influenced the choice (selection was depth-only).
+        //   A candidate's weight is the MAX of the weights of the paths that named it (a root
+        //   reached from the workdir anchor outranks one reached only from a filepath fragment).
+        const prev = candidates.find((c) => c.d === d);
+        if (prev === undefined) {
+          candidates.push({ d, depth: d.replace(/\\/g, "/").split("/").length, hasState: has(d, stateDir), weight: w ?? 0 });
+        } else if ((w ?? 0) > prev.weight) {
+          prev.weight = w ?? 0;
+        }
       }
       const up = path.dirname(d);
       if (up === d) break;
@@ -173,9 +183,9 @@ export function scoreProjectRoots(paths: Map<string, number>, stateDir: string):
     }
   }
   if (candidates.length === 0) return null;
-  // STATE-DIR DOMINANCE → then deepest wins.
+  // STATE-DIR DOMINANCE → then the WEIGHT (the deliberate anchor) → then deepest.
   const stateOwners = candidates.filter((c) => c.hasState);
   const pool = stateOwners.length > 0 ? stateOwners : candidates;
-  pool.sort((a, b) => b.depth - a.depth);
+  pool.sort((a, b) => (b.weight - a.weight) || (b.depth - a.depth));
   return pool[0].d;
 }
