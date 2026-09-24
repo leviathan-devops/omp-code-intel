@@ -1769,3 +1769,20 @@ validation) · F-27 (graphify named drop) · F-28 (merge predicate validation).
 - **THE L2 DAEMON RESTART**: the host restart killed the au-engine daemon (a Rust per-repo
   serve process), so L2's substrate was DOWN (every socket refused) — NOT a code bug.
   `au daemon start <repo>` → `engine=up, ref=ready, ready=true`; C1 restored to `5/5`.
+
+### W3 RUN-4 WAVE — ALL 5 AGENTS COMPLETE (2026-09-24)
+- **R4GraphLexicon** (7 REAL): the rule-card blockquote CRITICAL, the corbell per-file cache, the
+  graphify misalignment, the mechanical exclusion bypass, the resolver contradiction, the store-map
+  LRU, the compiler runtime-null.
+- **R4SurfaceDiagFirewall** (9 REAL, F-40..F-49): the query-tool union, the calibration topology,
+  the engine blind-guard, the error-swallow → fail-closed, the graph-lock, the ROLLBACK naming, the
+  severity coercion, the `/read/`→`\bread\b`, the readonly dead branch, the lsp `/g`.
+- **R4HarnessSharedHooks** (~14 REAL, F-60..F-73): the hunt-lock CRITICAL race, the bus poison-row,
+  the profile TOCTOU, the CTE 2x traversal, the recursion cap, the migration COMMIT swallow.
+- **R4HydraKernelScoping** (9 REAL, F-201..F-209): the wire names, the per-run evidence, the gate
+  fail-closed, the SSE concat, the prefix longest-match, the session-state rethrow.
+- **R4Omp** (~10 REAL): the abide CRITICAL exponential tail (F-AB1), the calibration estimate/z,
+  the enforcement code attribution, the fire-gate token boundary, the gate-hook eviction, the
+  graph-facts finally.
+- **The orchestrator**: F-200 (graph-test-target db guard) + 2 scoping-bug fixes.
+**★ THE 5-RUN TREND: the highs fall monotonically (92→90→80→65).** Battery 430/0 + 528/0.
