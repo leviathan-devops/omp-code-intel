@@ -2363,3 +2363,20 @@ REAL, all FIXED + re-verified (battery 430/0 + 528/0, tsc 0).
 **The critical count is DOWN (8 → 5 → 3)** as real defects are fixed, but the gate never reaches 0
 because each run surfaces NEW findings on the same code — the reviewer has no fixed point. This is
 the honest mechanism; every adjudicated-REAL finding across all three runs is fixed + pinned.
+
+---
+
+## ★ P5 — THE RED-TEAM CORPUS RE-RUN (2026-09-24, the adversarial loop)
+
+The pin's P5: "the red-team corpus re-run; ZERO confirmed defects; the docs sweep clean."
+
+| the suite | the result |
+|---|---|
+| `tests/st-gi-v21-redteam.test.ts` | **27 pass / 0 fail** |
+| `tests/st-redteam-kernel.test.ts` | **15 pass / 0 fail** |
+| `tests/st-gi-v2-kernel.test.ts` | **9 pass / 0 fail** |
+| `tests/st-gi-6l2e.test.ts` (the 7-class corpus) | **28 pass / 0 fail** |
+| **★ THE TOTAL** | **79 pass / 0 fail — ZERO CONFIRMED DEFECTS** |
+
+The adversarial corpus (the decision functions: `decideFromRegistry`, `decideFireFromGraph`,
+`runKernelV2`, the 3 detectors) settles at ZERO confirmed defects on the current tree.
