@@ -88,6 +88,13 @@ export function specForTemplate(
 export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
   readonly config: PipelineConfig<TInput, TSubResult, TSynthesis, TOutput>;
   readonly evidence: EvidenceEntry[] = [];
+  // ★ F-364 FIX (2026-09-24): last-run snapshot policy — concurrent execute() calls
+  //   share this field, so an older call finishing late must not clobber a newer
+  //   call snapshot. Sequence is assigned at call order; publish is
+  //   last-caller-wins. Per-run correctness never depended on this field: the local
+  //   evidence array rides to buildOutput for the run that built it.
+  private evidenceSeq = 0;
+  private publishedSeq = 0;
 
   constructor(config: PipelineConfig<TInput, TSubResult, TSynthesis, TOutput>) {
     this.config = config;
@@ -104,6 +111,7 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
       throw new Error(`[${this.config.name}] GATE FAILED: subagents — pipeline requires at least 1 subagent`);
     }
     const t0 = Date.now();
+    const seq = ++this.evidenceSeq;
     // ★ F-203 FIX (2026-09-24): LOCAL evidence per execute() — concurrent runs
     //   no longer share/reset one array. The public field keeps a last-run
     //   snapshot for the sequential readers (replaces the F-141 reset).
@@ -180,7 +188,13 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     //   exposed an empty array to any reader between the two statements.
     //   splice() publishes the run in one synchronous call (same reference,
     //   sequential readers keep working; no intermediate empty is observable).
-    this.evidence.splice(0, this.evidence.length, ...evidence);
+    // ★ F-364 FIX (2026-09-24): last-caller-wins — an older concurrent call that
+    //   finishes late skips the publish instead of overwriting the newer run snapshot.
+    //   Sequential callers always see their own run (seq is monotonic).
+    if (seq >= this.publishedSeq) {
+      this.evidence.splice(0, this.evidence.length, ...evidence);
+      this.publishedSeq = seq;
+    }
     return output;
   }
 

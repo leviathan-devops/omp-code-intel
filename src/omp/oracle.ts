@@ -431,6 +431,21 @@ export function resolveAll(
     }
   }
 
+  // ★ F-365 FIX (2026-09-24): O4 subject pre-validation — gather() throws
+  //   GI_ORACLE_NO_SUBJECT when a pair has neither row.target nor a
+  //   caller-supplied subject, and that call sat outside the recordTruth
+  //   try/catch, so a throw aborted the batch AFTER earlier rows were already
+  //   committed (partial write, no report). Refuse the WHOLE batch up front,
+  //   like the stamp (O4) and notAfter (F-OR1) validations above it.
+  for (const { row, subject: subj } of unresolved) {
+    const fromRow = row.target !== undefined && row.target !== '';
+    if (!fromRow && subj === undefined) {
+      throw new Error(
+        `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — refusing the WHOLE batch so no partial write can occur`,
+      );
+    }
+  }
+
   for (const { row, subject } of pairs) {
     // ★ THE LEDGER SPEAKS, NOT THE CALLER. `null` = the row is not in this
     //   ledger at all — resolving a phantom would write a truth for a fire that

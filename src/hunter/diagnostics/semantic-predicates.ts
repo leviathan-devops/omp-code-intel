@@ -127,13 +127,32 @@ export const P2: PredicateTemplate = {
 };
 export const UNWIRED_ENFORCEMENT_MESSAGE = 'exported gate has zero callers';
 export const UNWIRED_ENFORCEMENT_REMEDIATION = 'wire gate into hook';
+// P3 ANCHOR: files reached through enforcement-call edges (whoCalls on the
+// enforce/gate/guard family) or importing enforcement modules, plus defining
+// nodes named enforce*/gate*/guard* with edge participation. Candidates stay the
+// gate-named NODES (the zero-caller question needs nodes), but scoped to
+// anchor.files — no anchor = no scan (the vanishing control holds for P3 too).
+const P3_SPEC: AnchorSpec = {
+  callSymbols: ['enforce', 'enforceStateGate', 'guard', 'gate'],
+  importMatchers: ['enforce', 'gate', 'guard', 'firewall'],
+  defMatchers: [/(enforce|gate|guard|STATE_GATE)/i],
+};
 export const P3: PredicateTemplate = {
   id: 'semantic.unwired-enforcement', family: 'WIRING', parameters: z.object({ ...CARD_FIELDS }),
   check(ctx) {
     const findings: Finding[] = []; const sev = bindSeverity(ctx.bindings);
+    // ★ F-363 FIX (2026-09-24): edge-anchored scope — the old loop scanned every
+    //   function/method/class node in the graph and hand-built an 'edge NONE' leg,
+    //   reaching files no edge traversal would ever admit. Candidates are now gated
+    //   on anchor.files (empty anchor = zero findings); the zero-caller verdict still
+    //   comes from whoCalls, and the evidence cites the traversed edge via evEdge.
+    const anchor = anchored(ctx, P3_SPEC);
+    if (anchor === null) return findings;
     for (const node of ctx.graph.nodes()) {
       if (node.kind !== 'function' && node.kind !== 'method' && node.kind !== 'class') continue;
       if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name)) continue;
+      const file = node.file ?? ''; if (!file) continue;
+      if (!anchor.files.has(file)) continue;
       let callers: { file: string; line: number; caller: string }[];
       try {
         callers = ctx.graph.whoCalls(node.name);
@@ -142,13 +161,10 @@ export const P3: PredicateTemplate = {
         continue;
       }
       if (callers.length !== 0) continue;
-      const file = node.file ?? ''; if (!file) continue;
       const text = windowText(ctx, file); if (text === undefined) continue;
       if (!/(enforcer|gate|firewall)/i.test(file) && !/(enforcer|gate)/i.test(text.slice(0, 2000))) continue;
       const triad = makeTriad(file, node.line ?? 1, 'semantic.unwired-enforcement', sev);
-      // THE P3 EVIDENCE (strengthened): the edge leg cites the TRAVERSED absence —
-      // whoCalls(name) returned [] over the calls/awaits edges (the hybrid's graph leg).
-      const evidence = `[wired-dead] semantic.unwired-enforcement at ${file}:${node.line ?? 1} — ${node.name} | edge NONE inbound calls->${node.name} (whoCalls('${node.name}')=[]) | triad=semantic.unwired-enforcement`;
+      const evidence = evEdge('semantic.unwired-enforcement', file, node.line ?? 1, `${node.name} — whoCalls("${node.name}")=[] over the calls edges (no inbound caller in the edge store)`, 'wired-dead', anchor);
       findings.push({ ruleId: 'semantic.unwired-enforcement', severity: sev, file, line: node.line ?? 1, evidence, verdict: 'VIOLATION', triad } as TriadFinding);
     }
     return findings;
