@@ -14,6 +14,7 @@
 // LAW: stub-shaped errors legal ONLY after a real attempt — every rejection names the failed step.
 
 import fs from "node:fs";
+import { insideRoot } from "../hunter/shared/containment.ts";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -102,7 +103,10 @@ function realResolve(p: string): string {
 }
 
 function isWithinRoot(realPath: string, realRoot: string): boolean {
-  return realPath === realRoot || realPath.startsWith(realRoot + path.sep);
+  // ★ F-882 FIX (2026-09-24): the private copy of the containment idiom (the FIFTH site of the
+  //   class F-601/F-870/F-880/F-881 each had to fix). Delegates to the shared primitive so the
+  //   root-prefix rule lives in ONE place.
+  return insideRoot(realPath, realRoot);
 }
 
 function makeCappedReadTool(targetRoot: string): MissionTool {

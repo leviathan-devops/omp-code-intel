@@ -15,6 +15,7 @@
  */
 
 import { promises as fs } from 'node:fs';
+import { insideRoot } from "../shared/containment.ts";
 import * as path from 'node:path';
 import type { LexiconContext, MPSE, ReportScopeDecision } from './lexicon-types.js';
 import { REPORT_SCOPE_ERROR } from './lexicon-types.js';
@@ -165,10 +166,12 @@ export async function classify(
     //   project root — a pre-existing MASTER_CONTEXT symlink to an external path resolves
     //   parentReal and masterReal to the SAME external dir, so the parent-vs-master check
     //   below passes while the write lands outside the project. Mirrors the F-30 CREATE-path guard.
-    if (masterReal !== projectRootReal && !masterReal.startsWith(projectRootReal + path.sep)) {
+    // ★ F-884 FIX (2026-09-24): the private copies → the shared primitive (the SEVENTH/EIGHTH
+    //   sites of the containment class).
+    if (!insideRoot(masterReal, projectRootReal)) {
       return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
     }
-    if (parentReal !== masterReal && !parentReal.startsWith(masterReal + path.sep)) {
+    if (!insideRoot(parentReal, masterReal)) {
       return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
     }
   } else {
@@ -176,7 +179,7 @@ export async function classify(
     // ★ symlinked ancestor (e.g. a pre-existing `MASTER_CONTEXT` symlink to /tmp)
     // ★ passed the normalized containment above while resolving outside the
     // ★ project. The resolved parent must stay inside the resolved project root.
-    if (parentReal !== projectRootReal && !parentReal.startsWith(projectRootReal + path.sep)) {
+    if (!insideRoot(parentReal, projectRootReal)) {
       return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
     }
   }

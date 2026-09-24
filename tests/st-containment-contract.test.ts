@@ -86,10 +86,14 @@ describe("★ THE CONTAINMENT CONTRACT (the class that produced criticals in 5 r
 
   test("the requireContained callback fires ONLY on a violation", () => {
     let fired = 0;
-    const okPath = requireContained(path.join(ROOT, "ok.ts"), ROOT, () => { fired += 1; return "VIOLATED"; });
+    // the callback must THROW (the signature is `=> never`) — a caller that returns a value has
+    // not refused, and `requireContained` would hand back a path it just rejected.
+    const okPath = requireContained(path.join(ROOT, "ok.ts"), ROOT, () => { fired += 1; throw new Error("VIOLATED"); });
     expect(fired).toBe(0);
     expect(okPath).toContain("ok.ts");
-    requireContained(path.join(ROOT, "evil", "secret.txt"), ROOT, () => { fired += 1; return "VIOLATED"; });
+    expect(() =>
+      requireContained(path.join(ROOT, "evil", "secret.txt"), ROOT, () => { fired += 1; throw new Error("VIOLATED"); }),
+    ).toThrow("VIOLATED");
     expect(fired).toBe(1);
   });
 });

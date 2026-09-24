@@ -6,6 +6,7 @@
 //
 // The au runtime lives in HOME, not the scope root: `~/.arsumbris/au-host/run`.
 import * as fs from "node:fs";
+import { requireContained } from "../../hunter/shared/containment.ts";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -29,7 +30,12 @@ export function auEngineRead(repoRoot: string, read: string, subject: string): u
   if (subject.includes("\0")) throw new Error(`GI_LAYER_ARSUMBRIS: subject carries NUL — refusing`);
   const repoCanon = path.resolve(repoRoot);
   const script = path.join(repoCanon, "scripts/au-read.ts");
-  if (!path.resolve(script).startsWith(repoCanon + path.sep)) throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root — refusing`);
+  // ★ F-883 FIX (2026-09-24): the private copy → the shared primitive (the SIXTH site of the
+  //   containment class). requireContained resolves the REAL path (symlink-following), so a
+  //   link planted at scripts/ can no longer walk the child argv out of the repo.
+  requireContained(script, repoCanon, () => {
+    throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root — refusing`);
+  });
   if (!fs.existsSync(script)) throw new Error(`GI_LAYER_ARSUMBRIS: the reader is absent at ${script}`);
   let out: string;
   try {
