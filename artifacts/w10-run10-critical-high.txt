@@ -662,23 +662,6 @@ The `setInterval` (line 117) and `clearInterval` (line 170) are not atomic with 
     if (dead && !streamComplete) return { ok: false, reason: `STALL: no tokens for ${stallMs / 1000}s` };
   ```
 
-[HIGH] src/omp/adapters/_shared.ts:108-110 (bug)
-  **Bug: `err.status === undefined` does not reliably detect ENOENT (missing curl binary).**
-
-When `execFileSync` fails to spawn a child process (e.g., curl is not installed — ENOENT), Node.js/Bun set `err.status` to `null`, not `undefined`. The strict equality check `err.status === undefined` is `false` when `status` is `null`, so the code falls through to `const code = err.status` (which is `null`), and since `null !== 52 && null !== 56`, the socket is recorded as `refused`. The F-260 fix's intent — reporting `PROBE INFRA BROKEN` when curl is missing — never fires.
-
-Consequence: on a host without curl, every socket file is logged as `refused`, and the final evidence says "every socket refuse
-  ```existing
-  if (err.status === undefined) {
-        return { up: false, evidence: `${dir} — PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) — install curl; this is NOT a socket verdict` };
-      }
-  ```
-  ```suggested
-  if (err.status == null) {
-        return { up: false, evidence: `${dir} — PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) — install curl; this is NOT a socket verdict` };
-      }
-  ```
-
 [HIGH] src/omp/adapters/semantica.ts:24-29 (security)
   Security concern: The F-356 mitigation for symlink attacks is incomplete. When `realpathSync` throws during initialization, `resolvedRoot` falls back to unresolved path, bypassing the fix for non-existent paths. Additionally, even if mitigated initially, `facts()` should re-validate via `realpathSync` when the file exists to prevent symlink insertion in the interim. Consider storing intent to validate and re-checking in `facts()` to ensure no symlink bypasses the intended tree.
   ```existing
@@ -699,6 +682,23 @@ Consequence: on a host without curl, every socket file is logged as `refused`, a
     resolvedRoot = path.resolve(scopeRoot);
     needsRealpathCheck = true;
   }
+  ```
+
+[HIGH] src/omp/adapters/_shared.ts:108-110 (bug)
+  **Bug: `err.status === undefined` does not reliably detect ENOENT (missing curl binary).**
+
+When `execFileSync` fails to spawn a child process (e.g., curl is not installed — ENOENT), Node.js/Bun set `err.status` to `null`, not `undefined`. The strict equality check `err.status === undefined` is `false` when `status` is `null`, so the code falls through to `const code = err.status` (which is `null`), and since `null !== 52 && null !== 56`, the socket is recorded as `refused`. The F-260 fix's intent — reporting `PROBE INFRA BROKEN` when curl is missing — never fires.
+
+Consequence: on a host without curl, every socket file is logged as `refused`, and the final evidence says "every socket refuse
+  ```existing
+  if (err.status === undefined) {
+        return { up: false, evidence: `${dir} — PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) — install curl; this is NOT a socket verdict` };
+      }
+  ```
+  ```suggested
+  if (err.status == null) {
+        return { up: false, evidence: `${dir} — PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) — install curl; this is NOT a socket verdict` };
+      }
   ```
 
 [HIGH] src/omp/adapters/tsg.ts:117-119 (security)
@@ -1081,6 +1081,22 @@ Add explicit hex-format validation before the comparison:
     return crypto.timingSafeEqual(a, b);
   ```
 
+[HIGH] src/scoping/gi-session-path.ts:150-152 (security)
+  `forbiddenSharedProjectStore` returns a raw joined path without validating that `scopeRoot` is absolute. Any caller using this returned path for security decisions (e.g., 'is this store forbidden?') would get a relative path when given a relative `scopeRoot`, which is silently wrong. The sibling functions `sessionStorePath` and `assertSessionStorePath` both enforce `path.isAbsolute(scopeRoot)` — this function should do the same for consistency and safety.
+  ```existing
+  export function forbiddenSharedProjectStore(scopeRoot: string): string {
+  return path.join(scopeRoot, GI_STATE_DIR, "store.sqlite");
+}
+  ```
+  ```suggested
+  export function forbiddenSharedProjectStore(scopeRoot: string): string {
+  if (!path.isAbsolute(scopeRoot)) {
+    throw new GiPathError("GI_PATH_DENIED", `GI_PATH_DENIED: scopeRoot must be absolute, got ${scopeRoot}`);
+  }
+  return path.join(scopeRoot, GI_STATE_DIR, "store.sqlite");
+}
+  ```
+
 [HIGH] src/scoping/scope-binding.ts:224-235 (bug)
   `assertAliasNamespace` iterates `allPrefixes` in insertion order without longest-prefix sorting. This is inconsistent with the F-207 fix applied to `ownerOf`, `isForeignWave`, and `assertOwnWave`, all of which sort by descending length. If one foreign prefix is a prefix of another (e.g., `wave-` vs `wave-extra-`), the shorter match fires first with the wrong remediation message, even though the longer prefix is the true owner of the alias's namespace.
   ```existing
@@ -1112,4 +1128,4 @@ Add explicit hex-format validation before the comparison:
   } catch (err) { console.warn(`[scope-resolver] auto-detect failed for session ${sessionId}:`, err); }
   ```
 
-# total: 60
+# total: 61

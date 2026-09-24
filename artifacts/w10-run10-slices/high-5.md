@@ -84,29 +84,6 @@ function evidenceQuoteForNode(sf: tsImport.SourceFile, node: tsImport.Node): str
     try { stmt.fi
   ```
 
-## src/hydra/pipeline.ts
-- **src/hydra/pipeline.ts:78-84** (performance)
-  Performance: Graph is loaded from disk N+1 times. The pipeline loads the graph via `readGraphJson(graphPath)` at line 91 and passes it as the `graph` parameter to each `spec.run(input, graph)`. However, `specForTemplate` ignores the pre-loaded graph (`_graph` parameter) and passes the `graphPath` string to `runTemplateAudit`, which calls `readGraphJson(graphPath)` again internally (auditor.ts:990). `readGraphJson` has no caching — it performs a full stat, read, parse, and normalize on every call. For a pipeline with N subagents, this means N+1 full graph loads from disk. The fix is to either pass the already-loaded `GraphifyGraph` directly into `runTemplateAudit` (adding a `graph?: GraphifyGraph` field to `RunTemplateAuditArgs`), or have `specForTemplate`'s `run` closure capture and use the `_graph` parameter instead of re-loading.
-  ```existing
-  run: async (input, _graph) =>
-      runTemplateAudit({
-        template,
-        ledgerDir: `${ledgerRoot}/${template.layerId}`,
-        targetRoot: input.targetRoot,
-        graphPath: input.graphPath,
-      }),
-  ```
-  ```suggested
-  run: async (input, graph) =>
-      runTemplateAudit({
-        template,
-        ledgerDir: `${ledgerRoot}/${template.layerId}`,
-        targetRoot: input.targetRoot,
-        graphPath: input.graphPath,
-        graph, // pass pre-loaded graph to avoid redundant disk I/O
-      }),
-  ```
-
 ## src/kernel/scan-chain.ts
 - **src/kernel/scan-chain.ts:140-142** (bug)
   **Bug: `response.text()` throw inside `!response.ok` block loses the HTTP error context.**
@@ -160,55 +137,65 @@ if (dead && !completed) return { ok: false, reason: `STALL: ...` };
     if (dead && !streamComplete) return { ok: false, reason: `STALL: no tokens for ${stallMs / 1000}s` };
   ```
 
-## src/omp/decision.ts
-- **src/omp/decision.ts:211-212** (bug)
-  Missing runtime validation for `intent` — the same defect pattern that was fixed for every other public parameter (`scopeRoot`, `target`, `act.toolName`, `act.target`, `act.queriedBefore`). `intent` is typed as a string union (`"consume" | "declare" | "mutate" | "measure"`) but TypeScript types are erased at runtime; an invalid value (e.g., `undefined`, `"delete"`) propagates silently into `graphFacts`, which may produce unexpected verdicts or SQL errors. Add a typeof+allowlist guard consistent with the sibling entry point's discipline.
+## src/omp/adapters/semantica.ts
+- **src/omp/adapters/semantica.ts:24-29** (security)
+  Security concern: The F-356 mitigation for symlink attacks is incomplete. When `realpathSync` throws during initialization, `resolvedRoot` falls back to unresolved path, bypassing the fix for non-existent paths. Additionally, even if mitigated initially, `facts()` should re-validate via `realpathSync` when the file exists to prevent symlink insertion in the interim. Consider storing intent to validate and re-checking in `facts()` to ensure no symlink bypasses the intended tree.
   ```existing
-  const storePath = corbellCheckoutPath(scopeRoot);
-  const verdicts = graphFacts({ storePath, target, intent });
-  ```
-  ```suggested
-  const validIntents = ["consume", "declare", "mutate", "measure"] as const;
-  if (typeof intent !== "string" || !validIntents.includes(intent as typeof validIntents[number])) {
-    throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of ${validIntents.join(", ")}; got ${JSON.stringify(intent)}`);
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
+  } catch {
+    resolvedRoot = path.resolve(scopeRoot);
   }
-  const storePath = corbellCheckoutPath(scopeRoot);
-  const verdicts = graphFacts({ storePath, 
-  ```
-
-## src/omp/graph-gate.ts
-- **src/omp/graph-gate.ts:219-221** (bug)
-  `computeDrift` mutates `state.gateState` as a side-effect, but `gateDecision` also sets `gateState`. Both functions independently overwrite the same field, creating conflicting state transitions. Specifically, when `d.drift === 0`, `computeDrift` sets `gateState = "IDLE"`, but if prior edits exist (even if fully verified), `gateDecision` immediately overwrites it to `"TRACKING"` (because `d.drift > 0` is checked separately). The real danger: if `computeDrift` is called independently or out of order (e.g. for reporting/dashboarding), it silently resets `gateState` to IDLE/TRACKING regardless of the actual gate tier that was enforced. `computeDrift` should NOT set `gateState` — that is `gateDecision`'s exclusive responsibility. Remove the two assignments from `computeDrift`.
-  ```existing
-  state.drift = drift;
-  return { drift, unverifiedCount, verifiedSymbols, lastGraphQuery };
-}
   ```
   ```suggested
-  state.drift = drift;
-  return { drift, unverifiedCount, verifiedSymbols, lastGraphQuery };
-}
-
-// NOTE: state.gateState is set exclusively by gateDecision(). computeDrift
-// only computes the numeric drift value — it must not modify gateState.
+  let resolvedRoot: string;
+  let needsRealpathCheck = false;
+  try {
+    resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
+  } catch {
+    // Path doesn't exist yet — defer symlink validation to up()/facts() time.
+    resolvedRoot = path.resolve(scopeRoot);
+    needsRealpathCheck = true;
+  }
   ```
 
-## src/omp/rsi.ts
-- **src/omp/rsi.ts:272-275** (security)
-  `Buffer.from(r.sig, "hex")` silently drops non-hex characters rather than throwing or returning an error. A malformed signature like `"a".repeat(64) + "ZZ"` (66 chars) produces a 32-byte buffer, while a valid 32-byte HMAC produces a 64-char hex string — so the length check `a.length !== b.length` passes despite the signature being invalid. The `timingSafeEqual` then incorrectly returns `true`, causing a forged row to be treated as verified.
-
-Add explicit hex-format validation before the comparison:
+## src/omp/enforcement.ts
+- **src/omp/enforcement.ts:201-201** (bug)
+  Unsafe type assertion on caught exception in catch blocks. The pattern `(e as { code?: string }).code ?? fallback` is unsafe because if `e` is not an object (e.g., null, undefined), accessing `.code` throws a secondary TypeError, making the `??` fallback unreachable. This affects both instances with codes "CLAIM_FW_TSG_DOWN" and "GI_JEV_DOWN". Apply a guarded extraction pattern similar to the work-layer catch, using `e instanceof Error && "code" in e` to safely extract the code string.
   ```existing
-  const a = Buffer.from(expect, "hex");
-    const b = Buffer.from(r.sig, "hex");
-    if (a.length !== b.length || a.length === 0) return false;
-    return crypto.timingSafeEqual(a, b);
+  code: (e as { code?: string }).code ?? "CLAIM_FW_TSG_DOWN",
+  ```
+
+## src/omp/kernel-v2.ts
+- **src/omp/kernel-v2.ts:305-305** (bug)
+  Empty `detectors` array causes an unhandled exception. `runKernelV2` uses `input.detectors ?? DEFAULT_DETECTORS`, so passing `detectors: []` (an explicit empty array, not `undefined`) bypasses the default and flows into `worstOutcome`, which throws `Error("worstOutcome requires at least one outcome")`. This is a synchronous throw in `runKernelV2`, which promises to return `KernelRun` — callers will get an uncaught exception instead of a structured ABORT/REFUSE. The guard at `worstOutcome` should be replaced with a structured refusal, or `runKernelV2` should treat an empty array the same as `undefined`.
+  ```existing
+  const detectors = input.detectors ?? DEFAULT_DETECTORS;
   ```
   ```suggested
-  // Reject non-hex signatures outright — Buffer.from silently drops invalid chars
-    if (!/^[0-9a-f]{64}$/i.test(r.sig)) return false;
-    const a = Buffer.from(expect, "hex");
-    const b = Buffer.from(r.sig, "hex");
-    if (a.length !== b.length || a.length === 0) return false;
-    return crypto.timingSafeEqual(a, b);
+  const detectors = input.detectors?.length ? input.detectors : DEFAULT_DETECTORS;
+  ```
+
+## src/scoping/scope-binding.ts
+- **src/scoping/scope-binding.ts:224-235** (bug)
+  `assertAliasNamespace` iterates `allPrefixes` in insertion order without longest-prefix sorting. This is inconsistent with the F-207 fix applied to `ownerOf`, `isForeignWave`, and `assertOwnWave`, all of which sort by descending length. If one foreign prefix is a prefix of another (e.g., `wave-` vs `wave-extra-`), the shorter match fires first with the wrong remediation message, even though the longer prefix is the true owner of the alias's namespace.
+  ```existing
+  export function assertAliasNamespace(binding: ScopeBinding, alias: unknown, allPrefixes: string[]): void {
+  if (typeof alias !== 'string' || alias.trim().length === 0) return;
+  const a = alias.trim();
+  for (const prefix of allPrefixes) {
+    if (prefix === binding.wavePrefix) continue;
+    if (a.startsWith(prefix)) {
+      throw new Error(
+        `[${binding.label} SCOPE] the waveId alias "${a
+  ```
+  ```suggested
+  export function assertAliasNamespace(binding: ScopeBinding, alias: unknown, allPrefixes: string[]): void {
+  if (typeof alias !== 'string' || alias.trim().length === 0) return;
+  const a = alias.trim();
+  // Longest-prefix match — consistent with ownerOf / isForeignWave (F-207).
+  const sorted = [...allPrefixes].sort((a, b) => b.length - a.length);
+  for (const prefix of sorted) {
+    if (prefix =
   ```

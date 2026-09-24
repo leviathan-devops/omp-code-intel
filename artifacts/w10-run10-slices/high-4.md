@@ -73,34 +73,27 @@
           console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscribe
   ```
 
-## src/hydra/map-reader.ts
-- **src/hydra/map-reader.ts:84-90** (bug)
-  **Bug: Nesting depth scanner doesn't skip JSON string literals.** The character-by-character scan in `parseGraphJson` counts `{`, `}`, `[`, `]` inside JSON string values as real nesting changes. For example, `{"data": "value with } brace"}` would decrement depth at the `}` inside the string, causing the counter to go negative and potentially miss real deep nesting or falsely reject valid payloads.
-
-For a defense-in-depth guard this is problematic: an adversary could encode deeply nested `{` sequences inside string values to inflate `maxDepth` and bypass the check (since the actual parse nesting stays low), while legitimate payloads with braces in string values could be falsely rejected.
-
-A simple fix is to skip string literals during the scan:
+## src/hydra/pipeline.ts
+- **src/hydra/pipeline.ts:78-84** (performance)
+  Performance: Graph is loaded from disk N+1 times. The pipeline loads the graph via `readGraphJson(graphPath)` at line 91 and passes it as the `graph` parameter to each `spec.run(input, graph)`. However, `specForTemplate` ignores the pre-loaded graph (`_graph` parameter) and passes the `graphPath` string to `runTemplateAudit`, which calls `readGraphJson(graphPath)` again internally (auditor.ts:990). `readGraphJson` has no caching — it performs a full stat, read, parse, and normalize on every call. For a pipeline with N subagents, this means N+1 full graph loads from disk. The fix is to either pass the already-loaded `GraphifyGraph` directly into `runTemplateAudit` (adding a `graph?: GraphifyGraph` field to `RunTemplateAuditArgs`), or have `specForTemplate`'s `run` closure capture and use the `_graph` parameter instead of re-loading.
   ```existing
-  let maxDepth = 0;
-  let depth = 0;
-  for (let i = 0; i < contents.length; i++) {
-    const c = contents.charCodeAt(i);
-    if (c === 0x7B /* { */ || c === 0x5B /* [ */) { depth++; if (depth > maxDepth) maxDepth = depth; }
-    else if (c === 0x7D /* } */ || c === 0x5D /* ] */) depth--;
-  }
+  run: async (input, _graph) =>
+      runTemplateAudit({
+        template,
+        ledgerDir: `${ledgerRoot}/${template.layerId}`,
+        targetRoot: input.targetRoot,
+        graphPath: input.graphPath,
+      }),
   ```
   ```suggested
-  let maxDepth = 0;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = 0; i < contents.length; i++) {
-    const c = contents.charCodeAt(i);
-    if (escaped) { escaped = false; continue; }
-    if (c === 0x5C /* \ */ && inString) { escaped = true; continue; }
-    if (c === 0x22 /* " */) { inString = !inString; continue; }
-    if (inString) continue;
-    if (c === 0x7B /* { 
+  run: async (input, graph) =>
+      runTemplateAudit({
+        template,
+        ledgerDir: `${ledgerRoot}/${template.layerId}`,
+        targetRoot: input.targetRoot,
+        graphPath: input.graphPath,
+        graph, // pass pre-loaded graph to avoid redundant disk I/O
+      }),
   ```
 
 ## src/kernel/graph-pre-flight.ts
@@ -138,83 +131,52 @@ A simple fix is to skip string literals during the scan:
            WHERE e.src_canonical IN (${ph}) AND e.predicate
   ```
 
-## src/omp/calibration.ts
-- **src/omp/calibration.ts:97-102** (bug)
-  The Wilson interval clamping to [0, 1] creates asymmetric distortion of `halfWidth`. When `low` is clamped upward to 0, the reported `halfWidth = (high - low) / 2` doesn't equal `(high - centre)`, so it overstates the true distance from centre to the lower bound. The opposite happens when `high` is clamped to 1. Since `halfWidth` directly gates the `sufficient` flag (`halfWidth <= 0.10`), this asymmetry can cause `sufficient` to be incorrect near boundaries — the interval appears tighter on one side than it truly is, potentially passing the sufficiency gate when the interval is not actually narrow enough to support a threshold decision. This is the same class of issue noted in the focus area as 'clamping silently distorts halfWidth'.
+## src/omp/decision.ts
+- **src/omp/decision.ts:211-212** (bug)
+  Missing runtime validation for `intent` — the same defect pattern that was fixed for every other public parameter (`scopeRoot`, `target`, `act.toolName`, `act.target`, `act.queriedBefore`). `intent` is typed as a string union (`"consume" | "declare" | "mutate" | "measure"`) but TypeScript types are erased at runtime; an invalid value (e.g., `undefined`, `"delete"`) propagates silently into `graphFacts`, which may produce unexpected verdicts or SQL errors. Add a typeof+allowlist guard consistent with the sibling entry point's discipline.
   ```existing
-  const low = Math.max(0, centre - margin);
-  const high = Math.min(1, centre + margin);
-  return {
-    precision: p, low, high, halfWidth: (high - low) / 2,
-    resolved, unresolvedRatio,
-    sufficient: (high - low) / 2 <= 0.10,
+  const storePath = corbellCheckoutPath(scopeRoot);
+  const verdicts = graphFacts({ storePath, target, intent });
   ```
   ```suggested
-  const low = Math.max(0, centre - margin);
-  const high = Math.min(1, centre + margin);
-  // Use max distance from centre to either bound as the halfWidth,
-  // because clamping breaks the symmetry that (high-low)/2 assumes.
-  const halfWidth = Math.max(centre - low, high - centre);
-  return {
-    precision: p, low, high, halfWidth,
-    resolved, unresolvedRatio,
-    sufficient: halfWidth <= 0.10,
+  const validIntents = ["consume", "declare", "mutate", "measure"] as const;
+  if (typeof intent !== "string" || !validIntents.includes(intent as typeof validIntents[number])) {
+    throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of ${validIntents.join(", ")}; got ${JSON.stringify(intent)}`);
+  }
+  const storePath = corbellCheckoutPath(scopeRoot);
+  const verdicts = graphFacts({ storePath, 
   ```
 
-## src/omp/gate-hook.ts
-- **src/omp/gate-hook.ts:218-224** (bug)
-  **Bug: Query resolution silently lost for the last pending query in a session.**
-
-The cleanup logic on lines 155–156 deletes the `states` entry BEFORE `recordGraphQuery` is called on line 167. When a session's `pendingQueries` queue becomes empty after a `splice`, line 152 deletes the entry from `pendingQueries`, and line 155 then deletes the corresponding state — so `states.get(sid)` returns `undefined`, causing an early return on line 160. The resolution is never recorded.
-
-Consequence: the last graph-query result for any session never purchases drift coverage. If a graph-query result is the only query and arrives after (or alongside) an edit, the edit gets no drift credit from that query. This reintroduces the core problem the GATE-DEFECT FIX (2026-09-22) was meant to solve — for exactly this edge case.
-
-**Fix:** Move the cleanup to AFTER `recordGraphQuery`. Retrieve the state reference before deleting, or restructure so recording happens before eviction:
-
-```typescript
-// After line 151 (splice)
-const st = states.get(sid);
-if (st) {
-  const details = (typeof event.details === "object" && event.details !== null ? event.details : {}) as { ok?: unknown; error?: unknown };
-  const errored = /* ... existing checks ... */;
-  const hasRows = /* ... */;
-  recordGraphQuery({ tool: q.tool, target: q.target, resolved: !errored && hasRows, rows: hasRows ? 1 : 0 }, st);
+## src/omp/graph-gate.ts
+- **src/omp/graph-gate.ts:219-221** (bug)
+  `computeDrift` mutates `state.gateState` as a side-effect, but `gateDecision` also sets `gateState`. Both functions independently overwrite the same field, creating conflicting state transitions. Specifically, when `d.drift === 0`, `computeDrift` sets `gateState = "IDLE"`, but if prior edits exist (even if fully verified), `gateDecision` immediately overwrites it to `"TRACKING"` (because `d.drift > 0` is checked separately). The real danger: if `computeDrift` is called independently or out of order (e.g. for reporting/dashboarding), it silently resets `gateState` to IDLE/TRACKING regardless of the actual gate tier that was enforced. `computeDrift` should NOT set `gateState` — that is `gateDecision`'s exclusive responsibility. Remove the two assignments from `computeDrift`.
+  ```existing
+  state.drift = drift;
+  return { drift, unverifiedCount, verifiedSymbols, lastGraphQuery };
 }
-// NOW clean up
-if (queue.length === 0) pendingQueries.delete(sid);
-if (!pendingQueries.has(sid)) states.delete(sid);
-```
-  ```existing
-  if (queue.length === 0) pendingQueries.delete(sid);
-    // ★ F-GH-MEM FIX (2026-09-24): the per-session maps grew indefinitely in long-lived hosts; release session bookkeeping once both queues drain so stale sessions do not accumulate.
-    // ★ F-GH-MEM (2026-09-24): only the maps in THIS function's scope are checked (pendingSteer
-    //   lives in the tool_call handler); a session with a drained 
   ```
   ```suggested
-  const st = states.get(sid);
-    if (queue.length === 0) pendingQueries.delete(sid);
-    if (!st) {
-      // ★ F-GH-MEM FIX: release session bookkeeping once both queues drain.
-      if (!pendingQueries.has(sid)) states.delete(sid);
-      return undefined;
-    }
-    // ★ AUDIT H-7 FIXED: ...
-    const details = (typeof event.details === "object" && event.details !== null ? event.details : {}) as { 
-  ```
-
-## src/omp/ripwire-bridge.ts
-- **src/omp/ripwire-bridge.ts:137-138** (security)
-  All public consult functions (`ripwireCallers`, `ripwireImpact`, `ripwireEditCheck`, etc.) accept `root`, `symbol`, and other string parameters and pass them directly to the ripwire binary via `spawnSync` array arguments. While `spawnSync` with an array prevents shell-level injection, unsanitized values could still exploit vulnerabilities in ripwire's own argument parsing (e.g. a `symbol` containing `--` followed by unexpected flags, or a `claim` string with embedded parens/shell metacharacters that trick ripwire's internal parser). Consider validating/sanitizing these inputs (e.g., rejecting values containing `--`, newlines, or non-identifier characters) at the bridge boundary.
-  ```existing
-  export function ripwireCallers(root: string, symbol: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): RipwireLeg {
-  const run = runRaw(root, [`--callers=${symbol}`, "--json"], opts?.timeoutMs, opts?.env);
-  ```
-  ```suggested
-  function sanitizeArg(value: string): string {
-  if (/[\n\r\-\-]/.test(value)) throw new Error(`Invalid ripwire argument: ${value}`);
-  return value;
+  state.drift = drift;
+  return { drift, unverifiedCount, verifiedSymbols, lastGraphQuery };
 }
 
-export function ripwireCallers(root: string, symbol: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): RipwireLeg {
-  const run = runRaw(root, [`--callers=${sanitizeArg(symbol)}`, "--json"], opts?.timeoutMs, opts?.env);
+// NOTE: state.gateState is set exclusively by gateDecision(). computeDrift
+// only computes the numeric drift value — it must not modify gateState.
+  ```
+
+## src/scoping/gi-session-path.ts
+- **src/scoping/gi-session-path.ts:150-152** (security)
+  `forbiddenSharedProjectStore` returns a raw joined path without validating that `scopeRoot` is absolute. Any caller using this returned path for security decisions (e.g., 'is this store forbidden?') would get a relative path when given a relative `scopeRoot`, which is silently wrong. The sibling functions `sessionStorePath` and `assertSessionStorePath` both enforce `path.isAbsolute(scopeRoot)` — this function should do the same for consistency and safety.
+  ```existing
+  export function forbiddenSharedProjectStore(scopeRoot: string): string {
+  return path.join(scopeRoot, GI_STATE_DIR, "store.sqlite");
+}
+  ```
+  ```suggested
+  export function forbiddenSharedProjectStore(scopeRoot: string): string {
+  if (!path.isAbsolute(scopeRoot)) {
+    throw new GiPathError("GI_PATH_DENIED", `GI_PATH_DENIED: scopeRoot must be absolute, got ${scopeRoot}`);
+  }
+  return path.join(scopeRoot, GI_STATE_DIR, "store.sqlite");
+}
   ```

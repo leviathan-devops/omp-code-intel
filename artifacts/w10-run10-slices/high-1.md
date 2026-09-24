@@ -137,11 +137,24 @@ Suggested fix: use `err.status == null` (loose equality) to catch both `null` an
       }
   ```
 
-## src/omp/enforcement.ts
-- **src/omp/enforcement.ts:201-201** (bug)
-  Unsafe type assertion on caught exception in catch blocks. The pattern `(e as { code?: string }).code ?? fallback` is unsafe because if `e` is not an object (e.g., null, undefined), accessing `.code` throws a secondary TypeError, making the `??` fallback unreachable. This affects both instances with codes "CLAIM_FW_TSG_DOWN" and "GI_JEV_DOWN". Apply a guarded extraction pattern similar to the work-layer catch, using `e instanceof Error && "code" in e` to safely extract the code string.
+## src/omp/fire-gate.ts
+- **src/omp/fire-gate.ts:752-757** (bug)
+  The doc comment claims `/opt/kill/process.txt` does NOT produce a false match, but the `DESTRUCTIVE_TOKEN` regex DOES match it: the `/` character before and after `kill` are both in the boundary class `[\s"'\\;:|&/]`, so the pattern `(?:^|[\s"'\\;:|&/])kill(?:$|[\s"'\\;:|&/])` succeeds. This means an intent like `edit /opt/kill/process.txt` is incorrectly classified as `destructive`, raising the gate threshold to 0.9 and potentially blocking or escalating a benign edit. The F-40 fix comment says "path components no longer produce false matches" but the implementation contradicts it. The root cause is that `/` appears in both the prefix and suffix boundary classes, treating any slash-delimited path segment as a command token.
   ```existing
-  code: (e as { code?: string }).code ?? "CLAIM_FW_TSG_DOWN",
+  const DESTRUCTIVE_TOKEN = /(?:^|[\s"'\\;:|&/])(rm|rmdir|dd|mkfs|shutdown|reboot|kill|pkill|drop|truncate)(?:$|[\s"'\\;:|&/])/i;
+/** Whole-token test: path components no longer produce false matches (`/opt/kill/process.txt`), but real command tokens still match even with adjacent slashes or quotes. Case-insensitive. */
+export function hasDestructiveToken(probe: string): boolean {
+  if (DESTRUCTIVE_
+  ```
+  ```suggested
+  // Option A — Use the already-declared DESTRUCTIVE_COMMANDS Set with proper tokenization:
+// export function hasDestructiveToken(probe: string): boolean {
+//   if (DESTRUCTIVE_FLAG.test(probe)) return true;
+//   const tokens = probe.toLowerCase().split(/[\s"'\\;:|&/]+/).filter(Boolean);
+//   return tokens.some(t => DESTRUCTIVE_COMMANDS.has(t));
+// }
+//
+// Option B — Remove `/` from the boundary cl
   ```
 
 ## src/omp/gi-registry.ts
@@ -188,35 +201,22 @@ Suggested fix: use `err.status == null` (loose equality) to catch both `null` an
       || argv1.includes("/tests/st-");
   ```
 
-## src/omp/kernel-v2.ts
-- **src/omp/kernel-v2.ts:305-305** (bug)
-  Empty `detectors` array causes an unhandled exception. `runKernelV2` uses `input.detectors ?? DEFAULT_DETECTORS`, so passing `detectors: []` (an explicit empty array, not `undefined`) bypasses the default and flows into `worstOutcome`, which throws `Error("worstOutcome requires at least one outcome")`. This is a synchronous throw in `runKernelV2`, which promises to return `KernelRun` — callers will get an uncaught exception instead of a structured ABORT/REFUSE. The guard at `worstOutcome` should be replaced with a structured refusal, or `runKernelV2` should treat an empty array the same as `undefined`.
+## src/omp/populate-graphify.ts
+- **src/omp/populate-graphify.ts:515-515** (bug)
+  The validation only checks `nodeRows.length === 0` and throws, but does NOT guard `edgeRows.length === 0`. If `nodeRows` has entries but `edgeRows` is empty, the unconditional `UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL` (line 535) will supersede ALL existing live edges — silently wiping inspection data. The session-path helper `supersedeThenInsert` correctly checks `nodeRows.length === 0 && edgeRows.length === 0` before refusing, and only conditionally runs the UPDATE when the respective batch is non-empty (lines 480-487). `writeGraphifyCheckout` should apply the same bidirectional guard: refuse if BOTH are empty, and only run the UPDATE+INSERT when the batch is non-empty.
   ```existing
-  const detectors = input.detectors ?? DEFAULT_DETECTORS;
+  if (nodeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
   ```
   ```suggested
-  const detectors = input.detectors?.length ? input.detectors : DEFAULT_DETECTORS;
+  if (nodeRows.length === 0 && edgeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
   ```
 
-## src/scoping/scope-binding.ts
-- **src/scoping/scope-binding.ts:224-235** (bug)
-  `assertAliasNamespace` iterates `allPrefixes` in insertion order without longest-prefix sorting. This is inconsistent with the F-207 fix applied to `ownerOf`, `isForeignWave`, and `assertOwnWave`, all of which sort by descending length. If one foreign prefix is a prefix of another (e.g., `wave-` vs `wave-extra-`), the shorter match fires first with the wrong remediation message, even though the longer prefix is the true owner of the alias's namespace.
+## src/scoping/scope-resolver.ts
+- **src/scoping/scope-resolver.ts:138-138** (bug)
+  The bare `catch` block silently swallows ALL exceptions from `readActivity` and the entire scoring pipeline — including filesystem permission errors, encoding issues, or unexpected data shapes. This makes it impossible to diagnose why a session fell back to cwd. At minimum, log the error. Consider logging at `warn` level to match the vanished-cache warning above.
   ```existing
-  export function assertAliasNamespace(binding: ScopeBinding, alias: unknown, allPrefixes: string[]): void {
-  if (typeof alias !== 'string' || alias.trim().length === 0) return;
-  const a = alias.trim();
-  for (const prefix of allPrefixes) {
-    if (prefix === binding.wavePrefix) continue;
-    if (a.startsWith(prefix)) {
-      throw new Error(
-        `[${binding.label} SCOPE] the waveId alias "${a
+  } catch { /* activity read failure → fall through to cwd */ }
   ```
   ```suggested
-  export function assertAliasNamespace(binding: ScopeBinding, alias: unknown, allPrefixes: string[]): void {
-  if (typeof alias !== 'string' || alias.trim().length === 0) return;
-  const a = alias.trim();
-  // Longest-prefix match — consistent with ownerOf / isForeignWave (F-207).
-  const sorted = [...allPrefixes].sort((a, b) => b.length - a.length);
-  for (const prefix of sorted) {
-    if (prefix =
+  } catch (err) { console.warn(`[scope-resolver] auto-detect failed for session ${sessionId}:`, err); }
   ```

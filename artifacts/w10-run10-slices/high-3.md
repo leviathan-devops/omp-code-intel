@@ -93,20 +93,6 @@ The standard fix is an atomic write: write to a temporary file in the same direc
     return idA < idB ? -1 : idA > idB ? 1 : 0;
   ```
 
-## src/hunter/shared/containment.ts
-- **src/hunter/shared/containment.ts:137-139** (bug)
-  `requireContained` checks only `contained` but ignores the `resolved` flag. A path whose `resolved` is false means the real path was never determined (the result is the caller's unresolved spelling), so the containment check was performed against a possibly-symlink-escaping string. Callers using this convenience function get no indication that the containment guarantee is weak. Consider either asserting `resolved` or surfacing it to the caller.
-  ```existing
-  const { real, rootReal, contained } = checkContained(target, root);
-  if (!contained) onViolation({ real, rootReal, target, root });
-  return real;
-  ```
-  ```suggested
-  const { real, rootReal, contained, resolved } = checkContained(target, root);
-  if (!contained || !resolved) onViolation({ real, rootReal, target, root, resolved });
-  return real;
-  ```
-
 ## src/hunter/surface/lsp-injector.ts
 - **src/hunter/surface/lsp-injector.ts:575-577** (bug)
   The spec comment on line 16-17 states 'a file+rule shown in the last 3 results collapses to the count line', but the implementation uses `shown > 0` (line 575) — meaning the collapse kicks in after the very FIRST showing, not after 3. Either the comment is stale or the threshold is wrong. If the intent is truly to show 3 times before collapsing, the check should be `shown >= 3` (or similar).
@@ -126,72 +112,113 @@ The standard fix is an atomic write: write to a temporary file in the same direc
   releaseWriteLock(): void { this.writeLock = false; this.resume(); }
   ```
 
-## src/omp/adapters/tsg.ts
-- **src/omp/adapters/tsg.ts:117-119** (security)
-  The last 400 bytes of stdout and 200 bytes of stderr are embedded into the thrown error message. If the `tsg` CLI ever echoes the API key in its output (debug mode, verbose logging, or error messages from the server that include request context), the key will propagate to callers and potentially into logs or monitoring systems. Consider redacting any value that matches the key pattern before surfacing CLI output.
+## src/hydra/map-reader.ts
+- **src/hydra/map-reader.ts:84-90** (bug)
+  **Bug: Nesting depth scanner doesn't skip JSON string literals.** The character-by-character scan in `parseGraphJson` counts `{`, `}`, `[`, `]` inside JSON string values as real nesting changes. For example, `{"data": "value with } brace"}` would decrement depth at the `}` inside the string, causing the counter to go negative and potentially miss real deep nesting or falsely reject valid payloads.
+
+For a defense-in-depth guard this is problematic: an adversary could encode deeply nested `{` sequences inside string values to inflate `maxDepth` and bypass the check (since the actual parse nesting stays low), while legitimate payloads with braces in string values could be falsely rejected.
+
+A simple fix is to skip string literals during the scan:
   ```existing
-  const err = e as { message?: string; stdout?: unknown; stderr?: unknown };
-        const out = String(err.stdout ?? "").slice(-400);
-        const errOut = String(err.stderr ?? "").slice(-200);
+  let maxDepth = 0;
+  let depth = 0;
+  for (let i = 0; i < contents.length; i++) {
+    const c = contents.charCodeAt(i);
+    if (c === 0x7B /* { */ || c === 0x5B /* [ */) { depth++; if (depth > maxDepth) maxDepth = depth; }
+    else if (c === 0x7D /* } */ || c === 0x5D /* ] */) depth--;
+  }
   ```
   ```suggested
-  const err = e as { message?: string; stdout?: unknown; stderr?: unknown };
-        let stdoutSnippet = String(err.stdout ?? "").slice(-400);
-        let stderrSnippet = String(err.stderr ?? "").slice(-200);
-        // Redact the API key if it appears in CLI output
-        if (key != null && key.length > 4) {
-          const redacted = key.slice(0, 4) + "…";
-          stdoutSnippet = stdoutSnippet.
+  let maxDepth = 0;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < contents.length; i++) {
+    const c = contents.charCodeAt(i);
+    if (escaped) { escaped = false; continue; }
+    if (c === 0x5C /* \ */ && inString) { escaped = true; continue; }
+    if (c === 0x22 /* " */) { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === 0x7B /* { 
   ```
 
-## src/omp/fire-ledger.ts
-- **src/omp/fire-ledger.ts:330-336** (bug)
-  In `appendManyDetailed`'s fallback catch, the inner loop wraps non-LedgerError exceptions via `const err = inner instanceof LedgerError ? inner : new LedgerError(...)`, so raw driver exceptions are currently handled. However, the safety depends on `append` never throwing outside the LedgerError hierarchy (e.g. a corrupt DB handle throwing a raw driver exception that bypasses `guard()`). If that invariant breaks, the loop terminates, `notePersistFailure` is never called for the offending row, and the caller receives a partial/inaccurate result — defeating the 'every fire gets a row or a named failure' contract. A defensive outer catch around the entire fallback loop (or broadening the inner catch to always wrap) would make this robust against future refactors.
+## src/omp/calibration.ts
+- **src/omp/calibration.ts:97-102** (bug)
+  The Wilson interval clamping to [0, 1] creates asymmetric distortion of `halfWidth`. When `low` is clamped upward to 0, the reported `halfWidth = (high - low) / 2` doesn't equal `(high - centre)`, so it overstates the true distance from centre to the lower bound. The opposite happens when `high` is clamped to 1. Since `halfWidth` directly gates the `sufficient` flag (`halfWidth <= 0.10`), this asymmetry can cause `sufficient` to be incorrect near boundaries — the interval appears tighter on one side than it truly is, potentially passing the sufficiency gate when the interval is not actually narrow enough to support a threshold decision. This is the same class of issue noted in the focus area as 'clamping silently distorts halfWidth'.
+  ```existing
+  const low = Math.max(0, centre - margin);
+  const high = Math.min(1, centre + margin);
+  return {
+    precision: p, low, high, halfWidth: (high - low) / 2,
+    resolved, unresolvedRatio,
+    sufficient: (high - low) / 2 <= 0.10,
+  ```
+  ```suggested
+  const low = Math.max(0, centre - margin);
+  const high = Math.min(1, centre + margin);
+  // Use max distance from centre to either bound as the halfWidth,
+  // because clamping breaks the symmetry that (high-low)/2 assumes.
+  const halfWidth = Math.max(centre - low, high - centre);
+  return {
+    precision: p, low, high, halfWidth,
+    resolved, unresolvedRatio,
+    sufficient: halfWidth <= 0.10,
+  ```
 
-Suggested robust wrapping:
+## src/omp/gate-hook.ts
+- **src/omp/gate-hook.ts:218-224** (bug)
+  **Bug: Query resolution silently lost for the last pending query in a session.**
+
+The cleanup logic on lines 155–156 deletes the `states` entry BEFORE `recordGraphQuery` is called on line 167. When a session's `pendingQueries` queue becomes empty after a `splice`, line 152 deletes the entry from `pendingQueries`, and line 155 then deletes the corresponding state — so `states.get(sid)` returns `undefined`, causing an early return on line 160. The resolution is never recorded.
+
+Consequence: the last graph-query result for any session never purchases drift coverage. If a graph-query result is the only query and arrives after (or alongside) an edit, the edit gets no drift credit from that query. This reintroduces the core problem the GATE-DEFECT FIX (2026-09-22) was meant to solve — for exactly this edge case.
+
+**Fix:** Move the cleanup to AFTER `recordGraphQuery`. Retrieve the state reference before deleting, or restructure so recording happens before eviction:
+
 ```typescript
-for (const r of rows) {
-  try {
-    this.append(r);
-    committed.push(r);
-  } catch (inner) {
-    const err = inner instanceof LedgerError
-      ? inner
-      : new LedgerError('APPEND_FAILED', 'row did not commit', inner);
-    failed.push({ row: r, error: err });
-    const bare = err.code.startsWith('GI_LEDGER_') ? err.code.slice('GI_LEDGER_'.length) : err.code;
-    this.notePersistFailure(`GI_LEDGER_${bare}`, err.message);
-  }
+// After line 151 (splice)
+const st = states.get(sid);
+if (st) {
+  const details = (typeof event.details === "object" && event.details !== null ? event.details : {}) as { ok?: unknown; error?: unknown };
+  const errored = /* ... existing checks ... */;
+  const hasRows = /* ... */;
+  recordGraphQuery({ tool: q.tool, target: q.target, resolved: !errored && hasRows, rows: hasRows ? 1 : 0 }, st);
 }
+// NOW clean up
+if (queue.length === 0) pendingQueries.delete(sid);
+if (!pendingQueries.has(sid)) states.delete(sid);
 ```
   ```existing
-  for (const r of rows) {
-        try {
-          this.append(r);
-          committed.push(r);
-        } catch (inner) {
-          const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
-          failed.push({ row: r, error: err });
+  if (queue.length === 0) pendingQueries.delete(sid);
+    // ★ F-GH-MEM FIX (2026-09-24): the per-session maps grew indefinitely in long-lived hosts; release session bookkeeping once both queues drain so stale sessions do not accumulate.
+    // ★ F-GH-MEM (2026-09-24): only the maps in THIS function's scope are checked (pendingSteer
+    //   lives in the tool_call handler); a session with a drained 
   ```
   ```suggested
-  for (const r of rows) {
-        try {
-          this.append(r);
-          committed.push(r);
-        } catch (inner) {
-          const err = inner instanceof LedgerError
-            ? inner
-            : new LedgerError("APPEND_FAILED", "row did not commit", inner);
-          failed.push({ row: r, error: err });
-          const bare = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_"
+  const st = states.get(sid);
+    if (queue.length === 0) pendingQueries.delete(sid);
+    if (!st) {
+      // ★ F-GH-MEM FIX: release session bookkeeping once both queues drain.
+      if (!pendingQueries.has(sid)) states.delete(sid);
+      return undefined;
+    }
+    // ★ AUDIT H-7 FIXED: ...
+    const details = (typeof event.details === "object" && event.details !== null ? event.details : {}) as { 
   ```
 
-## src/omp/populate.ts
-- **src/omp/populate.ts:52-55** (bug)
-  When the corbell meta-write succeeds (lines 44-58), execution continues to line 59+. However, when the meta-write fails (inner catch on line 52), the ROLLBACK is attempted, and then a `new Error(...)` is thrown on line 54. This error propagates out of `populateSessionStore` as an **uncaught exception** — the function's return type promises `PopulateResult` but callers will receive a thrown Error instead. The corbell populate itself already succeeded (data was written by `populateFromCorbellCheckout`), so this meta-write failure should degrade gracefully: log the warning and return a successful `PopulateResult` rather than crashing the caller. Alternatively, wrap the entire corbell success path in a try/catch that returns a `PopulateResult` with a degraded flag.
+## src/omp/ripwire-bridge.ts
+- **src/omp/ripwire-bridge.ts:137-138** (security)
+  All public consult functions (`ripwireCallers`, `ripwireImpact`, `ripwireEditCheck`, etc.) accept `root`, `symbol`, and other string parameters and pass them directly to the ripwire binary via `spawnSync` array arguments. While `spawnSync` with an array prevents shell-level injection, unsanitized values could still exploit vulnerabilities in ripwire's own argument parsing (e.g. a `symbol` containing `--` followed by unexpected flags, or a `claim` string with embedded parens/shell metacharacters that trick ripwire's internal parser). Consider validating/sanitizing these inputs (e.g., rejecting values containing `--`, newlines, or non-identifier characters) at the bridge boundary.
   ```existing
-  } catch (e) {
-        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
-        throw new Error(`GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)})`);
-      }
+  export function ripwireCallers(root: string, symbol: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): RipwireLeg {
+  const run = runRaw(root, [`--callers=${symbol}`, "--json"], opts?.timeoutMs, opts?.env);
+  ```
+  ```suggested
+  function sanitizeArg(value: string): string {
+  if (/[\n\r\-\-]/.test(value)) throw new Error(`Invalid ripwire argument: ${value}`);
+  return value;
+}
+
+export function ripwireCallers(root: string, symbol: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): RipwireLeg {
+  const run = runRaw(root, [`--callers=${sanitizeArg(symbol)}`, "--json"], opts?.timeoutMs, opts?.env);
   ```

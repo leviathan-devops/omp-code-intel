@@ -1,4 +1,4 @@
-# HIGH slice 2 — 13 findings across 9 files
+# HIGH slice 2 — 12 findings across 8 files
 
 ## src/hunter/harness/micro-loop-machine.ts
 - **src/hunter/harness/micro-loop-machine.ts:439-451** (bug)
@@ -91,47 +91,64 @@ Fix: Either remove `sub2`/`sub3` from `handleDisposables` inside `settle()`, or 
     try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES (?,?)").run(`promotion_pending:${hash}`, detail); } catch (idemErr) { /* idempotent guard */ console
   ```
 
-## src/omp/adapters/semantica.ts
-- **src/omp/adapters/semantica.ts:24-29** (security)
-  Security concern: The F-356 mitigation for symlink attacks is incomplete. When `realpathSync` throws during initialization, `resolvedRoot` falls back to unresolved path, bypassing the fix for non-existent paths. Additionally, even if mitigated initially, `facts()` should re-validate via `realpathSync` when the file exists to prevent symlink insertion in the interim. Consider storing intent to validate and re-checking in `facts()` to ensure no symlink bypasses the intended tree.
+## src/omp/adapters/tsg.ts
+- **src/omp/adapters/tsg.ts:117-119** (security)
+  The last 400 bytes of stdout and 200 bytes of stderr are embedded into the thrown error message. If the `tsg` CLI ever echoes the API key in its output (debug mode, verbose logging, or error messages from the server that include request context), the key will propagate to callers and potentially into logs or monitoring systems. Consider redacting any value that matches the key pattern before surfacing CLI output.
   ```existing
-  let resolvedRoot: string;
-  try {
-    resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
-  } catch {
-    resolvedRoot = path.resolve(scopeRoot);
-  }
+  const err = e as { message?: string; stdout?: unknown; stderr?: unknown };
+        const out = String(err.stdout ?? "").slice(-400);
+        const errOut = String(err.stderr ?? "").slice(-200);
   ```
   ```suggested
-  let resolvedRoot: string;
-  let needsRealpathCheck = false;
-  try {
-    resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
-  } catch {
-    // Path doesn't exist yet — defer symlink validation to up()/facts() time.
-    resolvedRoot = path.resolve(scopeRoot);
-    needsRealpathCheck = true;
-  }
+  const err = e as { message?: string; stdout?: unknown; stderr?: unknown };
+        let stdoutSnippet = String(err.stdout ?? "").slice(-400);
+        let stderrSnippet = String(err.stderr ?? "").slice(-200);
+        // Redact the API key if it appears in CLI output
+        if (key != null && key.length > 4) {
+          const redacted = key.slice(0, 4) + "…";
+          stdoutSnippet = stdoutSnippet.
   ```
 
-## src/omp/fire-gate.ts
-- **src/omp/fire-gate.ts:752-757** (bug)
-  The doc comment claims `/opt/kill/process.txt` does NOT produce a false match, but the `DESTRUCTIVE_TOKEN` regex DOES match it: the `/` character before and after `kill` are both in the boundary class `[\s"'\\;:|&/]`, so the pattern `(?:^|[\s"'\\;:|&/])kill(?:$|[\s"'\\;:|&/])` succeeds. This means an intent like `edit /opt/kill/process.txt` is incorrectly classified as `destructive`, raising the gate threshold to 0.9 and potentially blocking or escalating a benign edit. The F-40 fix comment says "path components no longer produce false matches" but the implementation contradicts it. The root cause is that `/` appears in both the prefix and suffix boundary classes, treating any slash-delimited path segment as a command token.
+## src/omp/fire-ledger.ts
+- **src/omp/fire-ledger.ts:330-336** (bug)
+  In `appendManyDetailed`'s fallback catch, the inner loop wraps non-LedgerError exceptions via `const err = inner instanceof LedgerError ? inner : new LedgerError(...)`, so raw driver exceptions are currently handled. However, the safety depends on `append` never throwing outside the LedgerError hierarchy (e.g. a corrupt DB handle throwing a raw driver exception that bypasses `guard()`). If that invariant breaks, the loop terminates, `notePersistFailure` is never called for the offending row, and the caller receives a partial/inaccurate result — defeating the 'every fire gets a row or a named failure' contract. A defensive outer catch around the entire fallback loop (or broadening the inner catch to always wrap) would make this robust against future refactors.
+
+Suggested robust wrapping:
+```typescript
+for (const r of rows) {
+  try {
+    this.append(r);
+    committed.push(r);
+  } catch (inner) {
+    const err = inner instanceof LedgerError
+      ? inner
+      : new LedgerError('APPEND_FAILED', 'row did not commit', inner);
+    failed.push({ row: r, error: err });
+    const bare = err.code.startsWith('GI_LEDGER_') ? err.code.slice('GI_LEDGER_'.length) : err.code;
+    this.notePersistFailure(`GI_LEDGER_${bare}`, err.message);
+  }
+}
+```
   ```existing
-  const DESTRUCTIVE_TOKEN = /(?:^|[\s"'\\;:|&/])(rm|rmdir|dd|mkfs|shutdown|reboot|kill|pkill|drop|truncate)(?:$|[\s"'\\;:|&/])/i;
-/** Whole-token test: path components no longer produce false matches (`/opt/kill/process.txt`), but real command tokens still match even with adjacent slashes or quotes. Case-insensitive. */
-export function hasDestructiveToken(probe: string): boolean {
-  if (DESTRUCTIVE_
+  for (const r of rows) {
+        try {
+          this.append(r);
+          committed.push(r);
+        } catch (inner) {
+          const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
+          failed.push({ row: r, error: err });
   ```
   ```suggested
-  // Option A — Use the already-declared DESTRUCTIVE_COMMANDS Set with proper tokenization:
-// export function hasDestructiveToken(probe: string): boolean {
-//   if (DESTRUCTIVE_FLAG.test(probe)) return true;
-//   const tokens = probe.toLowerCase().split(/[\s"'\\;:|&/]+/).filter(Boolean);
-//   return tokens.some(t => DESTRUCTIVE_COMMANDS.has(t));
-// }
-//
-// Option B — Remove `/` from the boundary cl
+  for (const r of rows) {
+        try {
+          this.append(r);
+          committed.push(r);
+        } catch (inner) {
+          const err = inner instanceof LedgerError
+            ? inner
+            : new LedgerError("APPEND_FAILED", "row did not commit", inner);
+          failed.push({ row: r, error: err });
+          const bare = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_"
   ```
 
 ## src/omp/layer-registry.ts
@@ -247,22 +264,12 @@ Suggestion: add an error bucket to summary() that reports GI_LAYER_ERROR consume
       if (entry
   ```
 
-## src/omp/populate-graphify.ts
-- **src/omp/populate-graphify.ts:515-515** (bug)
-  The validation only checks `nodeRows.length === 0` and throws, but does NOT guard `edgeRows.length === 0`. If `nodeRows` has entries but `edgeRows` is empty, the unconditional `UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL` (line 535) will supersede ALL existing live edges — silently wiping inspection data. The session-path helper `supersedeThenInsert` correctly checks `nodeRows.length === 0 && edgeRows.length === 0` before refusing, and only conditionally runs the UPDATE when the respective batch is non-empty (lines 480-487). `writeGraphifyCheckout` should apply the same bidirectional guard: refuse if BOTH are empty, and only run the UPDATE+INSERT when the batch is non-empty.
+## src/omp/populate.ts
+- **src/omp/populate.ts:52-55** (bug)
+  When the corbell meta-write succeeds (lines 44-58), execution continues to line 59+. However, when the meta-write fails (inner catch on line 52), the ROLLBACK is attempted, and then a `new Error(...)` is thrown on line 54. This error propagates out of `populateSessionStore` as an **uncaught exception** — the function's return type promises `PopulateResult` but callers will receive a thrown Error instead. The corbell populate itself already succeeded (data was written by `populateFromCorbellCheckout`), so this meta-write failure should degrade gracefully: log the warning and return a successful `PopulateResult` rather than crashing the caller. Alternatively, wrap the entire corbell success path in a try/catch that returns a `PopulateResult` with a degraded flag.
   ```existing
-  if (nodeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
-  ```
-  ```suggested
-  if (nodeRows.length === 0 && edgeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
-  ```
-
-## src/scoping/scope-resolver.ts
-- **src/scoping/scope-resolver.ts:138-138** (bug)
-  The bare `catch` block silently swallows ALL exceptions from `readActivity` and the entire scoring pipeline — including filesystem permission errors, encoding issues, or unexpected data shapes. This makes it impossible to diagnose why a session fell back to cwd. At minimum, log the error. Consider logging at `warn` level to match the vanished-cache warning above.
-  ```existing
-  } catch { /* activity read failure → fall through to cwd */ }
-  ```
-  ```suggested
-  } catch (err) { console.warn(`[scope-resolver] auto-detect failed for session ${sessionId}:`, err); }
+  } catch (e) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        throw new Error(`GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)})`);
+      }
   ```
