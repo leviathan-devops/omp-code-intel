@@ -135,7 +135,9 @@ export async function readGraphJson(graphPath: string): Promise<GraphifyGraph> {
   const resolved = path.resolve(graphPath);
   let stat: fs.Stats;
   try {
-    stat = fs.statSync(resolved);
+    // ★ F-335 FIX (2026-09-24): async contract honored — statSync blocked the event
+    // ★ loop inside an async fn; promises.stat yields like the read below.
+    stat = await fs.promises.stat(resolved);
   } catch {
     throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} — remedy: run the explicit graphify build for this target, then re-run the audit`);
   }
@@ -148,7 +150,7 @@ export async function readGraphJson(graphPath: string): Promise<GraphifyGraph> {
   }
   let raw: Record<string, unknown>;
   try {
-    raw = parseGraphJson(fs.readFileSync(resolved, "utf-8"), gSize);
+    raw = parseGraphJson(await fs.promises.readFile(resolved, "utf-8"), gSize);
   } catch (err) {
     const msg = String((err as Error).message ?? err);
     if (msg.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw err;
@@ -225,16 +227,28 @@ export class GraphifyMapReader {
       adj.set(e.src, [...(adj.get(e.src) ?? []), e.dst]);
       adj.set(e.dst, [...(adj.get(e.dst) ?? []), e.src]);
     }
-    const queue: string[][] = [[fromId]];
+    // ★ F-334 FIX (2026-09-24): index-pointer queue + parent-pointer reconstruction.
+    // ★ queue.shift() is O(n) per dequeue and [...cur, nb] copied the whole path per
+    // ★ expansion (O(V×E×L)). Head-index dequeue is O(1); each node stores one parent
+    // ★ link, so the path rebuilds once at hit instead of on every expansion.
     const visited = new Set<string>([fromId]);
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      const last = cur[cur.length - 1]!;
-      if (last === toId) return { from, to, hops: cur, length: cur.length - 1 };
+    const parent = new Map<string, string | null>([[fromId, null]]);
+    const queue: string[] = [fromId];
+    let head = 0;
+    while (head < queue.length) {
+      const last = queue[head++]!;
+      if (last === toId) {
+        const rev: string[] = [];
+        let cur: string | null = toId;
+        while (cur !== null) { rev.push(cur); cur = parent.get(cur) ?? null; }
+        rev.reverse();
+        return { from, to, hops: rev, length: rev.length - 1 };
+      }
       for (const nb of adj.get(last) ?? []) {
         if (!visited.has(nb)) {
           visited.add(nb);
-          queue.push([...cur, nb]);
+          parent.set(nb, last);
+          queue.push(nb);
         }
       }
     }

@@ -279,13 +279,14 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
         batteryVersion: input.batteryVersion,
         fixOrder: input.fixOrder,
       });
+      // ★ F-337 FIX (2026-09-24): COMMIT rides INSIDE the try — a commit-time throw (disk-full, locked) now reaches the ROLLBACK below instead of escaping with the report file written and the tx indeterminate.
+      input.db.exec('COMMIT');
     } catch (dbErr: unknown) {
       try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
         throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
       }
       throw dbErr;
     }
-    input.db.exec('COMMIT');
 
     // 3.5 THE CROSS-RUN MEMORY WIRE (GRAPH_GATE_DPL1_SPEC.md §22.5): the hunt's
     //     VIOLATION findings become graph_facts — the next hunt's substrate

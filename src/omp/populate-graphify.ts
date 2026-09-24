@@ -523,12 +523,11 @@ export function writeGraphifyCheckout(
       //   failure hit the catch's ROLLBACK on an ALREADY-COMMITTED tx — a swallowed error
       //   that left the store unmarked (the exact A3 gap this line was added to close).
       db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
-      try {
-    db.exec("COMMIT;");
-  } catch (commitErr) {
-    try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
-    throw commitErr;
-  }
+      // ★ F-339 FIX (2026-09-24): single COMMIT-in-try. The nested inner try around
+      // ★ COMMIT double-rolled-back (inner catch ROLLBACK + rethrow into the outer catch
+      // ★ ROLLBACK) and masked commit failures from the outer path. One transaction, one
+      // ★ COMMIT, one ROLLBACK — the supersedeThenInsert shape above.
+      db.exec("COMMIT;");
     } catch (e) {
       try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back — close still runs */ }
       throw e;

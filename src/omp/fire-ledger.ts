@@ -552,6 +552,12 @@ function toPersisted(raw: Record<string, unknown>): PersistedFireRow {
 // both would consider the same fire unseen and write it TWICE. Exactly-once must be
 // a property of the LEDGER (the file), not of whichever handle happens to call.
 const drained = new Map<string, WeakSet<object>>();
+// ★ F-341 FIX (2026-09-24): poison rows — a PERSISTENTLY malformed row failed in the per-row fallback, never joined the seen set, and was retried on every later drain (persistFailureCount flood, lastPersistError churn). Deterministic rejections (bad shape, bad domain, truth-at-firing) are quarantined after the first report; transient write faults keep the retry path below.
+const poisoned = new Map<string, WeakSet<object>>();
+const POISON_CODES = new Set(["MALFORMED_ROW", "EMPTY_STATE_HASH", "BAD_PROBABILITY", "BAD_NUMBER", "BAD_DOMAIN", "TRUTH_AT_FIRING", "BAD_LIMIT", "BAD_RULE_ID", "BAD_STATE_HASH", "BAD_TRUTH", "BAD_TRUTH_AT", "NOT_PERSISTENT"]);
+function poisonCodeOf(code: string): string {
+  return code.startsWith("GI_LEDGER_") ? code.slice("GI_LEDGER_".length) : code;
+}
 
 /** Persist every row the gate has produced that this ledger has not seen.
  *  Returns the number of NEW rows written (0 on a repeat drain). */
@@ -570,8 +576,10 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
     drained.set(key, seen);
   }
   const fresh: DecisionRow[] = [];
+  let poison = poisoned.get(key);
+  if (poison === undefined) { poison = new WeakSet<object>(); poisoned.set(key, poison); }
   for (const row of gate.rows()) {
-    if (!seen.has(row)) fresh.push(row);
+    if (!seen.has(row) && !poison.has(row)) fresh.push(row);
   }
   if (fresh.length === 0) return 0;
   // ★ AUDIT FINDING 0 (HIGH) — THE WATERMARK ADVANCES ONLY AFTER THE COMMIT.
@@ -583,8 +591,9 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   // ★ PASS-3 CRITICAL — THE WATERMARK ADVANCES ONLY FOR ROWS THE LEDGER CONFIRMS.
   // Marking every ATTEMPTED row seen was the original F0 defect wearing the R7
   // fallback as a disguise: a partially-committed batch lost its failures forever.
-  const { committed } = ledger.appendManyDetailed(fresh);
+  const { committed, failed } = ledger.appendManyDetailed(fresh);
   for (const row of committed) seen.add(row);
+  for (const f of failed) { if (POISON_CODES.has(poisonCodeOf(f.error.code))) poison.add(f.row); }
   return committed.length;
 }
 

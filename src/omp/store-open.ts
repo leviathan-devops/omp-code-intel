@@ -46,7 +46,14 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
   if (!path.isAbsolute(input.scopeRoot) || input.scopeRoot.split(/[\\/]/).includes("..") || input.scopeRoot.includes("\0")) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
   }
-  const storePath = sessionStorePath(input.scopeRoot, input.sessionId);
+  // ★ F-342 FIX (2026-09-24): resolve the root AFTER the shape checks — a symlink at scopeRoot (or a swapped component) made every later mkdir/write follow it outside the intended tree. A dangling/unresolvable root is refused, never used raw.
+  let resolvedScopeRoot: string;
+  try {
+    resolvedScopeRoot = fs.realpathSync(input.scopeRoot);
+  } catch {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot does not resolve: ${JSON.stringify(input.scopeRoot)}`);
+  }
+  const storePath = sessionStorePath(resolvedScopeRoot, input.sessionId);
   const existing = findGiSessionByStorePath(storePath);
   if (existing && existing.session_id !== ownerKey) {
     throw new GiScopeError(
@@ -75,7 +82,7 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
   if (!current) {
     upsertGiSession({
       sessionId: ownerKey,
-      scopeRoot: input.scopeRoot,
+      scopeRoot: resolvedScopeRoot,
       storePath,
     });
   }

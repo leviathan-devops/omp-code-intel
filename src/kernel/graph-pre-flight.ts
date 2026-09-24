@@ -15,7 +15,11 @@ export interface PreFlightResult {
   riskProfile: {
     callers: number;
     uses: number;
-    testCoverage: number;
+    // ★ F-336 FIX (2026-09-24): `testCoverage` implied a ratio but held a raw count
+    // ★ of suggested test targets — callers gauging risk misread it (3 ≠ 3%). Renamed
+    // ★ to the measured semantics. No in-repo readers of the old name exist
+    // ★ (gi-cli + tests read callers/testTargets only), so the rename is total.
+    suggestedTestTargetCount: number;
   };
   commitStrategy: "single" | "split" | "domain-level";
   testTargets: TestTarget[];
@@ -63,7 +67,7 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
       target,
       directCallers: q.callers.map((c) => ({ caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" })),
       blastRadius: { reaches: imp.reaches, byDepth },
-      riskProfile: { callers: q.rows, uses, testCoverage: testTargets.length },
+      riskProfile: { callers: q.rows, uses, suggestedTestTargetCount: testTargets.length },
       commitStrategy,
       testTargets,
       warnings,

@@ -168,6 +168,12 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
   if (realAfter !== real) {
     return { ok: false, error: `GI_PATH_DENIED: the path changed during the confinement check (TOCTOU) — '${normalized.slice(0, 120)}'` };
   }
+  // ★ F-339 FIX (2026-09-24): re-stat AFTER the re-resolve — the first type check ran against the pre-check resolution, so a dir-to-file swap between statSync and realpathSync passed a stale verdict. The confined handle is the re-resolved path only if it is still a directory.
+  let stAfter: { isDirectory: () => boolean } | null = null;
+  try { stAfter = fs.statSync(realAfter); } catch { stAfter = null; }
+  if (!stAfter || !stAfter.isDirectory()) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory after re-resolve: '${realAfter.slice(0, 120)}'` };
+  }
   return { ok: true, real };
 };
 
@@ -562,7 +568,17 @@ createBugHuntTool(pi, { cwdOf });
       // re-resolved targetRoot per check).
       const targetReal = resolve(targetRoot);
       const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
-      fs.mkdirSync(auditRoot, { recursive: true });
+      // ★ F-340 FIX (2026-09-24): lstat BEFORE mkdir — mkdirSync recursive follows a pre-planted symlink at auditRoot and builds outside the root before the realpath verdict below can refuse. lstat never follows; a symlink at the final component is refused with no side effect. (The post-mkdir realpath check stays for parent-component plants.)
+      let auditPre: { isSymbolicLink: () => boolean } | null = null;
+      try { auditPre = fs.lstatSync(auditRoot); } catch { auditPre = null; }
+      if (auditPre && auditPre.isSymbolicLink()) {
+        return textResult("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
+      }
+      try {
+        fs.mkdirSync(auditRoot, { recursive: true });
+      } catch (mkErr: unknown) {
+        return textResult(`GI_LEDGER_DENIED: cannot create audit root: ${mkErr instanceof Error ? mkErr.message : String(mkErr)}`.slice(0, 200), { ok: false, error: "GI_LEDGER_DENIED" });
+      }
       // W15/W16 (frozen-scan HIGH): component containment on the AUDIT ROOT —
       // refuse a pre-planted symlink BEFORE mkdtemp (path.relative verdict,
       // never a string prefix).

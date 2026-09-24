@@ -113,11 +113,18 @@ export function upsertRow(table: string, pkColumn: string, pk: string | number, 
 }
 
 /** THE WRITE-RETRY LADDER (the winner wave-tracker.ts:218-234): 3 attempts;
- *  on throw close the (stale) handle + busy-wait 50×(n+1)ms + retry; after
+ *  busy/locked → close the (stale) handle + sleep 50×(n+1)ms + retry; after
  *  the last: WARN — the in-memory state stays live, the caller decides.
  *  ★ F-208 FIX (2026-09-24): returns TRUE on success, FALSE after exhausted
- *  retries — the old void swallow left callers unable to detect silent loss. */
-export function runWithRetry(sql: string, params: (string | number | null)[], attempts = 3, id = ''): boolean {
+ *  retries — the old void swallow left callers unable to detect silent loss.
+ *  ★ F-285 FIX (2026-09-24): async sleep — the old sync busy-wait
+ *  `while(Date.now()<until)` blocked the event loop; same setTimeout pattern
+ *  withImmediateTx uses. Async: no live callers in-tree (grep: def+export only).
+ *  ★ F-286 FIX (2026-09-24): busy/locked-gated close+retry — a non-busy error
+ *  rethrows LOUD without closing the healthy singleton (the old close-on-ANY
+ *  error dropped a good handle on e.g. a constraint violation, then retried
+ *  a deterministic failure 3×). */
+export async function runWithRetry(sql: string, params: (string | number | null)[], attempts = 3, id = ''): Promise<boolean> {
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
@@ -125,11 +132,10 @@ export function runWithRetry(sql: string, params: (string | number | null)[], at
       return true;
     } catch (e) {
       lastErr = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!/busy|locked/i.test(msg)) throw e; // non-busy → LOUD immediately, handle untouched
       closeStoreDb();
-      const wait = 50 * (attempt + 1);
-      const until = Date.now() + wait;
-      while (Date.now() < until) { /* the bounded busy-wait */ }
-      void until;
+      await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
     }
   }
   console.error(`[scoped-store${id ? ' ' + id : ''}] persist failed after ${attempts} attempts (the in-memory state stays live):`, lastErr instanceof Error ? lastErr.message : String(lastErr));

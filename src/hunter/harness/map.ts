@@ -18,7 +18,7 @@ import type { ProjectProfile } from '../profile/schema.ts';
 import type { DbClient } from '../shared/db.ts';
 import { openStore, writeGraph, mirrorToMasterContext } from '../shared/db.ts';
 import { selectAdapter, type GraphAdapter, type BuildResult } from '../graph/interface.ts';
-import { resolveLine } from '../shared/line-resolve.ts';
+import { resolveLine, tryResolveLine } from '../shared/line-resolve.ts';
 
 /** The MAP actor's output — the built graph surface the scan state consumes. */
 export interface MapResult {
@@ -97,9 +97,17 @@ const LINELESS_EXEMPT_KIND: Record<string, true> = {
 export function assertMappableLines(buildResult: BuildResult): void {
   const edgeLocByTarget: Record<string, { source_location?: unknown; metadata?: unknown }> = {};
   for (const e of buildResult.edges) {
-    if (edgeLocByTarget[e.targetId] === undefined) {
-      const rec = e as unknown as Record<string, unknown>;
-      edgeLocByTarget[e.targetId] = { source_location: rec['source_location'], metadata: rec['metadata'] };
+    const rec = e as unknown as Record<string, unknown>;
+    const cand = { source_location: rec['source_location'], metadata: rec['metadata'] };
+    const prev = edgeLocByTarget[e.targetId];
+    if (prev === undefined) {
+      edgeLocByTarget[e.targetId] = cand;
+    } else if (tryResolveLine({}, prev) === undefined && tryResolveLine({}, cand) !== undefined) {
+      // ★ F-332 FIX (2026-09-24): the first edge per target won even when it carried
+      // ★ no line while a later edge did — a spurious LINELESS_NODE refusal. Prefer the
+      // ★ first edge that actually resolves a line; a line-less first edge only stands
+      // ★ when no later edge beats it.
+      edgeLocByTarget[e.targetId] = cand;
     }
   }
   for (const n of buildResult.nodes) {

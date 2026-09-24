@@ -89,10 +89,19 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
             //   instance's other value fields (name/source/path/id), so the narrowing made
             //   L2 read NEVER_CONSUMED for every subject. All VALUES (recursively), no keys.
             const values: string[] = [];
+            // ★ F-338 FIX (2026-09-24): cycle guard — a revisited object returns instead of recursing (stack-exhaustion fail-closed). Parsed daemon output is a tree today; the guard keeps it so if the shape ever changes.
+            const seen = new WeakSet<object>();
             const walk = (v: unknown): void => {
               if (typeof v === "string") values.push(v);
-              else if (Array.isArray(v)) for (const x of v) walk(x);
-              else if (v && typeof v === "object") for (const x of Object.values(v as Record<string, unknown>)) walk(x);
+              else if (Array.isArray(v)) {
+                if (seen.has(v)) return;
+                seen.add(v);
+                for (const x of v) walk(x);
+              } else if (v && typeof v === "object") {
+                if (seen.has(v as object)) return;
+                seen.add(v as object);
+                for (const x of Object.values(v as Record<string, unknown>)) walk(x);
+              }
             };
             walk(i);
             return values.some((v) => v.includes(subject));

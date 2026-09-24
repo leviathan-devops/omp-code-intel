@@ -201,7 +201,18 @@ export async function resolveEntities(
           }
           decisions.push({ alias, canonicalId: canonicalId || alias, verdict, reasoning: reasoning || `harness verdict ${verdict}`, destructive, newEntity: newEnt, existingCanonical: existCanon });
         }
+        // ★ F-335 FIX (2026-09-24): harness partial-match merge — a harness that resolves only a subset must not lose its valid verdicts to full heuristic. Resolved aliases keep harness verdicts; the rest get heuristic fallback. The merged set still covers every entity.
         if (decisions.length === newEntities.length) harnessDecisions = decisions;
+        else if (decisions.length > 0) {
+          const resolvedAliases = new Set(decisions.map((d) => d.alias));
+          for (const ne of newEntities) {
+            if (!resolvedAliases.has(ne.id) && !resolvedAliases.has(ne.label)) {
+              const h = heuristicDecide(ne, existing);
+              decisions.push({ alias: ne.id, canonicalId: h.canonical ? h.canonical.canonical_id : ne.id, verdict: h.verdict, reasoning: `harness partial — heuristic fallback for '${ne.id}': ${h.reasoning}`, destructive: h.destructive, newEntity: ne, existingCanonical: h.canonical });
+            }
+          }
+          harnessDecisions = decisions;
+        }
       }
     } catch (e: unknown) {
       if (e instanceof ResolverError) throw e;
@@ -223,7 +234,8 @@ export async function resolveEntities(
               const verdict = String(rec.verdict ?? '').trim() as ResolutionVerdict;
               if (!['same','related','unrelated'].includes(verdict)) continue;
               // ★ F-253 FIX (2026-09-24): run path — same no-fabrication rule as the decide path (skip hallucinated aliases).
-              const newEnt = newEntities.find((n) => n.id === alias);
+              // ★ F-336 FIX (2026-09-24): run/decide alias parity — decide matches id OR label, run matched id only and dropped valid label-alias verdicts into heuristic. Same predicate both paths.
+              const newEnt = newEntities.find((n) => n.id === alias || n.label === alias);
               if (!newEnt) continue;
               const existCanon = existing.find((c) => c.canonical_id === canonicalId) ?? null;
               // ★ F-254 FIX (2026-09-24): run path — dangling canonical falls back to the heuristic for that record.
@@ -234,7 +246,18 @@ export async function resolveEntities(
               }
               decisions.push({ alias, canonicalId, verdict, reasoning: String(rec.reasoning ?? ''), destructive: Boolean(rec.destructive), newEntity: newEnt, existingCanonical: existCanon });
             }
+            // ★ F-335 FIX (2026-09-24): run-path partial-match merge — same rule as the decide path above: keep harness verdicts for resolved aliases, heuristic fallback for the rest.
             if (decisions.length === newEntities.length) harnessDecisions = decisions;
+            else if (decisions.length > 0) {
+              const resolvedAliases = new Set(decisions.map((d) => d.alias));
+              for (const ne of newEntities) {
+                if (!resolvedAliases.has(ne.id) && !resolvedAliases.has(ne.label)) {
+                  const h = heuristicDecide(ne, existing);
+                  decisions.push({ alias: ne.id, canonicalId: h.canonical ? h.canonical.canonical_id : ne.id, verdict: h.verdict, reasoning: `harness partial — heuristic fallback for '${ne.id}': ${h.reasoning}`, destructive: h.destructive, newEntity: ne, existingCanonical: h.canonical });
+                }
+              }
+              harnessDecisions = decisions;
+            }
           }
         } catch (parseErr: unknown) {
           throw new ResolverError(`RESOLVER_FAILED: harness run returned non-JSON — ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
