@@ -8,6 +8,7 @@ live-tree
 vendor/
 Ship_Packages/
 Checkpoints/*
+!Checkpoints/gi-6l2e-redteam-closed-e13d0f5939e3707b/
 !Checkpoints/gi-6l2e-redteam-closed-038c84c31569aebb/
 !Checkpoints/gi-6l2e-SHIPPED-consumed-8of8-kev-in-place-of-jev-d4872b4814fc07c5/
 !Checkpoints/gi-rescope-shipped-34ba3ffe/

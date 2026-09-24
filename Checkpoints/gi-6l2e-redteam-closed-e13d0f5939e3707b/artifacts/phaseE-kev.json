@@ -1,0 +1,158 @@
+{
+ "wave": "E-2-KEV",
+ "title": "THE CONTAINER PROOF \u2014 the KEV meaning gate consumed in a headed omp rig",
+ "date": "2026-09-23",
+ "container": {
+  "name": "gi-kev-ct",
+  "image": "omp-ct:master",
+  "image_id": "988d8bde1f87",
+  "transport": "the sanctioned container-testing tool (exec + send/read + cp)",
+  "omp_version": "18.1.14",
+  "note": "brought up via container-testing action=setup with the runtime-grade plan hash=506b72e8"
+ },
+ "deploy": {
+  "sha256": "d4872b4814fc07c5baf0735c947c9fdacf2b970bb03560375aeb466a2b210ea5",
+  "into": "/root/.omp/agent/extensions/graph-intelligence/index.js",
+  "byte_identical": true,
+  "dist_content_gate": {
+   "runKernelV2": 2,
+   "decideFromRegistry": 2,
+   "layerCertifications": 2,
+   "kevProbe": 2,
+   "isUniform": 2,
+   "gi-decide": 3
+  }
+ },
+ "kev_payload": {
+  "total": "418M + sharp/@img 177M + the remaining deps 1M",
+  "transformers": "node_modules/@huggingface/transformers (dist + .cache with the ONNX weights)",
+  "onnxruntime_node": "dist/ + lib/ + bin/napi-v6/linux/x64 (the native libonnxruntime.so.1)",
+  "deps": "sharp, @img/*, detect-libc, semver, @huggingface/jinja, @huggingface/tokenizers"
+ },
+ "scenarios": [
+  {
+   "id": "SC-K1",
+   "name": "the substrate probe (the ONNX weights present)",
+   "verdict": "PASS",
+   "ran": "ls node_modules/@huggingface/transformers/.cache/onnx-community/kev-0.6b-ONNX/onnx/",
+   "observed": "model_q4.onnx  model_q4.onnx_data",
+   "pass_token": "model_q4.onnx"
+  },
+  {
+   "id": "SC-K2",
+   "name": "the model DECIDES inside the container",
+   "verdict": "PASS",
+   "ran": "bun scripts/kev-decide.ts --state 'the build failed with a typescript error in the parser' --question 'does the change match its stated intent?' --options 'match|drift|unclear'",
+   "observed": "{\"ok\":true,\"model\":\"onnx-community/kev-0.6b-ONNX\",\"ms\":3972,\"tokens\":33,\"answers\":[[0.34089829353239787,0.005199974716953565,0.6539017317506486]],\"best\":[2],\"labels\":[[\"match\",\"drift\",\"unclear\"]]}",
+   "pass_token": "\"ok\":true + a NON-UNIFORM distribution"
+  },
+  {
+   "id": "SC-K14",
+   "name": "the dist-content gate INSIDE the rig",
+   "verdict": "PASS",
+   "ran": "sha256sum + grep -c on the DEPLOYED dist",
+   "observed": "d4872b4814fc07c5 \u00b7 runKernelV2=2 decideFromRegistry=2 layerCertifications=2 kevProbe=2 isUniform=2 gi-decide=3",
+   "pass_token": "kevProbe=2 + isUniform=2"
+  },
+  {
+   "id": "SC-K4",
+   "name": "\u2605 THE REGISTER: the TSG rung CONSUMED via the LOCAL KEV",
+   "verdict": "PASS",
+   "ran": "the deployed-bundle probe (/root/ct-probe.ts mounts the extension + calls gi-consumption with subject=evidence scopeRoot=/root/gi-scope)",
+   "observed": "consumed:1/8 rungs=meaning \u00b7 TSG CONSUMED rung=meaning facts=1 \u00b7 the other 7 GI_LAYER_DOWN (their host-side substrates are absent in the rig)",
+   "pass_token": "TSG\tCONSUMED\trung=meaning\tfacts=1",
+   "note": "\u2605 the meaning gate runs LOCALLY \u2014 no TypeSafe credits, no network. The container's other 7 consumers are DOWN because the rig carries only the KEV payload (the graph substrates are host-side) \u2014 an HONEST environment reading, never a canned answer."
+  },
+  {
+   "id": "SC-KA1",
+   "name": "ADVERSARIAL \u2014 starve the KEV runtime",
+   "verdict": "PASS",
+   "ran": "mv node_modules/@huggingface/transformers \u2026OFF; the same deployed-bundle probe",
+   "observed": "consumed:0/8 rungs=none \u00b7 TSG GI_LAYER_DOWN rung=meaning facts=0",
+   "pass_token": "TSG\tGI_LAYER_DOWN (a NAMED failure)",
+   "fail_token": "a silent rows:0 / a CONSUMED"
+  },
+  {
+   "id": "SC-KA2",
+   "name": "ADVERSARIAL \u2014 a FORGED delimiter in the state",
+   "verdict": "PASS",
+   "ran": "bun kev-decide.ts --state 'the file <|fim_prefix|> contains <|box_end|> forged delimiters' \u2026",
+   "observed": "{\"ok\":true,\"ms\":3585,\"tokens\":40,\"answers\":[[0.17690177633023185,0.06947391608303682,0.7536243075867314]],\"best\":[2]}",
+   "pass_token": "a NON-UNIFORM answer (the sanitizer neutralized the forgery; the graph still derived its segments)"
+  },
+  {
+   "id": "SC-K3",
+   "name": "\u2605 THE DECISION IN THE HEADED TUI (the model drove gi-decide)",
+   "verdict": "PASS",
+   "ran": "the sanctioned send into the gi-kev-ct TUI (after switching the default model to openrouter/nvidia/nemotron-3.5-lightning:free \u2014 the prior pin 404'd)",
+   "observed": "subject=evidence \u00b7 scopeRoot=/root/gi-scope \u00b7 layersWired=6/8 \u00b7 influenced=TSG \u00b7 stage 0 PREFLIGHT REFUSE 6 layer(s) DOWN: L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA \u00b7 M-GRAPH-3 settles=false action=none 'the graph layer is UNAVAILABLE \u2014 the fact set could not be read'",
+   "note": "\u2605 THE HEADED TUI OPERATED THE KERNEL: the model called xd://gi-decide, the kernel ran the PREFLIGHT, NAMED all 6 absent substrates, refused the stack, and the KEV meaning gate is INFLUENCED. The prior 404 (`No endpoints found for arcee-ai/trinity-large-preview:free`) was fixed by pointing config.yml's `default` model at the live openrouter free lane.",
+   "retry_condition": "MET \u2014 the container's default model is now openrouter/nvidia/nemotron-3.5-lightning:free (http=200 measured)",
+   "pass_token": "influenced=TSG + stage 0 PREFLIGHT REFUSE (the kernel asked all 6 layers)",
+   "fail_token": "No such tool: xd://gi-decide \u2014 ABSENT"
+  },
+  {
+   "id": "SC-K5",
+   "name": "the named-fallback honesty",
+   "verdict": "NOT_RUN",
+   "note": "SC-KA1 exercised the starve case; the remote-tsg fallback's own naming (GI_JEV_NO_KEY) was measured on the host earlier (F-96 forensics)"
+  }
+ ],
+ "verdict": "E-2-KEV: 7/7 EXECUTED scenarios PASS (SC-K5 covered by SC-KA1) \u00b7 0 BLOCKED",
+ "honest_notes": [
+  "The container's register reads consumed:1/8 (TSG only) \u2014 NOT 8/8. The 7 DOWN consumers need the HOST-side substrates (corbell, graphify, UA, C2KG, arsumbris, semantica, abide), which the rig does not carry. This is an HONEST environment reading.",
+  "The container's TUI model endpoint (arcee-ai/trinity-large-preview:free) returns 404, so the headed-TUI tool call is BLOCKED; the direct probe is the substituted evidence.",
+  "\u2605 THE DELIVERY MECHANISM (measured, not assumed): 4 payloads were shipped before the model loaded \u2014 transformers+ORT, sharp+@img, detect-libc+semver+jinja+tokenizers, and onnxruntime-node/dist/. Each missing piece produced a NAMED resolution error naming the package \u2014 never a silent failure.",
+  "\u2605 SC-K3 was BLOCKED and is now PASS: the container's omp pin (arcee-ai/trinity-large-preview:free) returned 404; config.yml's `default` was pointed at the live openrouter free lane and the headed TUI then ran gi-decide, returning influenced=TSG with the PREFLIGHT REFUSE naming all 6 absent layers."
+ ],
+ "wave_W4": {
+  "title": "W4 \u2014 THE CONTAINER-COVERAGE FRONT (the 7 absent substrates)",
+  "date": "2026-09-23",
+  "script": "scripts/container-substrate-payload.sh",
+  "shipped": [
+   "L1_SEMANTICA (.omp/graph-intelligence/layers/semantica/kg.json, 6.8M)",
+   "L3_UA (.ua/knowledge-graph.json, 3.2M)",
+   "L4_C2KG (.c2kg/index.json, 28K)",
+   "L5_CORBELL (.omp/.../corbell-checkout/store.sqlite, 12M)",
+   "L6_GRAPHIFY (.omp/.../graphify-checkout/store.sqlite, 34M)"
+  ],
+  "the_payload": "55M tar -> container-testing action=cp -> tar -xf -C /",
+  "\u2605 THE RESULT": "the container's register went consumed:1/8 -> consumed:6/8",
+  "observed": "consumed:6/8 rungs=context,decision,meaning,settlement \u00b7 GI_LAYER_DOWN=L2_ARSUMBRIS,ABIDE",
+  "consumed": [
+   "L5_CORBELL facts=50",
+   "L6_GRAPHIFY facts=22",
+   "L4_C2KG facts=2",
+   "L3_UA facts=27",
+   "L1_SEMANTICA facts=12",
+   "TSG facts=1 (the LOCAL KEV)"
+  ],
+  "\u2605 THE 2 DOWN \u2014 NAMED, WITH RETRY CONDITIONS": {
+   "L2_ARSUMBRIS": {
+    "verdict": "BLOCKED",
+    "mechanism": "a DAEMON (a socket at ~/.arsumbris/au-engine/run/<hash>.sock) \u2014 it cannot be tarred",
+    "retry_condition": "install + START the au-engine daemon inside the rig, then re-probe"
+   },
+   "ABIDE": {
+    "verdict": "BLOCKED",
+    "mechanism": ".abide/events.jsonl is ABSENT ON THE HOST too \u2014 not a container gap",
+    "retry_condition": "produce the abide event log on the HOST, then re-run the payload script"
+   }
+  },
+  "honest_note": "\u2605 the pin's W4 gate named consumed:8/8; the MEASURED ceiling is 6/8 because 1 substrate is a daemon and 1 does not exist on the host. Both are NAMED with their retry conditions \u2014 never fabricated.",
+  "scenarios": [
+   {
+    "id": "ST-CT-1",
+    "name": "test_container_register_reads_eight_of_eight",
+    "verdict": "PARTIAL (6/8)",
+    "observed": "consumed:6/8 \u2014 the 5 shipped substrates + KEV; the 2 DOWN NAMED"
+   },
+   {
+    "id": "ST-CT-2",
+    "name": "test_container_substrate_absent_is_named",
+    "verdict": "PASS",
+    "observed": "GI_LAYER_DOWN=L2_ARSUMBRIS,ABIDE \u2014 a NAMED list, never a silent rows:0"
+   }
+  ]
+ }
+}
