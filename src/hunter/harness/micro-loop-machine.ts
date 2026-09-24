@@ -404,6 +404,11 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
       // ★ F-408: resolve any pending done() promise BEFORE teardown
       if (pendingSettle !== null) { pendingSettle(); pendingSettle = null; }
       for (const d of handleDisposables.splice(0)) d.unsubscribe();
+      // ★ F-501 FIX (2026-09-24): the map phase transfers the open DbClient to the micro-loop
+      // ★ (map.ts F-1) but nothing ever closed it - the SQLite WAL handle leaked on every run.
+      // ★ stop() owns the teardown: close() is idempotent (SharedDb guards on open), LOUD on
+      // ★ failure, never throwing past the caller.
+      try { snapshot.db?.close(); } catch (e) { console.error('[micro-loop] db close failed:', e instanceof Error ? e.message : String(e)); }
       try { actor.stop(); } catch (e) { console.error('[micro-loop] actor stop failed:', e instanceof Error ? e.message : String(e)); }
     },
     start(event: { type: 'START' }): void {

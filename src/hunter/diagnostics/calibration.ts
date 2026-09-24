@@ -258,10 +258,10 @@ export class CalibrationGate {
     // ★ logical fixture set hashed differently across runs (spurious invalidation). Nodes
     // ★ AND edges are sorted by stable id before serialization; the hash is order-free.
     const graphOf = (graph: GraphAdapter): unknown => {
-      // * F-500 FIX (2026-09-24): graph.nodes() was unguarded - a throwing adapter crashed
-      // * serializeFixtures with no diagnostic (whoCalls below was already guarded). A throwing
-      // * nodes() now yields [] LOUD (warned); the single materialization also feeds edges,
-      // * so a flaky adapter cannot return two different snapshots mid-hash.
+      // ★ F-500 FIX (2026-09-24): graph.nodes() was unguarded - a throwing adapter crashed
+      // ★ serializeFixtures with no diagnostic (whoCalls below was already guarded). A throwing
+      // ★ nodes() now yields [] LOUD (warned); the single materialization also feeds edges,
+      // ★ so a flaky adapter cannot return two different snapshots mid-hash.
       let rawNodes: ReturnType<GraphAdapter['nodes']>;
       try {
         rawNodes = graph.nodes();
@@ -276,23 +276,13 @@ export class CalibrationGate {
       }));
       nodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
       const edges = rawNodes.map((n) => {
-      } catch (e: unknown) {
-        console.error(`[calibration] graph.nodes() threw during fixture serialization — versioning proceeds with an EMPTY node set: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      const nodes = nodesRaw.map((n) => ({
-        id: n.id, kind: n.kind, name: n.name,
-        file: n.file ?? null, line: n.line ?? null, lineage: n.lineage, source: n.source,
-        data: n.data ?? null,
-      }));
-      nodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
-      const edges = graph.nodes().map((n) => {
         try {
           return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
         } catch (e) {
-          // ★ F-335 FIX (2026-09-24): a throwing whoCalls used to coerce to [] SILENTLY —
+          // ★ F-335 FIX (2026-09-24): a throwing whoCalls used to coerce to [] SILENTLY -
           // ★ a topology-breaking adapter fault escaped the version hash. Still [] (a broken
           // ★ edge read must not brick versioning) but LOUD: the node + the error are warned.
-          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} — recording empty callers in version hash`);
+          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} - recording empty callers in version hash`);
           return { to: n.id, callers: [] as string[] };
         }
       });

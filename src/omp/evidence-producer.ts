@@ -291,7 +291,7 @@ export function produceAndPersist(
         sources.push("graph:structural");
       }
     } catch (e: unknown) {
-      // * F-508 FIX (2026-09-24): the bare catch swallowed genuine graph faults (missing table,
+      // ★ F-508 FIX (2026-09-24): the bare catch swallowed genuine graph faults (missing table,
       // * broken LIKE) identically to an absent store - invisible degradation against this
       // * module LOUD-refusal law. An unreadable store (GI_EVIDENCE_UNAVAILABLE) is still
       // * graph:UNAVAILABLE; any other fault is LOUD (console.error) and NAMED graph:ERROR

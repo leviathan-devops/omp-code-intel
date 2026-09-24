@@ -158,7 +158,7 @@ export class HydraBus {
   retryFailed(): number {
     const pending = this.failedEvents.splice(0, this.failedEvents.length);
     for (const f of pending) {
-      // * F-502 FIX (2026-09-24): one try/catch around ALL subscribers meant the first throwing
+      // ★ F-502 FIX (2026-09-24): one try/catch around ALL subscribers meant the first throwing
       // * subscriber starved the rest of the retried event (poll() already guards per-subscriber).
       // * Each subscriber is now guarded; a still-throwing replay stays queued with attempt + 1.
       let lastError: unknown = null;

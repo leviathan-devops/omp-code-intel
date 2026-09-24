@@ -380,8 +380,17 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
         const home = GO_KEYS.findIndex((k) => createHash('sha256').update(k).digest('hex').slice(0, 16) === displaced.keyid);
         if (home >= 0 && home !== idx) {
           conn.run('UPDATE go_key_pool SET idx = ? WHERE keyid = ? AND idx = ?', [home, displaced.keyid, idx]);
+        } else if (home === idx) {
+          // ★ F-504 FIX (2026-09-24): same-slot displaced row (a reload reordered nothing, or the
+          // ★ row is already home) was DELETED by the else branch - its exile window was lost and
+          // ★ the still-limited key got hammered. Same-slot is a no-op: the INSERT below refreshes it.
         } else {
-          conn.run('DELETE FROM go_key_pool WHERE idx = ? AND keyid = ?', [idx, displaced.keyid]);
+          // ★ F-504 FIX (2026-09-24): a reload-removed key (home === -1) keeps its exile ATTACHED
+          // ★ to the keyid instead of being deleted. The next reload that restores the key re-homes
+          // ★ it (the home>=0 branch); deletion would hammer a still-limited key after a key-set edit.
+          // ★ Keyed by keyid so a restored key re-attaches; the UPSERT below cannot clobber it
+          // ★ because it writes under the CURRENT keyid.
+          conn.run('UPDATE go_key_pool SET dead_until = max(dead_until, ?) WHERE keyid = ? AND idx = ?', [until, displaced.keyid, idx]);
         }
       }
       conn.run(
@@ -510,6 +519,13 @@ export function goEarliestDeadIdx(sessionId?: string, now: number = Date.now()):
 export function resolveGoKeyIndex(now: number = Date.now(), sessionId?: string): { idx: number; alive: boolean; expiryKnown: boolean } {
   // W13 (frozen-scan HIGH): the low-level API fails LOUD on an empty pool —
   // the old idx:-1 fallthrough made callers believe in a nonexistent key.
+  // ★ F-503 NOTE (2026-09-24): NOT-A-BUG - first-alive-in-priority-order is the CONTRACT,
+  // ★ not a missing round-robin. Header pins "THE KEYS (order = priority)" (line 40), the RUNG 1
+  // ★ comment pins "cycle GO_KEYS[0..N) via resolveGoKeyIndex (skip dead)", the st-go-fallback
+  // ★ battery pins first-alive geometry ("the resolver picks the FIRST alive in priority order -
+  // ★ the one right after the dead prefix"), and routeGoError advances within the call. A
+  // ★ stickier/rotating scheme would break that pinned geometry; quota rotation emerges from
+  // ★ dead-marks, not from a counter that would need cross-process locking.
   if (GO_KEYS.length === 0) throw new Error('GO_POOL_EMPTY: no Go keys configured (provision ~/.gi-keys.json or set GO_KEYS_JSON)');
   const untils = readDeadUntil(sessionId);
   for (let i = 0; i < GO_KEYS.length; i++) {

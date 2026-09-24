@@ -145,7 +145,7 @@ export function isGraphifyCheckoutFreshFor(
         // dirs walk free: do not count directories toward budget
         walk(path.join(dir, entry.name));
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
-        // * F-509 FIX (2026-09-24): the file branch ignored excludes (dirs were filtered at
+        // ★ F-509 FIX (2026-09-24): the file branch ignored excludes (dirs were filtered at
         // * line 144), so excluded files fed newest and the mtime fallback reported stale-mtime
         // * where the hash path reported fresh. Parity: excluded names skip before the budget.
         if (excludes.includes(entry.name)) continue;

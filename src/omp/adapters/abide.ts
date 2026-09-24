@@ -156,6 +156,10 @@ export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe
     dependency: "the Abide source — the ALU (repair, never block)",
     errorCode: "GI_ENFORCE_ABIDE",
     up: () => {
+      // ★ F-507 NOTE (2026-09-24): NOT-A-BUG - sync statSync here is the CONTRACT. ConsumerProbe.up
+      // ★ is SYNCHRONOUS (layer-registry.ts pins `up: boolean`-shaped returns, not a Promise), so an
+      // ★ async stat cannot satisfy the interface; one statSync on a hot metadata path is the same
+      // ★ cost every other probe pays. The 64MiB/32MiB ledger reads live in facts()/tailEvents, not here.
       try {
         const st = fs.statSync(eventsPath);
         if (!st.isFile()) return { up: false, evidence: `${eventsPath} exists but is not a file` };
@@ -174,8 +178,8 @@ export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe
       }
       const events = tailEvents(eventsPath, 4000);
       const hits = events.filter((e) => {
-        if (e.band !== "flag") return false; // * only a FLAG is a repair opportunity
-        // * F-506 FIX (2026-09-24): one-direction hay.includes(subject) missed repairs when the
+        if (e.band !== "flag") return false; // ★ only a FLAG is a repair opportunity
+        // ★ F-506 FIX (2026-09-24): one-direction hay.includes(subject) missed repairs when the
         // * subject is the broader text containing the span excerpt. Also match the reverse
         // * (subject contains the span); an empty span never matches.
         const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
