@@ -61,7 +61,15 @@ export function realNearest(target: string, maxClimb = 12): string {
     try {
       const realDir = fs.realpathSync(dir);
       return missing.length === 0 ? realDir : path.join(realDir, ...missing.reverse());
-    } catch {
+    } catch (e: unknown) {
+      // ★ F-604 FIX (2026-09-24, caught by the RESTORED lane): the catch was UNTYPED — every
+      //   realpathSync failure was read as "missing" and the walk climbed PAST it. EACCES
+      //   (denied) and ELOOP (symlink loop) are NOT "missing": climbing past a denied dir can
+      //   resolve to an ancestor that IS inside the root, silently GRANTING containment to a
+      //   path that should have been refused. Only ENOENT/ENOTDIR mean absent; anything else
+      //   propagates (the caller's named error vocabulary owns it).
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') throw e;
       const parent = path.dirname(dir);
       if (parent === dir) break; // the filesystem root itself is unresolvable — give up the walk
       missing.push(path.basename(dir));
@@ -106,7 +114,13 @@ export function checkContained(target: string, root: string): ContainmentResult 
   catch { rootReal = realNearest(root); rootResolved = false; }
   const real = realNearest(target);
   const contained = insideRoot(real, rootReal);
-  return { real, rootReal, contained, resolved: rootResolved && real !== path.resolve(target) || contained };
+  // ★ F-606 FIX (2026-09-24, the restored lane): `resolved` must be FALSE exactly when the walk
+  //   produced nothing — i.e. `real` is still the caller's spelling. That is true when the
+  //   result equals the abs spelling AND nothing is there. (When the walk JOINS a resolved
+  //   ancestor the two differ; when the path exists they agree but it IS real.)
+  const targetAbs = path.resolve(target);
+  const resolved = real !== targetAbs || fs.existsSync(real);
+  return { real, rootReal, contained, resolved };
 }
 
 /**
