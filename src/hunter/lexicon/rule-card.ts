@@ -144,6 +144,11 @@ function voiceAmbiguous(text: string): boolean {
 // The vote remains the fallback for undeclared rules — never a removal.
 // ---------------------------------------------------------------------------
 
+// ★ F-503/F-504 FIX (2026-09-24): the DECLARED regexes keep the `i` flag (they ACCEPT
+//   lowercase `classification: arch` / `severity: crit`) but the capture is NORMALIZED via
+//   toUpperCase() before the strict guards below — removing `i` would reject the lowercase
+//   form at the regex instead of at the guard (still lost); normalization honors the
+//   operator's curated declaration in any case.
 const DECLARED_CLASSIFICATION = /^\s*classification\s*[:=]\s*(ARCH|LOGIC|PROCESS|DOMAIN)\b/i;
 const DECLARED_SEVERITY = /^\s*severity\s*[:=]\s*(CRIT|HIGH|MED|WARN)\b/i;
 
@@ -157,9 +162,9 @@ function readDeclaredMeta(lines: string[], start: number): { classification?: Cl
     if (line.trim() === '') break;                       // the blank line ends the metadata block
     if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line)) break; // the next rule line ends it
     const cm = line.match(DECLARED_CLASSIFICATION);
-    if (cm && !meta.classification && isClassification(cm[1])) meta.classification = cm[1];
+    if (cm && !meta.classification) { const v = String(cm[1]).toUpperCase(); if (isClassification(v)) meta.classification = v; }
     const sm = line.match(DECLARED_SEVERITY);
-    if (sm && !meta.severity && isSeverity(sm[1])) meta.severity = sm[1];
+    if (sm && !meta.severity) { const v = String(sm[1]).toUpperCase(); if (isSeverity(v)) meta.severity = v; }
   }
   return meta;
 }
