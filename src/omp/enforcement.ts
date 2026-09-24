@@ -1,11 +1,17 @@
 // enforcement — T-5 THE ENFORCEMENT KERNEL: TSG + ABIDE as ONE 2-layer machine.
 //
-//   E1 · WORK LAYER    Abide         judges THE DIFF        fail-OPEN   (~300ms)
-//   E2 · CLOSE LAYER   Claim Firewall judges THE CLAIM      fail-CLOSED
+//   E1 · WORK LAYER    Abide         judges THE DIFF        fail-OPEN   (bounded by ENGINE_TIMEOUT_MS)
+//   E2 · CLOSE LAYER   Claim Firewall judges THE CLAIM      fail-CLOSED (bounded by ENGINE_TIMEOUT_MS)
 //   TSG                the load unit  supplies the SPANS both layers judge over
 //
 // POLARITY (R5, per-surface): an edit may not wedge the editor on a slow judge,
 // so E1 fails OPEN; a false "done" IS the defect, so E2 fails CLOSED.
+// ★ F-935 FIX (2026-09-24): the old header promised fail-OPEN "handles timeouts" while NO
+//   timeout existed — a hung engine wedged the caller forever (UNBOUNDED await, the exact
+//   polarity violation the header forbids). Both layers now race their engine against
+//   ENGINE_TIMEOUT_MS via the fire-gate ceiling idiom (Promise.withResolvers + clearTimeout,
+//   so the fast path never holds the event loop open); a timeout carries its own named
+//   code (GI_ENGINE_TIMEOUT / TSG_TIMEOUT), never the generic engine-down code.
 //
 // T-6 APPLIED: neither layer owns an engine. Both take their engine through a
 // dependency-injected seam and check the HARD-DEPENDENCY REGISTER first. The
@@ -80,6 +86,31 @@ export interface CloseResult {
 export const ACT_PROBABILITY = 0.8;
 export const FLAG_PROBABILITY = 0.5;
 
+/** ★ F-935 FIX (2026-09-24): the engine ceiling — the fail-OPEN/fail-CLOSED polarity is only
+ *  real when a hung engine is abandoned at a named deadline (the fire-gate H4-5 class). */
+export const ENGINE_TIMEOUT_MS = 5_000;
+
+/** The timeout error — DISTINCT from a judge/load failure so a consumer can tell "slow"
+ *  from "broken" (the fire-gate FireGateTimeout vocabulary, same law). */
+export class EngineTimeout extends Error {
+  constructor(readonly ms: number, readonly engine: string) {
+    super(`GI_ENGINE_TIMEOUT: the ${engine} engine did not answer within ${ms}ms`);
+    this.name = "EngineTimeout";
+  }
+}
+
+/** ★ F-935 FIX (2026-09-24): the gate's own ceiling (fire-gate.ts H4-5 idiom) — race the
+ *  engine against a timer; clear it on the fast path so normal calls never hold the loop. */
+async function withEngineTimeout<T>(engine: string, ms: number, call: Promise<T>): Promise<T> {
+  const timer = Promise.withResolvers<never>();
+  const handle = setTimeout(() => timer.reject(new EngineTimeout(ms, engine)), ms);
+  try {
+    return await Promise.race([call, timer.promise]);
+  } finally {
+    clearTimeout(handle);
+  }
+}
+
 export function bandOf(probability: number): "act" | "flag" | "clear" {
   if (probability >= ACT_PROBABILITY) return "act";
   if (probability >= FLAG_PROBABILITY) return "flag";
@@ -125,8 +156,14 @@ export async function runWorkLayer(deps: EnforcementDeps, input: WorkInput): Pro
   }
   let answers: readonly JudgeAnswer[];
   try {
-    answers = await deps.judge.evaluate({ diff: input.diff, task: input.task }, input.rules);
+    // ★ F-935 FIX (2026-09-24): the UNBOUNDED await — a hung judge wedged the editor surface
+    //   while the header promised a ~300ms fail-open budget. The call now races the ceiling;
+    //   a timeout SKIPS with its own named reason (slow ≠ broken).
+    answers = await withEngineTimeout("judge", ENGINE_TIMEOUT_MS, deps.judge.evaluate({ diff: input.diff, task: input.task }, input.rules));
   } catch (e) {
+    if (e instanceof EngineTimeout) {
+      return { verdict: "SKIPPED", repair: null, reason: `work layer skipped: judge timeout after ${ENGINE_TIMEOUT_MS}ms (fail-open)`, evidence: e.message };
+    }
     return { verdict: "SKIPPED", repair: null, reason: "work layer skipped: judge failed (fail-open)", evidence: e instanceof Error ? e.message : String(e) };
   }
   // An answer whose id matches NO rule is a JUDGE DEFECT: it answered a question
@@ -213,7 +250,11 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
   }
   let spans: readonly Span[];
   try {
-    const r = await deps.loadUnit.retrieve(claim, input.scope);
+    // ★ F-935 FIX (2026-09-24): same UNBOUNDED await on the BIND path — a hung load unit
+    //   wedged the close layer while the catch below already named itself TSG_TIMEOUT (a spec
+    //   comment disagreeing with its code). Fail-CLOSED on timeout with the TSG_TIMEOUT code
+    //   the contract already promises.
+    const r = await withEngineTimeout("load-unit", ENGINE_TIMEOUT_MS, deps.loadUnit.retrieve(claim, input.scope));
     spans = r.spans;
     if (r.coverage === "incomplete") {
       // COVERAGE IS FIRST-CLASS: an incomplete scan cannot certify a claim. It
@@ -228,6 +269,15 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
       };
     }
   } catch (e) {
+    if (e instanceof EngineTimeout) {
+      return {
+        verdict: "FAIL_CLOSED",
+        code: "TSG_TIMEOUT",
+        reason: `the evidence scan timed out after ${ENGINE_TIMEOUT_MS}ms (fail-closed)`,
+        evidence: e.message,
+        spans: [],
+      };
+    }
     return {
       verdict: "FAIL_CLOSED",
       code: "TSG_TIMEOUT",
@@ -269,16 +319,23 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
   }
   let answers: readonly JudgeAnswer[];
   try {
-    answers = await deps.judge.evaluate(
+    // ★ F-935 FIX (2026-09-24): the JUDGE path of the close layer had the same unbounded
+    //   await — a hung judge wedged a fail-CLOSED surface (worse: no verdict at all, not
+    //   even a refusal). Bounded with the same ceiling; timeout fails CLOSED as GI_JEV_DOWN
+    //   with timeout evidence (the layer's promise is "fail closed on any engine failure").
+    answers = await withEngineTimeout("judge", ENGINE_TIMEOUT_MS, deps.judge.evaluate(
       { claim, evidence: spans.map((s) => `${s.quote} @ ${s.source}`).join("\n---\n") },
       [{
         id: "claim_supported",
         instructions: "Does the evidence SUPPORT the claim, CONTRADICT it, or SAY NOTHING about it?",
         whenTrue: "the evidence directly supports the claim",
         whenFalse: "the evidence contradicts the claim or says nothing about it",
-      }],
+      }])
     );
   } catch (e) {
+    if (e instanceof EngineTimeout) {
+      return { verdict: "FAIL_CLOSED", code: "GI_JEV_DOWN", reason: `the judge timed out at close after ${ENGINE_TIMEOUT_MS}ms (fail-closed)`, evidence: e.message, spans };
+    }
     return { verdict: "FAIL_CLOSED", code: "GI_JEV_DOWN", reason: "the judge failed at close (fail-closed)", evidence: e instanceof Error ? e.message : String(e), spans };
   }
 

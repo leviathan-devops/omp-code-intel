@@ -103,10 +103,27 @@ export interface LayerRegistry {
   audit(subject: string): ConsumptionReport[];
   /** ★ THE DECISION'S VIEW (D-2): the facts for a subject, tagged by consumer. */
   factsFor(subject: string): LayerFact[];
+  /** ★ F-936 FIX (2026-09-24): the fault-carrying facts view — factsFor() alone could not
+   *  distinguish "silent" from "faulted" (a non-array facts() or a mid-query throw surfaced
+   *  only as ephemeral console.error, lost in production log aggregation, while audit()
+   *  reported GI_LAYER_ERROR for the same consumer). Callers needing audit-grade fidelity
+   *  without a second audit() call read faults here. factsFor() keeps its facts-only
+   *  contract and delegates; its fault is still LOUD on stderr. */
+  factsForWithFaults(subject: string): FactsForResult;
   /** The consumers that CONTRIBUTED at least one fact for this subject. */
   decisionsInfluenced(subject: string): ConsumerId[];
   /** One line an operator can act on: `consumed:8/8` or the offenders named. */
   summary(subject: string): string;
+}
+
+/** ★ F-936 FIX (2026-09-24): the fault-carrying facts view (see the method above). A
+ *  non-array facts() or a mid-query throw is a GI_LAYER_ERROR-grade fault per consumer —
+ *  the same taxonomy as auditOne — so a factsFor()-only caller gets the same fidelity
+ *  as audit(). */
+export interface FactsForResult {
+  facts: LayerFact[];
+  /** Mid-query faults, one per faulted consumer. Empty means no consumer faulted. */
+  faults: Array<{ consumer: ConsumerId; reason: string }>;
 }
 
 /** A fact is only a fact when it carries its anchor. Empty source ⇒ DISCARDED. */
@@ -203,8 +220,14 @@ export function createLayerRegistry(): LayerRegistry {
     audit(subject: string): ConsumptionReport[] {
       return [...byId.values()].map((p) => auditOne(p, subject));
     },
-    factsFor(subject: string): LayerFact[] {
-      const out: LayerFact[] = [];
+    factsForWithFaults(subject: string): FactsForResult {
+      // ★ F-936 FIX (2026-09-24): mid-query faults are COLLECTED here, not just stderr-logged.
+      //   factsFor()-only callers previously could not distinguish a faulted consumer from a
+      //   silent one without a separate audit() (the SILENT fault class — ephemeral console.error
+      //   is lost in production log aggregation). Same GI_LAYER_ERROR taxonomy as auditOne;
+      //   factsFor() keeps its facts-only contract and delegates to this method below.
+      const facts: LayerFact[] = [];
+      const faults: FactsForResult["faults"] = [];
       for (const p of byId.values()) {
         try {
           // ★ F-405 FIX (2026-09-24): auditOne validates the probe shape (malformed → DOWN
@@ -225,19 +248,29 @@ export function createLayerRegistry(): LayerRegistry {
           // ★ F-707 FIX (2026-09-24): a non-array facts() return vanished here with zero trace
           // while auditOne reports GI_LAYER_ERROR for the same consumer (two-view drift).
           // factsFor's contract stays facts-only, but the fault is now LOUD on stderr.
-          if (!Array.isArray(got)) { console.error('[layer-registry] factsFor: consumer ' + p.id + ' returned non-array facts - see audit GI_LAYER_ERROR:' + p.id); continue; }
+          // ★ F-707 FIX (2026-09-24): a non-array facts() return vanished here with zero trace
+          // while auditOne reports GI_LAYER_ERROR for the same consumer (two-view drift).
+          // factsFor's contract stays facts-only, but the fault is now LOUD on stderr AND
+          // recorded in faults (F-936) so factsFor-only callers see it without an audit() call.
+          if (!Array.isArray(got)) { console.error('[layer-registry] factsFor: consumer ' + p.id + ' returned non-array facts - see audit GI_LAYER_ERROR:' + p.id); faults.push({ consumer: p.id, reason: 'facts() returned non-array facts - see audit GI_LAYER_ERROR:' + p.id }); continue; }
           for (const f of got) {
-            if (f !== null && typeof f === "object" && isAnchored(f as LayerFact)) out.push(f as LayerFact);
+            if (f !== null && typeof f === "object" && isAnchored(f as LayerFact)) facts.push(f as LayerFact);
           }
         } catch (factsErr) {
           // ★ F-707 FIX (2026-09-24): a throwing consumer contributes nothing to the decision
           // (reported GI_LAYER_ERROR by audit(), never smuggled in as an empty answer) - but
           // the fault is now LOUD on stderr instead of a silent continue.
           console.error('[layer-registry] factsFor: consumer ' + p.id + ' threw mid-query - see audit GI_LAYER_ERROR:' + p.id + ': ' + (factsErr instanceof Error ? factsErr.message : String(factsErr)));
+          faults.push({ consumer: p.id, reason: 'facts() threw mid-query - see audit GI_LAYER_ERROR:' + p.id + ': ' + (factsErr instanceof Error ? factsErr.message : String(factsErr)) });
           continue;
         }
       }
-      return out;
+      return { facts, faults };
+    },
+    factsFor(subject: string): LayerFact[] {
+      // ★ F-936 FIX (2026-09-24): facts-only contract preserved — delegates to the
+      // fault-carrying view; callers needing fault fidelity use factsForWithFaults().
+      return registry.factsForWithFaults(subject).facts;
     },
     decisionsInfluenced(subject: string): ConsumerId[] {
       return [...new Set(registry.factsFor(subject).map((f) => f.consumer))];

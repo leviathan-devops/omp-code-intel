@@ -15,6 +15,11 @@ export interface GraphSnapshot {
   unwiredCount: number;
   topDegree: Array<{ label: string; inbound: number }>;
   cycleCount: number;
+  /** ★ F-934 FIX (2026-09-24): the FULL inbound map by label. topDegree (top-5) is a
+   *  lossy projection — diffing projections skipped nodes that surfaced into after.topDegree
+   *  from below the before cutoff (the SILENT miss this fix closes). Optional so snapshots
+   *  built by hand/tests without it still typecheck (diff falls back to topDegree). */
+  inboundByLabel?: Record<string, number>;
 }
 
 export interface GraphDiffResult {
@@ -57,6 +62,12 @@ export function captureSnapshot(storePath: string): GraphSnapshot {
 
     const inbound = new Map<string, number>();
     for (const e of edges) inbound.set(e.dst_canonical, (inbound.get(e.dst_canonical) ?? 0) + 1);
+    // ★ F-934 FIX (2026-09-24): materialize the full label→inbound map beside the top-5
+    //   projection (same label resolution as topDegree, so the two can never disagree).
+    const inboundByLabel: Record<string, number> = {};
+    for (const [cid, n] of inbound) {
+      inboundByLabel[nodes.find((nn) => nn.canonical_id === cid)?.label ?? cid] = n;
+    }
     const unwiredCount = nodes.filter((n) => (inbound.get(n.canonical_id) ?? 0) === 0).length;
     const topDegree = [...inbound.entries()]
       .map(([cid, inboundN]) => ({ label: nodes.find((n) => n.canonical_id === cid)?.label ?? cid, inbound: inboundN }))
@@ -118,6 +129,7 @@ export function captureSnapshot(storePath: string): GraphSnapshot {
       unwiredCount,
       topDegree,
       cycleCount: sccs.length,
+      inboundByLabel,
     };
   } finally {
     db.close();
@@ -133,11 +145,21 @@ export function diffGraphs(before: GraphSnapshot, after: GraphSnapshot): GraphDi
   const unwiredDelta = after.unwiredCount - before.unwiredCount;
   const newCycles = Math.max(0, after.cycleCount - before.cycleCount);
 
-  const beforeDeg = new Map(before.topDegree.map((t) => [t.label, t.inbound]));
+  // ★ F-934 FIX (2026-09-24): SILENT miss — beforeDeg covered only before.topDegree, so a
+  //   node absent from the before top-5 (beforeDeg.get → undefined → skip) that surfaced into
+  //   after.topDegree with a very high inbound — the most dramatic jump — went undetected.
+  //   The full inboundByLabel map (when the snapshot carries it) makes the comparison
+  //   complete; legacy snapshots without it fall back to topDegree with before=0 for a new
+  //   entrant (an approximation, honestly recorded — the gate's jump budget still adjudicates
+  //   whether it matters).
+  const beforeFull: Record<string, number> = before.inboundByLabel
+    ?? Object.fromEntries(before.topDegree.map((x) => [x.label, x.inbound]));
+  const afterFull: Record<string, number> = after.inboundByLabel
+    ?? Object.fromEntries(after.topDegree.map((x) => [x.label, x.inbound]));
   const blastRadiusChanges: GraphDiffResult["blastRadiusChanges"] = [];
-  for (const t of after.topDegree) {
-    const b = beforeDeg.get(t.label);
-    if (b !== undefined && t.inbound > b) blastRadiusChanges.push({ label: t.label, before: b, after: t.inbound });
+  for (const [label, a] of Object.entries(afterFull)) {
+    const b = beforeFull[label] ?? 0;
+    if (a > b) blastRadiusChanges.push({ label, before: b, after: a });
   }
 
   const details: string[] = [];
