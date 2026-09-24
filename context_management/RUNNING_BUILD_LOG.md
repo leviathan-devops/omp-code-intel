@@ -641,3 +641,42 @@ defects are fixed. The operator's ruling: all findings are legit; fix until AUDI
 
 **NEXT:** run 6 (the whole-tree audit on the post-R5 tree) + the REAL-DEFERRED fix wave (R6ScopingKernel
 + R6HunterOmp — 16 findings).
+
+---
+
+## 2026-09-24 ~19:30 — THE R7 WAVE CLOSED (5 agents) + F-420 + run 8 launched
+
+**HEAD** `873abf5` (the dist rebuild) → `d88867a` (the docs). **dist** `9e42a7428111e355`.
+
+**★ THE BATTERY: `tsc exit 0` · `bun run test` → 430/0 + 528/0, exit 0.** The deployed bundle ==
+the repo dist.
+
+**THE WAVE:** 5 disjoint agents over `artifacts/w7-run7-slices/*.md` (42 findings across 37 files):
+- **R7High1** — 6 REAL + 3 NOT-A-BUG (calibration rollback loud, read-verb quoted args, `readPath`
+  proto blocklist, lasme double-cast, abide tail cap, gate-middleware header).
+- **R7High2** — 11+ REAL (week null check, corbell metachar guard, async SIGKILL in the exit
+  handler, watch 'error', mpse filterTags, c2kg coercion, gate-state close, truncated flag,
+  scoped-store per-path in-flight map).
+- **R7High3** — 5 REAL (Substrate union narrowed, micro-loop pendingSettle, bug-hunt realpath
+  fail-closed, jev key 0600).
+- **R7High4** — 7 REAL (mechanical ext guard, db readonly cast, branch view rebuild, triad line
+  guard, test-target dedupe, enforcement code derivation).
+- **R7High5** — 7 REAL (merge semantic dedupe, bus-hook continue, map-reader type + nesting
+  guards, scan-chain reader cancel, fire-ledger method cache, ripwire NaN guard).
+
+**★ F-400 (the run-7 CRITICAL):** the sidecar write failure was `console.log` (invisible) and
+seeded a REBUILD LOOP → `console.error` + the consequence named.
+
+**★ F-420 (the best lesson of the wave):** F-341's poison-row quarantine keyed on OBJECT IDENTITY,
+which made an in-place repair invisible — `st-gi-v21-audit-fixes`' F0b-critical ("a row that
+FAILED to commit is retried on the next drain") went RED. **The fix: key the quarantine on the
+row's CONTENT SIGNATURE.** An unrepaired malformed row keeps its signature (still quarantined);
+a repaired row has a NEW signature and is retried. Both invariants hold.
+
+**THE ORCHESTRATOR'S INTEGRATION FIXES:** F-405 (the `ix` guard out of a narrowed switch —
+TS2678), F-359 (the shared `minimalGraphifyProfile`), F-358b (the `ins` hoist), F-342b (the abide
+workspace-ancestor ledger walk).
+
+**★ RUN 8 LAUNCHED** on the frozen tree at `873abf5` (12 workers, muse-go-mimo).
+
+**THE SEVEN-RUN CURVE:** criticals 8→5→3→6→4→4→1 · highs 92→90→80→65→51→65→61.
