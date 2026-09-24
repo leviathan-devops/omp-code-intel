@@ -1599,3 +1599,22 @@ AND THE RUNTIME NEVER CHANGED.
 - **Disposition:** **FIXED this pass** — the manifest's Baseline SHA + Last updated refreshed.
 - **The lesson:** ★ **A STALE SHA IS FICTION WITH A RECEIPT.** The manifest is a gate input; it
   drifts the moment the dist does.
+
+---
+
+### F-121 — A PREFLIGHT REFUSAL IS NEVER RECORDED IN THE LEDGER (2026-09-24)
+
+- **What happened:** driving a decision on a FRESH scope (no layers up), the run returned
+  `class=benign verdict=REFUSE` with `stages: 0:PREFLIGHT=REFUSE` — and the RECORD sink was
+  **NEVER CALLED** (`sink calls=0`). The refusal is not in the ledger.
+- **Found:** W2's first test run (the diversity suite, on a temp scope) — measured, not reasoned.
+- **Root cause:** `runKernelV2` returns at the PREFLIGHT's refusal BEFORE reaching stage 6 (the
+  RECORD). A refused stack produces a verdict the ledger never sees.
+- **Impact:** the ledger is MISSING its refusal class at its most important boundary. A stack that
+  refuses is exactly the event an operator wants recorded.
+- **Disposition:** **OPEN (logged; W2's scope was the ledger's diversity, not the kernel's record
+  path).** The fix: move the `record` sink call BEFORE the preflight's early return, so a refusal
+  lands in the ledger.
+- **The lesson:** ★ **THE RECORD MUST SURVIVE THE REFUSAL.** A verdict — especially a refusal — is
+  the event the ledger exists to capture; an early return that skips the sink loses the most
+  important rows.
