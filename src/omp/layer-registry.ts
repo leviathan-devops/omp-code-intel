@@ -202,7 +202,15 @@ export function createLayerRegistry(): LayerRegistry {
       for (const p of byId.values()) {
         try {
           if (!p.up().up) continue;
-          for (const f of p.facts(subject)) if (isAnchored(f)) out.push(f);
+          // ★ F-354 FIX (2026-09-24): a null/non-object fact used to throw inside
+          //   isAnchored, and the catch dropped the consumer's ENTIRE contribution —
+          //   auditOne already filtered before isAnchored, factsFor did not. Same
+          //   filter here: only the bad fact is discarded, never the whole consumer.
+          const got: unknown = p.facts(subject);
+          if (!Array.isArray(got)) continue;
+          for (const f of got) {
+            if (f !== null && typeof f === "object" && isAnchored(f as LayerFact)) out.push(f as LayerFact);
+          }
         } catch {
           // a throwing consumer contributes nothing to the decision — it is
           // reported DOWN by audit(), never smuggled in as an empty answer.

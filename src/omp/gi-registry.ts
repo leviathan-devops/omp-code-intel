@@ -18,6 +18,10 @@ export const GI_REGISTRY_SCHEMA = [
     store_path TEXT NOT NULL,
     opened_at TEXT NOT NULL
   )`,
+  // ★ F-344 FIX (2026-09-24): findGiSessionByStorePath filters on store_path (called
+  //   twice per openSessionStore) but only session_id was indexed — every lookup was
+  //   a full table scan. CREATE IF NOT EXISTS keeps this idempotent for live DBs.
+  `CREATE INDEX IF NOT EXISTS idx_gi_sessions_store_path ON gi_sessions(store_path)`,
 ];
 
 const resolveRegistryPath = makeDbPath({

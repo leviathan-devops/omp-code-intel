@@ -1107,10 +1107,13 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   const reportPath = path.join(ledgerDir, "findings", "report.md");
   try {
     const st = fs.statSync(reportPath);
-    // H21 (qwen 33d64eca): the freshness slack is FILESYSTEM-GRANULARITY only
-    // (100ms) — the old +2000ms accepted a report written up to 2s BEFORE the
-    // run started as "produced by this hunt".
-    const REPORT_MTIME_SLACK_MS = 100;
+    // ★ F-350 FIX (2026-09-24): 100ms slack is tighter than 1s-resolution filesystems
+    //   (ext4 without metadata_csum, NTFS) — a legitimately fresh report's truncated
+    //   mtime reads up to ~1s BEFORE the write, so fresh reports were rejected as
+    //   HUNTER_STALE_REPORT. 1500ms covers the granularity. The H21 class (a pre-run
+    //   report accepted as fresh) stays closed: writeFindings' parsed bytes>0 above
+    //   already proves THIS run wrote the file, so the mtime gate is granularity-only.
+    const REPORT_MTIME_SLACK_MS = 1500;
     if (!(st.mtimeMs + REPORT_MTIME_SLACK_MS >= t0)) {
       return { layerId, status: "rejected", error: `HUNTER_STALE_REPORT: report.md mtime ${st.mtimeMs} < run start ${t0} — not produced by this hunt`, ledgerDir, durationMs: Date.now() - t0 };
     }

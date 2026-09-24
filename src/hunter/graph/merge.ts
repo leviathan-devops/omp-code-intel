@@ -147,10 +147,17 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
       // CONFLICT: same subject/object pair but different predicate — both kept + flagged (L8 contradiction class, never silently resolved)
       for (const mech of mechPairGroup) {
         // ★ F-3 FIX (2026-09-24): O(1) retro-flag via the emitted-row index.
+        // ★ F-345 FIX (2026-09-24): conflictReason ACCUMULATES — S2's iteration used to
+        //   overwrite S1's reason on the same mechanical row (only the last semantic
+        //   predicate survived). First contradiction sets the base; later ones append,
+        //   deduped so re-scans never grow the string.
         const existing = mergedByKey.get(tripleKey(mech));
         if (existing && !existing.conflict) {
           existing.conflict = true;
           existing.conflictReason = `CONTRADICTION: mechanical predicate=${mech.predicate} vs semantic predicate=${s.predicate} for ${s.subject}->${s.object} (both preserved, flagged as L8 contradiction)`;
+        } else if (existing?.conflict) {
+          const add = `; ALSO vs semantic predicate=${s.predicate} for ${s.subject}->${s.object}`;
+          if (existing.conflictReason !== null && !existing.conflictReason.includes(add)) existing.conflictReason = `${existing.conflictReason}${add}`;
         }
       }
       merged.push({

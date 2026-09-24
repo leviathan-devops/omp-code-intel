@@ -97,7 +97,12 @@ export function classifyEdit(toolName: string, args: { file?: string; path?: str
   const base = baseName(lowered);
   const isTest = TEST_HINTS.some((h) => base.includes(h) || lowered.includes(`/${h}/`));
   const body = `${args.oldString ?? ""}\n${args.newString ?? ""}\n${args.content ?? ""}`;
-  const oldSyms = extractExportSymbols(args.oldString ?? args.content ?? "");
+  // ★ F-352 FIX (2026-09-24): oldString and newString fell back to the FULL file
+  //   `content` — when only one side was given, that side parsed the whole file and
+  //   every unrelated export inflated touchedSymbols (false HIGH / false coverage).
+  //   oldString with no fallback is the honest unknown (empty); newString keeps the
+  //   content fallback (a whole-file write's symbols ARE the new symbols).
+  const oldSyms = extractExportSymbols(args.oldString ?? "");
   const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
   const structural = oldSyms.length > 0 || newSyms.length > 0
     || /\bimport\s+.*\bfrom\b/.test(body)
@@ -314,12 +319,32 @@ export function loadGateState(storePath: string, sessionId: string): GraphGateSe
       drift: number; state: GateStateName; edits_json: string; queries_json: string;
     } | null;
     if (!row) return null;
-    return {
-      editLog: JSON.parse(row.edits_json) as GateEditRecord[],
-      graphQueries: JSON.parse(row.queries_json) as GateQueryRecord[],
-      gateState: row.state,
-      drift: row.drift,
-    };
+    // ★ F-353 FIX (2026-09-24): the two JSON.parse results were cast, never validated —
+    //   a tampered/corrupt row with severity "CRITICAL" missed every SEV_WEIGHT key and
+    //   poisoned drift to NaN (silent gate death), and a non-boolean `resolved` could
+    //   ride the rows>0 path. Every record is shape-checked; anything off-shape fails
+    //   CLOSED (null, same as the corrupt-row path below) instead of a NaN gate.
+    const SEVS: ReadonlySet<string> = new Set(["NONE", "LOW", "MEDIUM", "HIGH"]);
+    const STATES: ReadonlySet<string> = new Set(["IDLE", "TRACKING", "WARNING", "GATE_ON", "HARD_STOP"]);
+    const rawEdits: unknown = JSON.parse(row.edits_json);
+    const rawQueries: unknown = JSON.parse(row.queries_json);
+    if (!Array.isArray(rawEdits) || !Array.isArray(rawQueries)) throw new Error("GI_GATE_STATE_SHAPE: editLog/queries not arrays");
+    const editLog: GateEditRecord[] = rawEdits.map((e) => {
+      const r = e as { timestamp?: unknown; severity?: unknown; symbols?: unknown };
+      if (typeof r.timestamp !== "number" || !Number.isFinite(r.timestamp)) throw new Error("GI_GATE_STATE_SHAPE: bad edit.timestamp");
+      if (typeof r.severity !== "string" || !SEVS.has(r.severity)) throw new Error(`GI_GATE_STATE_SHAPE: bad edit.severity=${JSON.stringify(r.severity)}`);
+      if (!Array.isArray(r.symbols) || !r.symbols.every((s) => typeof s === "string")) throw new Error("GI_GATE_STATE_SHAPE: bad edit.symbols");
+      return { timestamp: r.timestamp, severity: r.severity as GateEditRecord["severity"], symbols: r.symbols as string[] };
+    });
+    const graphQueries: GateQueryRecord[] = rawQueries.map((q) => {
+      const r = q as { timestamp?: unknown; tool?: unknown; target?: unknown; resolved?: unknown };
+      if (typeof r.timestamp !== "number" || !Number.isFinite(r.timestamp)) throw new Error("GI_GATE_STATE_SHAPE: bad query.timestamp");
+      if (typeof r.tool !== "string" || typeof r.target !== "string") throw new Error("GI_GATE_STATE_SHAPE: bad query.tool/target");
+      return { timestamp: r.timestamp, tool: r.tool, target: r.target, resolved: r.resolved === true };
+    });
+    if (typeof row.drift !== "number" || !Number.isFinite(row.drift)) throw new Error("GI_GATE_STATE_SHAPE: bad drift");
+    if (!STATES.has(row.state)) throw new Error(`GI_GATE_STATE_SHAPE: bad gateState=${JSON.stringify(row.state)}`);
+    return { editLog, graphQueries, gateState: row.state, drift: row.drift };
   } catch (e) {
     // ★ F-GG-LOAD FIX (2026-09-24): the gate silently swallowed corruption/permission errors and reset drift from scratch; log the failure so stale state is diagnosable.
     console.error(`GI_GATE_STATE_LOAD_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);

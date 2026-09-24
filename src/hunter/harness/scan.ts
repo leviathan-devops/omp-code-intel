@@ -109,7 +109,14 @@ export async function scan(
         }
       }
     } catch (calErr: unknown) {
-      console.warn(`[scan] D17 calibration gate failed (non-fatal, battery unchanged): ${calErr instanceof Error ? calErr.message : String(calErr)}`);
+      // ★ F-347 FIX (2026-09-24): the old catch swallowed EVERY calibration fault — a
+      //   corrupted fixture, a logic error in runCalibration, a runtime fault above —
+      //   then ran the hunt on an UNVALIDATED battery (fail-open). A calibration fault
+      //   is now a LOUD named error: the scan refuses instead of reporting on a
+      //   battery it never validated.
+      const msg = calErr instanceof Error ? calErr.message : String(calErr);
+      console.warn(`[scan] D17 calibration gate failed: ${msg}`);
+      throw new Error(`SCAN_CALIBRATION_FAILED: the D17 gate faulted (${msg.slice(0, 200)}) — the battery is unvalidated, refusing the run`);
     }
 
     // SWEEP-BLIND REFUSAL (zero-trust 2026-08-24): if the semantic layer could

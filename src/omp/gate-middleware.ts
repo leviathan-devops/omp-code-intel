@@ -25,28 +25,39 @@ function eachDestructuredName(list: string, cb: (name: string) => void): void {
 const EXPORT_BRACES_RE = /export\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]*['"])?/g;
 const EXPORT_DEFAULT_RE = /export\s+default\b/g;
 
-export function parseExports(src: string): string[] {
-  const out = new Set<string>();
+// ★ F-351 FIX (2026-09-24): parseExports + parseExportSites shared ONE iterator —
+//   the five-regex export semantics (incl. the F-41 generator/destructured forms)
+//   lived in two copies, so a fix in one silently diverged the other. Both public
+//   fns below delegate to this helper; the semantics live here exactly once.
+function eachExportName(src: string, cb: (name: string, index: number) => void): void {
   let m: RegExpExecArray | null;
   EXPORT_PARSE_RE.lastIndex = 0;
-  while ((m = EXPORT_PARSE_RE.exec(src))) out.add(m[1]);
+  while ((m = EXPORT_PARSE_RE.exec(src))) cb(m[1], m.index);
   EXPORT_GEN_RE.lastIndex = 0;
-  while ((m = EXPORT_GEN_RE.exec(src))) out.add(m[1]);
+  while ((m = EXPORT_GEN_RE.exec(src))) cb(m[1], m.index);
   EXPORT_DESTRUCT_RE.lastIndex = 0;
-  while ((m = EXPORT_DESTRUCT_RE.exec(src))) eachDestructuredName(m[1].slice(1, -1), (n) => out.add(n));
+  while ((m = EXPORT_DESTRUCT_RE.exec(src))) {
+    const idx = m.index;
+    eachDestructuredName(m[1].slice(1, -1), (n) => cb(n, idx));
+  }
   EXPORT_BRACES_RE.lastIndex = 0;
   while ((m = EXPORT_BRACES_RE.exec(src))) {
+    const idx = m.index;
     for (const spec of m[1].split(",")) {
       const s = spec.trim();
       if (!s) continue;
       const asMatch = /\bas\s+(\w+)\s*$/.exec(s);
-      if (asMatch) { out.add(asMatch[1]); continue; }
+      if (asMatch) { cb(asMatch[1], idx); continue; }
       const plain = /^(\w+)$/.exec(s);
-      if (plain) out.add(plain[1]);
+      if (plain) cb(plain[1], idx);
     }
   }
   EXPORT_DEFAULT_RE.lastIndex = 0;
-  while ((m = EXPORT_DEFAULT_RE.exec(src))) out.add("default");
+  while ((m = EXPORT_DEFAULT_RE.exec(src))) cb("default", m.index);
+}
+export function parseExports(src: string): string[] {
+  const out = new Set<string>();
+  eachExportName(src, (n) => out.add(n));
   return [...out];
 }
 
@@ -146,28 +157,6 @@ export function parseExportSites(src: string): ExportSite[] {
   const put = (name: string, off: number): void => {
     if (!out.has(name)) out.set(name, lineOf(off));
   };
-  let m: RegExpExecArray | null;
-  EXPORT_PARSE_RE.lastIndex = 0;
-  while ((m = EXPORT_PARSE_RE.exec(src))) put(m[1], m.index);
-  EXPORT_GEN_RE.lastIndex = 0;
-  while ((m = EXPORT_GEN_RE.exec(src))) put(m[1], m.index);
-  EXPORT_DESTRUCT_RE.lastIndex = 0;
-  while ((m = EXPORT_DESTRUCT_RE.exec(src))) {
-    const idx = m.index;
-    eachDestructuredName(m[1].slice(1, -1), (n) => put(n, idx));
-  }
-  EXPORT_BRACES_RE.lastIndex = 0;
-  while ((m = EXPORT_BRACES_RE.exec(src))) {
-    for (const spec of m[1].split(",")) {
-      const s = spec.trim();
-      if (!s) continue;
-      const asMatch = /\bas\s+(\w+)\s*$/.exec(s);
-      if (asMatch) { put(asMatch[1], m.index); continue; }
-      const plain = /^(\w+)$/.exec(s);
-      if (plain) put(plain[1], m.index);
-    }
-  }
-  EXPORT_DEFAULT_RE.lastIndex = 0;
-  while ((m = EXPORT_DEFAULT_RE.exec(src))) put("default", m.index);
+  eachExportName(src, (n, off) => put(n, off));
   return [...out.entries()].map(([name, line]) => ({ name, line }));
 }

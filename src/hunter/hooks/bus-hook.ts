@@ -56,6 +56,13 @@ export class HydraBus {
   //   same cursor and double-deliver. A reentrant poll is a no-op with a loud log.
   private polling = false;
   private readonly subscribers: BusSubscriber[] = [];
+  // ★ F-348 FIX (2026-09-24): poison-row signatures already logged (intake halts at a
+  //   non-numeric id; repeats stay silent so the log is not spammed every poll).
+  private readonly poisonLogged = new Set<string>();
+  // ★ F-349 FIX (2026-09-24): subscriber failures are RECORDED, never just logged — the
+  //   row stays consumed (the cursor advances, at-most-once delivery is kept) but the
+  //   failure is inspectable and replayable via getFailedEvents/retryFailed.
+  private readonly failedEvents: Array<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number }> = [];
 
   subscribe(fn: BusSubscriber): void {
     this.subscribers.push(fn);
@@ -77,10 +84,23 @@ export class HydraBus {
     //   skipped LOUDLY with the cursor advanced past them; the bus can never stall here.
     const clean: EventRow[] = [];
     for (const row of rows) {
+      // ★ F-348 FIX (2026-09-24): a non-numeric id used to `continue` WITHOUT advancing
+      //   the cursor, so `WHERE id > ?` re-selected the poison row on EVERY poll (a
+      //   permanent stall — SQLite orders TEXT ids above every INTEGER cursor). A poison
+      //   row now HALTS this poll's intake (the cursor already covers every clean row
+      //   before it) and is logged ONCE per shape.
       if (typeof row.id !== 'number' || typeof row.kind !== 'string') {
-        console.error(`[hydra-bus] skipping malformed events row: ${JSON.stringify(row).slice(0, 160)}`);
-        if (typeof row.id === 'number') this.cursor = row.id;
-        continue;
+        if (typeof row.id === 'number') {
+          console.error(`[hydra-bus] skipping malformed events row: ${JSON.stringify(row).slice(0, 160)}`);
+          this.cursor = row.id;
+          continue;
+        }
+        const sig = JSON.stringify(row).slice(0, 160);
+        if (!this.poisonLogged.has(sig)) {
+          this.poisonLogged.add(sig);
+          console.error(`[hydra-bus] POISON events row (non-numeric id, intake halted past cursor ${this.cursor}): ${sig}`);
+        }
+        break;
       }
       clean.push(row);
     }
@@ -101,10 +121,12 @@ export class HydraBus {
           try {
             fn(eventKind(row.kind), payload);
           } catch (e: unknown) {
-            // a subscriber failure must not kill the poll loop — the row is
-            // still consumed (the cursor advances), the failure is logged by
-            // the platform's error handler.
+            // ★ F-349 FIX (2026-09-24): a subscriber failure must not kill the poll loop —
+            //   the row is still consumed (the cursor advances below), but the failure is
+            //   RECORDED (not just logged) so a transient fault never silently loses a
+            //   dispatch directive (e.g. HUNT_DONE → main-agent dispatch).
             console.error(`[hydra-bus] subscriber for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
+            this.failedEvents.push({ row, payload, error: e, attempt: 1 });
           }
         }
       }
@@ -119,6 +141,27 @@ export class HydraBus {
   /** The cursor — the audit + the test surface. */
   getCursor(): number {
     return this.cursor;
+  }
+  /** ★ F-349 FIX (2026-09-24): the dead-letter surface — every recorded subscriber
+   *  failure, oldest first. A non-empty list means a directive was consumed but NOT
+   *  delivered. */
+  getFailedEvents(): ReadonlyArray<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number }> {
+    return this.failedEvents;
+  }
+  /** ★ F-349 FIX (2026-09-24): replay every recorded failure through the CURRENT
+   *  subscribers. A replay that still throws stays queued with attempt + 1; a replay
+   *  that lands is dropped. Returns the count still failing. */
+  retryFailed(): number {
+    const pending = this.failedEvents.splice(0, this.failedEvents.length);
+    for (const f of pending) {
+      try {
+        for (const fn of this.subscribers) fn(eventKind(f.row.kind), f.payload);
+      } catch (e: unknown) {
+        console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) threw: ${e instanceof Error ? e.message : String(e)}`);
+        this.failedEvents.push({ ...f, error: e, attempt: f.attempt + 1 });
+      }
+    }
+    return this.failedEvents.length;
   }
   /** ★ F-45 FIX (2026-09-24): the cursor reset to 0 on restart and replayed history
    *  (duplicate dispatches). The platform wiring owns persistence — call this with

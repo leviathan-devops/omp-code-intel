@@ -57,7 +57,18 @@ export function makeDbPath(spec: DbPathSpec): () => string {
     }
     let dir = spec.defaultDir;
     if (dir.startsWith('~/')) {
-      dir = path.join(process.env.HOME ?? process.env.USERPROFILE ?? '.', dir.slice(2));
+      // ★ F-355 FIX (2026-09-24): the '.' fallback silently resolved the production DB
+      //   relative to an unpredictable cwd when neither HOME nor USERPROFILE is set
+      //   (containers/CI) — the exact silent-pollution class this module exists to
+      //   prevent. Fail CLOSED with the named error, matching GI_TEST_ISOLATION_BROKEN.
+      const home = process.env.HOME ?? process.env.USERPROFILE;
+      if (!home) {
+        throw new Error(
+          `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
+          `(fileName="${spec.fileName}") — cannot resolve defaultDir`,
+        );
+      }
+      dir = path.join(home, dir.slice(2));
     }
     return path.join(dir, spec.fileName);
   };

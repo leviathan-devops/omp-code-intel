@@ -40,6 +40,11 @@ function isStale(payload: HuntLockPayload): boolean {
   const age = Date.now() - Date.parse(payload.acquiredAt);
   if (Number.isNaN(age)) return true;
   if (age > STALE_LOCK_TTL_MS) return true;
+  // ★ F-342 FIX (2026-09-24): cross-host PID blindness — process.kill(pid, 0) only
+  //   proves liveness in THIS host's PID namespace. A lock from another host sharing
+  //   the filesystem with a colliding PID would read "alive" here. A foreign-host
+  //   lock is freed by the TTL alone — never by a local PID verdict (fail-closed).
+  if (typeof payload.hostname === 'string' && payload.hostname !== os.hostname()) return false;
   if (!isPidAlive(payload.pid)) return true;
   return false;
 }
@@ -93,7 +98,10 @@ export function acquireHuntLock(targetPath: string): HuntLockPayload {
       //   instead of racing the winner through wx).
       const reread = readPayload(lockPath);
       if (existing) {
-        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt) {
+        // ★ F-342 FIX (2026-09-24): the race re-read must compare the FULL ownership
+        //   triple — a cross-host lock with colliding pid+stamp but a different
+        //   hostname is a DIFFERENT owner; unlinking it would delete a live peer's lock.
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt || reread.hostname !== existing.hostname) {
           throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
         }
       } else if (reread) {
@@ -144,6 +152,13 @@ export function releaseHuntLock(targetPath: string): void {
       return;
     }
     if (existing.pid !== process.pid) return;
+    // ★ F-342 FIX (2026-09-24): never release a FOREIGN-HOST lock — the PID check
+    //   above is namespace-local, so a colliding PID on this host must not unlink
+    //   another host's lock. Fail closed: keep it, name the holder.
+    if (typeof existing.hostname === 'string' && existing.hostname !== os.hostname()) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: held by host ${existing.hostname} (this host ${os.hostname()} — a colliding PID must not unlink a foreign lock)`);
+      return;
+    }
     fs.unlinkSync(lockPath);
   } catch (e: unknown) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
