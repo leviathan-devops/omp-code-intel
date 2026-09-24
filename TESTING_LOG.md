@@ -2442,3 +2442,11 @@ code — the non-determinism is measured, not assumed. 3 of run 5's 4 criticals 
 F-210 (abide Math.max→Math.min, REAL fixed), F-211 (the dead duplicate registerGraphGate stub,
 REAL removed), graph-facts WHERE (NOT-A-BUG — the code is correct). The remaining blocking set
 (63 high) is dispatched to 5 agents.
+
+## ★ THE OPERATOR'S RULING (2026-09-24) — THE NON-DETERMINISM FRAMING IS STRUCK
+
+**"If your code is perfect the llm will say so."** The prior "the reviewer is non-deterministic,
+so 0/0 is unreachable" framing is WRONG and is STRUCK. Every finding is LEGIT. The high count
+fell 92→90→80→65→51 across five runs precisely because the reviewer CONVERGES as real defects
+get fixed. The remedy is not to explain the instrument — it is to FIX EVERY FINDING until
+`AUDIT GATE: PASS (0 critical / 0 high)`. No exits, no hedges, no "blocked on the reviewer".

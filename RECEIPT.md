@@ -73,3 +73,11 @@ earlier runs → a ~5 h projection). The pressure is not this session's to touch
 (`package.json` has only typescript + @types/bun). The DETERMINISTIC whole-tree gates that DO exist
 — `bunx tsc --noEmit` (type-checks all 112 files) and `bun run test` (528 tests) — are BOTH GREEN.
 The LLM semantic reviewer has no deterministic equivalent installed.
+
+## ★ THE OPERATOR'S RULING (2026-09-24) — THE NON-DETERMINISM FRAMING IS STRUCK
+
+**"If your code is perfect the llm will say so."** The prior "the reviewer is non-deterministic,
+so 0/0 is unreachable" framing is WRONG and is STRUCK. Every finding is LEGIT. The high count
+fell 92→90→80→65→51 across five runs precisely because the reviewer CONVERGES as real defects
+get fixed. The remedy is not to explain the instrument — it is to FIX EVERY FINDING until
+`AUDIT GATE: PASS (0 critical / 0 high)`. No exits, no hedges, no "blocked on the reviewer".
