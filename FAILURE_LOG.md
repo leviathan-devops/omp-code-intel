@@ -1517,3 +1517,85 @@ AND THE RUNTIME NEVER CHANGED.
 - **The lesson:** ★ **A REGISTER THAT ASKS 8 DIFFERENT DOMAINS ONE QUESTION MEASURES THE
   QUESTION, NOT THE WIRING.** Before calling a layer broken, ask it something IN ITS DOMAIN —
   and if the answer comes, the layer was never broken; the INSTRUMENT was.
+
+---
+
+### F-115 — THE LYING GATE: `goal-verify` PRINTS A PASS ITS OWN NEXT LINE CONTRADICTS (2026-09-24)
+
+- **What happened:** `bun scripts/goal-verify.ts . evidence` prints, on ADJACENT lines:
+  `[goal-verify]   C1 PASS  the register reads consumed:8 (not up=11/11)` and
+  `[goal-verify]   C1 detail: ... for 'evidence' the register reads consumed:7/8`.
+- **Found:** the independent zero-trust auditor (`ZeroTrustAuditor`, 3m18s, zero build context),
+  fraud F2. **I had shipped it.**
+- **Root cause:** C1 was REDEFINED (goal-verify.ts:36-68) to a per-domain union across 4 subjects,
+  but the PASS TEXT still names the OLD condition (`consumed:8`). A predicate whose PASS line
+  contradicts its own detail line is a LYING GATE — it prints what the operator wants to read.
+- **Impact:** the goal's headline condition was reported as MET while the line beneath it said
+  otherwise. Any operator reading only the PASS line is misled.
+- **Disposition:** **OPEN — the target of W1 of PIN_GI_CLEANUP.md.** The fix: C1's text reports
+  the honest state at face value with NO self-contradicting line.
+- **The lesson:** ★ **A GATE'S TEXT IS PART OF THE GATE.** A PASS that another line contradicts is
+  worse than a FAIL — it is a fabrication with a receipt.
+
+### F-116 — THE HOLLOW LEDGER: 34 ROWS, ONE DECISION (2026-09-24)
+
+- **What happened:** the goal predicate's C4 reports PASS ("the host-live seat operated the kernel
+  with a non-empty bug ledger"). The ledger's diversity:
+  `SELECT COUNT(*), COUNT(DISTINCT rule_id), COUNT(DISTINCT band), COUNT(DISTINCT action),
+  COUNT(DISTINCT probability) FROM fire_decisions` → **`34 | 1 | 1 | 1 | 1`**.
+- **Found:** the zero-trust auditor, fraud F4 — **the fraud I did NOT catch.**
+- **Root cause:** every recorded decision came from the SAME probe (`decideFromRegistry` with
+  `queriedBefore: false` — always the dumb fallback). The theatrical detector, the destructive
+  detector, and the ALLOW verdict have NEVER FIRED into the ledger.
+- **Impact:** the kernel's detectors are UNTESTED IN RUNTIME. "Non-empty" proved a write path,
+  never a decision diversity. The claim "the kernel operates" rested on one repeated test decision.
+- **Disposition:** **OPEN — W2 of PIN_GI_CLEANUP.md.** Drive >=4 varied acts (theatrical,
+  destructive, grounded, dumb) so the ledger holds >=4 DISTINCT (rule_id, band, action) tuples.
+- **The lesson:** ★ **COUNT(*) >= 1 PROVES A WRITE PATH; COUNT(DISTINCT …) >= 4 PROVES OPERATION.**
+
+### F-117 — THE AUDIT COVERS 2.7% OF THE TREE (2026-09-24)
+
+- **What happened:** `AUDIT GATE: PASS (0 critical/high)` was claimed. The audit scanned **3 of 112
+  source files** (decision.ts, kev.ts, kev-decide.ts).
+- **Found:** the zero-trust audit's scope check.
+- **Root cause:** the multi-file scan hit `context deadline exceeded` (the lane's 15-min ceiling);
+  the single-file shape worked, so only the changed files were scanned. The PASS was recorded as if
+  it covered the tree.
+- **Impact:** 109 files carry findings from EARLIER runs against EARLIER dists.
+- **Disposition:** **OPEN — W3 of PIN_GI_CLEANUP.md.** A whole-tree audit on the FINAL dist.
+- **The lesson:** ★ **A PASS NAMES ITS SCOPE.** "0 critical/high" without the file count is a claim
+  about an unknown surface.
+
+### F-118 — THE 10 OPEN FINDINGS (2026-09-24)
+
+- **What happened:** the last audit left `{medium: 6, low: 4}` open — adjudicated (5 FIXED, 5
+  DECLINED-WITH-REASONS) but OPEN.
+- **Found:** the audit artifact's own counts.
+- **Root cause:** the declined findings were recorded with reasons but never closed.
+- **Impact:** `0 critical/high != 0 issues`. The "0 issues" question is answered NO by this ledger.
+- **Disposition:** **OPEN — W3 of PIN_GI_CLEANUP.md.** Each fixed with a pin or proven NOT-A-BUG.
+- **The lesson:** ★ **A DECLINED FINDING IS OPEN UNTIL IT CARRIES ITS MEASURABLE PROOF.**
+
+### F-119 — THE CONTAINER READS 6/8, NOT 8/8 (2026-09-24)
+
+- **What happened:** any "the container is at 8/8" reading is false. `wave_W4.observed:
+  consumed:6/8` — `L2_ARSUMBRIS` is a DAEMON (a socket, untarrable), `ABIDE`'s substrate is ABSENT
+  ON THE HOST.
+- **Found:** the container-coverage front (F-110) + the auditor's F3.
+- **Root cause:** two substrates are structurally unreachable from a payload tar.
+- **Impact:** the container's ceiling is 6/8; the honest number must be printed, never 8/8.
+- **Disposition:** **OPEN — W4 of PIN_GI_CLEANUP.md.** Attempt both; what cannot start is BLOCKED
+  with its retry condition (never faked).
+- **The lesson:** ★ **A GATE THAT NAMES 8/8 WITHOUT MEASURING THE CEILING SETS AN IMPOSSIBLE BAR.**
+
+### F-120 — THE MANIFEST'S BASELINE SHA DRIFTED (2026-09-24)
+
+- **What happened:** `SHIP_DOCS_MANIFEST.md` reads `Baseline SHA: d4872b4814fc07c5…` while the
+  true dist is `e13d0f5939e3707b…` — a **SHA DRIFT**.
+- **Found:** STEP 2 of this ship-docs pass (the ground truth vs the manifest).
+- **Root cause:** the manifest was last updated at 2026-09-23T11:55Z; the dist has been rebuilt
+  several times since (the TOCTOU fix, the symmetric guard, the per-domain predicate).
+- **Impact:** a fresh session reading the manifest would verify against a dist that no longer exists.
+- **Disposition:** **FIXED this pass** — the manifest's Baseline SHA + Last updated refreshed.
+- **The lesson:** ★ **A STALE SHA IS FICTION WITH A RECEIPT.** The manifest is a gate input; it
+  drifts the moment the dist does.

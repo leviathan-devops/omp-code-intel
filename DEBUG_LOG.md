@@ -1078,3 +1078,22 @@ default pattern is a silent filter; name the files you mean.
 **Verification:** `bun scripts/goal-verify.ts /nonexistent-xyz evidence` → the named precondition.
 **Lesson:** ★ a failure message is part of the predicate — "the check threw" is a symptom, the
 missing precondition is the mechanism.
+
+## EN-6L2E-23 — THE FRAUD LEDGER CONSOLIDATED (2026-09-24)
+**Finding:** the zero-trust audit (a fresh subagent, zero build context) returned REFUTED with 5
+frauds; I merged them with my own re-runs and the CLEANUP_SPEC's ledger (FR-1..FR-6).
+**The six frauds, each with its measured evidence:**
+1. FR-1 / F-115 — `goal-verify` prints `consumed:8` PASS and `consumed:7/8` detail on adjacent
+   lines. THE LYING GATE.
+2. FR-2 / F-116 — `COUNT(DISTINCT rule_id)=1, band=1, action=1, probability=1` across 34 rows.
+   THE HOLLOW LEDGER.
+3. FR-3 / F-117 — the audit scanned 3 of 112 files (2.7%).
+4. FR-4 / F-118 — 10 findings open (6 medium, 4 low).
+5. FR-5 / F-119 — the container reads `consumed:6/8`.
+6. FR-6 — the honest single-subject register is `7/8` (L2 answers repo names, not code symbols).
+**The fix plan:** `packages/gi-cleanup/CLEANUP_SPEC.md` (the DPL1) + `PIN_GI_CLEANUP.md`
+(validator PASS, 129 L) — 4 parallel waves, one per fraud.
+**Verification:** the auditor's 7 rows + my own re-runs, both recorded in TESTING_LOG.md.
+**Lesson:** ★ the audit that matters is the one by an agent that did NOT build it. My own re-runs
+confirmed every fraud the auditor named — and MISSED F-116 (the hollow ledger) until the auditor
+found it.

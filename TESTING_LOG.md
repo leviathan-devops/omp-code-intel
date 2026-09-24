@@ -2234,3 +2234,29 @@ the dist 82bad22c3687d21e
       1 action, 1 probability). The kernel has only ever recorded the dumb fallback.
     the audit's scope - 3 of 112 source files (2.7% of the tree)
 ```
+
+## TEST PLAN ENTRY — 2026-09-24 — THE CLEANUP WAVES (PIN_GI_CLEANUP.md)
+
+### SCRIPT (the plan — written BEFORE the run)
+- **What:** the 6 frauds (F-115..F-120) fixed, each with its pinned proof.
+- **How:** the 4 waves — W1 the honest register · W2 the diverse ledger · W3 the whole-tree audit ·
+  W4 the container ceiling.
+- **PASS criteria (the tokens, bound to tool results):**
+  W1 `test_goal_predicate_honest_text` green AND the stdout has NO line that contradicts another ·
+  W2 `test_ledger_diversity_four_verdicts` green AND `SELECT COUNT(DISTINCT rule_id||band||action)
+  FROM fire_decisions` >= 4 ·
+  W3 `test_audit_whole_tree_coverage` green AND `AUDIT GATE: PASS` on the whole tree ·
+  W4 the rig's register >= 7/8 OR the named BLOCKED in `phaseE-kev.json`.
+- **FAIL criteria:** a PASS line the next line contradicts · `COUNT(DISTINCT …) < 4` · an audit
+  scope < the tree · a faked container 8/8.
+- **Status:** PENDING
+
+## TEST RESULT — 2026-09-24 — THE ZERO-TRUST AUDIT (the REFUTED verdict)
+
+### SCRIPT
+- **WHAT RAN:** the 7 checks, by the build agent (contaminated) AND by `ZeroTrustAuditor` (a fresh
+  subagent, 3m18s, zero build context).
+- **THE INDEPENDENT VERDICT: REFUTED (5 frauds).**
+- **The verdict line this pass carries:** `AUDIT GATE: PASS (0 critical/high) on the 3 CHANGED
+  files` — ★ quoted with its SCOPE (F-117: the whole-tree audit is OPEN, W3).
+- **The artifacts:** the auditor's 7 rows · the CLEANUP_SPEC's FR ledger · `reports/GI_6L2E_Kernel_Engineering_Report_v1.md`.

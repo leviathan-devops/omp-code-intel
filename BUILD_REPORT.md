@@ -770,3 +770,24 @@ declined with reasons), the 9 canonical classes:**
 **The honest notes:** 5 audit findings stand as DECLINED-WITH-REASONS (each documented in
 `artifacts/AUDIT_GATE_F98.md`); the container's KEV rig consumes TSG only (`consumed:1/8` there —
 its other 7 substrates are host-side); KEV's out-of-domain accuracy is the 0.6B model's (~0.60).
+
+---
+
+## 2026-09-24 — ★ THE CLEANUP PACKAGE (the fraud ledger + the pin)
+
+**The built:** `packages/gi-cleanup/CLEANUP_SPEC.md` (the DPL1 — the binding authority, 133 L) +
+`packages/gi-cleanup/WAVE-PLAN.md` (`WAVES: 4`) + `PIN_GI_CLEANUP.md` (the goal pin, 129 L,
+validator PASS, 7/7 slots, all 6 G-gates).
+**The why:** the operator's order — *"WRITE THE FUCKING CLEANUP SPEC TO DISK W/ FULL EVIDENCE OF
+ALL FRAUDS AND TRASH AND MINT A FUCKING GOAL PROMPT TO PIN TO CLEAN THIS THE FUCK UP ... MAKE SURE
+ALL FUCKING TESTING SUITES ARE PROPERLY WRITTEN"* — after the zero-trust audit returned REFUTED.
+**The how:** the independent auditor's 5 frauds + my own re-runs + the session's F-entries merged
+into ONE fraud ledger (§2: FR-1..FR-6), each with its measured evidence; a trash ledger (§3: 6
+items); a testing-suite contract (§4: 6 rules); a 4-wave plan (§5); an exit battery (§6).
+**The evidence:** the dist `sha256 e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663` · the auditor's 7 rows + the REFUTED verdict · the
+manifest's SHA-drift (F-120) fixed this pass.
+**The verification:** `python3 …/validate-goal-prompt.py PIN_GI_CLEANUP.md` → `PASS (129 lines,
+7/7 slots, no placeholders)` [EXIT=0].
+**The honest notes:** ★ the frauds are NOT yet fixed — the pin is the fix plan, not the fix. The 6
+frauds (F-115..F-120) are OPEN, each mapped to a wave. The CLEANUP_SPEC is the binding authority
+for that run.
