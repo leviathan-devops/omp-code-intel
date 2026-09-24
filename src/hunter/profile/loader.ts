@@ -503,9 +503,16 @@ export function loadProfile(profilePath: string): ProjectProfile {
     throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
   }
 
+  // ★ F-18 FIX (2026-09-24): CONTAINMENT. `path.resolve(resolvedRoot, entry)` let an entry
+  //   like `../../etc/passwd` resolve OUTSIDE the project root (a path-traversal oracle).
+  //   Resolve + require the result stay under resolvedRoot.
+  const contained = (entry: string): boolean => {
+    const abs = path.resolve(resolvedRoot, entry);
+    return abs === resolvedRoot || abs.startsWith(resolvedRoot + path.sep);
+  };
   // (f) every rules.corpus path EXISTS (resolved against the project root), else CORPUS_MISSING {path}
   for (const entry of profile.rules.corpus) {
-    if (!fs.existsSync(path.resolve(resolvedRoot, entry))) {
+    if (!contained(entry) || !fs.existsSync(path.resolve(resolvedRoot, entry))) {
       throw corpusMissing(entry);
     }
   }
@@ -513,7 +520,7 @@ export function loadProfile(profilePath: string): ProjectProfile {
   // (g) every listed history.failureLogs path EXISTS, else HISTORY_MISSING {path}
   //     — the named-error contract at line 1794 WINS over the §3.1:479 comment
   for (const entry of profile.history.failureLogs) {
-    if (!fs.existsSync(path.resolve(resolvedRoot, entry))) {
+    if (!contained(entry) || !fs.existsSync(path.resolve(resolvedRoot, entry))) {
       throw historyMissing(entry);
     }
   }

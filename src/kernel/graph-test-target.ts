@@ -25,6 +25,9 @@ export function getTestTargets(storePath: string, modifiedFunction: string, maxT
     const degreeOf = (label: string): number => {
       const hit = degreeCache.get(label);
       if (hit !== undefined) return hit;
+      // ★ NOT-A-BUG (2026-09-24): `whoCallsInDb(...).rows` is ALREADY the count (number,
+      //   typed-write.ts:798 `{ rows: number; names; callers }`), NOT a rows array — the
+      //   audit misread the API. The original `d = .rows` was correct; `callers` is the array.
       const d = whoCallsInDb(db, label).rows;
       degreeCache.set(label, d);
       return d;

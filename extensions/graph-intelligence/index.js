@@ -182603,13 +182603,17 @@ function loadProfile(profilePath) {
   if (!fs13.existsSync(resolvedRoot) || !fs13.statSync(resolvedRoot).isDirectory()) {
     throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
   }
+  const contained = (entry) => {
+    const abs = path15.resolve(resolvedRoot, entry);
+    return abs === resolvedRoot || abs.startsWith(resolvedRoot + path15.sep);
+  };
   for (const entry of profile.rules.corpus) {
-    if (!fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
+    if (!contained(entry) || !fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
       throw corpusMissing(entry);
     }
   }
   for (const entry of profile.history.failureLogs) {
-    if (!fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
+    if (!contained(entry) || !fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
       throw historyMissing(entry);
     }
   }
@@ -185195,7 +185199,9 @@ async function spawnBugHunterLoop(args) {
       try {
         machine.context.db?.close();
       } catch {}
-      machine.stop();
+      try {
+        machine.stop();
+      } catch {}
     }
   } finally {
     try {

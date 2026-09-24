@@ -94,7 +94,9 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
       } catch {
         /* the idempotent close */
       }
-      machine.stop();
+      // ★ F-17 FIX (2026-09-24): the stop() is guarded — an unguarded throw in the finally
+      //   would mask the original error (the R16 cleanup law).
+      try { machine.stop(); } catch { /* the idempotent stop */ }
     }
   } finally {
     try {

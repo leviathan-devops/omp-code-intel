@@ -133,8 +133,9 @@ export class QueryEngine {
     try {
       const liveClause = liveOnly ? 'AND superseded_run IS NULL' : '';
       const predClause = predicateFilter && predicateFilter.length > 0 ? `AND predicate IN (${predicateFilter.map(() => '?').join(',')})` : '';
+      // ★ F-16 FIX (2026-09-24): baseParams carries ONLY `from`; the predicate params are
+      //   inserted at the TWO predClause positions below (SQL order: from, P, maxDepth, P, to).
       const baseParams: unknown[] = [from.trim()];
-      if (predicateFilter && predicateFilter.length > 0) baseParams.push(...predicateFilter);
       const sql = `
         WITH RECURSIVE search(src, dst, predicate, evidence_quote, confidence, created_run, superseded_run, depth, path) AS (
           SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run, 1 as depth, src_canonical || '->' || dst_canonical as path
@@ -148,7 +149,10 @@ export class QueryEngine {
       `;
       const params: unknown[] = [...baseParams, maxDepth, to.trim()];
       if (predicateFilter && predicateFilter.length > 0) {
+        // ★ F-16 FIX (2026-09-24): the predClause appears TWICE in the CTE — insert the
+        //   predicate params at EACH position (after `from`; before `to`), never twice at one.
         params.splice(baseParams.length, 0, ...predicateFilter);
+        params.splice(params.length - 1, 0, ...predicateFilter);
       }
       const row = this.db.prepare(sql).get(...(params as SQLQueryBindings[])) as Record<string, unknown> | null | undefined;
       if (!row) return [];
