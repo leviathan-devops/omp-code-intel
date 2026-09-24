@@ -11,6 +11,7 @@
 // "DONE only when the register reads consumed:8" was DOCUMENTATION, not a predicate.
 // `--expect N` makes it mechanical: consumed < N ⇒ a NAMED error on stdout AND exit 1.
 // `--gate` is the shorthand for the goal's own bar (`--expect 8`).
+import * as path from "node:path";
 import { consumptionAudit } from "../src/omp/layer-consumption.ts";
 
 const argv = process.argv.slice(2);

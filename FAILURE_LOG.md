@@ -1750,3 +1750,22 @@ Each adjudicated two-sided against the real code, then FIXED + PINNED in
   `"unresolved"`.
 - **F-22** `src/hunter/profile/loader.ts:509` — my F-18 `contained()` used lexical `path.resolve`,
   so a SYMLINK planted inside the root pointing out escaped. FIX: `realpathSync` the entry.
+
+---
+
+## ★ THE W3-FOLLOW-ON #2 WAVE — ALL 5 AGENTS + THE RESTART RECOVERY (2026-09-24)
+
+**The 5 run-3 agents** (R3GraphLexicon2 · R3HarnessSharedHooks2 · R3SurfaceDiagFirewall2 · R3Omp2 · R3HydraKernelScoping2) landed **~58 REAL fixes** across **36 files** (F-23..F-166), each
+adjudicated two-sided; the NOT-A-BUGs carry quoted proofs. The orchestrator's own fixes:
+F-23 (corbell `var`) · F-24 (error `detail`) · F-25 (key-redaction order) · F-26 (bindSeverity
+validation) · F-27 (graphify named drop) · F-28 (merge predicate validation).
+
+### ★ THE HOST-RESTART RECOVERY (F-35, F-36)
+- **F-35**: the adapters gained a `scopeRoot must be absolute` guard; `goal-verify` /
+  `consumption-audit` invoke with `.` → they now `path.resolve()` it (and import `node:path`).
+- **F-36**: an agent's L2 narrowing (claim/closure/effective_shape only) broke the L2 contract —
+  the au engine answers REPO NAMES living in the instance's OTHER value fields, so L2 read
+  `NEVER_CONSUMED`. FIX: match ALL VALUES (recursively), never keys.
+- **THE L2 DAEMON RESTART**: the host restart killed the au-engine daemon (a Rust per-repo
+  serve process), so L2's substrate was DOWN (every socket refused) — NOT a code bug.
+  `au daemon start <repo>` → `engine=up, ref=ready, ready=true`; C1 restored to `5/5`.
