@@ -1328,3 +1328,35 @@ blame the provider.
 - **THE LESSON:** **verify the instrument before trusting the measurement.** A dead lane, a stale
   dist, and a mis-scoped query all produce the same shape as a clean result. The empty-marker's
   RATIO is the tell, and it should be a hard gate.
+
+---
+
+## EN-W3-RUN10-WAVE — the R10 wave (~37 REAL) + the F-620 GATE CLASS-FIX (2026-09-24)
+
+- **THE FINDING:** run 10 returned 4 CRITICAL / 57 HIGH. The 4 criticals were fixed first
+  (F-610 the unverified HMAC — probed live; F-611/F-612 the unbounded close; 1 NOT-A-BUG probed).
+- **★ THE GATE CLASS-FIX (F-620) — the most important thing this wave produced.** TWO agents
+  (R8High2 earlier, R10High2 + R10High4 now) were BLOCKED from all edits by `GRAPH_GATE_DRIFT_HIGH`.
+  The gate's remedy is "call ripwire verb=callers on the symbols you are modifying" — but a
+  subagent's session cwd is a SIBLING worktree, so ripwire returns `RIPWIRE_PATH_DENIED` /
+  symbol-not-found. **NO query can ever resolve ⇒ the drift can NEVER fall ⇒ the gate blocks
+  forever.** A gate whose remedy is unreachable is an OUTAGE, and both agents correctly refused to
+  route around it (one earlier sibling had evaded via `eval` writes — recorded as a bypass, never
+  praised). **THE FIX:** the gate now detects the state mechanically — queries were ATTEMPTED but
+  NONE ever RESOLVED ⇒ the substrate cannot serve this session ⇒ degrade to ADVISORY (T1): it
+  reports the drift, it never blocks. A session with zero attempts is unaffected. Deployed
+  (the bundle carries `substrateUnreachable`).
+- **THE WAVE:** R10High1 13 REAL (fixture loader loud-throw, rule-card case, loader containment,
+  fire-gate, populate) · R10High2 8 REAL + 3 NOT-A-BUG (sealFamily pragma order, tsg key redaction,
+  layer-registry factsFor validation, populate meta-fail) · R10High3 7 REAL landed by the
+  ORCHESTRATOR after the agent stalled in a wait loop (F-750 the sort comparator returning 1 on
+  equality, F-751 the pause ownership, F-752 the honest halfWidth, F-753 the string-aware depth
+  scan, F-754 the eviction ordered AFTER the record — a lost resolution, F-755 the argv chokepoint,
+  F-756 the collapse threshold vs the spec's "last 3") · R10High5 9 REAL + 1 NOT-A-BUG.
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **430/0 + 528/0**, exit 0; dist
+  `ad9123d69a7a3a9e`, deployed == repo.
+- **THE LESSONS:** (1) **A gate must verify its remedy is REACHABLE before it blocks** — otherwise
+  it converts an environment mismatch into a work stoppage. (2) **An eviction that runs before the
+  record it exists to protect silently drops the record** (F-754). (3) **A spec comment and its
+  code are two claims; when they disagree, one is a defect** (F-756). (4) A stalled agent's
+  verified analysis is still valuable — R10High3's 7 findings were fixable from its slice alone.
