@@ -200,7 +200,13 @@ export function computeDrift(state: GraphGateSessionState, now: number = Date.no
       // name that did not exist at query time (rename solo→solo2 after
       // querying solo scored 0.5 forever). The covered unit is the
       // check-then-edit operation, not the symbol.
-      continue; // fully verified: contributes to neither side
+      // ★ F-895 FIX (2026-09-25, run-13 CRITICAL): the verified branch `continue`d WITHOUT
+      //   adding to totalWeight — so the ratio was `unverifiedWeight / unverifiedWeight`,
+      //   ALWAYS exactly 1.0 whenever any unverified edit existed. Drift could never be
+      //   anything but 1.0 or 0.0: the decay window, the severity weights and the T1 tier
+      //   were all dead. A VERIFIED edit is still an edit — it belongs in the denominator.
+      totalWeight += weight;
+      continue;
     } else {
       totalWeight += weight;
       unverifiedWeight += weight;

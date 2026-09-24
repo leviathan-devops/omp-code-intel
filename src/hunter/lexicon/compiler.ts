@@ -28,7 +28,7 @@ import {
   type CompiledPredicate, type PredicateTemplate,
 } from './templates.ts';
 import { extractRuleCards, extractRuleCardsAsync, corpusUnreadable, type RuleCard } from './rule-card.ts';
-import { writeBattery, writeRuleCards, loadBattery } from './compiled-store.ts';
+import { writeBattery, writeRuleCards, writeCompiledCache, loadBattery } from './compiled-store.ts';
 
 // ---------------------------------------------------------------------------
 // The corpus hash + the battery version (K20.3) — the cache key the determinism
@@ -247,20 +247,11 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
     // ★ F-147 FIX (2026-09-24): no half-cache — writeRuleCards and writeBattery each commit internally (no nesting), so a writeBattery failure after writeRuleCards succeeded cleans up the orphaned cards and throws named.
-    try {
-      writeRuleCards(db, cards, version);
-    } catch (e: unknown) {
-      throw e;
-    }
-    try {
-      writeBattery(db, battery);
-    } catch (e: unknown) {
-      // ★ F-257 FIX (2026-09-24): the orphan-cleanup DELETE used to fail SILENTLY (empty catch) — a double failure left orphaned rule_cards with no trace. Now WARNED with both messages; the original write error still throws.
-      try { db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?').run(version); } catch (cleanupErr: unknown) {
-        console.warn(`[lexicon-compiler] writeBattery failed AND orphan cleanup DELETE failed (orphaned rule_cards under corpus_hash=${version}): cleanup: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}; original: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      throw e;
-    }
+    // ★ F-897 FIX (2026-09-25, run-13 CRITICAL): ONE TRANSACTION over both cache writes. The
+    //   two-transaction shape left orphaned rule_cards on a crash BETWEEN them (F-147's
+    //   compensation only covered a writeBattery THROW). writeCompiledCache owns the txn; the
+    //   per-writer functions remain for their standalone callers.
+    writeCompiledCache(db, battery, cards, version);
   }
   return { battery, batteryVersion: version, fromCache: false };
 }

@@ -37,6 +37,58 @@ const COMPILED_PREDICATES_COLUMNS = [
  * calibration is W5's gate, never this wave's. The check_code carries the
  * reinstatement shape { template, bindings } — never a function string.
  */
+/**
+ * ★ F-897 (2026-09-25, run-13 CRITICAL): THE ATOMIC CACHE WRITE.
+ *
+ * THE DEFECT: the compile path called `writeRuleCards` then `writeBattery` as TWO independent
+ * transactions. F-147's compensation only covered a writeBattery THROW — a CRASH or connection
+ * drop BETWEEN them left orphaned rule_cards with no cleanup path at all (the cache would then
+ * serve cards whose battery does not exist).
+ *
+ * THE FIX: one IMMEDIATE transaction over both writes. The per-writer BEGIN/COMMIT is bypassed by
+ * writing the rows directly here — nesting a transaction is a SQLite error, so the combined path
+ * owns the transaction and the individual writers stay for their standalone callers.
+ */
+export function writeCompiledCache(
+  db: DbClient,
+  battery: CompiledPredicate[],
+  cards: RuleCard[],
+  corpusHash: string,
+): void {
+  db.exec('BEGIN IMMEDIATE');
+  let committed = false;
+  const stmts: Array<ReturnType<DbClient['prepare']>> = [];
+  try {
+    const delCards = db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?');
+    stmts.push(delCards);
+    delCards.run(corpusHash);
+    const insCard = db.prepare(
+      'INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)',
+    );
+    stmts.push(insCard);
+    for (const c of cards) {
+      insCard.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
+    }
+    if (battery.length > 0) {
+      const insBat = db.prepare(
+        `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      );
+      stmts.push(insBat);
+      for (const p of battery) {
+        const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
+        insBat.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, 'PENDING');
+      }
+    }
+    db.exec('COMMIT');
+    committed = true;
+  } catch (e: unknown) {
+    if (!committed) { try { db.exec('ROLLBACK'); } catch { /* already rolled back */ } }
+    throw e;
+  } finally {
+    for (const st of stmts) { try { st.finalize(); } catch { /* best-effort — the txn outcome is what matters */ } }
+  }
+}
+
 export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
   if (battery.length === 0) return;
   // ★ F-6 FIX (2026-09-24): atomic battery commit — BEGIN/COMMIT/ROLLBACK like

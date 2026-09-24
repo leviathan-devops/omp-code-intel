@@ -878,8 +878,18 @@ export function runGraphLogicDiagnostics(args: GraphLogicDiagnosticsArgs): Graph
           fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
           haveLock = true;
         } catch {
+          // ★ F-896 FIX (2026-09-25, run-13 CRITICAL): LOSING THE wx RACE MUST NOT FALL THROUGH
+          //   TO THE BUILD. Two processes that both see a stale lock both unlink; one wins the
+          //   `wx` create, the loser lands here — and with `rows` still null the code below
+          //   ran the FULL local build + write, so BOTH wrote the store concurrently (the exact
+          //   corruption the lock exists to prevent). The loser re-reads the winner's rows; if
+          //   the winner has not persisted yet, it FAILS CLOSED rather than racing it.
           const raced = readStoredGraph(dbPath);
-          if (raced !== null && raced.nodes.length > 0) rows = raced;
+          if (raced !== null && raced.nodes.length > 0) {
+            rows = raced;
+          } else {
+            throw sourceReadFailed(dbPath, 'graph build lock lost a takeover race — another run owns the build (fail-closed, retry after it persists)');
+          }
         }
       } else {
         const raced = readStoredGraph(dbPath);

@@ -33,32 +33,14 @@
     try { db.close
   ```
 
-## src/hunter/profile/loader.ts
-- **src/hunter/profile/loader.ts:314-325** (bug)
-  **Flow-value parser has no recursion-depth cap (stack overflow / denial-of-service).**
-
-The block-level parser correctly caps recursion at depth 100 (F-67 fix), but `parseFlowValue` → `parseFlowMap`/`parseFlowArray` → `parseFlowValue` can recurse without any depth bound. A crafted YAML profile with a single-line value like `{a:{b:{c:{…}}}}` nested >10,000 levels deep would overflow the call stack with a `RangeError`, which would be caught by the generic `catch` in `loadProfile` (line 498) and surfaced as a generic `PROFILE_INVALID` — losing the named-error contract and the specific field context.
-
-The fix should mirror the block-level guard: add a `depth` parameter (default 0) to `parseFlowValue`, `parseFlowMap`, and `parseFlowArray`, and reject with `YamlParseError` at depth > 100.
+## src/hunter/shared/kind-for-layer.ts
+- **src/hunter/shared/kind-for-layer.ts:7-7** (bug)
+  Uses loose equality `==` for the null/undefined check, which violates the project's coding standard prohibiting `==` and `!=`. While `== null` is an intentional pattern to catch both `null` and `undefined`, it should be replaced with strict checks to comply with the rule. The null guard itself is correct and necessary.
   ```existing
-  /** Parse a single-line flow value: flow map | flow array | quoted | scalar. */
-function parseFlowValue(token: string, line: number): unknown {
-  const t = token.trim();
-  if (t === '') return null;
-  if (t.startsWith('{')) {
-    if (!t.endsWith('}')) yamlErr([], t, line, `flow map is not closed on a single line: "${t}"`);
-    return parseFlowMap(t.slice(1, -1), line);
-  }
-  if (t.startsWith('['))
+  if (layerId == null || typeof layerId !== 'string') return 'Threshold';
   ```
   ```suggested
-  /** Parse a single-line flow value: flow map | flow array | quoted | scalar. */
-function parseFlowValue(token: string, line: number, depth = 0): unknown {
-  if (depth > 100) yamlErr([], token, line, 'maximum flow-nesting depth (100) exceeded');
-  const t = token.trim();
-  if (t === '') return null;
-  if (t.startsWith('{')) {
-    if (!t.endsWith('}')) yamlErr([], t, line, `flow map is not closed on
+  if (layerId === null || layerId === undefined || typeof layerId !== 'string') return 'Threshold';
   ```
 
 ## src/hunter/surface/query-tool.ts
@@ -92,68 +74,80 @@ function parseFlowValue(token: string, line: number, depth = 0): unknown {
   return formatRows(rows.slice(off, off + lim), input.format);
   ```
 
-## src/hunter/tools/query-registration.ts
-- **src/hunter/tools/query-registration.ts:85-87** (bug)
-  `db.close()` in the `finally` block may throw (e.g., SQLite I/O error during flush or a corrupt database). If it does, the thrown exception will mask the original error from the `try` block, making debugging significantly harder. The downstream `close()` implementations (`db.ts:433-438`) call `this.handle.close()` with no error guard. Wrap in try-catch to preserve the original error:
-```typescript
-finally {
-  try { db.close(); } catch { /* close failure is non-fatal; original error preserved */ }
+## src/kernel/graph-test-target.ts
+- **src/kernel/graph-test-target.ts:77-79** (bug)
+  **Partial batch failure corrupts degree cache (Bug)**: If the second batch loop (`allIds` at lines ~78-85) throws mid-iteration, `degByDst` will contain partially-computed counts. The aggregation loop (lines ~86-89) will then set `degreeCache` entries for labels whose IDs were already processed, using incomplete `degByDst` values. In the catch block, only labels *absent* from `degreeCache` get the per-label fallback — labels with partial/stale entries are never corrected. This means some callers get silently wrong `inboundDegree` values, corrupting the priority ranking.
+
+Suggestion: Clear `degreeCache` at the start of the catch block (or reset it) so the fallback path regenerates all entries, or guard the aggregation loop to only run if the full batch succeeded.
+  ```existing
+  } catch (e) {
+  console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads: ${e instanceof Error ? e.message : String(e)}`);
 }
-```
-  ```existing
-  } finally {
-    db.close();
-  }
-  ```
-  ```suggested
-  } finally {
-    try { db.close(); } catch { /* close failure is non-fatal; original error preserved */ }
-  }
-  ```
-
-## src/kernel/scan-chain.ts
-- **src/kernel/scan-chain.ts:138-143** (bug)
-  **Resource leak risk on non-ok HTTP responses**: When `response.ok` is false, `response.text()` is called to read the error body, but this is wrapped in a try/catch that silently ignores failures. If `response.text()` throws (e.g., the body stream is interrupted or the connection drops mid-read), the response body is not fully drained. In Node.js `fetch`, undrained response bodies prevent the underlying TCP connection from being returned to the agent pool. With up to 30 requests per chain run, this can exhaust connections. Ensure the body is always consumed, even if the read fails.
-  ```existing
-  if (!response.ok) {
-      clearInterval(stallTimer);
-      let detail = "";
-      try { detail = (await response.text()).slice(0, 200); } catch { /* body unreadable — status alone is the signal */ }
-      return { ok: false, reason: `SCAN_HTTP_${response.status}: ${response.statusText ?? ""}${detail ? ` — ${detail}` : ""}` };
-    }
-  ```
-  ```suggested
-  if (!response.ok) {
-      clearInterval(stallTimer);
-      let detail = "";
-      try { detail = (await response.text()).slice(0, 200); } catch {
-        try { await response.body?.cancel(); } catch { /* best-effort drain */ }
-      }
-      return { ok: false, reason: `SCAN_HTTP_${response.status}: ${response.statusText ?? ""}${detail ? ` — ${detail}` : ""}` };
-    }
-  ```
-
-## src/omp/hard-deps.ts
-- **src/omp/hard-deps.ts:330-330** (bug)
-  `join` filters out zero-length strings before joining. When `scopeRoot` is `""`, every `join(cfg.scopeRoot, ...)` produces a bare relative path like `.omp/graph-intelligence/layers/semantica`. This resolves against `process.cwd()` at probe time — silently UP on a machine whose CWD contains that structure, DOWN on others. The hard-dependency philosophy requires an explicit, loud failure when `scopeRoot` is missing, not a CWD-dependent guess. Add a guard that rejects an empty `scopeRoot` at the top of `buildRegister`.
-  ```existing
-  const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/").replace(/\/{2,}/g, "/");
-  ```
-  ```suggested
-  if (!cfg.scopeRoot) {
-    throw new Error("REGISTER_CONFIG: scopeRoot is required — an empty scope root would produce relative paths that resolve against CWD, not a loud failure");
-  }
-  const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/").replace(/\/{2,}/g, "/");
-  ```
-
-## src/omp/populate.ts
-- **src/omp/populate.ts:138-139** (bug)
-  The original exception `e` is discarded when re-wrapping as a new Error. The original stack trace, cause chain, and any structured error properties are lost, making production debugging significantly harder. Use `{ cause: e }` to preserve the original exception.
-  ```existing
-  } catch (e) {
-      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
   ```
   ```suggested
   } catch (e) {
-      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`, { cause: e });
+  console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads: ${e instanceof Error ? e.message : String(e)}`);
+  degreeCache.clear();
+}
+  ```
+
+## src/omp/gi-registry.ts
+- **src/omp/gi-registry.ts:0-0** (bug)
+  **Reliability: `GI_OMP_DB_DIR` completely bypasses test-vs-production isolation.** When `GI_OMP_DB_DIR` is set, the outer `if (!process.env.GI_OMP_DB_DIR)` short-circuits and the entire test-context detection block (BUN_TEST, BUN_TEST_PID, argv1 prefix) is skipped. A misconfigured CI environment or local developer shell that exports `GI_OMP_DB_DIR` pointing at a shared directory will silently route all traffic (test and prod) to that path, defeating the safety heuristics that multiple historical fixes (F-GR1, F-14, F-710) labored to establish. Consider moving the test-context check OUTSIDE the env-var guard so it takes precedence, or at minimum log a warning when `GI_OMP_DB_DIR` is set in a test context.
+  ```existing
+  if (!process.env.GI_OMP_DB_DIR) {
+    const argv1 = process.argv[1] ?? "";
+    const inTestContext = process.env.BUN_TEST != null
+      || process.env.BUN_TEST_PID != null
+      || argv1.includes("/tests/st-");
+    if (inTestContext) {
+      return path.join(os.tmpdir(), "gi-omp-registry-test.sqlite");
+    }
+  }
+  ```
+  ```suggested
+  // Test-context detection takes precedence over GI_OMP_DB_DIR — a misconfigured
+  // CI environment that exports GI_OMP_DB_DIR must NOT silently route test traffic
+  // to a shared production registry.
+  const argv1 = process.argv[1] ?? "";
+  const inTestContext = process.env.BUN_TEST != null
+    || process.env.BUN_TEST_PID != null
+    || argv1.includes("/tests/st-");
+  if (inTestContext) {
+    re
+  ```
+
+## src/omp/populate-corbell.ts
+- **src/omp/populate-corbell.ts:78-83** (bug)
+  Recursive walk has no depth limit — only a cycle guard (visited set) and a file budget (budget.n). A deeply nested directory tree without cycles and with few or no indexed files (e.g., many empty nested directories) can exhaust the call stack before the budget fires. For example, a node_modules tree or a vendored SDK with 10k+ nested directories containing zero .ts/.js/.py files would cause an unhandled RangeError: Maximum call stack size exceeded instead of returning stale-budget or stale-read-failed. Add a depth counter (e.g., `depth` parameter with a cap like 256) or convert the recursion to an iterative stack-based traversal.
+  ```existing
+  const walk = (dir: string): void => {
+    if (budget.n <= 0) { exhausted = true; return; }
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
+  ```
+  ```suggested
+  const walk = (dir: string, depth: number): void => {
+    if (budget.n <= 0) { exhausted = true; return; }
+    if (depth > 256) { walkFailed = true; return; } // stack-overflow guard
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
+    // ... (rest unchanged, but recursive calls 
+  ```
+
+## src/scoping/scope-binding.ts
+- **src/scoping/scope-binding.ts:109-118** (maintainability)
+  The longest-prefix matching pattern (`[...allPrefixes].sort((a, b) => b.length - a.length)` + linear scan) is duplicated in `ownerOf`, `isForeignWave`, `assertOwnWave`, and `assertAliasNamespace` (4 places). This increases maintenance burden and the risk of inconsistency if one site is updated but others are missed. Extract a shared helper (e.g., `findLongestMatchingPrefix(waveId, prefixes)`) and reuse it everywhere.
+  ```existing
+  ownerOf(waveId: string): ScopeBinding | null {
+    // ★ F-207 FIX (2026-09-24): LONGEST-prefix match — first-match over
+    //   registration order misattributes overlapping namespaces (wave- vs
+    //   wave-extra-). F-132 only refused exact duplicates, not overlaps.
+    const sorted = [...this.prefixes.entries()].sort((a, b) => b[0].length - a[0].length);
+    for (const [, b] of sorted) {
+      
   ```

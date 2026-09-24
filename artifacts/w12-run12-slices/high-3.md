@@ -48,98 +48,83 @@ for (const ne of newEntities) {
     if (!resolvedEntityIds.has(ne.id)) {
   ```
 
-## src/hunter/log.ts
-- **src/hunter/log.ts:7-11** (bug)
-  Null/undefined safety: If `p` is null or undefined, `p.length` will throw a TypeError at runtime. Since this is a utility function that may receive user-provided paths, add a guard clause to handle falsy input gracefully.
+## src/hunter/profile/loader.ts
+- **src/hunter/profile/loader.ts:314-325** (bug)
+  **Flow-value parser has no recursion-depth cap (stack overflow / denial-of-service).**
+
+The block-level parser correctly caps recursion at depth 100 (F-67 fix), but `parseFlowValue` → `parseFlowMap`/`parseFlowArray` → `parseFlowValue` can recurse without any depth bound. A crafted YAML profile with a single-line value like `{a:{b:{c:{…}}}}` nested >10,000 levels deep would overflow the call stack with a `RangeError`, which would be caught by the generic `catch` in `loadProfile` (line 498) and surfaced as a generic `PROFILE_INVALID` — losing the named-error contract and the specific field context.
+
+The fix should mirror the block-level guard: add a `depth` parameter (default 0) to `parseFlowValue`, `parseFlowMap`, and `parseFlowArray`, and reject with `YamlParseError` at depth > 100.
   ```existing
-  export function shortFile(p: string, n = 46): string {
-  // ★ F-242 FIX (2026-09-24): small-n correctness — slice(-(n-1)) with n=1 is
-  //   slice(0), the WHOLE string, so '…'+p came out longer than p. n<=1 returns a
-  //   truncated ellipsis; n>=2 behavior is unchanged.
-  if (p.length <= n) return p;
+  /** Parse a single-line flow value: flow map | flow array | quoted | scalar. */
+function parseFlowValue(token: string, line: number): unknown {
+  const t = token.trim();
+  if (t === '') return null;
+  if (t.startsWith('{')) {
+    if (!t.endsWith('}')) yamlErr([], t, line, `flow map is not closed on a single line: "${t}"`);
+    return parseFlowMap(t.slice(1, -1), line);
+  }
+  if (t.startsWith('['))
   ```
   ```suggested
-  export function shortFile(p: string, n = 46): string {
-  if (p == null) return '';
-  if (p.length <= n) return p;
+  /** Parse a single-line flow value: flow map | flow array | quoted | scalar. */
+function parseFlowValue(token: string, line: number, depth = 0): unknown {
+  if (depth > 100) yamlErr([], token, line, 'maximum flow-nesting depth (100) exceeded');
+  const t = token.trim();
+  if (t === '') return null;
+  if (t.startsWith('{')) {
+    if (!t.endsWith('}')) yamlErr([], t, line, `flow map is not closed on
   ```
 
-## src/hunter/shared/query-engine.ts
-- **src/hunter/shared/query-engine.ts:369-370** (bug)
-  SQL LIKE wildcard injection: User-supplied query is interpolated into `LIKE '%..%'` without escaping SQL wildcard characters (`%` and `_`). A query like `a_b` will match `axb`, `ayb`, etc., and `100%` will match any string containing `100`. This degrades search precision silently and could return unexpected results. Escape `%` and `_` in the trimmed query before wrapping.
+## src/kernel/graph-diff.ts
+- **src/kernel/graph-diff.ts:136-141** (bug)
+  The blast-radius comparison only checks nodes present in `after.topDegree` (top-5) against `before.topDegree`. A node that was NOT in the top-5 before (e.g., had 2 inbound edges) but now has a very high inbound count (e.g., 50) will appear in `after.topDegree`, but `beforeDeg.get(t.label)` returns `undefined` and the node is silently skipped. This means the most dramatic blast-radius jumps — nodes going from near-zero to very high — can go entirely undetected if they weren't already in the before snapshot's top-5. To properly detect all blast-radius jumps, consider maintaining the full inbound map (not just top-5) in the snapshot, or at minimum building a complete `beforeDeg` map from the full snapshot data.
   ```existing
-  const like = `%${query.trim()}%`;
-      const rows = this.db.prepare('SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? OR canonical_id LIKE ? OR kind LIKE ?) LIMIT ?').all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
-  ```
-  ```suggested
-  const escaped = query.trim().replace(/%/g, '\\%').replace(/_/g, '\\_');
-      const like = `%${escaped}%`;
-      const rows = this.db.prepare('SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? ESCAPE '\\' OR canonical_id LIKE ? ESCAPE '\\' OR kind LIKE ? ESCAPE '\\') LIMIT ?').all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
-  ```
-
-## src/kernel/graph-test-target.ts
-- **src/kernel/graph-test-target.ts:77-79** (bug)
-  **Partial batch failure corrupts degree cache (Bug)**: If the second batch loop (`allIds` at lines ~78-85) throws mid-iteration, `degByDst` will contain partially-computed counts. The aggregation loop (lines ~86-89) will then set `degreeCache` entries for labels whose IDs were already processed, using incomplete `degByDst` values. In the catch block, only labels *absent* from `degreeCache` get the per-label fallback — labels with partial/stale entries are never corrected. This means some callers get silently wrong `inboundDegree` values, corrupting the priority ranking.
-
-Suggestion: Clear `degreeCache` at the start of the catch block (or reset it) so the fallback path regenerates all entries, or guard the aggregation loop to only run if the full batch succeeded.
-  ```existing
-  } catch (e) {
-  console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads: ${e instanceof Error ? e.message : String(e)}`);
-}
-  ```
-  ```suggested
-  } catch (e) {
-  console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads: ${e instanceof Error ? e.message : String(e)}`);
-  degreeCache.clear();
-}
-  ```
-
-## src/omp/gi-registry.ts
-- **src/omp/gi-registry.ts:0-0** (bug)
-  **Reliability: `GI_OMP_DB_DIR` completely bypasses test-vs-production isolation.** When `GI_OMP_DB_DIR` is set, the outer `if (!process.env.GI_OMP_DB_DIR)` short-circuits and the entire test-context detection block (BUN_TEST, BUN_TEST_PID, argv1 prefix) is skipped. A misconfigured CI environment or local developer shell that exports `GI_OMP_DB_DIR` pointing at a shared directory will silently route all traffic (test and prod) to that path, defeating the safety heuristics that multiple historical fixes (F-GR1, F-14, F-710) labored to establish. Consider moving the test-context check OUTSIDE the env-var guard so it takes precedence, or at minimum log a warning when `GI_OMP_DB_DIR` is set in a test context.
-  ```existing
-  if (!process.env.GI_OMP_DB_DIR) {
-    const argv1 = process.argv[1] ?? "";
-    const inTestContext = process.env.BUN_TEST != null
-      || process.env.BUN_TEST_PID != null
-      || argv1.includes("/tests/st-");
-    if (inTestContext) {
-      return path.join(os.tmpdir(), "gi-omp-registry-test.sqlite");
-    }
+  const beforeDeg = new Map(before.topDegree.map((t) => [t.label, t.inbound]));
+  const blastRadiusChanges: GraphDiffResult["blastRadiusChanges"] = [];
+  for (const t of after.topDegree) {
+    const b = beforeDeg.get(t.label);
+    if (b !== undefined && t.inbound > b) blastRadiusChanges.push({ label: t.label, before: b, after: t.inbound });
   }
   ```
   ```suggested
-  // Test-context detection takes precedence over GI_OMP_DB_DIR — a misconfigured
-  // CI environment that exports GI_OMP_DB_DIR must NOT silently route test traffic
-  // to a shared production registry.
-  const argv1 = process.argv[1] ?? "";
-  const inTestContext = process.env.BUN_TEST != null
-    || process.env.BUN_TEST_PID != null
-    || argv1.includes("/tests/st-");
-  if (inTestContext) {
-    re
+  // Build full inbound maps for complete blast-radius comparison
+  const beforeInbound = new Map<string, number>();
+  for (const [cid, count] of before.fullInbound) {
+    const node = beforeNodesByCid.get(cid);
+    beforeInbound.set(node?.label ?? cid, count);
+  }
+  const afterInbound = new Map<string, number>();
+  for (const [cid, count] of after.fullInbound) {
+    const node = afterNodesByCid.get
   ```
 
-## src/omp/populate-corbell.ts
-- **src/omp/populate-corbell.ts:78-83** (bug)
-  Recursive walk has no depth limit — only a cycle guard (visited set) and a file budget (budget.n). A deeply nested directory tree without cycles and with few or no indexed files (e.g., many empty nested directories) can exhaust the call stack before the budget fires. For example, a node_modules tree or a vendored SDK with 10k+ nested directories containing zero .ts/.js/.py files would cause an unhandled RangeError: Maximum call stack size exceeded instead of returning stale-budget or stale-read-failed. Add a depth counter (e.g., `depth` parameter with a cap like 256) or convert the recursion to an iterative stack-based traversal.
+## src/omp/enforcement.ts
+- **src/omp/enforcement.ts:128-128** (bug)
+  The design comments promise fail-OPEN handles timeouts ("a timeout … SKIPS with a named reason") and the evidence scan catch labels itself "TSG_TIMEOUT", but no timeout is enforced on either `deps.judge.evaluate()` or `deps.loadUnit.retrieve()`. If an engine hangs (e.g., model cold-start, network stall), these `await` calls block indefinitely — the caller (an editor surface per R5) wedges, contradicting the fail-OPEN/fail-CLOSED polarity contract. Wrap calls in `Promise.race` with a timeout (e.g., via `AbortController` or a `setTimeout`-based reject) appropriate to each layer.
   ```existing
-  const walk = (dir: string): void => {
-    if (budget.n <= 0) { exhausted = true; return; }
-    let realDir: string;
-    try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
-    if (visited.has(realDir)) return;
-    visited.add(realDir);
+  answers = await deps.judge.evaluate({ diff: input.diff, task: input.task }, input.rules);
   ```
   ```suggested
-  const walk = (dir: string, depth: number): void => {
-    if (budget.n <= 0) { exhausted = true; return; }
-    if (depth > 256) { walkFailed = true; return; } // stack-overflow guard
-    let realDir: string;
-    try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
-    if (visited.has(realDir)) return;
-    visited.add(realDir);
-    // ... (rest unchanged, but recursive calls 
+  // Enforce the ~300ms fail-open budget stated in the kernel header.
+    const JUDGE_TIMEOUT_MS = 5_000;
+    answers = await Promise.race([
+      deps.judge.evaluate({ diff: input.diff, task: input.task }, input.rules),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("judge timeout")), JUDGE_TIMEOUT_MS),
+      ),
+    ]);
+  ```
+
+## src/omp/layer-registry.ts
+- **src/omp/layer-registry.ts:228-228** (bug)
+  `factsFor()` silently drops consumers that return non-array `facts()` via `console.error` + `continue`, but `auditOne()` returns a `GI_LAYER_ERROR` verdict. This is by design (documented as F-707), but `console.error` output is ephemeral and may be lost in production log aggregation. If the caller relies on `factsFor()` alone (without also calling `audit()`), the non-array fault is invisible. The method should consider returning an augmented result or a second return value that surfaces faults, so callers get the same fidelity as `audit()`.
+  ```existing
+  if (!Array.isArray(got)) { console.error('[layer-registry] factsFor: consumer ' + p.id + ' returned non-array facts - see audit GI_LAYER_ERROR:' + p.id); continue; }
+  ```
+  ```suggested
+  // Option: return { facts: LayerFact[], faults: { consumer: ConsumerId; reason: string }[] }
+// so callers of factsFor() can detect mid-query faults without calling audit() separately.
   ```
 
 ## src/omp/populate-graphify.ts
@@ -185,4 +170,27 @@ The error is logged loudly (good), but there is no backoff, no circuit-breaker, 
     } catch (hashErr) {
       // ★ F-400 FIX (2026-09-24, the run-7 CRITICAL): the sidecar write failure was
       //   logged at `console.log` — INVISIBLE to an operator watching errors, a
+  ```
+
+## src/scoping/db-path.ts
+- **src/scoping/db-path.ts:42-45** (bug)
+  Environment variable values are not tilde-expanded. If a user sets an env var (e.g. `MY_DB_DIR=~/data`) to override the path, the tilde is treated literally, producing a relative path like `~/data/file.db` instead of expanding to the home directory. The spec's `defaultDir` and `testFile` both support tilde expansion, but the env-var override path (the highest-priority source) does not — this is inconsistent and could silently resolve to the wrong location.
+  ```existing
+  for (const env of spec.envVars) {
+      const v = process.env[env];
+      if (v && v.trim().length > 0) return path.join(v.trim(), spec.fileName);
+    }
+  ```
+  ```suggested
+  const TILDE = '~';
+    const TILDE_SLASH = '~/';
+    for (const env of spec.envVars) {
+      const v = process.env[env];
+      if (v && v.trim().length > 0) {
+        let raw = v.trim();
+        if (raw === TILDE || raw.startsWith(TILDE_SLASH)) {
+          const home = process.env.HOME ?? process.env.USERPROFILE;
+          if (!home) {
+            throw new Error(
+              `[db-path] HOME_NOT
   ```

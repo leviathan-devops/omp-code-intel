@@ -1,4 +1,4 @@
-# HIGH slice 2 — 12 findings across 9 files
+# HIGH slice 2 — 11 findings across 8 files
 
 ## src/hunter/graph/mechanical.ts
 - **src/hunter/graph/mechanical.ts:242-245** (bug)
@@ -20,77 +20,46 @@
       try {
   ```
 
-## src/hunter/lexicon/compiler.ts
-- **src/hunter/lexicon/compiler.ts:195-201** (bug)
-  The D13 verbatim-quote guard is bypassable for non-string truthy values in declared predicates. `String(binding['verbatimQuote'] ?? '')` coerces any truthy non-string (e.g. number `42` → `'42'`, boolean `true` → `'true'`, object `{}` → `'[object Object]'`) into a non-empty string that passes the trim check. A declared predicate with `verbatimQuote: 42` would pass D13 without containing actual quoted doctrine text. The corpus path (`compileCards`) does not have this issue because `card.verbatimQuote` is already typed as `string | undefined` by the parser. Add an explicit `typeof` guard for the declared path.
+## src/hunter/log.ts
+- **src/hunter/log.ts:7-11** (bug)
+  Null/undefined safety: If `p` is null or undefined, `p.length` will throw a TypeError at runtime. Since this is a utility function that may receive user-provided paths, add a guard clause to handle falsy input gracefully.
   ```existing
-  const verbatimQuote = String(binding['verbatimQuote'] ?? '');
-    if (!verbatimQuote || verbatimQuote.trim() === '') {
-      throw new LexiconError(
-        'D13_VIOLATION',
-        `D13_VIOLATION: declaredPredicate ${ruleId} lacks a verbatim quote — doctrine is QUOTED, never synthesized`,
-      );
+  export function shortFile(p: string, n = 46): string {
+  // ★ F-242 FIX (2026-09-24): small-n correctness — slice(-(n-1)) with n=1 is
+  //   slice(0), the WHOLE string, so '…'+p came out longer than p. n<=1 returns a
+  //   truncated ellipsis; n>=2 behavior is unchanged.
+  if (p.length <= n) return p;
+  ```
+  ```suggested
+  export function shortFile(p: string, n = 46): string {
+  if (p == null) return '';
+  if (p.length <= n) return p;
+  ```
+
+## src/hunter/tools/report-writer-local.ts
+- **src/hunter/tools/report-writer-local.ts:53-59** (bug)
+  The regex `/^#{2,6} /m` does not exclude Markdown fenced code blocks (``` ... ```). If the report body contains a fenced code block with lines like `## Example` or `### ```json`, the `s.search(/^#{2,6} /m)` at line 43 will match inside the code fence, causing unintended heading promotion and corruption of the report's code-block content. Consider using a regex that skips fenced code blocks (e.g., strip fenced blocks before matching, or use a state-machine scan).
+  ```existing
+  const deepIdx = s.search(/^#{2,6} /m);
+    if (deepIdx !== -1) {
+      const before = s.slice(0, deepIdx);
+      const after = s.slice(deepIdx).replace(/^#{2,6}[ ]?/, "# ");
+      s = before + after;
+      idx = s.search(/^# /m);
     }
   ```
-  ```suggested
-  const rawQuote = binding['verbatimQuote'];
-    if (typeof rawQuote !== 'string' || rawQuote.trim() === '') {
-      throw new LexiconError(
-        'D13_VIOLATION',
-        `D13_VIOLATION: declaredPredicate ${ruleId} lacks a verbatim quote — doctrine is QUOTED, never synthesized`,
-      );
-    }
-    const verbatimQuote = rawQuote;
-  ```
 
-## src/hunter/shared/kind-for-layer.ts
-- **src/hunter/shared/kind-for-layer.ts:7-7** (bug)
-  Uses loose equality `==` for the null/undefined check, which violates the project's coding standard prohibiting `==` and `!=`. While `== null` is an intentional pattern to catch both `null` and `undefined`, it should be replaced with strict checks to comply with the rule. The null guard itself is correct and necessary.
-  ```existing
-  if (layerId == null || typeof layerId !== 'string') return 'Threshold';
-  ```
-  ```suggested
-  if (layerId === null || layerId === undefined || typeof layerId !== 'string') return 'Threshold';
-  ```
+## src/omp/adapters/tsg.ts
+- **src/omp/adapters/tsg.ts:122-123** (security)
+  **Key redaction is fragile and may leak partial key material**: The `split(key).join(replacement)` approach only catches *exact, contiguous* occurrences of the key. It will miss:
+1. Partial key exposure (e.g., the last 8 chars of the key in a stack trace or echo)
+2. Key encoded via base64, URL-encoding, or case changes by the CLI or an intermediate layer
+3. A key that is a substring of a longer token that happens to be printed
 
-## src/kernel/graph-diff.ts
-- **src/kernel/graph-diff.ts:136-141** (bug)
-  The blast-radius comparison only checks nodes present in `after.topDegree` (top-5) against `before.topDegree`. A node that was NOT in the top-5 before (e.g., had 2 inbound edges) but now has a very high inbound count (e.g., 50) will appear in `after.topDegree`, but `beforeDeg.get(t.label)` returns `undefined` and the node is silently skipped. This means the most dramatic blast-radius jumps — nodes going from near-zero to very high — can go entirely undetected if they weren't already in the before snapshot's top-5. To properly detect all blast-radius jumps, consider maintaining the full inbound map (not just top-5) in the snapshot, or at minimum building a complete `beforeDeg` map from the full snapshot data.
+Consider redacting via a regex `new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')` for correctness, and additionally scrubbing the last N characters of the key as a partial-match heuristic.
   ```existing
-  const beforeDeg = new Map(before.topDegree.map((t) => [t.label, t.inbound]));
-  const blastRadiusChanges: GraphDiffResult["blastRadiusChanges"] = [];
-  for (const t of after.topDegree) {
-    const b = beforeDeg.get(t.label);
-    if (b !== undefined && t.inbound > b) blastRadiusChanges.push({ label: t.label, before: b, after: t.inbound });
-  }
-  ```
-  ```suggested
-  // Build full inbound maps for complete blast-radius comparison
-  const beforeInbound = new Map<string, number>();
-  for (const [cid, count] of before.fullInbound) {
-    const node = beforeNodesByCid.get(cid);
-    beforeInbound.set(node?.label ?? cid, count);
-  }
-  const afterInbound = new Map<string, number>();
-  for (const [cid, count] of after.fullInbound) {
-    const node = afterNodesByCid.get
-  ```
-
-## src/omp/enforcement.ts
-- **src/omp/enforcement.ts:128-128** (bug)
-  The design comments promise fail-OPEN handles timeouts ("a timeout … SKIPS with a named reason") and the evidence scan catch labels itself "TSG_TIMEOUT", but no timeout is enforced on either `deps.judge.evaluate()` or `deps.loadUnit.retrieve()`. If an engine hangs (e.g., model cold-start, network stall), these `await` calls block indefinitely — the caller (an editor surface per R5) wedges, contradicting the fail-OPEN/fail-CLOSED polarity contract. Wrap calls in `Promise.race` with a timeout (e.g., via `AbortController` or a `setTimeout`-based reject) appropriate to each layer.
-  ```existing
-  answers = await deps.judge.evaluate({ diff: input.diff, task: input.task }, input.rules);
-  ```
-  ```suggested
-  // Enforce the ~300ms fail-open budget stated in the kernel header.
-    const JUDGE_TIMEOUT_MS = 5_000;
-    answers = await Promise.race([
-      deps.judge.evaluate({ diff: input.diff, task: input.task }, input.rules),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("judge timeout")), JUDGE_TIMEOUT_MS),
-      ),
-    ]);
+  const redact = (s: string): string =>
+          key !== null && key.length > 0 ? s.split(key).join(key.slice(0, 4) + '...[redacted]') : s;
   ```
 
 ## src/omp/gate-hook.ts
@@ -130,28 +99,42 @@ if (g.tier === "T3") {
     }
   ```
 
-## src/omp/layer-registry.ts
-- **src/omp/layer-registry.ts:228-228** (bug)
-  `factsFor()` silently drops consumers that return non-array `facts()` via `console.error` + `continue`, but `auditOne()` returns a `GI_LAYER_ERROR` verdict. This is by design (documented as F-707), but `console.error` output is ephemeral and may be lost in production log aggregation. If the caller relies on `factsFor()` alone (without also calling `audit()`), the non-array fault is invisible. The method should consider returning an augmented result or a second return value that surfaces faults, so callers get the same fidelity as `audit()`.
+## src/omp/layer-consumption.ts
+- **src/omp/layer-consumption.ts:117-124** (bug)
+  `consumptionAudit` builds its own summary string (lines 117-121) but omits `GI_LAYER_ERROR` verdicts, which were added to `layer-registry.ts`'s `summary()` in the F-708 FIX. Consumers that threw mid-query (`verdict.startsWith('GI_LAYER_ERROR')`) are excluded from the summary string, so an operator sees `consumed:6/8` with no hint that some consumers faulted. The registry's own `summary()` method already handles this (line 252 of layer-registry.ts). This creates a two-view drift: `consumptionAudit.summary` and `registry.summary(subject)` disagree for the same subject when `GI_LAYER_ERROR` consumers exist. Either reuse `registry.summary(subject)` here, or add the missing `GI_LAYER_ERROR` bucket to match.
   ```existing
-  if (!Array.isArray(got)) { console.error('[layer-registry] factsFor: consumer ' + p.id + ' returned non-array facts - see audit GI_LAYER_ERROR:' + p.id); continue; }
+  const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
+  const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
+  const parts = [
+    `consumed:${consumed.length}/${reports.length}`,
+    `rungs=${[...new Set(consumed.map((r) => r.rung))].sort().join(",") || "none"}`,
+  ];
+  if (unconsumed.length > 0) parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.cons
   ```
   ```suggested
-  // Option: return { facts: LayerFact[], faults: { consumer: ConsumerId; reason: string }[] }
-// so callers of factsFor() can detect mid-query faults without calling audit() separately.
+  const errors = reports.filter((r) => r.verdict.startsWith("GI_LAYER_ERROR"));
+  const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
+  const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
+  const parts = [
+    `consumed:${consumed.length}/${reports.length}`,
+    `rungs=${[...new Set(consumed.map((r) => r.rung))].sort().join(",") || "none"}`,
+  ];
+  if (uncon
   ```
 
-## src/scoping/scope-binding.ts
-- **src/scoping/scope-binding.ts:109-118** (maintainability)
-  The longest-prefix matching pattern (`[...allPrefixes].sort((a, b) => b.length - a.length)` + linear scan) is duplicated in `ownerOf`, `isForeignWave`, `assertOwnWave`, and `assertAliasNamespace` (4 places). This increases maintenance burden and the risk of inconsistency if one site is updated but others are missed. Extract a shared helper (e.g., `findLongestMatchingPrefix(waveId, prefixes)`) and reuse it everywhere.
+## src/omp/typed-write.ts
+- **src/omp/typed-write.ts:367-369** (bug)
+  BUG: NaN propagation bypasses the [0,1] clamp. If `opts.ageDays` is NaN (e.g., caller passes an undefined arithmetic result), `Math.exp(-NaN / tau)` evaluates to NaN. Then `base * corr * NaN` = NaN. The final `Math.max(0, Math.min(1, NaN))` evaluates to NaN because `Math.min(1, NaN)` = NaN and `Math.max(0, NaN)` = NaN. This stores a non-numeric confidence in SQLite, which downstream consumers may not expect. Add a NaN guard after the multiplication or on the input.
   ```existing
-  ownerOf(waveId: string): ScopeBinding | null {
-    // ★ F-207 FIX (2026-09-24): LONGEST-prefix match — first-match over
-    //   registration order misattributes overlapping namespaces (wave- vs
-    //   wave-extra-). F-132 only refused exact duplicates, not overlaps.
-    const sorted = [...this.prefixes.entries()].sort((a, b) => b[0].length - a[0].length);
-    for (const [, b] of sorted) {
-      
+  const fresh =
+    typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1.0;
+  const confidence = Math.max(0, Math.min(1, base * corr * fresh));
+  ```
+  ```suggested
+  const fresh =
+    typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1.0;
+  const raw = base * corr * fresh;
+  const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : DERIVATION_BASE["unknown"]!;
   ```
 
 ## src/scoping/scoped-store.ts

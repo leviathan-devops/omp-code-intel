@@ -1,4 +1,4 @@
-# HIGH slice 5 — 9 findings across 8 files
+# HIGH slice 5 — 8 findings across 7 files
 
 ## src/hunter/graph/corbell-adapter.ts
 - **src/hunter/graph/corbell-adapter.ts:217-217** (performance)
@@ -7,76 +7,60 @@
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
   ```
 
-## src/hunter/harness/micro-loop-machine.ts
-- **src/hunter/harness/micro-loop-machine.ts:445-450** (bug)
-  **Resource leak: `done()` path does not close the SQLite DbClient.**
+## src/hunter/keys/go-key-pool.ts
+- **src/hunter/keys/go-key-pool.ts:394-401** (bug)
+  **Bug: `home === -1` branch UPDATE is silently overwritten by the subsequent UPSERT — displaced key's exile is always lost.**
 
-The F-501 fix (line 457) correctly closes `snapshot.db` inside `stop()`, but `done()` resolves without triggering db closure. If a caller does `await handle.done()` and never calls `stop()` (or the `stop()` call is missed due to the `pendingSettle` bug above), the SQLite WAL file handle leaks.
+The comment on lines 395-399 claims: "the UPSERT below cannot clobber it because it writes under the CURRENT keyid." This reasoning is incorrect. The UPSERT uses `ON CONFLICT(idx)` (line 404-405), which conflicts on the `idx` PRIMARY KEY, not on `keyid`. The UPDATE on line 400 sets `dead_until` on the row at `idx` (keyid = displaced.keyid), but the INSERT on line 403-406 immediately fires `ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until`, overwriting the displaced key's row entirely.
 
-Consider closing the db inside `settle()` (or a shared teardown function called by both `done()` and `stop()`), or document that callers must always call `stop()` after `done()` resolves.
+Trace for `home === -1`:
+1. Line 400: `UPDATE SET dead_until = max(old, until) WHERE keyid = X AND idx = N` → row at idx=N has (keyid=X, dead_until=max)
+2. Line 403-406: `INSERT (idx=N, keyid=Y, dead_until=until) ON CONFLICT(idx) DO UPDATE SET keyid=Y, dead_until=until` → row at idx=N now has (keyid=Y, dead_until=until). Key X's exile is gone.
+
+Impact: When a key is removed from GO_KEYS and later re-added, its rate-limit exile is silently lost. The still-limited key gets hammered. The F-512 fix's intent is not achieved.
+
+Suggestion: To truly preserve an orphaned exile, either (a) store it in a separate table keyed by keyid, or (b) skip the UPSERT when the slot is occupied by a displaced orphan and use a different idx (e.g., a negative or high-range sentinel), or (c) accept that removed keys lose their exile and update the comment to reflect the actual behavior.
   ```existing
-  function settle(): void {
-          if (settled) return;
-          settled = true;
-          pendingSettle = null;
-          sub2.unsubscribe();
-          sub3.unsubscribe();
+  } else {
+          // ★ F-512 FIX (2026-09-24): a reload-removed key (home === -1) keeps its exile ATTACHED
+          // ★ to the keyid instead of being deleted. The next reload that restores the key re-homes
+          // ★ it (the home>=0 branch); deletion would hammer a still-limited key after a key-set edit.
+          // ★ Keyed by keyid so a restored key re-attaches; the UPSERT below cannot cl
   ```
 
-## src/hunter/shared/containment.ts
-- **src/hunter/shared/containment.ts:111-114** (bug)
-  The `resolved` flag (e.g., `rootResolved` in `checkContained`) is computed but not included in the `ContainmentResult` interface or returned to callers. This means functions like `requireContained` cannot detect when a path was not truly resolved via `realpathSync`, undermining the module's guarantee (F-602). Add `resolved` to `ContainmentResult` and ensure it is surfaced in all return paths, including wrapper functions.
+## src/hunter/shared/query-engine.ts
+- **src/hunter/shared/query-engine.ts:369-370** (bug)
+  SQL LIKE wildcard injection: User-supplied query is interpolated into `LIKE '%..%'` without escaping SQL wildcard characters (`%` and `_`). A query like `a_b` will match `axb`, `ayb`, etc., and `100%` will match any string containing `100`. This degrades search precision silently and could return unexpected results. Escape `%` and `_` in the trimmed query before wrapping.
   ```existing
-  let rootReal: string;
-  let rootResolved: boolean;
-  try { rootReal = fs.realpathSync(root); rootResolved = true; }
-  catch { rootReal = realNearest(root); rootResolved = false; }
+  const like = `%${query.trim()}%`;
+      const rows = this.db.prepare('SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? OR canonical_id LIKE ? OR kind LIKE ?) LIMIT ?').all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
   ```
   ```suggested
-  let rootReal: string;
-  let rootResolved: boolean;
-  try { rootReal = fs.realpathSync(root); rootResolved = true; }
-  catch { rootReal = realNearest(root); rootResolved = false; }
-  const real = realNearest(target);
-  const contained = insideRoot(real, rootReal);
-  const targetAbs = path.resolve(target);
-  const resolved = real !== targetAbs || fs.existsSync(real);
-  return { real, rootReal, conta
+  const escaped = query.trim().replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const like = `%${escaped}%`;
+      const rows = this.db.prepare('SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? ESCAPE '\\' OR canonical_id LIKE ? ESCAPE '\\' OR kind LIKE ? ESCAPE '\\') LIMIT ?').all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
   ```
 
-## src/hunter/tools/report-writer-local.ts
-- **src/hunter/tools/report-writer-local.ts:53-59** (bug)
-  The regex `/^#{2,6} /m` does not exclude Markdown fenced code blocks (``` ... ```). If the report body contains a fenced code block with lines like `## Example` or `### ```json`, the `s.search(/^#{2,6} /m)` at line 43 will match inside the code fence, causing unintended heading promotion and corruption of the report's code-block content. Consider using a regex that skips fenced code blocks (e.g., strip fenced blocks before matching, or use a state-machine scan).
+## src/kernel/scan-chain.ts
+- **src/kernel/scan-chain.ts:138-143** (bug)
+  **Resource leak risk on non-ok HTTP responses**: When `response.ok` is false, `response.text()` is called to read the error body, but this is wrapped in a try/catch that silently ignores failures. If `response.text()` throws (e.g., the body stream is interrupted or the connection drops mid-read), the response body is not fully drained. In Node.js `fetch`, undrained response bodies prevent the underlying TCP connection from being returned to the agent pool. With up to 30 requests per chain run, this can exhaust connections. Ensure the body is always consumed, even if the read fails.
   ```existing
-  const deepIdx = s.search(/^#{2,6} /m);
-    if (deepIdx !== -1) {
-      const before = s.slice(0, deepIdx);
-      const after = s.slice(deepIdx).replace(/^#{2,6}[ ]?/, "# ");
-      s = before + after;
-      idx = s.search(/^# /m);
+  if (!response.ok) {
+      clearInterval(stallTimer);
+      let detail = "";
+      try { detail = (await response.text()).slice(0, 200); } catch { /* body unreadable — status alone is the signal */ }
+      return { ok: false, reason: `SCAN_HTTP_${response.status}: ${response.statusText ?? ""}${detail ? ` — ${detail}` : ""}` };
     }
   ```
-
-## src/omp/adapters/abide.ts
-- **src/omp/adapters/abide.ts:186-196** (bug)
-  Bug: When `subject` is an empty string, `hay.includes(subject)` always returns `true` because `String.prototype.includes('')` is always true in JavaScript. This means an empty subject would match ALL flagged events, producing a flood of spurious repair facts. Add a guard to reject empty/blank subjects, or adjust the matching logic.
-  ```existing
-  const hits = events.filter((e) => {
-        if (e.band !== "flag") return false; // ★ only a FLAG is a repair opportunity
-        // ★ F-506 FIX (2026-09-24): one-direction hay.includes(subject) missed repairs when the
-        // * subject is the broader text containing the span excerpt. Also match the reverse
-        // * (subject contains the span); an empty span never matches.
-        const hay
-  ```
   ```suggested
-  if (!subject || subject.trim().length === 0) return [];
-      const hits = events.filter((e) => {
-        if (e.band !== "flag") return false;
-        const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
-        if (hay.includes(subject)) return true;
-        const span = (e.matched_span ?? "").trim();
-        if (span.length > 0 && subject.includes(span)) return true;
-       
+  if (!response.ok) {
+      clearInterval(stallTimer);
+      let detail = "";
+      try { detail = (await response.text()).slice(0, 200); } catch {
+        try { await response.body?.cancel(); } catch { /* best-effort drain */ }
+      }
+      return { ok: false, reason: `SCAN_HTTP_${response.status}: ${response.statusText ?? ""}${detail ? ` — ${detail}` : ""}` };
+    }
   ```
 
 ## src/omp/adapters/semantica.ts
@@ -105,36 +89,27 @@ Suggested fix: normalize separators before splitting, or check against both `/` 
   if (!path.isAbsolute(scopeRoot) || normalizedSep.split(path.sep).includes("..") ) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   ```
 
-## src/omp/jev.ts
-- **src/omp/jev.ts:169-174** (bug)
-  Null answer values from the API cause an uncaught TypeError that escapes the JevError contract. The check `if (a === undefined) continue;` only guards against missing keys. If the upstream returns null for an answer (e.g. {supported: null}), a is null, passes the undefined check, and `typeof a.noul` throws a raw TypeError (cannot read properties of null). This violates the evaluate() contract where callers expect only JevError. Fix: add a null guard after the undefined check.
+## src/omp/hard-deps.ts
+- **src/omp/hard-deps.ts:330-330** (bug)
+  `join` filters out zero-length strings before joining. When `scopeRoot` is `""`, every `join(cfg.scopeRoot, ...)` produces a bare relative path like `.omp/graph-intelligence/layers/semantica`. This resolves against `process.cwd()` at probe time — silently UP on a machine whose CWD contains that structure, DOWN on others. The hard-dependency philosophy requires an explicit, loud failure when `scopeRoot` is missing, not a CWD-dependent guess. Add a guard that rejects an empty `scopeRoot` at the top of `buildRegister`.
   ```existing
-  const a = answers[q.id];
-      if (a === undefined) continue;
-      // A Noul answer carries the probability in `noul`; anything else is a shape
-      // we did not ask for and is DROPPED (the caller sees fewer answers and must
-      // treat a missing answer as UNCERTIFIABLE, never as a pass).
-      if (typeof a.noul === "number") out.push({ id: q.id, probability: a.noul });
+  const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/").replace(/\/{2,}/g, "/");
   ```
   ```suggested
-  const a = answers[q.id];
-      if (a == null || typeof a !== "object") continue;
-      // A Noul answer carries the probability in `noul`; anything else is a shape
-      // we did not ask for and is DROPPED.
-      if (typeof a.noul === "number") out.push({ id: q.id, probability: a.noul });
+  if (!cfg.scopeRoot) {
+    throw new Error("REGISTER_CONFIG: scopeRoot is required — an empty scope root would produce relative paths that resolve against CWD, not a loud failure");
+  }
+  const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/").replace(/\/{2,}/g, "/");
   ```
 
-## src/omp/typed-write.ts
-- **src/omp/typed-write.ts:367-369** (bug)
-  BUG: NaN propagation bypasses the [0,1] clamp. If `opts.ageDays` is NaN (e.g., caller passes an undefined arithmetic result), `Math.exp(-NaN / tau)` evaluates to NaN. Then `base * corr * NaN` = NaN. The final `Math.max(0, Math.min(1, NaN))` evaluates to NaN because `Math.min(1, NaN)` = NaN and `Math.max(0, NaN)` = NaN. This stores a non-numeric confidence in SQLite, which downstream consumers may not expect. Add a NaN guard after the multiplication or on the input.
+## src/omp/populate.ts
+- **src/omp/populate.ts:138-139** (bug)
+  The original exception `e` is discarded when re-wrapping as a new Error. The original stack trace, cause chain, and any structured error properties are lost, making production debugging significantly harder. Use `{ cause: e }` to preserve the original exception.
   ```existing
-  const fresh =
-    typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1.0;
-  const confidence = Math.max(0, Math.min(1, base * corr * fresh));
+  } catch (e) {
+      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
   ```
   ```suggested
-  const fresh =
-    typeof opts.ageDays === "number" && opts.ageDays > 0 ? Math.exp(-opts.ageDays / tau) : 1.0;
-  const raw = base * corr * fresh;
-  const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : DERIVATION_BASE["unknown"]!;
+  } catch (e) {
+      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`, { cause: e });
   ```

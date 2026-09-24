@@ -700,6 +700,47 @@ Suggestion: Add eviction logic when a session's drift is reset or when a session
     re
   ```
 
+[HIGH] src/omp/graph-gate.ts:197-208 (bug)
+  HIGH BUG: `computeDrift` drift is always exactly 0 or 1.0 — the tier cut thresholds (TIER_T1_CUT=0.4, TIER_T2_CUT=0.6, TIER_T3_CUT=0.8) are completely non-functional.
+
+Root cause: `totalWeight` is only incremented in the `else` branch (line 205) alongside `unverifiedWeight` (line 206). Verified edits are skipped via `continue` on line 203, contributing to NEITHER accumulator. Therefore `totalWeight === unverifiedWeight` always, and `drift = unverifiedWeight / totalWeight` is always 1.0 whenever any unverified edit exists.
+
+Consequence: The gate cannot distinguish "1 unverified edit out of 10" (drift should be ~0.1) from "10 unverified edits out of 10" (drift should be 1.0). The gradual propo
+  ```existing
+  } else if (verifiedHere.length > 0) {
+      // RULING (W1): edit-level coverage — a query on ANY touched symbol
+      // covers the edit. Per-symbol pro-rating demanded agents query a new
+      // name that did not exist at query time (rename solo→solo2 after
+      // querying solo scored 0.5 forever). The covered unit is the
+      // check-then-edit operation, not the symbol.
+      continue; // f
+  ```
+  ```suggested
+  } else if (verifiedHere.length > 0) {
+      // RULING (W1): edit-level coverage — a query on ANY touched symbol
+      // covers the edit. Verified edits contribute to the denominator
+      // (totalWeight) so the drift ratio reflects the true proportion
+      // of unverified weight across all active edits.
+      totalWeight += weight;
+    } else {
+      totalWeight += weight;
+      unverifiedWeig
+  ```
+
+[HIGH] src/omp/graph-gate.ts:81-81 (bug)
+  MEDIUM: `extractExportSymbols` brace-export regex `([^}]{1,400})` silently fails to match any `export { ... }` statement whose content exceeds 400 characters. For barrel files or large re-export lists, this means the gate sees ZERO exported symbols from that statement, under-counting `touchedSymbols` and potentially under-classifying severity (e.g., a barrel-file edit that adds a new re-export falls from HIGH to MEDIUM).
+
+The regex should either use a higher limit or use a non-greedy match with a closing-brace anchor that isn't constrained by a character count.
+  ```existing
+  const braceRe = /export\s*\{([^}]{1,400})\}/g;
+  ```
+  ```suggested
+  // Match export lists of any length by consuming non-brace chars greedily
+  // until the closing brace. The {1,400} limit was a performance heuristic
+  // that silently drops entire long export lists.
+  const braceRe = /export\s*\{([^}]+)\}/g;
+  ```
+
 [HIGH] src/omp/hard-deps.ts:330-330 (bug)
   `join` filters out zero-length strings before joining. When `scopeRoot` is `""`, every `join(cfg.scopeRoot, ...)` produces a bare relative path like `.omp/graph-intelligence/layers/semantica`. This resolves against `process.cwd()` at probe time — silently UP on a machine whose CWD contains that structure, DOWN on others. The hard-dependency philosophy requires an explicit, loud failure when `scopeRoot` is missing, not a CWD-dependent guess. Add a guard that rejects an empty `scopeRoot` at the top of `buildRegister`.
   ```existing
@@ -839,6 +880,59 @@ The error is logged loudly (good), but there is no backoff, no circuit-breaker, 
       throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`, { cause: e });
   ```
 
+[HIGH] src/omp/rsi.ts:299-300 (bug)
+  `write()` and `supersede()` return `{ id: 0, ... }` — the actual SQLite `lastInsertRowid` is never captured from `db.run()`. Any caller that uses the returned row's `id` (e.g., for logging, foreign-key references, or subsequent lookups) will get a wrong value of 0. Bun's `db.run()` returns `{ changes, lastInsertRowid }` which should be used instead.
+  ```existing
+  this.db.exec("COMMIT;");
+      return { id: 0, ...partial, sig } as ReflexRow;
+  ```
+  ```suggested
+  const ins = this.db.run(
+        `INSERT INTO ${this.table}
+          (canonical_id, kind, label, evidence_quote, confidence, confirmed, refuted,
+           unresolved, created_run, superseded_run, prev_hash, sig)
+         VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, NULL, ?, ?)`,
+        [input.canonicalId, input.kind, input.label, input.evidenceQuote,
+         input.confidence, run, prevHash, sig],
+      
+  ```
+
+[HIGH] src/omp/rsi.ts:515-515 (security)
+  `forgeForTest()` and `forceSupersedeForTest()` are public methods that allow injecting arbitrary unsigned rows and forcing unverified retirements. Any code with an `RsiStore` reference can call these to bypass the signing and verification model entirely. If this class is ever instantiated outside of a test harness, these become an attack surface. Recommend gating with an `isTest` constructor flag that must be explicitly set, or moving test helpers to a separate subclass/mixin.
+  ```existing
+  forgeForTest(row: Partial<ReflexRow> & { canonicalId: string; createdRun: string }, sig: string): void {
+  ```
+  ```suggested
+  // Gate behind a flag set only in test constructors
+  forgeForTest(row: Partial<ReflexRow> & { canonicalId: string; createdRun: string }, sig: string): void {
+    if (!this.testMode) throw new Error('GI_RSI_FORBIDDEN: forgeForTest requires test mode');
+  ```
+
+[HIGH] src/omp/store-open.ts:50-63 (security)
+  TOCTOU between `realpathSync` and the subsequent `mkdirSync`/`writeFileSync`: after `resolvedScopeRoot` is computed (line 60–66), an attacker with local filesystem access could replace a directory component in the resolved path with a symlink before `mkdirSync` on line 71 or `writeFileSync` on line 73. The `wx` flag guards the final file from truncation but does NOT prevent writing through a symlinked intermediate directory. The `assertSessionStorePath` inside `sessionStorePath` partially mitigates this (it re-resolves the parent), but the window between that assertion and the actual `mkdirSync`/`writeFileSync` is still open. Consider performing `realpathSync` on `path.dirname(storePath)` im
+  ```existing
+  let resolvedScopeRoot: string;
+  try {
+    resolvedScopeRoot = fs.realpathSync(input.scopeRoot);
+  } catch {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot does not resolve: ${JSON.stringify(input.scopeRoot)}`);
+  }
+  const storePath = sessionStorePath(resolvedScopeRoot, input.sessionId);
+  const existing = findGiSessionByStorePath(storePath);
+  if (existing && existing.session_id !== own
+  ```
+  ```suggested
+  let resolvedScopeRoot: string;
+  try {
+    resolvedScopeRoot = fs.realpathSync(input.scopeRoot);
+  } catch {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot does not resolve: ${JSON.stringify(input.scopeRoot)}`);
+  }
+  const storePath = sessionStorePath(resolvedScopeRoot, input.sessionId);
+  const existing = findGiSessionByStorePath(storePath);
+  if (existing && existing.session_id !== own
+  ```
+
 [HIGH] src/omp/typed-write.ts:367-369 (bug)
   BUG: NaN propagation bypasses the [0,1] clamp. If `opts.ageDays` is NaN (e.g., caller passes an undefined arithmetic result), `Math.exp(-NaN / tau)` evaluates to NaN. Then `base * corr * NaN` = NaN. The final `Math.max(0, Math.min(1, NaN))` evaluates to NaN because `Math.min(1, NaN)` = NaN and `Math.max(0, NaN)` = NaN. This stores a non-numeric confidence in SQLite, which downstream consumers may not expect. Add a NaN guard after the multiplication or on the input.
   ```existing
@@ -934,4 +1028,4 @@ The error is logged loudly (good), but there is no backoff, no circuit-breaker, 
     // The rejection is caught by caller try/c
   ```
 
-# total: 55
+# total: 60

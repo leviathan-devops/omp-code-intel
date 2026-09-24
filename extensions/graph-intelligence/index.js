@@ -179415,6 +179415,7 @@ function computeDrift(state, now = Date.now()) {
     if (edit.symbols.length === 0) {
       continue;
     } else if (verifiedHere.length > 0) {
+      totalWeight += weight;
       continue;
     } else {
       totalWeight += weight;
@@ -181472,8 +181473,11 @@ function hashSourceTree(root, scope, excludes, budgetN) {
 `);
       return;
     }
-    if (visitedDirs.has(realDir))
+    if (visitedDirs.has(realDir)) {
+      hash.update(`skip-cycle:${prefix}
+`);
       return;
+    }
     visitedDirs.add(realDir);
     let entries;
     try {
@@ -184616,53 +184620,42 @@ var COMPILED_PREDICATES_COLUMNS = [
   "battery_version",
   "calibrated"
 ].join(",");
-function writeBattery(db, battery) {
-  if (battery.length === 0)
-    return;
-  db.exec("BEGIN");
+function writeCompiledCache(db, battery, cards, corpusHash) {
+  db.exec("BEGIN IMMEDIATE");
   let committed = false;
+  const stmts = [];
   try {
-    const stmt = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
-    try {
+    const delCards = db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?");
+    stmts.push(delCards);
+    delCards.run(corpusHash);
+    const insCard = db.prepare("INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)");
+    stmts.push(insCard);
+    for (const c of cards) {
+      insCard.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
+    }
+    if (battery.length > 0) {
+      const insBat = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+      stmts.push(insBat);
       for (const p of battery) {
         const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
-        stmt.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
+        insBat.run(p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote, p.anchor, p.severity, checkCode, p.batteryVersion, "PENDING");
       }
-      db.exec("COMMIT");
-      committed = true;
-    } finally {
-      try {
-        stmt.finalize();
-      } catch {}
-    }
-  } catch (e) {
-    if (!committed)
-      db.exec("ROLLBACK");
-    throw e;
-  }
-}
-function writeRuleCards(db, cards, corpusHash) {
-  db.exec("BEGIN");
-  let del;
-  let ins;
-  try {
-    del = db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?");
-    ins = db.prepare("INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)");
-    del.run(corpusHash);
-    for (const c of cards) {
-      ins.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
     }
     db.exec("COMMIT");
+    committed = true;
   } catch (e) {
-    db.exec("ROLLBACK");
+    if (!committed) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {}
+    }
     throw e;
   } finally {
-    try {
-      ins?.finalize();
-    } catch {}
-    try {
-      del?.finalize();
-    } catch {}
+    for (const st of stmts) {
+      try {
+        st.finalize();
+      } catch {}
+    }
   }
 }
 function loadBattery(db, batteryVersion) {
@@ -184826,21 +184819,7 @@ async function compileBattery(profile, db) {
   const cards = await extractRuleCardsAsync(profile.rules.corpus);
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
-    try {
-      writeRuleCards(db, cards, version);
-    } catch (e) {
-      throw e;
-    }
-    try {
-      writeBattery(db, battery);
-    } catch (e) {
-      try {
-        db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?").run(version);
-      } catch (cleanupErr) {
-        console.warn(`[lexicon-compiler] writeBattery failed AND orphan cleanup DELETE failed (orphaned rule_cards under corpus_hash=${version}): cleanup: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}; original: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      throw e;
-    }
+    writeCompiledCache(db, battery, cards, version);
   }
   return { battery, batteryVersion: version, fromCache: false };
 }
@@ -186631,8 +186610,9 @@ function createLayerRegistry() {
     audit(subject) {
       return [...byId.values()].map((p) => auditOne(p, subject));
     },
-    factsFor(subject) {
-      const out = [];
+    factsForWithFaults(subject) {
+      const facts = [];
+      const faults = [];
       for (const p of byId.values()) {
         try {
           const rawProbe = p.up();
@@ -186642,18 +186622,23 @@ function createLayerRegistry() {
           const got = p.facts(subject);
           if (!Array.isArray(got)) {
             console.error("[layer-registry] factsFor: consumer " + p.id + " returned non-array facts - see audit GI_LAYER_ERROR:" + p.id);
+            faults.push({ consumer: p.id, reason: "facts() returned non-array facts - see audit GI_LAYER_ERROR:" + p.id });
             continue;
           }
           for (const f of got) {
             if (f !== null && typeof f === "object" && isAnchored(f))
-              out.push(f);
+              facts.push(f);
           }
         } catch (factsErr) {
           console.error("[layer-registry] factsFor: consumer " + p.id + " threw mid-query - see audit GI_LAYER_ERROR:" + p.id + ": " + (factsErr instanceof Error ? factsErr.message : String(factsErr)));
+          faults.push({ consumer: p.id, reason: "facts() threw mid-query - see audit GI_LAYER_ERROR:" + p.id + ": " + (factsErr instanceof Error ? factsErr.message : String(factsErr)) });
           continue;
         }
       }
-      return out;
+      return { facts, faults };
+    },
+    factsFor(subject) {
+      return registry.factsForWithFaults(subject).facts;
     },
     decisionsInfluenced(subject) {
       return [...new Set(registry.factsFor(subject).map((f) => f.consumer))];
