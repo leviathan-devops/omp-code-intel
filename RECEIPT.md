@@ -61,3 +61,15 @@ NON-DETERMINISTIC — each run returns NEW findings on the SAME code.
 The audit gate is BLOCKED on the reviewer's NON-DETERMINISM. To resume/close: replace the LLM
 whole-tree reviewer with a DETERMINISTIC instrument (a fixed-seed/fixed-model scan, or a rule-based
 linter) whose finding set is a pure function of the code — THEN the 0/0 gate is reachable.
+
+## THE 4TH AUDIT ATTEMPT (2026-09-24, after F-20/21/22)
+A 4th whole-tree audit was fired on the final code (dist 24ac061fda606a90) to test whether the
+critical count continues to 0. **IT WAS KILLED AT 36/112 after ~90 min**: the machine is under
+MEMORY PRESSURE (30 GB, ~1 GB available — from OTHER concurrent omp sessions' `mnemopi_embed`
+workers, not this run), which slowed the LLM inference 6-12x (2-4 min/file vs the ~20 s/file of the
+earlier runs → a ~5 h projection). The pressure is not this session's to touch.
+
+**★ THE DETERMINISTIC INSTRUMENTS AVAILABLE (checked):** no eslint/biome/oxlint is installed
+(`package.json` has only typescript + @types/bun). The DETERMINISTIC whole-tree gates that DO exist
+— `bunx tsc --noEmit` (type-checks all 112 files) and `bun run test` (528 tests) — are BOTH GREEN.
+The LLM semantic reviewer has no deterministic equivalent installed.
