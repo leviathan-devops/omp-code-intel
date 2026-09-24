@@ -113,8 +113,11 @@ export function keyComponent(
     id, cls, dependency, errorCode,
     probe: () => {
       const v = env[envName];
+      // ★ F-332 FIX (2026-09-24): the evidence string no longer reports the key's BYTE
+      //   LENGTH — the exact leak `keyFileComponent` was fixed for in PASS-5. The
+      //   length narrows a brute-force search; presence is all the probe needs.
       return v !== undefined && v.length > 0
-        ? { up: true, evidence: `${envName} present (len=${v.length})` }
+        ? { up: true, evidence: `${envName} present` }
         : { up: false, evidence: `${envName} ABSENT` };
     },
   };

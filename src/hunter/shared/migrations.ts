@@ -2,8 +2,13 @@
 // Ported 2026-09-14 (port wave W3-P2). Verbatim bytes; import ./ontology.ts is the ported sibling.
 import { NODE_TYPES, ALL_PREDICATES } from './ontology.ts';
 
+// ★ F-331 FIX (2026-09-24): SQL single-quote DOUBLING. The old body emitted `'${v}'`
+//   verbatim — a node type carrying an apostrophe would terminate the literal and
+//   silently alter the CHECK clause's DDL semantics. Standard SQL escaping: double
+//   every embedded quote. (Values are compile-time constants today; the escaping is
+//   what keeps that irrelevant.)
 function sqlList(values: readonly string[]): string {
-  return values.map((v) => `'${v}'`).join(',');
+  return values.map((v) => `'${v.replace(/'/g, "''")}'`).join(',');
 }
 
 const NODE_KINDS_SQL = sqlList(NODE_TYPES);

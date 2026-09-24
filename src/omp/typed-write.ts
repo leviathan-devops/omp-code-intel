@@ -775,7 +775,12 @@ export interface WhoCallsRow { caller: string; file: string; line: number; kind?
 /** V21 W1 (identity model): resolve a display label to its LIVE canonical_ids.
  *  Traversal keys on canonical_id — same-label functions in different files are
  *  DIFFERENT identities and must never conflate in whoCalls/impact/chain/blast. */
-function resolveLiveIds(db: { query: (sql: string) => { all: (...v: any[]) => unknown[] } }, label: string): string[] {
+// ★ F-330 FIX (2026-09-24): the ONE real `any` in src — the bindings array of the
+//   statement's `all`. `SQLQueryBindings` is bun's OWN bind type (already imported
+//   above): it is what `Database.query(...).all` actually accepts, so the parameter
+//   is now contravariant-compatible with the real handle AND every call site is
+//   type-checked. (`unknown[]` was the first attempt — it broke the variance.)
+function resolveLiveIds(db: { query: (sql: string) => { all: (...v: SQLQueryBindings[]) => unknown[] } }, label: string): string[] {
   const rows = db.query(
     "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501",
   ).all(label) as Array<{ canonical_id: string }>;

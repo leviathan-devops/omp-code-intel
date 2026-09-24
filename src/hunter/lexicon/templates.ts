@@ -132,6 +132,11 @@ function readPath(obj: Record<string, unknown>, dotted: string): unknown {
   let cur: unknown = obj;
   for (const part of dotted.split('.')) {
     if (cur === null || cur === undefined || typeof cur !== 'object') return undefined;
+    // ★ F-333 FIX (2026-09-24): OWN-PROPERTY ONLY. A bare `obj[part]` walks the
+    //   prototype chain — a polluted Object.prototype (or an Object.create'd node.data)
+    //   could surface an INHERITED value as if it were a binding. The predicate's
+    //   bindings are the template's INPUT, so the read is a trust boundary.
+    if (!Object.hasOwn(cur, part)) return undefined;
     cur = (cur as Record<string, unknown>)[part];
   }
   return cur;
