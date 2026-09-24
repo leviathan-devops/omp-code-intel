@@ -101,3 +101,28 @@ The host restarted mid-wave, killing all 5 run-3 agents with ZERO edits landed. 
 survived intact (HEAD fdadc86 · tsc exit 0 · dist 24ac061fda606a90 · the 5 slices on disk).
 RE-DISPATCHED: R3GraphLexicon2 · R3HarnessSharedHooks2 · R3SurfaceDiagFirewall2 · R3Omp2 ·
 R3HydraKernelScoping2 (the same 87 highs, the same disjoint slices).
+
+---
+
+## ★ W3-FOLLOW-ON #2 — COMPLETE (2026-09-24)
+
+| agent | files | REAL | NOT-A-BUG |
+|---|---|---|---|
+| R3GraphLexicon2 | 6 | 11 | 6 |
+| R3HarnessSharedHooks2 | 11 | 16 | 7 |
+| R3SurfaceDiagFirewall2 | 8 | 9 | 4 |
+| R3Omp2 | 20 | ~20 | ~5 |
+| R3HydraKernelScoping2 | 10 | 16 | 1 |
+| the orchestrator (F-23..F-28, F-35, F-36) | 8 | 8 | — |
+| **★ THE TOTAL** | **36 files** | **~80 REAL FIXED** | **~23 NOT-A-BUG** |
+
+**THE VERIFICATION (the orchestrator's own runs, post-wave):**
+- `bunx tsc --noEmit` → **exit 0**
+- `bun run test` → **430 pass / 0 fail** + **528 pass / 0 fail**, exit 0
+- goal-verify → **5/5** (C1 `consumed:7/8`, the per-domain union) — RESTORED after the L2 daemon restart
+- the red-team corpus → **70 pass / 0 fail**
+- the dist **ca1d04645cc29d33** carries every fix; the canon docs synced.
+
+★ **THE RESTART LESSON (recorded):** the host restart killed the au-engine daemon (L2's Rust
+per-repo serve process) — the substrate, not the code. `au daemon start <repo>` restores it.
+The audit5 run is now measuring the post-wave tree.
