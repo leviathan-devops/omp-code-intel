@@ -41,6 +41,12 @@ export interface GraphifyPopulateResult {
   edges: number;
   checkoutPath: string;
   graphPath: string;
+  /** ★ F-938 FIX (2026-09-24): the sidecar-write fault flag — the populate SUCCEEDED (rows
+   *  committed) but the freshness sidecar did not persist, so the next probe falls back to
+   *  mtime and may REBUILD on every call (the UNBOUNDED rebuild loop). Absent/false means
+   *  the sidecar wrote cleanly; true names the loop risk on the RESULT (not just stderr).
+   *  Callers that poll populate in a loop MUST back off when this is true. */
+  sidecarWriteFailed?: boolean;
 }
 
 export function graphifyCheckoutPath(root: string): string {
@@ -265,12 +271,18 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
     }
   };
   // ★ F-846 FIX (2026-09-24): same cycle guard as the freshness probe above — a symlink loop otherwise hashed forever (budget only counted files). realpath-keyed visited set; unresolvable dirs skip (the skip is folded into the digest, never silent).
+  // ★ F-937 FIX (2026-09-24): the cycle revisit was a SILENT return — two trees differing
+  //   only by a symlink cycle hashed EQUAL (a cycle no longer contributes, but nothing
+  //   records that it existed). The revisit now folds `skip-cycle:<prefix>` into the digest
+  //   (fail-open digest law, same as the skip: and skip-dir: markers) so a cyclic tree can
+  //   never collide with an acyclic tree of otherwise-identical content. PROBE: a fixture
+  //   tree with src/self → src hashes differently from the same tree without the link.
   const visitedDirs = new Set<string>();
   const walk = (dir: string, prefix: string): void => {
     if (budget.n <= 0) { exhausted = true; return; }
     let realDir: string;
     try { realDir = fs.realpathSync(dir); } catch { hash.update(`skip-dir:${prefix}\n`); return; }
-    if (visitedDirs.has(realDir)) return;
+    if (visitedDirs.has(realDir)) { hash.update(`skip-cycle:${prefix}\n`); return; }
     visitedDirs.add(realDir);
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
@@ -419,6 +431,10 @@ export async function populateFromGraphifyCheckout(
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, reason: `GRAPHIFY_WRITE_FAILED:open ${msg.slice(0, 140)}`, nodes: 0, edges: 0, checkoutPath, graphPath };
   }
+  // ★ F-938 FIX (2026-09-24): the fault flag — declared outside the try so the success
+  //   return below can carry it (a throw from supersedeThenInsert takes the GRAPHIFY_WRITE_FAILED
+  //   path instead, where no sidecar was attempted and the flag stays false).
+  let sidecarWriteFailed = false;
   try {
     // Caller owns close (the helper never closes a caller-owned connection).
     supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
@@ -441,10 +457,17 @@ export async function populateFromGraphifyCheckout(
       //   the mtime walk, may still prove fresh, rebuilds, and fails the sidecar write
       //   again, forever. The store update DID succeed (genuinely non-fatal, so this must
       //   not throw) — but it must be LOUD and it must NAME the consequence.
+      // ★ F-938 FIX (2026-09-24): LOUD on stderr was not enough — a caller polling populate
+      //   in a loop never reads stderr and rebuilds UNBOUNDED (no backoff, no counter, no
+      //   sentinel). The fault now rides the RESULT as sidecarWriteFailed:true (same
+      //   fault-on-the-result law as F-930/F-936) so the CALLER can back off; the console
+      //   message below additionally names the remedy (stop polling / fix the write path).
       const why = hashErr instanceof Error ? hashErr.message.slice(0, 120) : "?";
+      sidecarWriteFailed = true;
       console.error(
         `[gi-omp] SIDECAR_WRITE_FAILED path=${hashPath}: ${why}`
-        + ` — the freshness probe now has no sidecar to compare, so this target may REBUILD on every populate (rebuild loop)`,
+        + ` — the freshness probe now has no sidecar to compare, so this target may REBUILD on every populate (rebuild loop).`
+        + ` Remedy: stop polling populate until the write path is fixed; result carries sidecarWriteFailed:true.`,
       );
     }
   } catch (e: unknown) {
@@ -456,7 +479,7 @@ export async function populateFromGraphifyCheckout(
   console.error(
     `[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`,
   );
-  return { ok: true, nodes: nodeRows.length, edges: edgeRows.length, checkoutPath, graphPath };
+  return { ok: true, nodes: nodeRows.length, edges: edgeRows.length, checkoutPath, graphPath, ...(sidecarWriteFailed ? { sidecarWriteFailed: true as const } : {}) };
 }
 
 /** V-16 FIX (qwen session 1aca90d4): the single-txn helper — supersede +
