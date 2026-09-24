@@ -240,6 +240,13 @@ export class DiagnosticsServer {
   /** Record a show — the dedupe window increments (the O32.2 collapse bookkeeping). */
   recordShow(file: string, ruleId: string): void {
     const key = `${file}\u0000${ruleId}`;
+    // ★ F-8 FIX (2026-09-24): bounded dedupe window — a fresh key past the cap
+    // evicts the oldest-inserted entry (Map insertion order), so a long session
+    // cannot grow this map without bound. Eviction only re-shows a block in full.
+    if (!this.recent.has(key) && this.recent.size >= RECENT_WINDOW_MAX) {
+      const oldest = this.recent.keys().next();
+      if (!oldest.done) this.recent.delete(oldest.value);
+    }
     this.recent.set(key, (this.recent.get(key) ?? 0) + 1);
   }
 
