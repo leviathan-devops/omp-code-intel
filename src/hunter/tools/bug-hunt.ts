@@ -68,7 +68,15 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
   //   existing file passed the profile check. When the caller supplies scopeRoot, both
   //   resolved paths must be inside it (symlink-aware: realpath both sides first).
   const scopeReal = args.scopeRoot ? fsDyn.realpathSync(path.resolve(args.scopeRoot)) : null;
-  const scopePrefix = scopeReal === null ? null : (scopeReal === path.sep ? path.sep : scopeReal + path.sep);
+  // ★ F-870 FIX (2026-09-24, run-12 CRITICAL): `scopeReal === path.sep ? path.sep : …` made the
+  //   prefix `'/'` when scopeRoot was `/` — and EVERY absolute path starts with `/`, so
+  //   containment was VACUOUSLY TRUE and the whole F-303 guard defeated. This is the SAME
+  //   class F-601 fixed in the shared primitive's `rootPrefixOf` — this site had its own copy.
+  //   A filesystem-root scope is now REFUSED (it is not a meaningful containment boundary).
+  if (scopeReal === path.sep) {
+    throw new Error(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root — containment against '/' admits every path and is not a boundary`);
+  }
+  const scopePrefix = scopeReal === null ? null : scopeReal + path.sep;
   const inScope = (real: string): boolean => scopeReal === null || real === scopeReal || (scopePrefix !== null && real.startsWith(scopePrefix));
   let targetOk = false;
   try { targetOk = fsDyn.statSync(absTarget).isDirectory(); } catch { targetOk = false; }

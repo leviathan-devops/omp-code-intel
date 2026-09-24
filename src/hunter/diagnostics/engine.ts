@@ -399,16 +399,18 @@ export function runBattery(
     dedupedCount: ranked.length,
     predicatesExecuted: fullBattery.length,
   };
-  // ★ F-42 FIX (2026-09-24): changed/rerun were the SAME ruleId set — the equality
-  // ★ arm passed by construction. runBattery always runs the FULL battery over the
-  // ★ FULL node set (no incremental path exists), so both legs are honestly the
-  // ★ node-id universe: the check now asserts full coverage, not set self-equality.
-  const nodeIds = new Set(graph.nodes().map((n) => n.id));
+  // ★ F-872 FIX (2026-09-24, run-12 CRITICAL): the F-42 call passed the FULL node set as
+  //   `changedNodeIds` — a LIE. `runBattery` is a FULL re-run with NO incremental path: no
+  //   node "changed" in this invocation. The consequence was not cosmetic: `assertNoBlindness`
+  //   throws ENGINE_SKIP when `runResult.length === 0 && changed.size > 0`, so ANY CLEAN RUN
+  //   (a project with no findings) threw — the check fired on exactly the state it exists to
+  //   permit. The honest checkpoint: nothing changed, the full battery ran over every node.
+  const allNodeIds = new Set(graph.nodes().map((n) => n.id));
   assertNoBlindness({
-    graphNodesBefore: nodeIds.size,
+    graphNodesBefore: allNodeIds.size,
     graphNodesAfter: graph.nodes().length,
-    changedNodeIds: new Set(nodeIds),
-    rerunNodeIds: new Set(nodeIds),
+    changedNodeIds: new Set<string>(),   // a full re-run changes nothing
+    rerunNodeIds: new Set(allNodeIds),   // the battery covered the whole node universe
     runResult: ranked,
   });
   return summary;

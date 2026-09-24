@@ -432,6 +432,12 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
         const snapStatus: unknown = (actor.getSnapshot() as { status?: unknown }).status;
         if (snapStatus === 'stopped' || snapStatus === 'error') { resolve(); return; }
         let settled = false;
+        // ★ F-871 FIX (2026-09-24, run-12 CRITICAL): F-408 declared `pendingSettle` and made
+        //   stop() call it, but NOTHING EVER ASSIGNED IT — `settle` cleared it to null and the
+        //   handle never received it, so stop() saw null and the pending done() promise STILL
+        //   hung. The fix was half-applied (the declaration + the call site, not the binding).
+        //   Bind the closure into the handle-scope slot now, so stop() can actually resolve it.
+        pendingSettle = settle;
         const sub2 = actor.subscribe((s): void => {
           if (s.status === 'done') { settle(); }
         });
