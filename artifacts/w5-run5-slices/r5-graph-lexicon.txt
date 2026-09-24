@@ -1,0 +1,30 @@
+[HIGH] src/hunter/graph/corbell-adapter.ts
+    `buildCorbellGraphAsync` is defined and exported but never called anywhere in the active `src/` tree (confirmed via codebase search). It is dead code. Additionally, it has two deficiencies compared to the sync path: (1) no timeout — a hung 
+
+[HIGH] src/hunter/graph/graphify-adapter.ts
+    **`resolveNodeId` silently returns phantom IDs**: When `symbol` is not found by name or suffix match, the fallback `return \`graphify:${symbol}\`` creates an ID that is almost certainly NOT in `byIdIdx`. Downstream callers (`whoCalls`, `cha
+
+[HIGH] src/hunter/graph/resolver.ts
+    Both the `decide` and `run` harness paths synthesize a fake entity `{ id: alias, label: alias, kind: 'Class' }` when an alias is not found in `newEntities`. Hardcoding `kind: 'Class'` is incorrect — if the harness returns an alias that does
+
+[HIGH] src/hunter/graph/resolver.ts
+    When the harness returns a `canonical_id` that does not match any entry in the `existing` array, `existCanon` becomes `null` and the decision is silently accepted. This means a `same` or `related` verdict can reference a non-existent canoni
+
+[HIGH] src/hunter/graph/resolver.ts
+    If ROLLBACK itself fails after a write error, the database may be left in a partially-committed state. The current code only `console.warn`s the rollback failure, which is insufficient for a data-integrity-critical path. The caller has no m
+
+[HIGH] src/hunter/graph/store-map.ts
+    `lastIndexOf("/")` returns -1 when `checkoutPath` contains no `/` character. `slice(0, -1)` then returns the entire string minus its last character, which is passed to `mkdirSync` as the parent directory. This silently creates a wrong direc
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    When writeBattery fails, the inner catch block silently discards the cleanup error with an empty catch. If both the battery write AND the cleanup DELETE fail, the database is left in an inconsistent state (orphaned rule_cards) with no loggi
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    The default case silently maps any unrecognized classification to a known template instead of throwing. If card extraction introduces a new classification or produces a corrupted value, this masks the bug and silently produces a battery wit
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    Both `compile()` and `compileBattery()` duplicate the identical extractRuleCards → compileCards → compileDeclared pipeline. A future fix applied to one path but not the other will silently break determinism. `compile()` should delegate to `
+
+[HIGH] src/hunter/lexicon/rule-card.ts
+    Bug: The `proposed` flag is not suppressed when the operator has explicitly declared metadata. When a corpus rule has a curated `classification` and/or `severity` declaration, the D13 curatorial override is in effect — the operator has deci
+

@@ -1,0 +1,69 @@
+[CRITICAL] src/omp/adapters/abide.ts
+    `Math.max(st.size, 64 * 1024 * 1024)` is almost certainly wrong — it should be `Math.min`. With `Math.max`: for files smaller than 64 MiB the cap is 64 MiB (excessively large); for files *larger* than 64 MiB the cap equals `st.size`, meanin
+
+[CRITICAL] src/omp/graph-facts.ts
+    BUG: When `predicate` is `undefined`, the WHERE clause becomes `dst_canonical LIKE ?1 AND superseded_run IS NULL AND` — a trailing `AND` with no following condition, which is a SQL syntax error. This means `inDegree(db, target)` without a p
+
+[CRITICAL] src/omp/graph-gate.ts
+    **Critical: `registerGraphGate` is a no-op stub.** This is the only exported function that wires the gate into the tool-call lifecycle (`onBeforeToolCall`, `onAfterToolCall`, `onTurnEnd`), but it immediately discards the API object (`void a
+
+[HIGH] src/omp/adapters//shared.ts
+    **Bug: Missing `curl` binary silently classified as socket "refused".**  If `curl` is not installed on the host, `execFileSync("curl", ...)` throws an `ENOENT` error (a system-level error, not a process exit). The catch block casts the erro
+
+[HIGH] src/omp/adapters/arsumbris.ts
+    **Security — `subject` parameter passes unsanitized to child process**: The F-24 fix explicitly gates `repoRoot` (must be absolute) and `read` (whitelist regex `^[A-Za-z0-9_-]+$`), but `subject` is forwarded raw to `execFileSync` with no va
+
+[HIGH] src/omp/adapters/ua.ts
+    Path traversal check is bypassable on Windows when the input uses forward slashes. `scopeRoot.split(path.sep)` splits by the OS-native separator (`\` on Windows), but Node.js accepts `/` as a path separator on all platforms. An input like `
+
+[HIGH] src/omp/evidence-producer.ts
+    The bidirectional `includes()` check can cause false-positive evidence emission. For example, a subject with target `"app"` will match any event whose target contains `"app"` anywhere (e.g., `"application.js"`, `"append.txt"`). Conversely, 
+
+[HIGH] src/omp/evidence-producer.ts
+    Malformed JSON lines are silently filtered out via the `catch { return null }` pattern. If a records file is partially corrupted, re-derivation yields fewer records than the original — directly violating Law 1 (REPRODUCIBLE). The corruption
+
+[HIGH] src/omp/fire-gate.ts
+    The MPSE negation check uses `.every()` to test whether ALL matched slots contain negation/discussion language. However, a single slot can mix discussion and affirmative action (e.g., `"discussed rm and then executed rm"`). Because the rege
+
+[HIGH] src/omp/gate-hook.ts
+    Regex injection vulnerability: Function names extracted from file content via regex are interpolated directly into `new RegExp()` without escaping. A function name containing regex metacharacters (e.g., `$`, `(`, `*`, `+`) would cause unexp
+
+[HIGH] src/omp/gate-middleware.ts
+    Major code duplication: `parseExports` and `parseExportSites` share nearly identical parsing logic across all five regex patterns. The only difference is that `parseExportSites` also tracks line numbers. This duplication is a maintenance ri
+
+[HIGH] src/omp/graph-facts.ts
+    LIKE substring matching is overly broad and will produce false-positive verdicts. The helper builds `%target%`, so a target string like `close` would match nodes with canonical IDs containing `closing`, `reopened`, `closed`, `enclosed`, etc
+
+[HIGH] src/omp/graph-gate.ts
+    **Logic inconsistency: `consecutiveUnverified` vs `computeDrift` disagree on partially-verified edits.** In `computeDrift` (line ~168), when `verifiedHere.length > 0` the edit is treated as fully verified (skips both unverified and total we
+
+[HIGH] src/omp/hard-deps.ts
+    The local `join` helper (`parts.filter(p => p.length > 0).join("/")`) does no slash normalization. If `cfg.scopeRoot` carries a trailing slash (e.g. `/home/user/project/`), every path it builds contains `//` (e.g. `.../project//.omp/...`). 
+
+[HIGH] src/omp/hard-deps.ts
+    L2_ARSUMBRIS reads `process.env.HOME` directly instead of using the injectable `env` parameter (or a `cfg.home` field) that every other key/probe respects. This makes it impossible to hermetically test the register in a sandboxed environmen
+
+[HIGH] src/omp/layer-consumption.ts
+    Probe construction calls (`corbellProbe(scopeRoot)`, `graphifyProbe(scopeRoot)`, etc.) and KEV resolution calls (`resolveKevCli`, `resolveKevRuntime`) are not wrapped in try-catch. If any of these throws (e.g., a probe constructor touches t
+
+[HIGH] src/omp/populate-graphify.ts
+    The `supersedeThenInsert` function checks `db.inTransaction` as a nested-transaction guard, but bun:sqlite's `Database` class does not expose a public `inTransaction` property in its TypeScript type definitions. The property access resolves
+
+[HIGH] src/omp/populate.ts
+    Bug: `setMeta` opens a new DB handle and closes it on every call (see typed-write.ts:134-141). These three separate `setMeta` calls each perform an independent open/write/close cycle — three separate transactions for metadata that should be
+
+[HIGH] src/omp/ripwire-bridge.ts
+    When `spawnSync` truncates stdout because output exceeds `maxBuffer` (32 MB), the code does not detect this condition. Truncated JSON will cause `jsonOf()` to return `null` silently, and truncated XML will cause `firstTag`/`childRows` to re
+
+[HIGH] src/omp/rsi.ts
+    The methods `write()`, `appendFiring()`, and `appendOutcome()` in src/omp/rsi.ts lack transaction protection for reading the chain tip and inserting new rows. This concurrency defect allows two concurrent calls to read the same `prevHash`, 
+
+[HIGH] src/omp/rsi.ts
+    `supersede()` computes `prevHash` via `head()` at line 411 BEFORE acquiring the `BEGIN IMMEDIATE` lock at line 426. If another concurrent `write()` or `supersede()` commits between these two lines, the `prevHash` will be stale — the new row
+
+[HIGH] src/omp/store-open.ts
+    Path traversal defense is bypassable on Windows. The `..` check splits `input.scopeRoot` on `path.sep` (which is `\` on Windows), so a scopeRoot using forward slashes like `/allowed/../../etc` won't split `..` into separate segments — it re
+
+[HIGH] src/omp/typed-write.ts
+    TOCTOU race between lstat and stat in openTypedStore: lines 142-147 perform `lstatSync` followed by `statSync` on the same path. A symlink could be planted between these two calls — lstat sees the symlink and throws, but if timing allows, s
+

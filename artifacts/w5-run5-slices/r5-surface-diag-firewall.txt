@@ -1,0 +1,27 @@
+[HIGH] src/hunter/diagnostics/calibration.ts
+    The `fd` variable is scoped to each loop iteration via `let`. If `fs.openSync` succeeds but `fs.closeSync(fd)` throws, the original error propagates to the catch block where `fd !== null` is true, so it attempts a second close (best-effort)
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    `collectLocalTsFiles` silently swallows directory read failures via `console.error` and continues, violating the file's own fail-closed law (line 14: 'an unreadable source is a LOUD named fail, never an empty read'). When a subdirectory und
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    Path containment check is ineffective when `rootReal` resolves to `/` (e.g. `profile.project.root` is `/` or a symlink that resolves to `/`). On POSIX, `rootReal + path.sep` evaluates to `//`. The `parentReal.startsWith('//')` branch fails 
+
+[HIGH] src/hunter/diagnostics/findings-store.ts
+    The deduplication key uses `|` as a separator between run_id, ruleId, file, and line. If any ruleId or file path contains a `|` character, distinct findings will collide and be incorrectly collapsed, silently dropping violations. Use a sepa
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts
+    The `asFixture` function performs only a runtime type-check for `typeof === 'object'` and `!Array.isArray`, then casts the result to the generic type `T`. This means any JSON object (e.g. `{"foo": "bar"}`) would pass validation, and subsequ
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts
+    `loadFixtureProfile` silently falls through to `buildFixtureProfile` whenever `loadProfile` throws — not only when the file doesn't exist. If `profile.yaml` exists but is malformed (malformed YAML, missing required fields, failed zod parse)
+
+[HIGH] src/hunter/surface/lsp-injector.ts
+    **Bug — `watch` return-type mismatch breaks polymorphic usage.** The base class `DiagnosticsServer.watch()` declares `void` return, but `LiveGraphWatcher` overrides it to return `WatcherHandle`. While TypeScript allows this (narrowing the r
+
+[HIGH] src/hunter/surface/query-tool.ts
+    **chain() BFS memory blowup — path array copied per edge**: Each queue entry copies the entire accumulated path via `[...cur.steps, step]`. With MAX_DEPTH=64 and moderate branching factor, this creates O(branching_factor^depth) copies of ar
+
+[HIGH] src/hunter/surface/query-tool.ts
+    **Recursive CTE CROSS JOIN causes exponential fan-out**: The blast CTE uses `CROSS JOIN typed_nodes dst ON dst.file = blast.file` and `CROSS JOIN typed_edges e ON ...`, which means every blast row at depth D fans out by (edges_for_file × no
+
