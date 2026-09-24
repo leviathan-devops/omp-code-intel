@@ -184084,12 +184084,12 @@ function runBattery(battery, graph, profile, runId, db, week) {
     dedupedCount: ranked.length,
     predicatesExecuted: fullBattery.length
   };
-  const nodeIds = new Set(graph.nodes().map((n) => n.id));
+  const allNodeIds = new Set(graph.nodes().map((n) => n.id));
   assertNoBlindness({
-    graphNodesBefore: nodeIds.size,
+    graphNodesBefore: allNodeIds.size,
     graphNodesAfter: graph.nodes().length,
-    changedNodeIds: new Set(nodeIds),
-    rerunNodeIds: new Set(nodeIds),
+    changedNodeIds: new Set,
+    rerunNodeIds: new Set(allNodeIds),
     runResult: ranked
   });
   return summary;
@@ -185764,6 +185764,7 @@ function createMicroLoop(options) {
           return;
         }
         let settled = false;
+        pendingSettle = settle;
         const sub2 = actor.subscribe((s) => {
           if (s.status === "done") {
             settle();
@@ -185873,7 +185874,10 @@ async function spawnBugHunterLoop(args) {
   const fsDyn = await import("fs");
   const absTarget = path24.resolve(args.targetPath);
   const scopeReal = args.scopeRoot ? fsDyn.realpathSync(path24.resolve(args.scopeRoot)) : null;
-  const scopePrefix = scopeReal === null ? null : scopeReal === path24.sep ? path24.sep : scopeReal + path24.sep;
+  if (scopeReal === path24.sep) {
+    throw new Error(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root \u2014 containment against '/' admits every path and is not a boundary`);
+  }
+  const scopePrefix = scopeReal === null ? null : scopeReal + path24.sep;
   const inScope = (real) => scopeReal === null || real === scopeReal || scopePrefix !== null && real.startsWith(scopePrefix);
   let targetOk = false;
   try {
