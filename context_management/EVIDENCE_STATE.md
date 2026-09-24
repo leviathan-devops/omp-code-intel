@@ -1,12 +1,12 @@
 # EVIDENCE_STATE — the verified evidence + the honest gaps
 
-**The dist SHA (the deployment fingerprint): 038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd**
+**The dist SHA (the deployment fingerprint): e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663**
 
 ## THE DIST SHA CHAIN
 
 ```
-deployed         038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd  613,039 B
-v2.1 blueprint   038c84c31569aebb  (41,853 B, 862 L — the design of record)
+deployed         e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663  613,039 B
+v2.1 blueprint   e13d0f5939e3707b  (41,853 B, 862 L — the design of record)
 the measurement  jev-fire-measurement.json  bestT=0.40  bestF1=0.933  health.ok=false
 ```
 
@@ -217,7 +217,7 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 | **B/C/D** | `bunx tsc --noEmit` exit 0 with the 8 adapters + the registry + the wiring | GREEN |
 | **D-2 (the dist)** | the dist-content gate: 8/8 symbols present, 613 KB → 9.42 MB | GREEN |
 | **E-1** | `bun test tests/st-gi-6l2e.test.ts` → 13 pass / 0 fail / 82 expect() | GREEN |
-| **E-2 (deploy)** | local sha `038c84c31569aebb` == container sha | MATCH |
+| **E-2 (deploy)** | local sha `e13d0f5939e3707b` == container sha | MATCH |
 | **E-2 (auth)** | the model answered; the status bar read "Laguna S 2.1 (free)" | PASS |
 | **E-2 (the tool)** | the TUI tool result: `consumed:2/8 rungs=settlement` with L5 facts=16 / L6 facts=8 | PASS |
 | **E-2 (the negative)** | scopeRoot=/tmp → `consumed:0/8`, every consumer DOWN; `consumed:8/8` ABSENT | PASS |
@@ -229,17 +229,17 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `038c84c31569aebb`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `038c84c31569aebb` (two rebuilds
+** sha256_16 `e13d0f5939e3707b`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `e13d0f5939e3707b` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `038c84c31569aebb`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `e13d0f5939e3707b`; `find src -newer` = 0;
 the container deploy sha MATCHES.
 
 ---
 
 ## ★ THE RED-TEAM CLOSE (2026-09-23) — THE 5 FRONTS, EACH WITH ITS EVIDENCE
 
-**The dist:** `038c84c31569aebbf15ba936f4ecc06ad691baa3c2bcffd2f56f4489a2f15dcd` · **the pin:** `PIN_FIX_ALL_REMAINING_BUGS.md`
+**The dist:** `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663` · **the pin:** `PIN_FIX_ALL_REMAINING_BUGS.md`
 
 | the gate | the command | the measured token | the artifact |
 |---|---|---|---|
@@ -267,3 +267,28 @@ the container deploy sha MATCHES.
 2. **W5's fresh audit** — the multi-file scan aborts at 0 files (measured); the single-file scan is
    the working shape. The artifact + the `AUDIT GATE:` line land when the lane completes.
 3. **The 5 declined findings** are RESOLVED (4 NOT-A-BUG proven + 1 FIXED), each with its test.
+
+
+---
+
+## ★ THE CLEANUP RUN (2026-09-24) — the 4 waves, each with its measured evidence
+
+**The dist:** `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663` · **The spec:** `packages/gi-cleanup/CLEANUP_SPEC.md`
+
+| the wave | the fraud | the command | the measured token | the artifact |
+|---|---|---|---|---|
+| W1 | FR-1 the LYING GATE | `bun test -t test_goal_predicate` | **4 pass / 0 fail** · the stdout has NO contradicting line | `scripts/goal-verify.ts` (the condition string fixed) |
+| W2 | FR-2 the HOLLOW LEDGER | `bun test -t test_ledger_diversity_four_verdicts` | **4 rows, 4 DISTINCT** (dumb|theatrical|destructive|benign) | `tests/st-runtime-diversity.test.ts` |
+| W3 | FR-3+FR-4 the 2.7% audit + the 10 findings | the parallel whole-tree scan (12 workers) | RUNNING | `/tmp/whole-tree-audit.json` |
+| W4 | FR-5 the container's 6/8 | the rig's `gi-consumption` | **6/8 — ABIDE flipped DOWN→CONSUMED (987 facts)**; L2 + TSG the NAMED blockers | `.trident/plan-6l2e/phaseE-cleanup.json` |
+
+**★ THE FINDING THE RUN SURFACED:** **F-121 — a PREFLIGHT refusal is NEVER recorded in the
+ledger.** `runKernelV2` returns at the PREFLIGHT's refusal BEFORE stage 6 (the RECORD), so a
+refused stack produces a verdict the ledger never sees. Logged OPEN.
+
+**★ THE HONEST GAPS (this run):**
+1. W3's whole-tree audit is RUNNING (the serial shape was 7.5 min/file — the wrong design; the
+   parallel shape is 12 workers).
+2. W4's 2 DOWN are NAMED with retry conditions (L2 a daemon; TSG's ~600 MB KEV payload absent in
+   the FRESH container).
+3. F-121 (the unrecorded refusal) is OPEN.

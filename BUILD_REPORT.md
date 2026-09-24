@@ -791,3 +791,24 @@ manifest's SHA-drift (F-120) fixed this pass.
 **The honest notes:** ★ the frauds are NOT yet fixed — the pin is the fix plan, not the fix. The 6
 frauds (F-115..F-120) are OPEN, each mapped to a wave. The CLEANUP_SPEC is the binding authority
 for that run.
+
+
+---
+
+## 2026-09-24 — ★ THE CLEANUP RUN: W1 + W2 + W4 (the frauds fixed)
+
+**The built:** the FR-1 fix (`scripts/goal-verify.ts` — the condition string now names the
+per-domain union; no PASS line contradicts its detail) · the FR-2 suite
+(`tests/st-runtime-diversity.test.ts` — 4 REAL varied acts, `4 rows, 4 DISTINCT`) · the FR-5
+container run (the ABIDE substrate shipped, **ABIDE flipped DOWN→CONSUMED (987 facts)**).
+**The why:** the operator's cleanup pin, after the zero-trust audit returned REFUTED.
+**The how:** each wave fired against its own disjoint files; RIPWIRE first on every edit; the
+wave's gate named its test ids; the measured token bound to a tool result.
+**The evidence:** W1 `4 pass / 0 fail` with the no-contradiction check · W2 `4 rows, 4 DISTINCT`
+(`kernel-v2:dumb:STEER`, `kernel-v2:theatrical:REFUSE`, `kernel-v2:destructive:REFUSE`,
+`kernel-v2:benign:ALLOW`) · W4 `ABIDE CONSUMED facts=987` and both blockers NAMED.
+**The verification:** `bunx tsc --noEmit` exit 0 · `bun test ./tests/st-runtime-diversity.test.ts`
+4 pass / 0 fail · `bun test ./tests/st-container-coverage.test.ts` 3 pass / 0 fail.
+**The honest notes:** W3 (the whole-tree audit) is RUNNING (the serial shape was the wrong
+design — 7.5 min/file; the parallel shape is 12 workers) · **F-121 found: a PREFLIGHT refusal is
+NEVER recorded** (OPEN) · W4's 2 DOWN are NAMED with retry conditions.

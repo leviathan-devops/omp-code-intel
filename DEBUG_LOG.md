@@ -1097,3 +1097,17 @@ frauds; I merged them with my own re-runs and the CLEANUP_SPEC's ledger (FR-1..F
 **Lesson:** ★ the audit that matters is the one by an agent that did NOT build it. My own re-runs
 confirmed every fraud the auditor named — and MISSED F-116 (the hollow ledger) until the auditor
 found it.
+
+## EN-6L2E-24 — THE AUDIT'S SERIAL SHAPE WAS THE WRONG DESIGN (2026-09-24)
+**Finding:** the first whole-tree audit script scanned files SERIALLY — measured **7.5 min/file**
+(2 files in 15 min), implying **14 HOURS** for the 112-file tree.
+**The measurement that named the mechanism:** the LANE was FAST (`mimo-v2.5` http=200, 4.44s round
+trip) — so the latency was NOT the provider. The cost was the ocr tool's OWN per-file corpus reads
+(the cross-reference gather), executed ONE FILE AT A TIME.
+**The fix:** the parallel shape — 12 workers, each pulling the next file from a shared queue
+(`flock`). MEASURED: 12 files in ~2 min → ~18 min for the tree (a 47× speedup).
+**Verification:** W3's parallel run: 12 of 112 done at the 2-minute mark.
+**Lesson:** ★ **A SERIAL SCAN OVER N INDEPENDENT ITEMS IS A DESIGN DEFECT, NOT A SLOW TOOL.** The
+pin's own LAWS say "PARALLEL by default"; the audit script violated its own pin. And: when a step
+is slow, MEASURE THE COMPONENT (the lane was 4.4s — the tool's per-file work was the cost), never
+blame the provider.
