@@ -2306,3 +2306,16 @@ the dist 82bad22c3687d21e
 - **The register at face value:** `bun scripts/consumption-audit.ts . evidence` →
   **`consumed:7/8`** with `GI_LAYER_UNCONSUMED=L2_ARSUMBRIS` (facts=0 — the au engine answers repo
   names, never code symbols; FR-6's CORRECT behavior, named at face value).
+
+---
+
+## TEST RESULT — 2026-09-24 — ★ THE FROZEN TREE (post all 6 agents + F-14)
+
+- **L0 tsc:** `bunx tsc --noEmit` → `exit 0`.
+- **L1/L2 the battery:** `bun run test` → `430 pass / 0 fail` (42 files) AND `528 pass / 0 fail`
+  (59 files) — **exit 0, ZERO failures** on the frozen tree (HEAD 2d15e25, dist 1b5a99a20d2f3a78).
+- **★ F-14 (found + fixed this run):** `bun` does NOT set `BUN_TEST`, and in a batch run
+  `process.argv[1]` is the FIRST glob file (`st-artifact-coverage.test.ts`), not the running
+  file — so OmpCore's F-GR1 test-context change (`BUN_TEST===1 || argv1.includes('st-gi-omp')`)
+  matched NEITHER signal, and the wipe test read the PROD registry path. FIX: the repo's own
+  test-dir signal `argv1.includes('/tests/st-')` (precise; never a prod binary path).
