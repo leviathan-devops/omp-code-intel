@@ -1726,3 +1726,17 @@ Each adjudicated two-sided against the real code, then FIXED + PINNED in
   WRITTEN before the sink → one RECORD after settle (F-KV2).
 - **layer-consumption.ts** `SIX_L2E_CONSUMERS` held 8 → canonical `L2E_CONSUMERS` + alias (F-LC1).
 - NOT-A-BUG: fire-ledger drain (synchronous, run-to-completion); hard-deps fresh-probe (the contract).
+
+### W3 RE-AUDIT #2 (frozen tree) — the 5 CRITICALS (2026-09-24)
+- **F-16** `src/hunter/shared/query-engine.ts` — the `predClause` appears TWICE in the CTE but the
+  predicate params were spliced at ONE position (and doubled the same slot) → a bind-ordering
+  mismatch. FIX: insert the predicate params at EACH of the two positions.
+- **F-17** `src/hunter/tools/bug-hunt.ts` — `machine.stop()` in the finally was UNGUARDED; a throw
+  would mask the original error. FIX: `try { machine.stop(); } catch {}`.
+- **F-18** `src/hunter/profile/loader.ts` — `path.resolve(resolvedRoot, entry)` had no containment;
+  a `../../etc/passwd` entry resolved outside the root (path-traversal oracle). FIX: a `contained()`
+  guard on both the corpus + failureLogs loops.
+- **F-15** `src/kernel/graph-test-target.ts` `degreeOf` — **NOT-A-BUG**: `whoCallsInDb(...).rows` is
+  ALREADY the count (number, typed-write.ts:798), not a rows array; the audit misread the API.
+- **artifact-scope.ts `masterReal`** — **NOT-A-BUG**: `masterDir` is derived from `projectRootReal`
+  (resolveMasterContextDir), so masterReal is always inside projectRootReal.
