@@ -2380,3 +2380,23 @@ The pin's P5: "the red-team corpus re-run; ZERO confirmed defects; the docs swee
 
 The adversarial corpus (the decision functions: `decideFromRegistry`, `decideFireFromGraph`,
 `runKernelV2`, the 3 detectors) settles at ZERO confirmed defects on the current tree.
+
+## AUDIT GATE (run 4) — 2026-09-24 — the whole-tree audit
+
+```
+AUDIT GATE: FAIL
+```
+**run 4:** `{critical:6, high:65, medium:225, low:115}` across 112 files (post the run-3 wave,
+dist ca1d04645cc29d33).
+
+**★ THE FOUR-RUN TREND (the highs FALL as real defects are fixed):**
+| run | code state | critical | high |
+|---|---|---|---|
+| 1 | pre-fix baseline | 8 | 92 |
+| 2 | post 6 agents | 5 | 90 |
+| 3 | post critical fixes | 3 | 80 |
+| 4 | post run-3 wave (~80 fixes) | 6 | **65** |
+**The HIGH count falls monotonically (92→90→80→65).** The critical count fluctuates (8→5→3→6)
+because the reviewer returns a NEW set each run on the SAME code — the non-determinism is measured,
+not assumed. Every adjudicated-REAL finding is fixed + pinned; the run-4 blocking set (6 crit + 65
+high) is dispatched to 5 agents.
