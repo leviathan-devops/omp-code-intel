@@ -61,7 +61,9 @@ function getOpenRouterKey(): string {
 function getNvidiaKey(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const auth = JSON.parse(require('os').homedir() + '/.local/share/opencode/auth.json');
+    // ★ F-20 FIX (2026-09-24): READ the file content — the old form passed the PATH STRING
+    //   to JSON.parse (always a SyntaxError → the NVIDIA rungs never got their key).
+    const auth = JSON.parse(require('fs').readFileSync(require('os').homedir() + '/.local/share/opencode/auth.json', 'utf8'));
     return auth.nvidia?.key ?? '';
   } catch { return ''; }
 }

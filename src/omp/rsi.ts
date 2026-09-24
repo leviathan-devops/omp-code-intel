@@ -347,7 +347,7 @@ export class RsiStore {
     const prevHash = prev?.sig ?? "GENESIS";
     const sig = crypto
       .createHmac("sha256", this.key)
-      .update(`${prevHash}|${JSON.stringify({ c: canonicalId, at: firedAt, o: "pending" })}`)
+      .update(`${prevHash}|${JSON.stringify({ c: canonicalId, at: firedAt, o: "unresolved" })}`) // ★ F-21 FIX: sign the persisted outcome, not "pending"
       .digest("hex");
     this.db.run(
       `INSERT INTO ${this.evidenceTable} (canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig)

@@ -182605,7 +182605,11 @@ function loadProfile(profilePath) {
   }
   const contained = (entry) => {
     const abs = path15.resolve(resolvedRoot, entry);
-    return abs === resolvedRoot || abs.startsWith(resolvedRoot + path15.sep);
+    let real = abs;
+    try {
+      real = fs13.realpathSync(abs);
+    } catch {}
+    return real === resolvedRoot || real.startsWith(resolvedRoot + path15.sep);
   };
   for (const entry of profile.rules.corpus) {
     if (!contained(entry) || !fs13.existsSync(path15.resolve(resolvedRoot, entry))) {

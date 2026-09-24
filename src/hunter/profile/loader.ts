@@ -507,8 +507,12 @@ export function loadProfile(profilePath: string): ProjectProfile {
   //   like `../../etc/passwd` resolve OUTSIDE the project root (a path-traversal oracle).
   //   Resolve + require the result stay under resolvedRoot.
   const contained = (entry: string): boolean => {
+    // ★ F-22 FIX (2026-09-24): realpath the entry so a SYMLINK inside the root pointing OUT
+    //   is caught — path.resolve alone is lexical.
     const abs = path.resolve(resolvedRoot, entry);
-    return abs === resolvedRoot || abs.startsWith(resolvedRoot + path.sep);
+    let real = abs;
+    try { real = fs.realpathSync(abs); } catch { /* not yet on disk */ }
+    return real === resolvedRoot || real.startsWith(resolvedRoot + path.sep);
   };
   // (f) every rules.corpus path EXISTS (resolved against the project root), else CORPUS_MISSING {path}
   for (const entry of profile.rules.corpus) {
