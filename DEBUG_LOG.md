@@ -1454,3 +1454,34 @@ blame the provider.
   1.0, so EVERY tier test passed (T2/T3 fire at ≥0.6) while the mechanism was inert. **A constant
   that satisfies every threshold is a red flag, not a convenience.** The probe — vary the input,
   watch the output move — is what caught it.
+
+---
+
+## EN-W3-RUN14 — 1 critical, adjudicated **NOT-A-BUG** (the reviewer read the diff, not the values) 2026-09-25
+
+- **THE FINDING:** run 14 returned `{critical: 1, high: 52}` — the lowest critical count since run 11.
+- **THE SOLE CRITICAL:** `diagnostics/calibration.ts` — "the `BOTH` verdict is unreachable; the nested
+  ternary has wrong precedence." The claim was that `fire.result === 'FIRED' && silent.result ===
+  'FALSE-FIRE'` (the "natural both-fail case") falls to `'SILENT'`.
+- **THE ADJUDICATION — NOT-A-BUG, BY TRUTH TABLE.** The reviewer assumed the *natural* both-fail
+  case is FIRED+FALSE-FIRE. The value sets say otherwise:
+  ```
+    fire: 'FIRED' | 'MISS'          silent: 'SILENT' | 'FALSE-FIRE'
+    fire=FIRED  + silent=SILENT      → CALIBRATED   (both green)
+    fire=MISS   + silent=SILENT      → 'FIRE'       (the fire test failed)
+    fire=FIRED  + silent=FALSE-FIRE  → 'SILENT'     (the silent test failed)
+    fire=MISS   + silent=FALSE-FIRE  → 'BOTH'       ← ★ REACHABLE, and it is the case the
+                                                       outer `fire.result === 'MISS'` test
+                                                       deliberately captures
+  ```
+  `BOTH` requires the fire test to have FAILED — which is exactly what `fire.result === 'MISS'`
+  tests. The branch was reachable all along. **The reviewer's own suggested snippet has the same
+  shape**, which is the tell: a real precedence bug does not survive being "fixed" into itself.
+- **THE CHANGE LANDED:** a readability spelling (named `fireFailed` / `silentFailed` booleans) with
+  **behaviour byte-identical** — recorded as NOT-A-BUG with the truth table in the comment.
+- **★ THE LESSON:** a critical asserting a branch is **unreachable** must be checked against the
+  **VALUE SETS and a truth table**, not read off the diff. This is the second reviewer claim in two
+  runs that inverted the semantics of the code it was reading (run 13's F-870 class was the same
+  shape: a correct guard described as a bypass).
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **438/0 + 536/0**, exit 0; dist
+  `bab7511719217495`, deployed == repo.
