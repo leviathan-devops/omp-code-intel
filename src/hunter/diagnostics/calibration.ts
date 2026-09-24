@@ -339,11 +339,29 @@ export class CalibrationGate {
           `CALIBRATION_PENDING: predicate ${p.id} reached the record stage without a completed fire+silent verdict — a calibration row is never written from a half-tested predicate`,
         );
       }
+      // ★ F-1100 ADJUDICATED NOT-A-BUG (2026-09-25, run-14's single critical): the reviewer
+      //   claimed `BOTH` was unreachable via "wrong precedence". FALSE — the TRUTH TABLE
+      //   (probed) shows the original shape was already correct, because the outer test is
+      //   the FIRE failure, which is exactly what `BOTH` requires to co-occur:
+      //     fire=MISS  + silent=SILENT     → 'FIRE'    (only the fire test failed)
+      //     fire=FIRED + silent=FALSE-FIRE → 'SILENT'  (only the silent test failed)
+      //     fire=MISS  + silent=FALSE-FIRE → 'BOTH'    ← ★ REACHABLE all along
+      //     fire=FIRED + silent=SILENT     → CALIBRATED (the guard above returns undefined)
+      //   The reviewer's own suggested snippet shares the same shape. This spelling is kept
+      //   as a READABILITY change only (named booleans); behaviour is byte-identical.
+      //   ★ THE LESSON: a critical asserting a branch is "unreachable" must be checked against
+      //   the VALUE SETS and a truth table, not read off the diff.
+      const fireFailed = fire.result === 'MISS';
+      const silentFailed = silent.result === 'FALSE-FIRE';
       const failedTest: CalibrationRecord['failedTest'] = verdict === 'CALIBRATED'
         ? undefined
-        : fire.result === 'MISS'
-          ? (silent.result === 'FALSE-FIRE' ? 'BOTH' : 'FIRE')
-          : 'SILENT';
+        : (fireFailed && silentFailed)
+          ? 'BOTH'
+          : fireFailed
+            ? 'FIRE'
+            : silentFailed
+              ? 'SILENT'
+              : undefined;
       const reason = failedTest === 'FIRE'
         ? 'the predicate never fires on its own trigger fixture — the logic is dead'
         : failedTest === 'SILENT'

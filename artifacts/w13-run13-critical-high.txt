@@ -933,6 +933,34 @@ Once `attempts > 0 && !resolvedAny` becomes true (e.g., a single transient netwo
             // fault, not an invisible omission. Without
   ```
 
+[HIGH] src/omp/oracle.ts:441-446 (bug)
+  The subject pre-validation in `resolveAll` (line 441) and the equivalent check in `gather` (line 199) both use `row.target !== undefined && row.target !== ''` to decide whether the row supplies its own subject. However, the DDL column `target TEXT` is nullable, and rows written before the EN-090 migration have `NULL` targets (line 78 of fire-ledger.ts: "NULL is the honest value for them"). At runtime `null !== undefined` evaluates to `true`, so `fromRow` becomes `true` for a `NULL` target. `gather` then does `subject = { target: row.target as string, ... }`, casting `null` to `string` — a type-level lie. Since `null` will never match any record's target in the evidence loop (`r.target !== su
+  ```existing
+  const fromRow = row.target !== undefined && row.target !== '';
+  if (!fromRow && subj === undefined) {
+      throw new Error(
+        `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — refusing the WHOLE batch so no partial write can occur`,
+      );
+    }
+  ```
+  ```suggested
+  const fromRow = row.target != null && row.target !== '';
+  if (!fromRow && subj === undefined) {
+      throw new Error(
+        `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — refusing the WHOLE batch so no partial write can occur`,
+      );
+    }
+  ```
+
+[HIGH] src/omp/oracle.ts:199-199 (bug)
+  The same null-unsafe check appears in `gather` at line 199. A `NULL` `target` from the database passes the `!== undefined` guard, causing `null` to be cast to `string` and used as the subject target for evidence matching. This should use a nullish check (`!= null`) to treat `null` the same as `undefined` — meaning the row does NOT name its own subject, and the caller-supplied subject should be used instead.
+  ```existing
+  const fromRow = row.target !== undefined && row.target !== "";
+  ```
+  ```suggested
+  const fromRow = row.target != null && row.target !== "";
+  ```
+
 [HIGH] src/omp/populate.ts:40-42 (bug)
   **Exception-handling inconsistency (Critical):** `populateGraphifySessionStore` can throw on multiple paths — `buildSync()` (line 101), `mapGraphifyToTyped()` (line 102), or the re-wrapped `GRAPHIFY_WRITE_FAILED` error (line 133) — but `populateSessionStore` does NOT wrap the call on line 50 in a try-catch. This breaks the `PopulateResult` contract: callers of `populateSessionStore` that expect a result object will receive an unhandled exception on the graphify path. In contrast, every corbell failure path returns a proper `{ skipped: true, fallbackReason: ... }` result. The fix is to wrap the graphify call in a try-catch that returns a PopulateResult with `skipped: true` and the error reaso
   ```existing
@@ -1000,6 +1028,79 @@ Once `attempts > 0 && !resolvedAny` becomes true (e.g., a single transient netwo
   return mkdtempSync(join(GI_TMP_DIR, prefix))
   ```
 
+[CRITICAL] src/scoping/gi-session-path.ts:85-92 (bug)
+  **CRITICAL: The F-434b symlink guard is completely dead code — it can never trigger.**
+
+The `want` regex on line 85 tests `norm` (the resolved logical path to `store.sqlite`) against `/\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/`. Because `norm` always ends with `/store.sqlite` (e.g., `/home/user/project/.omp/graph-intelligence/sessions/abc12345/store.sqlite`), but the regex requires the string to END with `/sessions/{sid}/` (optionally followed by `/`), the trailing `/store.sqlite` makes a match impossible. `want` is therefore **always `null`**, and the guard condition `want !== null && ...` on line 87 is **always false**.
+
+This means the entire F-434b symlink protection (lines 80–93) is a no-op
+  ```existing
+  const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);
+    const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
+    if (want !== null && (got === null || got[1] !== want[1])) {
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: the session dir RESOLVES elsewhere (logical=${norm} real=${parentNorm}) — a symlinked session dir 
+  ```
+  ```suggested
+  const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/store\.sqlite$/.exec(norm);
+    const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
+    if (want !== null && (got === null || got[1] !== want[1])) {
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: the session dir RESOLVES elsewhere (logical=${norm} real=${parentNorm}) — a symlinked 
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:80-86 (security)
+  Even after fixing the regex above, the symlink guard still only compares session IDs — it does not verify that the real (symlink-resolved) path stays within the project scope root. A symlink at the `sessions` directory level pointing to `/tmp/sessions/` (note the matching `/sessions/` segment) would resolve to a path whose session ID matches the logical path's session ID, passing the guard while storing data outside the scope.
+
+Recommendation: additionally verify that `parentReal` starts with the expected scope root prefix. This requires either passing `scopeRoot` as a parameter to `assertSessionStorePath`, or extracting and checking the expected parent prefix from the logical path before th
+  ```existing
+  const parent = path.dirname(resolved);
+  let parentReal: string | null = null;
+  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  if (parentReal !== null) {
+    const parentNorm = parentReal.replace(/\\/g, "/");
+    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);
+    const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
+  ```
+  ```suggested
+  const parent = path.dirname(resolved);
+  let parentReal: string | null = null;
+  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  if (parentReal !== null) {
+    const parentNorm = parentReal.replace(/\\/g, "/");
+    // Scope-containment: the real parent must still be under the same scope root.
+    const expectedParent = path.dirname(resolved); // logical parent (resolve
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:129-134 (bug)
+  **Session ID collision: `scope-{slug}` truncated to 24 chars silently merges distinct projects.**
+
+The slug is built from the resolved scope root with all non-alphanumeric chars replaced by `-`, then the prefix `scope-` is prepended and the result is sliced to 24 characters. Two distinct scope roots whose normalized paths share the first 18 slug characters will produce identical session IDs. For example:
+
+- `/home/user/projects/my-long-project-alpha/src` → `scope-home-user-projects-my-long-proj` (24 chars)
+- `/home/user/projects/my-long-project-beta/src` → `scope-home-user-projects-my-long-proj` (24 chars)
+
+Both projects then share the same drift bucket and probe identity — the exact problem
+  ```existing
+  const slug = path.resolve(root).replace(/[^A-Za-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  // ★ F-164 FIX (2026-09-24): floor the id at 8 chars — an all-punctuation root
+  //   (e.g. "/") yields slug "" → "scope-" (6 chars), which fails the
+  //   SESSION_STORE_RE {8,24} check downstream. sessionStorePath pads the same way.
+  let id = (`scope-${slug}`).slice(0, 24);
+  if (id.length
+  ```
+  ```suggested
+  // Use a truncated hash of the resolved root to avoid collisions from prefix-truncation.
+  import { createHash } from "node:crypto";
+  const rootResolved = path.resolve(root);
+  const hash = createHash("sha256").update(rootResolved).digest("hex");
+  // 18 hex chars after "scope-" = 24 total; hex chars are all in [A-Za-z0-9] (actually 0-9, a-f).
+  let id = `scope-${hash.slice(0, 18)}`;
+  // F-164: 
+  ```
+
 [HIGH] src/scoping/scope-binding.ts:213-215 (bug)
   `assertOwnSession` silently proceeds when the session is not bound to any ecosystem (only a `console.warn`). This breaks the contract name `assert*` which callers reasonably expect to guarantee provenance. Any caller that skips its own validation because `assertOwnSession` already ran will silently allow unbound sessions through the scope boundary. Either throw by default and provide a separate `warnOwnSession` variant, or rename to `checkOwnSession` to make the non-throwing behavior explicit.
   ```existing
@@ -1008,4 +1109,15 @@ Once `attempts > 0 && !resolvedAny` becomes true (e.g., a single transient netwo
     );
   ```
 
-# total: 57
+[HIGH] src/scoping/scoped-store.ts:124-129 (bug)
+  Race condition in getStoreDbAsync: The early-return path at lines 101-104 bypasses the in-flight gate, allowing concurrent callers to open multiple handles. This defeats the purpose of the guard added in F-288. Fix: always go through the gate, or at minimum acquire the gate even on the early-return path.
+  ```existing
+  if (!opts && storeDb) {
+    try {
+      storeDb.query('SELECT 1').get();
+      return storeDb;
+    } catch (_sick) { /* fall through to the shared open below */ }
+  }
+  ```
+
+# total: 63

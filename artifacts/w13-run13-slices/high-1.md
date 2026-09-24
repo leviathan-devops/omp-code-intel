@@ -1,218 +1,164 @@
 # HIGH slice 1 — 12 findings across 9 files
 
-## src/hunter/diagnostics/engine.ts
-- **src/hunter/diagnostics/engine.ts:285-288** (bug)
-  `text.split(id).length - 1` matches substrings of unrelated identifiers, inflating frequency counts and biasing ranking. For example, ruleId `eqeqeq` would match inside `eqeqeq-ban`, and ruleId `no-unsafe` would match inside `no-unsafe-assignment`. Use a word-boundary regex or a dedicated counting method.
+## src/hunter/graph/resolver.ts
+- **src/hunter/graph/resolver.ts:194-201** (bug)
+  Bug: The early-return guard `decisions.length === newEntities.length` does not guarantee all entities are uniquely covered. If the harness produces two decisions that both resolve to the same entity (e.g., two records whose aliases both match the same `newEntity.id`), the decisions array length equals `newEntities.length` even though some entity has no decision. The `resolvedEntityIds` set on line 201 was specifically built to track per-entity coverage (per the F-932 comment), but the early return on line 194 bypasses it entirely, re-introducing the silent-drop bug the fix was meant to prevent.
+
+Fix: replace the length check with a set-size check, or move the early return after building the set.
   ```existing
-  for (const id of ruleIds) {
-      const occurrences = text.split(id).length - 1;
-      counts.set(id, (counts.get(id) ?? 0) + occurrences);
+  if (decisions.length === newEntities.length) return decisions;
+  if (decisions.length === 0) return null;
+  // ★ F-932 FIX (2026-09-24): the resolved set carried the harness-provided alias STRINGS
+  //   matched against BOTH id and label — an alias equal to A's id that also equaled B's label
+  //   skipped B from heuristic fallback entirely (SILENT drop: B missing from the final
+  //   decisions a
+  ```
+  ```suggested
+  const resolvedEntityIds = new Set(decisions.map((d) => d.newEntity.id));
+  if (resolvedEntityIds.size === newEntities.length) return decisions;
+  if (resolvedEntityIds.size === 0) return null;
+  ```
+
+## src/hunter/harness/trace.ts
+- **src/hunter/harness/trace.ts:68-68** (bug)
+  `deriveRootCause` calls `f.evidence.split(...)` without a null/undefined guard. If a `NormalizedFinding` arrives with `evidence` as `undefined`, `null`, or a non-string, this will throw a runtime TypeError (`Cannot read properties of undefined (reading 'split')`). Given that this function is called unconditionally inside the solver loop, one malformed finding will crash the entire batch. Recommend adding a defensive guard or defaulting to an empty string.
+  ```existing
+  const first = f.evidence.split(/\n|\.\s/)[0]?.trim() ?? f.evidence;
+  ```
+  ```suggested
+  const evidenceText = typeof f.evidence === 'string' ? f.evidence : '';
+  const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
+  ```
+
+## src/hunter/shared/db.ts
+- **src/hunter/shared/db.ts:879-881** (maintainability)
+  `openFamilyReadOnly` sets the private `sealed` field via an unsafe double cast through `Record<string, unknown>`. This bypasses TypeScript's access modifiers entirely — if the field is ever renamed, refactored, or removed, this code will silently set a property on a plain object with zero compile-time or runtime error, leaving the store writable against a physically read-only file. A proper solution is to expose a `sealed` setter on `FamilyGraphStore`, or pass `sealed` as a constructor option.
+  ```existing
+  const store = new FamilyGraphStore(familyPath, handle, ':memory:', branchHandle);
+  (store as unknown as Record<string, unknown>)['sealed'] = true;
+  return store;
+  ```
+  ```suggested
+  const store = new FamilyGraphStore(familyPath, handle, ':memory:', branchHandle);
+  store.markSealed(); // add a public method: markSealed() { this.sealed = true; }
+  return store;
+  ```
+- **src/hunter/shared/db.ts:734-738** (bug)
+  The `branch_union_view` and `branch_union_attached` view rebuilds, as well as the ATTACH DATABASE statement, all execute OUTSIDE the transaction that commits the graph data. If the transaction succeeds but any of these DDL steps fails, the graph data is committed while the views remain stale or missing. The catches only `console.debug` without throwing, so callers receive incorrect union results with no indication of failure. These DDL steps should either be inside the transaction or should propagate errors to the caller.
+  ```existing
+  tx();
+    try {
+      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
+      this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.sourc
+  ```
+  ```suggested
+  const rebuild = this.branchDb.transaction((): void => {
+      this.branchDb.prepare('DELETE FROM graph_edges').run();
+      this.branchDb.prepare('DELETE FROM graph_nodes').run();
+      // ... node + edge inserts ...
+      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
+      this.branchDb.exec("CREATE VIEW branch_union_view AS ...");
+    });
+    rebuild();
+    try {
+      this.branch
+  ```
+- **src/hunter/shared/db.ts:454-465** (bug)
+  Despite the comments claiming the hunt-lock prevents interleaving, `writeGraph` provides no in-process concurrency guard. If two callers share the same `DbClient` instance and call `writeGraph` concurrently (e.g., from different async tasks), the SQLite transaction serialization alone does not prevent interleaved DELETE-INSERT cycles — one transaction could DELETE the graph after another has committed fresh nodes but before it commits its edges, leaving dangling FK references. An advisory mutex (e.g., a `Mutex` or `Semaphore` wrapping the transaction) would make the concurrency contract enforced at this layer rather than relying on an external lock whose existence is only asserted in comments.
+  ```existing
+  writeGraph(nodes: GraphNode[], edges: GraphEdge[]): void {
+    for (const n of nodes) {
+      if (!isNodeLineage(n.lineage)) {
+        throw lineageMissing(n.id);
+      }
     }
+    for (const e of edges) {
+      if (!isNodeLineage(e.lineage)) {
+        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
+      }
+    }
+    const tx = this.handle.transaction((): void => {
   ```
   ```suggested
-  for (const id of ruleIds) {
-      // Use word-boundary regex to avoid substring false positives
-      // (e.g., 'error' matching inside 'errorHandler').
-      const pattern = new RegExp(`\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\$&')}\b`, 'g');
-      const matches = text.match(pattern);
-      const occurrences = matches ? matches.length : 0;
-      counts.set(id, (counts.get(id) ?? 0) + occurrences);
-  ```
-- **src/hunter/diagnostics/engine.ts:523-527** (bug)
-  `unwired()` only considers `calls` edges when determining dead nodes. Functions that are exclusively `await`-ed (never directly called) are incorrectly classified as unwired/dead. This misclassifies legitimate async call-sites.
-  ```existing
-  unwired(): DeadNode[] {
-    const targets = new Set(this.links.filter((e) => e.kind === 'calls').map((e) => e.targetId));
-    return [...this.nodeById.values()]
-      .filter((n) => (n.kind === 'function' || n.kind === 'method' || n.kind === 'class') && !targets.has(n.id))
-      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? '', line: n.line ?? 0 }));
-  ```
-  ```suggested
-  unwired(): DeadNode[] {
-    const targets = new Set(
-      this.links
-        .filter((e) => e.kind === 'calls' || e.kind === 'awaits')
-        .map((e) => e.targetId),
-    );
-    return [...this.nodeById.values()]
-      .filter((n) => (n.kind === 'function' || n.kind === 'method' || n.kind === 'class') && !targets.has(n.id))
-      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? '', line: n
-  ```
-- **src/hunter/diagnostics/engine.ts:753-757** (bug)
-  A malformed `data` JSON column in `graph_nodes` silently defaults to `{}` with only a `console.error`. Predicates that read `node.data` receive degraded/partial input and may emit incorrect findings without any loud signal that the graph was corrupted. This contradicts the file's fail-closed law: a template defect is a loud named error, never a silent degradation.
+  private writeMutex = Promise.resolve();
 
-Consider either throwing on malformed data (fail-closed) or at minimum including a flag in the normalized finding that data was degraded, so downstream consumers know.
-  ```existing
-  try {
-            data = JSON.parse(r.data) as Record<string, unknown>;
-          } catch (e: unknown) {
-            console.error(`[engine:graph-logic] graph_nodes row ${r.id} carries malformed data JSON — defaulting to {}: ${String(e)}`);
-          }
-  ```
-  ```suggested
-  try {
-            data = JSON.parse(r.data) as Record<string, unknown>;
-          } catch (e: unknown) {
-            // Fail-closed: a corrupted row risks wrong predicate results.
-            throw sourceReadFailed(
-              dbPath,
-              `graph_nodes row ${r.id} carries malformed data JSON: ${String(e)} — refusing to load a degraded graph`,
-            );
-          }
-  ```
-
-## src/hunter/graph/graphify-adapter.ts
-- **src/hunter/graph/graphify-adapter.ts:194-194** (bug)
-  Bug: `loadGraphifyFileSync` hardcodes the normalize root as `dirname(dirname(graphPath))` (line 194), but `buildSync()` resolves the effective root from `effectiveProfile.project.root` (line 937). When `graphPath` is overridden via `GRAPHIFY_OUT` env var, `graphifyOut` profile field, or `override` parameter, these two roots diverge. The node file anchors inside the returned `GraphifyGraph` are normalized against the wrong base. Then `projectGraphifyGraph(graph, root)` at line 943 re-resolves against the profile root, but the `normalizeGraphifyGraph` containment pass (line 194) already dropped or mis-anchored nodes relative to `dirname(dirname(graphPath))`. This causes inconsistent containment: some nodes may be dropped by normalize (wrong base) but would have been kept by project, or vice versa. The `build()` async path avoids this by calling `normalizeGraphifyGraph(raw, { root: path.resolve(profile.project.root) })` directly at line 828. Fix: either accept an explicit `root` parameter in `loadGraphifyFileSync`, or extract the normalize call and let `buildSync` invoke `normalizeGraphifyGraph` directly with the profile root (matching `build()`'s pattern).
-  ```existing
-  return normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
-  ```
-  ```suggested
-  export function loadGraphifyFileSync(graphPath: string, rootOverride?: string): GraphifyGraph {
-  let text: string;
-  try {
-    text = statAndReadGraphJson(graphPath).text;
-  } catch (e: unknown) {
-    if (e instanceof Error && e.message.startsWith("GRAPHIFY_STAT_FAILED:")) {
-      throw new Error(
-        `GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --t
-  ```
-
-## src/hunter/harness/strike.ts
-- **src/hunter/harness/strike.ts:37-38** (bug)
-  Map collision silently drops earlier traces: If multiple TraceRow entries in the `traces` array share the same `findingId`, the `Map.set()` on line 46 silently overwrites the earlier entry, keeping only the last one. This changes the relevance score for that finding and can silently reorder results, breaking the documented determinism guarantee. Consider grouping traces by findingId (e.g., summing or averaging relevance values) or at minimum emitting a warning when a collision is detected.
-  ```existing
-  const traceByFinding = new Map<string, TraceRow>();
-  for (const t of traces) traceByFinding.set(t.findingId, t);
-  ```
-  ```suggested
-  const traceByFinding = new Map<string, TraceRow>();
-  for (const t of traces) {
-    const existing = traceByFinding.get(t.findingId);
-    if (existing) {
-      // Merge relevance scores when multiple traces map to the same finding.
-      const mergedRelevance = { ...existing.relevance };
-      for (const [k, v] of Object.entries(t.relevance)) {
-        mergedRelevance[k] = (mergedRelevance[k] ?? 0
-  ```
-
-## src/hunter/lexicon/templates.ts
-- **src/hunter/lexicon/templates.ts:202-208** (bug)
-  `bindStages` confirms `Array.isArray(v)` but performs no element-level validation before casting to `{ id: string; entry: string }[]`. If any element is `null`, a primitive, or an object missing the `id`/`entry` keys, `PROCESS_GATES_OUTPUTS` will crash at runtime when accessing `cur.entry` / `next.entry`. Although the zod schema in `compileTemplate` validates the shape at compile time, this R16 runtime guard is presented as a type-certainty guarantee — it should validate each element defensively (similar to how `bindStringArray` filters non-string elements).
-  ```existing
-  function bindStages(bindings: Record<string, unknown>): { id: string; entry: string }[] {
-  const v = bindings['stages'];
-  if (Array.isArray(v)) {
-    return v as { id: string; entry: string }[];
+  writeGraph(nodes: GraphNode[], edges: GraphEdge[]): void {
+    // ... validation ...
+    const tx = this.handle.transaction((): void => { /* ... */ });
+    // Serialize via a promise chain so concurrent callers don't interleave
+    this.writeMutex = this.writeMutex.then(() => { tx(); });
+    // For synchronous callers, still run inline:
+    tx();
   }
-  return [];
-}
   ```
-  ```suggested
-  function bindStages(bindings: Record<string, unknown>): { id: string; entry: string }[] {
-  const v = bindings['stages'];
-  if (Array.isArray(v)) {
-    return v.filter(
-      (el): el is { id: string; entry: string } =>
-        typeof el === 'object' && el !== null &&
-        typeof (el as Record<string, unknown>).id === 'string' &&
-        typeof (el as Record<string, unknown>).entry === 'string'
-  ```
-- **src/hunter/lexicon/templates.ts:562-566** (bug)
-  In `PROCESS_GATES_OUTPUTS`, the finding sets `file: cur.entry` where `cur.entry` is an entry-point symbol/name (from the stages binding), NOT a file path. The `Finding` interface expects `file` to be a filesystem path. Downstream consumers (diagnostics, reports) will treat this symbol as a file path, causing incorrect display or failed lookups.
+
+## src/hydra/auditor.ts
+- **src/hydra/auditor.ts:1074-1074** (security)
+  Double-quote escape missing in evidence field: `sanitizeReportField` does NOT escape double-quote characters (`"`). When evidence contains `"`, the report line `- evidence: "<evidence>"` produces a broken/gforgeable block. Specifically, evidence like `foo"\n## FINDING: injected —\n- predicate: x\n- file: a:1\n- evidence: y\n- spec: z` would inject a phantom `## FINDING:` block that `parseFindingsMarkdown` would accept as a real candidate. Fix: escape embedded double quotes in the evidence value before embedding it in the quoted markdown field, e.g. `v.replace(/"/g, '\"')`.
   ```existing
-  findings.push({
-          ruleId: 'process.gates-measure-outputs-not-logic',
-          severity: sev,
-          file: cur.entry,
-          line: 0,
-  ```
-  ```suggested
-  findings.push({
-          ruleId: 'process.gates-measure-outputs-not-logic',
-          severity: sev,
-          file: cur.entry,  // TODO: resolve to actual file path via graph lookup
-          line: 0,
+  `- evidence: "${sanitize(c.evidence)}"`,
   ```
 
-## src/hunter/surface/query-tool.ts
-- **src/hunter/surface/query-tool.ts:390-393** (performance)
-  **Performance: `violations` fetches ALL matching rows into memory before pagination.** The SQL query has no `LIMIT`/`OFFSET` clause — it materializes the entire `findings` table matching the filter into a JS array, then slices. On a store with thousands of violations this is wasteful and can cause memory pressure. The database should handle pagination natively (e.g., `LIMIT ? OFFSET ?` in the SQL) so only the requested page is fetched. The current `MAX_QUERY_ROWS_FULL` (2000) cap applied after the full fetch means up to 2000 rows are always loaded even if only 10 are needed.
+## src/hydra/map-reader.ts
+- **src/hydra/map-reader.ts:356-360** (bug)
+  The dedup key `${e.src}→${e.dst}:${e.relation}` omits the `confidence` field. If an EXTRACTED edge exists for a triplet, any INFERRED edge with the same src/dst/relation is silently discarded. This causes data loss — the INFERRED edge carries different provenance semantics that consumers may rely on. Either include confidence in the key, or prefer the higher-confidence edge when merging duplicates.
   ```existing
-  const rows = rowsAs<Record<string, unknown>>(
-    db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params),
-    'violations',
-  );
-  ```
-  ```suggested
-  // Push LIMIT/OFFSET params at the end so they come after runId/week params.
-  const effectiveCap = input.format === 'llm' ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
-  const off = Math.max(0, Math.floor(input.offset ?? 0));
-  const lim = input.limit !== undefined
-    ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap)
-    : effectiveCap;
-  const rows = rowsAs<Record<string, unknown>>(
-    
-  ```
-
-## src/kernel/graph-diff.ts
-- **src/kernel/graph-diff.ts:67-70** (bug)
-  **Bug: Label collision silently corrupts `inboundByLabel`.** When multiple nodes share the same `label` (e.g., two functions with the same name in different modules but distinct `canonical_id`), the later node's inbound count overwrites the earlier one. This causes `diffGraphs` to compare incorrect before/after values for that label — a blast-radius jump could be missed or fabricated. The same issue affects the `topDegree` array (duplicate label entries), but `inboundByLabel` is worse because it silently drops data via `Record` key overwrite.
-
-Suggestion: Either aggregate (sum) inbound counts when labels collide, or switch to using `canonical_id` as the comparison key throughout `diffGraphs`.
-  ```existing
-  const inboundByLabel: Record<string, number> = {};
-    for (const [cid, n] of inbound) {
-      inboundByLabel[nodes.find((nn) => nn.canonical_id === cid)?.label ?? cid] = n;
-    }
-  ```
-  ```suggested
-  // Pre-build a canonical_id → label lookup to avoid O(n) find() per edge.
-    const cidToLabel = new Map<string, string>();
-    for (const nn of nodes) cidToLabel.set(nn.canonical_id, nn.label);
-
-    const inboundByLabel: Record<string, number> = {};
-    for (const [cid, n] of inbound) {
-      const label = cidToLabel.get(cid) ?? cid;
-      // Aggregate inbound counts when labels collide to avoid 
-  ```
-
-## src/omp/enforcement.ts
-- **src/omp/enforcement.ts:275-275** (bug)
-  Bug: Non-timeout errors in the close layer's bind (evidence scan) catch block are assigned the error code `"TSG_TIMEOUT"` even when the failure was NOT a timeout. This mislabels engine crashes, network errors, or any non-timeout exception as a timeout, making it impossible for callers to distinguish "slow" from "broken" (the exact distinction the fire-gate vocabulary is designed to preserve). The code should be `"TSG_DOWN"` or should extract the actual error code from the thrown error (same as the JEV catch does below with `GI_JEV_DOWN`).
-  ```existing
-  code: "TSG_TIMEOUT",
-  ```
-  ```suggested
-  // Extract the real error code so callers can distinguish TSG crashes from timeouts.
-    const tsgCode = e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
-      ? String((e as { code: unknown }).code)
-      : "TSG_DOWN";
-    return {
-      verdict: "FAIL_CLOSED",
-      code: tsgCode,
-      reason: "the evidence scan failed (fail-closed)",
-      evidence: e ins
-  ```
-
-## src/omp/jev.ts
-- **src/omp/jev.ts:216-216** (security)
-  The Bearer token redaction regex `[A-Za-z0-9_-]+` does not cover API keys containing characters like `.`, `+`, `/`, `=` (common in base64-encoded or vendor-format keys). Additionally, if the key somehow appears in error messages outside the Bearer format (e.g., `String(e)` path for non-Error rejections), it won't be redacted at all. Consider a broader regex or a centralized redaction utility that scrubs the actual key value.
-  ```existing
-  error: e instanceof Error ? e.message.replace(/Bearer [A-Za-z0-9_-]+/g, "Bearer <redacted>") : String(e),
-  ```
-
-## src/scoping/db-path.ts
-- **src/scoping/db-path.ts:79-88** (bug)
-  Bug: When `testFile` is `'~/'`, the `startsWith(TILDE_SLASH)` branch fires, `slice(2)` yields `''`, and `path.join(home, '')` returns the bare HOME directory — not a file path. The function then returns this directory as the DB path, which would silently corrupt resolution. The bare `'~'` case correctly appends `spec.fileName`, but `'~/'` does not. Consider normalizing: if the resolved path is a directory or ends with a separator, append `spec.fileName`.
-  ```existing
-  if (testFile === TILDE || testFile.startsWith(TILDE_SLASH)) {
-        const home = process.env.HOME ?? process.env.USERPROFILE;
-        if (!home) {
-          throw new Error(
-            `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
-            `(fileName="${spec.fileName}") - cannot resolve testFile`,
-          );
+  const key = `${e.src}→${e.dst}:${e.relation}`;
+        if (!edgeSet.has(key)) {
+          edgeSet.add(key);
+          edges.push(e);
         }
-        return testFile === TILDE ? path.join
+  ```
+- **src/hydra/map-reader.ts:186-186** (security)
+  `graphPath` is resolved via `path.resolve(graphPath)` (relative to CWD) but never validated against any allowed base directory. A crafted path such as `../../etc/shadow` or an absolute path to a sensitive file would be read in full via `fs.promises.readFile(resolved, 'utf-8')`. Add a confinement check, e.g. verify that `resolved` starts with an expected base directory, or reject absolute paths that escape a configured root.
+  ```existing
+  const resolved = path.resolve(graphPath);
+  ```
+
+## src/omp/adapters/semantica.ts
+- **src/omp/adapters/semantica.ts:76-78** (bug)
+  Bug: If `kg.json` contains the literal JSON value `null` (or the file is empty and `JSON.parse` somehow yields null), the F-825/F-944 guard correctly short-circuits at `kg !== null`, but execution then reaches `(kg.entities ?? []).filter(...)` which accesses `.entities` on `null`, throwing an unhandled `TypeError: Cannot read properties of null`. The guard should either reject non-object-top-level shapes outright, or a null/typeof check should be added before the `kg.entities` access.
+
+Suggested fix: add a guard that throws for non-object kg values (null, array, or primitive) right after JSON.parse, since none of those are valid KG store shapes.
+  ```existing
+  if (kg !== null && typeof kg === "object" && !Array.isArray(kg) && kg.entities !== undefined && !Array.isArray(kg.entities)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expected array, got ${typeof kg.entities})`);
+      }
+  ```
+  ```suggested
+  if (kg === null || typeof kg !== "object" || Array.isArray(kg)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store root is not a valid object (got ${kg === null ? "null" : Array.isArray(kg) ? "array" : typeof kg})`);
+      }
+      if (kg.entities !== undefined && !Array.isArray(kg.entities)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expec
+  ```
+
+## src/omp/extension.ts
+- **src/omp/extension.ts:606-611** (security)
+  The lstat→mkdirSync TOCTOU window at the audit root creation: `lstatSync(auditRoot)` checks for a pre-planted symlink, then `mkdirSync(auditRoot, { recursive: true })` follows it in the gap. The post-mkdir `realpathSync` + `path.relative` check catches the escape, but `mkdirSync(recursive)` has already created intermediate directories outside the root. Consider using `fs.mkdirSync` without `recursive` after ensuring the parent exists, or performing the confinement check *after* mkdir on the final component only, since the recursive flag is what creates the out-of-root side effect.
+  ```existing
+  if (auditPre && auditPre.isSymbolicLink()) {
+        return textResult("GI_LEDGER_DENIED: audit root is a symlink plant", { ok: false, error: "GI_LEDGER_DENIED" });
+      }
+      try {
+        fs.mkdirSync(auditRoot, { recursive: true });
+      } catch (mkErr: unknown) {
+  ```
+
+## src/omp/populate.ts
+- **src/omp/populate.ts:40-42** (bug)
+  **Exception-handling inconsistency (Critical):** `populateGraphifySessionStore` can throw on multiple paths — `buildSync()` (line 101), `mapGraphifyToTyped()` (line 102), or the re-wrapped `GRAPHIFY_WRITE_FAILED` error (line 133) — but `populateSessionStore` does NOT wrap the call on line 50 in a try-catch. This breaks the `PopulateResult` contract: callers of `populateSessionStore` that expect a result object will receive an unhandled exception on the graphify path. In contrast, every corbell failure path returns a proper `{ skipped: true, fallbackReason: ... }` result. The fix is to wrap the graphify call in a try-catch that returns a PopulateResult with `skipped: true` and the error reason, mirroring the corbell path's pattern.
+  ```existing
+  if (opts?.substrate === "graphify") {
+    return populateGraphifySessionStore(storePath, root, runTag);
+  }
+  ```
+
+## src/scoping/scope-binding.ts
+- **src/scoping/scope-binding.ts:213-215** (bug)
+  `assertOwnSession` silently proceeds when the session is not bound to any ecosystem (only a `console.warn`). This breaks the contract name `assert*` which callers reasonably expect to guarantee provenance. Any caller that skips its own validation because `assertOwnSession` already ran will silently allow unbound sessions through the scope boundary. Either throw by default and provide a separate `warnOwnSession` variant, or rename to `checkOwnSession` to make the non-throwing behavior explicit.
+  ```existing
+  console.warn(
+      `[${this.label} SCOPE] unbound session: ${action} with session ${sessionId} — bound to NO known ecosystem (neither ${this.ecosystem} nor any sibling); proceeding to the action's own not-found handling. A typo'd or stale session id surfaces here first.`,
+    );
   ```

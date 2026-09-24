@@ -184981,7 +184981,9 @@ ${p.verbatimQuote}`).join(`
       if (verdict === "PENDING") {
         throw new CalibrationError("CALIBRATION_PENDING", `CALIBRATION_PENDING: predicate ${p.id} reached the record stage without a completed fire+silent verdict \u2014 a calibration row is never written from a half-tested predicate`);
       }
-      const failedTest = verdict === "CALIBRATED" ? undefined : fire.result === "MISS" ? silent.result === "FALSE-FIRE" ? "BOTH" : "FIRE" : "SILENT";
+      const fireFailed = fire.result === "MISS";
+      const silentFailed = silent.result === "FALSE-FIRE";
+      const failedTest = verdict === "CALIBRATED" ? undefined : fireFailed && silentFailed ? "BOTH" : fireFailed ? "FIRE" : silentFailed ? "SILENT" : undefined;
       const reason = failedTest === "FIRE" ? "the predicate never fires on its own trigger fixture \u2014 the logic is dead" : failedTest === "SILENT" ? `the predicate fires on the golden state \u2014 false positives on known-good` : failedTest === "BOTH" ? "both the fire and the silent tests fail \u2014 the predicate is incoherent" : undefined;
       records.push({
         predicateId: p.id,

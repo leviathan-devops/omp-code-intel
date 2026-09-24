@@ -1,231 +1,216 @@
-# HIGH slice 2 — 12 findings across 9 files
+# HIGH slice 2 — 11 findings across 9 files
 
-## src/hunter/graph/resolver.ts
-- **src/hunter/graph/resolver.ts:194-201** (bug)
-  Bug: The early-return guard `decisions.length === newEntities.length` does not guarantee all entities are uniquely covered. If the harness produces two decisions that both resolve to the same entity (e.g., two records whose aliases both match the same `newEntity.id`), the decisions array length equals `newEntities.length` even though some entity has no decision. The `resolvedEntityIds` set on line 201 was specifically built to track per-entity coverage (per the F-932 comment), but the early return on line 194 bypasses it entirely, re-introducing the silent-drop bug the fix was meant to prevent.
+## src/hunter/diagnostics/calibration.ts
+- **src/hunter/diagnostics/calibration.ts:669-669** (bug)
+  **Bug: try-catch in `runCalibration` does not catch errors from `gate.run()`.**
 
-Fix: replace the length check with a set-size check, or move the early return after building the set.
-  ```existing
-  if (decisions.length === newEntities.length) return decisions;
-  if (decisions.length === 0) return null;
-  // ★ F-932 FIX (2026-09-24): the resolved set carried the harness-provided alias STRINGS
-  //   matched against BOTH id and label — an alias equal to A's id that also equaled B's label
-  //   skipped B from heuristic fallback entirely (SILENT drop: B missing from the final
-  //   decisions a
-  ```
-  ```suggested
-  const resolvedEntityIds = new Set(decisions.map((d) => d.newEntity.id));
-  if (resolvedEntityIds.size === newEntities.length) return decisions;
-  if (resolvedEntityIds.size === 0) return null;
-  ```
+`gate.run()` is an `async` method that always returns a `Promise`. When the promise is returned directly from the `async runCalibration` function (without `await`), the returned promise's rejection is **not** intercepted by the surrounding try-catch. Only synchronous errors and the `await compile(profile)` rejection are caught. This means:
 
-## src/hunter/harness/trace.ts
-- **src/hunter/harness/trace.ts:68-68** (bug)
-  `deriveRootCause` calls `f.evidence.split(...)` without a null/undefined guard. If a `NormalizedFinding` arrives with `evidence` as `undefined`, `null`, or a non-string, this will throw a runtime TypeError (`Cannot read properties of undefined (reading 'split')`). Given that this function is called unconditionally inside the solver loop, one malformed finding will crash the entire batch. Recommend adding a defensive guard or defaulting to an empty string.
-  ```existing
-  const first = f.evidence.split(/\n|\.\s/)[0]?.trim() ?? f.evidence;
-  ```
-  ```suggested
-  const evidenceText = typeof f.evidence === 'string' ? f.evidence : '';
-  const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
-  ```
+1. DB/file persistence failures from `gate.run()` bypass the `console.warn` — the intended diagnostic logging is dead code for the most common error path.
+2. The caller sees the raw `CalibrationError` without any logging.
 
-## src/hunter/shared/containment.ts
-- **src/hunter/shared/containment.ts:111-115** (bug)
-  **`checkContained` can throw despite its `"NEVER throws"` contract.**
-
-The contract says: "NEVER throws; the caller owns the error vocabulary." However, two paths through this function can throw:
-
-1. **Target resolution**: `const real = realNearest(target)` (line 86) is not wrapped in try/catch. If `target` has an EACCES (permission denied) or ELOOP (symlink loop) error, `realNearest` re-throws it per the F-604 fix, and that exception propagates uncaught out of `checkContained`.
-
-2. **Root fallback**: If `realpathSync(root)` fails (caught by the try/catch), `realNearest(root)` is called in the catch block. If root's error is also EACCES/ELOOP rather than ENOENT/ENOTDIR, `realNearest` re-throws, and this second throw propagates out of the catch block — also uncaught.
-
-Both violate the documented contract. Callers relying on `checkContained` to always return a result (and then naming the violation via `onViolation`) will instead crash with an unhandled exception.
-
-Suggested fix: wrap `realNearest(target)` in the same try/catch pattern and propagate the error via the return value (e.g., set `contained = false` and populate an error field), or clarify the contract to state that I/O errors (EACCES/ELOOP) propagate while containment violations do not.
-  ```existing
-  let rootReal: string;
-  let rootResolved: boolean;
-  try { rootReal = fs.realpathSync(root); rootResolved = true; }
-  catch { rootReal = realNearest(root); rootResolved = false; }
-  const real = realNearest(target);
-  ```
-- **src/hunter/shared/containment.ts:137-139** (bug)
-  **`requireContained` silently returns the uncontained path if `onViolation` returns normally.**
-
-`onViolation` is typed as returning `never`, but TypeScript's `never` is a compile-time-only constraint. If a caller provides a handler that returns normally (e.g., a logging handler that doesn't throw), execution falls through to `return real` — returning the path that was just determined to be OUTSIDE the root. The guard is silently bypassed.
-
-This is a defense-in-depth concern: a single caller mistake (forgetting to throw in the callback) defeats the entire containment check.
-
-Suggested fix: add a runtime guard after the callback:
-
+Fix: `await` the promise so the try-catch captures its rejections:
 ```typescript
-if (!contained) {
-  onViolation({ real, rootReal, target, root });
-  // Defense-in-depth: onViolation is typed as `never` (must throw), but
-  // TypeScript cannot enforce this at runtime. If it returns normally,
-  // we must not propagate the uncontained path.
-  throw new Error('CONTAINMENT_BUG: onViolation returned normally');
-}
+const result = await gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
+return result;
 ```
   ```existing
-  const { real, rootReal, contained } = checkContained(target, root);
-  if (!contained) onViolation({ real, rootReal, target, root });
-  return real;
+  return gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
   ```
+  ```suggested
+  const result = await gate.run(profile, fixtureVersion, opts.db || opts.recordPath ? { db: opts.db, recordPath: opts.recordPath } : undefined);
+    return result;
+  ```
+- **src/hunter/diagnostics/calibration.ts:680-686** (bug)
+  **In-place mutation of shared `CompiledPredicate` objects via `markCalibrated`.**
 
-## src/hunter/shared/db.ts
-- **src/hunter/shared/db.ts:879-881** (maintainability)
-  `openFamilyReadOnly` sets the private `sealed` field via an unsafe double cast through `Record<string, unknown>`. This bypasses TypeScript's access modifiers entirely — if the field is ever renamed, refactored, or removed, this code will silently set a property on a plain object with zero compile-time or runtime error, leaving the store writable against a physically read-only file. A proper solution is to expose a `sealed` setter on `FamilyGraphStore`, or pass `sealed` as a constructor option.
-  ```existing
-  const store = new FamilyGraphStore(familyPath, handle, ':memory:', branchHandle);
-  (store as unknown as Record<string, unknown>)['sealed'] = true;
-  return store;
-  ```
-  ```suggested
-  const store = new FamilyGraphStore(familyPath, handle, ':memory:', branchHandle);
-  store.markSealed(); // add a public method: markSealed() { this.sealed = true; }
-  return store;
-  ```
-- **src/hunter/shared/db.ts:734-738** (bug)
-  The `branch_union_view` and `branch_union_attached` view rebuilds, as well as the ATTACH DATABASE statement, all execute OUTSIDE the transaction that commits the graph data. If the transaction succeeds but any of these DDL steps fails, the graph data is committed while the views remain stale or missing. The catches only `console.debug` without throwing, so callers receive incorrect union results with no indication of failure. These DDL steps should either be inside the transaction or should propagate errors to the caller.
-  ```existing
-  tx();
-    try {
-      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
-      this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.sourc
-  ```
-  ```suggested
-  const rebuild = this.branchDb.transaction((): void => {
-      this.branchDb.prepare('DELETE FROM graph_edges').run();
-      this.branchDb.prepare('DELETE FROM graph_nodes').run();
-      // ... node + edge inserts ...
-      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
-      this.branchDb.exec("CREATE VIEW branch_union_view AS ...");
-    });
-    rebuild();
-    try {
-      this.branch
-  ```
-- **src/hunter/shared/db.ts:454-465** (bug)
-  Despite the comments claiming the hunt-lock prevents interleaving, `writeGraph` provides no in-process concurrency guard. If two callers share the same `DbClient` instance and call `writeGraph` concurrently (e.g., from different async tasks), the SQLite transaction serialization alone does not prevent interleaved DELETE-INSERT cycles — one transaction could DELETE the graph after another has committed fresh nodes but before it commits its edges, leaving dangling FK references. An advisory mutex (e.g., a `Mutex` or `Semaphore` wrapping the transaction) would make the concurrency contract enforced at this layer rather than relying on an external lock whose existence is only asserted in comments.
-  ```existing
-  writeGraph(nodes: GraphNode[], edges: GraphEdge[]): void {
-    for (const n of nodes) {
-      if (!isNodeLineage(n.lineage)) {
-        throw lineageMissing(n.id);
-      }
-    }
-    for (const e of edges) {
-      if (!isNodeLineage(e.lineage)) {
-        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
-      }
-    }
-    const tx = this.handle.transaction((): void => {
-  ```
-  ```suggested
-  private writeMutex = Promise.resolve();
+`markCalibrated` (called from `mark()`) writes `p.calibrated = verdict` directly onto the `CompiledPredicate` that was passed into the gate. Since `CalibrationGate` receives the battery by reference (not a copy), this mutates the original objects in the caller's scope. Consequences:
 
-  writeGraph(nodes: GraphNode[], edges: GraphEdge[]): void {
-    // ... validation ...
-    const tx = this.handle.transaction((): void => { /* ... */ });
-    // Serialize via a promise chain so concurrent callers don't interleave
-    this.writeMutex = this.writeMutex.then(() => { tx(); });
-    // For synchronous callers, still run inline:
-    tx();
+1. If the same battery array is reused across multiple `CalibrationGate` sessions (e.g., a re-calibration attempt), the first session's verdicts silently contaminate the second session's starting state.
+2. If a live scan holds a reference to the same `CompiledPredicate` objects, it sees the calibration side-effects without an explicit contract for it.
+3. The mutation is not idempotent — calling `fireTest` then `silentTest` (or vice versa) produces different intermediate `p.calibrated` states that external observers may read inconsistently.
+
+Suggestion: either deep-clone the battery in the gate constructor, or maintain the calibration state entirely in the gate's internal maps (which already exist as `this.verdicts`) and expose it only through `verdictOf()`.
+  ```existing
+  function markCalibrated(p: CompiledPredicate, verdict: 'CALIBRATED' | 'FLAGGED' | 'PENDING'): void {
+  if (p !== undefined && p !== null) {
+    (p as CalibratedPredicate).calibrated = verdict;
+    return;
   }
+  throw calibrationFixtureInvalid('the predicate row is missing for the calibrated mark');
+}
+  ```
+  ```suggested
+  function markCalibrated(p: CompiledPredicate, verdict: 'CALIBRATED' | 'FLAGGED' | 'PENDING'): void {
+  if (p === undefined || p === null) {
+    throw calibrationFixtureInvalid('the predicate row is missing for the calibrated mark');
+  }
+  // Mutation-free: calibration state lives in CalibrationGate.verdicts.
+  // This function is retained as a guard that p is a valid reference;
+  // remove it enti
   ```
 
-## src/hunter/tools/bug-hunt.ts
-- **src/hunter/tools/bug-hunt.ts:268-272** (bug)
-  **Race condition: status action reads session store without holding the hunt lock.**
+## src/hunter/harness/hunt-lock.ts
+- **src/hunter/harness/hunt-lock.ts:166-171** (bug)
+  TOCTOU race between re-read comparison and unlinkSync in releaseHuntLock. After the F-831 re-read confirms the ownership triple matches (line 157-159), unlinkSync (line 161) is not atomic with that read. A concurrent process could be running stale-recovery in acquireHuntLock during this window: (1) it reads the lock as stale, (2) re-reads and confirms the same payload, (3) unlinks the stale lock, (4) writes a fresh lock with wx. Then this unlinkSync on line 161 deletes the stranger's freshly-acquired lock. This can occur when the lock's TTL has expired and the releasing process takes long enough for another process to attempt stale recovery — a realistic scenario since work approaching the 30-min boundary triggers both release and stale-recovery simultaneously.
+  ```existing
+  const fresh = readPayload(lockPath);
+    if (!fresh || fresh.pid !== existing.pid || fresh.acquiredAt !== existing.acquiredAt || fresh.hostname !== existing.hostname) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed during release (a peer won the race) — keeping the current holder's lock`);
+      return;
+    }
+    fs.unlinkSync(lockPath);
+  ```
+  ```suggested
+  const fresh = readPayload(lockPath);
+    if (!fresh || fresh.pid !== existing.pid || fresh.acquiredAt !== existing.acquiredAt || fresh.hostname !== existing.hostname) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed during release (a peer won the race) — keeping the current holder's lock`);
+      return;
+    }
+    try {
+      // unlink may delete a stranger's loc
+  ```
 
-The `hunt` action acquires a hunt lock (line 121) before running the micro-loop, which populates and modifies the session store. However, the `status` action (lines 168–205) opens the same session store, calls `countTypedNodes`/`populateSessionStore`/`unwiredNodes` **without acquiring the hunt lock**. This means:
+## src/hunter/hooks/bus-hook.ts
+- **src/hunter/hooks/bus-hook.ts:74-81** (bug)
+  If `poll()` throws (e.g., the database call fails), `this.polling` is correctly reset in `finally`, but `this.cursor` is NOT rolled back to its pre-call value. This means partial batch processing could leave the cursor advanced past some rows that were never delivered, causing silent event loss. On the next successful poll the already-advanced cursor skips those rows. Consider saving the cursor at entry and restoring it on exception.
+  ```existing
+  poll(db: DbClient): EventRow[] {
+    if (this.polling) {
+      console.warn('[hydra-bus] poll reentered concurrently — skipped (the in-flight poll owns the cursor)');
+      return [];
+    }
+    this.polling = true;
+    try {
+    const rows = rowsAs<EventRow>(db.prepare('SELECT id, kind, payload FROM events WHERE id > ? ORDER BY id ASC').all(this.cursor), 'events');
+  ```
+  ```suggested
+  poll(db: DbClient): EventRow[] {
+    if (this.polling) {
+      console.warn('[hydra-bus] poll reentered concurrently — skipped (the in-flight poll owns the cursor)');
+      return [];
+    }
+    this.polling = true;
+    const cursorBefore = this.cursor;
+    try {
+    const rows = rowsAs<EventRow>(db.prepare('SELECT id, kind, payload FROM events WHERE id > ? ORDER BY id ASC').all(this.cursor), 'even
+  ```
 
-1. A concurrent `hunt` could be mid-`populateSessionStore`, and the `status` call reads a half-written store — returning partial or inconsistent results.
-2. `populateSessionStore` could be called concurrently by both a `hunt` and a `status`, corrupting the store.
-3. `unwiredNodes` could read while the hunt's strike phase is writing findings, yielding a snapshot that reflects neither the before nor after state.
-
-**Suggestion:** Acquire the hunt lock (or a read-lock/shared-lock variant) in the status action before accessing the session store, or at minimum document that concurrent status + hunt is unsupported.
+## src/hydra/client-reader.ts
+- **src/hydra/client-reader.ts:95-99** (bug)
+  `listTools()` and `callTool()` both call their respective transport methods (`await t.listTools()` and `await t.callTool(name, args ?? {})`) without any timeout guard, identical to the `attach()` and `disconnect()` hazard (F-611/F-612). A stalled or hung transport call in either method would block the caller indefinitely, holding the captured transport reference and deadlocking subsequent operations. Apply the same `Promise.race` timeout pattern used in `attach()`/`disconnect()` to both `listTools()` and `callTool()` for consistency with the F-611/F-612 rationale.
   ```existing
   try {
-        const opened = openSessionStore({ sessionId: callerId, scopeRoot, callerSessionId: callerId });
-        if (countTypedNodes(opened.storePath) === 0) {
-          populateSessionStore(opened.storePath, scopeRoot);
-        }
-  ```
-
-## src/omp/adapters/abide.ts
-- **src/omp/adapters/abide.ts:193-196** (bug)
-  **Over-broad subject matching — false positives**: The bidirectional `includes()` filter on lines 161–170 has two over-matching paths:
-1. `hay.includes(subject)`: `hay` is three fields concatenated with spaces (e.g. `"matched_span verdict rule"`). A short subject like a single word (`"error"`) can match across field boundaries — e.g., a `matched_span` ending in `"error"` followed by a `verdict` starting with `"ful"` would match subject `"errorful"` which never appeared in any single field.
-2. `subject.includes(span)`: A short `matched_span` (even 2–3 chars) can appear incidentally inside the subject text, causing a repair fact for an unrelated flag.
-
-This over-reporting could flood downstream consumers with spurious repair opportunities. Consider matching against individual fields separately, or requiring a minimum span length for the reverse match.
-  ```existing
-  const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
-        if (hay.includes(subject)) return true;
-        const span = (e.matched_span ?? "").trim();
-        if (span.length > 0 && subject.includes(span)) return true;
+      return await t.listTools();
+    } catch (err) {
+      throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
+    }
   ```
   ```suggested
-  // Match against individual fields to avoid cross-boundary false positives
-        const span = (e.matched_span ?? "").trim();
-        const verdict = (e.verdict ?? "").trim();
-        const rule = (e.rule ?? "").trim();
-        if (span.length > 0 && span.includes(subject)) return true;
-        if (span.length > 0 && subject.includes(span)) return true;
-        // Fall back to verdict/rule only f
+  try {
+      return await Promise.race([
+        t.listTools(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000)),
+      ]);
+    } catch (err) {
+      throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
+    }
   ```
 
-## src/omp/evidence-producer.ts
-- **src/omp/evidence-producer.ts:344-351** (bug)
-  **Concurrent sessions sharing `recordsPath` will conflate evidence**: `resolveFromSession` first appends records via `produceAndPersist` (which calls `persistRecords` / `fs.appendFileSync`), then reads the entire file via `readRecordsAll` and partitions in memory by `fireStateHash`. If two concurrent sessions (e.g., parallel agent workers) share the same `recordsPath`:
-
-1. Session A appends its records for fire X
-2. Session B appends its records for fire Y (and possibly overlapping fire X)
-3. Session A reads the file — sees session B's records mixed in
-
-If both sessions produce records for the **same** `fireStateHash`, the evidence will be conflated, and `resolveAll` may reach a different conclusion than either session intended. Even for distinct fires, the file grows with interleaved records from unrelated sessions.
-
-At minimum, add a comment documenting that `recordsPath` must not be shared across concurrent sessions. Ideally, use a per-session file (e.g., append a session ID) or a file lock.
+## src/omp/adapters/tsg.ts
+- **src/omp/adapters/tsg.ts:123-131** (security)
+  **Redaction bypass: only exact full-key and tail-8 partial matches are redacted, leaving first-N or middle portions of the key exposed.** The F-914 fix adds a tail-8 heuristic, but if the CLI or error path echoes the first 4+ characters, or a middle substring of the key, neither the exact split/join nor the tail heuristic will match. For example, a log that prints `key.slice(0, 12)` or a server-echoed context showing a prefix would survive redaction. Consider also redacting the first N characters (e.g., first 8) when key length >= 16, or using a regex-based approach that matches any contiguous 8+ character substring of the key.
   ```existing
-  export function resolveFromSession(
-  ledger: FireLedger,
-  events: readonly ToolEvent[],
-  opts: {
-    recordsPath: string;
-    /** state_hash → the subject the fire was about. The caller holds it; the DDL does not
-     *  carry a target column (§8.2 — the named gap). */
-    subjects: ReadonlyMap<string, Subject>;
-  ```
-
-## src/omp/layer-registry.ts
-- **src/omp/layer-registry.ts:240-242** (bug)
-  Two-view drift bug: malformed `up()` causes `GI_LAYER_DOWN` in `auditOne` but an invisible omission in `factsForWithFaults`. When `up()` returns a malformed shape (e.g., truthy non-object, or object without boolean `up`), `auditOne` (lines 147-149) coerces it to DOWN with evidence. Here, the same scenario hits `continue` with NO fault recorded — the consumer vanishes entirely from `facts`, `faults`, and `decisionsInfluenced`. This is the exact class of two-view drift that F-405/F-706 aimed to fix but did not close for the malformed-shape path. Add a fault record before the `continue`, mirroring the `GI_LAYER_DOWN` semantics from auditOne.
-  ```existing
-  const rawProbe: unknown = p.up();
-          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
-          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) continue;
+  const redact = (s: string): string => {
+          if (key === null || key.length === 0) return s;
+          let out: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
+          if (key.length >= 16) {
+            const tail: string = key.slice(-8);
+            if (tail.length >= 8) out = out.split(tail).join('...[redacted-tail]');
+          }
+          return out;
+        };
   ```
   ```suggested
-  const rawProbe: unknown = p.up();
-          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
-          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) {
-            // Mirror auditOne's GI_LAYER_DOWN semantics: malformed or DOWN substrate is a named
-            // fault, not an invisible omission. Without
+  const redact = (s: string): string => {
+          if (key === null || key.length === 0) return s;
+          // Exact full-key match (metachar-safe via split/join)
+          let result: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
+          if (key.length >= 16) {
+            // Tail-8 heuristic (existing F-914 fix)
+            const tail: string = key.slice(-8);
+            if (t
   ```
 
-## src/scoping/gi-ecosystem.ts
-- **src/scoping/gi-ecosystem.ts:21-29** (security)
-  TOCTOU race condition: The `lstatSync` symlink check and subsequent `mkdirSync`/`mkdtempSync` are not atomic. Between the lstat check (line 26) passing and `mkdtempSync` executing (line 31), an attacker with local access can replace the directory at `GI_TMP_DIR` with a symlink pointing to a sensitive location (e.g., a directory containing secrets). `mkdtempSync`'s internal `O_EXCL` only prevents the *final component* (the minted temp dir name) from being a symlink — it does NOT protect against the *parent* (`GI_TMP_DIR`) being a symlink. If `GI_TMP_DIR` is swapped to a symlink during the race window, the temp file is created under the attacker-controlled target. Consider using a platform-specific atomic approach (e.g., `mkdtempSync` directly under `os.tmpdir()` without the intermediate shared parent, or verify the fd opened by mkdtemp with `fstat` to confirm it is not on a symlinked path).
+## src/omp/fire-gate.ts
+- **src/omp/fire-gate.ts:368-372** (bug)
+  The MPSE negation regex is missing common affirmative action verbs. F-266 added `execut|perform|applied|deployed|shipped|complet|ran|went ahead|carried out`, but real-world slots use forms like "deleted", "removed", "destroyed", "dropped", "killed", "erased", "wiped", and "nuked" — none of which match. A slot like `"discussed removing the server and then deleted it"` passes `every()` because "deleted" is not matched by the affirmative regex, so the entire slot is treated as negated/discussion. The fire is settled IGNORE on a REAL violation. The comment says "F-266 FIX" but the verb list is incomplete — consider matching against the DESTRUCTIVE_COMMANDS vocabulary or broadening the affirmative regex.
   ```existing
-  export function makeGiTmpDir(prefix = "gi-"): string {
-  let pre: { isSymbolicLink(): boolean } | null = null;
-  try { pre = lstatSync(GI_TMP_DIR); } catch { pre = null; }
-  if (pre && pre.isSymbolicLink()) {
-    throw new Error(`GI_TMP_PLANT: scratch base ${GI_TMP_DIR} is a symlink plant — refusing`);
+  const onlyNegated = mentionsTarget.every((s) => {
+      const t = s.text.toLowerCase();
+      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out)/.test(t)) return false;
+      return /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(t);
+    });
+  ```
+  ```suggested
+  const onlyNegated = mentionsTarget.every((s) => {
+      const t = s.text.toLowerCase();
+      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out|deleted|removed|destroyed|dropped|killed|erased|wiped|nuked)/.test(t)) return false;
+      return /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(t);
+    });
+  ```
+
+## src/omp/oracle.ts
+- **src/omp/oracle.ts:441-446** (bug)
+  The subject pre-validation in `resolveAll` (line 441) and the equivalent check in `gather` (line 199) both use `row.target !== undefined && row.target !== ''` to decide whether the row supplies its own subject. However, the DDL column `target TEXT` is nullable, and rows written before the EN-090 migration have `NULL` targets (line 78 of fire-ledger.ts: "NULL is the honest value for them"). At runtime `null !== undefined` evaluates to `true`, so `fromRow` becomes `true` for a `NULL` target. `gather` then does `subject = { target: row.target as string, ... }`, casting `null` to `string` — a type-level lie. Since `null` will never match any record's target in the evidence loop (`r.target !== subject.target` is always `true`), no evidence is gathered and the fire is silently classified as `unresolved` instead of being rejected with a clear error. The `as string` cast masks a real null-pointer hazard: any future code that calls `.length`, `.includes()`, or template-interpolates `subject.target` on this value will get a TypeError at runtime.
+  ```existing
+  const fromRow = row.target !== undefined && row.target !== '';
+  if (!fromRow && subj === undefined) {
+      throw new Error(
+        `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — refusing the WHOLE batch so no partial write can occur`,
+      );
+    }
+  ```
+  ```suggested
+  const fromRow = row.target != null && row.target !== '';
+  if (!fromRow && subj === undefined) {
+      throw new Error(
+        `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — refusing the WHOLE batch so no partial write can occur`,
+      );
+    }
+  ```
+- **src/omp/oracle.ts:199-199** (bug)
+  The same null-unsafe check appears in `gather` at line 199. A `NULL` `target` from the database passes the `!== undefined` guard, causing `null` to be cast to `string` and used as the subject target for evidence matching. This should use a nullish check (`!= null`) to treat `null` the same as `undefined` — meaning the row does NOT name its own subject, and the caller-supplied subject should be used instead.
+  ```existing
+  const fromRow = row.target !== undefined && row.target !== "";
+  ```
+  ```suggested
+  const fromRow = row.target != null && row.target !== "";
+  ```
+
+## src/omp/ripwire-bridge.ts
+- **src/omp/ripwire-bridge.ts:0-0** (bug)
+  The ENOBUFS error code may not be emitted by all Node.js versions on maxBuffer overflow. In some Node.js versions the error code is `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` (or the error object may not have a `.code` property at all). This means the TRUNCATED diagnostic could silently fall through to the generic `rawErr.message` path, producing a less informative 'query failed' leg instead of the intended 'TRUNCATED' label. Consider checking for both codes, or falling back to a heuristic (e.g. stdout.length >= RIPWIRE_MAX_BUFFER).
+  ```existing
+  execError = rawErr.code === "ENOBUFS"
+      ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B — ${rawErr.message}`
+      : rawErr.message;
+  ```
+  ```suggested
+  const isTruncated = rawErr.code === "ENOBUFS" || rawErr.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+    execError = isTruncated
+      ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B — ${rawErr.message}`
+      : rawErr.message;
+  ```
+
+## src/scoping/scoped-store.ts
+- **src/scoping/scoped-store.ts:124-129** (bug)
+  Race condition in getStoreDbAsync: The early-return path at lines 101-104 bypasses the in-flight gate, allowing concurrent callers to open multiple handles. This defeats the purpose of the guard added in F-288. Fix: always go through the gate, or at minimum acquire the gate even on the early-return path.
+  ```existing
+  if (!opts && storeDb) {
+    try {
+      storeDb.query('SELECT 1').get();
+      return storeDb;
+    } catch (_sick) { /* fall through to the shared open below */ }
   }
-  mkdirSync(GI_TMP_DIR, { recursive: true });
-  return mkdtempSync(join(GI_TMP_DIR, prefix))
   ```

@@ -1,158 +1,169 @@
 # HIGH slice 5 — 9 findings across 8 files
 
-## src/hunter/diagnostics/semantic-predicates.ts
-- **src/hunter/diagnostics/semantic-predicates.ts:268-268** (bug)
-  P6's else-if branch checks for `Checkpoints` and `.trident` in the exclusion list but does NOT check for `dist`, which is explicitly part of the remediation (UNSCOPED_WALKER_REMEDIATION = 'add EXCLUDED_DIRS with Checkpoints .trident dist'). A walker that excludes Checkpoints and .trident but not dist will incorrectly pass this check. The condition should also verify dist is present.
+## src/hunter/graph/graphify-adapter.ts
+- **src/hunter/graph/graphify-adapter.ts:194-194** (bug)
+  Bug: `loadGraphifyFileSync` hardcodes the normalize root as `dirname(dirname(graphPath))` (line 194), but `buildSync()` resolves the effective root from `effectiveProfile.project.root` (line 937). When `graphPath` is overridden via `GRAPHIFY_OUT` env var, `graphifyOut` profile field, or `override` parameter, these two roots diverge. The node file anchors inside the returned `GraphifyGraph` are normalized against the wrong base. Then `projectGraphifyGraph(graph, root)` at line 943 re-resolves against the profile root, but the `normalizeGraphifyGraph` containment pass (line 194) already dropped or mis-anchored nodes relative to `dirname(dirname(graphPath))`. This causes inconsistent containment: some nodes may be dropped by normalize (wrong base) but would have been kept by project, or vice versa. The `build()` async path avoids this by calling `normalizeGraphifyGraph(raw, { root: path.resolve(profile.project.root) })` directly at line 828. Fix: either accept an explicit `root` parameter in `loadGraphifyFileSync`, or extract the normalize call and let `buildSync` invoke `normalizeGraphifyGraph` directly with the profile root (matching `build()`'s pattern).
   ```existing
-  } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win)) {
+  return normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
   ```
   ```suggested
-  } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win) || !/\bdist\b/i.test(win)) {
+  export function loadGraphifyFileSync(graphPath: string, rootOverride?: string): GraphifyGraph {
+  let text: string;
+  try {
+    text = statAndReadGraphJson(graphPath).text;
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message.startsWith("GRAPHIFY_STAT_FAILED:")) {
+      throw new Error(
+        `GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --t
   ```
 
-## src/hunter/graph/corbell-adapter.ts
-- **src/hunter/graph/corbell-adapter.ts:210-212** (bug)
-  Bug: When `opts.timeout` is `undefined` (the common case — no static timeout), the fallback path computes `execTimeout` as `Math.min(undefined, ...)` → `NaN` → `Infinity`. `execSync` with `timeout: Infinity` is not a documented contract in Node.js — it works by accident in some runtimes (treated as no timeout) but is undefined behavior. Should pass `undefined` to execSync to let it run without a timeout.
-
-Additionally, when `retryDeadline === Number.POSITIVE_INFINITY`, the ternary `retryTimeout ?? Number.POSITIVE_INFINITY` always yields `Infinity`, ignoring the `execBudget` calculation that just ran. The intent seems to be that when no deadline exists, each attempt uses the full caller timeout — but the `Math.min` with `Infinity` makes the budget check dead code.
-
-Suggested fix: pass `undefined` as the timeout to execSync when the deadline is infinite, and use explicit branching instead of NaN-coalescing arithmetic.
+## src/hunter/harness/strike.ts
+- **src/hunter/harness/strike.ts:37-38** (bug)
+  Map collision silently drops earlier traces: If multiple TraceRow entries in the `traces` array share the same `findingId`, the `Map.set()` on line 46 silently overwrites the earlier entry, keeping only the last one. This changes the relevance score for that finding and can silently reorder results, breaking the documented determinism guarantee. Consider grouping traces by findingId (e.g., summing or averaging relevance values) or at minimum emitting a warning when a collision is detected.
   ```existing
-  const execBudget = retryDeadline - Date.now();
-      if (execBudget <= 0) break;
-      const execTimeout = retryDeadline === Number.POSITIVE_INFINITY ? retryTimeout : Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, Math.max(1, execBudget));
+  const traceByFinding = new Map<string, TraceRow>();
+  for (const t of traces) traceByFinding.set(t.findingId, t);
   ```
   ```suggested
-  const execBudget = retryDeadline - Date.now();
-      if (execBudget <= 0) break;
-      let execTimeout: number | undefined;
-      if (retryDeadline === Number.POSITIVE_INFINITY) {
-        // No overall deadline — use the caller's per-attempt timeout as-is (or undefined = no timeout).
-        execTimeout = retryTimeout;
-      } else {
-        execTimeout = Math.max(1, Math.min(retryTimeout ?? Infin
+  const traceByFinding = new Map<string, TraceRow>();
+  for (const t of traces) {
+    const existing = traceByFinding.get(t.findingId);
+    if (existing) {
+      // Merge relevance scores when multiple traces map to the same finding.
+      const mergedRelevance = { ...existing.relevance };
+      for (const [k, v] of Object.entries(t.relevance)) {
+        mergedRelevance[k] = (mergedRelevance[k] ?? 0
   ```
-- **src/hunter/graph/corbell-adapter.ts:102-103** (bug)
-  Bug (behavioral divergence): `buildCorbellGraphAsync` accepts `opts?.env` but does not inject the `CORBELL_COUPLING_*`, `CORBELL_WALK_EXCLUDE_DIRS`, or `CORBELL_COUPLING_SCOPE` environment variables that the sync `build()` path carefully constructs (lines ~250-280). If an external caller uses the async path for graph builds, the corbell vendor will walk the entire enclosing git repo (months=6, no path filter), reproducing the 742MB store / 30-min D-state stall that the coupling env was specifically designed to prevent.
 
-The sync path even has a comment (line 208) noting this is intentional for the stubbed-exec contract, but the async path is exported as a public function — any caller using it gets a silently different (and dangerous) build behavior.
-
-Suggested fix: accept the same coupling env parameters in `buildCorbellGraphAsync`'s opts, or extract the coupling-env construction into a shared helper that both paths call.
+## src/hunter/lexicon/templates.ts
+- **src/hunter/lexicon/templates.ts:202-208** (bug)
+  `bindStages` confirms `Array.isArray(v)` but performs no element-level validation before casting to `{ id: string; entry: string }[]`. If any element is `null`, a primitive, or an object missing the `id`/`entry` keys, `PROCESS_GATES_OUTPUTS` will crash at runtime when accessing `cur.entry` / `next.entry`. Although the zod schema in `compileTemplate` validates the shape at compile time, this R16 runtime guard is presented as a type-certainty guarantee — it should validate each element defensively (similar to how `bindStringArray` filters non-string elements).
   ```existing
-  export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): Promise<string> {
-  // ★ F-252 FIX (2026-09-24): closed the async twin's two gaps vs the sync path — (1) env passthrough (CORBELL_COUPLING_*/WALK_EXCLUDE knobs were dropped); (2) optional timeoutMs SIGTERMs a hung child and rejects NAMED (default none, per no-static-timeouts or
+  function bindStages(bindings: Record<string, unknown>): { id: string; entry: string }[] {
+  const v = bindings['stages'];
+  if (Array.isArray(v)) {
+    return v as { id: string; entry: string }[];
+  }
+  return [];
+}
   ```
   ```suggested
-  export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): Promise<string> {
-  // NOTE: callers MUST pass the coupling env (CORBELL_COUPLING_*, CORBELL_WALK_EXCLUDE_DIRS,
-  // CORBELL_COUPLING_SCOPE) to avoid an unbounded git walk. Extract coupling-env construction
-  // into a shared helper used by both CorbellAdapter.build() and this 
+  function bindStages(bindings: Record<string, unknown>): { id: string; entry: string }[] {
+  const v = bindings['stages'];
+  if (Array.isArray(v)) {
+    return v.filter(
+      (el): el is { id: string; entry: string } =>
+        typeof el === 'object' && el !== null &&
+        typeof (el as Record<string, unknown>).id === 'string' &&
+        typeof (el as Record<string, unknown>).entry === 'string'
+  ```
+- **src/hunter/lexicon/templates.ts:562-566** (bug)
+  In `PROCESS_GATES_OUTPUTS`, the finding sets `file: cur.entry` where `cur.entry` is an entry-point symbol/name (from the stages binding), NOT a file path. The `Finding` interface expects `file` to be a filesystem path. Downstream consumers (diagnostics, reports) will treat this symbol as a file path, causing incorrect display or failed lookups.
+  ```existing
+  findings.push({
+          ruleId: 'process.gates-measure-outputs-not-logic',
+          severity: sev,
+          file: cur.entry,
+          line: 0,
+  ```
+  ```suggested
+  findings.push({
+          ruleId: 'process.gates-measure-outputs-not-logic',
+          severity: sev,
+          file: cur.entry,  // TODO: resolve to actual file path via graph lookup
+          line: 0,
   ```
 
-## src/hunter/harness/recon.ts
-- **src/hunter/harness/recon.ts:118-122** (bug)
-  If the SQLite driver used by `openStore` returns `payload` as an already-parsed JavaScript object (some better-sqlite3 configurations do this), `String(row['payload'])` produces `'[object Object]'` and `JSON.parse` throws. The `catch` silently skips the entry, which could suppress a legitimate prior `runId` and produce a duplicate. Consider checking `typeof row['payload']` first: if it is already an object, assign directly; otherwise parse.
+## src/hunter/tools/bug-hunt.ts
+- **src/hunter/tools/bug-hunt.ts:268-272** (bug)
+  **Race condition: status action reads session store without holding the hunt lock.**
+
+The `hunt` action acquires a hunt lock (line 121) before running the micro-loop, which populates and modifies the session store. However, the `status` action (lines 168–205) opens the same session store, calls `countTypedNodes`/`populateSessionStore`/`unwiredNodes` **without acquiring the hunt lock**. This means:
+
+1. A concurrent `hunt` could be mid-`populateSessionStore`, and the `status` call reads a half-written store — returning partial or inconsistent results.
+2. `populateSessionStore` could be called concurrently by both a `hunt` and a `status`, corrupting the store.
+3. `unwiredNodes` could read while the hunt's strike phase is writing findings, yielding a snapshot that reflects neither the before nor after state.
+
+**Suggestion:** Acquire the hunt lock (or a read-lock/shared-lock variant) in the status action before accessing the session store, or at minimum document that concurrent status + hunt is unsupported.
   ```existing
   try {
-        // THE R16 TYPE_CERTAINTY FIX — JSON.parse returns `any`; the assignment
-        // to the typed variable needs no cast at all (no AsExpression to flag),
-        // and the runId read below is typeof-guarded before use.
-        payload = JSON.parse(String(row['payload'] ?? '{}'));
+        const opened = openSessionStore({ sessionId: callerId, scopeRoot, callerSessionId: callerId });
+        if (countTypedNodes(opened.storePath) === 0) {
+          populateSessionStore(opened.storePath, scopeRoot);
+        }
   ```
 
-## src/hunter/surface/lsp-injector.ts
-- **src/hunter/surface/lsp-injector.ts:250-263** (security)
-  The `resolveTouchedFiles` glob-to-regex compiler does NOT escape the `.` in `.*` and `.` replacements. A user-supplied glob like `a.a.a.a.a.a.a.a.a.a.a.a` (no wildcards) passes the `/[*?[]/` test because it contains `.` — but `.` is NOT in that character class, so it does NOT enter the glob branch. However, a glob like `a*.a*.a*.a*` compiles `*`→`.*` and `.` stays literal (correct), but a glob like `....*` has dots that pass through unescaped. More critically, patterns with deeply nested quantifiers like `*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a` compile to `.*a.*a.*a...` which causes catastrophic backtracking (ReDoS). The try/catch won't save you — RegExp construction succeeds; it's the `.test()` call that hangs. Add a max-length check on the input before compilation.
+## src/omp/adapters/abide.ts
+- **src/omp/adapters/abide.ts:193-196** (bug)
+  **Over-broad subject matching — false positives**: The bidirectional `includes()` filter on lines 161–170 has two over-matching paths:
+1. `hay.includes(subject)`: `hay` is three fields concatenated with spaces (e.g. `"matched_span verdict rule"`). A short subject like a single word (`"error"`) can match across field boundaries — e.g., a `matched_span` ending in `"error"` followed by a `verdict` starting with `"ful"` would match subject `"errorful"` which never appeared in any single field.
+2. `subject.includes(span)`: A short `matched_span` (even 2–3 chars) can appear incidentally inside the subject text, causing a repair fact for an unrelated flag.
+
+This over-reporting could flood downstream consumers with spurious repair opportunities. Consider matching against individual fields separately, or requiring a minimum span length for the reverse match.
   ```existing
-  if (!/[*?[]/.test(candidate)) return [];
-    let rx: RegExp;
-    try {
-      // ★ F-49 FIX (2026-09-24): two defects — no /g flag (only the first special
-      // ★ char escaped, later ones compiled live) and `[`/`]` unescaped (a `[a-z]`
-      // ★ glob threw inside RegExp → caught → silent [] miss). `[`/`]` pass through
-      // ★ as the glob class syntax; every other regex special is escaped glo
+  const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
+        if (hay.includes(subject)) return true;
+        const span = (e.matched_span ?? "").trim();
+        if (span.length > 0 && subject.includes(span)) return true;
   ```
   ```suggested
-  if (!/[*?[]/.test(candidate)) return [];
-    // ★ ReDoS guard: reject patterns whose compiled regex could cause catastrophic backtracking.
-    const GLOB_MAX_LEN = 200;
-    if (candidate.length > GLOB_MAX_LEN) return [];
-    let rx: RegExp;
-    try {
-      rx = new RegExp('^' + [...candidate].map((ch) => {
-        if (ch === '*') return '.*';
-        if (ch === '?') return '.';
-        if (ch === 
+  // Match against individual fields to avoid cross-boundary false positives
+        const span = (e.matched_span ?? "").trim();
+        const verdict = (e.verdict ?? "").trim();
+        const rule = (e.rule ?? "").trim();
+        if (span.length > 0 && span.includes(subject)) return true;
+        if (span.length > 0 && subject.includes(span)) return true;
+        // Fall back to verdict/rule only f
   ```
 
-## src/hydra/templates/mpse.ts
-- **src/hydra/templates/mpse.ts:21-30** (maintainability)
-  Three of the four conformance schemas — MpseContractConformanceSchema, MpseStageConformanceSchema, and ProvenanceConformanceSchema — are structurally identical (contractId, specPath, specLine, specQuote, implementationStatus, file?, line?, evidence?). Only MpseOracleConformanceSchema adds an `epsilon` field. This is a DRY violation: if a field is added/changed in one, the others may silently diverge. Extract a shared base schema and extend it (Oracle adds epsilon, Provenance adds nothing extra).
+## src/omp/evidence-producer.ts
+- **src/omp/evidence-producer.ts:344-351** (bug)
+  **Concurrent sessions sharing `recordsPath` will conflate evidence**: `resolveFromSession` first appends records via `produceAndPersist` (which calls `persistRecords` / `fs.appendFileSync`), then reads the entire file via `readRecordsAll` and partitions in memory by `fireStateHash`. If two concurrent sessions (e.g., parallel agent workers) share the same `recordsPath`:
+
+1. Session A appends its records for fire X
+2. Session B appends its records for fire Y (and possibly overlapping fire X)
+3. Session A reads the file — sees session B's records mixed in
+
+If both sessions produce records for the **same** `fireStateHash`, the evidence will be conflated, and `resolveAll` may reach a different conclusion than either session intended. Even for distinct fires, the file grows with interleaved records from unrelated sessions.
+
+At minimum, add a comment documenting that `recordsPath` must not be shared across concurrent sessions. Ideally, use a per-session file (e.g., append a session ID) or a file lock.
   ```existing
-  export const MpseContractConformanceSchema = z.object({
-  contractId: z.string().min(1),
-  specPath: z.string().min(1),
-  specLine: z.number().int().positive(),
-  specQuote: z.string().min(1),
-  implementationStatus: z.enum(["conformant", "violated", "unimplemented"]),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
-  evidence: z.string().optional(),
-});
+  export function resolveFromSession(
+  ledger: FireLedger,
+  events: readonly ToolEvent[],
+  opts: {
+    recordsPath: string;
+    /** state_hash → the subject the fire was about. The caller holds it; the DDL does not
+     *  carry a target column (§8.2 — the named gap). */
+    subjects: ReadonlyMap<string, Subject>;
+  ```
+
+## src/omp/layer-registry.ts
+- **src/omp/layer-registry.ts:240-242** (bug)
+  Two-view drift bug: malformed `up()` causes `GI_LAYER_DOWN` in `auditOne` but an invisible omission in `factsForWithFaults`. When `up()` returns a malformed shape (e.g., truthy non-object, or object without boolean `up`), `auditOne` (lines 147-149) coerces it to DOWN with evidence. Here, the same scenario hits `continue` with NO fault recorded — the consumer vanishes entirely from `facts`, `faults`, and `decisionsInfluenced`. This is the exact class of two-view drift that F-405/F-706 aimed to fix but did not close for the malformed-shape path. Add a fault record before the `continue`, mirroring the `GI_LAYER_DOWN` semantics from auditOne.
+  ```existing
+  const rawProbe: unknown = p.up();
+          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
+          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) continue;
   ```
   ```suggested
-  // Shared base — all four MPSE conformance schemas share these fields.
-const MpseConformanceBaseSchema = z.object({
-  contractId: z.string().min(1),
-  specPath: z.string().min(1),
-  specLine: z.number().int().positive(),
-  specQuote: z.string().min(1),
-  implementationStatus: z.enum(["conformant", "violated", "unimplemented"]),
-  file: z.string().optional(),
-  line: z.number().int().positive().opt
+  const rawProbe: unknown = p.up();
+          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
+          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) {
+            // Mirror auditOne's GI_LAYER_DOWN semantics: malformed or DOWN substrate is a named
+            // fault, not an invisible omission. Without
   ```
 
-## src/omp/decision.ts
-- **src/omp/decision.ts:0-0** (security)
-  `target` in `decideFireFromGraph` is validated only for type and emptiness, but not for path traversal. It flows directly into `graphFacts({ storePath, target, intent })`, which likely uses it to locate graph nodes or files under `storePath`. A `target` value like `../../etc/passwd` could cause `graphFacts` to read outside the intended scope. The same `isAbsolute`/`..`/NUL guard applied to `scopeRoot` should also be applied here, or at minimum a `..` segment check.
+## src/scoping/gi-ecosystem.ts
+- **src/scoping/gi-ecosystem.ts:21-29** (security)
+  TOCTOU race condition: The `lstatSync` symlink check and subsequent `mkdirSync`/`mkdtempSync` are not atomic. Between the lstat check (line 26) passing and `mkdtempSync` executing (line 31), an attacker with local access can replace the directory at `GI_TMP_DIR` with a symlink pointing to a sensitive location (e.g., a directory containing secrets). `mkdtempSync`'s internal `O_EXCL` only prevents the *final component* (the minted temp dir name) from being a symlink — it does NOT protect against the *parent* (`GI_TMP_DIR`) being a symlink. If `GI_TMP_DIR` is swapped to a symlink during the race window, the temp file is created under the attacker-controlled target. Consider using a platform-specific atomic approach (e.g., `mkdtempSync` directly under `os.tmpdir()` without the intermediate shared parent, or verify the fd opened by mkdtemp with `fstat` to confirm it is not on a symlinked path).
   ```existing
-  if (intent !== "consume" && intent !== "declare" && intent !== "mutate" && intent !== "measure") {
-    throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of consume|declare|mutate|measure (got ${String(intent)})`);
+  export function makeGiTmpDir(prefix = "gi-"): string {
+  let pre: { isSymbolicLink(): boolean } | null = null;
+  try { pre = lstatSync(GI_TMP_DIR); } catch { pre = null; }
+  if (pre && pre.isSymbolicLink()) {
+    throw new Error(`GI_TMP_PLANT: scratch base ${GI_TMP_DIR} is a symlink plant — refusing`);
   }
-  // ★ F-907 FIX (2026-09-24): same traversal hole as decideFromRegistry — symmetric guard so both entry points name a bad scopeRoot instead of joining it into store/ledger/po
-  ```
-  ```suggested
-  // ★ F-907 FIX (2026-09-24): same traversal hole as decideFromRegistry — symmetric guard so both entry points name a bad scopeRoot instead of joining it into store/ledger/policy paths.
-  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]").includes("..") || scopeRoot.includes("\0")) {
-    throw new Error(`GI_DECIDE_BAD_INPUT: scopeRoot must be a canonical absolute path, got ${JSON.stringify
-  ```
-
-## src/omp/gate-middleware.ts
-- **src/omp/gate-middleware.ts:16-16** (bug)
-  EXPORT_PARSE_RE is missing support for `export async function*` (async generator). The regex `EXPORT_GEN_RE` handles non-async generators, but `EXPORT_PARSE_RE`'s `export\s+(?:async\s+)?(?:function|const|class|let|var|type|interface|enum)\s+(\w+)` does not match `export async function* name()` because the `\s+` between `function` and the name expects a space, not `*`. Meanwhile `EXPORT_GEN_RE` only handles `function*` without `async`. So `export async function* foo()` is not matched by either regex, allowing the gate to miss this export.
-  ```existing
-  const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
-  ```
-  ```suggested
-  const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
-// Note: this already handles async generators via `(?:async\s+)?` — verify it's correct.
-  ```
-
-## src/omp/store-open.ts
-- **src/omp/store-open.ts:76-88** (bug)
-  Registry upsert race window: After the exclusive file create (or EEXIST catch), two concurrent openers can both observe `!current` from `findGiSessionByStorePath` and both call `upsertGiSession`. Since `upsertGiSession` uses SQLite UPSERT (ON CONFLICT DO UPDATE), the second call silently overwrites the first's registry row — the first opener returned with `created: false` but its `scope_root` / `opened_at` metadata was replaced. No lock or atomic compare-and-swap protects this check-then-upsert pair. Consider wrapping the check + upsert in a SQLite transaction with a SELECT-for-update pattern, or using a file-level lock (similar to `withStateLock` in session-state.ts) around the post-create registry check + insert.
-  ```existing
-  const current = findGiSessionByStorePath(storePath);
-  if (current && current.session_id !== ownerKey) {
-    throw new GiScopeError(
-      `GI_SCOPE_REFUSED: store ${storePath} owned by ${current.session_id}; caller ${callerKey}`,
-    );
-  }
-  if (!current) {
-    upsertGiSession({
-      sessionId: ownerKey,
-      scopeRoot: resolvedScopeRoot,
-      storePath,
-    });
-  }
+  mkdirSync(GI_TMP_DIR, { recursive: true });
+  return mkdtempSync(join(GI_TMP_DIR, prefix))
   ```

@@ -1,221 +1,143 @@
-# HIGH slice 4 — 10 findings across 8 files
+# HIGH slice 4 — 9 findings across 8 files
 
-## src/hunter/firewall/readonly.ts
-- **src/hunter/firewall/readonly.ts:166-170** (bug)
-  **Quoted-argument tokenization produces incorrect `secondToken`, breaking git/sed routing.**
-
-`parseCommand` splits on `\s+` without respecting shell quotes, so `commit -m "fix"` tokenizes as `[commit, -m, "fix"]` with `secondToken = "-m"` instead of the message. For `sed -n '1,20p'`, tokenization happens to work because `-n` is unquoted, but for `sed -n "1,20p"`, `secondToken` becomes `"1,20p"` (with the quote character), so `routeSed` returns `'MUTATION'` and a legitimate read-only sed command is incorrectly blocked.
-
-More critically, for a command like `node -e "execSync('rm -rf /')"`, tokenization yields `secondToken = '-e'` — this works **by accident** because `-e` is not the dangerous part. But the `secondToken` value is semantically wrong and would break any future logic that inspects it (e.g., checking whether the argument to `-e` is a file path vs. inline code).
-
-**Suggested fix:** Use a proper shell-aware tokenizer (e.g., a state machine tracking quote context) or use a regex like `/(?:[^\s"']+|"[^"]*"|'[^']*')+/g` to split tokens while respecting quotes.
+## src/hunter/diagnostics/semantic-predicates.ts
+- **src/hunter/diagnostics/semantic-predicates.ts:268-268** (bug)
+  P6's else-if branch checks for `Checkpoints` and `.trident` in the exclusion list but does NOT check for `dist`, which is explicitly part of the remediation (UNSCOPED_WALKER_REMEDIATION = 'add EXCLUDED_DIRS with Checkpoints .trident dist'). A walker that excludes Checkpoints and .trident but not dist will incorrectly pass this check. The condition should also verify dist is present.
   ```existing
-  function parseCommand(command: string): ParsedCommand {
-  const trimmed = command.trimStart();
-  const tokens = trimmed.split(/\s+/).filter(Boolean);
-  const firstToken = tokens[0] ?? '';
-  const secondToken = tokens[1] ?? '';
+  } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win)) {
   ```
   ```suggested
-  function parseCommand(command: string): ParsedCommand {
-  const trimmed = command.trimStart();
-  // Shell-aware token split: respects single/double quotes so that
-  // `sed -n "1,20p"` yields secondToken `"1,20p"` (the full quoted arg)
-  // rather than a truncated/broken token.
-  const tokenRe = /[^\s"']+|"[^"]*"|'[^']*'/g;
-  const tokens = trimmed.match(tokenRe) ?? [];
-  const firstToken = tokens
+  } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win) || !/\bdist\b/i.test(win)) {
   ```
-- **src/hunter/firewall/readonly.ts:252-257** (security)
-  **`allowed()` and `blocked()` return plain object literals instead of `BashLockdownDecision` — type-safety gap allowing silent alias desync.**
 
-The `allowed()` and `blocked()` helper functions construct return values as raw object literals with `string`-typed `state` and `triplet` fields, rather than using `BashLockdownDecision` as their return type annotation. This means:
+## src/hunter/graph/corbell-adapter.ts
+- **src/hunter/graph/corbell-adapter.ts:210-212** (bug)
+  Bug: When `opts.timeout` is `undefined` (the common case — no static timeout), the fallback path computes `execTimeout` as `Math.min(undefined, ...)` → `NaN` → `Infinity`. `execSync` with `timeout: Infinity` is not a documented contract in Node.js — it works by accident in some runtimes (treated as no timeout) but is undefined behavior. Should pass `undefined` to execSync to let it run without a timeout.
 
-1. TypeScript will not flag if `state` is set to a string that doesn't match `verdict` (e.g., `state: 'PARSED->ALLOW_READ'` vs. `state: 'ALLOW_READ'`).
-2. The sibling `lexicon-types.ts` already has `makeLexiconDecision()` and `assertLexiconDecisionConsistent()` for exactly this purpose — the `F-850 FIX` comment in that file describes this desync class as a known risk.
-3. Any downstream code that relies on `decision.state === decision.verdict` (the test alias contract) would silently receive `'PARSED->ALLOW_READ'` instead of `'ALLOW_READ'`.
+Additionally, when `retryDeadline === Number.POSITIVE_INFINITY`, the ternary `retryTimeout ?? Number.POSITIVE_INFINITY` always yields `Infinity`, ignoring the `execBudget` calculation that just ran. The intent seems to be that when no deadline exists, each attempt uses the full caller timeout — but the `Math.min` with `Infinity` makes the budget check dead code.
 
-**Suggested fix:** Either annotate the return type as `BashLockdownDecision` and set `state` to match `verdict`, or use `makeLexiconDecision` from `lexicon-types.ts`.
+Suggested fix: pass `undefined` as the timeout to execSync when the deadline is infinite, and use explicit branching instead of NaN-coalescing arithmetic.
   ```existing
-  function allowed(pattern: string, token: string, command: string): BashLockdownDecision {
-  const mPSE: MPSE = { Pattern: pattern, State: 'PARSED->ALLOW_READ', Evidence: command };
-  return {
-    verdict: 'ALLOW_READ', state: 'ALLOW_READ', pattern, token, message: '', mPSE, triplet: mPSE,
-  };
-}
+  const execBudget = retryDeadline - Date.now();
+      if (execBudget <= 0) break;
+      const execTimeout = retryDeadline === Number.POSITIVE_INFINITY ? retryTimeout : Math.min(retryTimeout ?? Number.POSITIVE_INFINITY, Math.max(1, execBudget));
   ```
   ```suggested
-  function allowed(pattern: string, token: string, command: string): BashLockdownDecision {
-  const mPSE: MPSE = { Pattern: pattern, State: 'PARSED->ALLOW_READ', Evidence: command };
-  return {
-    verdict: 'ALLOW_READ', state: 'ALLOW_READ', pattern, token, message: '', mPSE, triplet: mPSE,
-  };
-}
-// Note: `state` is set to match `verdict` above. The raw object literal is accepted
-// by TypeScript b
+  const execBudget = retryDeadline - Date.now();
+      if (execBudget <= 0) break;
+      let execTimeout: number | undefined;
+      if (retryDeadline === Number.POSITIVE_INFINITY) {
+        // No overall deadline — use the caller's per-attempt timeout as-is (or undefined = no timeout).
+        execTimeout = retryTimeout;
+      } else {
+        execTimeout = Math.max(1, Math.min(retryTimeout ?? Infin
   ```
+- **src/hunter/graph/corbell-adapter.ts:102-103** (bug)
+  Bug (behavioral divergence): `buildCorbellGraphAsync` accepts `opts?.env` but does not inject the `CORBELL_COUPLING_*`, `CORBELL_WALK_EXCLUDE_DIRS`, or `CORBELL_COUPLING_SCOPE` environment variables that the sync `build()` path carefully constructs (lines ~250-280). If an external caller uses the async path for graph builds, the corbell vendor will walk the entire enclosing git repo (months=6, no path filter), reproducing the 742MB store / 30-min D-state stall that the coupling env was specifically designed to prevent.
 
-## src/hunter/harness/micro-loop-machine.ts
-- **src/hunter/harness/micro-loop-machine.ts:393-393** (bug)
-  `handleDisposables` is declared as an array (line ~304) and iterated over in both `stop()` and `settle()` to perform cleanup of subscriptions, but it is **never populated anywhere**. No code ever calls `handleDisposables.push(...)`. This makes all cleanup logic that references this array dead code:
+The sync path even has a comment (line 208) noting this is intentional for the stubbed-exec contract, but the async path is exported as a public function — any caller using it gets a silently different (and dangerous) build behavior.
 
-1. In `stop()`: the `for (const d of handleDisposables.splice(0))` loop never executes.
-2. In `settle()`: the reverse-iteration removal loop (`for (let i = handleDisposables.length - 1; ...)`) never executes.
-
-Meanwhile, subscriptions created in `done()` (`sub2`, `sub3`) are only managed by the local `settle()` function. If `stop()` is called while `done()` is pending, `sub2` and `sub3` remain subscribed and are never cleaned up — they leak.
-
-**Suggestion**: Either add `handleDisposables.push(sub2)` / `handleDisposables.push(sub3)` after creating them in `done()` (so `stop()` can clean them up), or remove the `handleDisposables` array entirely and consolidate all subscription lifecycle management into a single mechanism.
+Suggested fix: accept the same coupling env parameters in `buildCorbellGraphAsync`'s opts, or extract the coupling-env construction into a shared helper that both paths call.
   ```existing
-  const handleDisposables: Array<{ unsubscribe(): void }> = [];
+  export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): Promise<string> {
+  // ★ F-252 FIX (2026-09-24): closed the async twin's two gaps vs the sync path — (1) env passthrough (CORBELL_COUPLING_*/WALK_EXCLUDE knobs were dropped); (2) optional timeoutMs SIGTERMs a hung child and rejects NAMED (default none, per no-static-timeouts or
   ```
   ```suggested
-  const handleDisposables: Array<{ unsubscribe(): void }> = [];
-  // ... inside done():
-        handleDisposables.push(sub2);
-        handleDisposables.push(sub3);
+  export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): Promise<string> {
+  // NOTE: callers MUST pass the coupling env (CORBELL_COUPLING_*, CORBELL_WALK_EXCLUDE_DIRS,
+  // CORBELL_COUPLING_SCOPE) to avoid an unbounded git walk. Extract coupling-env construction
+  // into a shared helper used by both CorbellAdapter.build() and this 
   ```
 
-## src/hunter/lexicon/compiled-store.ts
-- **src/hunter/lexicon/compiled-store.ts:114-121** (bug)
-  Error masking: the `finally` block runs after the `catch` block, which can cause error masking if `finalize()` throws and replaces the original exception. In `writeBattery`, `stmt.finalize()` runs inside an inner `try` before the outer `catch`, preserving the root cause. In `writeRuleCards`, the structural asymmetry is fragile despite individual try/catch guards. Recommend restructuring to match `writeBattery`'s pattern or at minimum log/swallow finalize errors to preserve the original exception.
-  ```existing
-  } finally {
-    // ★ F-358 FIX (2026-09-24): finalize BOTH statements — same native-handle leak
-    //   as writeBattery (the DELETE was an anonymous one-shot, never finalizable).
-    // ★ F-823b FIX (2026-09-24): F-823 declared both as `| undefined` (they may not have been
-    //   allocated when prepare itself throws) — so the finally must GUARD before finalizing.
-    try { ins?.finalize(); } ca
-  ```
-  ```suggested
-  } catch (e: unknown) {
-    db.exec('ROLLBACK');
-    throw e;
-  } finally {
-    try { ins?.finalize(); } catch { /* best-effort cleanup */ }
-    try { del?.finalize(); } catch { /* best-effort cleanup */ }
-  }
-  ```
-
-## src/hydra/client-reader.ts
-- **src/hydra/client-reader.ts:95-99** (bug)
-  `listTools()` and `callTool()` both call their respective transport methods (`await t.listTools()` and `await t.callTool(name, args ?? {})`) without any timeout guard, identical to the `attach()` and `disconnect()` hazard (F-611/F-612). A stalled or hung transport call in either method would block the caller indefinitely, holding the captured transport reference and deadlocking subsequent operations. Apply the same `Promise.race` timeout pattern used in `attach()`/`disconnect()` to both `listTools()` and `callTool()` for consistency with the F-611/F-612 rationale.
+## src/hunter/harness/recon.ts
+- **src/hunter/harness/recon.ts:118-122** (bug)
+  If the SQLite driver used by `openStore` returns `payload` as an already-parsed JavaScript object (some better-sqlite3 configurations do this), `String(row['payload'])` produces `'[object Object]'` and `JSON.parse` throws. The `catch` silently skips the entry, which could suppress a legitimate prior `runId` and produce a duplicate. Consider checking `typeof row['payload']` first: if it is already an object, assign directly; otherwise parse.
   ```existing
   try {
-      return await t.listTools();
-    } catch (err) {
-      throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
+        // THE R16 TYPE_CERTAINTY FIX — JSON.parse returns `any`; the assignment
+        // to the typed variable needs no cast at all (no AsExpression to flag),
+        // and the runId read below is typeof-guarded before use.
+        payload = JSON.parse(String(row['payload'] ?? '{}'));
+  ```
+
+## src/hunter/surface/query-tool.ts
+- **src/hunter/surface/query-tool.ts:390-393** (performance)
+  **Performance: `violations` fetches ALL matching rows into memory before pagination.** The SQL query has no `LIMIT`/`OFFSET` clause — it materializes the entire `findings` table matching the filter into a JS array, then slices. On a store with thousands of violations this is wasteful and can cause memory pressure. The database should handle pagination natively (e.g., `LIMIT ? OFFSET ?` in the SQL) so only the requested page is fetched. The current `MAX_QUERY_ROWS_FULL` (2000) cap applied after the full fetch means up to 2000 rows are always loaded even if only 10 are needed.
+  ```existing
+  const rows = rowsAs<Record<string, unknown>>(
+    db.prepare(`SELECT rule_id, severity, file, line, evidence, verdict, week, run_id FROM findings WHERE verdict = 'VIOLATION'${byRun}${byWeek} ORDER BY CASE severity WHEN 'CRIT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'MED' THEN 2 ELSE 3 END`).all(...params),
+    'violations',
+  );
+  ```
+  ```suggested
+  // Push LIMIT/OFFSET params at the end so they come after runId/week params.
+  const effectiveCap = input.format === 'llm' ? MAX_QUERY_ROWS : MAX_QUERY_ROWS_FULL;
+  const off = Math.max(0, Math.floor(input.offset ?? 0));
+  const lim = input.limit !== undefined
+    ? Math.min(Math.max(0, Math.floor(input.limit)), effectiveCap)
+    : effectiveCap;
+  const rows = rowsAs<Record<string, unknown>>(
+    
+  ```
+
+## src/kernel/graph-diff.ts
+- **src/kernel/graph-diff.ts:67-70** (bug)
+  **Bug: Label collision silently corrupts `inboundByLabel`.** When multiple nodes share the same `label` (e.g., two functions with the same name in different modules but distinct `canonical_id`), the later node's inbound count overwrites the earlier one. This causes `diffGraphs` to compare incorrect before/after values for that label — a blast-radius jump could be missed or fabricated. The same issue affects the `topDegree` array (duplicate label entries), but `inboundByLabel` is worse because it silently drops data via `Record` key overwrite.
+
+Suggestion: Either aggregate (sum) inbound counts when labels collide, or switch to using `canonical_id` as the comparison key throughout `diffGraphs`.
+  ```existing
+  const inboundByLabel: Record<string, number> = {};
+    for (const [cid, n] of inbound) {
+      inboundByLabel[nodes.find((nn) => nn.canonical_id === cid)?.label ?? cid] = n;
     }
   ```
   ```suggested
-  try {
-      return await Promise.race([
-        t.listTools(),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000)),
-      ]);
-    } catch (err) {
-      throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
-    }
+  // Pre-build a canonical_id → label lookup to avoid O(n) find() per edge.
+    const cidToLabel = new Map<string, string>();
+    for (const nn of nodes) cidToLabel.set(nn.canonical_id, nn.label);
+
+    const inboundByLabel: Record<string, number> = {};
+    for (const [cid, n] of inbound) {
+      const label = cidToLabel.get(cid) ?? cid;
+      // Aggregate inbound counts when labels collide to avoid 
   ```
 
-## src/omp/adapters/tsg.ts
-- **src/omp/adapters/tsg.ts:123-131** (security)
-  **Redaction bypass: only exact full-key and tail-8 partial matches are redacted, leaving first-N or middle portions of the key exposed.** The F-914 fix adds a tail-8 heuristic, but if the CLI or error path echoes the first 4+ characters, or a middle substring of the key, neither the exact split/join nor the tail heuristic will match. For example, a log that prints `key.slice(0, 12)` or a server-echoed context showing a prefix would survive redaction. Consider also redacting the first N characters (e.g., first 8) when key length >= 16, or using a regex-based approach that matches any contiguous 8+ character substring of the key.
+## src/omp/enforcement.ts
+- **src/omp/enforcement.ts:275-275** (bug)
+  Bug: Non-timeout errors in the close layer's bind (evidence scan) catch block are assigned the error code `"TSG_TIMEOUT"` even when the failure was NOT a timeout. This mislabels engine crashes, network errors, or any non-timeout exception as a timeout, making it impossible for callers to distinguish "slow" from "broken" (the exact distinction the fire-gate vocabulary is designed to preserve). The code should be `"TSG_DOWN"` or should extract the actual error code from the thrown error (same as the JEV catch does below with `GI_JEV_DOWN`).
   ```existing
-  const redact = (s: string): string => {
-          if (key === null || key.length === 0) return s;
-          let out: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
-          if (key.length >= 16) {
-            const tail: string = key.slice(-8);
-            if (tail.length >= 8) out = out.split(tail).join('...[redacted-tail]');
-          }
-          return out;
-        };
+  code: "TSG_TIMEOUT",
   ```
   ```suggested
-  const redact = (s: string): string => {
-          if (key === null || key.length === 0) return s;
-          // Exact full-key match (metachar-safe via split/join)
-          let result: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
-          if (key.length >= 16) {
-            // Tail-8 heuristic (existing F-914 fix)
-            const tail: string = key.slice(-8);
-            if (t
+  // Extract the real error code so callers can distinguish TSG crashes from timeouts.
+    const tsgCode = e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
+      ? String((e as { code: unknown }).code)
+      : "TSG_DOWN";
+    return {
+      verdict: "FAIL_CLOSED",
+      code: tsgCode,
+      reason: "the evidence scan failed (fail-closed)",
+      evidence: e ins
   ```
 
-## src/omp/fire-gate.ts
-- **src/omp/fire-gate.ts:368-372** (bug)
-  The MPSE negation regex is missing common affirmative action verbs. F-266 added `execut|perform|applied|deployed|shipped|complet|ran|went ahead|carried out`, but real-world slots use forms like "deleted", "removed", "destroyed", "dropped", "killed", "erased", "wiped", and "nuked" — none of which match. A slot like `"discussed removing the server and then deleted it"` passes `every()` because "deleted" is not matched by the affirmative regex, so the entire slot is treated as negated/discussion. The fire is settled IGNORE on a REAL violation. The comment says "F-266 FIX" but the verb list is incomplete — consider matching against the DESTRUCTIVE_COMMANDS vocabulary or broadening the affirmative regex.
+## src/omp/jev.ts
+- **src/omp/jev.ts:216-216** (security)
+  The Bearer token redaction regex `[A-Za-z0-9_-]+` does not cover API keys containing characters like `.`, `+`, `/`, `=` (common in base64-encoded or vendor-format keys). Additionally, if the key somehow appears in error messages outside the Bearer format (e.g., `String(e)` path for non-Error rejections), it won't be redacted at all. Consider a broader regex or a centralized redaction utility that scrubs the actual key value.
   ```existing
-  const onlyNegated = mentionsTarget.every((s) => {
-      const t = s.text.toLowerCase();
-      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out)/.test(t)) return false;
-      return /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(t);
-    });
-  ```
-  ```suggested
-  const onlyNegated = mentionsTarget.every((s) => {
-      const t = s.text.toLowerCase();
-      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out|deleted|removed|destroyed|dropped|killed|erased|wiped|nuked)/.test(t)) return false;
-      return /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(t);
-    });
+  error: e instanceof Error ? e.message.replace(/Bearer [A-Za-z0-9_-]+/g, "Bearer <redacted>") : String(e),
   ```
 
-## src/omp/graph-gate.ts
-- **src/omp/graph-gate.ts:315-321** (bug)
-  **SQLite concurrency: no WAL mode or busy-timeout configured.**
-
-`openSessionDb` opens a fresh `Database` connection on every `saveGateState`/`loadGateState` call without setting WAL journal mode or a busy timeout. Concurrent sessions writing to the same `storePath` can hit `SQLITE_BUSY` errors that propagate as unhandled exceptions (the `throw e` in `saveGateState`'s catch block). Bun's synchronous SQLite does not inherently serialize cross-process access.
-
-Recommend enabling WAL mode and setting a busy timeout after opening the connection.
+## src/scoping/db-path.ts
+- **src/scoping/db-path.ts:79-88** (bug)
+  Bug: When `testFile` is `'~/'`, the `startsWith(TILDE_SLASH)` branch fires, `slice(2)` yields `''`, and `path.join(home, '')` returns the bare HOME directory — not a file path. The function then returns this directory as the DB path, which would silently corrupt resolution. The bare `'~'` case correctly appends `spec.fileName`, but `'~/'` does not. Consider normalizing: if the resolved path is a directory or ends with a separator, append `spec.fileName`.
   ```existing
-  function openSessionDb(storePath: string): Database {
-  const dir = path.dirname(storePath);
-  fs.mkdirSync(dir, { recursive: true });
-  const db = new Database(storePath);
-  db.exec(GATE_DDL);
-  return db;
-}
-  ```
-  ```suggested
-  function openSessionDb(storePath: string): Database {
-  const dir = path.dirname(storePath);
-  fs.mkdirSync(dir, { recursive: true });
-  const db = new Database(storePath);
-  db.exec("PRAGMA journal_mode=WAL");
-  db.exec("PRAGMA busy_timeout=5000");
-  db.exec(GATE_DDL);
-  return db;
-}
-  ```
-- **src/omp/graph-gate.ts:253-255** (bug)
-  **`substrateUnreachable` degradation is permanent — transient failures cause lasting gate suppression.**
-
-Once `attempts > 0 && !resolvedAny` becomes true (e.g., a single transient network blip), the gate permanently degrades to T1 advisory for the rest of the session. Even if the substrate recovers and subsequent queries resolve, `resolvedAny` was captured as a snapshot and the gate never re-evaluates. The `substrateUnreachable` check should re-evaluate against the current query log rather than using a stale flag, or the gate should have a recovery path.
-  ```existing
-  const attempts = state.graphQueries.filter((q) => q.tool !== "reset").length;
-  const resolvedAny = state.graphQueries.some((q) => q.resolved === true);
-  const substrateUnreachable = attempts > 0 && !resolvedAny;
-  ```
-  ```suggested
-  const attempts = state.graphQueries.filter((q) => q.tool !== "reset").length;
-  const resolvedAny = state.graphQueries.some((q) => q.resolved === true);
-  // Only treat substrate as unreachable if recent attempts (within the drift
-  // window) all failed — a transient blip should not permanently suppress the gate.
-  const recentWindow = now - DRIFT_WINDOW_MS;
-  const recentAttempts = state.graphQu
-  ```
-
-## src/omp/ripwire-bridge.ts
-- **src/omp/ripwire-bridge.ts:0-0** (bug)
-  The ENOBUFS error code may not be emitted by all Node.js versions on maxBuffer overflow. In some Node.js versions the error code is `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` (or the error object may not have a `.code` property at all). This means the TRUNCATED diagnostic could silently fall through to the generic `rawErr.message` path, producing a less informative 'query failed' leg instead of the intended 'TRUNCATED' label. Consider checking for both codes, or falling back to a heuristic (e.g. stdout.length >= RIPWIRE_MAX_BUFFER).
-  ```existing
-  execError = rawErr.code === "ENOBUFS"
-      ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B — ${rawErr.message}`
-      : rawErr.message;
-  ```
-  ```suggested
-  const isTruncated = rawErr.code === "ENOBUFS" || rawErr.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
-    execError = isTruncated
-      ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B — ${rawErr.message}`
-      : rawErr.message;
+  if (testFile === TILDE || testFile.startsWith(TILDE_SLASH)) {
+        const home = process.env.HOME ?? process.env.USERPROFILE;
+        if (!home) {
+          throw new Error(
+            `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
+            `(fileName="${spec.fileName}") - cannot resolve testFile`,
+          );
+        }
+        return testFile === TILDE ? path.join
   ```
