@@ -87,13 +87,20 @@ export interface LexiconDecision {
 }
 
 /** THE BASH LOCKDOWN DECISION — the readonly.ts contract (the L2 spec §7.2:3096-3101). */
+// ★ F-11 FIX (2026-09-24): `state` is the verdict alias — it must narrow with
+// ★ `verdict`, otherwise the inherited 4-member union admits states (e.g.
+// ★ 'ALLOW_REPORT') the narrowed verdict can never carry.
 export interface BashLockdownDecision extends LexiconDecision {
   verdict: 'ALLOW_READ' | 'BLOCKED';
+  state: 'ALLOW_READ' | 'BLOCKED';
 }
 
 /** THE REPORT SCOPE DECISION — the artifact-scope.ts contract (the L2 spec §7.3). */
+// ★ F-12 FIX (2026-09-24): same alias narrowing — `state` tracks the narrowed
+// ★ `verdict`, never the full 4-member base union.
 export interface ReportScopeDecision extends LexiconDecision {
   verdict: 'ALLOW_REPORT' | 'BLOCKED';
+  state: 'ALLOW_REPORT' | 'BLOCKED';
 }
 
 /** THE EXACT BASH ERROR MESSAGE (the operator's C1.10, quoted verbatim at the spec §7.2:3103-3104). */

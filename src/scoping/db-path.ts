@@ -40,7 +40,17 @@ export function makeDbPath(spec: DbPathSpec): () => string {
       const v = process.env[env];
       if (v && v.trim().length > 0) return path.join(v.trim(), spec.fileName);
     }
-    if (process.env.BUN_TEST === '1' && spec.testFile) {
+    if (process.env.BUN_TEST === '1') {
+      if (!spec.testFile) {
+        // ★ F-131 FIX (2026-09-24): loud-fail instead of silent fallthrough. When
+        //   BUN_TEST=1 but the caller forgot testFile, the resolver MUST NOT silently
+        //   write to the production directory — that is exactly the 9-test-file host-DB
+        //   pollution class this module exists to prevent.
+        throw new Error(
+          `[db-path] GI_TEST_ISOLATION_BROKEN: BUN_TEST=1 but no testFile in spec ` +
+          `(fileName="${spec.fileName}") — cannot isolate from production DB`,
+        );
+      }
       return spec.testFile.startsWith('/')
         ? spec.testFile
         : path.join(os.tmpdir(), spec.testFile);

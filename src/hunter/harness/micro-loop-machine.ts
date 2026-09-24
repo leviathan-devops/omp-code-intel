@@ -469,9 +469,10 @@ function snapshotState(s: { value: unknown }): string {
     const first: unknown = entries[0];
     if (typeof first === 'string') return first;
   }
-  // THE STATE-EXTRACTION FALLBACK (the named contract): a nested-state shape
-  // with no first value projects to the machine's own null-state convention.
-  return undefined as unknown as string;
+  // ★ F-2 FIX (2026-09-24): fail-closed sentinel replaces the type lie. The
+  // callers already treat every non-`done` string as INCONCLUSIVE, so
+  // `'unknown-state'` is both honest and safe for the R20 projection table.
+  return 'unknown-state';
 }
 
 /** The named-error extraction — the fail-state carries the NAMED error, never

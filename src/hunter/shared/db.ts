@@ -707,7 +707,9 @@ export class FamilyGraphStore {
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #2:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     // attach family for union query: re-create view that unions via attached db
     try {
-      this.branchDb.exec(`ATTACH DATABASE '${this.familyPath}' AS family_attached`);
+      // ★ F-5 FIX (2026-09-24): escape the path — a path with a quote broke the ATTACH
+      //   (SQL-literal injection via the filename). Doubling the quote is the correct escape.
+      this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, "''")}' AS family_attached`);
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
       this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #3:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
@@ -718,13 +720,22 @@ export class FamilyGraphStore {
       const rows = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data, origin FROM branch_union_view').all() as Record<string, SQLQueryBindings>[];
       if (rows.length > 0) return rows.map(r => ({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['data'] as string); } catch (pe) { console.debug('[kg-store] branch_union data parse failed — empty object:', pe instanceof Error ? pe.message : String(pe)); return {}; }})(), origin: r['origin'] as string }));
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #4:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
-    // fallback: manual union
-    const fam = this.familyDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM family_nodes').all() as Record<string, SQLQueryBindings>[];
-    const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[];
+    // fallback: manual union. ★ F-6 FIX (2026-09-24): family_nodes stores (id, node_json);
+    //   only graph_nodes has the flat columns. The old `fam` query selected columns family_nodes
+    //   does NOT have (it THREW, so the whole fallback returned []), and the `delta` rows were
+    //   read then never pushed. Now: parse family nodes from node_json, and push BOTH origins.
     const out: Array<GraphNode & { origin: string }> = [];
-    for (const r of fam) out.push({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['node_json'] as string); } catch (pe1) { try { return JSON.parse(r['data'] as string); } catch (pe2) { console.debug('[kg-store] family node parse failed (both forms) — empty object:', pe1 instanceof Error ? pe1.message : String(pe1), '/', pe2 instanceof Error ? pe2.message : String(pe2)); return {}; } }})(), origin: 'family' });
-    // fix: family_nodes stores node_json not separate columns except id/content_hash
-    // re-query correctly
+    try {
+      const fam = this.familyDb.prepare('SELECT id, node_json FROM family_nodes').all() as Record<string, SQLQueryBindings>[];
+      for (const r of fam) {
+        try {
+          const n = JSON.parse(r['node_json'] as string) as GraphNode;
+          out.push({ ...n, id: (r['id'] as string) ?? n.id, origin: 'family' });
+        } catch (pe) { console.debug('[kg-store] family node_json parse failed — skipped:', pe instanceof Error ? pe.message : String(pe)); }
+      }
+    } catch (famErr) { console.debug('[kg-store] family_nodes fallback read failed:', famErr instanceof Error ? famErr.message : String(famErr)); }
+    const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[];
+    for (const r of delta) out.push({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['data'] as string); } catch (pe) { console.debug('[kg-store] delta data parse failed — empty object:', pe instanceof Error ? pe.message : String(pe)); return {}; } })(), origin: 'delta' });
     return out;
   }
 
@@ -796,7 +807,8 @@ export function openFamilyStore(familyPath: string, branchPath: string): FamilyG
   branchHandle.exec(FAMILY_TABLES_SQL);
   // attach family into branch for union view convenience
   if (familyPath !== ':memory:' && branchPath !== ':memory:' && familyPath !== branchPath) {
-    try { branchHandle.exec(`ATTACH DATABASE '${familyPath}' AS family_attached`); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #10:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    // ★ F-5 FIX (2026-09-24): escape the path (the second ATTACH site).
+    try { branchHandle.exec(`ATTACH DATABASE '${familyPath.replace(/'/g, "''")}' AS family_attached`); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #10:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
   }
   return new FamilyGraphStore(familyPath, famHandle, branchPath, branchHandle);
 }

@@ -1,6 +1,10 @@
 // PORTED FROM fork-v143 live-tree/graph-intelligence/shared/knowledge-graph/kind-for-layer.ts (19L) — layerId -> NodeType
 // Ported 2026-09-14 (port wave W3-P1/P2). Verbatim bytes; do not edit in place without re-diffing the source.
 export function kindForLayer(layerId: string): string {
+  // ★ F-7 FIX (2026-09-24): the null/undefined guard. Callers pass `layerId` read off graph
+  //   data, which can be null; the old `.toLowerCase()` threw a TypeError (a crash-wearing-
+  //   failure). The honest degrade: the 'Threshold' default.
+  if (layerId == null || typeof layerId !== 'string') return 'Threshold';
   const low = layerId.toLowerCase();
   if (low.includes('r28')) return 'Gate';
   if (low.includes('r29')) return 'File';

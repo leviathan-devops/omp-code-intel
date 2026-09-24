@@ -70,6 +70,17 @@ export class ScopeBindingManager {
   register(spec: EcosystemSpec): ScopeBinding {
     const existing = this.bindings.get(spec.ecosystem);
     if (existing) return existing;
+    // ★ F-132 FIX (2026-09-24): refuse duplicate wavePrefix from a different ecosystem.
+    //   Two ecosystems sharing a prefix silently breaks ownerOf (last-registered wins)
+    //   and isForeignWave — the mutual-exclusivity contract depends on unique prefixes.
+    const prefixOwner = this.prefixes.get(spec.wavePrefix);
+    if (prefixOwner && prefixOwner.ecosystem !== spec.ecosystem) {
+      throw new Error(
+        `[SCOPE] wavePrefix "${spec.wavePrefix}" is already registered by ecosystem ` +
+        `"${prefixOwner.ecosystem}" — cannot register "${spec.ecosystem}" with the same prefix. ` +
+        `Each ecosystem MUST have a unique wave namespace.`,
+      );
+    }
     const binding = new ScopeBindingImpl(spec, () => [...this.prefixes.keys()]);
     this.bindings.set(spec.ecosystem, binding);
     this.prefixes.set(spec.wavePrefix, binding);

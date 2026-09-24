@@ -75,15 +75,9 @@ function legacySolveTrace(findings: NormalizedFinding[], graph: GraphAdapter): T
   return findings.map((f) => {
     const blast = ruleCounts.get(f.ruleId) ?? 0;
     const evidenceLen = f.evidence.split(/\s+->\s+|,|\n/).filter((s) => s.trim().length > 0).length;
-    let footprint = 0;
-    try {
-      const calls = graph.whoCalls(f.ruleId);
-      footprint = Math.min(10, calls.length);
-    } catch (e: unknown) {
-      console.warn(`[trace] graph whoCalls query failed — the honest 0 footprint: ${e instanceof Error ? e.message : String(e)}`);
-      footprint = 0;
-    }
-    void footprint;
+    // ★ F-4 FIX (2026-09-24): the dead footprint block REMOVED. It ran a per-finding
+    //   graph.whoCalls() query then `void footprint` — the L6 call-site agent is not ported
+    //   (see this file's header), so the result was computed and discarded on every finding.
     const relevance: Record<SolverFramework, number> = {
       'first-principles': severityWeight(f.severity),
       'systematic-debugging': Math.min(1, evidenceLen / 6),

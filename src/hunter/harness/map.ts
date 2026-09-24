@@ -41,7 +41,11 @@ export interface MapResult {
  *  THE GRAPHIFY CASE (W4, same shape as the corbell path): the adapter arrives
  *  ROUTED (selectAdapter's graphify branch -> GraphifyAdapter.read, or the
  *  test's adapterOverride) — this actor never branches on substrate. build ->
- *  the LINELESS guard (below) -> writeGraph -> mirrorToMasterContext. */
+ *  the LINELESS guard (below) -> writeGraph -> mirrorToMasterContext.
+ *  ★ F-1 FIX (2026-09-24): the success path returns the open `DbClient` to the
+ *  caller (the micro-loop keeps it for scan/report), so it must not be closed
+ *  here; the error path must still close it. Ownership is explicit in the
+ *  returned `MapResult` contract. */
 export async function map(profile: ProjectProfile, adapterOverride?: GraphAdapter): Promise<MapResult> {
   const adapter = adapterOverride ?? selectAdapter(profile);
   const buildResult = await adapter.build(profile);

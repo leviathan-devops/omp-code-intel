@@ -112,7 +112,9 @@ export async function scan(
     // ledger, the MPSE evidence mandatory at the write boundary).
     const run = runBattery(liveBattery, adapter, normalized, runId, db);
 
-    return { battery, batteryVersion, run };
+    // ★ F-3 FIX (2026-09-24): return the battery the RUN USED (`liveBattery`, post-calibration),
+    //   never the pre-calibration `battery` — the summary must describe the run it summarizes.
+    return { battery: liveBattery, batteryVersion, run };
   } catch (e: unknown) {
     console.warn(`[scan] failed: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
