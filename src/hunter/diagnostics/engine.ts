@@ -252,7 +252,14 @@ function violationFrequencies(profile: ProjectProfile, ruleIds: string[]): Map<s
   // ★ so parentReal.startsWith('//') never matches and every nested file under a
   // ★ filesystem-root project is rejected (fail-closed but wrong). The '/' root
   // ★ contains every absolute path — normalize the prefix for it.
-  const rootPrefix = rootReal === path.sep ? path.sep : rootReal + path.sep;
+  // ★ F-880 FIX (2026-09-24, the F-870 class): `rootReal === path.sep ? path.sep : …` made the
+  //   prefix `'/'` for a filesystem-root project — and EVERY absolute path starts with `/`, so
+  //   containment was VACUOUSLY TRUE. A root scope is REFUSED: it is not a boundary. (Same bug
+  //   as F-601 in the shared primitive and F-870 in bug-hunt.ts — this was a THIRD private copy.)
+  if (rootReal === path.sep) {
+    throw historyLogUnreadable(profile.project.root, 'project root resolves to the filesystem root — containment against "/" admits every path and is not a boundary');
+  }
+  const rootPrefix = rootReal + path.sep;
   const containedIn = (parentReal: string): boolean => parentReal === rootReal || parentReal.startsWith(rootPrefix);
    for (const logPath of profile.history.failureLogs) {
      // ★ F-3 FIX (2026-09-24): `path.resolve(root, logPath)` lets `../` escape the
@@ -324,7 +331,12 @@ export function lockdownReadSource(profile: ProjectProfile): { read(file: string
       //   (dirname is the root) while readFileSync followed the link out of the tree.
       //   Resolve the FILE too when it exists and require containment on BOTH: the
       //   file's real path (symlink-following) and the parent's (creation-path).
-      const rootPrefix = rootReal === path.sep ? path.sep : rootReal + path.sep;
+      // ★ F-881 FIX (2026-09-24, the F-870 class): the same vacuous-root prefix on the source
+      //   read. Refused for the same reason — `/` is not a containment boundary.
+      if (rootReal === path.sep) {
+        throw sourceReadFailed(file, 'project root resolves to the filesystem root — containment against "/" admits every path and is not a boundary');
+      }
+      const rootPrefix = rootReal + path.sep;
       const inside = (q: string): boolean => q === rootReal || q.startsWith(rootPrefix);
       const parentReal = fs.realpathSync(path.dirname(abs));
       if (!inside(parentReal)) throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
