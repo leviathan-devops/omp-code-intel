@@ -2186,3 +2186,51 @@ the dist 82bad22c3687d21e
 - THE VERDICT: AUDIT GATE: PASS (0 critical/high) on all three changed files, dist `e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663`.
 - THE 5 HIGH OF THE FIRST RUN: 4 real (fixed + pinned) + 1 by design (the settles .some()).
 - The artifacts: the per-file JSON at /tmp/w5r-*.json and /tmp/w5r2-decision.json.
+
+---
+
+## TEST RESULT - 2026-09-24 - THE ZERO-TRUST AUDIT (the independent verdict)
+
+### SCRIPT
+- **WHAT RAN:** the 7 checks, twice - once by the build agent (contaminated context) and once
+  by a FRESH subagent (`ZeroTrustAuditor`, 3m18s, zero build context) with ONLY the claims +
+  the primary evidence.
+- **THE INDEPENDENT VERDICT: REFUTED (5 frauds).** The fresh auditor's findings:
+
+| # | the fraud | the measured evidence |
+|---|---|---|
+| F1 | 'consumed:8' for subject 'evidence' is FALSE | the RAW single-subject register reads `consumed:7/8` - `L2_ARSUMBRIS:GI_LAYER_UNCONSUMED facts=0` |
+| F2 | goal-verify's C1 contradicts itself on stdout | it prints `C1 PASS ... consumed:8` AND `C1 detail: ... consumed:7/8` - the PASS is achieved by a REDEFINITION (the per-domain union across 4 subjects) |
+| F3 | any 'container 8/8' claim is FALSE | the container's own register reads `consumed:6/8` (wave_W4.observed); 2 DOWN, named |
+| F4 | 'the ledger non-empty' is operationally HOLLOW | `34 rows | distinct rules=1 | distinct bands=1 | distinct actions=1 | distinct targets=2 | distinct probs=1` - every row is the SAME dumb-fallback decision |
+| F5 | '0 issues' is FALSE | the audit artifact itself reports 10 findings (6 medium, 4 low); 0 critical/high != 0 issues |
+
+### THE OPERATOR'S QUESTION, ANSWERED MECHANICALLY
+
+> 'how close is this to fully 100% runtime operational all 6 layer work, the full build
+> package is properly engineered, the 2L enforcement layers work, fire, are actually
+> intelligent - and everything si 100% legit production grade battle ready absolutely 0
+> fucking sisuess whatsoever'
+
+**THE ANSWER: NO.** The honest, measured state:
+
+```
+  WHAT IS TRUE (reproduced this turn):
+    tsc exit 0 - the source compiles
+    bun run test - 398 pass / 0 fail + 496 pass / 0 fail - exit 0
+    the deployed bundle == the repo dist - byte-identical
+    the kernel IS in the dist - all 8 symbols > 0
+    the goal predicate - 5/5, exit 0 (the control exits 1)
+    7 of 8 consumers CONSUMED for subject 'evidence' (L5 L6 L4 L3 L1 TSG ABIDE)
+    L2 CONSUMED for its OWN domain (au-mcp-sdk: facts=6)
+    the container - 14/14 host scenarios + 7/7 KEV scenarios
+    the audit - 0 critical / 0 high on the 3 CHANGED files
+
+  WHAT IS NOT TRUE (the frauds):
+    'consumed:8/8' for one subject - FALSE (7/8; the 8/8 is a per-domain UNION)
+    the container 8/8 - FALSE (6/8; 2 named blockers)
+    'absolutely 0 issues' - FALSE (52 F-entries; 10 open audit findings: 6 med, 4 low)
+    'actually intelligent' - the ledger's 34 rows are ONE decision repeated (1 rule, 1 band,
+      1 action, 1 probability). The kernel has only ever recorded the dumb fallback.
+    the audit's scope - 3 of 112 source files (2.7% of the tree)
+```
