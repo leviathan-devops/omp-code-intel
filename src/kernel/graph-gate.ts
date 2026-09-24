@@ -38,6 +38,18 @@ export function gateCheck(diff: GraphDiffResult, criteria: GateCriteria): GateRe
     return { verdict: "FAIL", failures: ["GATE_DIFF_INVALID: diff is null or not an object — refusing to pass an unmeasured gate"], warnings };
   }
 
+  // ★ F-204 FIX (2026-09-24): fail CLOSED on a malformed-but-object diff —
+  //   {} or { edgesDelta: undefined } made every comparison NaN-false and the
+  //   gate returned PASS on an unmeasured diff (fail-open). Non-finite deltas
+  //   or a non-array blastRadiusChanges now FAIL loud.
+  const numericDeltas = [diff.edgesDelta, diff.newCycles, diff.unwiredDelta];
+  if (
+    numericDeltas.some((n) => typeof n !== "number" || !Number.isFinite(n)) ||
+    (diff.blastRadiusChanges !== undefined && !Array.isArray(diff.blastRadiusChanges))
+  ) {
+    return { verdict: "FAIL", failures: ["GATE_DIFF_MALFORMED: diff is missing finite numeric deltas (edgesDelta/newCycles/unwiredDelta) or blastRadiusChanges is not an array — refusing to pass an unmeasured gate"], warnings };
+  }
+
   const edgesLost = Math.max(0, -diff.edgesDelta);
   if (edgesLost > criteria.maxEdgesLost) {
     failures.push(`edges lost ${edgesLost} > budget ${criteria.maxEdgesLost} (broken dependencies are a stop)`);
@@ -52,8 +64,14 @@ export function gateCheck(diff: GraphDiffResult, criteria: GateCriteria): GateRe
   // ★ F-161 FIX (2026-09-24): default a missing blastRadiusChanges to [] — a
   //   malformed diff threw TypeError on for..of instead of gating.
   for (const b of diff.blastRadiusChanges ?? []) {
-    if (b.after - b.before > criteria.maxBlastRadius) {
-      warnings.push(`blast radius jump on ${b.label}: +${b.after - b.before} inbound (budget ${criteria.maxBlastRadius}) — maintenance bomb risk`);
+    // ★ F-204 FIX (2026-09-24): a malformed entry fails closed, never NaN-passes.
+    const jump = b.after - b.before;
+    if (!Number.isFinite(jump)) {
+      failures.push(`malformed blastRadiusChanges entry for "${b.label}" — non-numeric before/after, refusing to pass an unmeasured gate`);
+      continue;
+    }
+    if (jump > criteria.maxBlastRadius) {
+      warnings.push(`blast radius jump on ${b.label}: +${jump} inbound (budget ${criteria.maxBlastRadius}) — maintenance bomb risk`);
     }
   }
 

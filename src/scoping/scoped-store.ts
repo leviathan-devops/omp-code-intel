@@ -114,13 +114,15 @@ export function upsertRow(table: string, pkColumn: string, pk: string | number, 
 
 /** THE WRITE-RETRY LADDER (the winner wave-tracker.ts:218-234): 3 attempts;
  *  on throw close the (stale) handle + busy-wait 50×(n+1)ms + retry; after
- *  the last: WARN — the in-memory state stays live, the caller decides. */
-export function runWithRetry(sql: string, params: (string | number | null)[], attempts = 3, id = ''): void {
+ *  the last: WARN — the in-memory state stays live, the caller decides.
+ *  ★ F-208 FIX (2026-09-24): returns TRUE on success, FALSE after exhausted
+ *  retries — the old void swallow left callers unable to detect silent loss. */
+export function runWithRetry(sql: string, params: (string | number | null)[], attempts = 3, id = ''): boolean {
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       getStoreDb().run(sql, params as never);
-      return;
+      return true;
     } catch (e) {
       lastErr = e;
       closeStoreDb();
@@ -131,6 +133,7 @@ export function runWithRetry(sql: string, params: (string | number | null)[], at
     }
   }
   console.error(`[scoped-store${id ? ' ' + id : ''}] persist failed after ${attempts} attempts (the in-memory state stays live):`, lastErr instanceof Error ? lastErr.message : String(lastErr));
+  return false;
 }
 
 /** THE IMMEDIATE TRANSACTION (the winner wave-db.ts:103-127) — for the

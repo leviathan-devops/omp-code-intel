@@ -605,6 +605,8 @@ export class CorbellAdapter implements GraphAdapter {
       throw adapterFailed(`read ${dbPath}`, `could not open the corbell store: ${String(e)}`);
     }
     const nodes: GraphNode[] = [];
+    // ★ F-2 FIX (2026-09-24): per-file source cache — the enrichment below read the same file once per node; now once per file.
+    const srcCache = new Map<string, string>();
     try {
       for (const row of db.prepare('SELECT id, node_type, data FROM graph_nodes').all() as Record<string, unknown>[]) {
         const id = String(row['id']);
@@ -630,7 +632,11 @@ export class CorbellAdapter implements GraphAdapter {
             // relative case (the doubled-path ENOENT caught live in the
             // container 2026-08-13: /workspace/fixture-profile/workspace/...)
             const srcPath = path.isAbsolute(file) ? file : path.join(profile.project.root, file);
-            const src = fs.readFileSync(srcPath, 'utf8');
+            let src = srcCache.get(srcPath);
+            if (src === undefined) {
+              src = fs.readFileSync(srcPath, 'utf8');
+              srcCache.set(srcPath, src);
+            }
             const nums = [...src.matchAll(/(\d+\.\d+)/g)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n));
             if (nums.length > 0) {
               data['comparator'] = Math.max(...nums);

@@ -35,8 +35,16 @@ export function sessionKey(sessionId: string): string {
 export function readSessionState(statePath: string): SessionStateMap {
   try {
     return JSON.parse(fs.readFileSync(statePath, 'utf-8')) as SessionStateMap;
-  } catch {
-    return {}; // absent/corrupt → empty; the latch re-arms on first record
+  } catch (e) {
+    // ★ F-209 FIX (2026-09-24): absent (ENOENT) or corrupt (torn-write SyntaxError)
+    //   still re-arm empty — but real I/O failures (EACCES, ENOSPC, EISDIR) now
+    //   throw LOUD instead of silently discarding the latch.
+    if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return {};
+    if (e instanceof SyntaxError) {
+      console.error(`[session-state] corrupt state at ${statePath} — re-arming empty: ${e.message}`);
+      return {};
+    }
+    throw e;
   }
 }
 

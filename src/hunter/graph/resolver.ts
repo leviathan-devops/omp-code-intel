@@ -116,11 +116,12 @@ function heuristicDecide(newEntity: NewEntity, existing: ExistingCanonical[]): {
     }
   }
   for (const c of existing) {
+    // ★ F-5 FIX (2026-09-24): destructive/unrelated refusal carries canonical null — a non-null canonical with an unrelated verdict misleads consumers.
     if (normalizeLabel(newEntity.label) === normalizeLabel(c.label) && normalizeLabel(newEntity.kind) !== normalizeLabel(c.kind)) {
-      return { canonical: c, verdict: 'unrelated', reasoning: `name collision with different shapes: "${newEntity.label}" kind=${newEntity.kind} vs "${c.label}" kind=${c.kind} — destructive merge REFUSED`, destructive: true };
+      return { canonical: null, verdict: 'unrelated', reasoning: `name collision with different shapes: "${newEntity.label}" kind=${newEntity.kind} vs "${c.label}" kind=${c.kind} — destructive merge REFUSED`, destructive: true };
     }
     if (normalizeLabel(newEntity.id) === normalizeLabel(c.canonical_id) && normalizeLabel(newEntity.kind) !== normalizeLabel(c.kind)) {
-      return { canonical: c, verdict: 'unrelated', reasoning: `id collision with different shapes: "${newEntity.id}" vs "${c.canonical_id}"`, destructive: true };
+      return { canonical: null, verdict: 'unrelated', reasoning: `id collision with different shapes: "${newEntity.id}" vs "${c.canonical_id}"`, destructive: true };
     }
   }
   for (const c of existing) {

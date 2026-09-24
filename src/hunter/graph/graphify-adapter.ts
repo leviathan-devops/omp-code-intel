@@ -211,6 +211,8 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   // [x,x] and [x,x,x] alike). Duplicates get fresh suffixed ids; nothing remaps.
   let dropped = 0;
   const nodes: GraphifyNode[] = [];
+  // ★ F-3 FIX (2026-09-24): keptRaw parallels nodes[] so the containment pass never indexes rawNodes with a shifted i.
+  const keptRaw: Record<string, unknown>[] = [];
   for (const n of rawNodes) {
     // W44 (qwen scan HIGH): the bare `as` cast THREW on null/non-object rows
     // (graphify emits nulls for unparseable entries) — one bad row killed the
@@ -231,6 +233,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
+    keptRaw.push(r);
     nodes.push({
       id,
       label,
@@ -317,8 +320,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       const safeFile = contained ? rel.split(path.sep).join("/") : "";
       if (safeFile !== n.file) {
         nodes[i] = { ...n, file: safeFile };
-        const at = nodeIdByRaw.get(rawNodes[i] as Record<string, unknown>);
-        if (at === n.id) nodeIdByRaw.set(rawNodes[i] as Record<string, unknown>, nodes[i]!.id);
+        const raw = keptRaw[i] as Record<string, unknown>;
+        const at = nodeIdByRaw.get(raw);
+        if (at === n.id) nodeIdByRaw.set(raw, nodes[i]!.id);
       }
     }
   }

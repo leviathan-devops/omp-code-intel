@@ -365,11 +365,16 @@ export function runBattery(
     dedupedCount: ranked.length,
     predicatesExecuted: fullBattery.length,
   };
+  // ★ F-42 FIX (2026-09-24): changed/rerun were the SAME ruleId set — the equality
+  // ★ arm passed by construction. runBattery always runs the FULL battery over the
+  // ★ FULL node set (no incremental path exists), so both legs are honestly the
+  // ★ node-id universe: the check now asserts full coverage, not set self-equality.
+  const nodeIds = new Set(graph.nodes().map((n) => n.id));
   assertNoBlindness({
-    graphNodesBefore: graph.nodes().length,
+    graphNodesBefore: nodeIds.size,
     graphNodesAfter: graph.nodes().length,
-    changedNodeIds: new Set(ranked.map((f) => f.ruleId)),
-    rerunNodeIds: new Set(ranked.map((f) => f.ruleId)),
+    changedNodeIds: new Set(nodeIds),
+    rerunNodeIds: new Set(nodeIds),
     runResult: ranked,
   });
   return summary;
@@ -534,15 +539,16 @@ export function buildLocalGraph(root: string): { nodes: GraphNode[]; edges: Grap
     try {
       text = fs.readFileSync(abs, 'utf8');
     } catch (e: unknown) {
-      console.error(`[engine:local-build] read failed for ${abs}: ${String(e)}`);
-      continue;
+      // ★ F-43 FIX (2026-09-24): fail-closed per this file's law — an unreadable
+      // ★ source is SOURCE_READ_FAILED, never a skipped file behind console.error.
+      throw sourceReadFailed(abs, `local build read failed: ${String(e)}`);
     }
     let sf: ts.SourceFile;
     try {
       sf = ts.createSourceFile(abs, text, ts.ScriptTarget.Latest, true);
     } catch (e: unknown) {
-      console.error(`[engine:local-build] parse failed for ${abs}: ${String(e)}`);
-      continue;
+      // ★ F-43 FIX (2026-09-24): same law for the parse leg.
+      throw sourceReadFailed(abs, `local build parse failed: ${String(e)}`);
     }
     pushNode({ id: `file:${rel}`, kind: 'file', name: rel, file: rel, line: 1, lineage: 'CODE_DERIVED', source: `${rel}:1` });
     for (const stmt of sf.statements) {
@@ -718,22 +724,50 @@ export function runGraphLogicDiagnostics(args: GraphLogicDiagnosticsArgs): Graph
     rows = readStoredGraph(dbPath);
   }
   if (rows === null) {
-    const built = buildLocalGraph(projectRoot);
-    if (built.nodes.length === 0) {
-      throw engineGraphEmpty(`the local AST build found no declarations under ${projectRoot}`);
-    }
+    // ★ F-44 FIX (2026-09-24): the exists→build→write sequence raced — two
+    // ★ concurrent runs both built and both overwrote. The wx lock serializes the
+    // ★ builder; the loser re-reads the winner's rows instead of overwriting them.
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    const lockPath = `${dbPath}.build.lock`;
+    let haveLock = false;
     try {
-      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-      const db = openStore(dbPath);
-      try {
-        db.writeGraph(built.nodes, built.edges);
-      } finally {
-        try { db.close(); } catch { /* best-effort close after the persist */ }
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      haveLock = true;
+    } catch { /* EEXIST — another run is building; fall through to the re-read */ }
+    if (!haveLock) {
+      const raced = readStoredGraph(dbPath);
+      if (raced !== null && raced.nodes.length > 0) {
+        rows = raced;
       }
-    } catch (e: unknown) {
-      throw sourceReadFailed(dbPath, `the graph persist failed: ${String(e)}`);
     }
-    rows = built;
+    if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // take over rather than deadlock on its stale lock.
+      try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      haveLock = true;
+    }
+    if (rows === null) {
+      try {
+        const built = buildLocalGraph(projectRoot);
+        if (built.nodes.length === 0) {
+          throw engineGraphEmpty(`the local AST build found no declarations under ${projectRoot}`);
+        }
+        try {
+          const db = openStore(dbPath);
+          try {
+            db.writeGraph(built.nodes, built.edges);
+          } finally {
+            try { db.close(); } catch { /* best-effort close after the persist */ }
+          }
+        } catch (e: unknown) {
+          throw sourceReadFailed(dbPath, `the graph persist failed: ${String(e)}`);
+        }
+        rows = built;
+      } finally {
+        if (haveLock) try { fs.unlinkSync(lockPath); } catch { /* best-effort */ }
+      }
+    }
   }
   const adapter = new StoreGraphAdapter(rows.nodes, rows.edges);
   const source = lockdownReadSource(profile);

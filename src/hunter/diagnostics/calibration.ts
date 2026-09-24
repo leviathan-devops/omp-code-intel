@@ -249,12 +249,21 @@ export class CalibrationGate {
    *  materialized HERE, so a comparator-data edit alters the fixturesHash → the
    *  batteryVersion → the stale calibration is invalidated, never reused. */
   private serializeFixtures(): string {
+    // ★ F-41 FIX (2026-09-24): nodes-only serialization let an edge/topology edit
+    // ★ pass with a stale version. The topology rides as the per-node inbound
+    // ★ caller list (whoCalls is the adapter's edge read; guarded — a throwing
+    // ★ adapter yields [] rather than breaking versioning). Fixtures are small.
     const graphOf = (graph: GraphAdapter): unknown => ({
       nodes: graph.nodes().map((n) => ({
         id: n.id, kind: n.kind, name: n.name,
         file: n.file ?? null, line: n.line ?? null, lineage: n.lineage, source: n.source,
         data: n.data ?? null,
       })),
+      edges: graph.nodes().map((n) => {
+        try {
+          return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
+        } catch { return { to: n.id, callers: [] }; }
+      }),
     });
     return JSON.stringify({
       fire: this.fixtures.fire.map((f) => ({

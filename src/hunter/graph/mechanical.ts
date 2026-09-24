@@ -107,9 +107,8 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
     if (abs.includes(`${path.sep}.trident${path.sep}`)) continue;
     if (abs.includes(`${path.sep}dist${path.sep}`)) continue;
     if (isExcluded(abs, root, excludes)) continue;
-    if (!abs.startsWith(root + path.sep) && abs !== path.join(root, path.basename(abs))) {
-      if (root !== process.cwd() && !abs.startsWith(root)) continue;
-    }
+    // ★ F-4 FIX (2026-09-24): any file outside root is skipped, regardless of how root was derived (old inner guard let non-root files through when root === cwd).
+    if (!abs.startsWith(root + path.sep) && abs !== path.join(root, path.basename(abs))) continue;
 
     const rel = path.relative(root, abs) || path.basename(abs);
     const relPosix = rel.split(path.sep).join(path.posix.sep);

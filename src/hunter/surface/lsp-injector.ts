@@ -244,10 +244,15 @@ export class DiagnosticsServer {
     if (!/[*?[]/.test(candidate)) return [];
     let rx: RegExp;
     try {
+      // ★ F-49 FIX (2026-09-24): two defects — no /g flag (only the first special
+      // ★ char escaped, later ones compiled live) and `[`/`]` unescaped (a `[a-z]`
+      // ★ glob threw inside RegExp → caught → silent [] miss). `[`/`]` pass through
+      // ★ as the glob class syntax; every other regex special is escaped globally.
       rx = new RegExp('^' + [...candidate].map((ch) => {
         if (ch === '*') return '.*';
         if (ch === '?') return '.';
-        return ch.replace(/[.+^${}()|[\]\\]/, '\\$&');
+        if (ch === '[' || ch === ']') return ch;
+        return ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
       }).join('') + '$');
     } catch { return []; }
     return [...this.state.keys()].filter((k) => rx.test(k));

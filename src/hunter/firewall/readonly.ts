@@ -127,17 +127,10 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
     }
     return null;
   }
-  // The printf/echo family: the quotes + the printf-format '%' route by verb — the BYPASS scan
-  // catches ONLY the true shell-splitters there (the redirections/separators/substitutions per
-  // §7.2:3170 — 'echo hi > file' dies on the '>', 'printf \'%s\' x' classifies BASH_EXECUTION
-  // per the 6.2 proofCase at 2580, a bare echo with zero metachars is the ALLOW no-op edge).
-  if (firstToken === ECHO_VERB || firstToken === 'printf') {
-    for (const ch of command) {
-      if (ch === '\'' || ch === '"' || ch === '\n' || ch === '%') continue; // the family's own syntax
-      if (BYPASS_METACHARACTERS.has(ch)) return ch;
-    }
-    return null;
-  }
+  // ★ F-48 FIX (2026-09-24): the echo/printf-specific scan below was DEAD — echo
+  // ★ matches blockVerbExemption via ECHO_VERB and printf via EXECUTION_VERBS, so
+  // ★ both returned above and this branch never ran. Removed (the exemption's
+  // ★ splitter scan — | ; & > < newline $ backtick — is the live guard for both).
   for (const ch of command) {
     if (BYPASS_METACHARACTERS.has(ch)) return ch;
   }

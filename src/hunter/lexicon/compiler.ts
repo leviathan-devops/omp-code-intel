@@ -116,12 +116,18 @@ export async function batteryVersionAsync(profile: ProjectProfile): Promise<stri
 /** The classification → template mapping (the deterministic default selection).
  *  The profile's bindings for the selected template fill the parameters. */
 export function selectTemplate(card: RuleCard): PredicateTemplate {
+  // ★ F-7 FIX (2026-09-24): loud guard on every lookup — a missing library entry throws at the selection site, never an obscure undefined downstream.
+  const need = (key: string): PredicateTemplate => {
+    const t = TEMPLATE_LIBRARY[key];
+    if (!t) throw new LexiconError('TEMPLATE_MISSING', `TEMPLATE_MISSING: no predicate template for key '${key}' (classification=${card.classification})`);
+    return t;
+  };
   switch (card.classification) {
-    case 'ARCH': return TEMPLATE_LIBRARY[ARCH_TEMPLATE_KEY];
-    case 'LOGIC': return TEMPLATE_LIBRARY['provenance.traces-to-source'];
-    case 'PROCESS': return TEMPLATE_LIBRARY['process.gates-measure-outputs-not-logic'];
-    case 'DOMAIN': return TEMPLATE_LIBRARY['domain.numeric-threshold'];
-    default: return TEMPLATE_LIBRARY['process.gates-measure-outputs-not-logic'];
+    case 'ARCH': return need(ARCH_TEMPLATE_KEY);
+    case 'LOGIC': return need('provenance.traces-to-source');
+    case 'PROCESS': return need('process.gates-measure-outputs-not-logic');
+    case 'DOMAIN': return need('domain.numeric-threshold');
+    default: return need('process.gates-measure-outputs-not-logic');
   }
 }
 

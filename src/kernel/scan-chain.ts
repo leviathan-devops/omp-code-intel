@@ -164,16 +164,21 @@ export async function callWithStallDetection(
     } catch {
       // non-JSON response (streamed SSE chunks) — extract text
       const lines = full.split('\n').filter(l => l.startsWith('data: '));
-      for (const line of lines.reverse()) {
+      // ★ F-206 FIX (2026-09-24): CONCATENATE every delta in stream order — the
+      //   old reverse()+first-match returned only the LAST chunk, truncating
+      //   every multi-event streaming response to its tail.
+      const parts: string[] = [];
+      for (const line of lines) {
         try {
           const chunk = JSON.parse(line.slice(6));
           const delta = chunk.choices?.[0]?.delta?.content
             ?? chunk.choices?.[0]?.message?.content;
-          // ★ F-163 FIX (2026-09-24): return the EXTRACTED delta — the old form
-          //   returned the raw accumulated stream (data: prefixes + newlines).
-          if (delta) return { ok: true, content: delta };
+          // ★ F-163 FIX (2026-09-24): keep the EXTRACTED delta — never the raw
+          //   accumulated stream (data: prefixes + newlines).
+          if (delta) parts.push(String(delta));
         } catch { /* skip malformed SSE lines */ }
       }
+      if (parts.length > 0) return { ok: true, content: parts.join("") };
       return { ok: false, reason: 'PARSE: could not extract content from stream' };
     }
   } catch (e: unknown) {

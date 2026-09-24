@@ -206,7 +206,10 @@ export const P5: PredicateTemplate = {
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if (/PHASE_REQUIRED_TOOLS/i.test(lines[i] ?? '')) {
         const win = lines.slice(Math.max(0, i - 5), Math.min(lines.length, i + 30)).join('\n');
-        if (!/DIAGNOSTIC_TOOLS|AUDIT_TOOLS|read/.test(win)) {
+        // ★ F-47 FIX (2026-09-24): bare `read` matched ready/readme/readline/
+        // ★ breadth — any PHASE_REQUIRED_TOOLS file mentioning 'ready' escaped the
+        // ★ finding. The exemption is the word `read` (\bread\b), not the substring.
+        if (!/DIAGNOSTIC_TOOLS|AUDIT_TOOLS|\bread\b/.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.diagnostics-jail', sev);
           findings.push({ ruleId: 'semantic.diagnostics-jail', severity: sev, file, line: i + 1, evidence: evEdge('semantic.diagnostics-jail', file, i + 1, lines[i]!.trim(), 'HT-BUG-21', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }

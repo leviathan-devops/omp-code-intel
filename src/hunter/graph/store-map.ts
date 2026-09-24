@@ -97,8 +97,10 @@ export function corbellEdgeToPredicate(kind: string): string {
 
 /** A real source line from the caller's file at the edge/node line (trimmed,
  *  capped), or the `src -> dst` id pair when no readable line exists. */
-// ★ F-143 FIX (2026-09-24): per-file line cache — the old code readFileSync'd the whole file once PER EDGE (thousands of blocking re-reads of the same bytes on large graphs). Each file is read at most once per process.
+// ★ F-6 FIX (2026-09-24): bounded per-file line cache (LRU, 500 files) + clear hook so long-lived processes cannot retain every file forever.
+const EDGE_EVIDENCE_CACHE_MAX = 500;
 const edgeEvidenceLineCache = new Map<string, string[]>();
+export function clearEdgeEvidenceCache(): void { edgeEvidenceLineCache.clear(); }
 export function edgeEvidence(edge: GraphEdge, nodesById: Map<string, GraphNode>): string {
   const src = nodesById.get(edge.sourceId);
   const lineNo = edge.line ?? src?.line ?? null;
@@ -115,6 +117,10 @@ export function edgeEvidence(edge: GraphEdge, nodesById: Map<string, GraphNode>)
       if (!lines) {
         lines = fs.readFileSync(file, "utf8").split("\n");
         edgeEvidenceLineCache.set(file, lines);
+        if (edgeEvidenceLineCache.size > EDGE_EVIDENCE_CACHE_MAX) {
+          const oldest = edgeEvidenceLineCache.keys().next().value;
+          if (oldest !== undefined) edgeEvidenceLineCache.delete(oldest);
+        }
       }
       const line = lines[lineNo - 1]?.trim();
       if (line && line.length > 0) return line.slice(0, 500);

@@ -197,7 +197,8 @@ function isRuleShaped(line: string): boolean {
 /** Collect the contiguous blockquote block — the quote-collection STOPS at a
  *  blank line (a section boundary) or at a non-blockquote line (§3.8 failure
  *  modes). The quote is the marker-stripped content — the corpus's exact words. */
-function collectBlockquote(lines: string[], start: number): { text: string } {
+function collectBlockquote(lines: string[], start: number): { text: string; end: number } {
+  // ★ F-1 FIX (2026-09-24): return the end index so the caller advances past the blockquote (no duplicates) and scans metadata from after it.
   const collected: string[] = [];
   let i = start;
   while (i < lines.length) {
@@ -208,7 +209,7 @@ function collectBlockquote(lines: string[], start: number): { text: string } {
     collected.push(line.slice(m[0].length));
     i++;
   }
-  return { text: collected.join(' ').trim() };
+  return { text: collected.join(' ').trim(), end: i };
 }
 
 /** The inline quoted passage — the inner text between the quote marks. */
@@ -257,7 +258,8 @@ export function extractRuleCards(corpusPaths: string[]): RuleCard[] {
       const line = lines[i];
       if (isBlockquote(line)) {
         const collected = collectBlockquote(lines, i);
-        cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, i + 1)));
+        cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
+        i = collected.end - 1; // ★ F-1 FIX (2026-09-24): advance past the blockquote; metadata scans from its end.
       } else if (isQuotedPassage(line)) {
         cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
       } else if (isRuleShaped(line)) {

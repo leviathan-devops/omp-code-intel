@@ -107,7 +107,11 @@ export class ScopeBindingManager {
 
   /** The binding that OWNS a wave id — null when the id is nobody's. */
   ownerOf(waveId: string): ScopeBinding | null {
-    for (const b of this.prefixes.values()) {
+    // ★ F-207 FIX (2026-09-24): LONGEST-prefix match — first-match over
+    //   registration order misattributes overlapping namespaces (wave- vs
+    //   wave-extra-). F-132 only refused exact duplicates, not overlaps.
+    const sorted = [...this.prefixes.entries()].sort((a, b) => b[0].length - a[0].length);
+    for (const [, b] of sorted) {
       if (b.ownsWave(waveId)) return b;
     }
     return null;
@@ -137,7 +141,9 @@ class ScopeBindingImpl implements ScopeBinding {
 
   isForeignWave(waveId: string): boolean {
     if (typeof waveId !== 'string') return false;
-    const owner = this.allPrefixes().find((p) => waveId.startsWith(p));
+    // ★ F-207 FIX (2026-09-24): longest match (see ownerOf) — first-match returns
+    //   the least-specific prefix when namespaces overlap.
+    const owner = [...this.allPrefixes()].sort((a, b) => b.length - a.length).find((p) => waveId.startsWith(p));
     if (owner === undefined) return false; // not wave-like → not foreign
     return owner !== this.wavePrefix;
   }
@@ -145,7 +151,8 @@ class ScopeBindingImpl implements ScopeBinding {
   assertOwnWave(waveId: string, action: string): void {
     if (this.ownsWave(waveId)) return;
     const owner = this.isForeignWave(waveId)
-      ? this.allPrefixes().find((p) => waveId.startsWith(p))
+      // ★ F-207 FIX (2026-09-24): longest match — the remedy must name the real owner.
+      ? [...this.allPrefixes()].sort((a, b) => b.length - a.length).find((p) => waveId.startsWith(p))
       : undefined;
     if (owner === undefined) {
       // A bare alias or empty id: refuse with the exact-id remedy.

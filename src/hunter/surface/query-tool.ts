@@ -267,17 +267,33 @@ function stageEntry(node: { name: string; data?: string | null }): string {
   return node.name;
 }
 
+// ★ F-40 FIX (2026-09-24): the split-brain — who-calls/chain/blast read the
+// ★ hunt-populated typed_nodes/typed_edges while must-implement read ONLY legacy
+// ★ graph_nodes, so a symbol present in typed (populated) but absent in graph_nodes
+// ★ (unpopulated leg) falsely reported MUST_IMPLEMENT. The lineage duality lives
+// ★ ONLY in graph_nodes (typed_nodes DDL has no lineage column), so the SPEC leg
+// ★ stays on graph_nodes while the CODE leg unions BOTH substrates.
+function codeNameSet(db: DbClient): Set<string> {
+  const names = new Set<string>();
+  try {
+    for (const r of rowsAs<{ label: string }>(
+      db.prepare('SELECT label FROM typed_nodes WHERE superseded_run IS NULL').all(), 'code-names typed')) {
+      if (r.label) names.add(r.label);
+    }
+  } catch { /* typed leg absent on this store — the graph_nodes leg below decides */ }
+  for (const r of rowsAs<{ name: string }>(
+    db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), 'code-names graph')) {
+    names.add(r.name);
+  }
+  return names;
+}
 /** must-implement — the SPEC_DERIVED stages whose declared ENTRY has NO CODE_DERIVED node. */
 function mustImplement(db: DbClient): QueryRow[] {
   const spec = rowsAs<{ id: string; name: string; source: string; data?: string | null }>(
     db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED' AND kind = 'stage'").all(),
     'must-implement spec',
   );
-  const code = rowsAs<{ name: string }>(
-    db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(),
-    'must-implement code',
-  );
-  const codeNames = new Set(code.map((r) => r.name));
+  const codeNames = codeNameSet(db);
   return spec
     .filter((s) => !codeNames.has(stageEntry(s)))
     .map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: 'MUST_IMPLEMENT' }));
@@ -359,11 +375,7 @@ function consistency(db: DbClient): QueryRow[] {
     db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(),
     'consistency spec',
   );
-  const code = rowsAs<{ name: string }>(
-    db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(),
-    'consistency code',
-  );
-  const codeNames = new Set(code.map((r) => r.name));
+  const codeNames = codeNameSet(db); // ★ F-40 FIX (2026-09-24): same unioned CODE leg as must-implement.
   return spec
     .filter((s) => !codeNames.has(stageEntry(s)))
     .map((s) => ({ status: 'DRIFT', specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source }));

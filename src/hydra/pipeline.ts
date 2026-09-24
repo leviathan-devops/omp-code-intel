@@ -93,8 +93,10 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     this.config = config;
   }
 
-  private log(kind: string, data: Record<string, unknown>): void {
-    this.evidence.push({ kind, at: Date.now(), data });
+  // ★ F-203 FIX (2026-09-24): per-run evidence target — the instance-level
+  //   array raced across concurrent execute() calls (reset + interleaved pushes).
+  private log(kind: string, data: Record<string, unknown>, target: EvidenceEntry[] = this.evidence): void {
+    target.push({ kind, at: Date.now(), data });
   }
 
   async execute(input: TInput): Promise<TOutput> {
@@ -102,36 +104,44 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
       throw new Error(`[${this.config.name}] GATE FAILED: subagents — pipeline requires at least 1 subagent`);
     }
     const t0 = Date.now();
-    // ★ F-141 FIX (2026-09-24): reset per-run — evidence is instance-level and a
-    //   reused pipeline accumulated prior runs' entries into buildOutput.
-    this.evidence.length = 0;
-    this.log("PIPELINE_START", { name: this.config.name, at: t0 });
+    // ★ F-203 FIX (2026-09-24): LOCAL evidence per execute() — concurrent runs
+    //   no longer share/reset one array. The public field keeps a last-run
+    //   snapshot for the sequential readers (replaces the F-141 reset).
+    const evidence: EvidenceEntry[] = [];
+    this.log("PIPELINE_START", { name: this.config.name, at: t0 }, evidence);
 
     for (const gate of this.config.gates.pre) {
-      this.log("GATE_CHECK", { gate: gate.name, phase: "pre" });
+      this.log("GATE_CHECK", { gate: gate.name, phase: "pre" }, evidence);
       const result = await gate.check(input);
       if (!result.passed) this.failLoud(gate, result.reason ?? "pre-gate failed");
     }
 
-    const inputRec = input as unknown as { targetRoot?: unknown; graphPath?: unknown };
-    const targetRoot = String(inputRec.targetRoot ?? "");
-    const graphPath = String(inputRec.graphPath ?? "");
+    // ★ F-202 FIX (2026-09-24): honor the declared targetRootFor/graphPathFor
+    //   extractors — execute() read raw input fields and the config fns were dead.
+    let targetRoot: string;
+    let graphPath: string;
+    try {
+      targetRoot = String(this.config.targetRootFor(input) ?? "");
+      graphPath = String(this.config.graphPathFor(input) ?? "");
+    } catch (e) {
+      throw new Error(`[${this.config.name}] GATE FAILED: input — targetRootFor/graphPathFor threw: ${e instanceof Error ? e.message : String(e)}`);
+    }
     if (targetRoot.trim() === "" || graphPath.trim() === "") {
       throw new Error(`[${this.config.name}] GATE FAILED: input — targetRoot and graphPath required`);
     }
-    this.log("GRAPH_EXTRACT_START", {});
+    this.log("GRAPH_EXTRACT_START", {}, evidence);
     let graph: GraphifyGraph;
     try {
       graph = await readGraphJson(graphPath);
     } catch (e) {
       throw new Error(`[${this.config.name}] GRAPH_LOAD_FAILED: ${String((e as Error).message ?? e)}`);
     }
-    this.log("GRAPH_EXTRACT_DONE", { nodeCount: graph.nodes.length, edgeCount: graph.edges.length, durationMs: Date.now() - t0 });
+    this.log("GRAPH_EXTRACT_DONE", { nodeCount: graph.nodes.length, edgeCount: graph.edges.length, durationMs: Date.now() - t0 }, evidence);
 
     this.log("DISPATCH_START", {
       subagentCount: this.config.subagents.length,
       subagentIds: this.config.subagents.map((s) => s.id),
-    });
+    }, evidence);
     const dispatchT0 = Date.now();
     const settled = await Promise.allSettled(this.config.subagents.map((spec) => spec.run(input, graph)));
     const dispatchDuration = Date.now() - dispatchT0;
@@ -146,26 +156,28 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
       this.log(r.status === "rejected" ? "SUBAGENT_REJECTED" : "SUBAGENT_FULFILLED", {
         subagentId: r.subagentId,
         ...(r.status === "rejected" ? { error: String(r.reason) } : {}),
-      });
+      }, evidence);
     }
     this.log("DISPATCH_DONE", {
       durationMs: dispatchDuration,
       fulfilled: results.filter((r) => r.status === "fulfilled").length,
       rejected: results.filter((r) => r.status === "rejected").length,
-    });
+    }, evidence);
 
-    this.log("SYNTHESIZE_START", {});
+    this.log("SYNTHESIZE_START", {}, evidence);
     const synthesis = await this.config.synthesizer(results, graph);
-    this.log("SYNTHESIZE_DONE", {});
+    this.log("SYNTHESIZE_DONE", {}, evidence);
 
     for (const gate of this.config.gates.post) {
-      this.log("GATE_CHECK", { gate: gate.name, phase: "post" });
+      this.log("GATE_CHECK", { gate: gate.name, phase: "post" }, evidence);
       const result = await gate.check(synthesis);
       if (!result.passed) this.failLoud(gate, result.reason ?? "post-gate failed");
     }
 
-    const output = this.config.buildOutput(synthesis, results, this.evidence);
-    this.log("PIPELINE_DONE", { name: this.config.name, totalDurationMs: Date.now() - t0 });
+    const output = this.config.buildOutput(synthesis, results, evidence);
+    this.log("PIPELINE_DONE", { name: this.config.name, totalDurationMs: Date.now() - t0 }, evidence);
+    this.evidence.length = 0;
+    this.evidence.push(...evidence);
     return output;
   }
 

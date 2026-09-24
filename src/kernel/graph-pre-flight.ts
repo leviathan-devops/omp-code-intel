@@ -71,6 +71,8 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
   } catch (e) {
     throw new Error(`GI_PREFLIGHT_FAILED: target ${target} — ${e instanceof Error ? e.message : String(e)}`);
   } finally {
-    db.close();
+    // ★ F-205 FIX (2026-09-24): a throwing close() must not swallow the
+    //   GI_PREFLIGHT_FAILED root cause — close best-effort, the error stands.
+    try { db.close(); } catch { /* the pre-flight error (or result) stands */ }
   }
 }

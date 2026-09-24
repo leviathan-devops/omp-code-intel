@@ -123,7 +123,11 @@ export interface AppendFindingsResult {
       }
       db.exec('COMMIT');
     } catch (e: unknown) {
-      try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is what the caller sees */ }
+      // ★ F-45 FIX (2026-09-24): a failed ROLLBACK is its own loud state — the
+      // ★ caller must know the batch error AND that the tx may still be open.
+      try { db.exec('ROLLBACK'); } catch (rb: unknown) {
+        throw new Error(`FINDING_ROLLBACK_FAILED: batch error=${e instanceof Error ? e.message : String(e)} rollback error=${rb instanceof Error ? rb.message : String(rb)} (the transaction may still be open — do not reuse this handle for writes)`);
+      }
       throw e;
     }
     return { runId, week: week ?? null, appended: findings.length };
@@ -202,7 +206,9 @@ function severityFromRow(v: unknown): Severity {
   if (typeof v === 'string' && (SEVERITIES as readonly string[]).includes(v)) {
     return v as Severity;
   }
-  return 'MED';
+  // ★ F-46 FIX (2026-09-24): coercing corrupt rows to 'MED' masked storage bugs
+  // ★ for every downstream consumer. Unknown severity is a loud fail.
+  throw new Error(`FINDING_INVALID: severity=${String(v)} (expected one of ${SEVERITIES.join('|')} — the stored row is corrupt, refusing to coerce)`);
 }
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the stored verdict is narrowed by the
@@ -211,5 +217,6 @@ function verdictFromRow(v: unknown): FindingVerdict {
   if (v === 'VIOLATION' || v === 'PASS') {
     return v;
   }
-  return 'PASS';
+  // ★ F-46 FIX (2026-09-24): same law for verdict — no silent 'PASS' laundering.
+  throw new Error(`FINDING_INVALID: verdict=${String(v)} (expected VIOLATION|PASS — the stored row is corrupt, refusing to coerce)`);
 }
