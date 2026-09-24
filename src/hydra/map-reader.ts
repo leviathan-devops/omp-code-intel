@@ -229,6 +229,11 @@ function tokenScan(graph: GraphifyGraph, question: string): Subgraph {
 export class GraphifyMapReader {
   private mcp: GraphifyClientReader | null;
   private lastGraphPath: string | null = null;
+  // ★ F-847 FIX (2026-09-24): the MCP legs below are CONNECTIVITY PROBES (F-140) — they verify the transport then answer locally. Every call paying a full network round-trip for a discarded result is waste; the probe result is cached 30s so a healthy transport probes once, while a FAILED probe always re-fires (the loud-fallback signal is never cached away).
+  private lastProbeOkAt = 0;
+  private probeFresh(): boolean {
+    return Date.now() - this.lastProbeOkAt < 30_000;
+  }
 
   constructor(mcp?: GraphifyClientReader | null) {
     this.mcp = mcp ?? null;
@@ -243,12 +248,14 @@ export class GraphifyMapReader {
   async query(graph: GraphifyGraph, question: string): Promise<Subgraph> {
     if (!graph || !Array.isArray(graph.nodes)) throw new Error("GRAPHIFY_QUERY_INVALID: graph required");
     if (typeof question !== "string" || question.trim() === "") throw new Error("GRAPHIFY_QUERY_INVALID: question must be non-empty");
-    if (this.mcp?.isConnected()) {
+    if (this.mcp?.isConnected() && !this.probeFresh()) {
       try {
         // ★ F-140 FIX (2026-09-24): the MCP leg is a connectivity probe — the
         //   ranked result IS the local token scan (single implementation; the old
         //   inline duplicate had drifted and dropped the n.file match leg).
+        // ★ F-847 FIX (2026-09-24): the untyped `unknown` MCP payload has NO validated parser — wiring it blind into the return would fabricate topology. The probe verifies transport (its FAILURE is consumed by the loud-fallback catch); success is cached 30s so steady-state calls pay zero network latency.
         void String(await this.mcp.callTool("query_graph", { question }));
+        this.lastProbeOkAt = Date.now();
         return tokenScan(graph, question);
       } catch (e) {
         console.error("[map-reader] MCP query_graph failed (falling back to local scan) token=GRAPHIFY_MCP_FALLBACK reason=" + (e instanceof Error ? e.message : String(e)) + " remedy=local token-scan over loaded graph");
@@ -262,9 +269,11 @@ export class GraphifyMapReader {
     if (typeof from !== "string" || from.trim() === "" || typeof to !== "string" || to.trim() === "") {
       throw new Error("GRAPHIFY_PATH_INVALID: from and to must be non-empty");
     }
-    if (this.mcp?.isConnected()) {
+    if (this.mcp?.isConnected() && !this.probeFresh()) {
       try {
+        // ★ F-847 FIX (2026-09-24): connectivity probe — cached 30s (see query()); the local BFS below is the single implementation.
         void String(await this.mcp.callTool("shortest_path", { source: from, target: to }));
+        this.lastProbeOkAt = Date.now();
       } catch (e) {
         console.error("[map-reader] MCP shortest_path failed (falling back to local BFS) token=GRAPHIFY_MCP_FALLBACK reason=" + (e instanceof Error ? e.message : String(e)) + " remedy=local BFS over loaded graph");
       }
@@ -309,9 +318,11 @@ export class GraphifyMapReader {
   async explain(graph: GraphifyGraph, concept: string): Promise<NodeDetail> {
     if (!graph || !Array.isArray(graph.nodes)) throw new Error("GRAPHIFY_EXPLAIN_INVALID: graph required");
     if (typeof concept !== "string" || concept.trim() === "") throw new Error("GRAPHIFY_EXPLAIN_INVALID: concept must be non-empty");
-    if (this.mcp?.isConnected()) {
+    if (this.mcp?.isConnected() && !this.probeFresh()) {
       try {
+        // ★ F-847 FIX (2026-09-24): connectivity probe — cached 30s (see query()); the local scan below is the single implementation.
         void String(await this.mcp.callTool("get_node", { label: concept }));
+        this.lastProbeOkAt = Date.now();
       } catch (e) {
         console.error("[map-reader] MCP get_node failed (falling back to local scan) token=GRAPHIFY_MCP_FALLBACK reason=" + (e instanceof Error ? e.message : String(e)) + " remedy=local scan over loaded graph");
       }

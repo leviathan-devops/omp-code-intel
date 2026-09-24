@@ -14,6 +14,15 @@ function sqlList(values: readonly string[]): string {
 const NODE_KINDS_SQL = sqlList(NODE_TYPES);
 const PREDICATES_SQL = sqlList(ALL_PREDICATES);
 
+// ★ F-834 FIX (2026-09-24): graph_facts carried NO predicate/evidence CHECKs while typed_edges
+//   enforces both — arbitrary garbage predicates broke schema consistency. Closed to the same
+//   PREDICATES_SQL canon plus 'has_finding', the ONE live writer's predicate (report.ts:317
+//   insertFact.run(f.file, 'has_finding', ...) — a bare IN (PREDICATES_SQL) would have turned that
+//   committed write into a constraint violation). Evidence rides the same length(evidence) > 0 law.
+//   SCOPE: CREATE TABLE IF NOT EXISTS only constrains FRESH stores; pre-existing graph_facts tables
+//   keep their old shape (SQLite cannot ALTER in a CHECK) — a rebuild is the remedy there.
+const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
+
 export const TYPED_GRAPH_DDL = `
 CREATE TABLE IF NOT EXISTS typed_nodes (
   id INTEGER PRIMARY KEY,
@@ -42,13 +51,7 @@ CREATE TABLE IF NOT EXISTS resolutions (
   reasoning TEXT NOT NULL,
   created_run TEXT NOT NULL
 );
-// ★ F-834 FIX (2026-09-24): graph_facts carried NO predicate/evidence CHECKs while typed_edges
-//   enforces both — arbitrary garbage predicates broke schema consistency. Closed to the same
-//   PREDICATES_SQL canon plus 'has_finding', the ONE live writer's predicate (report.ts:317
-//   insertFact.run(f.file, 'has_finding', ...) — a bare IN (PREDICATES_SQL) would have turned that
-//   committed write into a constraint violation). Evidence rides the same length(evidence) > 0 law.
-const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
-const GRAPH_FACT_DDL = `CREATE TABLE IF NOT EXISTS graph_facts (
+CREATE TABLE IF NOT EXISTS graph_facts (
   id INTEGER PRIMARY KEY,
   subject TEXT NOT NULL,
   predicate TEXT NOT NULL CHECK (predicate IN (${GRAPH_FACT_PREDICATES_SQL})),
@@ -57,8 +60,8 @@ const GRAPH_FACT_DDL = `CREATE TABLE IF NOT EXISTS graph_facts (
   confidence REAL NOT NULL,
   created_at INTEGER NOT NULL,
   superseded_at INTEGER
-)\`;
-const TYPED_GRAPH_DDL_PART2 = `CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id);
+);
+CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id);
 CREATE INDEX IF NOT EXISTS idx_tn_kind ON typed_nodes(kind);
 -- THE FILE INDEX (GG-BUG-5, the host live-fire 2026-09-10): the graph gate's
 -- blast-radius CTE joins dst.file = blast.file per recursion row — with no
@@ -74,6 +77,9 @@ CREATE INDEX IF NOT EXISTS idx_gf_subject ON graph_facts(subject);
 
 export interface TypedGraphDb {
   exec(sql: string): unknown;
+  // ★ F-833 FIX (2026-09-24): the optional read leg for the non-transactional fallback's
+  //   integrity check below (bun:sqlite Database.query satisfies this shape).
+  query?: (sql: string) => { all: (...args: unknown[]) => Array<{ name: string }> };
 }
 
 export function ensureTypedGraphSchema(db: TypedGraphDb): void {
@@ -92,8 +98,31 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
     try { db.exec('BEGIN IMMEDIATE'); began = true; } catch { began = false; /* no explicit-BEGIN support: bare exec below */ }
     db.exec(TYPED_GRAPH_DDL);
     try { db.exec('COMMIT'); } catch (commitErr: unknown) { if (began) throw commitErr; /* else: nothing to commit */ }
+    // ★ F-833 FIX (2026-09-24): without BEGIN each DDL statement auto-committed — a
+    //   mid-sequence failure leaves a half-migrated schema the caller cannot detect. Verify all
+    //   four tables exist; a partial (or unverifiable) schema is a loud TYPED_MIGRATION_FAILED
+    //   via the catch below, never silent success.
+    if (!began) assertNonTransactionalSchema(db);
   } catch (e: unknown) {
     if (began) { try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is the truth */ } }
     throw new Error(`TYPED_MIGRATION_FAILED: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+// ★ F-833 (cont.): the post-execution integrity check for the non-transactional fallback.
+function assertNonTransactionalSchema(db: TypedGraphDb): void {
+  const EXPECTED = ['typed_nodes', 'typed_edges', 'resolutions', 'graph_facts'];
+  let names: string[] | null = null;
+  try {
+    const q = db.query?.("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('typed_nodes','typed_edges','resolutions','graph_facts')");
+    if (q) names = q.all().map((r) => r.name);
+  } catch { names = null; /* the throw below names it */ }
+  if (names === null) {
+    throw new Error('TYPED_MIGRATION_FAILED: non-transactional fallback executed without BEGIN and the driver exposes no readable sqlite_master — cannot verify all-or-nothing migration (remedy: use a driver with explicit-BEGIN support)');
+  }
+  const verified: string[] = names;
+  const missing = EXPECTED.filter((t) => !verified.includes(t));
+  if (missing.length > 0) {
+    throw new Error(`TYPED_MIGRATION_FAILED: non-transactional fallback left a partial schema — missing ${missing.join(',')} (statements auto-committed individually; rebuild the store from scratch)`);
   }
 }

@@ -147,11 +147,16 @@ export interface DerivedPolicy {
 export function derivePolicy(profile: RuleProfile, counts: ResolvedCounts | null): DerivedPolicy {
   const costCut = thresholdFromCost(profile.cost);
   if (counts === null || counts.confirmed + counts.refuted < profile.minFiresForAct) {
+    // ★ F-836 FIX (2026-09-24): the unconditional Math.max(0.05, costCut/2) floor let flag
+    //   EXCEED act when act (= costCut) is small — the warning zone inverted (flag above act
+    //   empties the ESCALATE band the kernel bands on: p >= act → FIRE, p >= flag → ESCALATE).
+    //   flag is capped at act, so flag <= act holds in both branches by construction.
+    const seedFlag = Math.min(costCut, Math.max(0.05, costCut / 2));
     return {
       ruleId: profile.ruleId,
       policyName: `${profile.cls}-seed`,
       act: costCut,
-      flag: Math.max(0.05, costCut / 2),
+      flag: seedFlag,
       basis: `cost matrix only (C_block=${profile.cost.falseBlock}, C_miss=${profile.cost.missed}) → t=${costCut.toFixed(3)}; NO measured counts yet (needs ${profile.minFiresForAct} resolved)`,
       calibrated: false,
       // ★ F-CAL-EST FIX (2026-09-24): expose the raw estimate alongside calibrated:false only when counts exist; a null counts set should not pretend a numeric estimate exists downstream.
@@ -161,11 +166,14 @@ export function derivePolicy(profile: RuleProfile, counts: ResolvedCounts | null
   const est = precisionFromCounts(counts);
   // The act bar may not sit below the lower bound of what this rule has proven.
   const act = Math.max(costCut, est.low);
+  // ★ F-836 (cont.): the calibrated branch capped flag at est.high but never at act — same
+  //   inversion when est.high > act. Cap at act as well, so the flag <= act invariant holds here too.
+  const calFlag = Math.min(act, Math.max(0.05, Math.min(act / 2, est.high)));
   return {
     ruleId: profile.ruleId,
     policyName: `${profile.cls}-calibrated`,
     act,
-    flag: Math.max(0.05, Math.min(act / 2, est.high)),
+    flag: calFlag,
     basis: `cost t=${costCut.toFixed(3)} vs measured precision ${est.precision.toFixed(3)} [${est.low.toFixed(3)}, ${est.high.toFixed(3)}] over ${est.resolved} resolved → act=${act.toFixed(3)}`,
     calibrated: true,
     estimate: est,

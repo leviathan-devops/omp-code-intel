@@ -156,8 +156,13 @@ export function forbiddenGlobalHomeGraph(): string {
   return path.join(home, ".omp/graph-intelligence/store.sqlite");
 }
 
+// ★ F-827 FIX (2026-09-24): forbiddenGlobalHomeGraph() uses native `path.join` (win32 ->
+//   backslashes), but isGlobalHomeGraph() used `path.posix.join` (always forward slashes).
+//   On Windows these differ by separator, so the guard NEVER rejected a global home graph.
+//   Fix: use native `path.join` here too, matching forbiddenGlobalHomeGraph(), and normalize
+//   both to forward slashes before comparison (the `norm` arg is already normalized).
 function isGlobalHomeGraph(norm: string): boolean {
   const home = (process.env.HOME ?? os.homedir()).replace(/\\/g, "/");
-  const banned = path.posix.join(home, ".omp/graph-intelligence/store.sqlite");
+  const banned = path.join(home, ".omp/graph-intelligence/store.sqlite").replace(/\\/g, "/");
   return norm === banned;
 }

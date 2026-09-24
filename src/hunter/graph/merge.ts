@@ -8,6 +8,10 @@ export interface MergedTriple extends TypedTriple {
   conflictReason: string | null;
   anchorFile: string | null;
   anchorLine: number | null;
+  /** ★ F-822b FIX (2026-09-24): the dedup Set the F-822 fix introduced was read off the type
+   *  before it was DECLARED — TS2339 at every site. It is part of the row's conflict
+   *  bookkeeping, so it belongs on the interface. */
+  seenContradictions?: Set<string>;
 }
 
 export class MergeError extends Error {
@@ -168,9 +172,9 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
           //   prefix-substring of 'container', so 'container->x' is contained inside
           //   'contain->x'). Use a Set keyed by the exact composite instead.
           const dedupKey = `${s.predicate}|${s.subject}|${s.object}`;
-          if (!existing.seenContradictions) (existing as MergedTriple & { seenContradictions?: Set<string> }).seenContradictions = new Set();
-          if (!existing.seenContradictions!.has(dedupKey)) {
-            existing.seenContradictions!.add(dedupKey);
+          if (!existing.seenContradictions) existing.seenContradictions = new Set<string>();
+          if (!existing.seenContradictions.has(dedupKey)) {
+            existing.seenContradictions.add(dedupKey);
             const add = `; ALSO vs semantic predicate=${s.predicate} for ${s.subject}->${s.object}`;
             existing.conflictReason = `${existing.conflictReason}${add}`;
           }

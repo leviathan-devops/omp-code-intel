@@ -358,6 +358,7 @@ const WIRING_EXPORT_IMPORTER: PredicateTemplate = {
     };
     for (const node of ctx.graph.nodes()) {
       if (node.kind !== 'class' && node.kind !== 'function') continue;
+      // ★ F-848 NOTE (2026-09-24): NOT-A-BUG on the `node.line ?? 0` finding-surface below — the GUARD input here is `node.line ?? null`, and isExportedDecl returns false for null/non-positive (unresolved→silent, never fabricated). The `?? 0` only fills the mandatory file:line triplet on an already-verified export line, where line is a positive number by construction.
       if (!isExportedDecl(node.file, node.line ?? null)) continue;
       const callers = ctx.graph.whoCalls(node.name);
       if (callers.length === 0 && node.file) {

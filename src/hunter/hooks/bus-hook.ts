@@ -62,7 +62,7 @@ export class HydraBus {
   // ★ F-349 FIX (2026-09-24): subscriber failures are RECORDED, never just logged — the
   //   row stays consumed (the cursor advances, at-most-once delivery is kept) but the
   //   failure is inspectable and replayable via getFailedEvents/retryFailed.
-  private readonly failedEvents: Array<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number }> = [];
+  private readonly failedEvents: Array<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number; failedIndex: number }> = [];
 
   subscribe(fn: BusSubscriber): void {
     this.subscribers.push(fn);
@@ -121,7 +121,8 @@ export class HydraBus {
         payload = { raw: row.payload };
       }
       if (isBusKind(row.kind)) {
-        for (const fn of this.subscribers) {
+        for (let si = 0; si < this.subscribers.length; si++) {
+          const fn = this.subscribers[si]!;
           try {
             fn(eventKind(row.kind), payload);
           } catch (e: unknown) {
@@ -129,8 +130,10 @@ export class HydraBus {
             //   the row is still consumed (the cursor advances below), but the failure is
             //   RECORDED (not just logged) so a transient fault never silently loses a
             //   dispatch directive (e.g. HUNT_DONE → main-agent dispatch).
-            console.error(`[hydra-bus] subscriber for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
-            this.failedEvents.push({ row, payload, error: e, attempt: 1 });
+            // ★ F-816 FIX (2026-09-24): record the subscriber INDEX — retry redelivers
+            //   ONLY to the thrower, never rebroadcasts to the subscribers that landed.
+            console.error(`[hydra-bus] subscriber #${si} for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
+            this.failedEvents.push({ row, payload, error: e, attempt: 1, failedIndex: si });
           }
         }
       }
@@ -156,22 +159,34 @@ export class HydraBus {
    *  subscribers. A replay that still throws stays queued with attempt + 1; a replay
    *  that lands is dropped. Returns the count still failing. */
   retryFailed(): number {
+    // ★ F-816 FIX (2026-09-24): at-most-once per (event,subscriber) — the old shape
+    //   REPLAYED the whole subscriber list per failed event, so a subscriber that
+    //   SUCCEEDED on poll got the event AGAIN on retry (duplicate processing). Each
+    //   recorded failure now carries the INDEX of the subscriber that threw
+    //   (poll() records per-subscriber at the throw site); retry redelivers ONLY to
+    //   that index. Late subscribers (subscribed after the failure was recorded) are
+    //   NOT replayed — they never missed anything; replaying to them would be a NEW
+    //   duplicate. A retry that still throws stays queued with attempt+1.
     const pending = this.failedEvents.splice(0, this.failedEvents.length);
     for (const f of pending) {
       // ★ F-502 FIX (2026-09-24): one try/catch around ALL subscribers meant the first throwing
       // * subscriber starved the rest of the retried event (poll() already guards per-subscriber).
       // * Each subscriber is now guarded; a still-throwing replay stays queued with attempt + 1.
-      let lastError: unknown = null;
-      for (const fn of this.subscribers) {
-        try {
-          fn(eventKind(f.row.kind), f.payload);
-        } catch (e: unknown) {
-          console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscriber threw: ${e instanceof Error ? e.message : String(e)}`);
-          lastError = e;
-        }
+      const idx = typeof (f as { failedIndex?: unknown }).failedIndex === "number"
+        ? (f as { failedIndex: number }).failedIndex : -1;
+      const fn = idx >= 0 ? this.subscribers[idx] : undefined;
+      if (fn === undefined) {
+        // Subscriber list changed since the failure was recorded (unsubscribed or
+        // never existed at that index): nothing to redeliver to — drop LOUD so the
+        // dead-letter queue cannot pin a row forever.
+        console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) dropped: subscriber index ${idx} no longer present (${this.subscribers.length} subscribers)`);
+        continue;
       }
-      if (lastError !== null) {
-        this.failedEvents.push({ ...f, error: lastError, attempt: f.attempt + 1 });
+      try {
+        fn(eventKind(f.row.kind), f.payload);
+      } catch (e: unknown) {
+        console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscriber #${idx} threw: ${e instanceof Error ? e.message : String(e)}`);
+        this.failedEvents.push({ ...f, error: e, attempt: f.attempt + 1 });
       }
     }
     return this.failedEvents.length;

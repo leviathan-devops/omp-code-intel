@@ -165,7 +165,22 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   // ★ F-GQ1 FIX (2026-09-24): a FIFO per sid — a single slot lost/misattributed
   //   resolutions when two graph-queries interleaved (the second tool_call overwrote the
   //   first's entry). tool_result shifts the OLDEST entry for its tool.
-  const pendingQueries = new Map<string, Array<{ target: string; tool: string }>>();
+  // ★ F-837 FIX (2026-09-24): pendingQueries leaked — a graph-query/ripwire tool_call whose
+  //   tool_result never arrives (agent abort, timeout, crash, or the attachGiGraphGate throw
+  //   cancelling the frame before the query executes) left its entry + the session state forever.
+  //   Every entry now carries its enqueue time; each tool_call sweeps entries older than the TTL
+  //   and each sid queue is capped (oldest-evicted first), so the Map is bounded over any session.
+  const PENDING_QUERY_TTL_MS = 120_000;
+  const PENDING_QUERY_MAX_PER_SID = 10;
+  interface PendingQuery { target: string; tool: string; enqueuedAt: number; }
+  const pendingQueries = new Map<string, Array<PendingQuery>>();
+  const sweepStaleQueries = (now: number): void => {
+    for (const [sid, q] of pendingQueries) {
+      const live = q.filter((e) => now - e.enqueuedAt <= PENDING_QUERY_TTL_MS);
+      if (live.length === 0) pendingQueries.delete(sid);
+      else if (live.length !== q.length) pendingQueries.set(sid, live);
+    }
+  };
   pi.on("tool_call", (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
@@ -181,11 +196,17 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       states.set(sid, st);
     }
     if (isQuery) {
+      // ★ F-837 (cont.): sweep BEFORE enqueue — the tool_call stream is the only clock this
+      //   handler owns, so every query arrival prunes orphans first (no timer needed).
+      sweepStaleQueries(Date.now());
       const target = fieldStr(eventInput(event), "target") || fieldStr(eventInput(event), "symbol");
       if (target) {
         // the call is made; the ANSWER is unknown until the matching tool_result.
         const queue = pendingQueries.get(sid) ?? [];
-        queue.push({ target, tool: name });
+        queue.push({ target, tool: name, enqueuedAt: Date.now() });
+        // cap: oldest-evicted first — an evicted query never resolves, so it must not
+        // purchase drift coverage later (it is simply gone).
+        while (queue.length > PENDING_QUERY_MAX_PER_SID) queue.shift();
         pendingQueries.set(sid, queue);
       }
       return undefined;
@@ -238,8 +259,34 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     //   The result payload is inspected for evidence of rows before coverage is granted.
     const content = Array.isArray(event.content) ? event.content : [];
     const text = content.map((c) => (typeof c === "object" && c !== null && "text" in c ? String((c as { text: unknown }).text) : "")).join("\n");
-    const hasRows = /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
-    const noRows = /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
+    // ★ F-838 FIX (2026-09-24): STRUCTURED fields first, regex only as fallback — the old
+    //   hasRows/noRows read ONLY opaque text, so a tool-output format change (a new verb, a new
+    //   schema) false-negatived a legitimately resolved query into a T3 abort. A numeric row count
+    //   carried on details or on a content block now decides directly; the regexes survive ONLY as
+    //   the fallback when no count is present, so behavior on today's payloads is byte-identical.
+    const structuredRows = (() => {
+      const d = (typeof event.details === "object" && event.details !== null ? event.details : {}) as {
+        rowCount?: unknown; rows?: unknown; count?: unknown; row_count?: unknown;
+      };
+      for (const v of [d.rowCount, d.rows, d.count, d.row_count]) {
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+      }
+      for (const c of content) {
+        if (typeof c === "object" && c !== null && !("text" in c)) {
+          const r = c as { rowCount?: unknown; rows?: unknown; count?: unknown };
+          for (const v of [r.rowCount, r.rows, r.count]) {
+            if (typeof v === "number" && Number.isFinite(v)) return v;
+          }
+        }
+      }
+      return null;
+    })();
+    const hasRows = structuredRows !== null
+      ? structuredRows > 0
+      : /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
+    const noRows = structuredRows !== null
+      ? structuredRows === 0
+      : /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
     // ★ AUDIT H-5 FIXED: `|| !noRows` made an EMPTY/ambiguous result count as resolved
     //   (neither marker present -> hasRows=false, noRows=false -> true). The T-16 intent is
     //   explicit: rows=0 is a legitimate ANSWER but NOT coverage. Coverage now REQUIRES

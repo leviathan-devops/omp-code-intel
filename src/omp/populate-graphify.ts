@@ -128,9 +128,16 @@ export function isGraphifyCheckoutFreshFor(
   let newest = 0;
   let filesSeen = 0;
   let exhausted = false;
+  let walkFailed = false;
   const budget = { n: GRAPHIFY_FRESHNESS_BUDGET };
+  // ★ F-846 FIX (2026-09-24): cycle guard — readdirSync(withFileTypes) reports a symlinked dir via isDirectory()=true, so `src/self -> src` recursed forever (budget only counted FILES). The visited set keys on realpath; an unresolvable path refuses LOUD as stale-read-failed, never a silent fresh.
+  const visited = new Set<string>();
   const walk = (dir: string): void => {
     if (budget.n <= 0) { exhausted = true; return; }
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -158,7 +165,8 @@ export function isGraphifyCheckoutFreshFor(
       }
     }
   };
-    for (const rel of scope) {
+  if (walkFailed) return { fresh: false, reason: "stale-read-failed" };
+  for (const rel of scope) {
     const target = containedScopeTarget(root, rel);
     if (target === null) continue;
     // V21 cleanup fix-now: a scope entry may be a FILE — stat it directly
@@ -256,8 +264,14 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
       if (fd !== null) fs.closeSync(fd); // P1.1.3 (W1): the fd closes on every path
     }
   };
+  // ★ F-846 FIX (2026-09-24): same cycle guard as the freshness probe above — a symlink loop otherwise hashed forever (budget only counted files). realpath-keyed visited set; unresolvable dirs skip (the skip is folded into the digest, never silent).
+  const visitedDirs = new Set<string>();
   const walk = (dir: string, prefix: string): void => {
     if (budget.n <= 0) { exhausted = true; return; }
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { hash.update(`skip-dir:${prefix}\n`); return; }
+    if (visitedDirs.has(realDir)) return;
+    visitedDirs.add(realDir);
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     entries.sort((a, b) => a.name.localeCompare(b.name));

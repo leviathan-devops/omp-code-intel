@@ -116,7 +116,8 @@ export function assertMappableLines(buildResult: BuildResult): void {
     if (typeof n.file !== 'string' || n.file.length === 0) continue;
     const data = (n.data ?? {}) as Record<string, unknown>;
     resolveLine(
-      { line: n.line ?? undefined, data, source_location: data['source_location'] },
+      // ★ F-844 FIX (2026-09-24): `?? undefined` passed line 0 through — the old line-0 class dressed as a line. parseLineValue only accepts finite >= 1 but the guard's INPUT contract is 1-indexed-or-absent; a 0 must arrive as undefined (=unresolved→LOUD LINELESS_NODE), never as a fabricated line 0.
+      { line: n.line === 0 ? undefined : (n.line ?? undefined), data, source_location: data['source_location'] },
       edgeLocByTarget[n.id] ?? null,
       n.id,
     );

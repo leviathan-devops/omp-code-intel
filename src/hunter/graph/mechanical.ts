@@ -210,7 +210,11 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         const expEvidence = evidenceQuoteForNode(sf, stmt);
         pushTriple(fileCanon, 'exports', `default:${moduleCanon}`, expEvidence, relPosix, expLine);
       }
-      if (ts.isExportDeclaration(stmt) || ts.isExportAssignment(stmt)) {
+      // ★ F-821b FIX (2026-09-24): the F-821 edit widened this branch to include
+      //   ExportAssignment, which has NO `moduleSpecifier` — TS2339 on every read. The
+      //   re-export branch is ExportDeclaration ONLY (its `export default` sibling is already
+      //   handled above with `default:${moduleCanon}`).
+      if (ts.isExportDeclaration(stmt)) {
         const expLine = lineOf(sf, stmt);
         const expEvidence = evidenceQuoteForNode(sf, stmt);
         if (stmt.moduleSpecifier && ts.isStringLiteral(stmt.moduleSpecifier)) {

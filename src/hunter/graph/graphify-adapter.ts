@@ -920,33 +920,48 @@ export class GraphifyAdapter implements GraphAdapter {
     if (this.buildInFlight) {
       throw adapterFailed("graphify buildSync", "ADAPTER_BUSY: an async build() is in flight on this adapter — serialize builds, one at a time");
     }
+    // ★ F-812 FIX (2026-09-24): the guard CHECKED buildInFlight but never SET it —
+    //   consumer: populate.ts:104 — a sync build racing a yield-suspended async
+    //   build() mutated the shared caches (cachedNodes/cachedEdges/cachedRaw/
+    //   lastGraphPath/built + reindex) concurrently. Both paths now HOLD the same
+    //   flag (async path: adapter.ts:784-784); the finally at method end releases it.
+    this.buildInFlight = true;
     this.built = false;
-    const effectiveProfile = profileOverride ?? this.profile;
-    const root = path.resolve(effectiveProfile.project.root);
-    const graph = loadGraphifyFileSync(graphPath);
-    if (graph.nodes.length === 0) {
-      throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
+    // ★ F-812b FIX (2026-09-24): the try/finally covers the WHOLE body — the first
+    //   shape wrapped only the commit, so a graphEmpty/scope throw between flag-set
+    //   and try leaked buildInFlight=true and blocked every future build LOUD-forever.
+    //   The F-250 guard-check above stays OUTSIDE (a refused build must not clear a
+    //   live build's flag).
+    try {
+      const effectiveProfile = profileOverride ?? this.profile;
+      const root = path.resolve(effectiveProfile.project.root);
+      const graph = loadGraphifyFileSync(graphPath);
+      if (graph.nodes.length === 0) {
+        throw graphEmpty(`graphify graph produced zero nodes (graph.json at ${graphPath} carries no nodes)`);
+      }
+      // P1.6: the sync path inherits the scope filter (parity with build()).
+      const raw = projectGraphifyGraph(graph, root);
+      const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, effectiveProfile.graph?.scope ?? ["src"]);
+      if (filtered.dropped > 0) {
+        tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
+      }
+      // W45/F32 (frozen-scan HIGH): buildSync carries build()'s zero-in-scope
+      // graphEmpty — the sync bridge threw when the scope filter emptied the
+      // node set instead of silently caching zero nodes and producing an empty
+      // store.
+      if (filtered.nodes.length === 0) {
+        throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${(effectiveProfile.graph?.scope ?? ["src"]).join(",")})`);
+      }
+      this.lastGraphPath = graphPath;
+      this.cachedNodes = filtered.nodes;
+      this.cachedEdges = filtered.edges;
+      this.cachedRaw = graph;
+      this.built = true;
+      this.reindex();
+      return { nodes: filtered.nodes, edges: filtered.edges, graph };
+    } finally {
+      this.buildInFlight = false;
     }
-    // P1.6: the sync path inherits the scope filter (parity with build()).
-    const raw = projectGraphifyGraph(graph, root);
-    const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, effectiveProfile.graph?.scope ?? ["src"]);
-    if (filtered.dropped > 0) {
-      tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
-    }
-    // W45/F32 (frozen-scan HIGH): buildSync carries build()'s zero-in-scope
-    // graphEmpty — the sync bridge threw when the scope filter emptied the
-    // node set instead of silently caching zero nodes and producing an empty
-    // store.
-    if (filtered.nodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${(effectiveProfile.graph?.scope ?? ["src"]).join(",")})`);
-    }
-    this.lastGraphPath = graphPath;
-    this.cachedNodes = filtered.nodes;
-    this.cachedEdges = filtered.edges;
-    this.cachedRaw = graph;
-    this.built = true;
-    this.reindex();
-    return { nodes: filtered.nodes, edges: filtered.edges, graph };
   }
 
   chain(id: string): ChainStep[] {

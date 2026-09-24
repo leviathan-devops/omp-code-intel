@@ -114,8 +114,10 @@ export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: stri
   } finally {
     // ★ F-358 FIX (2026-09-24): finalize BOTH statements — same native-handle leak
     //   as writeBattery (the DELETE was an anonymous one-shot, never finalizable).
-    try { ins.finalize(); } catch { /* best-effort — the ROLLBACK above is what matters */ }
-    try { del.finalize(); } catch { /* best-effort — the ROLLBACK above is what matters */ }
+    // ★ F-823b FIX (2026-09-24): F-823 declared both as `| undefined` (they may not have been
+    //   allocated when prepare itself throws) — so the finally must GUARD before finalizing.
+    try { ins?.finalize(); } catch { /* best-effort — the ROLLBACK above is what matters */ }
+    try { del?.finalize(); } catch { /* best-effort — the ROLLBACK above is what matters */ }
   }
 }
 

@@ -127,7 +127,13 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
     );
   }
   console.warn(`[gi-abide] bounded tail failed for ${eventsPath} — degraded full read (counted, never silent)`);
-  const raw = fs.readFileSync(eventsPath, "utf8");
+  // ★ F-842 FIX (2026-09-24): the fallback read was unguarded — when `st` is null (stat failed) there is no size bound AND a missing/unreadable ledger escapes as a raw ENOENT crash instead of the structured GI_ENFORCE_ABIDE error the adapter promises. A read failure refuses NAMED.
+  let raw: string;
+  try {
+    raw = fs.readFileSync(eventsPath, "utf8");
+  } catch (e) {
+    throw new Error(`GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} and the fallback read is unavailable (${(e as NodeJS.ErrnoException).code ?? (e instanceof Error ? e.message : String(e))}) — the ledger cannot be read`);
+  }
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);
   const out: AbideEvent[] = [];
   for (const l of lines.slice(-limit)) {

@@ -38,6 +38,14 @@ export const GI_TOOL_NAMES_ALIASES = { "graph-code-audit": "aether-code-audit" }
 // W11 (frozen-scan HIGH): populate serialization — concurrent graph-query
 // calls raced countTypedNodes + repopulate on the same store (double-repop,
 // interleaved supersede). One in-process lane; queries await their turn.
+// ★ F-817 FIX (2026-09-24): wipe serialization — two interleaved action=wipe executes
+//   both passed the env gate + audit and both called clearGiRegistry (double wipe, one
+//   audit-visible trail entry). JS is single-threaded but these executes INTERLEAVE at
+//   awaits (the executor yields between tool calls). A module-level in-flight flag
+//   serializes: a second wipe while one runs is LOUD-refused (GI_WIPE_INFLIGHT), never
+//   silently merged. Released in finally on EVERY path (incl. the WIPE_AUDIT_FAILED
+//   early return — otherwise one failed audit pins all later wipes forever).
+let wipeInFlight = false;
 let populateLane: Promise<void> = Promise.resolve();
 const withPopulateLane = async <T>(fn: () => Promise<T>): Promise<T> => {
   const run = populateLane.then(fn, fn);
@@ -343,26 +351,38 @@ pi.registerTool({
   execute: async (_id, params, _sig, _upd, ctx) => {
     const p = (params && typeof params === "object" ? params : {}) as { echo?: string; action?: string };
     if (String(p.action ?? "").toLowerCase() === "wipe") {
-      // CRITICAL fix (frozen scan): defense-in-depth AT the tool layer — the
-      // description promises an env gate; the deep gate lives inside
-      // clearGiRegistry (GI_OMP_ALLOW_CLEAR, code GI_CLEAR_REFUSED). The tool
-      // now refuses with the SAME env + code before touching the registry.
+      if (wipeInFlight) {
+        return textResult("GI_WIPE_INFLIGHT: a wipe is already running — serialize wipe operations, retry after it completes", { ok: false, error: "GI_WIPE_INFLIGHT" });
+      }
+      // ★ F-817c FIX (2026-09-24): the env-gate refusal is NOT a wipe run — it sits
+      //   BEFORE the flag. The prior shape returned GI_CLEAR_REFUSED from inside the
+      //   outer try but outside the inner try/finally, permanently pinning later wipes
+      //   as GI_WIPE_INFLIGHT.
       if (process.env.GI_OMP_ALLOW_CLEAR !== "1") {
         return textResult("GI_CLEAR_REFUSED: action=wipe requires GI_OMP_ALLOW_CLEAR=1 in the environment", { ok: false, error: "GI_CLEAR_REFUSED" });
       }
+      wipeInFlight = true;
       try {
+        // CRITICAL fix (frozen scan): defense-in-depth AT the tool layer — the
+        // description promises an env gate; the deep gate lives inside
+        // clearGiRegistry (GI_OMP_ALLOW_CLEAR, code GI_CLEAR_REFUSED). The tool
+        // now refuses with the SAME env + code before touching the registry.
+        try {
         const wipeAudit = graphProbeWipeAudited(ctx as { cwd?: string; sessionID?: string } | undefined, cwdOf);
-        // ★ AUDIT HIGH #2 (2026-09-23): the first version returned `GI_CLEARED` with
-        //   `ok: true` when the audit had FAILED (wipeAudited:false) — a false success —
-        //   AND never called `clearGiRegistry()` at all (it was imported but DEAD), so the
-        //   tool reported `GI_CLEARED` without ever clearing. A failed audit is a LOUD
-        //   failure; a reported clear is an ACTUAL clear.
-        if (!wipeAudit.audited) {
-          return textResult(`WIPE_AUDIT_FAILED\n${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false });
+          // ★ AUDIT HIGH #2 (2026-09-23): the first version returned `GI_CLEARED` with
+          //   `ok: true` when the audit had FAILED (wipeAudited:false) — a false success —
+          //   AND never called `clearGiRegistry()` at all (it was imported but DEAD), so the
+          //   tool reported `GI_CLEARED` without ever clearing. A failed audit is a LOUD
+          //   failure; a reported clear is an ACTUAL clear.
+          if (!wipeAudit.audited) {
+            return textResult(`WIPE_AUDIT_FAILED\n${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false });
+          }
+          // ★ THE ACTUAL WIPE — the deep gate (GI_OMP_ALLOW_CLEAR) lives inside this call.
+          clearGiRegistry();
+          return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
+        } finally {
+          wipeInFlight = false;
         }
-        // ★ THE ACTUAL WIPE — the deep gate (GI_OMP_ALLOW_CLEAR) lives inside this call.
-        clearGiRegistry();
-        return textResult("GI_CLEARED", { ok: true, token: "GI_CLEARED", wipeAudited: true });
       } catch (e) {
         // frozen-scan HIGH: `"code" in err` threw on a primitive rejection —
         // narrow with in/typeof instead (checked surface kept small).
@@ -458,7 +478,15 @@ pi.registerTool({
           const reason = `GRAPHIFY_NOT_WARM:${fresh.reason}`;
           return textResult(`${reason}: no warm graphify graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });
         }
-        const pop = await withPopulateLane(async () => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
+        // ★ F-818b FIX (2026-09-24): a populate MISS is a retryable LOUD state, never a
+        //   cached verdict — the old shape read `skipped` straight through the shared lane
+        //   with no retry, so a transient miss (warm-check race, contended write) pinned
+        //   the leg as NOT_WARM until process restart. Retry ONCE inside the same lane
+        //   acquisition; a second miss is the honest NOT_WARM (rebuild remedy named).
+        let pop = await withPopulateLane(async () => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
+        if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
+          pop = await withPopulateLane(async () => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
+        }
         if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
           const reason = pop.fallbackReason ?? "GRAPHIFY_NOT_WARM:miss";
           return textResult(`${reason}: graphify populate missed (graph=${graphPath}; rebuild with: bun scripts/graphify-build.ts --target '${scopeRoot}')`, { ok: false, error: reason.split(":")[0], reason, graphPath });

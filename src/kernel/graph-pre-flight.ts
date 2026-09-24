@@ -3,7 +3,7 @@
 // profile) and returns the scoped plan: commit strategy + prioritized test
 // targets (the GRAPH_BASED_STAIRSTEPPING_BIBLE §4 contract, automated).
 import { openTypedStore, impactInDb, whoCallsInDb } from "../omp/typed-write.ts";
-import { getTestTargets, type TestTarget } from "./graph-test-target.ts";
+import { getTestTargetsFromDb, type TestTarget } from "./graph-test-target.ts";
 
 export interface PreFlightResult {
   target: string;
@@ -62,7 +62,11 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
     if (imp.reaches >= 50 || directInbound >= 20) commitStrategy = "domain-level";
     else if (imp.reaches >= 6 || directInbound >= 4) commitStrategy = "split";
 
-    const testTargets = getTestTargets(storePath, target, 5);
+    // ★ F-835 FIX (2026-09-24): the double-handle defect — getTestTargets(storePath) opened a
+    //   SECOND openTypedStore handle on the same SQLite file while `db` above was still open
+    //   (two WAL locks, 'database is locked' under contention, stale-read surface). The targeting
+    //   query now runs on the ALREADY-OPEN `db` (one connection; the finally below still owns it).
+    const testTargets = getTestTargetsFromDb(db, target, 5);
     return {
       target,
       directCallers: q.callers.map((c) => ({ caller: c.caller, file: c.file, line: c.line, via: c.predicate ?? "" })),

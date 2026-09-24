@@ -549,14 +549,51 @@ function collectLocalTsFiles(root: string): string[] {
     for (const e of entries) {
       if (e.name === '.' || e.name === '..') continue;
       const abs = path.join(dir, e.name);
+      // ★ F-813 FIX (2026-09-24): Dirent.isDirectory() is FALSE for symlinks (Node
+      //   never follows in readdir: link→dir reads isDirectory=false, isSymlink=true —
+      //   PROBED live 2026-09-24), so a symlink-to-dir fell to NO branch (silent skip)
+      //   and a symlink-to-.ts never collected (silent scope loss). Symlinks now resolve
+      //   EXPLICITLY via statSync (never followed blindly): dir-links recurse guarded by
+      //   the visited-realpath set (cycle → LOUD skip, never infinite); file-links
+      //   collect when .ts; broken links fail LOUD (SOURCE_READ_FAILED), never vanish.
+      if (e.isSymbolicLink()) {
+        let st: import('node:fs').Stats | null = null;
+        try { st = fs.statSync(abs); } catch (err: unknown) {
+          throw sourceReadFailed(abs, `local build dangling symlink: ${String(err)}`);
+        }
+        let real = abs;
+        try { real = fs.realpathSync(abs); } catch (err: unknown) {
+          throw sourceReadFailed(abs, `local build realpath failed: ${String(err)}`);
+        }
+        if (st.isDirectory()) {
+          if (LOCAL_BUILD_SKIPS.has(e.name)) continue;
+          if (visitedRealDirs.has(real)) {
+            console.error(`[engine:local-build] symlink cycle skipped LOUD: ${abs} -> ${real}`);
+            continue;
+          }
+          visitedRealDirs.add(real);
+          walk(abs);
+        } else if (e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) {
+          out.push(abs);
+        }
+        continue;
+      }
       if (e.isDirectory()) {
         if (LOCAL_BUILD_SKIPS.has(e.name)) continue;
+        const real = (() => { try { return fs.realpathSync(abs); } catch { return abs; } })();
+        if (visitedRealDirs.has(real)) continue;
+        visitedRealDirs.add(real);
         walk(abs);
       } else if (e.isFile() && e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) {
         out.push(abs);
       }
     }
   };
+  let rootReal = root;
+  try { rootReal = fs.realpathSync(root); } catch (err: unknown) {
+    throw sourceReadFailed(root, `local build root realpath failed: ${String(err)}`);
+  }
+  const visitedRealDirs = new Set<string>([rootReal]);
   walk(root);
   return out;
 }
@@ -768,7 +805,15 @@ export function runGraphLogicDiagnostics(args: GraphLogicDiagnosticsArgs): Graph
     profile = loadProfile(args.profilePath);
     profileFromDisk = true;
   } catch (e: unknown) {
-    profile = fallbackProfile(root, e instanceof Error ? e.message.slice(0, 300) : String(e));
+    // ★ F-811 FIX (2026-09-24): fallbackProfile() ALWAYS throws (PROFILE_INVALID)
+    //   so `profile = fallbackProfile(...)` never completed — dead code masking a
+    //   loud refusal as a recovery path. Throw LOUD with the loader reason; the
+    //   export stays for external callers.
+    throw new Error(
+      `PROFILE_INVALID: the disk profile failed to load for ${root} ` +
+      `(reason: ${e instanceof Error ? e.message.slice(0, 300) : String(e)}) ` +
+      `remedy=declare a full valid profile with graph.substrate corbell (the hard dependency) — no fallback profile is synthesized`,
+    );
   }
   const projectRoot = path.resolve(profile.project.root);
   const dbPath = path.join(projectRoot, '.trident', 'knowledge-graph', 'shared.db');
@@ -794,11 +839,42 @@ export function runGraphLogicDiagnostics(args: GraphLogicDiagnosticsArgs): Graph
       }
     }
     if (rows === null && !haveLock) {
-      // Lock holder vanished without persisting (crash between lock and write):
-      // take over rather than deadlock on its stale lock.
-      try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
-      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
-      haveLock = true;
+      // ★ F-810 FIX (2026-09-24): stale-lock takeover now VERIFIES before unlink —
+      //   the old unlink+wx was non-atomic (two racers both unlink, both wx, both
+      //   build+write, corrupting the DB). Take over ONLY when the holder PID is
+      //   dead (kill(pid,0) throws) AND the lock is older than STALE_MS; a live
+      //   holder is fail-closed LOUD (another build owns it). The clock here is
+      //   liveness-only, never enters the findings (determinism law untouched).
+      const STALE_MS = 30_000;
+      let stale = false;
+      try {
+        const content = fs.readFileSync(lockPath, 'utf8').trim();
+        const pid = Number(content);
+        let holderDead = !Number.isFinite(pid);
+        if (Number.isFinite(pid)) {
+          try { process.kill(pid, 0); } catch { holderDead = true; }
+        }
+        let ageMs = Number.POSITIVE_INFINITY;
+        try { ageMs = Date.now() - fs.statSync(lockPath).mtimeMs; } catch { ageMs = Number.POSITIVE_INFINITY; }
+        stale = holderDead && ageMs > STALE_MS;
+      } catch { stale = false; }
+      if (stale) {
+        try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+        try {
+          fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+          haveLock = true;
+        } catch {
+          const raced = readStoredGraph(dbPath);
+          if (raced !== null && raced.nodes.length > 0) rows = raced;
+        }
+      } else {
+        const raced = readStoredGraph(dbPath);
+        if (raced !== null && raced.nodes.length > 0) {
+          rows = raced;
+        } else {
+          throw sourceReadFailed(dbPath, 'graph build lock held by a live holder — another run owns the build (fail-closed, retry after it persists)');
+        }
+      }
     }
     if (rows === null) {
       try {

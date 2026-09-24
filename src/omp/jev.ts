@@ -32,31 +32,58 @@ export class JevError extends Error {
 export function resolveKey(env: Record<string, string | undefined> = process.env): string {
   const fromEnv = env["TYPESAFE_AI_API_KEY"];
   if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+  // ★ F-839 FIX (2026-09-24): close the stat→read TOCTOU — the old statSync(KEY_FILE) then
+  //   readFileSync(KEY_FILE) let a symlink swap land between the 0600 check and the read, so the
+  //   permission verdict described a DIFFERENT file than the key came from. Open ONCE (O_NOFOLLOW:
+  //   a planted symlink refuses LOUD instead of being followed), fstat the FD, read the SAME fd.
+  //   The F-410 0600 contract + the GI_JEV_KEY_PERMS/GI_JEV_NO_KEY codes are unchanged; a missing
+  //   file still falls through to the NO_KEY throw below (ENOENT), never a raw errno.
+  let fd: number | null = null;
   try {
-    // ★ F-410 FIX (2026-09-24): enforce the 0600 contract — a world-readable key file is
-    // ★ silently accepted; reject it so the operator knows to chmod 600 the file.
-    if (typeof fs.statSync === 'function') {
-      try {
-        const mode = fs.statSync(KEY_FILE).mode;
-        if ((mode & 0o077) !== 0) {
-          throw new JevError(
-            "GI_JEV_KEY_PERMS",
-            `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
-          );
-        }
-      } catch (e) {
-        if (e instanceof JevError) throw e;
-        // stat failed (e.g. file doesn't exist) — fall through to readFile which handles that
+    try {
+      fd = fs.openSync(KEY_FILE, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    } catch (e) {
+      fd = null;
+      const c = e as NodeJS.ErrnoException;
+      if (c?.code === 'ELOOP' || c?.code === 'EACCES' || c?.code === 'EPERM') {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} refused at open (${c.code} — a symlink plant or unreadable file; expected a 0600 regular file — chmod 600 ${KEY_FILE})`,
+        );
       }
+      // ENOENT and friends: fall through to the NO_KEY throw below (the old readFile path did the same).
     }
-    const v = fs.readFileSync(KEY_FILE, "utf8").trim();
-    if (v.length > 0) return v;
+    if (fd !== null) {
+      let mode = 0;
+      try {
+        mode = fs.fstatSync(fd).mode;
+      } catch (e) {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} fstat failed (${e instanceof Error ? e.message : String(e)}) — cannot verify the 0600 contract`,
+        );
+      }
+      if ((mode & 0o077) !== 0) {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
+        );
+      }
+      const v = fs.readFileSync(fd, "utf8").trim();
+      if (v.length > 0) return v;
+    }
   } catch (e) {
     if (e instanceof JevError) throw e;
     /* fall through to the throw */
+  } finally {
+    if (fd !== null) { try { fs.closeSync(fd); } catch { /* best-effort: the key (or the error) stands */ } }
   }
   throw new JevError("GI_JEV_NO_KEY", `no key in TYPESAFE_AI_API_KEY and none readable at ${KEY_FILE}`);
 }
+
+/** The fd the test seam observes (null outside tests). */
+// (no export surface change: resolveKey keeps its (env?) signature; st-gi-v2-deps t6 and the
+// st-gi-6l2e key probes exercise the env-first path, which is untouched.)
 
 /** The API question shape. A Noul carries instructions + the true/false meaning. */
 interface ApiQuestion {

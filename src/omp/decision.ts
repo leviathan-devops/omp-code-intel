@@ -208,6 +208,10 @@ export function decideFireFromGraph(
   if (typeof target !== "string" || target.trim().length === 0) {
     throw new Error("GI_DECIDE_BAD_INPUT: target must be a non-empty string");
   }
+  // ★ F-843 FIX (2026-09-24): `intent` was the one unvalidated public input — TypeScript's union does not stop `undefined` at runtime, which sailed into graphFacts, matched NO M-GRAPH branch, and returned an empty fact set dressed as "the graph has no fact". Same fail-fast discipline as scopeRoot/target above.
+  if (intent !== "consume" && intent !== "declare" && intent !== "mutate" && intent !== "measure") {
+    throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of consume|declare|mutate|measure (got ${String(intent)})`);
+  }
   const storePath = corbellCheckoutPath(scopeRoot);
   const verdicts = graphFacts({ storePath, target, intent });
   const settles = verdicts.some((v) => v.settles);

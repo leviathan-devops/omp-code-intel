@@ -141,6 +141,15 @@ export function clearGiRegistry(): void {
   db.run("DELETE FROM gi_sessions");
 }
 
+// ★ F-818 FIX (2026-09-24): BLAST-RADIUS CONTRACT — closeStoreDb() closes the
+//   process-wide scoping singleton (scoped-store.ts holds ONE cached handle for the
+//   current path), NOT just the registry. Any live handle from getStoreDb (e.g. an
+//   ongoing openSessionStore) is invalidated — later use reopens via the SELECT-1
+//   health check, but in-flight statements can hit SQLITE_MISUSE. Call ONLY at a
+//   quiescent point (test afterEach, process teardown) — never mid-query. A selective
+//   close is DELIBERATELY not offered: the suite relies on this as a global reset
+//   (every st-gi-omp-*.test.ts afterEach), and the singleton holds one path at a
+//   time, so "close only X" is not expressible here.
 export function closeGiRegistry(): void {
   closeStoreDb();
 }

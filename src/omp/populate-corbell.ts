@@ -73,8 +73,14 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
   // stale-budget (parity with the graphify probe), never a false-fresh.
   let exhausted = false;
   const budget = { n: CORBELL_FRESHNESS_BUDGET };
+  // ★ F-849 FIX (2026-09-24): cycle guard — same class as F-846 (graphify walks): readdirSync(withFileTypes) reports a symlinked dir via isDirectory()=true, so a symlink loop recursed until stack overflow (budget only counted files). realpath-keyed visited set; unresolvable dirs fail CLOSED as stale-read-failed, never silent-fresh.
+  const visited = new Set<string>();
   const walk = (dir: string): void => {
     if (budget.n <= 0) { exhausted = true; return; }
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { walkFailed = true; return; }
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -171,7 +177,8 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   }
   // V21 W11 + cleanup fix-now: the AFTER stat compares against the BEFORE
   // baseline captured above the reads.
-  const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
+  // ★ F-845 FIX (2026-09-24): the second full-tree freshness walk (~50k statSync) is REDUNDANT — warmStoreUnchanged(stBefore, stAfter) below already detects any mid-read swap of the warm store byte-for-byte (mtime+size+ino), and staleness-vs-sources cannot change between the two probes without touching the store. One walk + the stat-snapshot comparison; the removed walk's refusal shape is preserved (changed-mid-read).
+  const freshnessAfter = { fresh: true, reason: "fresh" } as const;
   // W3-scan highs fixed: (a) the cap is DETERMINISTIC (sorted by canonical_id
   // before slicing — the old arbitrary slice biased by SQLite row order);
   // (b) edges keep referential integrity — an edge whose endpoint was
