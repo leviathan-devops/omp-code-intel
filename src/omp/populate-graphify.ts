@@ -512,7 +512,12 @@ export function writeGraphifyCheckout(
   opts?: { runTag?: string },
 ): { nodes: number; edges: number; runTag: string; storeNodes: number; storeEdges: number } {
   const runTag = opts?.runTag ?? `graphify-checkout-${Date.now().toString(36)}`;
-  if (nodeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
+  // ★ F-711 FIX (2026-09-24): the old nodes-only guard refused a VALID edges-only
+  // ★ checkout batch (the session helper supersedeThenInsert accepts it) while the
+  // ★ finding's wipe shape is closed by the per-table conditionals below — the
+  // ★ same bidirectional law as the session path: refuse only when BOTH are empty,
+  // ★ and never touch a table its batch does not repopulate.
+  if (nodeRows.length === 0 && edgeRows.length === 0) throw new Error("GRAPH_EMPTY:graphify checkout refusing empty input (would wipe live inspection rows)");
   const taggedNodes = nodeRows.map((r) => ({ ...r, run: runTag }));
   const taggedEdges = edgeRows.map((r) => ({ ...r, run: runTag }));
   fs.mkdirSync(path.dirname(checkoutPath), { recursive: true });
@@ -531,10 +536,17 @@ export function writeGraphifyCheckout(
     try {
       // V21 cleanup P4: per-table parity with the session helper — an
       // edges-only or nodes-only checkout batch never voids the other side.
-      if (taggedNodes.length > 0) db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-      if (taggedEdges.length > 0) db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
-      insertForkNodesBatch(db, taggedNodes);
-      insertForkEdgesBatch(db, taggedEdges);
+      // ★ F-711 FIX (2026-09-24): the batch INSERTs ride inside the same
+      // ★ per-table guards (an empty batch inserts nothing, but the guard states
+      // ★ the invariant instead of relying on it).
+      if (taggedNodes.length > 0) {
+        db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+        insertForkNodesBatch(db, taggedNodes);
+      }
+      if (taggedEdges.length > 0) {
+        db.run("UPDATE typed_edges SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+        insertForkEdgesBatch(db, taggedEdges);
+      }
       // ★ F-127 FIX (2026-09-24): the populated_at marker rides INSIDE the transaction
       //   (before COMMIT). After COMMIT it was a separate auto-commit statement; its
       //   failure hit the catch's ROLLBACK on an ALREADY-COMMITTED tx — a swallowed error

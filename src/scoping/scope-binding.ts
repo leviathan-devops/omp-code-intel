@@ -224,7 +224,11 @@ class ScopeBindingImpl implements ScopeBinding {
 export function assertAliasNamespace(binding: ScopeBinding, alias: unknown, allPrefixes: string[]): void {
   if (typeof alias !== 'string' || alias.trim().length === 0) return;
   const a = alias.trim();
-  for (const prefix of allPrefixes) {
+  // ★ F-709 FIX (2026-09-24): LONGEST-prefix match — consistent with ownerOf /
+  //   isForeignWave / assertOwnWave (F-207). Insertion-order iteration fired the
+  //   shorter prefix first on overlaps (wave- vs wave-extra-) with the wrong remedy.
+  const sorted = [...allPrefixes].sort((x, y) => y.length - x.length);
+  for (const prefix of sorted) {
     if (prefix === binding.wavePrefix) continue;
     if (a.startsWith(prefix)) {
       throw new Error(

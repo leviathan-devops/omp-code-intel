@@ -152,6 +152,12 @@ export async function callWithStallDetection(
     }
     const decoder = new TextDecoder();
     let full = '';
+    // ★ F-705 FIX (2026-09-24): the interval callback and clearInterval are not
+    //   atomic — a callback queued BEFORE the loop's `done` break could fire in
+    //   the gap before clearInterval, set `dead`, and turn a COMPLETE stream
+    //   into a false STALL. `streamComplete` gates the verdict: dead + complete
+    //   is a late timer, never a stall.
+    let streamComplete = false;
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -160,6 +166,7 @@ export async function callWithStallDetection(
         full += decoder.decode(value, { stream: true });
         if (dead) break;
       }
+      streamComplete = !dead;
     } catch {
       // ★ F-405 FIX (2026-09-24): reader.read() may throw after abort — fall through
       //   to finally for deterministic cleanup (the old code leaked the underlying
@@ -169,7 +176,7 @@ export async function callWithStallDetection(
     }
     clearInterval(stallTimer);
 
-    if (dead) return { ok: false, reason: `STALL: no tokens for ${stallMs / 1000}s` };
+    if (dead && !streamComplete) return { ok: false, reason: `STALL: no tokens for ${stallMs / 1000}s` };
 
     // parse the completion from the accumulated stream
     try {

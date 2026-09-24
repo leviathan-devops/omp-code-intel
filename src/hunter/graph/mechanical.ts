@@ -27,11 +27,18 @@ function lineOf(sf: tsImport.SourceFile, node: tsImport.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 }
 
+// ★ F-700 FIX (2026-09-24): cache the split lines per SourceFile — the old form
+//   re-split the FULL file text on EVERY node (O(fileSize × numNodes) per file).
+//   WeakMap keyed on the SourceFile object: no lifetime leak, same-file calls share.
+const evidenceLineCache = new WeakMap<tsImport.SourceFile, string[]>();
 function evidenceQuoteForNode(sf: tsImport.SourceFile, node: tsImport.Node): string {
   const line = lineOf(sf, node);
   try {
-    const text = sf.getFullText();
-    const lines = text.split('\n');
+    let lines = evidenceLineCache.get(sf);
+    if (!lines) {
+      lines = sf.getFullText().split('\n');
+      evidenceLineCache.set(sf, lines);
+    }
     const raw = lines[line - 1] ?? node.getText(sf);
     const trimmed = raw.trim();
     if (trimmed.length > 0) return trimmed.slice(0, 500);

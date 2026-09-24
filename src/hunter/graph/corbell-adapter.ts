@@ -995,6 +995,12 @@ export class CorbellAdapter implements GraphAdapter {
   }
 
   update(nodes: GraphNode[], edges: GraphEdge[]): void {
+    // ★ F-730 FIX (2026-09-24): update() merged rows into the cache but left
+    //   `built=false`, so a query after update()-before-build() threw "call
+    //   build() first" despite holding data. The merge IS a build of the
+    //   cache — mark built when the merged cache is non-empty. The guard is
+    //   conditional (not unconditional) so an empty update on a fresh adapter
+    //   keeps the loud ensureBuilt() refusal instead of silently answering empty.
     const byId = new Map(this.cachedNodes.map((n) => [n.id, n] as const));
     // THE FIELD-GUARDED MERGE (the delegation-parity refinement — the ix twin
     // carries the same clause): a fresh row's undefined field never clobbers
@@ -1008,5 +1014,6 @@ export class CorbellAdapter implements GraphAdapter {
     const byEdge = new Map(this.cachedEdges.map((e) => [edgeKey(e), e] as const));
     for (const e of edges) byEdge.set(edgeKey(e), e);
     this.cachedEdges = [...byEdge.values()];
+    if (this.cachedNodes.length > 0 || this.cachedEdges.length > 0) this.built = true;
   }
 }

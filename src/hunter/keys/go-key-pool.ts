@@ -168,8 +168,15 @@ function db(sessionId?: string): Database {
   const openFlags = fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW;
   try {
     fs.closeSync(fs.openSync(want, openFlags, 0o600));
-  } catch (e) {
-    const c = e as NodeJS.ErrnoException;
+  } catch (e: unknown) {
+    // ★ F-702 FIX (2026-09-24): narrow BEFORE reading .code — the bare
+    //   `as NodeJS.ErrnoException` cast read .code off any throw shape (a
+    //   string/null throw made .code undefined and skipped the ELOOP plant
+    //   refusal). Non-object throws fail CLOSED (rethrow, never open the DB).
+    const c: { code?: unknown } =
+      e !== null && typeof e === 'object' && 'code' in e
+        ? e as { code?: unknown }
+        : {};
     if (c.code === 'ELOOP') {
       // W20: ELOOP = pre-planted SYMLINK — refuse loudly, never chmod/open
       // through it (the old branch hardened the PLANT's target).
@@ -496,7 +503,24 @@ export function goEarliestDeadIdx(sessionId?: string, now: number = Date.now()):
   try {
     const rows = db(sessionId).query('SELECT idx, keyid, dead_until FROM go_key_pool').all() as Array<{ idx: number; keyid: string | null; dead_until: number }>;
     const { byKeyid, byIdx } = mergedDeadViews(rows);
+    // ★ F-701 FIX (2026-09-24): `dropped` was declared, returned, but NEVER
+    //   incremented — always 0, so any `dropped > 0` degraded-state check could
+    //   never fire. It now counts rows SUPERSEDED by the keyid-MAX merge: stale
+    //   duplicate rows the merged view discarded (same grouping as mergedDeadViews).
     let dropped = 0;
+    {
+      const kidCounts = new Map<string, number>();
+      const idxCounts = new Map<number, number>();
+      for (const r of rows) {
+        if (typeof r.keyid === 'string' && r.keyid.length > 0) {
+          kidCounts.set(r.keyid, (kidCounts.get(r.keyid) ?? 0) + 1);
+        } else if (typeof r.idx === 'number') {
+          idxCounts.set(r.idx, (idxCounts.get(r.idx) ?? 0) + 1);
+        }
+      }
+      for (const n of kidCounts.values()) if (n > 1) dropped += n - 1;
+      for (const n of idxCounts.values()) if (n > 1) dropped += n - 1;
+    }
     let best = -1;
     let bestUntil = Number.MAX_SAFE_INTEGER;
     let seen = 0;

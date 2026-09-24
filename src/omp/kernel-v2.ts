@@ -302,7 +302,10 @@ export function worstOutcome(
  *  explainable and a test can assert the stage ran. */
 export function runKernelV2(input: KernelInput): KernelRun {
   const stages: StageRecord[] = [];
-  const detectors = input.detectors ?? DEFAULT_DETECTORS;
+  // ★ F-708 FIX (2026-09-24): `?? DEFAULT_DETECTORS` let an EXPLICIT [] through —
+  //   classifyByDetectors([]) yields [] and worstOutcome throws a bare sync Error
+  //   out of a function promising a structured KernelRun. Empty reads as absent.
+  const detectors = input.detectors?.length ? input.detectors : DEFAULT_DETECTORS;
 
   // STAGE 0 — PREFLIGHT. The whole stack or nothing.
   const pre = preflight(input.layers);

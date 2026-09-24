@@ -27,7 +27,7 @@ import {
   TEMPLATE_LIBRARY, compileTemplate, LexiconError, sha256,
   type CompiledPredicate, type PredicateTemplate,
 } from './templates.ts';
-import { extractRuleCards, corpusUnreadable, type RuleCard } from './rule-card.ts';
+import { extractRuleCards, extractRuleCardsAsync, corpusUnreadable, type RuleCard } from './rule-card.ts';
 import { writeBattery, writeRuleCards, loadBattery } from './compiled-store.ts';
 
 // ---------------------------------------------------------------------------
@@ -224,7 +224,10 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
       return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
     }
   }
-  const cards = extractRuleCards(profile.rules.corpus);
+  // ★ F-704 FIX (2026-09-24): the async extractor — the sync readFileSync path
+  // ★ blocked the event loop inside this async compile (the F-146 fix's purpose
+  // ★ defeated). batteryName (sync, batteryVersion callers) keeps the sync twin.
+  const cards = await extractRuleCardsAsync(profile.rules.corpus);
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
     // ★ F-147 FIX (2026-09-24): no half-cache — writeRuleCards and writeBattery each commit internally (no nesting), so a writeBattery failure after writeRuleCards succeeded cleans up the orphaned cards and throws named.

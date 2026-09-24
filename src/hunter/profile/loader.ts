@@ -277,7 +277,20 @@ function parseFlowMap(inner: string, line: number): Record<string, unknown> {
   return obj;
 }
 
-/** Find the first `:` outside quotes/brackets/braces in a flow string. */
+// ★ F-706 FIX (2026-09-24): per the YAML spec (and this parser's own intent), a
+// ★ colon is a key–value separator ONLY when followed by whitespace/EOL (flow
+// ★ context additionally allows `,`, `}`, `]`). indexOf(':') found ANY colon, so
+// ★ `foo:bar` parsed as key `foo` = `bar` — silent corruption for dotted binding
+// ★ keys like `p1.fallback:type`. A non-separator colon is scalar content.
+function isKeyColon(s: string, ci: number, flow = false): boolean {
+  if (ci < 0 || ci >= s.length) return false;
+  if (ci + 1 >= s.length) return true;
+  const next = s[ci + 1];
+  if (next === ' ' || next === '\t') return true;
+  if (flow && (next === ',' || next === '}' || next === ']')) return true;
+  return false;
+}
+
 function findTopLevelColon(s: string): number {
   let depth = 0;
   let q: string | null = null;
@@ -287,7 +300,7 @@ function findTopLevelColon(s: string): number {
       if (c === "'" || c === '"') q = c;
       else if (c === '{' || c === '[') depth++;
       else if (c === '}' || c === ']') depth--;
-      else if (c === ':' && depth === 0) return i;
+      else if (c === ':' && depth === 0 && isKeyColon(s, i, true)) return i;
     } else if (q === "'") {
       if (c === "'") { if (s[i + 1] === "'") i++; else q = null; }
     } else {
@@ -341,6 +354,10 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
       if (l.text.startsWith('-')) yamlErr(keyPath, l.text, l.line, 'a sequence item cannot appear where a mapping key is expected');
       const ci = l.text.indexOf(':');
       if (ci < 0) yamlErr(keyPath, l.text, l.line, 'expected "key: value"');
+      // ★ F-706 FIX (2026-09-24): a colon not followed by space/EOL is scalar
+      // ★ content (`foo:bar` is a plain scalar) — and a bare scalar is not a
+      // ★ mapping line. Fail closed, never mis-split into key `foo` = `bar`.
+      if (!isKeyColon(l.text, ci)) yamlErr(keyPath, l.text, l.line, 'expected "key: value" (a ":" must be followed by a space — "foo:bar" is a plain scalar, not a mapping)');
       const key = l.text.slice(0, ci).trim();
       if (key === '') yamlErr(keyPath, l.text, l.line, 'empty mapping key');
       if (/["'{}[\]\s]/.test(key)) yamlErr(keyPath, l.text, l.line, `key "${key}" is not a plain scalar key`);
@@ -376,8 +393,11 @@ export function parseYamlSubset(raw: string): Record<string, unknown> {
       if (item === '') yamlErr(keyPath, l.text, l.line, 'a sequence item must have an inline value in this subset');
 
       // a block-map item: "- key: value" (the stages form — continuation keys at a deeper indent)
+      // ★ F-706 FIX (2026-09-24): "- foo:bar" is a scalar item, not a map item —
+      // ★ the colon must be a separator or the item falls through to parseFlowValue
+      // ★ (which fail-closes on unquoted colons with a named error).
       const ci = item.indexOf(':');
-      const isMapItem = ci > 0 && !/^[{[]/.test(item) && !(item.startsWith("'") || item.startsWith('"'));
+      const isMapItem = ci > 0 && isKeyColon(item, ci) && !/^[{[]/.test(item) && !(item.startsWith("'") || item.startsWith('"'));
       if (isMapItem) {
         const key = item.slice(0, ci).trim();
         if (key === '' || /["'{}[\]\s]/.test(key)) yamlErr(keyPath, l.text, l.line, `sequence map key "${key}" is not a plain key`);
@@ -525,6 +545,17 @@ export function loadProfile(profilePath: string): ProjectProfile {
   //   on missing (→ false, the CORPUS_MISSING/HISTORY_MISSING contract holds) and
   //   resolves symlinks for the containment check. (A writer racing the check already
   //   owns the project root — and the profile content — so nothing untrusted is gained.)
+  // ★ F-705 FIX (2026-09-24): THE THREAT MODEL, stated so future maintainers do not
+  //   "fix" this into a slower same-guarantee shape. (1) resolvedRoot is resolved
+  //   ONCE above (line ~509) and reused here — the root side of the comparison
+  //   never re-stats, so no root/entry swap window exists. (2) The residual window
+  //   (entry symlink swapped between this realpathSync and the later read) requires
+  //   WRITE access to the project root — and a writer with that access already owns
+  //   the profile.yaml content itself, so no privilege is gained by racing the
+  //   check; the profile is trusted input, the traversal guard is defense-in-depth
+  //   against MISTAKES (a misplaced ../ in a hand-written corpus path), not against
+  //   a malicious root owner. (3) Missing paths resolve to FALSE (fail-closed into
+  //   the named CORPUS_MISSING/HISTORY_MISSING), never to an assumed-contained.
   const contained = (entry: string): boolean => {
     const abs = path.resolve(resolvedRoot, entry);
     let real: string;

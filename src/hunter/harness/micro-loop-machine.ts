@@ -403,7 +403,13 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
       sub.unsubscribe();
       // ★ F-408: resolve any pending done() promise BEFORE teardown
       if (pendingSettle !== null) { pendingSettle(); pendingSettle = null; }
-      for (const d of handleDisposables.splice(0)) d.unsubscribe();
+      // ★ F-700 FIX (2026-09-24): the disposal loop was unguarded AND settle() left
+      // ★ already-unsubscribed subs in this list (double-unsubscribe — LOUD crash inside
+      // ★ teardown if a subscription impl is not idempotent). Per-element guard: one bad
+      // ★ unsubscribe is a named error, never a teardown abort for the rest.
+      for (const d of handleDisposables.splice(0)) {
+        try { d.unsubscribe(); } catch (e) { console.error('[micro-loop] disposable unsubscribe failed:', e instanceof Error ? e.message : String(e)); }
+      }
       // ★ F-501 FIX (2026-09-24): the map phase transfers the open DbClient to the micro-loop
       // ★ (map.ts F-1) but nothing ever closed it - the SQLite WAL handle leaked on every run.
       // ★ stop() owns the teardown: close() is idempotent (SharedDb guards on open), LOUD on
@@ -442,13 +448,14 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
           pendingSettle = null;
           sub2.unsubscribe();
           sub3.unsubscribe();
+          // ★ F-700 FIX (2026-09-24): settle() unsubscribed sub2/sub3 but left them in
+          // ★ handleDisposables, so stop() unsubscribed them a SECOND time. Remove them
+          // ★ here — the stop() loop now only ever sees live subscriptions.
+          for (let i = handleDisposables.length - 1; i >= 0; i--) {
+            if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3) handleDisposables.splice(i, 1);
+          }
           resolve();
         }
-        pendingSettle = settle;
-        // THE OWNED TELEMETRY (the R19 orphaned-subscription fix): the progress
-        // subscriptions ride the run scope and tear down with it — registered
-        // on the handle's disposables, never void-dropped.
-        handleDisposables.push(sub2, sub3);
       });
       return pendingDone;
     },

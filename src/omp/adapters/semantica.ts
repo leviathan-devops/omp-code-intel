@@ -22,12 +22,26 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
   //   path does not exist yet realpathSync throws and the unresolved form stands
   //   (the probe reports DOWN, never throws at construction).
   let resolvedRoot: string;
+  // ★ F-706 FIX (2026-09-24): the catch fallback kept the UNRESOLVED path when
+  //   scopeRoot did not exist yet — a symlink planted in the interim sailed
+  //   through path.join silently. The intent-to-validate rides `needsRealpathCheck`
+  //   and facts()/up() re-canonicalize at USE time (when the path exists).
+  let needsRealpathCheck = false;
   try {
     resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
   } catch {
     resolvedRoot = path.resolve(scopeRoot);
+    needsRealpathCheck = true;
   }
-  const kgPath = path.join(resolvedRoot, ".omp/graph-intelligence/layers/semantica/kg.json");
+  const canonRoot = (): string => {
+    if (!needsRealpathCheck) return resolvedRoot;
+    try {
+      resolvedRoot = fs.realpathSync(path.resolve(scopeRoot));
+      needsRealpathCheck = false;
+    } catch { /* still absent — keep the unresolved form, probe reports DOWN */ }
+    return resolvedRoot;
+  };
+  const kgPathFor = (): string => path.join(canonRoot(), ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",
     rung: "decision",
@@ -36,14 +50,17 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
     // ★ AUDIT-CLASS FIX (the dir-vs-file hole): the first version probed the DIRECTORY, so
     //   a dir present with no kg.json read UP and then reported UNCONSUMED — a wiring-gap
     //   label over a missing substrate. The probe now asks for the FILE it actually reads.
-    up: () => probePath(kgPath, true),
+    // ★ F-706 (2026-09-24): resolve at USE time — a symlink planted after
+    //   construction (when needsRealpathCheck was latched) is caught here.
+    up: () => probePath(kgPathFor(), true),
     facts: (subject: string): LayerFact[] => {
       // ★ F-28 FIX (2026-09-24): existsSync-then-read is a TOCTOU pair — read directly, name the failure once.
+      const liveKgPath = kgPathFor();
       let raw: string;
       try {
-        raw = fs.readFileSync(kgPath, "utf8");
+        raw = fs.readFileSync(liveKgPath, "utf8");
       } catch (e) {
-        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent/unreadable at ${kgPath} — ${(e as NodeJS.ErrnoException).code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent/unreadable at ${liveKgPath} — ${(e as NodeJS.ErrnoException).code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
       }
       let kg: SemanticaKg;
       try {
@@ -57,7 +74,7 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
         rung: "decision" as const,
         subject,
         value: { type: e.type, name: e.name },
-        source: `${kgPath}#entities(${e.id ?? e.name ?? "?"})`,
+        source: `${liveKgPath}#entities(${e.id ?? e.name ?? "?"})`,
       }));
     },
   };

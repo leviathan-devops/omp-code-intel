@@ -195,10 +195,17 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
     // ★ F-530 FIX (2026-09-24): the TSG-absent throw carried the JEV code CLAIM_FW_JEV_NO_KEY — a TSG-deployment failure misdirected to the JEV key path. The code now names the TSG load unit; the JEV judge keeps GI_JEV_DOWN.
     if (!tsgDecl) throw Object.assign(new Error("TSG is not registered"), { code: "CLAIM_FW_TSG_DOWN" });
     requireUp(tsgDecl);
-  } catch (e) {
+  } catch (e: unknown) {
+    // ★ F-707 FIX (2026-09-24): `(e as { code?: string }).code ?? fallback` throws
+    //   a SECONDARY TypeError when e is null/undefined (the ?? never runs — the
+    //   property read itself throws), masking the bind failure. Guarded extract,
+    //   same shape as the work-layer catch (F-406).
+    const code = e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
+      ? String((e as { code?: unknown }).code)
+      : "CLAIM_FW_TSG_DOWN";
     return {
       verdict: "FAIL_CLOSED",
-      code: (e as { code?: string }).code ?? "CLAIM_FW_TSG_DOWN",
+      code,
       reason: "close layer could not bind evidence (fail-closed)",
       evidence: e instanceof Error ? e.message : String(e),
       spans: [],
@@ -246,11 +253,15 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
     const jevCloseDecl = deps.register.find((c) => c.id === "JEV");
     if (!jevCloseDecl) throw Object.assign(new Error("JEV is not registered"), { code: "GI_JEV_DOWN" });
     requireUp(jevCloseDecl);
-  } catch (e) {
-    // ★ F-531 FIX (2026-09-24): (e as Error).message threw a secondary TypeError on a non-Error throw — the decision-path catch now narrows with instanceof (the F-32/F-406 class).
+  } catch (e: unknown) {
+    // ★ F-707 FIX (2026-09-24): same secondary-TypeError class as the bind catch
+    //   above — a null/undefined throw masked the judge failure. Guarded extract.
+    const code = e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
+      ? String((e as { code?: unknown }).code)
+      : "GI_JEV_DOWN";
     return {
       verdict: "FAIL_CLOSED",
-      code: (e as { code?: string }).code ?? "GI_JEV_DOWN",
+      code,
       reason: "the judge is unavailable at close (fail-closed)",
       evidence: e instanceof Error ? e.message : String(e),
       spans,

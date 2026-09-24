@@ -606,7 +606,21 @@ export class CalibrationGate {
       '```',
       '',
     ].join('\n');
-    fs.writeFileSync(file, body);
+    // ★ F-700 FIX (2026-09-24): atomic content landing — the wx claim above reserves N
+    // ★ as an empty file, then this section used to fill it with a non-atomic
+    // ★ writeFileSync: a crash mid-write left a torn/empty CALIBRATION_vN.md phantom
+    // ★ that the record scan counts as data. Content now lands via a same-dir tmp file
+    // ★ (its `.tmp.<pid>.<now>` suffix never matches the CALIBRATION_vN.md record scan,
+    // ★ so a crash leaves only an ignorable tmp) + renameSync, which is atomic on POSIX:
+    // ★ readers see the complete file or (pre-rename) the reserved name — never torn bytes.
+    const tmpFile = `${file}.tmp.${process.pid}.${Date.now()}`;
+    try {
+      fs.writeFileSync(tmpFile, body, { mode: 0o644 });
+      fs.renameSync(tmpFile, file);
+    } catch (e: unknown) {
+      try { fs.unlinkSync(tmpFile); } catch { /* best-effort tmp cleanup */ }
+      throw e;
+    }
   }
 }
 

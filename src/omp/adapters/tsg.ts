@@ -115,8 +115,14 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
         //   wrote it to STDOUT, which execFileSync's message does not include). A named
         //   failure must be DIAGNOSABLE, so the tail of stdout/stderr rides the error.
         const err = e as { message?: string; stdout?: unknown; stderr?: unknown };
-        const out = String(err.stdout ?? "").slice(-400);
-        const errOut = String(err.stderr ?? "").slice(-200);
+        // ★ F-704 FIX (2026-09-24): CLI output rides the error for diagnosability - but if the
+        // CLI ever echoes the key (debug/verbose/server-echoed context), the raw tail would
+        // carry it into logs. Redact exact key occurrences (split/join - the key may hold
+        // regex metacharacters) before the output is surfaced.
+        const redact = (s: string): string =>
+          key !== null && key.length > 0 ? s.split(key).join(key.slice(0, 4) + '...[redacted]') : s;
+        const out = redact(String(err.stdout ?? "").slice(-400));
+        const errOut = redact(String(err.stderr ?? "").slice(-200));
         const detail = [out, errOut].filter((x) => x.length > 0).join(" | ");
         const msg = `${(err.message ?? String(e)).slice(0, 160)}${detail.length > 0 ? ` — CLI output: ${detail}` : ""}`;
         throw new Error(`GI_ENFORCE_TSG: the tsg CLI failed — ${msg}`);

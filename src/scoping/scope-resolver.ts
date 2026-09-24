@@ -135,7 +135,12 @@ export class ScopeResolver {
             return scored;
           }
         }
-      } catch { /* activity read failure → fall through to cwd */ }
+      // ★ F-712 FIX (2026-09-24): the bare catch swallowed EVERYTHING from
+      // ★ readActivity + the scoring pipeline (permission errors, encoding faults,
+      // ★ bad shapes) — a session silently fell back to cwd with no trace. The
+      // ★ fallback stands, but the cause is LOUD at warn (the vanished-cache
+      // ★ warning above sets the precedent).
+      } catch (err) { console.warn(`[scope-resolver] auto-detect failed for session ${sessionId}:`, err); }
     }
     // 4) LAST RESORT — the current dir.
     return this.cwd;

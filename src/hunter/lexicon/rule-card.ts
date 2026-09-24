@@ -18,6 +18,7 @@
 // (content-addressed, no nondeterminism, no timestamps).
 
 import fs from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { SEVERITIES, type Severity } from '../shared/db-canon.ts';
 import { LexiconError } from './templates.ts';
 
@@ -258,20 +259,48 @@ export function extractRuleCards(corpusPaths: string[]): RuleCard[] {
   if (corpusPaths.length === 0) throw corpusEmpty();
   const cards: RuleCard[] = [];
   for (const file of corpusPaths) {
-    const lines = readLinesOrThrow(file);
-    for (let i = 0; i < lines.length; i++) {
-      const lineNo = i + 1;                            // 1-indexed — the anchor is the line the rule was READ from
-      const anchor = `${file}:${lineNo}`;
-      const line = lines[i];
-      if (isBlockquote(line)) {
-        const collected = collectBlockquote(lines, i);
-        cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
-        i = collected.end - 1; // ★ F-1 FIX (2026-09-24): advance past the blockquote; metadata scans from its end.
-      } else if (isQuotedPassage(line)) {
-        cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
-      } else if (isRuleShaped(line)) {
-        cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
-      }
+    cards.push(...cardsFromLines(file, readLinesOrThrow(file)));
+  }
+  return cards;
+}
+
+// ★ F-704 FIX (2026-09-24): compileBattery is async to avoid blocking the event
+// ★ loop (F-146), but it called this module's SYNC readFileSync extractor — the
+// ★ 'async' path still blocked on corpus I/O. The async twin reads with
+// ★ fs/promises; the line→card scan is the ONE shared cardsFromLines core, so
+// ★ the two entry points cannot diverge (same bytes → same cards, K20.3).
+export async function extractRuleCardsAsync(corpusPaths: string[]): Promise<RuleCard[]> {
+  if (corpusPaths.length === 0) throw corpusEmpty();
+  const texts = await Promise.all(corpusPaths.map(async (file) => {
+    let text: string;
+    try {
+      text = await readFile(file, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(file, String(e));
+    }
+    return { file, lines: text.split('\n') };
+  }));
+  // SEQUENTIAL assembly in corpus order — Promise.all resolves out of order;
+  // concatenating in input order keeps the card order deterministic (K20.3).
+  return texts.flatMap(({ file, lines }) => cardsFromLines(file, lines));
+}
+
+/** THE SHARED SCAN CORE — the lines of ONE corpus file → its cards. Pure:
+ *  the same lines always produce the same cards in the same order. */
+function cardsFromLines(file: string, lines: string[]): RuleCard[] {
+  const cards: RuleCard[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const lineNo = i + 1;                            // 1-indexed — the anchor is the line the rule was READ from
+    const anchor = `${file}:${lineNo}`;
+    const line = lines[i];
+    if (isBlockquote(line)) {
+      const collected = collectBlockquote(lines, i);
+      cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
+      i = collected.end - 1; // ★ F-1 FIX (2026-09-24): advance past the blockquote; metadata scans from its end.
+    } else if (isQuotedPassage(line)) {
+      cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
+    } else if (isRuleShaped(line)) {
+      cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
     }
   }
   return cards;

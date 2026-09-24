@@ -228,12 +228,16 @@ export function dedupe(findings: NormalizedFinding[]): NormalizedFinding[] {
 
 /** severityScore — CRIT 4, HIGH 3, MED 2, WARN 1 (the D23 canon). */
 export function severityScore(s: Severity): number {
+  // ★ F-701 FIX (2026-09-24): the default arm silently ranked an out-of-canon severity
+  // ★ as WARN (1) — a validate-but-not-verify hole: this fn is exported, so a future
+  // ★ caller passing garbage gets a plausible rank instead of a loud fail, contradicting
+  // ★ this file's fail-closed law (out-of-canon severity = FINDING_INVALID). Throw loud.
   switch (s) {
     case 'CRIT': return SEVERITY_RANK_CRIT;
     case 'HIGH': return 3;
     case 'MED': return 2;
     case 'WARN': return 1;
-    default: return 1;
+    default: throw findingInvalid('severity', s);
   }
 }
 

@@ -240,6 +240,27 @@ export function gateDecision(d: DriftResult, state: GraphGateSessionState, now: 
   // sample-size artifact, not a pattern. T2 needs ≥3 unverified edits; T3
   // keeps its 5-consecutive rule on top.
   const n = consecutiveUnverified(state, now);
+  // ★ F-620 FIX (2026-09-24): A GATE WHOSE REMEDY IS UNREACHABLE IS AN OUTAGE.
+  //   The blocking tiers demand a ripwire/graph-query call on the edited symbols. When the
+  //   session's cwd is a DIFFERENT tree from the one being edited (a sibling worktree, the
+  //   common subagent case), ripwire returns RIPWIRE_PATH_DENIED / symbol-not-found — so NO
+  //   query can EVER resolve, the drift can NEVER fall, and the agent is permanently blocked
+  //   from work it is authorised to do. This killed two agents (R8High2, R10High2/R10High4)
+  //   whose only escapes were to bypass the gate. THE MECHANICAL SIGNAL: queries were
+  //   ATTEMPTED but NONE ever RESOLVED — the substrate cannot serve this session. In that
+  //   state the gate DEGRADES TO ADVISORY (T1): it still reports the drift, it never blocks.
+  //   (A session with zero attempts is unaffected — the gate arms normally.)
+  const attempts = state.graphQueries.filter((q) => q.tool !== "reset").length;
+  const resolvedAny = state.graphQueries.some((q) => q.resolved === true);
+  const substrateUnreachable = attempts > 0 && !resolvedAny;
+  if (substrateUnreachable && d.drift >= TIER_T1_CUT) {
+    state.gateState = "WARNING";
+    return {
+      tier: "T1",
+      state: "WARNING",
+      advisory: `[GATE STEER] ${d.unverifiedCount} structural edits without a RESOLVABLE graph query — the graph substrate cannot serve this session (${attempts} query attempt(s), 0 resolved). Per the law, record RIPWIRE_MISSING and use grep as the structural map; the gate stays advisory.`,
+    };
+  }
   if (d.drift >= TIER_T3_CUT && n >= TIER_T3_MIN_CONSECUTIVE) {
     state.gateState = "HARD_STOP";
     return {

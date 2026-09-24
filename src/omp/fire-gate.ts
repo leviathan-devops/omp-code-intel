@@ -746,14 +746,34 @@ export interface Advisory {
 }
 
 // ★ F-40 FIX (2026-09-24): substring matching fired on paths merely CONTAINING a command name (`farm/rm-logs` read as `rm`) and MISSED real ones (`rm/log` — `/` was neither a boundary nor a delimiter). Commands match only as whole `/`-delimited tokens; flags keep their substring form.
+// ★ F-708 FIX (2026-09-24): the F-40 regex treated `/` as a boundary on BOTH
+// ★ sides, so EVERY slash-delimited path segment read as a command token —
+// ★ `edit /opt/kill/process.txt` classified `destructive` while the doc comment
+// ★ claimed it did not. A command name now matches only as the FIRST or LAST
+// ★ segment of a shell word: `rm -rf /` (rm first), `rm/log` (rm first), and
+// ★ `/sbin/shutdown` (shutdown last) match; `/opt/kill/process.txt`
+// ★ (opt…process.txt) and `farm/rm-logs` (farm…rm-logs) do not. The
+// ★ previously-declared-but-unused DESTRUCTIVE_COMMANDS Set is the vocabulary
+// ★ (the run-8 dead-code note closes — the Set is consumed, the regex retired).
+// ★ Fail-safe direction kept: this is an ADVISORY (never blocks), and a
+// ★ relative `kill/x` still matches on its first segment.
 const DESTRUCTIVE_COMMANDS = new Set(["rm", "rmdir", "dd", "mkfs", "shutdown", "reboot", "kill", "pkill", "drop", "truncate"]);
 const DESTRUCTIVE_FLAG = /--force|--hard|-rf\b|:\s*>|>\s*\/dev\/sd/;
-/** Whole-token test: `farm/rm-logs` tokenizes to `rm-logs` (no match); `rm -rf /` carries `rm` (match). Case-insensitive. */
-const DESTRUCTIVE_TOKEN = /(?:^|[\s"'\\;:|&/])(rm|rmdir|dd|mkfs|shutdown|reboot|kill|pkill|drop|truncate)(?:$|[\s"'\\;:|&/])/i;
-/** Whole-token test: path components no longer produce false matches (`/opt/kill/process.txt`), but real command tokens still match even with adjacent slashes or quotes. Case-insensitive. */
+/** Command-position test: the first/last `/`-segment of each shell word is looked
+ *  up in DESTRUCTIVE_COMMANDS (`farm/rm-logs` → farm…rm-logs, no match;
+ *  `/opt/kill/process.txt` → opt…process.txt, no match; `rm -rf /` → rm, match).
+ *  Case-insensitive. */
 export function hasDestructiveToken(probe: string): boolean {
   if (DESTRUCTIVE_FLAG.test(probe)) return true;
-  return DESTRUCTIVE_TOKEN.test(probe);
+  const words = probe.split(/[\s"'\\;:|&]+/).filter(Boolean);
+  for (const word of words) {
+    const segments = word.replace(/^\/+/, "").split(/[/\\]+/).filter(Boolean);
+    if (segments.length === 0) continue;
+    const first = segments[0].toLowerCase();
+    const last = segments[segments.length - 1].toLowerCase();
+    if (DESTRUCTIVE_COMMANDS.has(first) || DESTRUCTIVE_COMMANDS.has(last)) return true;
+  }
+  return false;
 }
 const CLOSE_HINT = /(complete|close|done|finish|ship|finalize|merge)/i;
 

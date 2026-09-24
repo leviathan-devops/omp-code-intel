@@ -125,10 +125,18 @@ export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: stri
  * loud named error, never a silently broken check.
  */
 export function loadBattery(db: DbClient, batteryVersion: string): CompiledPredicate[] {
-  const rows = db.prepare(
+  // ★ F-703 FIX (2026-09-24): finalize the prepared statement — the old one-shot
+  //   `.prepare(...).all(...)` discarded the Statement without finalize(), leaking
+  //   one native handle per call (the F-358 class in writeBattery/writeRuleCards).
+  const stmt = db.prepare(
     'SELECT id,family,template,bindings,verbatim_quote,anchor,severity,check_code,battery_version FROM compiled_predicates WHERE battery_version = ?',
-  ).all(batteryVersion);
-  return rows.map((row) => rehydrate(row));
+  );
+  try {
+    const rows = stmt.all(batteryVersion);
+    return rows.map((row) => rehydrate(row));
+  } finally {
+    try { stmt.finalize(); } catch { /* driver-closed — results already materialized */ }
+  }
 }
 
 function rehydrate(row: Record<string, unknown>): CompiledPredicate {

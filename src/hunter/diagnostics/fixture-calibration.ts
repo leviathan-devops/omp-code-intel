@@ -134,12 +134,21 @@ export function graphFromManifest(nodes: FixtureNodeManifest[]): GraphAdapter {
   }
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the declaredPredicates binding (an
- *  unknown value) is typeof/!== null-guarded before the map assertion. */
-function bindingsMap(v: unknown): Record<string, Record<string, unknown>> {
-  if (v !== undefined && v !== null && typeof v === 'object') {
-    return v as Record<string, Record<string, unknown>>;
+ *  unknown value) is typeof/!== null-guarded before the map assertion.
+ *  ★ F-700 FIX (2026-09-24): the old guard silently returned {} for ANY
+ *  ★ non-object input (undefined/null/arrays) — a missing or malformed
+ *  ★ declaredPredicates section compiled to a ZERO-predicate battery with no
+ *  ★ warning, an empty pass proving nothing. Missing/empty is now a LOUD
+ *  ★ CALIBRATION_INVALID naming the binding label. */
+function bindingsMap(v: unknown, label: string): Record<string, Record<string, unknown>> {
+  if (v === undefined || v === null || typeof v !== 'object' || Array.isArray(v)) {
+    throw new Error(`CALIBRATION_INVALID: ${label} must be a mapping of ruleId → binding (got ${Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v})`);
   }
-  return {};
+  const map = v as Record<string, Record<string, unknown>>;
+  if (Object.keys(map).length === 0) {
+    throw new Error(`CALIBRATION_INVALID: ${label} is an empty object — at least one binding is required`);
+  }
+  return map;
 }
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the severity binding is narrowed by
@@ -151,10 +160,18 @@ function severityFromBinding(v: unknown): 'CRIT' | 'HIGH' | 'MED' | 'WARN' {
   return 'HIGH';
 }
 
-/** Read one fire fixture dir (manifest.json + the source file) → a FireFixture. */
+/** Read one fire fixture dir (manifest.json + the source file) → a FireFixture.
+ *  ★ F-702 FIX (2026-09-24): manifest.sourceFile used to join straight into
+ *  ★ readFileSync — a malicious manifest.json referencing ../../etc/passwd
+ *  ★ read ARBITRARY files. The resolved source must stay inside the fixture
+ *  ★ dir (the loader.ts F-18 containment law, same shape). */
 export function loadFireFixture(dir: string): FireFixture {
   const manifest = asFixture<FireFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'fire manifest');
-  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');
+  const resolvedSource = path.resolve(dir, manifest.sourceFile);
+  if (resolvedSource !== path.resolve(dir) && !resolvedSource.startsWith(path.resolve(dir) + path.sep)) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory`);
+  }
+  const source = fs.readFileSync(resolvedSource, 'utf8');
   if (!manifest.ruleId || !manifest.file || !manifest.line) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} carries an empty ruleId/file/line anchor`);
   }
@@ -168,10 +185,16 @@ export function loadFireFixture(dir: string): FireFixture {
   };
 }
 
-/** Read one golden fixture dir (manifest.json + the source file) → a GoldenFixture. */
+/** Read one golden fixture dir (manifest.json + the source file) → a GoldenFixture.
+ *  ★ F-702 FIX (2026-09-24): same traversal containment as loadFireFixture —
+ *  ★ the resolved source must stay inside the fixture dir. */
 export function loadGoldenFixture(dir: string): GoldenFixture {
   const manifest = asFixture<GoldenFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'golden manifest');
-  const source = fs.readFileSync(path.join(dir, manifest.sourceFile), 'utf8');
+  const resolvedSource = path.resolve(dir, manifest.sourceFile);
+  if (resolvedSource !== path.resolve(dir) && !resolvedSource.startsWith(path.resolve(dir) + path.sep)) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory`);
+  }
+  const source = fs.readFileSync(resolvedSource, 'utf8');
   if (!manifest.anchor || !manifest.file) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} carries an empty anchor/file`);
   }
@@ -259,7 +282,8 @@ export function buildFixtureProfile(fixtureProfileDir: string): ProjectProfile {
  *  compiler's own compileDeclared with the ruleId preserved, so the mutation
  *  test is closed-loop: the fire fixture's ruleId === the battery predicate's id. */
 export async function compileFixtureBattery(profile: ProjectProfile): Promise<CompiledPredicate[]> {
-  const declared = bindingsMap(profile.rules.bindings['declaredPredicates']);
+  // ★ F-700 FIX (2026-09-24): the label rides the call so the loud error names the binding.
+  const declared = bindingsMap(profile.rules.bindings['declaredPredicates'], 'declaredPredicates');
   const battery: CompiledPredicate[] = [];
   for (const [ruleId, binding] of Object.entries(declared)) {
     const templateId = String(binding['template'] ?? '');
@@ -293,14 +317,6 @@ export function loadFixtureProfile(fixtureProfileDir: string): { profile: Projec
   }
   return { profile: buildFixtureProfile(fixtureProfileDir), profileFromDisk: false };
 }
-
-/** Assemble the full fixture load: the profile + the fire/golden fixtures. */
-export function loadFixtureProfileFixtures(fixtureProfileDir: string): FixtureLoadResult {
-  const { profile, profileFromDisk } = loadFixtureProfile(fixtureProfileDir);
-  const fixtures = loadCalibrationFixtures(fixtureProfileDir);
-  return { profile, fixtures, fixtureProfileDir, profileFromDisk };
-}
-
 /** THE RUN PATH — runCalibration(profile, fixtures) over the fixture dir,
  *  writing the CALIBRATION_vN.md record at the fixture-profile dir (or the
  *  supplied recordPath). Dry-run by default (D28 — the gate is born OFF; the
@@ -313,8 +329,25 @@ export async function runFixtureCalibration(
   opts: { recordPath?: string; dryRun?: boolean; battery?: CompiledPredicate[] } = {},
 ): Promise<CalibrationResult> {
   try {
-    const { profile, fixtures } = loadFixtureProfileFixtures(fixtureProfileDir);
+    // ★ F-701b FIX (2026-09-24): `loadFixtureProfileFixtures` does not exist — the real
+    //   helpers are `loadFixtureProfile` (the profile) and `loadCalibrationFixtures` (the
+    //   fire/golden dirs). Composed here so the closed-loop check below has both.
+    const { profile } = loadFixtureProfile(fixtureProfileDir);
+    const fixtures = loadCalibrationFixtures(fixtureProfileDir);
     const battery = opts.battery ?? (await compileFixtureBattery(profile));
+    // ★ F-701 FIX (2026-09-24): the CLOSED-LOOP invariant (C26) — every fire
+    // ★ fixture's ruleId must name a compiled battery predicate. The battery
+    // ★ stamps declared ruleIds and the fixtures assemble independently, so a
+    // ★ renamed key in profile.yaml used to run the calibration against the
+    // ★ WRONG (or no) predicate with no complaint. A dangling ruleId is LOUD.
+    const batteryIds = new Set(battery.map((p) => p.id));
+    for (const fire of fixtures.fire) {
+      if (!batteryIds.has(fire.ruleId)) {
+        throw new Error(
+          `CLOSED_LOOP_BROKEN: fire fixture ruleId '${fire.ruleId}' matches no battery predicate id [${[...batteryIds].join(', ')}]`
+        );
+      }
+    }
     const recordPath = opts.recordPath ?? fixtureProfileDir;
     return runCalibration(profile, fixtures, {
       battery,

@@ -51,7 +51,11 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
         db.exec("COMMIT;");
       } catch (e) {
         try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
-        throw new Error(`GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)})`);
+        // ★ F-711 FIX (2026-09-24): the corbell data already committed - a meta-row failure must
+        // DEGRADE, not throw past a PopulateResult-typed function (no live caller catches
+        // GI_META_WRITE_FAILED; it escaped as an uncaught exception). LOUD on stderr, honest
+        // success for the data that did land.
+        console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
       }
     } finally {
       db.close();

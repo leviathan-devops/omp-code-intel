@@ -178978,7 +178978,7 @@ var resolveRegistryPath = makeDbPath({
 function giRegistryPath() {
   if (!process.env.GI_OMP_DB_DIR) {
     const argv1 = process.argv[1] ?? "";
-    const inTestContext = process.env.BUN_TEST === "1" || argv1.includes("/tests/st-");
+    const inTestContext = process.env.BUN_TEST != null || process.env.BUN_TEST_PID != null || argv1.includes("/tests/st-");
     if (inTestContext) {
       return path5.join(os3.tmpdir(), "gi-omp-registry-test.sqlite");
     }
@@ -178994,7 +178994,7 @@ function openGiRegistry() {
 }
 function upsertGiSession(row) {
   openGiRegistry();
-  upsertRow("gi_sessions", "session_id", row.sessionId, "{}", {
+  upsertRow("gi_sessions", "session_id", row.sessionId, row.data ?? "{}", {
     scope_root: row.scopeRoot,
     store_path: row.storePath,
     opened_at: new Date().toISOString()
@@ -179317,6 +179317,17 @@ function consecutiveUnverified(state, now = Date.now()) {
 }
 function gateDecision(d, state, now = Date.now()) {
   const n = consecutiveUnverified(state, now);
+  const attempts = state.graphQueries.filter((q) => q.tool !== "reset").length;
+  const resolvedAny = state.graphQueries.some((q) => q.resolved === true);
+  const substrateUnreachable = attempts > 0 && !resolvedAny;
+  if (substrateUnreachable && d.drift >= TIER_T1_CUT) {
+    state.gateState = "WARNING";
+    return {
+      tier: "T1",
+      state: "WARNING",
+      advisory: `[GATE STEER] ${d.unverifiedCount} structural edits without a RESOLVABLE graph query \u2014 the graph substrate cannot serve this session (${attempts} query attempt(s), 0 resolved). Per the law, record RIPWIRE_MISSING and use grep as the structural map; the gate stays advisory.`
+    };
+  }
   if (d.drift >= TIER_T3_CUT && n >= TIER_T3_MIN_CONSECUTIVE) {
     state.gateState = "HARD_STOP";
     return {
@@ -180202,6 +180213,8 @@ class CorbellAdapter {
     for (const e of edges)
       byEdge.set(edgeKey(e), e);
     this.cachedEdges = [...byEdge.values()];
+    if (this.cachedNodes.length > 0 || this.cachedEdges.length > 0)
+      this.built = true;
   }
 }
 
@@ -181506,7 +181519,7 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
         try {
           db.exec("ROLLBACK;");
         } catch {}
-        throw new Error(`GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)})`);
+        console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
       }
     } finally {
       db.close();
@@ -182645,6 +182658,18 @@ function parseFlowMap(inner, line) {
   }
   return obj;
 }
+function isKeyColon(s, ci, flow = false) {
+  if (ci < 0 || ci >= s.length)
+    return false;
+  if (ci + 1 >= s.length)
+    return true;
+  const next = s[ci + 1];
+  if (next === " " || next === "\t")
+    return true;
+  if (flow && (next === "," || next === "}" || next === "]"))
+    return true;
+  return false;
+}
 function findTopLevelColon(s) {
   let depth = 0;
   let q = null;
@@ -182657,7 +182682,7 @@ function findTopLevelColon(s) {
         depth++;
       else if (c === "}" || c === "]")
         depth--;
-      else if (c === ":" && depth === 0)
+      else if (c === ":" && depth === 0 && isKeyColon(s, i, true))
         return i;
     } else if (q === "'") {
       if (c === "'") {
@@ -182717,6 +182742,8 @@ function parseYamlSubset(raw) {
       const ci = l.text.indexOf(":");
       if (ci < 0)
         yamlErr(keyPath, l.text, l.line, 'expected "key: value"');
+      if (!isKeyColon(l.text, ci))
+        yamlErr(keyPath, l.text, l.line, 'expected "key: value" (a ":" must be followed by a space \u2014 "foo:bar" is a plain scalar, not a mapping)');
       const key = l.text.slice(0, ci).trim();
       if (key === "")
         yamlErr(keyPath, l.text, l.line, "empty mapping key");
@@ -182756,7 +182783,7 @@ function parseYamlSubset(raw) {
       if (item === "")
         yamlErr(keyPath, l.text, l.line, "a sequence item must have an inline value in this subset");
       const ci = item.indexOf(":");
-      const isMapItem = ci > 0 && !/^[{[]/.test(item) && !(item.startsWith("'") || item.startsWith('"'));
+      const isMapItem = ci > 0 && isKeyColon(item, ci) && !/^[{[]/.test(item) && !(item.startsWith("'") || item.startsWith('"'));
       if (isMapItem) {
         const key = item.slice(0, ci).trim();
         if (key === "" || /["'{}[\]\s]/.test(key))
@@ -182972,7 +182999,7 @@ function bindSeverity(bindings) {
 function bindStringArray(bindings, key) {
   const v = bindings[key];
   if (Array.isArray(v)) {
-    return v;
+    return v.filter((el) => typeof el === "string");
   }
   return [];
 }
@@ -183811,7 +183838,7 @@ function severityScore(s) {
     case "WARN":
       return 1;
     default:
-      return 1;
+      throw findingInvalid("severity", s);
   }
 }
 function violationFrequencies(profile, ruleIds) {
@@ -184114,10 +184141,11 @@ function assertMappableLines(buildResult) {
 import path21 from "path";
 
 // src/hunter/lexicon/compiler.ts
-import { readFile } from "fs/promises";
+import { readFile as readFile2 } from "fs/promises";
 
 // src/hunter/lexicon/rule-card.ts
 import fs17 from "fs";
+import { readFile } from "fs/promises";
 function corpusUnreadable(corpusPath, detail) {
   return new LexiconError("CORPUS_UNREADABLE", `CORPUS_UNREADABLE: path=${corpusPath} detail=${detail} (a corpus path that cannot be read is a loud named error, never a silent skip)`);
 }
@@ -184240,20 +184268,39 @@ function extractRuleCards(corpusPaths) {
     throw corpusEmpty();
   const cards = [];
   for (const file of corpusPaths) {
-    const lines = readLinesOrThrow(file);
-    for (let i = 0;i < lines.length; i++) {
-      const lineNo = i + 1;
-      const anchor = `${file}:${lineNo}`;
-      const line = lines[i];
-      if (isBlockquote(line)) {
-        const collected = collectBlockquote(lines, i);
-        cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
-        i = collected.end - 1;
-      } else if (isQuotedPassage(line)) {
-        cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
-      } else if (isRuleShaped(line)) {
-        cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
-      }
+    cards.push(...cardsFromLines(file, readLinesOrThrow(file)));
+  }
+  return cards;
+}
+async function extractRuleCardsAsync(corpusPaths) {
+  if (corpusPaths.length === 0)
+    throw corpusEmpty();
+  const texts = await Promise.all(corpusPaths.map(async (file) => {
+    let text;
+    try {
+      text = await readFile(file, "utf8");
+    } catch (e) {
+      throw corpusUnreadable(file, String(e));
+    }
+    return { file, lines: text.split(`
+`) };
+  }));
+  return texts.flatMap(({ file, lines }) => cardsFromLines(file, lines));
+}
+function cardsFromLines(file, lines) {
+  const cards = [];
+  for (let i = 0;i < lines.length; i++) {
+    const lineNo = i + 1;
+    const anchor = `${file}:${lineNo}`;
+    const line = lines[i];
+    if (isBlockquote(line)) {
+      const collected = collectBlockquote(lines, i);
+      cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
+      i = collected.end - 1;
+    } else if (isQuotedPassage(line)) {
+      cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
+    } else if (isRuleShaped(line)) {
+      cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
     }
   }
   return cards;
@@ -184330,8 +184377,15 @@ function writeRuleCards(db, cards, corpusHash) {
   }
 }
 function loadBattery(db, batteryVersion) {
-  const rows = db.prepare("SELECT id,family,template,bindings,verbatim_quote,anchor,severity,check_code,battery_version FROM compiled_predicates WHERE battery_version = ?").all(batteryVersion);
-  return rows.map((row) => rehydrate(row));
+  const stmt = db.prepare("SELECT id,family,template,bindings,verbatim_quote,anchor,severity,check_code,battery_version FROM compiled_predicates WHERE battery_version = ?");
+  try {
+    const rows = stmt.all(batteryVersion);
+    return rows.map((row) => rehydrate(row));
+  } finally {
+    try {
+      stmt.finalize();
+    } catch {}
+  }
 }
 function rehydrate(row) {
   let bindings;
@@ -184393,7 +184447,7 @@ async function batteryVersionAsync(profile) {
   const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
     let text;
     try {
-      text = await readFile(p, "utf8");
+      text = await readFile2(p, "utf8");
     } catch (e) {
       throw corpusUnreadable(p, String(e));
     }
@@ -184477,7 +184531,7 @@ async function compileBattery(profile, db) {
       return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
     }
   }
-  const cards = extractRuleCards(profile.rules.corpus);
+  const cards = await extractRuleCardsAsync(profile.rules.corpus);
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
     try {
@@ -184831,7 +184885,16 @@ ${p.verbatimQuote}`).join(`
       ""
     ].join(`
 `);
-    fs18.writeFileSync(file, body);
+    const tmpFile = `${file}.tmp.${process.pid}.${Date.now()}`;
+    try {
+      fs18.writeFileSync(tmpFile, body, { mode: 420 });
+      fs18.renameSync(tmpFile, file);
+    } catch (e) {
+      try {
+        fs18.unlinkSync(tmpFile);
+      } catch {}
+      throw e;
+    }
   }
 }
 async function runCalibration(profile, fixtures, opts = {}) {
@@ -185527,8 +185590,13 @@ function createMicroLoop(options) {
         pendingSettle();
         pendingSettle = null;
       }
-      for (const d of handleDisposables.splice(0))
-        d.unsubscribe();
+      for (const d of handleDisposables.splice(0)) {
+        try {
+          d.unsubscribe();
+        } catch (e) {
+          console.error("[micro-loop] disposable unsubscribe failed:", e instanceof Error ? e.message : String(e));
+        }
+      }
       try {
         snapshot.db?.close();
       } catch (e) {
@@ -185576,10 +185644,12 @@ function createMicroLoop(options) {
           pendingSettle = null;
           sub2.unsubscribe();
           sub3.unsubscribe();
+          for (let i = handleDisposables.length - 1;i >= 0; i--) {
+            if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3)
+              handleDisposables.splice(i, 1);
+          }
           resolve();
         }
-        pendingSettle = settle;
-        handleDisposables.push(sub2, sub3);
       });
       return pendingDone;
     },
@@ -186303,16 +186373,20 @@ function createLayerRegistry() {
       for (const p of byId.values()) {
         try {
           const rawProbe = p.up();
-          if (typeof rawProbe !== "object" || rawProbe === null || rawProbe.up !== true)
+          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof rawProbe.up === "boolean";
+          if (!probeValid || rawProbe.up !== true)
             continue;
           const got = p.facts(subject);
-          if (!Array.isArray(got))
+          if (!Array.isArray(got)) {
+            console.error("[layer-registry] factsFor: consumer " + p.id + " returned non-array facts - see audit GI_LAYER_ERROR:" + p.id);
             continue;
+          }
           for (const f of got) {
             if (f !== null && typeof f === "object" && isAnchored(f))
               out.push(f);
           }
-        } catch {
+        } catch (factsErr) {
+          console.error("[layer-registry] factsFor: consumer " + p.id + " threw mid-query - see audit GI_LAYER_ERROR:" + p.id + ": " + (factsErr instanceof Error ? factsErr.message : String(factsErr)));
           continue;
         }
       }
@@ -186326,6 +186400,7 @@ function createLayerRegistry() {
       const consumed = reports.filter((r) => r.consumed);
       const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
       const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
+      const errors = reports.filter((r) => r.verdict.startsWith("GI_LAYER_ERROR"));
       const parts = [
         `consumed:${consumed.length}/${reports.length}`,
         `rungs=${[...new Set(consumed.map((r) => r.rung))].sort().join(",") || "none"}`
@@ -186334,6 +186409,8 @@ function createLayerRegistry() {
         parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.consumer).join(",")}`);
       if (down.length > 0)
         parts.push(`GI_LAYER_DOWN=${down.map((r) => r.consumer).join(",")}`);
+      if (errors.length > 0)
+        parts.push(`GI_LAYER_ERROR=${errors.map((r) => r.consumer).join(",")}`);
       return parts.join(" ");
     }
   };
@@ -186380,7 +186457,7 @@ function probeSocketConnect(dir, timeoutMs = 1200, match = /^[0-9a-f]{16}\.sock$
       return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f}` };
     } catch (e) {
       const err = e;
-      if (err.status === undefined) {
+      if (err.status == null) {
         return { up: false, evidence: `${dir} \u2014 PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) \u2014 install curl; this is NOT a socket verdict` };
       }
       const code = err.status;
@@ -186658,24 +186735,36 @@ function semanticaProbe(scopeRoot) {
   if (!path30.isAbsolute(scopeRoot) || scopeRoot.split(path30.sep).includes(".."))
     throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   let resolvedRoot;
+  let needsRealpathCheck = false;
   try {
     resolvedRoot = fs25.realpathSync(path30.resolve(scopeRoot));
   } catch {
     resolvedRoot = path30.resolve(scopeRoot);
+    needsRealpathCheck = true;
   }
-  const kgPath = path30.join(resolvedRoot, ".omp/graph-intelligence/layers/semantica/kg.json");
+  const canonRoot = () => {
+    if (!needsRealpathCheck)
+      return resolvedRoot;
+    try {
+      resolvedRoot = fs25.realpathSync(path30.resolve(scopeRoot));
+      needsRealpathCheck = false;
+    } catch {}
+    return resolvedRoot;
+  };
+  const kgPathFor = () => path30.join(canonRoot(), ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",
     rung: "decision",
     dependency: "the semantica workspace + its KG store",
     errorCode: "GI_LAYER_SEMANTICA",
-    up: () => probePath(kgPath, true),
+    up: () => probePath(kgPathFor(), true),
     facts: (subject) => {
+      const liveKgPath = kgPathFor();
       let raw;
       try {
-        raw = fs25.readFileSync(kgPath, "utf8");
+        raw = fs25.readFileSync(liveKgPath, "utf8");
       } catch (e) {
-        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent/unreadable at ${kgPath} \u2014 ${e.code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is absent/unreadable at ${liveKgPath} \u2014 ${e.code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
       }
       let kg;
       try {
@@ -186689,7 +186778,7 @@ function semanticaProbe(scopeRoot) {
         rung: "decision",
         subject,
         value: { type: e.type, name: e.name },
-        source: `${kgPath}#entities(${e.id ?? e.name ?? "?"})`
+        source: `${liveKgPath}#entities(${e.id ?? e.name ?? "?"})`
       }));
     }
   };
@@ -186762,8 +186851,9 @@ function tsgProbe(scopeRoot, tsgRoot) {
         });
       } catch (e) {
         const err = e;
-        const out = String(err.stdout ?? "").slice(-400);
-        const errOut = String(err.stderr ?? "").slice(-200);
+        const redact = (s) => key !== null && key.length > 0 ? s.split(key).join(key.slice(0, 4) + "...[redacted]") : s;
+        const out = redact(String(err.stdout ?? "").slice(-400));
+        const errOut = redact(String(err.stderr ?? "").slice(-200));
         const detail = [out, errOut].filter((x) => x.length > 0).join(" | ");
         const msg = `${(err.message ?? String(e)).slice(0, 160)}${detail.length > 0 ? ` \u2014 CLI output: ${detail}` : ""}`;
         throw new Error(`GI_ENFORCE_TSG: the tsg CLI failed \u2014 ${msg}`);
@@ -187389,7 +187479,7 @@ function worstOutcome(outcomes) {
 }
 function runKernelV2(input) {
   const stages = [];
-  const detectors = input.detectors ?? DEFAULT_DETECTORS;
+  const detectors = input.detectors?.length ? input.detectors : DEFAULT_DETECTORS;
   const pre = preflight(input.layers);
   stages.push({
     stage: 0,

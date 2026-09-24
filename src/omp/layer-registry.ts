@@ -211,20 +211,29 @@ export function createLayerRegistry(): LayerRegistry {
           //   with evidence); factsFor trusted p.up().up, so a non-object truthy return
           //   silently skipped the consumer and the two views disagreed. Same rule here:
           //   only boolean-true up contributes; malformed-or-DOWN contributes nothing.
+          // ★ F-706 FIX (2026-09-24): factsFor used `.up !== true` while auditOne validates
+          // `typeof raw.up === "boolean"` - a truthy non-boolean (up:1) read UP in audit but
+          // vanished in factsFor (two-view drift). Same rule as auditOne: boolean-shaped and true.
           const rawProbe: unknown = p.up();
-          if (typeof rawProbe !== "object" || rawProbe === null || (rawProbe as { up?: unknown }).up !== true) continue;
+          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
+          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) continue;
           // ★ F-354 FIX (2026-09-24): a null/non-object fact used to throw inside
           //   isAnchored, and the catch dropped the consumer's ENTIRE contribution —
           //   auditOne already filtered before isAnchored, factsFor did not. Same
           //   filter here: only the bad fact is discarded, never the whole consumer.
           const got: unknown = p.facts(subject);
-          if (!Array.isArray(got)) continue;
+          // ★ F-707 FIX (2026-09-24): a non-array facts() return vanished here with zero trace
+          // while auditOne reports GI_LAYER_ERROR for the same consumer (two-view drift).
+          // factsFor's contract stays facts-only, but the fault is now LOUD on stderr.
+          if (!Array.isArray(got)) { console.error('[layer-registry] factsFor: consumer ' + p.id + ' returned non-array facts - see audit GI_LAYER_ERROR:' + p.id); continue; }
           for (const f of got) {
             if (f !== null && typeof f === "object" && isAnchored(f as LayerFact)) out.push(f as LayerFact);
           }
-        } catch {
-          // a throwing consumer contributes nothing to the decision — it is
-          // reported DOWN by audit(), never smuggled in as an empty answer.
+        } catch (factsErr) {
+          // ★ F-707 FIX (2026-09-24): a throwing consumer contributes nothing to the decision
+          // (reported GI_LAYER_ERROR by audit(), never smuggled in as an empty answer) - but
+          // the fault is now LOUD on stderr instead of a silent continue.
+          console.error('[layer-registry] factsFor: consumer ' + p.id + ' threw mid-query - see audit GI_LAYER_ERROR:' + p.id + ': ' + (factsErr instanceof Error ? factsErr.message : String(factsErr)));
           continue;
         }
       }
@@ -238,12 +247,16 @@ export function createLayerRegistry(): LayerRegistry {
       const consumed = reports.filter((r) => r.consumed);
       const down = reports.filter((r) => r.verdict === "GI_LAYER_DOWN");
       const unconsumed = reports.filter((r) => r.verdict === "GI_LAYER_UNCONSUMED");
+      // ★ F-708 FIX (2026-09-24): GI_LAYER_ERROR verdicts (mid-query faults) were invisible here -
+      // the operator saw consumed:6/8 with no hint that consumers faulted. Named error bucket.
+      const errors = reports.filter((r) => r.verdict.startsWith("GI_LAYER_ERROR"));
       const parts = [
         `consumed:${consumed.length}/${reports.length}`,
         `rungs=${[...new Set(consumed.map((r) => r.rung))].sort().join(",") || "none"}`,
       ];
       if (unconsumed.length > 0) parts.push(`GI_LAYER_UNCONSUMED=${unconsumed.map((r) => r.consumer).join(",")}`);
       if (down.length > 0) parts.push(`GI_LAYER_DOWN=${down.map((r) => r.consumer).join(",")}`);
+      if (errors.length > 0) parts.push(`GI_LAYER_ERROR=${errors.map((r) => r.consumer).join(",")}`);
       return parts.join(" ");
     },
   };

@@ -185,10 +185,14 @@ function bindSeverity(bindings: Record<string, unknown>): Severity {
 }
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — a string[] binding (default []). */
+// ★ F-701 FIX (2026-09-24): Array.isArray confirms the SHAPE but the old `as string[]`
+  // cast smuggled non-string elements into downstream .includes() calls (validated but not
+  // VERIFIED). Non-strings are dropped - a named-shape guarantee. RIPWIRE_MISSING (index
+  // scope-confined to session cwd); consumers verified by grep: 4 same-file sites (388/393/423/424).
 function bindStringArray(bindings: Record<string, unknown>, key: string): string[] {
   const v = bindings[key];
   if (Array.isArray(v)) {
-    return v as string[];
+    return v.filter((el): el is string => typeof el === 'string');
   }
   return [];
 }

@@ -791,8 +791,12 @@ export class FamilyGraphStore {
     try { fs.chmodSync(this.familyPath, 0o444); } catch (e: unknown) {
       throw new Error(`FAMILY_SEAL_CHMOD_FAILED: cannot seal ${this.familyPath} read-only (${e instanceof Error ? e.message : String(e)})`);
     }
-    try { applyFamilyPragmas(this.familyDb); } catch (e: unknown) { throw pragmaFailed('PRAGMA query_only=1', String(e)); }
+    // ★ F-702 FIX (2026-09-24): fail-CLOSED ordering - chmod already made the file physically
+    // read-only, so sealed must be true BEFORE the pragma step. Old order (sealed=true last)
+    // left chmod-ok + pragma-fail in a lying state: sealed=false on a read-only file, so later
+    // writes bypassed the FAMILY_ROOT_READONLY guard and died with raw SQLITE_READONLY.
     this.sealed = true;
+    try { applyFamilyPragmas(this.familyDb); } catch (e: unknown) { throw pragmaFailed('PRAGMA query_only=1', String(e)); }
   }
 
   getPromotionState(): string | null {
@@ -809,6 +813,10 @@ export class FamilyGraphStore {
   //   the idempotent pending record (Map.set + INSERT OR REPLACE rerun safely on retry).
   //   No state corrupts across the throw.
   requestPromotion(hash: string, detail: string): void {
+    // ★ F-703 FIX (2026-09-24): the missing sealed guard - every other write path throws
+    // familyRootReadonly on a sealed store; this one wrote into SQLITE_READONLY and the
+    // idempotent guard swallowed it, so the promotion lived only in memory. Fail LOUD.
+    if (this.sealed) throw familyRootReadonly('cannot request promotion on sealed family store: ' + hash);
     this.pendingPromotions.set(hash, detail);
     try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES (?,?)").run(`promotion_pending:${hash}`, detail); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #6:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES ('promotion_state','PROMOTION_PENDING')").run(); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #7:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
