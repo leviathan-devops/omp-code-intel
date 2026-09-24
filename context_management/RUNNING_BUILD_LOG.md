@@ -727,3 +727,44 @@ the new branch.**
 shared tree** — an uncommitted edit you did not write is a sibling's in-flight work.
 
 **★ THE LANE: 8 of 8 keys now `ok`** (was 5 of 8).
+
+---
+
+## 2026-09-25 ~02:45 — THE R13 WAVE CLOSED (the 5 keys → 8/8)
+
+**HEAD** `44d9fcb` · **dist** `8665a03e6fff5546` · **the battery** 438/0 + 536/0, exit 0.
+
+**THE WAVE (~47 REAL across 5 agents, EVERY fix carrying a PROBE token):**
+- **R13High1** 8 REAL + 3 NOT-A-BUG (probed) — resolver per-entity coverage, trace evidence guard,
+  `markSealed` public, the view rebuild inside the txn, map-reader confidence in the dedup key.
+- **R13High2** 11 REAL — calibration, hunt-lock, bus-hook, client-reader, tsg, fire-gate, oracle,
+  ripwire-bridge, scoped-store.
+- **R13High3** 10 REAL — the `sed` quoted-arg carve-out (a QUOTED `sed -n` was MISSED → a real
+  bypass), micro-loop disposables, the glob star-chain DoS bound, mpse schema DRY, decision NUL.
+- **R13High4** 9 REAL — the P6 dist term, the `Math.min(undefined,…)` NaN deadline, the async
+  coupling env, recon payload objects, the native LIMIT/OFFSET, label-collision SUM, TSG_DOWN,
+  the broad-charset bearer redaction.
+- **R13High5** 9 REAL — the graphify root threading, strike relevance SUM on duplicates, bindStages
+  element filter, the gates-output file path, the status hunt lock, the abide per-field match, the
+  in-memory verdict resolution, the layer-fault parity, the tmp-plant containment.
+
+**★ THE THREE RUN-13 CRITICALS — a NEW class (arithmetic/logic dead-ends a green suite never
+exercised):**
+1. **F-895** `computeDrift` returned **exactly 1.0** always (verified edits joined neither side of
+   the ratio) — the decay window, the severity weights and the entire T1 tier were DEAD, yet every
+   tier test passed because T2/T3 fire at ≥0.6. **PROBED: 0.500.**
+2. **F-896** losing the lock `wx` race FELL THROUGH to the build — both racers built and wrote.
+3. **F-897** the cache was TWO transactions; a crash between them orphaned rows.
+   **FIX:** `writeCompiledCache` — ONE `BEGIN IMMEDIATE` over both sets.
+
+**★ THE LESSON:** a constant that satisfies every threshold is a RED FLAG. **VARY THE INPUT AND
+WATCH THE OUTPUT MOVE** — that is the probe, and it is what caught a mechanism that had been inert
+since it was written.
+
+**★ THE LANE: 8 of 8 keys `ok`** (was 5 of 8 at the session's start).
+
+**★ THE COORDINATION LESSON (twice now):** my `git add src/` sweeps agents' in-flight edits into a
+commit and their `git diff` then reads empty — two agents (R12High2, R13High2) reasonably concluded
+a sibling had stolen their slice. **The remedy: name the commit in the commit message AND tell the
+sweep is coming.** And the standing law holds: NEVER `git checkout` / `git restore` / `git stash` in
+this shared tree.
