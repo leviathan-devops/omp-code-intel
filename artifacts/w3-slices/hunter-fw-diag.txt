@@ -1,0 +1,39 @@
+[HIGH] src/hunter/diagnostics/calibration.ts
+    `writeCalibrationRows` uses `Date.now()` as the `created_at` parameter on each individual INSERT. Even within a single session this produces different timestamps per row, and replaying the same session yields different `
+
+[HIGH] src/hunter/diagnostics/calibration.ts
+    The append-only version numbering (read directory → compute N → write N+1) is not atomic. Two concurrent calibration sessions can read the same `existing` count and both write `CALIBRATION_vN.md`, overwriting each other 
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    **Security: Path traversal allows reading arbitrary files outside the project root.** `path.resolve(profile.project.root, file)` does not validate that the resolved path stays within the project root. A predicate-supplie
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    **Data-loss risk: malformed `r.data` JSON silently triggers an unconditional database overwrite.** If any row's `data` column contains invalid JSON, `JSON.parse(r.data)` throws inside the `try` block, the outer `catch` r
+
+[HIGH] src/hunter/diagnostics/findings-store.ts
+    No validation that `runId` is non-empty. An empty string `runId` would produce an invalid WHERE clause `run_id = ?` with an empty value, silently scoping findings to an empty run. Given the deterministic-scope design (K2
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts
+    loadCalibrationFixtures() filters for 'manifest.json' then calls loadFireFixture(fireDir) with the directory path, not the individual manifest file path. This means if there are multiple fixture subdirectories under fixt
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts
+    **Regex bug: `Sync?` makes the trailing `c` optional.** `writeFileSync?` matches both `writeFileSync` and `writeFileSyn` (missing `c`). Similarly `appendFileSync?` and `mkdirSync?` will match incomplete method names like
+
+[HIGH] src/hunter/firewall/artifact-scope.ts
+    **Security: `fs.stat` failure ambiguity in overwrite detection.** The `catch` block (lines 136-140) treats ALL `fs.stat` failures as "target doesn't exist" and proceeds with `ALLOW_REPORT`. However, a permission-denied e
+
+[HIGH] src/hunter/firewall/artifact-scope.ts
+    **Security: Symlink escape check silently skipped on parent realpath failure.** When `fs.realpath(path.dirname(targetNorm))` fails (line 100-103), `parentReal` is set to `null` and the entire symlink-escape check (lines 
+
+[HIGH] src/hunter/firewall/artifact-scope.ts
+    **Security: Asymmetric realpath comparison when master dir doesn't exist.** When `fs.realpath(masterNorm)` fails (line 114-116), `masterReal` remains as `masterNorm` (a path-normalized string, NOT a realpath). The subseq
+
+[HIGH] src/hunter/firewall/lexicon-types.ts
+    The `state` field (inherited from `LexiconDecision`) is typed as `LexiconDecision['verdict']` which resolves to `'ALLOW_READ' | 'ALLOW_REPORT' | 'ALLOW_FIX' | 'BLOCKED'`. However, `BashLockdownDecision` narrows `verdict`
+
+[HIGH] src/hunter/firewall/lexicon-types.ts
+    Same `state` alias inconsistency as `BashLockdownDecision`. The `state` field inherits the full 4-member union from `LexiconDecision['verdict']`, but `verdict` is narrowed to `'ALLOW_REPORT' | 'BLOCKED'`. This breaks the
+
+[HIGH] src/hunter/firewall/readonly.ts
+    The `blockVerbExemption` loop only checks `| ; & > < \n`, but does NOT check `$` (command substitution `$(...)`) or `` ` `` (backtick substitution). This means `node -e "$(whoami)"` or `bash -c "echo \`whoami\`"` pass th
+

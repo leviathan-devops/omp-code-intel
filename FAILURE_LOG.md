@@ -1662,3 +1662,34 @@ AND THE RUNTIME NEVER CHANGED.
   fix-or-prove).** The audit gate is now **FAIL** and every ship-ready claim is WITHHELD.
 - **The lesson:** ★ **A PASS NAMES ITS SCOPE OR IT IS A LIE.** "0 critical/high" over 2.7% of the
   tree is not a clean bill — it is an unmeasured surface. The scope IS the claim.
+
+---
+
+## ★ THE 8 CRITICAL FINDINGS (W3 whole-tree audit) — F-124..F-131 (2026-09-24)
+
+Each adjudicated two-sided against the real code, then FIXED + PINNED in
+`tests/st-w3-criticals.test.ts` (9 pass / 0 fail).
+
+- **F-124** `src/hunter/graph/store-map.ts` — the supersede UPDATEs ran in AUTOCOMMIT **before**
+  `BEGIN IMMEDIATE`; a later insert throw left **ZERO live rows with no replacements** (data
+  loss). The sibling path (`:221-224`) was already fixed; this one was missed. **FIX:** the
+  supersede + inserts ride ONE transaction with ROLLBACK.
+- **F-125** `src/hunter/lexicon/templates.ts` — `WIRING_EXPORT_IMPORTER` called `readFileSync`
+  directly, bypassing `ctx.source.read()` (the file's own A3 hostile-corpus law + K20.3
+  determinism). **FIX:** `ctx.source.read(file).split('\n')`.
+- **F-126** `src/hunter/surface/query-tool.ts` — `input.depth` fed the recursive CTE uncapped;
+  `MAX_BLAST_DEPTH` (line 19) was **dead code**. **FIX:** `Math.min(input.depth ?? DEFAULT, MAX_BLAST_DEPTH)`.
+- **F-127** `src/omp/populate-graphify.ts` — the `populated_at` marker ran **AFTER `COMMIT`** but
+  inside the catch that ROLLBACKs an already-committed tx (a swallowed error → store left unmarked).
+  **FIX:** the marker rides INSIDE the tx (before COMMIT).
+- **F-128** `src/omp/store-open.ts` — `existsSync` + `writeFileSync('w')` = a TOCTOU **truncate** of
+  a peer-created store. **FIX:** exclusive `flag:"wx"` create (EEXIST = a peer won = success).
+- **F-129** `src/scoping/scoped-store.ts` — `table`/`pkColumn`/cols interpolated into SQL with no
+  validation. The single caller passes literals, but it is a footgun. **FIX:** an identifier guard
+  (`GI_SQL_IDENT_REFUSED`) — defense-in-depth, no behavior change for the literal caller.
+- **F-130** `src/scoping/session-state.ts` — `tickSessionBudget` read-modify-wrote the state file
+  with **no lock** (concurrent callers → lost budget ticks). **FIX:** a `withStateLock` RMW lock
+  (the atomic tmp+rename inside `writeSessionState` stays).
+- **F-131** `src/omp/graph-facts.ts` — **all 4** `typed_edges` reads counted **DEAD** (superseded)
+  edges (`superseded_run` exists but no query filtered it). **FIX:** `AND superseded_run IS NULL`
+  on every one.

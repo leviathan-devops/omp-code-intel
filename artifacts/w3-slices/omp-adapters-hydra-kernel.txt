@@ -1,0 +1,72 @@
+[HIGH] src/hydra/client-reader.ts
+    Race condition in `attach()`: if two concurrent `attach()` calls both pass the `if (this.transport)` check before either reaches `await this.disconnect()`, both will call `disconnect()` on the same old transport (double-
+
+[HIGH] src/hydra/client-reader.ts
+    TOCTOU race in `listTools()` and `callTool()`: after the null-check on `this.transport`, a concurrent `disconnect()` call can set `this.transport = null` and call `transport.close()` while the operation is in-flight. Alt
+
+[HIGH] src/hydra/map-reader.ts
+    The BFS path algorithm copies the full path array at each neighbor expansion via `[...cur, nb]`. For a graph with branching factor B and depth D, this is O(B^D) memory. On a 128MB-budget graph this can blow the process. 
+
+[HIGH] src/hydra/map-reader.ts
+    In all three MCP call sites (`query`, `path`, `explain`), the MCP result is wrapped in `void String(...)` and discarded. Even when the MCP call succeeds, the code falls through to the local fallback and never uses the MC
+
+[HIGH] src/hydra/map-reader.ts
+    `readGraphJson` is declared `async` but calls `fs.readFileSync` internally, which blocks the event loop for up to 128MB of I/O. The single `setImmediate` yield before the read only unblocks the event loop momentarily bef
+
+[HIGH] src/hydra/pipeline.ts
+    Unsafe type assertion bypasses TypeScript's type system. The generic `TInput` is blindly cast through `unknown` to extract `targetRoot` and `graphPath` properties. If the caller passes an input type that doesn't have the
+
+[HIGH] src/hydra/templates/index.ts
+    The registry law comment (line 2) states the template count MUST be exactly 14, but there is no runtime assertion to enforce this invariant. If a future change adds or removes a template from any of the family files, the
+
+[HIGH] src/hydra/templates/index.ts
+    The BY_LAYER_ID map is built without detecting duplicate layerIds. If two templates share the same layerId, the later entry silently overwrites the earlier one, which could compromise data integrity and make the bug very
+
+[HIGH] src/hydra/templates/lasme.ts
+    The double type assertion `as unknown as z.ZodSchema` is both unnecessary and harmful. `SubagentOutputSchema` is a `z.ZodObject` which already extends `z.ZodSchema`, so it is directly assignable to the `outputSchema` fie
+
+[HIGH] src/hydra/templates/mpse.ts
+    Unsafe type cast `as unknown as z.ZodSchema` bypasses TypeScript's structural type checking entirely via the intermediate `unknown` type. This pattern appears on all four template definitions. While Zod's generic paramet
+
+[HIGH] src/kernel/graph-diff.ts
+    Blast Radius Verdict Not Implemented: The JSDoc on `diffGraphs` states that 'a blast-radius jump (a node's inbound more than doubling)' should produce a WARN verdict, but `blastRadiusChanges` are only appended to `detail
+
+[HIGH] src/kernel/graph-test-target.ts
+    The `truncated` flag from `whoCallsInDb` is silently discarded. When the source function resolves to >500 canonical IDs, the upstream query caps results and sets `truncated: true`. Callers of `getTestTargets` have no way
+
+[HIGH] src/kernel/scan-chain.ts
+    The `RETRYABLE_RE` regex is defined and exported but **never used** in the retry logic. `runScanChain` retries every failure unconditionally up to `RETRY_ATTEMPTS`, meaning non-retryable errors (e.g., 400 Bad Request, 40
+
+[HIGH] src/kernel/scan-chain.ts
+    In the SSE fallback parsing block, the return value is `{ ok: true, content: full }` where `full` is the entire raw accumulated stream text including `data: ` prefixes, newlines, and multiple unparsed chunks — not clean 
+
+[HIGH] src/kernel/scan-chain.ts
+    The `response` object from `fetch` is not checked for HTTP error status codes (e.g., 4xx, 5xx). A 401 Unauthorized or 403 Forbidden response will have a valid `response.body` and appear to stream successfully, but the pa
+
+[HIGH] src/omp/adapters/abide.ts
+    TOCTOU race condition: `fs.existsSync` on line 73 can return `true`, but by the time `tailEvents` calls `readFileSync` on line 45, the file may have been deleted or truncated. This causes `readFileSync` to throw a raw `E
+
+[HIGH] src/omp/adapters/abide.ts
+    The entire 22.8 MB+ JSONL ledger is read into memory (`readFileSync`), split into all lines (`split("\n")`), and only then the last 4000 are sliced. This is O(n) in total file size rather than O(limit). For a growing led
+
+[HIGH] src/omp/adapters/arsumbris.ts
+    The `source` string on the `LayerFact` return is malformed. The expression `${"#instance("}${claim.slice(0, 2).join(",") || "?"})` produces a string like `~/.arsumbris/au-engine/run#instance(a,b)` — the closing parenthes
+
+[HIGH] src/omp/adapters/arsumbris.ts
+    Using `JSON.stringify(i).includes(subject)` for filtering is both a correctness risk and a performance concern. It can produce false-positive matches (e.g., a `subject` of `"true"` would match any boolean value, or a sub
+
+[HIGH] src/omp/adapters/graphify.ts
+    `GRAPHIFY_CHECKOUT_REL` is defined inline here but also exists as an exported constant in `src/omp/populate-graphify.ts` (line 34). The sister adapter `corbell.ts` correctly imports its constant from `populate-corbell.ts
+
+[HIGH] src/omp/adapters/kev.ts
+    The `best` index from `ans.best?.[0]` is used directly as an array index into `labels` without bounds checking. If `best` is negative or >= `labels.length`, `labels[best]` evaluates to `undefined` and silently falls thro
+
+[HIGH] src/omp/adapters/kev.ts
+    The JSON extraction strategy (`split(\"\n\").reverse().find(...)`) scans from the bottom of the output upward for the first line starting with `{`. This is fragile: (1) if the CLI prints any debug/tracing line beginning 
+
+[HIGH] src/omp/adapters/ua.ts
+    TOCTOU race condition: `fs.existsSync(graphPath)` (line 26) and `fs.readFileSync(graphPath, ...)` (line 31) are two separate syscalls. If the file is deleted between them, `readFileSync` throws `ENOENT`, which is caught 
+
+[HIGH] src/omp/adapters/ua.ts
+    Unsafe type assertion without runtime validation: `JSON.parse(...) as UaGraph` is a blind cast. If the JSON root is not an object (e.g., `null`, a string, an array), or if `nodes` is present but not an array (e.g., a str
+

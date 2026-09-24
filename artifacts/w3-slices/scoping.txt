@@ -1,0 +1,27 @@
+[HIGH] src/scoping/db-path.ts
+    Test isolation gap: When `BUN_TEST=1` but `spec.testFile` is undefined (i.e., the caller forgot to provide a test file), the resolver silently falls through to the production default directory. This is exactly the class 
+
+[HIGH] src/scoping/gi-session-path.ts
+    Silent session identity collision: `scope-` is 6 chars, leaving only 18 chars for the slug (24 - 6 = 18). Two distinct project paths that produce the same first 18 slug characters will resolve to the identical session ID
+
+[HIGH] src/scoping/gi-session-path.ts
+    Inconsistent field resolution in fallback path: When no direct `sessionId`/`sessionID` is found on the event, `resolveSessionIdFromEvent` falls back to `resolveSessionId(event, env)`. However, `resolveSessionId` only ins
+
+[HIGH] src/scoping/gi-session-path.ts
+    Symlink and case-variant bypass in the global-home-graph guard: `isGlobalHomeGraph` uses strict string equality after backslash normalization but never resolves symlinks or normalizes case. On case-insensitive filesystem
+
+[HIGH] src/scoping/scope-binding.ts
+    Design risk — silent bypass on unrecognized session: When no ecosystem's registry recognizes the `sessionId`, `assertOwnSession` silently returns (passes the guard), relying on downstream error handling. This means an ar
+
+[HIGH] src/scoping/scope-binding.ts
+    Missing duplicate-prefix guard: `register()` checks for a duplicate `ecosystem` key but does NOT check whether `spec.wavePrefix` is already registered by a different ecosystem. If two ecosystems are accidentally register
+
+[HIGH] src/scoping/scoped-store.ts
+    The synchronous busy-wait loop `while (Date.now() < until)` blocks the Node.js/Bun event loop for up to 50-150ms per retry attempt. In a server context this stalls all other concurrent I/O. Consider using an async delay 
+
+[HIGH] src/scoping/scoped-store.ts
+    When schema setup fails after 3 attempts, execution continues silently (`break` out of the loop, no exception thrown). The database handle is still assigned to the module-level singleton (`storeDb = fresh`), meaning subs
+
+[HIGH] src/scoping/session-state.ts
+    `writeSessionState` performs two synchronous filesystem operations (`writeFileSync` + `renameSync`) without any error handling. If either fails (e.g., disk full, permission error, read-only filesystem), the unhandled exc
+
