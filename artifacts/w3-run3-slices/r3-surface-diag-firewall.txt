@@ -1,0 +1,22 @@
+## src/hunter/diagnostics/calibration.ts
+  - `writeCalibrationRows` executes multiple INSERT statements in a loop without a transaction. If any INSERT fails mid-loop (e.g., constraint violation, disk full), partial calibration rows are left in the DB for that sessi
+## src/hunter/diagnostics/engine.ts
+  - Dead code in `assertNoBlindness`: This function is always called from `runBattery` with `graphNodesBefore === graphNodesAfter` (both are `graph.nodes().length` at the same point) and `changedNodeIds === rerunNodeIds` (bo
+  - Silent error swallowing violates the fail-closed law: `buildFileContentMap` catches source-read errors and silently drops files from the map (line `console.error(...)` then continues). Per the file's own header contract 
+## src/hunter/diagnostics/findings-store.ts
+  - **appendFindings partial-write semantics are misleading**: The function's contract implies atomicity — the error message says `landed=N remaining=0` when all succeed, and includes landed/remaining on failure. However, wh
+## src/hunter/diagnostics/fixture-calibration.ts
+  - The `as T` assertion bypasses all TypeScript shape validation — any JSON object that is non-null passes even if it's missing every expected property. This is the only barrier between raw disk data and a typed `FireFixtur
+## src/hunter/diagnostics/semantic-predicates.ts
+  - `buildSemanticBattery` passes **identical** objects as both `rawBindings` (arg 2) and `card` (arg 3) to `compileTemplate`. The `rawBindings` object (line 277) is zod-parsed against the template's `parameters` schema (tem
+## src/hunter/firewall/artifact-scope.ts
+  - TOCTOU race condition: the stat check at line 137 determines whether the target file exists, and if ENOENT, the function returns ALLOW_REPORT. However, the actual file write happens later in the caller. Between the ALLOW
+  - Symlink escape check is entirely skipped on the CREATE path (when master dir does not yet exist). When `masterReal` resolves to null (line 124-128), the realpath-vs-realpath containment gate (lines 129-132) is skipped. O
+## src/hunter/firewall/lexicon-types.ts
+  - The `remediationHook` is defined on `PatternFamily` but a codebase search finds zero invocations in the current source tree (`src/`). This means the hook is never executed — every `PatternFamily` instance's `remediationH
+## src/hunter/surface/lsp-injector.ts
+  - **Bug: `DiagnosticsServer.watch` always passes an empty array to `onChange`**  The base class `watch` method unconditionally fires `onChange([])` on the debounce timer. This means any caller relying on `DiagnosticsServer
+  - **Race condition: `acquireWriteLock` has a non-atomic check-then-act pattern**  If two concurrent callers (e.g. two async operations in the same microtask batch or from a parallel scheduler) both evaluate `this.writeLock
+  - **Bug: glob character stripping in `resolveTouchedFiles` is too aggressive — causes false-positive matches**  The regex `/[.*?]/g` strips only `.`, `*`, `?` but also strips path-separator-adjacent glob characters. For a 
+## src/hunter/surface/query-tool.ts
+  - The `chain` BFS function copies the full `steps` array via spread (`[...cur.steps, step]`) for **every** edge expansion. With MAX_DEPTH=64 and high fan-out nodes, the queue can accumulate an exponential number of path co

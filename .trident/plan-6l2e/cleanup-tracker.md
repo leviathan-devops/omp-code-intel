@@ -77,3 +77,21 @@ NON-DETERMINISTIC** — it finds different (often new) findings each run. Conseq
 ★ THE STRATEGY for the "0 critical / 0 high" gate: fix every real defect, adjudicate the
 inflated ones with proof, then iterate (the gate measures the LAST run's findings, which is
 the audit's honest output for the current code).
+
+---
+
+## ★ W3-FOLLOW-ON #2: THE RUN-3 HIGHS (87 across 61 files)
+
+The 3rd audit run returned `{critical:3, high:80→87, medium:225, low:109}`. The 3 criticals
+(F-20/21/22) are FIXED. The 87 highs are now dispatched to 5 disjoint agents:
+| agent | the slice | files | findings |
+|---|---|---|---|
+| R3GraphLexicon | src/hunter/graph + lexicon + keys | 10 | 17 |
+| R3HarnessSharedHooks | src/hunter/harness + shared + hooks + tools + profile | 10 | 15 |
+| R3SurfaceDiagFirewall | src/hunter/surface + diagnostics + firewall | 9 | 13 |
+| R3Omp | src/omp | 20 | 25 |
+| R3HydraKernelScoping | src/hydra + kernel + scoping | 12 | 17 |
+
+★ THE HONEST NOTE: the LLM audit is NON-DETERMINISTIC — fixing these 87 will not make the next run
+read 0 (it returns a NEW set). But every REAL defect fixed is real, and the critical trend
+(8→5→3) shows the code is genuinely converging. This wave continues the real work.

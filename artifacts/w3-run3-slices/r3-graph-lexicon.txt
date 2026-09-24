@@ -1,0 +1,27 @@
+## src/hunter/graph/corbell-adapter.ts
+  - The `var` keyword is strictly prohibited by project rules. `var` has function scope and can lead to hoisting bugs. Use `let` for a mutable block-scoped binding.
+## src/hunter/graph/graphify-adapter.ts
+  - **Duplicated stat→read→guard→parse logic between `build()` and `loadGraphifyFileSync`.** The async `build()` method (lines ~600-630) reimplements the exact same stat-size check → readFileSync → byte-count guard → parseGr
+  - **`scopeBuildToProfile` silently drops all rows when root canonicalization fails, masking the real error.** When `fs.realpathSync(root)` throws, the function returns `{ nodes: [], edges: [], dropped: N }` with no log or 
+  - **Containment logic inconsistency between `normalizeGraphifyGraph` and `projectGraphifyGraph`.** In `normalizeGraphifyGraph` (line ~228), the containment check is `rel !== ".." && !rel.startsWith(`..${path.sep}`) && !pat
+  - **`build()` never assigns its `profile` parameter to `this.profile`, causing stale state.** The `build(profile)` method receives a profile and uses it for root/scope/graphPath resolution, but never writes `this.profile =
+## src/hunter/graph/interface.ts
+  - The `detail` parameter in the constructor is accepted but never stored as a class property, making it inaccessible to callers who catch this error. All other error classes in this module (e.g., `AdapterFailedError`, `Gra
+## src/hunter/graph/mechanical.ts
+  - The `checker` variable is obtained from `program.getTypeChecker()` but immediately voided and never used. This is dead code that wastes computation (type checker instantiation is expensive). Remove both lines or put the 
+  - Dead code: `void fs` is a no-op that serves no purpose. The condition block `if (triples.length === 0)` contains only this no-op, making the entire block dead code. This appears to be an incomplete implementation (perhap
+## src/hunter/graph/merge.ts
+  - The `Predicate` type is a closed union of string literals (e.g. 'declares', 'calls', etc.). The validation loop at lines 76-79 only checks `typeof t.predicate !== 'string'`, so an arbitrary string passes validation. Then
+## src/hunter/graph/resolver.ts
+  - The `catch` block during `ROLLBACK` silently swallows the error. If the rollback itself fails, the database may be left in an inconsistent state, and the caller will only see the original write error with no indication t
+## src/hunter/graph/store-map.ts
+  - `readFileSync` is called synchronously once per edge whose source has a valid file path and line number. For large graphs with thousands of edges this blocks the event loop. Consider caching file contents per file path (
+  - `countTypedNodes` and `countTypedEdges` open new connections to read the store AFTER `db.close()` in the `finally` block. In WAL mode, close may trigger a WAL checkpoint that is not guaranteed to be visible to a freshly 
+## src/hunter/keys/go-key-pool.ts
+  - Key substring replacement in redactKeyMaterial can leak longer keys when a shorter key is a substring of a longer key. The `split(k).join(...)` loop replaces ALL occurrences of the shorter key within the error string fir
+## src/hunter/lexicon/compiler.ts
+  - Synchronous `fs.readFileSync` inside `batteryVersion`, which is itself called from async functions (`compile`, `compileBattery`). This blocks the Node.js event loop during corpus file reads. For large corpora or slow fil
+  - `writeRuleCards` and `writeBattery` can throw (e.g., DB constraint violation, disk full, connection lost) but are not wrapped in try-catch. A failure in `writeBattery` after `writeRuleCards` succeeds leaves the cache in 
+## src/hunter/lexicon/templates.ts
+  - **`bindSeverity` accepts any string but `Severity` is a strict union of `'CRIT' | 'HIGH' | 'MED' | 'WARN'` (db.ts:97-98).** If an invalid severity string (e.g. `'HIGH '` with a trailing space, or `'CRITICAL'`) reaches th
+  - **`contentAddress` uses `JSON.stringify(bindings)` which is sensitive to key insertion order.** If semantically identical bindings are constructed with different key orders (e.g., `{a: 1, b: 2}` vs `{b: 2, a: 1}`), `JSON

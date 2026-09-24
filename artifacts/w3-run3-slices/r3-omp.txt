@@ -1,0 +1,45 @@
+## src/omp/adapters/abide.ts
+  - Synchronous full-file read into memory is a significant performance issue. For a 22.8 MB append-only ledger, `readFileSync` loads the entire file into memory, then splits all lines, then slices the last 4000. As the ledg
+  - Every call to `facts()` re-reads and re-parses up to 4000 events from disk with no caching. If `facts()` is called frequently (e.g., in a hot decision path), this creates repeated synchronous I/O and garbage collection p
+## src/omp/adapters/arsumbris.ts
+  - Using `JSON.stringify(i).includes(subject)` is fragile and semantically incorrect as a filtering mechanism. The subject could appear in any part of the serialized JSON (keys, unrelated values, nested structures), produci
+  - The parameters used to construct and invoke the child process (`repoRoot`, `read`, `subject`) are not validated. `repoRoot` is used directly to construct a script path and could allow execution of an arbitrary script if 
+## src/omp/adapters/kev.ts
+  - **Bug: `best` index from CLI output is not bounds-checked against `dist` and `labels` lengths.**  `ans.best?.[0] ?? 0` yields an index that is used directly to access `labels[best]` and `dist[best]`. If the CLI returns a
+## src/omp/adapters/semantica.ts
+  - TOCTOU (time-of-check-time-of-use) race condition: `fs.existsSync` on L30 and `fs.readFileSync` on L35 are two separate syscalls. The file can be deleted or renamed between the existence check and the read, causing `read
+  - Path traversal risk: `scopeRoot` is joined into filesystem paths without any validation. If `scopeRoot` is derived from external or user-controlled input, an attacker could supply a value like `../../etc` to read arbitra
+## src/omp/adapters/ua.ts
+  - `scopeRoot` is used to construct a file path without any validation. If `scopeRoot` can be influenced by external input, a path traversal attack (e.g., containing `../`) could cause reading files outside the intended dir
+## src/omp/calibration.ts
+  - When `p` is 0 or 1, `hw = z * sqrt(0) = 0`, so the function returns `Math.ceil(0)` = 0. This means 'zero fires are needed' — the exact opposite of the truth. When the proportion is at the boundary, you need an INFINITE s
+## src/omp/enforcement.ts
+  - Non-null assertion `!` on `deps.register.find(...)` can throw a TypeError (e.g., 'Cannot read property of undefined') if `find` returns `undefined`, *before* the code enters the try-catch. The non-null assertion tells Ty
+## src/omp/evidence-producer.ts
+  - The `subject.target` value is interpolated directly into SQL LIKE patterns (`%${subject.target}%`) without escaping LIKE metacharacters (`%` and `_`). If `subject.target` contains `_` (matches any single char) or `%` (ma
+## src/omp/fire-gate.ts
+  - BUG: The `DESTRUCTIVE_HINT` regex matches substring occurrences of command names without word boundaries, causing false classification of non-destructive intents. For example, a tool named `grep` with target `farm/rm-log
+## src/omp/fire-ledger.ts
+  - **Double-prefixed error code in `notePersistFailure` when called from `withLedger`**  In the `withLedger` catch block (line 432), the code constructs `code = 'GI_LEDGER_' + err.code` and passes it to `ledger.notePersistF
+## src/omp/gate-hook.ts
+  - The F-PS1 fix is incomplete: `pendingSteer` is keyed by tool name (e.g. 'write'), not by a unique call identifier. When two write/edit calls interleave — call-A then call-B — call-B's tool_call overwrites the steer note 
+## src/omp/gate-middleware.ts
+  - EXPORT_PARSE_RE misses generator functions and destructured exports. `export function* foo()` will not match because the `*` sits between `function` and the name, and `export const { foo } = ...` / `export const [foo] = 
+## src/omp/graph-facts.ts
+  - The second `try` block (line 152) has a `finally` but **no `catch`**. If any SQLite query throws (corrupt database, schema mismatch, unexpected null from a query result, or `layerFreshness` throwing), the exception propa
+## src/omp/graph-gate.ts
+  - Critical logic inconsistency: `consecutiveUnverified` treats symbol-less edits (e.g. comment-only) as unverified (`unverified = true`), but `computeDrift` explicitly gives them zero weight and skips them with `continue`.
+## src/omp/jev.ts
+  - The `res.json()` call is not wrapped in a try-catch. If the upstream API returns malformed or non-JSON content (e.g., an HTML error page from a CDN/proxy), this will throw a raw `SyntaxError` that bypasses the `JevError`
+## src/omp/populate-corbell.ts
+  - TOCTOU race condition in warm store change detection: `stBefore` is captured AFTER the initial `isCorbellCheckoutFreshFor` call completes (which itself stats the file). If the warm store is replaced between the freshness
+## src/omp/populate-graphify.ts
+  - TOCTOU race between freshness probe and GraphifyAdapter.build(). `isGraphifyCheckoutFreshFor` reads the graph file metadata (sidecar hash or mtime), then `new GraphifyAdapter(pinned).build(pinned)` re-reads the graph.jso
+## src/omp/populate.ts
+  - DB resource leak risk: `db` is not closed in a `finally` block. Currently, if `supersedeThenInsert` throws, the `catch` block does a best-effort close and re-throws. But `db.close()` at line 115 is outside the try/catch 
+## src/omp/rsi.ts
+  - **TOCTOU race condition in `retire()` — SELECT then UPDATE is not atomic.**  The method SELECTs to verify the successor row exists and verifies its signature, then UPDATEs to retire the victim row. Between these two stat
+  - **`retire()` returns `honored: true` even when the UPDATE affected zero rows.**  After the SELECT confirms the successor is live and verified, the UPDATE may still affect zero rows if another concurrent process supersede
+## src/omp/store-open.ts
+  - **Path traversal via `scopeRoot`**: `scopeRoot` is passed directly to `sessionStorePath` without validation. `path.join` normalizes `..` segments, so a `scopeRoot` like `/allowed/../../etc` resolves to `/etc`, and the re
+  - **Race condition / unconditional `upsertGiSession` can overwrite another session's ownership.** `findGiSessionByStorePath` checks the in-memory/database registry, then `writeFileSync('wx')` creates the file. Between thes

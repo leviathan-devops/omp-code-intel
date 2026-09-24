@@ -1,0 +1,29 @@
+## src/hydra/auditor.ts
+  - The `sanitize` function strips CR/LF (`/[\n]+/g`) and `##` prefixes but does not handle Unicode line separators (`\u2028` LINE SEPARATOR, `\u2029` PARAGRAPH SEPARATOR, `\u000B` VERTICAL TAB). A markdown parser that trea
+  - Multiple variables are interpolated unsanitized into markdown output, creating grammar-injection vectors:  1. `layerId` (line 1000 in brief.md, line 1058 in summary) originates from external template data and passes thro
+## src/hydra/client-reader.ts
+  - **Bug: `disconnect()` is not serialized through `attachLock` and can destroy a newly-attached transport.**  `attach()` is serialized via the promise chain, but `disconnect()` is not. Consider this interleaving:  1. `disc
+## src/hydra/map-reader.ts
+  - In the `query` method's MCP path, the raw MCP response is discarded (`void String(raw)`), and the local token-scan logic is duplicated inline instead of reusing the existing `tokenScan` function. This means the MCP resul
+## src/hydra/pipeline.ts
+  - The `evidence` array is an instance-level field that is never cleared. If a single `HydraPipeline` instance is reused across multiple `execute()` calls, evidence entries from prior runs accumulate indefinitely, polluting
+## src/hydra/templates/sro.ts
+  - Unnecessary and unsafe double type cast (`as unknown as z.ZodSchema`). From types.ts, `SubagentOutputSchema` is a `z.ZodObject` which already extends `z.ZodSchema`, so it is directly assignable to `outputSchema: z.ZodSch
+  - Unnecessary and unsafe double type cast (`as unknown as z.ZodSchema`). From types.ts, `SubagentOutputSchema` is a `z.ZodObject` which already extends `z.ZodSchema`, so it is directly assignable to `outputSchema: z.ZodSch
+## src/kernel/graph-gate.ts
+  - The `diff` parameter is accessed without a null/undefined check. If `null` or `undefined` is passed, this will throw a runtime TypeError on property access (e.g., `diff.edgesDelta`). Add a guard at the top of the functio
+  - If `diff.blastRadiusChanges` is undefined (e.g., due to incomplete or malformed input), iterating over it with `for...of` will throw a TypeError. Add a guard or default to an empty array.
+## src/kernel/graph-pre-flight.ts
+  - No error handling around database operations. If `whoCallsInDb`, `impactInDb`, or any `db.query()` call throws, the function will propagate an unhandled exception. The `finally` block only closes the DB — errors are not 
+## src/kernel/scan-chain.ts
+  - The `stallTimer` interval is started before the fetch, but if `response.body?.getReader()` returns null (line 124), the function returns without calling `clearInterval(stallTimer)`. The leaked interval will continue firi
+  - In the SSE fallback catch block, a `delta` value is extracted from the last valid SSE line (checking `chunk.choices?.[0]?.delta?.content`), but the function returns `full` — the entire raw accumulated stream text includi
+## src/scoping/gi-session-path.ts
+  - **Bug**: `resolveSessionId` can produce a session ID shorter than 8 characters, which will then fail `assertSessionStorePath`'s regex validation downstream. When `scopeRoot` resolves to a path composed entirely of non-al
+## src/scoping/scope-resolver.ts
+  - **Bug: Sticky cache re-derivation contradicts documented guarantee.** The header comment (lines 11-17) and inline comment (line 89) both state the sticky cache provides a 'flush-proof guarantee' and 'NEVER re-derived mid
+  - **Bug: Regex over-matches non-path fragments from commands, corrupting scoring.** The regex `/\/[^\s;]+/g` (line 107) matches ANY token containing a slash, including URLs (`https://example.com/file`), command-line flags 
+## src/scoping/scoped-store.ts
+  - The synchronous busy-wait loop (`while (Date.now() < until)`) blocks the event loop entirely. Since Bun/Node.js is single-threaded for JS execution, this freezes all other I/O and timers for up to 150ms (50+100+150). The
+## src/scoping/session-state.ts
+  - The stale-lock reclaim mechanism relies on `mtimeMs` of the lock file. On some file systems (e.g., FAT32, HFS+), file timestamps have coarse granularity (1-second or even 2-second resolution). A lock created at T=0ms and
