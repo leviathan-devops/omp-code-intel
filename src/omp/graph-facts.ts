@@ -239,7 +239,13 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     if (input.intent === "measure") {
       // ★ A FIELD INSIDE ITS OWN COMPUTATION IS THE D-7 CLASS: the measurement changes the
       //   measured object. The graph shows it as a SELF-EDGE.
-      const self = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND dst_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
+      // ★ F-338 FIX (2026-09-24): a self-edge means ONE node on BOTH ends — the old
+      // ★ predicate counted edges where two DIFFERENT nodes merely shared the target
+      // ★ substring (e.g. target "User" with edge UserService→UserProfile). The
+      // ★ src=dst equality keeps the documented fragment-input contract (GraphFactInput
+      // ★ target is "a canonical_id fragment or a file basename", so LIKE stays for
+      // ★ known/inDegree/outD) while M-GRAPH-5 fires only on a true self-loop.
+      const self = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical = dst_canonical AND src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
       verdicts.push(self > 0
         ? { rule: "M-GRAPH-5", settles: true, action: "FIRE",
             reason: `"${input.target}" appears on BOTH ends of an edge — a self-referential measurement`,
