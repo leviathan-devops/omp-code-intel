@@ -509,7 +509,11 @@ function extractTouchedFile(tool: string, args: Record<string, unknown>): string
     case 'edit':    return typeof args.filePath === 'string' ? args.filePath : null;
     case 'write':   return typeof args.targetPath === 'string' ? args.targetPath
                     : typeof args.filePath === 'string' ? args.filePath : null;
-    case 'glob':    return typeof args.pattern === 'string' ? args.pattern.replace(/[*?[\]{}]/g, '') : null;
+    // * F-505 FIX (2026-09-24): the strip produced a bare path with no glob chars, so
+    // * resolveTouchedFiles (line 248) returned [] and glob results NEVER rode a diagnostic
+    // * block. The pattern passes through intact - resolveTouchedFiles compiles * ? to an
+    // * anchored regex with every other special escaped (F-32 F-49).
+    case 'glob':    return typeof args.pattern === 'string' ? args.pattern : null;
     case 'bash': {
       const cmd = typeof args.command === 'string' ? args.command : '';
       const m = /(?:^|\s)([^\s|;&<>]+\.tsx?)/.exec(cmd);

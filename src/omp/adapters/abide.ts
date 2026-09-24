@@ -174,9 +174,15 @@ export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe
       }
       const events = tailEvents(eventsPath, 4000);
       const hits = events.filter((e) => {
-        if (e.band !== "flag") return false; // ★ only a FLAG is a repair opportunity
+        if (e.band !== "flag") return false; // * only a FLAG is a repair opportunity
+        // * F-506 FIX (2026-09-24): one-direction hay.includes(subject) missed repairs when the
+        // * subject is the broader text containing the span excerpt. Also match the reverse
+        // * (subject contains the span); an empty span never matches.
         const hay = `${e.matched_span ?? ""} ${e.verdict ?? ""} ${e.rule ?? ""}`;
-        return hay.includes(subject);
+        if (hay.includes(subject)) return true;
+        const span = (e.matched_span ?? "").trim();
+        if (span.length > 0 && subject.includes(span)) return true;
+        return false;
       });
       return hits.map((e) => ({
         consumer: "ABIDE" as const,

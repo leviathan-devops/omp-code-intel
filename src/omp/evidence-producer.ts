@@ -290,9 +290,19 @@ export function produceAndPersist(
         records.push(fromGraph);
         sources.push("graph:structural");
       }
-    } catch {
-      // the graph source is OPTIONAL and its absence must not void the event-derived records
-      sources.push("graph:UNAVAILABLE");
+    } catch (e: unknown) {
+      // * F-508 FIX (2026-09-24): the bare catch swallowed genuine graph faults (missing table,
+      // * broken LIKE) identically to an absent store - invisible degradation against this
+      // * module LOUD-refusal law. An unreadable store (GI_EVIDENCE_UNAVAILABLE) is still
+      // * graph:UNAVAILABLE; any other fault is LOUD (console.error) and NAMED graph:ERROR
+      // * so callers tell failure apart from absence. The event-derived records still survive.
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('GI_EVIDENCE_UNAVAILABLE')) {
+        sources.push("graph:UNAVAILABLE");
+      } else {
+        console.error(`[gi-omp] laterEditFromGraph FAILED (graph source error, not absence): ${msg.slice(0, 160)}`);
+        sources.push("graph:ERROR");
+      }
     }
   }
   const persisted = persistRecords(opts.recordsPath, opts.fireStateHash, records);

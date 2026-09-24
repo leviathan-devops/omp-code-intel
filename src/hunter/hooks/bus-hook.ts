@@ -158,11 +158,20 @@ export class HydraBus {
   retryFailed(): number {
     const pending = this.failedEvents.splice(0, this.failedEvents.length);
     for (const f of pending) {
-      try {
-        for (const fn of this.subscribers) fn(eventKind(f.row.kind), f.payload);
-      } catch (e: unknown) {
-        console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) threw: ${e instanceof Error ? e.message : String(e)}`);
-        this.failedEvents.push({ ...f, error: e, attempt: f.attempt + 1 });
+      // * F-502 FIX (2026-09-24): one try/catch around ALL subscribers meant the first throwing
+      // * subscriber starved the rest of the retried event (poll() already guards per-subscriber).
+      // * Each subscriber is now guarded; a still-throwing replay stays queued with attempt + 1.
+      let lastError: unknown = null;
+      for (const fn of this.subscribers) {
+        try {
+          fn(eventKind(f.row.kind), f.payload);
+        } catch (e: unknown) {
+          console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscriber threw: ${e instanceof Error ? e.message : String(e)}`);
+          lastError = e;
+        }
+      }
+      if (lastError !== null) {
+        this.failedEvents.push({ ...f, error: lastError, attempt: f.attempt + 1 });
       }
     }
     return this.failedEvents.length;

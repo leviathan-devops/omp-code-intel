@@ -506,7 +506,10 @@ const DOMAIN_NUMERIC_THRESHOLD: PredicateTemplate = {
     for (const node of ctx.graph.nodes()) {
       if (node.name !== symbol) continue;
       const value = readPath(node.data ?? {}, valuePath);
-      if (typeof value !== 'number') continue;
+      // ★ F-444 FIX (2026-09-24): `typeof NaN === 'number'` is TRUE, and every comparison
+      //   against NaN is false — so a NaN (or ±Infinity) from node.data SILENTLY SUPPRESSED
+      //   the violation. A non-finite value is not a measurable value: skip it explicitly.
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
       if (compareOperator(operator, value, threshold)) {
         findings.push({
           ruleId: 'domain.numeric-threshold',

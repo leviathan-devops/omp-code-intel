@@ -229,7 +229,16 @@ export class QueryEngine {
       //   OOM-crashed silently. Now a loud named error names the scale instead.
       const edgeCountRow = this.db.prepare('SELECT COUNT(*) AS c FROM typed_edges WHERE superseded_run IS NULL').get() as Record<string, unknown> | null | undefined;
       const edgeCount = edgeCountRow?.['c'];
-      if (typeof edgeCount === 'number' && edgeCount > 500000) throw new Error(`COMMUNITY_TOO_LARGE: edges=${edgeCount} exceeds the 500000 in-memory BFS cap (page by predicate or raise the cap deliberately)`);
+      // ★ F-446 FIX (2026-09-24): a NULL or non-number COUNT SILENTLY SKIPPED the cap —
+      //   `typeof null === 'object'`, so an empty/unmigrated table (COUNT returns 0 as a
+      //   number, but a schema mismatch can return null) bypassed the guard entirely and
+      //   the O(V+E) BFS ran unbounded. Only a REAL number may pass; anything else is the
+      //   fail-loud path (the cap is a memory guard — an unreadable count is not a licence
+      //   to skip it).
+      if (typeof edgeCount !== 'number' || !Number.isFinite(edgeCount)) {
+        throw new Error(`COMMUNITY_UNMEASURABLE: the typed_edges count read back as ${JSON.stringify(edgeCount)} (not a finite number) — refusing to run an unbounded in-memory BFS`);
+      }
+      if (edgeCount > 500000) throw new Error(`COMMUNITY_TOO_LARGE: edges=${edgeCount} exceeds the 500000 in-memory BFS cap (page by predicate or raise the cap deliberately)`);
       const edges = this.db.prepare('SELECT src_canonical, dst_canonical FROM typed_edges WHERE superseded_run IS NULL').all() as Array<{ src_canonical: string; dst_canonical: string }>;
       const nodes = this.db.prepare('SELECT canonical_id FROM typed_nodes WHERE superseded_run IS NULL').all() as Array<{ canonical_id: string }>;
       const adj = new Map<string, Set<string>>();
@@ -359,7 +368,10 @@ export class QueryEngine {
     try {
       const like = `%${query.trim()}%`;
       const rows = this.db.prepare('SELECT canonical_id, label FROM typed_nodes WHERE superseded_run IS NULL AND (label LIKE ? OR canonical_id LIKE ? OR kind LIKE ?) LIMIT ?').all(like, like, like, topK) as Array<{ canonical_id: string; label: string }>;
-      return rows.map((r, i) => ({ canonical_id: r.canonical_id, score: 1 - i * 0.05 }));
+      // ★ F-445 FIX (2026-09-24): the rank-decay score went NEGATIVE past index 20
+      //   (`1 - i*0.05`) while VECTOR_TOPK_MAX is 100 — consumers expecting [0,1] got
+      //   values near -3.95. Clamp to the documented [0,1] band.
+      return rows.map((r, i) => ({ canonical_id: r.canonical_id, score: Math.max(0, Math.min(1, 1 - i * 0.05)) }));
     } catch (e: unknown) {
       throw new Error(`VECTOR_QUERY_FAILED: ${e instanceof Error ? e.message : String(e)}`);
     }

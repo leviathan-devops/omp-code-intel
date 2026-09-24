@@ -94,6 +94,12 @@ export class ScopeResolver {
     if (typeof sessionId === 'string' && sessionId.length > 0) {
       const cached = this.cache.get(sessionId);
       if (cached && fs.existsSync(cached)) return cached;
+      // * F-510 FIX (2026-09-24): a vanished cached path fell through to auto-detect SILENTLY -
+      // * the session could re-pin to a foreign root with no signal. Still falls through (never
+      // * scope state into a ghost dir) but LOUD.
+      if (cached) {
+        console.warn(`[scope-resolver] cached path vanished for session ${sessionId}: ${cached} - re-detecting`);
+      }
     }
     // 3) AUTO-DETECT from the session's own file activity.
     if (typeof sessionId === 'string' && sessionId.length > 0) {
