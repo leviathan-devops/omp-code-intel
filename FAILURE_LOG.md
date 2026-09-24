@@ -1710,3 +1710,19 @@ Each adjudicated two-sided against the real code, then FIXED + PINNED in
   realpath failure → blocked (never skips the escape check); symmetric real-vs-real comparison.
 - **F-11/12** lexicon-types.ts: `state` narrowed alongside `verdict` (2-member, not the 4-union).
 - **F-13** readonly.ts: the block-verb splitter extended with `$` + backtick → `$(...)`/`` ` `` fire.
+
+### W3 HIGH FINDINGS — FixOmpCore's slice (21: ~18 REAL fixed, 3 NOT-A-BUG) (2026-09-24)
+- **decision.ts** `{}` act read as blind → `GI_DECIDE_BAD_INPUT` guards (toolName/target/queriedBefore).
+- **evidence-producer.ts** invalid fireAt → NaN → all events pass → throw `GI_EVIDENCE_BAD_FIRE_AT`.
+- **fire-gate.ts** graph_facts spliced AFTER the 3-pass measure (undercount) → re-measure + re-hash
+  (F-FG1); a timed-out SHARER abandoned the creator's promise → guard `!sharedCall` (F-FG2).
+- **gate-hook.ts** sync I/O on the hot path → gated behind `GI_GATE_DEBUG=1` (F-GH1);
+  pendingQueries single slot → FIFO Map (F-GQ1); pendingSteer single var → `Map<toolName,note>` (F-PS1).
+- **gi-registry.ts** `.test.`/`_test_` argv substrings false-positive in prod → `BUN_TEST===1 ||
+  argv1.includes('st-gi-omp')` (F-GR1).
+- **graph-gate.ts** `a || b && c` precedence → parenthesized (F-GG1).
+- **jev.ts** fetch network throw escaped JevError → wrapped `GI_JEV_NETWORK` (F-JV1).
+- **kernel-v2.ts** double `classifyByDetectors` → rebuilt from `base` (F-KV1); STAGE 6 pushed
+  WRITTEN before the sink → one RECORD after settle (F-KV2).
+- **layer-consumption.ts** `SIX_L2E_CONSUMERS` held 8 → canonical `L2E_CONSUMERS` + alias (F-LC1).
+- NOT-A-BUG: fire-ledger drain (synchronous, run-to-completion); hard-deps fresh-probe (the contract).

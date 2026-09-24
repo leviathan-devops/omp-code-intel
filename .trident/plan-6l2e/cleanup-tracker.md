@@ -55,7 +55,7 @@ F-128 store-open · F-129 scoped-store · F-130 session-state · F-131 graph-fac
 | FixHunterFwDiag | src/hunter/firewall + diagnostics | 13 | ★ DONE — ALL 13 REAL, all fixed (path containment, artifact-scope fail-closed x3, bash bypass, calibration determinism+atomicity, findings-store empty-runId, fixture-calibration, semantic-predicates regex) |
 | FixHunterRest1 | src/hunter/harness + shared + hooks | 11 | ★ DONE — F-1..F-7 REAL (5 applied by the orchestrator after the agent's gate block), 4 NOT-A-BUG |
 | FixHunterRest2 | src/hunter/surface + graph + keys + lexicon | ~13 | running |
-| FixOmpCore | src/omp (top level) | 21 | running |
+| FixOmpCore | src/omp (top level) | 21 | ★ DONE — ~18 REAL fixed (decision guards, evidence-producer, fire-gate hash+sharer, gate-hook FIFO x2, gi-registry, jev net, kernel-v2 x2, layer-consumption), 3 NOT-A-BUG |
 | FixOmpAdaptersHydraKernel | src/omp/adapters + hydra + kernel | 24 | running |
 | FixScoping | src/scoping | 9 | ★ DONE — F-131(db-path) + F-132(scope-binding) REAL, 7 NOT-A-BUG |
 
