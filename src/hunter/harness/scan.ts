@@ -127,7 +127,7 @@ export async function scan(
     // (no fire+golden), the gate no-ops as honest [].
     let liveBattery = battery;
     try {
-      // F-851 CALL (2026-09-24): typed extractor — SCAN_INVALID_BINDINGS on drift, null when absent.
+      // ★ F-851 CALL (2026-09-24): typed extractor — SCAN_INVALID_BINDINGS on drift, null when absent.
       const fixtures = extractCalibrationFixtures(normalized.rules.bindings as unknown as Record<string, unknown> | undefined)
         ?? { fire: [] as FireFixture[], golden: [] as GoldenFixture[] };
       const hasFixtures = fixtures.fire.length > 0 || fixtures.golden.length > 0;

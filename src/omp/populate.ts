@@ -23,7 +23,7 @@ export interface PopulateResult {
   There is NO third substrate. When neither is available the populate fails
   loudly (GI_POPULATE_FAILED), never silently, never via a regex substitute. */
   substrate?: "corbell" | "graphify";
-  /** F-854 FIX (2026-09-24): true when the corbell data committed but the gi_meta batch
+  /** ★ F-854 FIX (2026-09-24): true when the corbell data committed but the gi_meta batch
    *  did not — callers can warn or retry the metadata instead of reading the success shape
    *  as fully healthy (the silent-degradation class: data landed, meta stale, same shape). */
   metaDegraded?: boolean;
@@ -46,7 +46,7 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
     // ★ per populate, 3x the open/verify/open-close overhead + 3 non-atomic commits). One handle,
     // ★ one transaction: all three meta rows land atomically or none do.
     const db = openTypedStore(storePath);
-    // F-854 FIX (2026-09-24): the degradation flag — set in the catch below, read in the return.
+    // ★ F-854 FIX (2026-09-24): the degradation flag — set in the catch below, read in the return.
     let metaDegraded = false;
     try {
       db.exec("BEGIN IMMEDIATE;");
@@ -61,7 +61,7 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
         // DEGRADE, not throw past a PopulateResult-typed function (no live caller catches
         // GI_META_WRITE_FAILED; it escaped as an uncaught exception). LOUD on stderr, honest
         // success for the data that did land.
-        // F-854 FIX (2026-09-24): NAME the degradation on the result — metaDegraded: true
+        // ★ F-854 FIX (2026-09-24): NAME the degradation on the result — metaDegraded: true
         //   so callers detect stale metadata programmatically (was stderr-only, invisible).
         metaDegraded = true;
         console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
@@ -77,7 +77,7 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
       runTag,
       skipped: false,
       substrate: "corbell",
-      // F-854: present-and-true ONLY on the degraded path (absent otherwise, so the
+      // ★ F-854: present-and-true ONLY on the degraded path (absent otherwise, so the
       //   success shape is byte-identical to before for exact-shape assertions).
       ...(metaDegraded ? { metaDegraded: true } : {}),
       corbellCheckout: corbell.checkoutPath,

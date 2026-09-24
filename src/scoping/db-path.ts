@@ -36,6 +36,9 @@ export interface DbPathSpec {
  *  convention set, whenever it was set. */
 export function makeDbPath(spec: DbPathSpec): () => string {
   return function dbPath(): string {
+    // F-855/F-856 shared tilde constants — hoisted: both branches read them.
+    const TILDE = String.fromCharCode(126);
+    const TILDE_SLASH = TILDE + '/';
     for (const env of spec.envVars) {
       const v = process.env[env];
       if (v && v.trim().length > 0) return path.join(v.trim(), spec.fileName);
@@ -52,7 +55,7 @@ export function makeDbPath(spec: DbPathSpec): () => string {
         );
       }
       // ★ F-413 FIX (2026-09-24): path.isAbsolute handles drive-letter/UNC — startsWith('/') misclassified Windows absolute paths as relative.
-      // F-856 FIX (2026-09-24): expand a tilde testFile against HOME.
+      // ★ F-856 FIX (2026-09-24): expand a tilde testFile against HOME.
       const testFile = spec.testFile;
       if (path.isAbsolute(testFile)) return testFile;
       if (testFile === TILDE || testFile.startsWith(TILDE_SLASH)) {
@@ -67,10 +70,8 @@ export function makeDbPath(spec: DbPathSpec): () => string {
       }
       return path.join(os.tmpdir(), testFile);
     }
-    const TILDE = String.fromCharCode(126);
-    const TILDE_SLASH = TILDE + '/';
     let dir = spec.defaultDir;
-    // F-855 FIX (2026-09-24): bare tilde is HOME too.
+    // ★ F-855 FIX (2026-09-24): bare tilde is HOME too.
     if (dir === TILDE || dir.startsWith(TILDE_SLASH)) {
       // ★ F-355 FIX (2026-09-24): the '.' fallback silently resolved the production DB
       //   relative to an unpredictable cwd when neither HOME nor USERPROFILE is set

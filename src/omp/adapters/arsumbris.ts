@@ -91,7 +91,7 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
             const values: string[] = [];
             // ★ F-338 FIX (2026-09-24): cycle guard — a revisited object returns instead of recursing (stack-exhaustion fail-closed). Parsed daemon output is a tree today; the guard keeps it so if the shape ever changes.
             const seen = new WeakSet<object>();
-            // F-852 FIX (2026-09-24): bound the recursion — a deeply nested daemon payload
+            // ★ F-852 FIX (2026-09-24): bound the recursion — a deeply nested daemon payload
             //   (up to 32 MB) could blow the call stack. Depth > 64 bails out fail-closed
             //   (over-nested values are skipped, never crashed on; the seen-set still guards cycles).
             const walk = (v: unknown, depth = 0): void => {

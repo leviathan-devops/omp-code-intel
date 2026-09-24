@@ -133,7 +133,7 @@ export function produce(
       //   a TOUCH, and a touch is not harm (EN-089).
       out.push({
         kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
-        // F-853 FIX (2026-09-24): != null drops BOTH null and undefined — a repair: null
+        // ★ F-853 FIX (2026-09-24): != null drops BOTH null and undefined — a repair: null
         //   caller no longer emits a present-but-null field (absent = NO SIGNAL per O1/EN-089).
         ...(e.repair != null ? { repair: e.repair } : {}),
       });
@@ -146,7 +146,7 @@ export function produce(
       //   manufacture corroboration.
       out.push({
         kind: "test", at: e.at, target: e.target,
-        // F-853 FIX (2026-09-24): same null-tightening for passed — passed: null no longer
+        // ★ F-853 FIX (2026-09-24): same null-tightening for passed — passed: null no longer
         //   lands as a present field distinct from absent (no-signal).
         ...(e.passed != null ? { passed: e.passed } : {}),
         by: e.by,
