@@ -252,9 +252,13 @@ function violationFrequencies(profile: ProjectProfile, ruleIds: string[]): Map<s
      // ★ project root (arbitrary-file read via profile history). Resolve, realpath the
      // ★ parent (file may not exist — realpath the dir), and require containment.
      const abs = path.resolve(profile.project.root, logPath);
+     // ★ F-302 FIX (2026-09-24): the same symlink-following hole as F-301 — the parent
+     //   resolves contained but the FILE may be a link out of the tree. Resolve both.
      const parentReal = fs.realpathSync(path.dirname(abs));
-    const contained = containedIn(parentReal);
-     if (!contained) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+     if (!containedIn(parentReal)) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+     let logReal = abs;
+     try { logReal = fs.realpathSync(abs); } catch { /* the read below reports a missing log loud */ }
+     if (!containedIn(logReal)) throw historyLogUnreadable(abs, `symlink escapes project root (root=${rootReal} file=${logReal})`);
     let text: string;
     try {
       text = fs.readFileSync(abs, 'utf8');
@@ -305,9 +309,18 @@ export function lockdownReadSource(profile: ProjectProfile): { read(file: string
       // ★ F-3 FIX (2026-09-24): same containment gate on the source read — a
       // ★ predicate-supplied `file` with `../` must not read outside the root.
       const abs = path.resolve(profile.project.root, file);
+      // ★ F-301 FIX (2026-09-24): the SYMLINK-FOLLOWING hole. F-3 resolved only the
+      //   PARENT dir — a symlink planted at `<root>/link.ts` -> /etc/passwd passed it
+      //   (dirname is the root) while readFileSync followed the link out of the tree.
+      //   Resolve the FILE too when it exists and require containment on BOTH: the
+      //   file's real path (symlink-following) and the parent's (creation-path).
+      const rootPrefix = rootReal === path.sep ? path.sep : rootReal + path.sep;
+      const inside = (q: string): boolean => q === rootReal || q.startsWith(rootPrefix);
       const parentReal = fs.realpathSync(path.dirname(abs));
-      const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path.sep);
-      if (!contained) throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+      if (!inside(parentReal)) throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+      let fileReal = abs;
+      try { fileReal = fs.realpathSync(abs); } catch { /* the file may not exist yet — the read below reports it loud */ }
+      if (!inside(fileReal)) throw sourceReadFailed(abs, `symlink escapes project root (root=${rootReal} file=${fileReal})`);
       let text: string;
       try {
         text = fs.readFileSync(abs, 'utf8');

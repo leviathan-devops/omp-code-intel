@@ -190,6 +190,13 @@ export interface StatementLike {
 export interface DbClient {
   readonly dbPath: string;
 
+  /** ★ F-304 (2026-09-24): THE EXPLICIT HANDLE ACCESSOR. QueryEngine's dbHandle()
+   *  resolves the raw bun Database through this — previously it probed a PRIVATE
+   *  `handle` field at runtime (TS-private is compile-time only) and fell back to an
+   *  unsound `as unknown as Database` cast on any prepare/exec-shaped object. The
+   *  accessor makes the contract honest: the raw handle is declared, not guessed. */
+  readonly handle: Database;
+
   /** The pass-through query surface (the spec's own tests use db.prepare directly). */
   exec(sql: string): void;
   prepare(sql: string): StatementLike;
@@ -400,7 +407,8 @@ function isNodeLineage(v: unknown): v is NodeLineage {
 /** The DbClient implementation over bun:sqlite. */
 export class SharedDb implements DbClient {
   readonly dbPath: string;
-  private readonly handle: Database;
+  /** ★ F-304: public — the DbClient contract declares it (QueryEngine.dbHandle consumes it). */
+  readonly handle: Database;
   private open = true;
 
   constructor(dbPath: string, handle: Database) {

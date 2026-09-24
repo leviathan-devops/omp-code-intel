@@ -24,6 +24,10 @@ import { populateSessionStore } from "../../omp/populate.ts";
 export interface BugHuntArgs {
   targetPath: string;
   profilePath: string;
+  /** ★ F-303 (2026-09-24): the containment root the caller context supplies. When
+   *  present, BOTH targetPath and profilePath must resolve inside it — the hunt path
+   *  otherwise accepted `/etc` (an existing directory anywhere on the filesystem). */
+  scopeRoot?: string;
   model?: string;
   provider?: string;
   maxTokens?: number;
@@ -59,10 +63,24 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
   //   nothing before). The fs import is dynamic so the tool layer never grows a static dep.
   const fsDyn = await import('node:fs');
   const absTarget: string = path.resolve(args.targetPath);
+  // ★ F-303 FIX (2026-09-24): SCOPE CONTAINMENT. F-251/F-252 canonicalized but never
+  //   BOUNDED — `/etc` (or any existing dir) passed the isDirectory check, and any
+  //   existing file passed the profile check. When the caller supplies scopeRoot, both
+  //   resolved paths must be inside it (symlink-aware: realpath both sides first).
+  const scopeReal = args.scopeRoot ? fsDyn.realpathSync(path.resolve(args.scopeRoot)) : null;
+  const scopePrefix = scopeReal === null ? null : (scopeReal === path.sep ? path.sep : scopeReal + path.sep);
+  const inScope = (real: string): boolean => scopeReal === null || real === scopeReal || (scopePrefix !== null && real.startsWith(scopePrefix));
   let targetOk = false;
   try { targetOk = fsDyn.statSync(absTarget).isDirectory(); } catch { targetOk = false; }
   if (!targetOk) {
     throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} — the hunt target must be a real directory inside the scope)`);
+  }
+  if (scopeReal !== null) {
+    let targetReal = absTarget;
+    try { targetReal = fsDyn.realpathSync(absTarget); } catch { targetReal = absTarget; }
+    if (!inScope(targetReal)) {
+      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
+    }
   }
   if (typeof args.profilePath === 'string' && args.profilePath.length > 0) {
     const absProfile: string = path.resolve(args.profilePath);
@@ -84,6 +102,14 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
       try { profileOk = fsDyn.statSync(absProfile).isFile(); } catch { profileOk = false; }
       if (!profileOk) {
         throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
+      }
+      // ★ F-303b FIX (2026-09-24): the profile obeys the SAME containment as the target.
+      if (scopeReal !== null) {
+        let profileReal = absProfile;
+        try { profileReal = fsDyn.realpathSync(absProfile); } catch { profileReal = absProfile; }
+        if (!inScope(profileReal)) {
+          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
+        }
       }
     }
     // ★ F-252b FIX (2026-09-24): build the options object as a SINGLE typed literal — the
@@ -190,7 +216,7 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
         const targetPath = typeof p.targetPath === "string" && p.targetPath.length > 0 ? p.targetPath : scopeRoot;
         const profilePath = typeof p.profilePath === "string" && p.profilePath.length > 0 ? p.profilePath : path.join(scopeRoot, "profile.yaml");
         try {
-          const result = await spawnBugHunterLoop({ targetPath, profilePath });
+          const result = await spawnBugHunterLoop({ targetPath, profilePath, scopeRoot });
           if (result.state === "inconclusive") {
             const message = result.error ?? "HUNT_INCONCLUSIVE";
             return textResult(`${message}`, {
