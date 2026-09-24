@@ -1393,3 +1393,36 @@ blame the provider.
   to tsc and to a green suite that never exercises the state.
 - **THE FLAKE NOTE:** `st-gi-w44-highs` failed once in the parallel battery and passed 34/0 in
   isolation — a temp-dir collision under concurrent load, not a regression.
+
+---
+
+## EN-SUBSTRATE-1 — ONE absent substrate, FIVE test failures (2026-09-24)
+
+- **THE SYMPTOM:** the battery went `433 pass / 5 fail` after the R12 wave. The five were
+  `st-runtime-diversity` (the ledger diversity + the theatrical act) and `st-gi-audit-fixes` (the
+  three §6 predicate tests).
+- **THE DIAGNOSIS (one cause, not five):** `decideFromRegistry` returned `class: "benign"` where the
+  test demanded `"theatrical"`, and the ledger showed **0 distinct** tuples. The probe named it:
+  ```
+  ★ class: benign · verdict: REFUSE · reason: GI_LAYER_ARSUMBRIS
+      (L2_ARSUMBRIS needs the au daemon socket + its typed repo graph)
+  ```
+  **`runKernelV2`'s preflight REFUSEs when a declared layer is DOWN — BEFORE the detectors run.**
+  So the theatrical detector never got to fire, no decision was recorded, and the three §6 predicate
+  tests (which expect the 8/8 register) failed too. **Five red tests, ONE absent substrate.**
+- **THE ROOT CAUSE:** the au-engine daemon was NOT RUNNING. Five stale `.pid`/`.sock` pairs sat in
+  `~/.arsumbris/au-engine/run` — every pid dead, every socket a file. The register said it plainly:
+  `GI_LAYER_DOWN=L2_ARSUMBRIS … every socket refused (stale…)`. (The probe's own comment had
+  predicted this exact shape: "a stale socket FILE is DOWN".)
+- **THE FIX (the substrate produced, not worked around):**
+  ```
+  /home/leviathan/arsumbris/au-engine/target/release/au daemon start <GI repo>
+  → ready pid=176379 · log matched "serving"
+  ```
+  Started as a supervised process (`hub` op=start, `restart: on-failure`).
+- **THE VERIFICATION:** `st-runtime-diversity` **4/0** (was 2/2); the full battery
+  **438/0 + 536/0, exit 0**.
+- **★ THE LESSON (the goal's own thesis, demonstrated): A MISSING SUBSTRATE PRESENTS AS N CODE
+  DEFECTS.** The instinct is to "fix" the five tests; the correct move is to produce the substrate
+  and re-measure. **The register named the cause on the first line** — read the register before
+  editing code.
