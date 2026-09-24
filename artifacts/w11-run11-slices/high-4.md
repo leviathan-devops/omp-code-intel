@@ -89,50 +89,43 @@ Both reads should route through `readPath` for consistency with the other predic
       type: String(r["file_type"
   ```
 
-## src/hydra/templates/types.ts
-- **src/hydra/templates/types.ts:49-49** (bug)
-  `outputSchema` is typed as `z.ZodSchema` (equivalent to `z.ZodSchema<any, any, any>`), which accepts **any** Zod schema. This means a caller can assign a schema that does not produce `SubagentOutput` (or even a compatible shape), and TypeScript will not flag it. The mismatch would only surface at runtime when the auditor attempts to validate or parse output. Consider tightening this to a concrete generic type so misuse is caught at compile time.
+## src/omp/adapters/abide.ts
+- **src/omp/adapters/abide.ts:130-130** (bug)
+  The fallback path in `tailEvents` re-reads the file with `readFileSync` after the bounded-tail loop fails. The earlier guard checks `st.size > MAX_SAFE_FULL_READ` and throws, but if `st` is null (stat failed), the code falls through to `readFileSync` with no size guard at all — a missing ledger's ENOENT will surface as an unhandled crash rather than the structured `GI_ENFORCE_ABIDE` error. Add a null-check on `st` before `readFileSync`.
   ```existing
-  outputSchema: z.ZodSchema;
-  ```
-  ```suggested
-  outputSchema: z.ZodType<SubagentOutput>;
+  const raw = fs.readFileSync(eventsPath, "utf8");
   ```
 
-## src/omp/adapters/semantica.ts
-- **src/omp/adapters/semantica.ts:65-70** (bug)
-  JSON.parse is followed by a direct `as SemanticaKg` cast with no runtime validation. If `kg.json` is corrupted or adversarially shaped — e.g. `entities` is a string, number, object, or missing — the code will silently produce an empty result set from the `.filter()` call, or throw an unguarded TypeError if `entities` is not iterable. Add a runtime check after parsing to validate that `kg.entities` is actually an array (or absent/undefined). This gives callers a clear diagnostic instead of a silent wrong answer or an opaque crash.
+## src/omp/decision.ts
+- **src/omp/decision.ts:0-0** (bug)
+  The `intent` parameter is not validated, unlike every other public input in this file. The file's own F-1 FIX (line 96-104) and the comment on line 131 explicitly document that an empty/undefined input silently propagates into downstream functions producing wrong results. `GraphFactInput.intent` is typed as `"consume" | "declare" | "mutate" | "measure"` but TypeScript does not prevent `undefined` at runtime. An undefined `intent` would silently reach `graphFacts`, skip the M-GRAPH-5 rule (which checks `input.intent === "measure"`), and yield a potentially wrong verdict set. This is the exact same defect class the file has already fixed twice (the F-1 FIX for `decideFromRegistry` act fields, and the W5 audit for `decideFireFromGraph` scopeRoot/target) — `intent` was missed. Add a validation guard consistent with the existing pattern.
   ```existing
-  let kg: SemanticaKg;
-      try {
-        kg = JSON.parse(raw) as SemanticaKg;
-      } catch (e) {
-        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
-      }
+  const target: string,
+  intent: GraphFactInput["intent"],
+): FireEvidence {
   ```
   ```suggested
-  let kg: SemanticaKg;
-      try {
-        kg = JSON.parse(raw) as SemanticaKg;
-      } catch (e) {
-        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
-      }
-      if (kg.entities !== undefined && !Array.isArray(kg.entities)) {
-        throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' fi
+  const target: string,
+  intent: GraphFactInput["intent"],
+): FireEvidence {
+  // ★ AUDIT HIGH: validate `intent` — the same missing-input class as scopeRoot/target.
+  //   An undefined intent silently propagates into graphFacts, skipping rules.
+  const VALID_INTENTS: readonly string[] = ["consume", "declare", "mutate", "measure"];
+  if (!VALID_INTENTS.includes(intent as string)) {
+    throw new Er
   ```
 
-## src/omp/graph-facts.ts
-- **src/omp/graph-facts.ts:0-0** (bug)
-  M-GRAPH-1 IGNORE branch evidence reports `inD.n` (total in-degree, no predicate filter) but the verdict decision was based on `producers.n` (calls-only in-degree). This produces an audit trail where the evidence string does not match the fact that was actually checked. Should be `producers.n` to match the decision criteria.
+## src/omp/populate-corbell.ts
+- **src/omp/populate-corbell.ts:174-174** (performance)
+  The freshness probe `isCorbellCheckoutFreshFor` is called twice: once at line 123 (before reads) and once at line 166 (after reads). Each call walks the entire workspace tree with up to `CORBELL_FRESHNESS_BUDGET` (50,000) `statSync` calls — that's potentially 100k stat syscalls per invocation of this function. The second call's primary purpose is to detect a rebuild that happened during the read, but the `warmStoreUnchanged` (mtime+size+ino snapshot) comparison at line 168 already covers that case. Consider removing the second `isCorbellCheckoutFreshFor` call and relying solely on the `warmStoreUnchanged` comparison, or caching the freshness walk result if both checks are deemed necessary.
   ```existing
-  : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
-            reason: `the consumed symbol "${input.target}" has producers`,
-            evidence: `in-degree ${inD.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
+  const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
   ```
   ```suggested
-  : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
-            reason: `the consumed symbol "${input.target}" has producers`,
-            evidence: `in-degree (calls) ${producers.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
+  // Rely on the stat-snapshot comparison (stBefore vs stAfter) to detect
+  // mid-read swaps — avoids a second full filesystem walk (50k stat calls).
+  // If freshness semantics beyond stat-snapshot are needed, consider caching
+  // the walk result from the first probe above.
   ```
 
 ## src/omp/populate-graphify.ts

@@ -30,25 +30,18 @@ function extractCalibrationFixtures(bindings: Record<string, unknown>): { fire: 
   if (typeof raw !== 'object') throw new Error('SCAN_INVALID_BINDINGS: calibrationFixtures must be an o
   ```
 
-## src/hunter/shared/containment.ts
-- **src/hunter/shared/containment.ts:101-104** (bug)
-  **Contradictory 'NEVER throws' contract**: The doc comment on `checkContained` (line 99) states 'NEVER throws', but `realNearest` rethrows non-ENOENT/ENOTDIR errors (lines 77-78), and `checkContained` itself calls `realpathSync(root)` which can throw EACCES/ELOOP before the `realNearest` fallback is reached. `requireContained` (line 128) also has no try-catch around `checkContained`, so any of these thrown errors propagate to the caller, violating the stated contract. Either the contract should be softened to document the specific error codes that CAN escape, or the throws should be wrapped and routed through `onViolation`.
+## src/hunter/tools/bug-hunt.ts
+- **src/hunter/tools/bug-hunt.ts:97-98** (bug)
+  **Bug: Lock release when `acquireHuntLock` throws corrupts lock state.** If `acquireHuntLock(absTarget)` throws (e.g., lock corruption, concurrent hold), the outer `finally` block (lines 153–156) still calls `releaseHuntLock(absTarget)` on a lock that was never acquired. This could corrupt the lock file, unlock another process's held lock, or mask the original acquisition error. The fix is to track whether acquisition succeeded with a boolean flag and guard the release.
   ```existing
-  * THE CHECK — resolve both sides and answer containment. NEVER throws; the caller owns the
- * error vocabulary (each subsystem has its own named code: HUNT_SCOPE_INVALID,
- * SOURCE_READ_FAILED, GI_SHARED_PROJECT_STORE …). Returning the values lets the caller name
- * BOTH paths in its message, which is what makes a refusal debuggable.
-  ```
-
-## src/kernel/graph-pre-flight.ts
-- **src/kernel/graph-pre-flight.ts:65-65** (bug)
-  **Double DB connection to the same store.** `getTestTargets(storePath, target, 5)` opens its own `openTypedStore(storePath)` (see graph-test-target.ts:24), meaning two independent handles are open concurrently on the same SQLite file. Depending on the driver's concurrency model this can cause 'database is locked' errors, stale reads, or WAL-mode anomalies. Either (a) refactor `getTestTargets` to accept an already-open `db` handle, or (b) ensure the driver explicitly supports concurrent handles with appropriate journaling mode.
-  ```existing
-  const testTargets = getTestTargets(storePath, target, 5);
+  acquireHuntLock(absTarget);
+  try {
   ```
   ```suggested
-  // Option A: refactor getTestTargets to accept a db handle
-const testTargets = getTestTargets(db, target, 5);
+  let lockHeld = false;
+  acquireHuntLock(absTarget);
+  lockHeld = true;
+  try {
   ```
 
 ## src/kernel/scan-chain.ts
@@ -86,42 +79,67 @@ const testTargets = getTestTargets(db, target, 5);
           const delta = chunk.choices?.[0]?.delta?.
   ```
 
-## src/omp/calibration.ts
-- **src/omp/calibration.ts:154-154** (bug)
-  Bug: `flag` can exceed `act` in both uncalibrated and calibrated branches due to the unconditional `Math.max(0.05, ...)` floor when `act` is small. This inverts the intended warning zone semantics where flag should be below act. Fix: cap flag so it never exceeds act.
+## src/omp/adapters/arsumbris.ts
+- **src/omp/adapters/arsumbris.ts:94-106** (bug)
+  The recursive `walk` function in the filter callback has no depth limit. A deeply nested daemon payload (up to 32 MB) could blow the call stack. Consider adding a `maxDepth` parameter (e.g., 64) and bailing out when exceeded, consistent with the existing fail-closed philosophy elsewhere in this file.
   ```existing
-  flag: Math.max(0.05, costCut / 2),
+  const walk = (v: unknown): void => {
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) {
+                if (seen.has(v)) return;
+                seen.add(v);
+                for (const x of v) walk(x);
+              } else if (v && typeof v === "object") {
+                if (seen.has(v as object)) return;
+                seen.add(v as object);
+    
   ```
   ```suggested
-  flag: Math.min(costCut * 0.9, Math.max(0.05, costCut / 2)),
+  const walk = (v: unknown, depth = 0): void => {
+              if (depth > 64) return;
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) {
+                if (seen.has(v)) return;
+                seen.add(v);
+                for (const x of v) walk(x, depth + 1);
+              } else if (v && typeof v === "object") {
+                if (seen.has(v as 
   ```
 
-## src/omp/jev.ts
-- **src/omp/jev.ts:39-52** (security)
-  TOCTOU race condition: Between `statSync` (permission check) and `readFileSync`, the file can be replaced (e.g., symlink swap to a world-readable file or a different file entirely). This undermines the 0600 enforcement the code claims. Use `fs.openSync` with `O_NOFOLLOW` + `fs.fstatSync` + `fs.readFileSync` on the same fd to atomically check permissions and read. Alternatively, at minimum, read the file then check permissions on the opened fd before returning the value.
+## src/omp/evidence-producer.ts
+- **src/omp/evidence-producer.ts:134-137** (bug)
+  The undefined-gate spread `{...(e.repair === undefined ? {} : { repair: e.repair })}` (and the identical pattern for `passed` on line 137) allows `null` through. If a caller passes `repair: null` or `passed: null` (not `undefined`), the record will contain `{ repair: null }` or `{ passed: null }` — which the downstream oracle (oracle.ts) will see as a *present* field rather than an *absent* one. The oracle treats absent `passed` as NO SIGNAL (a deliberate O1 fix), but `{ passed: null }` is a *present* field — the oracle may interpret it differently (e.g., `record.passed === true` is false, but `record.passed !== undefined` is true, potentially changing branching logic). Use `e.repair != null` (loose null-check) or `e.repair !== undefined && e.repair !== null` to reject both `undefined` and `null`, preserving the 'absent means unknown' contract the oracle relies on. Apply the same guard to `passed`.
   ```existing
-  try {
-        const mode = fs.statSync(KEY_FILE).mode;
-        if ((mode & 0o077) !== 0) {
-          throw new JevError(
-            "GI_JEV_KEY_PERMS",
-            `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
-          );
-        }
-      } catch (e) {
-        if (e instanceof JevError) throw e;
-        // stat failed (e.g. 
+  out.push({
+        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
+        ...(e.repair === undefined ? {} : { repair: e.repair }),
+      });
   ```
   ```suggested
-  // Open the file once, fstat the fd, then read from the same fd — no TOCTOU.
-    const fd = fs.openSync(KEY_FILE, 'r');
-    try {
-      const mode = fs.fstatSync(fd).mode;
-      if ((mode & 0o077) !== 0) {
-        throw new JevError(
-          "GI_JEV_KEY_PERMS",
-          `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
-       
+  out.push({
+        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
+        ...(e.repair != null ? { repair: e.repair } : {}),
+      });
+  ```
+
+## src/omp/populate.ts
+- **src/omp/populate.ts:52-59** (bug)
+  Corbell meta-write degradation is silent to the caller. When the meta INSERT fails (lines 68-75), the catch logs to stderr but the function returns `skipped: false` with `substrate: "corbell"` — the same shape as a fully successful populate. Callers have no programmatic way to detect the stale metadata. Because the data already committed and there is no retry loop, this inconsistency becomes permanent. Either (a) return a degradation flag in `PopulateResult` (e.g. `metaDegraded: true`) so callers can warn or retry, or (b) re-throw after logging so callers see the failure (preferred if metadata is contractually required).
+  ```existing
+  } catch (e) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        // ★ F-711 FIX (2026-09-24): the corbell data already committed - a meta-row failure must
+        // DEGRADE, not throw past a PopulateResult-typed function (no live caller catches
+        // GI_META_WRITE_FAILED; it escaped as an uncaught exception). LOUD on stderr, honest
+        // success for the da
+  ```
+  ```suggested
+  } catch (e) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
+        // Return a degraded result so callers can detect and act on stale metadata
+        return {
+          filesIndexed: 0
   ```
 
 ## src/scoping/db-path.ts

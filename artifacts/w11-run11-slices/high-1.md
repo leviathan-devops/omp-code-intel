@@ -1,4 +1,4 @@
-# HIGH slice 1 — 13 findings across 9 files
+# HIGH slice 1 — 12 findings across 8 files
 
 ## src/hunter/diagnostics/engine.ts
 - **src/hunter/diagnostics/engine.ts:785-791** (bug)
@@ -111,44 +111,48 @@
           console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscribe
   ```
 
-## src/hunter/tools/bug-hunt.ts
-- **src/hunter/tools/bug-hunt.ts:97-98** (bug)
-  **Bug: Lock release when `acquireHuntLock` throws corrupts lock state.** If `acquireHuntLock(absTarget)` throws (e.g., lock corruption, concurrent hold), the outer `finally` block (lines 153–156) still calls `releaseHuntLock(absTarget)` on a lock that was never acquired. This could corrupt the lock file, unlock another process's held lock, or mask the original acquisition error. The fix is to track whether acquisition succeeded with a boolean flag and guard the release.
+## src/hydra/pipeline.ts
+- **src/hydra/pipeline.ts:194-197** (bug)
+  The `splice(0, this.evidence.length, ...evidence)` spread may exceed the JavaScript engine's maximum call stack size (V8 limit ~65k arguments) if `evidence` is large. Replace with a bounded approach to avoid a potential stack overflow.
   ```existing
-  acquireHuntLock(absTarget);
-  try {
+  if (seq >= this.publishedSeq) {
+      this.evidence.splice(0, this.evidence.length, ...evidence);
+      this.publishedSeq = seq;
+    }
   ```
   ```suggested
-  let lockHeld = false;
-  acquireHuntLock(absTarget);
-  lockHeld = true;
-  try {
+  if (seq >= this.publishedSeq) {
+      this.evidence.length = 0;
+      for (const entry of evidence) {
+        this.evidence.push(entry);
+      }
+      this.publishedSeq = seq;
+    }
   ```
 
-## src/omp/adapters/abide.ts
-- **src/omp/adapters/abide.ts:130-130** (bug)
-  The fallback path in `tailEvents` re-reads the file with `readFileSync` after the bounded-tail loop fails. The earlier guard checks `st.size > MAX_SAFE_FULL_READ` and throws, but if `st` is null (stat failed), the code falls through to `readFileSync` with no size guard at all — a missing ledger's ENOENT will surface as an unhandled crash rather than the structured `GI_ENFORCE_ABIDE` error. Add a null-check on `st` before `readFileSync`.
+## src/omp/adapters/c2kg.ts
+- **src/omp/adapters/c2kg.ts:42-49** (bug)
+  Individual symbol objects from untrusted JSON are not type-validated. Properties such as `s.name`, `s.kind`, `s.file`, and `s.line` could be non-string or non-number types at runtime. The nullish coalescing operator `??` only guards against `null`/`undefined`, so for example, a numeric `s.name` like `42` would cause `42.includes(subject)` to throw a TypeError, crashing the entire `facts()` call and bypassing the error contract. Similarly, non-string values for `s.kind` and `s.file` could leak into the output `LayerFact`, and a non-number `s.line` would violate the typed contract of the `symbols` interface, leading to potential misbehavior in downstream consumers.
   ```existing
-  const raw = fs.readFileSync(eventsPath, "utf8");
-  ```
-
-## src/omp/decision.ts
-- **src/omp/decision.ts:0-0** (bug)
-  The `intent` parameter is not validated, unlike every other public input in this file. The file's own F-1 FIX (line 96-104) and the comment on line 131 explicitly document that an empty/undefined input silently propagates into downstream functions producing wrong results. `GraphFactInput.intent` is typed as `"consume" | "declare" | "mutate" | "measure"` but TypeScript does not prevent `undefined` at runtime. An undefined `intent` would silently reach `graphFacts`, skip the M-GRAPH-5 rule (which checks `input.intent === "measure"`), and yield a potentially wrong verdict set. This is the exact same defect class the file has already fixed twice (the F-1 FIX for `decideFromRegistry` act fields, and the W5 audit for `decideFireFromGraph` scopeRoot/target) — `intent` was missed. Add a validation guard consistent with the existing pattern.
-  ```existing
-  const target: string,
-  intent: GraphFactInput["intent"],
-): FireEvidence {
+  const hits = symbols.filter((s) => (s.name ?? "").includes(subject));
+    return hits.map((s) => ({
+      consumer: "L4_C2KG" as const,
+      rung: "context" as const,
+      subject,
+      value: { kind: s.kind, file: s.file, line: s.line },
+      source: `${indexPath}#symbols(${s.file ?? "?"}:${s.line ?? "?"})`,
+    }));
   ```
   ```suggested
-  const target: string,
-  intent: GraphFactInput["intent"],
-): FireEvidence {
-  // ★ AUDIT HIGH: validate `intent` — the same missing-input class as scopeRoot/target.
-  //   An undefined intent silently propagates into graphFacts, skipping rules.
-  const VALID_INTENTS: readonly string[] = ["consume", "declare", "mutate", "measure"];
-  if (!VALID_INTENTS.includes(intent as string)) {
-    throw new Er
+  const hits = symbols.filter((s) => typeof s.name === "string" && s.name.includes(subject));
+    return hits.map((s) => ({
+      consumer: "L4_C2KG" as const,
+      rung: "context" as const,
+      subject,
+      value: {
+        kind: typeof s.kind === "string" ? s.kind : undefined,
+        file: typeof s.file === "string" ? s.file : undefined,
+        line: typeof s.line === "number" ? s.line : un
   ```
 
 ## src/omp/extension.ts
@@ -169,17 +173,21 @@
       if (process.env.GI_OMP_ALLOW_CLEAR !
   ```
 
-## src/omp/populate-corbell.ts
-- **src/omp/populate-corbell.ts:174-174** (performance)
-  The freshness probe `isCorbellCheckoutFreshFor` is called twice: once at line 123 (before reads) and once at line 166 (after reads). Each call walks the entire workspace tree with up to `CORBELL_FRESHNESS_BUDGET` (50,000) `statSync` calls — that's potentially 100k stat syscalls per invocation of this function. The second call's primary purpose is to detect a rebuild that happened during the read, but the `warmStoreUnchanged` (mtime+size+ino snapshot) comparison at line 168 already covers that case. Consider removing the second `isCorbellCheckoutFreshFor` call and relying solely on the `warmStoreUnchanged` comparison, or caching the freshness walk result if both checks are deemed necessary.
+## src/omp/gi-registry.ts
+- **src/omp/gi-registry.ts:144-146** (bug)
+  `closeGiRegistry()` calls `closeStoreDb()` which closes **all** tracked store DB handles. Any other caller that currently holds a handle from `getStoreDb` (e.g., an ongoing `openSessionStore`) will have its connection invalidated, potentially causing silent failures or `SQLITE_MISUSE` errors on subsequent operations. Document this side-effect prominently, or add a parameter to selectively close only the registry DB.
   ```existing
-  const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
+  export function closeGiRegistry(): void {
+  closeStoreDb();
+}
   ```
   ```suggested
-  // Rely on the stat-snapshot comparison (stBefore vs stAfter) to detect
-  // mid-read swaps — avoids a second full filesystem walk (50k stat calls).
-  // If freshness semantics beyond stat-snapshot are needed, consider caching
-  // the walk result from the first probe above.
+  // NOTE: closeStoreDb() closes ALL tracked DB handles, not just the registry.
+// Callers must ensure no other store DB is in active use, or this function
+// should be refactored to close only the registry connection.
+export function closeGiRegistry(): void {
+  closeStoreDb();
+}
   ```
 
 ## src/scoping/gi-ecosystem.ts

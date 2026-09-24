@@ -1,4 +1,4 @@
-# HIGH slice 2 — 12 findings across 9 files
+# HIGH slice 2 — 11 findings across 8 files
 
 ## src/hunter/graph/mechanical.ts
 - **src/hunter/graph/mechanical.ts:131-133** (bug)
@@ -78,80 +78,36 @@ Suggested fix: use a `Set<string>` to track which semantic triples have already 
 
   ```
 
-## src/hydra/client-reader.ts
-- **src/hydra/client-reader.ts:74-77** (bug)
-  When `old.close()` wins the race (resolves before 5000ms), the timeout timer is never cleared. Its `setTimeout` callback will still fire later, calling `rej()` on an already-resolved race — producing an unhandled promise rejection in Node.js. Conversely, when the timeout fires first, `old.close()` continues running in the background and its eventual resolution also becomes unhandled. In both cases the losing promise is abandoned without `.catch()`. Fix by clearing the timer on close success and adding `.catch()` to both branches:
-```ts
-let timer: ReturnType<typeof setTimeout> | undefined;
-const result = await Promise.race([
-  old.close(),
-  new Promise<never>((_, rej) => {
-    timer = setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT')), 5000);
-  }),
-]);
-if (timer) clearTimeout(timer);
-return result;
-```
+## src/hydra/templates/types.ts
+- **src/hydra/templates/types.ts:49-49** (bug)
+  `outputSchema` is typed as `z.ZodSchema` (equivalent to `z.ZodSchema<any, any, any>`), which accepts **any** Zod schema. This means a caller can assign a schema that does not produce `SubagentOutput` (or even a compatible shape), and TypeScript will not flag it. The mismatch would only surface at runtime when the auditor attempts to validate or parse output. Consider tightening this to a concrete generic type so misuse is caught at compile time.
   ```existing
-  await Promise.race([
-            old.close(),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')), 5000).unref?.()),
-          ]);
+  outputSchema: z.ZodSchema;
   ```
   ```suggested
-  let closeTimer: ReturnType<typeof setTimeout> | undefined;
-          await Promise.race([
-            old.close().catch(() => {}),
-            new Promise<never>((_, rej) => {
-              closeTimer = setTimeout(
-                () => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')),
-                5000,
-              );
-            }),
-       
+  outputSchema: z.ZodType<SubagentOutput>;
   ```
 
-## src/omp/adapters/arsumbris.ts
-- **src/omp/adapters/arsumbris.ts:94-106** (bug)
-  The recursive `walk` function in the filter callback has no depth limit. A deeply nested daemon payload (up to 32 MB) could blow the call stack. Consider adding a `maxDepth` parameter (e.g., 64) and bailing out when exceeded, consistent with the existing fail-closed philosophy elsewhere in this file.
+## src/omp/adapters/semantica.ts
+- **src/omp/adapters/semantica.ts:65-70** (bug)
+  JSON.parse is followed by a direct `as SemanticaKg` cast with no runtime validation. If `kg.json` is corrupted or adversarially shaped — e.g. `entities` is a string, number, object, or missing — the code will silently produce an empty result set from the `.filter()` call, or throw an unguarded TypeError if `entities` is not iterable. Add a runtime check after parsing to validate that `kg.entities` is actually an array (or absent/undefined). This gives callers a clear diagnostic instead of a silent wrong answer or an opaque crash.
   ```existing
-  const walk = (v: unknown): void => {
-              if (typeof v === "string") values.push(v);
-              else if (Array.isArray(v)) {
-                if (seen.has(v)) return;
-                seen.add(v);
-                for (const x of v) walk(x);
-              } else if (v && typeof v === "object") {
-                if (seen.has(v as object)) return;
-                seen.add(v as object);
-    
+  let kg: SemanticaKg;
+      try {
+        kg = JSON.parse(raw) as SemanticaKg;
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+      }
   ```
   ```suggested
-  const walk = (v: unknown, depth = 0): void => {
-              if (depth > 64) return;
-              if (typeof v === "string") values.push(v);
-              else if (Array.isArray(v)) {
-                if (seen.has(v)) return;
-                seen.add(v);
-                for (const x of v) walk(x, depth + 1);
-              } else if (v && typeof v === "object") {
-                if (seen.has(v as 
-  ```
-
-## src/omp/evidence-producer.ts
-- **src/omp/evidence-producer.ts:134-137** (bug)
-  The undefined-gate spread `{...(e.repair === undefined ? {} : { repair: e.repair })}` (and the identical pattern for `passed` on line 137) allows `null` through. If a caller passes `repair: null` or `passed: null` (not `undefined`), the record will contain `{ repair: null }` or `{ passed: null }` — which the downstream oracle (oracle.ts) will see as a *present* field rather than an *absent* one. The oracle treats absent `passed` as NO SIGNAL (a deliberate O1 fix), but `{ passed: null }` is a *present* field — the oracle may interpret it differently (e.g., `record.passed === true` is false, but `record.passed !== undefined` is true, potentially changing branching logic). Use `e.repair != null` (loose null-check) or `e.repair !== undefined && e.repair !== null` to reject both `undefined` and `null`, preserving the 'absent means unknown' contract the oracle relies on. Apply the same guard to `passed`.
-  ```existing
-  out.push({
-        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
-        ...(e.repair === undefined ? {} : { repair: e.repair }),
-      });
-  ```
-  ```suggested
-  out.push({
-        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
-        ...(e.repair != null ? { repair: e.repair } : {}),
-      });
+  let kg: SemanticaKg;
+      try {
+        kg = JSON.parse(raw) as SemanticaKg;
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+      }
+      if (kg.entities !== undefined && !Array.isArray(kg.entities)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' fi
   ```
 
 ## src/omp/fire-ledger.ts
@@ -194,24 +150,18 @@ SELECT * FROM (
       return limit === undefined ? rows : rows.reverse();
   ```
 
-## src/omp/populate.ts
-- **src/omp/populate.ts:52-59** (bug)
-  Corbell meta-write degradation is silent to the caller. When the meta INSERT fails (lines 68-75), the catch logs to stderr but the function returns `skipped: false` with `substrate: "corbell"` — the same shape as a fully successful populate. Callers have no programmatic way to detect the stale metadata. Because the data already committed and there is no retry loop, this inconsistency becomes permanent. Either (a) return a degradation flag in `PopulateResult` (e.g. `metaDegraded: true`) so callers can warn or retry, or (b) re-throw after logging so callers see the failure (preferred if metadata is contractually required).
+## src/omp/graph-facts.ts
+- **src/omp/graph-facts.ts:0-0** (bug)
+  M-GRAPH-1 IGNORE branch evidence reports `inD.n` (total in-degree, no predicate filter) but the verdict decision was based on `producers.n` (calls-only in-degree). This produces an audit trail where the evidence string does not match the fact that was actually checked. Should be `producers.n` to match the decision criteria.
   ```existing
-  } catch (e) {
-        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
-        // ★ F-711 FIX (2026-09-24): the corbell data already committed - a meta-row failure must
-        // DEGRADE, not throw past a PopulateResult-typed function (no live caller catches
-        // GI_META_WRITE_FAILED; it escaped as an uncaught exception). LOUD on stderr, honest
-        // success for the da
+  : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
+            reason: `the consumed symbol "${input.target}" has producers`,
+            evidence: `in-degree ${inD.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
   ```
   ```suggested
-  } catch (e) {
-        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
-        console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
-        // Return a degraded result so callers can detect and act on stale metadata
-        return {
-          filesIndexed: 0
+  : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
+            reason: `the consumed symbol "${input.target}" has producers`,
+            evidence: `in-degree (calls) ${producers.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
   ```
 
 ## src/scoping/gi-session-path.ts

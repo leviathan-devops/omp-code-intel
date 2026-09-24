@@ -94,48 +94,25 @@ if (!began) {
   evidence TEXT NOT NULL CHECK (length(evidence) > 0),
   ```
 
-## src/hydra/pipeline.ts
-- **src/hydra/pipeline.ts:194-197** (bug)
-  The `splice(0, this.evidence.length, ...evidence)` spread may exceed the JavaScript engine's maximum call stack size (V8 limit ~65k arguments) if `evidence` is large. Replace with a bounded approach to avoid a potential stack overflow.
+## src/kernel/graph-pre-flight.ts
+- **src/kernel/graph-pre-flight.ts:65-65** (bug)
+  **Double DB connection to the same store.** `getTestTargets(storePath, target, 5)` opens its own `openTypedStore(storePath)` (see graph-test-target.ts:24), meaning two independent handles are open concurrently on the same SQLite file. Depending on the driver's concurrency model this can cause 'database is locked' errors, stale reads, or WAL-mode anomalies. Either (a) refactor `getTestTargets` to accept an already-open `db` handle, or (b) ensure the driver explicitly supports concurrent handles with appropriate journaling mode.
   ```existing
-  if (seq >= this.publishedSeq) {
-      this.evidence.splice(0, this.evidence.length, ...evidence);
-      this.publishedSeq = seq;
-    }
+  const testTargets = getTestTargets(storePath, target, 5);
   ```
   ```suggested
-  if (seq >= this.publishedSeq) {
-      this.evidence.length = 0;
-      for (const entry of evidence) {
-        this.evidence.push(entry);
-      }
-      this.publishedSeq = seq;
-    }
+  // Option A: refactor getTestTargets to accept a db handle
+const testTargets = getTestTargets(db, target, 5);
   ```
 
-## src/omp/adapters/c2kg.ts
-- **src/omp/adapters/c2kg.ts:42-49** (bug)
-  Individual symbol objects from untrusted JSON are not type-validated. Properties such as `s.name`, `s.kind`, `s.file`, and `s.line` could be non-string or non-number types at runtime. The nullish coalescing operator `??` only guards against `null`/`undefined`, so for example, a numeric `s.name` like `42` would cause `42.includes(subject)` to throw a TypeError, crashing the entire `facts()` call and bypassing the error contract. Similarly, non-string values for `s.kind` and `s.file` could leak into the output `LayerFact`, and a non-number `s.line` would violate the typed contract of the `symbols` interface, leading to potential misbehavior in downstream consumers.
+## src/omp/calibration.ts
+- **src/omp/calibration.ts:154-154** (bug)
+  Bug: `flag` can exceed `act` in both uncalibrated and calibrated branches due to the unconditional `Math.max(0.05, ...)` floor when `act` is small. This inverts the intended warning zone semantics where flag should be below act. Fix: cap flag so it never exceeds act.
   ```existing
-  const hits = symbols.filter((s) => (s.name ?? "").includes(subject));
-    return hits.map((s) => ({
-      consumer: "L4_C2KG" as const,
-      rung: "context" as const,
-      subject,
-      value: { kind: s.kind, file: s.file, line: s.line },
-      source: `${indexPath}#symbols(${s.file ?? "?"}:${s.line ?? "?"})`,
-    }));
+  flag: Math.max(0.05, costCut / 2),
   ```
   ```suggested
-  const hits = symbols.filter((s) => typeof s.name === "string" && s.name.includes(subject));
-    return hits.map((s) => ({
-      consumer: "L4_C2KG" as const,
-      rung: "context" as const,
-      subject,
-      value: {
-        kind: typeof s.kind === "string" ? s.kind : undefined,
-        file: typeof s.file === "string" ? s.file : undefined,
-        line: typeof s.line === "number" ? s.line : un
+  flag: Math.min(costCut * 0.9, Math.max(0.05, costCut / 2)),
   ```
 
 ## src/omp/gate-hook.ts
@@ -171,19 +148,30 @@ const hasRows = (typeof detailsRows.rowCount === "number" && detailsRows.rowCoun
  
   ```
 
-## src/omp/gi-registry.ts
-- **src/omp/gi-registry.ts:144-146** (bug)
-  `closeGiRegistry()` calls `closeStoreDb()` which closes **all** tracked store DB handles. Any other caller that currently holds a handle from `getStoreDb` (e.g., an ongoing `openSessionStore`) will have its connection invalidated, potentially causing silent failures or `SQLITE_MISUSE` errors on subsequent operations. Document this side-effect prominently, or add a parameter to selectively close only the registry DB.
+## src/omp/jev.ts
+- **src/omp/jev.ts:39-52** (security)
+  TOCTOU race condition: Between `statSync` (permission check) and `readFileSync`, the file can be replaced (e.g., symlink swap to a world-readable file or a different file entirely). This undermines the 0600 enforcement the code claims. Use `fs.openSync` with `O_NOFOLLOW` + `fs.fstatSync` + `fs.readFileSync` on the same fd to atomically check permissions and read. Alternatively, at minimum, read the file then check permissions on the opened fd before returning the value.
   ```existing
-  export function closeGiRegistry(): void {
-  closeStoreDb();
-}
+  try {
+        const mode = fs.statSync(KEY_FILE).mode;
+        if ((mode & 0o077) !== 0) {
+          throw new JevError(
+            "GI_JEV_KEY_PERMS",
+            `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
+          );
+        }
+      } catch (e) {
+        if (e instanceof JevError) throw e;
+        // stat failed (e.g. 
   ```
   ```suggested
-  // NOTE: closeStoreDb() closes ALL tracked DB handles, not just the registry.
-// Callers must ensure no other store DB is in active use, or this function
-// should be refactored to close only the registry connection.
-export function closeGiRegistry(): void {
-  closeStoreDb();
-}
+  // Open the file once, fstat the fd, then read from the same fd — no TOCTOU.
+    const fd = fs.openSync(KEY_FILE, 'r');
+    try {
+      const mode = fs.fstatSync(fd).mode;
+      if ((mode & 0o077) !== 0) {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
+       
   ```

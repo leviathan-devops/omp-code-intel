@@ -2647,3 +2647,44 @@ markers of 113 (96% real)** — the instrument gate (F-607) passes; run 9 by con
 strongest critical (the unverified HMACs) is a new member of it. The class fix for the
 containment half is landed (the shared primitive, F-600..F-606); the VERIFY half now has its
 first instance fixed and probed.
+
+---
+
+## 2026-09-24 — THE RUN-11 WHOLE-TREE AUDIT — **0 CRITICAL** / 55 HIGH
+
+**The instrument, verified before the numbers:** the pool reads `go-1 ok go-3 ok go-6 ok go-7 ok
+go-8 ok` (5 of 8 alive; the operator's pin is live). The F-607 instrument gate passes: **21 empty
+parts of 113 (19%)** — a real scan, not the run-9 dead-lane shape (108 of 113).
+
+**★ THE RESULT: `CRITICAL=0` / 55 HIGH / 199 MEDIUM / 110 LOW = 364 comments.**
+
+### ★ THE NINE-RUN CRITICAL CURVE — the class closed, and the closure held
+
+```
+  run  critical  high    the instrument
+  ───  ────────  ────    ──────────────────────────────────────────────
+   1        8      92    live
+   2        5      90    live
+   3        3      80    live
+   4        6      65    live
+   5        4      51    live
+   6        4      65    live
+   7        1      61    live
+   8        5      58    PARTIALLY DEGRADED (15 empty — a FLOOR, not a clean number)
+   9        1       2    ★ VOID — the lane was DEAD (108 of 113 empty markers)
+  10        4      57    live, gate-verified
+  11        0      55    live, gate-verified   ← ★ ZERO CRITICALS
+```
+
+**What closed it, precisely:** run 10's four criticals were the containment/verify family —
+the evidence HMACs written but NEVER VERIFIED (F-610), the unbounded transport close that
+deadlocked the reader (F-611/F-612), and one probe-proven NOT-A-BUG. Fixing those, plus the
+**F-620 gate class-fix** (a gate whose remedy is unreachable now degrades to advisory instead of
+blocking three agents out of their work) and the **shared containment primitive** (F-600..F-606),
+produced a zero-critical run.
+
+**The 55-high plateau is the reviewer's generation floor on a 113-file tree.** It does not fall
+to zero by fixing sites — the top files recur across runs (`engine.ts`, `templates.ts`, `db.ts`,
+`query-tool.ts`, `extension.ts`, `gate-hook.ts`), which is a DESIGN signal, not 55 independent
+defects. The wave that addresses them is dispatched; the honest statement is that the count
+oscillates in the 50s as each wave ADDS the code the next run audits.
