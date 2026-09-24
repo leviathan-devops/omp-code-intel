@@ -584,3 +584,30 @@ rung: `graphFacts` + the `PolicyStore` + a persistent `FireLedger`). Both VALUE-
 
 **THE 7-CLASS CORPUS:** the 7th fixture added (TIER B · CLASS D — the unwired module) + an
 explicit `fixtures.length === 7` assertion.
+
+## ★ W3-FOLLOW-ON — THE WHOLE-TREE AUDIT'S 100 BLOCKING FINDINGS (2026-09-24, in progress)
+
+### THE 8 CRITICALS — ALL FIXED + PINNED
+`tests/st-w3-criticals.test.ts` **9 pass / 0 fail**. F-124 store-map (supersede-in-tx) ·
+F-125 templates (ctx.source) · F-126 query-tool (MAX_BLAST_DEPTH cap) · F-127 populate-graphify
+(marker in-tx) · F-128 store-open (wx exclusive create) · F-129 scoped-store (ident validation)
+· F-130 session-state (RMW lock) · F-131 graph-facts (superseded_run filter, all 4 queries).
+
+### THE 92 HIGHS — 6 DISJOINT AGENTS
+FixScoping DONE (F-131(db-path) loud-fail + F-132(scope-binding) prefix-collision REAL; 7
+NOT-A-BUG). FixHunterRest1 DONE (F-1..F-7: 5 applied by the orchestrator after the agent's gate
+block). Running: FixHunterFwDiag (13), FixHunterRest2 (~13), FixOmpCore (21),
+FixOmpAdaptersHydraKernel (24).
+
+### THE RE-AUDIT OF THE 8 FIXED CRITICALS (the measured lesson)
+`{high:9, medium:24, low:12}` vs the baseline `{critical:8, high:92}`. **THE LLM AUDIT IS
+NON-DETERMINISTIC.** `store-open.ts` re-scanned CLEAN. F-133 (inDegree n = a LIMIT-5 length) +
+F-134/135/136 (the new session-state lock's stale deadline / no release token / 3ms spin) were
+REAL — ALL FIXED.
+
+### THE §6 EXIT BATTERY (measured this run)
+- tsc `exit 0` · `bun run test` **416 pass / 0 fail** (41 files) and **514 pass / 0 fail** (58 files)
+- FR-1 `goal-verify` → **5/5 exit 0**, C1 detail "7/8 for 'evidence'", NO contradiction
+- FR-2 `SELECT COUNT(*), COUNT(DISTINCT rule_id||'|'||band||'|'||action) FROM fire_decisions`
+  → **`56 | 4`**
+- the register at face value: `consumption-audit` → `consumed:7/8` L2_ARSUMBRIS named

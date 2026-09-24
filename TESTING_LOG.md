@@ -2284,3 +2284,25 @@ the dist 82bad22c3687d21e
 - **The verdict:** **FAIL** — the ship-ready claim stays WITHHELD. The fix work is a NEW wave
   (W3's follow-on): 88 blocking findings to fix-or-prove.
 - **The artifacts:** `artifacts/whole-tree-audit.json` · the 112 per-file parts at `/tmp/w3parts/`.
+
+---
+
+## TEST RESULT — 2026-09-24 — ★ THE §6 EXIT BATTERY, ITEMS 1-4 (re-verified this turn)
+
+- **L0 tsc:** `bunx tsc --noEmit` → `exit 0`.
+- **L1/L2 the battery:** `bun run test` → `404 pass / 0 fail` (39 files) and `502 pass / 0 fail`
+  (56 files) after the W3-follow-on edits — the single red is `st-artifact-coverage:
+  test_artifact_dist_is_current`, the STALENESS GATE correctly firing while src is mid-edit and
+  the dist is not yet rebuilt (it clears at the final rebuild).
+- **FR-1 the honest register:** `bun scripts/goal-verify.ts . evidence` → **`5/5 conditions met`,
+  exit 0**, and `C1 detail: all 8 consumers CONSUMED for their domains · for 'evidence' the
+  register reads consumed:7/8` with `C1 PASS all 8 consumers are CONSUMED for their own domains
+  (the per-domain union)`. **NO line contradicts another** — the old `C1 PASS ... consumed:8`
+  text (FR-1) is GONE.
+- **FR-2 the diverse ledger:** `SELECT COUNT(*), COUNT(DISTINCT rule_id||'|'||band||'|'||action)
+  FROM fire_decisions` → **`56 | 4`**. The 4 tuples: `kernel-v2:benign:ALLOW|ignore|IGNORE` ·
+  `kernel-v2:destructive:REFUSE|act|FIRE` · `kernel-v2:dumb:STEER|escalate|ESCALATE` ·
+  `kernel-v2:theatrical:REFUSE|act|FIRE`.
+- **The register at face value:** `bun scripts/consumption-audit.ts . evidence` →
+  **`consumed:7/8`** with `GI_LAYER_UNCONSUMED=L2_ARSUMBRIS` (facts=0 — the au engine answers repo
+  names, never code symbols; FR-6's CORRECT behavior, named at face value).

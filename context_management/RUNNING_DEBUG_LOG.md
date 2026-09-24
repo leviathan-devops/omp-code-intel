@@ -702,3 +702,27 @@ REPORTED on the run (the no-silent-catch law working).
 **EN-6L2E-11** — the ledger's DIRECTORY was never created, so a FRESH scope's decision died with
 `GI_LEDGER_OPEN_FAILED`. FIXED: `mkdirSync(path.dirname(ledgerPath), { recursive: true })`.
 ★ a derived artifact's directory is part of its contract.
+
+## 2026-09-24 — the whole-tree audit's blocking findings (W3-follow-on)
+
+### FINDING: the prior AUDIT GATE PASS covered 3 of 112 files (2.7%)
+- ROOT CAUSE: the multi-file scan hit the lane's 15-min deadline, so only the 3 changed files ran.
+- THE FIX: `scripts/whole-tree-audit.sh` — 12 parallel workers over all 112 files (~18 min).
+- THE RESULT: `{critical:7, high:91, medium:240, low:109}` across 105 files. The artifact:
+  `artifacts/whole-tree-audit.json`.
+
+### FINDING: the re-audit is NON-DETERMINISTIC (a measured property)
+- THE OBSERVATION: the 8 fixed criticals re-audited returned a DIFFERENT finding set
+  `{high:9, medium:24, low:12}` — new findings the LLM produced on a fresh read.
+- THE CONSEQUENCE: the "0 critical / 0 high" gate measures the LAST run's output. The strategy:
+  fix every real defect, adjudicate inflated ones with proof, iterate.
+
+### FINDING: F-133 — `inDegree` returned a LIMIT-5 sample length as the count
+- `src/omp/graph-facts.ts:122` — `n = rows.length` from a `LIMIT 5` query ⇒ every in-degree > 5
+  read as exactly 5. THE FIX: `COUNT(*)` for the count, `LIMIT 5` for the sample.
+
+### FINDING: F-134/135/136 — the new session-state lock (my own code) had 3 real defects
+- F-134: one upfront deadline ⇒ after the first reclaim every EEXIST re-unlinked a FRESH lock
+  (mutual exclusion broken). FIX: a fresh age check per iteration.
+- F-135: the release unlinked unconditionally ⇒ a peer's reclaimed lock destroyed. FIX: a token.
+- F-136: a 3ms spin. FIX: 10ms.

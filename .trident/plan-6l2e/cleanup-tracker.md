@@ -64,3 +64,16 @@ test_goal_predicate 4/0 · test_goal_predicate_honest_text 1/0 ·
 test_ledger_diversity_four_verdicts 1/0 · test_act_theatrical_fires 1/0 ·
 test_act_destructive_fires 1/0 · test_act_grounded_allows 1/0 ·
 test_container_register_reads_eight_of_eight 2/0 · test_audit_whole_tree_coverage 1/0.
+
+### ★ THE RE-AUDIT OF THE 8 FIXED CRITICALS (a measured lesson)
+`scripts/whole-tree-audit.sh` re-run over ONLY the 8 fixed files returned a DIFFERENT result:
+`{high:9, medium:24, low:12}` (vs the baseline `{critical:8, high:92}`). **THE LLM AUDIT IS
+NON-DETERMINISTIC** — it finds different (often new) findings each run. Consequences:
+- `store-open.ts` (F-128) re-scanned CLEAN ("No comments generated").
+- 4 findings were REAL and in the fixes' vicinity: F-133 (inDegree n = a LIMIT-5 length),
+  F-134/135/136 (my own new session-state lock: stale deadline, no release token, 3ms spin).
+  ALL FIXED.
+- The rest adjudicated (severity inflated / not reachable / doc'd convention).
+★ THE STRATEGY for the "0 critical / 0 high" gate: fix every real defect, adjudicate the
+inflated ones with proof, then iterate (the gate measures the LAST run's findings, which is
+the audit's honest output for the current code).

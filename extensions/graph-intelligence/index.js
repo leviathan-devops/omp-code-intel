@@ -176819,6 +176819,8 @@ var init_templates = __esm(() => {
 
 // src/hunter/shared/kind-for-layer.ts
 function kindForLayer(layerId) {
+  if (layerId == null || typeof layerId !== "string")
+    return "Threshold";
   const low = layerId.toLowerCase();
   if (low.includes("r28"))
     return "Gate";
@@ -178031,7 +178033,10 @@ function makeDbPath(spec) {
       if (v && v.trim().length > 0)
         return path.join(v.trim(), spec.fileName);
     }
-    if (process.env.BUN_TEST === "1" && spec.testFile) {
+    if (process.env.BUN_TEST === "1") {
+      if (!spec.testFile) {
+        throw new Error(`[db-path] GI_TEST_ISOLATION_BROKEN: BUN_TEST=1 but no testFile in spec ` + `(fileName="${spec.fileName}") \u2014 cannot isolate from production DB`);
+      }
       return spec.testFile.startsWith("/") ? spec.testFile : path.join(os.tmpdir(), spec.testFile);
     }
     let dir = spec.defaultDir;
@@ -179449,7 +179454,7 @@ function resolveCorbell(profile, env = process.env) {
   const VENV_SITES = [path7.join("/home", "leviathan", "corbell-venv", "bin", "corbell"), path7.join("/", "opt", "corbell-venv", "bin", "corbell")];
   for (const candidate of VENV_SITES) {
     if (fs6.existsSync(candidate))
-      return candidate;
+      return safe(candidate);
   }
   const pathEnv = env.PATH ?? process.env.PATH ?? "";
   for (const dir of pathEnv.split(":")) {
@@ -179457,7 +179462,7 @@ function resolveCorbell(profile, env = process.env) {
       continue;
     const cand = path7.join(dir, "corbell");
     if (fs6.existsSync(cand))
-      return cand;
+      return safe(cand);
   }
   throw new Error("CORBELL_NOT_FOUND - the corbell binary is missing; install it with 'pip install git+https://github.com/Corbell-AI/Corbell.git' or set CORBELL_BIN or graph.binaryPath");
 }
@@ -179482,7 +179487,7 @@ var defaultExec = (cmdRaw, opts) => {
         break;
       const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1));
       console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) \u2014 retrying in ${backoff}ms`);
-      execSync(`sleep ${backoff / 1000}`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
     }
   }
   throw lastErr;
@@ -184332,15 +184337,37 @@ ${p.verbatimQuote}`).join(`
     const ins = db.prepare("INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)");
     const runId = `calibration-${fixtureVersion}`;
     for (const r of records) {
-      ins.run(r.predicateId, "FIRE", r.fire.fixtureAnchor, r.fire.fired ? "FIRED" : "MISS", r.fire.evidence, runId, Date.now());
-      ins.run(r.predicateId, "SILENT", r.silent.goldenFixture, r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE", r.silent.evidence, runId, Date.now());
+      ins.run(r.predicateId, "FIRE", r.fire.fixtureAnchor, r.fire.fired ? "FIRED" : "MISS", r.fire.evidence, runId, this.calibratedAt);
+      ins.run(r.predicateId, "SILENT", r.silent.goldenFixture, r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE", r.silent.evidence, runId, this.calibratedAt);
     }
   }
   writeCalibrationRecord(recordPath, data) {
     fs18.mkdirSync(recordPath, { recursive: true });
     const existing = fs18.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
-    const n = existing + 1;
-    const file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
+    let n = existing + 1;
+    let file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
+    for (;; ) {
+      let fd = null;
+      try {
+        fd = fs18.openSync(file, "wx", 420);
+        fs18.closeSync(fd);
+        fd = null;
+        break;
+      } catch (e) {
+        if (fd !== null) {
+          try {
+            fs18.closeSync(fd);
+          } catch {}
+        }
+        const code = e?.code;
+        if (code === "EEXIST") {
+          n += 1;
+          file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
+          continue;
+        }
+        throw e;
+      }
+    }
     const rows = data.records.map((r) => `| ${r.predicateId} | ${r.verdict} | ${r.failedTest ?? "-"} | ${r.fire.fired ? "FIRED" : "MISS"} | ${r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE"} |`).join(`
 `);
     const excludedIds = data.excluded.map((p) => p.id);
@@ -184439,7 +184466,7 @@ async function scan(profile, adapter, runId, db) {
       console.warn(`[scan] D17 calibration gate failed (non-fatal, battery unchanged): ${calErr instanceof Error ? calErr.message : String(calErr)}`);
     }
     const run = runBattery(liveBattery, adapter, normalized, runId, db);
-    return { battery, batteryVersion, run };
+    return { battery: liveBattery, batteryVersion, run };
   } catch (e) {
     console.warn(`[scan] failed: ${e instanceof Error ? e.message : String(e)}`);
     throw e;
@@ -184480,14 +184507,6 @@ function legacySolveTrace(findings, graph) {
   return findings.map((f) => {
     const blast = ruleCounts.get(f.ruleId) ?? 0;
     const evidenceLen = f.evidence.split(/\s+->\s+|,|\n/).filter((s) => s.trim().length > 0).length;
-    let footprint = 0;
-    try {
-      const calls = graph.whoCalls(f.ruleId);
-      footprint = Math.min(10, calls.length);
-    } catch (e) {
-      console.warn(`[trace] graph whoCalls query failed \u2014 the honest 0 footprint: ${e instanceof Error ? e.message : String(e)}`);
-      footprint = 0;
-    }
     const relevance = {
       "first-principles": severityWeight(f.severity),
       "systematic-debugging": Math.min(1, evidenceLen / 6),
@@ -185053,7 +185072,7 @@ function snapshotState(s) {
     if (typeof first === "string")
       return first;
   }
-  return;
+  return "unknown-state";
 }
 function namedError(e) {
   if (e instanceof Error)
@@ -186322,8 +186341,11 @@ function freshnessGate(db, input) {
   };
 }
 function inDegree(db, target, predicate) {
-  const rows = predicate === undefined ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target)) : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target), predicate);
-  return { n: rows.length, sample: rows.map((r) => r.src_canonical) };
+  const where = predicate === undefined ? `dst_canonical LIKE ?1 AND superseded_run IS NULL` : `dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL`;
+  const params = predicate === undefined ? [LIKE(target)] : [LIKE(target), predicate];
+  const n = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE ${where}`).get(...params).n;
+  const rows = db.query(`SELECT src_canonical FROM typed_edges WHERE ${where} LIMIT 5`).all(...params);
+  return { n, sample: rows.map((r) => r.src_canonical) };
 }
 function graphFacts(input) {
   let db;
