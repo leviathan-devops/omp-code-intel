@@ -178153,7 +178153,8 @@ function sessionStorePath(scopeRoot, sessionId) {
   return p;
 }
 function assertSessionStorePath(p) {
-  const norm = p.replace(/\\/g, "/");
+  const resolved = path3.resolve(p);
+  const norm = resolved.replace(/\\/g, "/");
   if (isGlobalHomeGraph(norm)) {
     throw new GiPathError("GI_GLOBAL_HOME_GRAPH", `GI_GLOBAL_HOME_GRAPH: session store must not be ${norm}`);
   }
@@ -180581,7 +180582,7 @@ function mapGraphifyToTyped(nodes, edges, runTag) {
   const edgeRows = edges.flatMap((e) => {
     const src = nodesById.get(e.sourceId);
     const line = e.line ?? src?.line ?? tryResolveGraphifyLine({ data: src?.data ?? {}, source_location: rawSourceLocation(src) }, e);
-    if (line === undefined) {
+    if (line == null) {
       linelessEdgesDropped++;
       return [];
     }
@@ -182371,7 +182372,8 @@ function preprocess(physical) {
     const trimmed = raw.trim();
     if (trimmed === "")
       continue;
-    if (/^\t/.test(trimmed))
+    const leadingWs = raw.slice(0, raw.length - raw.trimStart().length);
+    if (leadingWs.includes("\t"))
       yamlErr([], trimmed, i + 1, "tabs are not allowed in indentation (the subset is space-indented)");
     const indent = raw.length - raw.trimStart().length;
     const { text, quoteOpen } = stripCommentWithState(trimmed);
@@ -184393,8 +184395,8 @@ ${p.verbatimQuote}`).join(`
     return sha256(`${corpusHash}|${bindingsHash}|${fixturesHash}`);
   }
   serializeFixtures() {
-    const graphOf = (graph) => ({
-      nodes: graph.nodes().map((n) => ({
+    const graphOf = (graph) => {
+      const nodes = graph.nodes().map((n) => ({
         id: n.id,
         kind: n.kind,
         name: n.name,
@@ -184403,15 +184405,19 @@ ${p.verbatimQuote}`).join(`
         lineage: n.lineage,
         source: n.source,
         data: n.data ?? null
-      })),
-      edges: graph.nodes().map((n) => {
+      }));
+      nodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const edges = graph.nodes().map((n) => {
         try {
           return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
-        } catch {
+        } catch (e) {
+          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} \u2014 recording empty callers in version hash`);
           return { to: n.id, callers: [] };
         }
-      })
-    });
+      });
+      edges.sort((a, b) => String(a.to).localeCompare(String(b.to)));
+      return { nodes, edges };
+    };
     return JSON.stringify({
       fire: this.fixtures.fire.map((f) => ({
         ruleId: f.ruleId,
@@ -185266,6 +185272,7 @@ function createMicroLoop(options) {
     snapshot = s.context;
   });
   const handleDisposables = [];
+  let pendingDone = null;
   const handle = {
     stop() {
       sub.unsubscribe();
@@ -185282,7 +185289,9 @@ function createMicroLoop(options) {
       actor.send(event);
     },
     done() {
-      return new Promise((resolve) => {
+      if (pendingDone !== null)
+        return pendingDone;
+      pendingDone = new Promise((resolve) => {
         if (actor.getSnapshot().status === "done") {
           resolve();
           return;
@@ -185314,6 +185323,7 @@ function createMicroLoop(options) {
         }
         handleDisposables.push(sub2, sub3);
       });
+      return pendingDone;
     },
     get state() {
       return { value: snapshotState(actor.getSnapshot()) };
@@ -186217,7 +186227,8 @@ function c2kgProbe(scopeRoot) {
       } catch (e) {
         throw new Error(`GI_LAYER_C2KG: the index is unparseable \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
-      const hits = (idx.symbols ?? []).filter((s) => (s.name ?? "").includes(subject));
+      const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
+      const hits = symbols.filter((s) => (s.name ?? "").includes(subject));
       return hits.map((s) => ({
         consumer: "L4_C2KG",
         rung: "context",
@@ -186388,7 +186399,8 @@ import * as path30 from "path";
 import { execFileSync as execFileSync3 } from "child_process";
 
 // src/omp/jev.ts
-var KEY_FILE = `${process.env.HOME ?? "/home/leviathan"}/.config/typesafe/key`;
+import * as os7 from "os";
+var KEY_FILE = `${os7.homedir()}/.config/typesafe/key`;
 
 // src/omp/adapters/tsg.ts
 var TSG_REL = "research/graph-infra-repos/typesafe-ai/target/release/examples/tsg";
@@ -186592,7 +186604,25 @@ import * as fs26 from "fs";
 import * as path32 from "path";
 var ABIDE_EVENTS_REL = ".abide/events.jsonl";
 function abideEventsPath(abideRoot) {
-  return path32.join(abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace", ABIDE_EVENTS_REL);
+  if (process.env.GI_ABIDE_ROOT !== undefined)
+    return path32.join(process.env.GI_ABIDE_ROOT, ABIDE_EVENTS_REL);
+  if (process.env.JARVIS_WORKSPACE !== undefined) {
+    const envPath = path32.join(process.env.JARVIS_WORKSPACE, ABIDE_EVENTS_REL);
+    if (fs26.existsSync(envPath))
+      return envPath;
+  }
+  const base = path32.resolve(abideRoot ?? process.cwd());
+  let dir = base;
+  for (let i = 0;i < 6; i += 1) {
+    const candidate = path32.join(dir, ABIDE_EVENTS_REL);
+    if (fs26.existsSync(candidate))
+      return candidate;
+    const parent = path32.dirname(dir);
+    if (parent === dir)
+      break;
+    dir = parent;
+  }
+  return path32.join(base, ABIDE_EVENTS_REL);
 }
 var tailCache = new Map;
 function tailEvents(eventsPath, limit) {
@@ -186665,7 +186695,7 @@ function tailEvents(eventsPath, limit) {
   return out;
 }
 function abideProbe(scopeRoot, abideRoot) {
-  const eventsPath = abideEventsPath(abideRoot);
+  const eventsPath = abideEventsPath(abideRoot ?? scopeRoot);
   return {
     id: "ABIDE",
     rung: "repair",

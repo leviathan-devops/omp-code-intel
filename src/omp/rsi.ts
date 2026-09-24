@@ -426,12 +426,14 @@ export class RsiStore {
   }
 
   /** SUPERSEDE: insert the new belief, then retire the old one. TWO writes, one
-   *  logical change, both signed; the prior row survives queryable forever. */
+   *  logical change, both signed; the prior row survives queryable forever.
+   *  ★ F-344 FIX (2026-09-24): recount() + liveIncludingForgedRetirement() ran BEFORE
+   *  BEGIN IMMEDIATE — a concurrent appendFiring/appendOutcome between the derivation and
+   *  the lock inserted a row with STALE counts and a possibly wrong tier (TOCTOU). The
+   *  derivation now runs INSIDE the IMMEDIATE txn (after the write lock is held), so the
+   *  ledger snapshot the tier derives from is the snapshot the row is chained onto.
+   *  The no-change early return rolls back the (empty) txn before returning null. */
   supersede(canonicalId: string, run: string): ReflexRow | null {
-    const counts = this.recount(canonicalId);
-    const d = deriveTier(counts.confirmed, counts.refuted, counts.unresolved);
-    const current = this.liveIncludingForgedRetirement(canonicalId);
-    if (current !== null && current.kind === d.tier) return null; // no change
     // ATOMIC retire-then-insert. The partial unique index allows ONE live row
     // per canonical_id, so the insert cannot precede the retire; and G5 ("a
     // retirement counts only if the successor verifies") is preserved by
@@ -441,6 +443,13 @@ export class RsiStore {
     // requires the kernel key.
     this.db.exec("BEGIN IMMEDIATE;");
     try {
+      const counts = this.recount(canonicalId);
+      const d = deriveTier(counts.confirmed, counts.refuted, counts.unresolved);
+      const current = this.liveIncludingForgedRetirement(canonicalId);
+      if (current !== null && current.kind === d.tier) {
+        try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        return null; // no change
+      }
       // ★ F-273 FIX (2026-09-24): head() ran BEFORE the lock — a concurrent commit between the read and BEGIN chained a stale prevHash. The tip is read INSIDE the txn, after BEGIN IMMEDIATE.
       const prevHash = this.head();
       const partial = {

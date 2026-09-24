@@ -74,6 +74,28 @@ async function resolveMasterContextDir(projectRootReal: string): Promise<string>
     throw e;
   }
 }
+/**
+ * ★ F-331 FIX (2026-09-24): the CREATE-path realpath — the target's parent may not
+ * exist yet (first report into a missing MASTER_CONTEXT dir), so realpath() the
+ * NEAREST EXISTING ancestor instead of failing closed with ENOENT. The returned
+ * real path is still containment-checked by the caller, so a symlinked ancestor
+ * pointing outside the root still BLOCKs. Only ENOENT climbs; any other failure
+ * (EACCES/ELOOP/…) throws and the caller fails closed.
+ */
+async function realpathNearestExisting(dir: string): Promise<string> {
+  let cur = dir;
+  for (;;) {
+    try {
+      return await fs.realpath(cur);
+    } catch (e: unknown) {
+      const code = (e as NodeJS.ErrnoException)?.code;
+      if (code !== 'ENOENT') throw e;
+      const up = path.dirname(cur);
+      if (up === cur) throw e;
+      cur = up;
+    }
+  }
+}
 
 /**
  * THE REPORT_SCOPE_LEXICON — the classify entry.
@@ -121,7 +143,12 @@ export async function classify(
   // ★ only gate then (symmetric), never a real-vs-normalized comparison (asymmetric).
   let parentReal: string;
   try {
-    parentReal = await fs.realpath(path.dirname(targetNorm));
+    // ★ F-331 FIX (2026-09-24): nearest-existing-ancestor realpath — the CREATE
+    // ★ path (missing MASTER_CONTEXT dir) resolves via the closest existing
+    // ★ ancestor instead of BLOCKing on ENOENT; non-ENOENT failures still BLOCK.
+    // ★ (The module docblock line 90 already promises "or its nearest existing
+    // ★ ancestor" — the code now implements it.)
+    parentReal = await realpathNearestExisting(path.dirname(targetNorm));
   } catch (e: unknown) {
     console.warn(`[artifact-scope] parent realpath failed (fail-closed): ${e instanceof Error ? e.message : String(e)}`);
     return blocked('REPORT_SCOPE_BLOCKED', base, input.target);

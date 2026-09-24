@@ -34,9 +34,38 @@ interface AbideEvent {
 }
 
 /** ★ THE EVENTS FILE — the real substrate. `abideRoot` defaults to the workspace
- *  `.abide` the checker writes; a caller may point it elsewhere for a test. */
+ *  `.abide` the checker writes; a caller may point it elsewhere for a test.
+ *  ★ F-340 FIX (2026-09-24): the workspace default was a HARDCODED user path — wrong on
+ *  every other machine (silently a missing dir). GI_ABIDE_ROOT, then JARVIS_WORKSPACE,
+ *  then the legacy absolute path (last resort, never first). */
 export function abideEventsPath(abideRoot?: string): string {
-  return path.join(abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace", ABIDE_EVENTS_REL);
+  // ★ F-342 FIX (2026-09-24): F-341 made scopeRoot authoritative — correct for isolation, but
+  //   it BROKE the substrate when the ledger lives at a WORKSPACE ANCESTOR (this repo's
+  //   `.abide/events.jsonl` sits at Shared_Workspace/, one level up — a graph consumer inside
+  //   a project must still find the workspace-level checker's ledger). Resolution, in order:
+  //   (1) the explicit abideRoot (test/ops override), (2) GI_ABIDE_ROOT, (3) an ANCESTOR WALK
+  //   from the given root looking for an existing ledger (bounded, NAMED in the evidence),
+  //   (4) the given root verbatim (so a genuinely absent substrate still reports its own path).
+  // THE SEMANTICS: the argument is the SEARCH BASE (the scope the caller passed), never an
+  // asserted root — calling `abideEventsPath(scopeRoot)` must not be read as "the ledger is
+  // AT scopeRoot" (that reading is exactly what made the substrate read absent). The env
+  // vars are the only ASSERTIONS; everything else is a bounded lookup from the base.
+  if (process.env.GI_ABIDE_ROOT !== undefined) return path.join(process.env.GI_ABIDE_ROOT, ABIDE_EVENTS_REL);
+  if (process.env.JARVIS_WORKSPACE !== undefined) {
+    const envPath = path.join(process.env.JARVIS_WORKSPACE, ABIDE_EVENTS_REL);
+    if (fs.existsSync(envPath)) return envPath;
+  }
+  const base = path.resolve(abideRoot ?? process.cwd());
+  let dir = base;
+  for (let i = 0; i < 6; i += 1) {
+    const candidate = path.join(dir, ABIDE_EVENTS_REL);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // absent everywhere on the walk — report the base's own path (the loud ENOENT names it)
+  return path.join(base, ABIDE_EVENTS_REL);
 }
 
 /** ★ F-23 FIX (2026-09-24): the full-file read loaded a 22.8MB ledger to keep 4000 rows. Bounded tail + mtime/size cache. */
@@ -105,7 +134,11 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
 }
 
 export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe {
-  const eventsPath = abideEventsPath(abideRoot);
+  // ★ F-341 FIX (2026-09-24): scopeRoot was ACCEPTED but never READ — the probe resolved from
+  // ★ abideRoot-or-hardcoded-absolute, so a confined scopeRoot bought no isolation (every other
+  // ★ adapter joins scopeRoot). abideRoot stays an explicit test/ops override; otherwise the
+  // ★ path derives from scopeRoot (the confined root the caller actually passed).
+  const eventsPath = abideEventsPath(abideRoot ?? scopeRoot);
   return {
     id: "ABIDE",
     rung: "repair",

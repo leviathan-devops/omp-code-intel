@@ -10,11 +10,15 @@
 // environment first, then from a 0600 file. A missing key THROWS (the hard-dep
 // law) — there is no fallback judge.
 import * as fs from "node:fs";
+import * as os from "node:os";
 import type { Judge, JudgeAnswer, JudgeQuestion } from "./enforcement.ts";
 
 export const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
 export const TYPESAFE_MODEL = "jev-latest";
-export const KEY_FILE = `${process.env.HOME ?? "/home/leviathan"}/.config/typesafe/key`;
+// ★ F-343 FIX (2026-09-24): the key path fell back to a HARDCODED /home/leviathan when HOME
+// ★ was unset — wrong on every other machine (a silent missing-key). os.homedir() resolves
+// ★ the platform-correct home (passwd entry on POSIX, USERPROFILE on Windows), never a guess.
+export const KEY_FILE = `${os.homedir()}/.config/typesafe/key`;
 
 export class JevError extends Error {
   constructor(readonly code: string, message: string, readonly status?: number) {

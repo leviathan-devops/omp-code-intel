@@ -39,7 +39,13 @@ export function sessionStorePath(scopeRoot: string, sessionId: string): string {
 
 /** AP-1/AP-2 mechanical refuse. Call before any sqlite open. */
 export function assertSessionStorePath(p: string): void {
-  const norm = p.replace(/\\/g, "/");
+  // ★ F-283 FIX (2026-09-24): resolve `..`/`.` BEFORE the regex — the old
+  //   backslash-normalize + regex-test accepted `sessions/valid/../evil`-style
+  //   escapes whose literal text matched but whose resolved path left the
+  //   session dir. path.resolve collapses the traversal so the regex tests the
+  //   real location (containment: only a resolved sessions/{sid}/store.sqlite passes).
+  const resolved = path.resolve(p);
+  const norm = resolved.replace(/\\/g, "/");
   if (isGlobalHomeGraph(norm)) {
     throw new GiPathError(
       "GI_GLOBAL_HOME_GRAPH",

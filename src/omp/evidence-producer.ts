@@ -239,6 +239,17 @@ export function persistRecords(recordsPath: string, fireStateHash: string, recor
 
 /** Read back every record persisted for one fire — the reproducibility half. */
 export function readRecords(recordsPath: string, fireStateHash: string): OutcomeRecord[] {
+  return readRecordsAll(recordsPath).filter((r) => (r as OutcomeRecord & { fireStateHash: string }).fireStateHash === fireStateHash);
+}
+
+/** Read back EVERY record in the file, partitioned by fire — the O(S) half of the
+ *  resolveFromSession fix below. The corrupt-line counting is owned HERE (single site):
+ *  one torn line is skipped + counted + LOUD, never a silent shrink or a bricked file.
+ *  ★ F-342 FIX (2026-09-24): resolveFromSession called readRecords (full-file read + parse)
+ *  once PER unresolved fire — O(N × S). This helper reads + parses ONCE; the caller
+ *  partitions by fireStateHash in memory. readRecords above delegates, so both paths
+ *  share the corrupt-line semantics (no double count: the partition read is the only read). */
+export function readRecordsAll(recordsPath: string): OutcomeRecord[] {
   if (!fs.existsSync(recordsPath)) return [];
   // ★ F-265 FIX (2026-09-24): corrupt lines were dropped SILENTLY — re-derivation shrank with no signal (Law 1). Still skipped (one torn line must not brick a whole resolution) but COUNTED + LOUD.
   let corrupt = 0;
@@ -247,9 +258,9 @@ export function readRecords(recordsPath: string, fireStateHash: string): Outcome
     .split("\n")
     .filter((l) => l.trim() !== "")
     .map((l) => { try { return JSON.parse(l) as OutcomeRecord & { fireStateHash: string }; } catch { corrupt += 1; return null; } })
-    .filter((r): r is OutcomeRecord & { fireStateHash: string } => r !== null && r.fireStateHash === fireStateHash)
+    .filter((r): r is OutcomeRecord & { fireStateHash: string } => r !== null && typeof (r as { fireStateHash?: unknown }).fireStateHash === "string")
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  if (corrupt > 0) console.error(`[gi-omp] GI_EVIDENCE_CORRUPT_LINES: ${corrupt} unparseable line(s) skipped in ${recordsPath} (fire ${fireStateHash}) — re-derivation is degraded, not silent`);
+  if (corrupt > 0) console.error(`[gi-omp] GI_EVIDENCE_CORRUPT_LINES: ${corrupt} unparseable line(s) skipped in ${recordsPath} — re-derivation is degraded, not silent`);
   return out;
 }
 
@@ -349,10 +360,16 @@ export function resolveFromSession(
     pairs.push({ row, subject });
   }
   // ★ resolved with ALL records — resolveAll re-derives per row, and the records are scoped
-  //   by state_hash, so a fire only ever sees its own evidence
+  //   by state_hash, so a fire only ever sees its own evidence.
+  //   ★ F-342 FIX (2026-09-24), second half: the old loop called readRecords (a full-file
+  //   read + parse) once PER fire — O(N × S). One read, partitioned in memory: O(S).
+  const allRecords = readRecordsAll(opts.recordsPath);
   const perFire = new Map<string, OutcomeRecord[]>();
-  for (const p of pairs) {
-    perFire.set(p.row.stateHash, readRecords(opts.recordsPath, p.row.stateHash));
+  for (const r of allRecords) {
+    const key = (r as OutcomeRecord & { fireStateHash: string }).fireStateHash;
+    let bucket = perFire.get(key);
+    if (bucket === undefined) { bucket = []; perFire.set(key, bucket); }
+    bucket.push(r);
   }
   for (const p of pairs) {
     const r = resolveAll(ledger, [p], perFire.get(p.row.stateHash) ?? [], { now: opts.now });
