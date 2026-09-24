@@ -511,7 +511,15 @@ export class CalibrationGate {
       }
       db.exec('COMMIT');
     } catch (e: unknown) {
-      try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is what the caller sees */ }
+      // ★ F-410 FIX (2026-09-24): a failed ROLLBACK is its own loud state — the
+      // ★ connection may still hold an open transaction, so the caller must see the
+      // ★ batch error AND the rollback failure (never reuse this handle for writes).
+      try { db.exec('ROLLBACK'); } catch (rb: unknown) {
+        throw new CalibrationError(
+          'CALIBRATION_ROLLBACK_FAILED',
+          `CALIBRATION_ROLLBACK_FAILED: batch error=${e instanceof Error ? e.message : String(e)} rollback error=${rb instanceof Error ? rb.message : String(rb)} (the transaction may still be open — do not reuse this handle for writes)`,
+        );
+      }
       throw e;
     }
   }

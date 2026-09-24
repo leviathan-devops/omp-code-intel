@@ -1,5 +1,7 @@
 // OMP write/edit graph-gate. STEER default. FULL cancels on export strip.
-// No @mimo-ai/plugin. Fail-open when no store (GI_NO_STORE).
+// ★ F-415 FIX (2026-09-24): header said fail-open; the body is fail-closed (cancel:true)
+// ★ unless GI_ALLOW_NO_STORE=1. The header now matches the body.
+// No @mimo-ai/plugin. Fail-closed when no store (GI_NO_STORE); explicit bypass via GI_ALLOW_NO_STORE=1.
 
 import * as fs from "node:fs";
 

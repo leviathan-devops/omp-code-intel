@@ -116,8 +116,12 @@ export async function runWorkLayer(deps: EnforcementDeps, input: WorkInput): Pro
   } catch (e) {
     // FAIL-OPEN — and LOUD about it. The named dependency code rides the result.
     // ★ F-EN-ABIDE-CODE FIX (2026-09-24): the work-layer fallback code was hardcoded to ABIDE even when JEV registration was the failure; preserve the actual error code so callers attribute the right missing component.
-    const code = (e as { code?: string }).code ?? (abideDecl ? "GI_ENFORCE_JEV" : "GI_ENFORCE_ABIDE");
-    return { verdict: "SKIPPED", repair: null, reason: `work layer skipped: ${code}`, evidence: (e as Error).message };
+    // ★ F-406 FIX (2026-09-24): read the HardDependencyError code directly — the old
+    //   abideDecl-defined heuristic misattributed a codeless throw after ABIDE resolved
+    //   to JEV (and the fallback named GI_ENFORCE_JEV, which the register never declares
+    //   — JEV's real code is GI_JEV_DOWN). Non-Error throws read via String(e), never (e as Error).message.
+    const code = (e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string") ? String((e as { code: unknown }).code) : "GI_ENFORCE_ABIDE";
+    return { verdict: "SKIPPED", repair: null, reason: `work layer skipped: ${code}`, evidence: e instanceof Error ? e.message : String(e) };
   }
   let answers: readonly JudgeAnswer[];
   try {
