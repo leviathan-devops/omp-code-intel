@@ -1808,3 +1808,23 @@ re-open the question.
 **The discipline this run established:** every critical gets a two-sided adjudication BEFORE any
 edit; a NOT-A-BUG requires a proof (a tool-result token or a quoted line region), never an
 assertion.
+
+---
+
+## 2026-09-24 — THE INSTRUMENT-FAILURE LEDGER (the false-green class)
+
+**RUN 9 IS VOID.** 108 of 113 audit parts were the `EMPTY_RESULT` marker (the scan lane returned
+0 bytes on a lapsed Go subscription). The reported `1 critical / 2 high` measured a DEAD
+INSTRUMENT, not the tree.
+
+**RUN 8 IS PARTIALLY DEGRADED.** 15 empty parts; its `5 / 58` is a FLOOR, not a clean number.
+
+**THE THREE FALSE-GREEN SHAPES SEEN THIS SESSION (all produce "clean" output):**
+| the shape | the tell | the guard needed |
+|---|---|---|
+| the dead scan lane | a majority of `EMPTY_RESULT` parts | fail the run when empties > 20% |
+| the stale dist | `st-artifact-coverage` (a REQUIRED-SYMBOL scan + a src-newer-than-bundle check) — **this gate caught it three times** | already enforced |
+| the hand-aggregate mid-run | a count that disagrees with the script's own aggregate | wait for the script's own aggregate |
+
+**THE RULE THIS ESTABLISHES:** before quoting ANY audit number, prove the instrument ran —
+`non-empty parts / total parts`, and the lane's own `status: success` + `files_reviewed`.

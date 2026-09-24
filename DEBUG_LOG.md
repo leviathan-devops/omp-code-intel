@@ -1288,3 +1288,43 @@ blame the provider.
 - **THE ARTIFACT DISCIPLINE:** the dist is rebuilt after every source landing and the
   `st-artifact-coverage` gate (a required-symbol scan + a no-src-newer-than-the-bundle check)
   is what CAUGHT each stale build — the gate works.
+
+---
+
+## EN-INSTRUMENT-1 — THE FALSE GREEN: a dead scan lane dressed as a clean tree (2026-09-24)
+
+- **THE SYMPTOM:** run 9 reported `1 critical / 2 high` across 113 files — an implausible collapse
+  from run 8's `5 / 58`.
+- **THE DIAGNOSIS (the tell):** **108 of 113 parts were the 37-byte marker
+  `{"comments":[],"note":"EMPTY_RESULT"}`.** The aggregate script writes that marker when an
+  `ocr scan` produces ZERO BYTES — its purpose is exactly to distinguish "scanned, found nothing"
+  from "never scanned". Run 8 had 15 empties; run 9 had 108.
+- **THE ROOT CAUSE (the lane, not the code):** one `ocr scan` verbatim —
+  ```
+  [ocr] scan plan failed: POST "http://127.0.0.1:4097/zen/go/v1/chat/completions": 403 Forbidden
+        {"type":"server_error","message":"Upstream request failed: An active OpenCode Go
+         subscription is required to use Go models."}
+  [ocr] Scan subtask error … LLM completion error …   exit=1
+  ```
+  **The Go subscription had lapsed.** Every scan returned 0 bytes → the marker → a "clean" tree.
+- **★ THE CLASS:** an instrument that fails to a NO-FINDINGS shape. The empty-marker is the RIGHT
+  design (it names the failure), but nothing DOWNSTREAM refused to aggregate a run whose parts were
+  95% markers. **A run with a majority of EMPTY_RESULT parts must FAIL LOUD, not report a low
+  count.** (Recorded as the next gate to add.)
+- **THE FIX (the lane):** the pool was **7 of 8 keys dead**. The operator pinned "KEY 3":
+  - `~/.gi-keys.json` (0600, gitignored — the sanctioned out-of-band store) slot `idx 2` = `go-3`
+    ← the operator's key.
+  - `go-pool-ctl.ts alive 2` → `ALIVE go-3`.
+  - **PROOF:** `go-pool-ctl.ts snapshot` → `go-3 ok`; a REAL completion through the proxy →
+    **HTTP 200** `{"model":"mimo-v2.5", ...}`; a REAL `ocr scan` → `status: success,
+    files_reviewed: 1, comments: 3, exit 0`.
+- **★ AND THE LANE IMMEDIATELY EARNED ITS KEEP:** scanning the containment primitive I had just
+  written, it returned **4 REAL findings** — F-601 (an empty root made containment VACUOUSLY true:
+  `rootPrefixOf('')` → `'/'`, which every absolute path matches), F-603 (the `existsSync` →
+  `realpathSync` TOCTOU violated the module's own "NEVER throws" contract), F-604 (an UNTYPED
+  catch read EACCES/ELOOP as "missing" and climbed past a denied dir — which can GRANT
+  containment), F-606 (the `resolved` flag's expression was wrong). **The instrument found real
+  defects in the very file written to prevent that class.**
+- **THE LESSON:** **verify the instrument before trusting the measurement.** A dead lane, a stale
+  dist, and a mis-scoped query all produce the same shape as a clean result. The empty-marker's
+  RATIO is the tell, and it should be a hard gate.
