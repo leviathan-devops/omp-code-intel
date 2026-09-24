@@ -1,7 +1,7 @@
 # COMPACTION_SURVIVAL — GI Kernel v2.1 (the resume anchor)
 
 **Read THIS first. It conveys the SHAPE of the entire build.**
-**The dist SHA (the deployment fingerprint): 1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3**
+**The dist SHA (the deployment fingerprint): 812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d**
 
 ## THE MISSION (one line)
 
@@ -75,7 +75,7 @@ cost matrix).
 ```
 battery   199 pass / 0 fail / 701 expect / 20 files
 tsc       191 == the pre-session baseline, 0 NEW
-dist      1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3  (613,039 B)
+dist      812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d  (613,039 B)
 src       94 .ts / 29,028 lines
 rig       stupefied_morse @ omp-ct:master (the container as host runtime)
 register  ok=false up=5/11 first=GI_LAYER_SEMANTICA

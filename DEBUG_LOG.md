@@ -1111,3 +1111,22 @@ trip) — so the latency was NOT the provider. The cost was the ocr tool's OWN p
 pin's own LAWS say "PARALLEL by default"; the audit script violated its own pin. And: when a step
 is slow, MEASURE THE COMPONENT (the lane was 4.4s — the tool's per-file work was the cost), never
 blame the provider.
+
+---
+
+## EN-W3-RUN5 — the run-5 wave: all 5 agents integrated (2026-09-24)
+
+- **THE FINDING:** the run-5 whole-tree audit returned `{critical:4, high:51}` — 4 criticals, 3
+  adjudicated (F-210 abide `Math.max` → `Math.min`; F-211 the dead duplicate `registerGraphGate`
+  stub in graph-gate.ts removed; graph-facts WHERE NOT-A-BUG — the code is correct).
+- **THE ROOT CAUSE (the pattern):** the audit often reads a STALE line-region or misreads which
+  module owns a symbol (e.g. it flagged graph-gate.ts's stub as the wired gate when extension.ts
+  imports the real one from gate-hook.ts).
+- **THE FIX:** all 5 R5 agents delivered — R5GraphLexicon (12 REAL, F-250..F-260) · R5HarnessShared
+  (6 REAL, F-242..F-253) · R5SurfaceDiagFirewall (3 REAL, F-242..F-244) · R5Omp (~14 REAL,
+  F-260..F-274) · R5HydraKernelScoping (2 REAL, F-212..F-213) + F-252b (the bug-hunt profilePath
+  typing).
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **430 pass / 0 fail + 528 pass / 0 fail**;
+  the dist `812e3c6987027b19`; the deployed == the repo dist.
+- **THE LESSON:** the audit converges as real defects are fixed (92→90→80→65→51 across five runs).
+  The non-determinism framing is STRUCK — all findings are legit; fix until 0/0.

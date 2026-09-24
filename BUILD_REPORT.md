@@ -829,3 +829,21 @@ shape (12 workers) finished 112 files in ~18 min.
 **The verification:** the per-file parts at `/tmp/w3parts/` (112) aggregated into the artifact.
 **The honest notes:** ★ the ship-ready claim is WITHHELD — the tree carries 88 blocking findings
 (path traversal, a silent data-loss path, a symlink-escape skip). The fix is a NEW wave.
+
+---
+
+## 2026-09-24 — THE RUN-5 WAVE (all 5 agents integrated)
+
+**The built:** ~40 REAL fixes across the R5 wave (F-212..F-274) — the R5GraphLexicon slice (12: the
+graphify concurrency, the rule-card, the corbell cache) · the R5HarnessShared slice (6: the
+report atomicity, the loader TOCTOU, the bug-hunt scope) · the R5SurfaceDiagFirewall slice (3: the
+calibration fd, the engine fail-closed, the root containment) · the R5Omp slice (~14: the adapters,
+the evidence-producer, the fire-gate, the graph-gate, the hard-deps, the rsi, the store-open) ·
+the R5HydraKernelScoping slice (2: the pipeline evidence splice, the mpse schemas) + F-252b.
+**The why:** the run-5 whole-tree audit's 66 blocking findings (the operator's ruling: all legit).
+**The how:** 5 disjoint agents + the orchestrator; each adjudicated two-sided; the audit's stale-
+region misreads marked NOT-A-BUG with quoted proofs.
+**The evidence:** the dist `812e3c6987027b19`; tsc exit 0; the battery 430/0 + 528/0.
+**The verification:** the deployed bundle == the repo dist (sha match).
+**The honest notes:** the audit gate is FAIL (4 crit / 51 high); the high count fell 92→51 across
+five runs. The run continues to 0/0.

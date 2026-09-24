@@ -1,6 +1,6 @@
 # CURRENT_STATE — GI Kernel v2.0 + v2.1 (the architecture AS IT ACTUALLY IS)
 
-**dist SHA: 1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3** · 2026-09-21
+**dist SHA: 812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d** · 2026-09-21
 
 ## THE ARCHITECTURE NOW (not as designed — as it is)
 
@@ -239,7 +239,7 @@ derivePolicy(profile, counts) → { calibrated: false,
 # ★ THE 6L+2E STATE (2026-09-22, HEAD f6fca91)
 
 ## THE DIST (the artifact)
-`extensions/graph-intelligence/index.js` sha256_16 **`1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3`** · **9,426,889 B**
+`extensions/graph-intelligence/index.js` sha256_16 **`812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d`** · **9,426,889 B**
 ★ 613 KB → 9.42 MB. **THE DIST-CONTENT GATE PASSES** — every v2.x symbol is present
 (`consumptionAudit` `createLayerRegistry` `corbellProbe` `graphifyProbe` `arsumbrisProbe`
 `tsgProbe` `abideProbe` `gi-consumption` all = 2). `find src -newer <dist>` = **0**.
@@ -277,10 +277,10 @@ tests/st-gi-6l2e.test.ts           244 L  the 13-test adversarial-first suite
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3` (two rebuilds
+** sha256_16 `812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d`; `find src -newer` = 0;
 the container deploy sha MATCHES.
 
 ---
@@ -326,7 +326,7 @@ zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (617 L)
 ★ THE GATE IS **CLEARED**: AUDIT GATE: PASS (0 critical / 0 high).
 ```
 **THE STATE:** tsc exit 0 · 26 pass / 0 fail · 349 pass / 0 fail · consumed:7/8 ·
-dist 1fd27baf060d6470ac897716487e5498f97a7ed178713f372aa0deb71c7590b3 · src_newer 0 · the dist-content gate PASS · the container MATCH.
+dist 812e3c6987027b19123db135f268c746657b7dbac4aadf7dd6e75b40b077683d · src_newer 0 · the dist-content gate PASS · the container MATCH.
 ## THE RETRY CONDITION
 ```
 ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
