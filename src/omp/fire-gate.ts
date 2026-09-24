@@ -364,9 +364,12 @@ export function mpsePreFilter(fire: Fire, ctx: AbsorbedContext): { settle: FireD
   // The act target appears in a NEGATION slot and nowhere else → discussion, not act.
   const mentionsTarget = ctx.slots.filter((s) => s.text.toLowerCase().includes(fire.target.toLowerCase()));
   if (mentionsTarget.length > 0) {
-    const onlyNegated = mentionsTarget.every((s) =>
-      /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(s.text.toLowerCase()),
-    );
+    // ★ F-266 FIX (2026-09-24): a slot mixing discussion + affirmative action ("discussed rm and then executed rm") passed every() on the "discuss" substring and settled IGNORE on a REAL act. A slot carrying an affirmative-action verb is evidence OF the act, never of its negation.
+    const onlyNegated = mentionsTarget.every((s) => {
+      const t = s.text.toLowerCase();
+      if (/(execut|perform|applied|deployed|shipped|complet|\bran\b|did (it|this|that)|went ahead|carried out)/.test(t)) return false;
+      return /(not |never|won't|don't|without|skip|avoid|discuss|mention|about the rule)/.test(t);
+    });
     if (onlyNegated) {
       return { settle: "IGNORE", reason: `MPSE: target '${fire.target}' appears only in negated/discussion slots (${mentionsTarget.length}) — the shape matched a mention, not the act` };
     }

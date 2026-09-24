@@ -45,7 +45,10 @@ export const mpseContractTemplate: AuditorTemplate = {
     "find function implementations matching spec declarations",
   ],
   filterTags: ["threshold", "contract", "spec-clause"],
-  outputSchema: MpseContractOutputSchema as unknown as z.ZodSchema,
+  // ★ F-213 FIX (2026-09-24): direct assignment — MpseContractOutputSchema is a
+  //   z.ZodObject which already extends z.ZodSchema (same precedent as sro.ts
+  //   F-160); the double cast hid shape drift from the compiler.
+  outputSchema: MpseContractOutputSchema,
   staticPrompt: `IDENTITY: CONTRACT hunter — hunt contract conformance (unimplemented/violated/missing-guard/drifted contracts). Trace spec clause → checkContract() chain → implementing function → verdict. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; path-trace connections; subgraph depth 3 for blast radius; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks (predicate/file path:line/evidence/spec) + ## SUMMARY.`,
 };
 
@@ -77,7 +80,8 @@ export const mpseOracleTemplate: AuditorTemplate = {
     "trace epsilon oracle patterns",
   ],
   filterTags: ["threshold", "epsilon"],
-  outputSchema: MpseOracleOutputSchema as unknown as z.ZodSchema,
+  // ★ F-213 FIX (2026-09-24): direct assignment (see contract — same F-160 precedent).
+  outputSchema: MpseOracleOutputSchema,
   staticPrompt: `IDENTITY: ORACLE hunter — hunt epsilon/oracle threshold enforcement (unguarded numeric decisions, epsilon drift, missing oracle guards near contract calls). Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`,
 };
 
@@ -108,7 +112,8 @@ export const mpseStageTemplate: AuditorTemplate = {
     "find stage gate violations",
   ],
   filterTags: ["pre-condition", "post-condition", "invariant"],
-  outputSchema: MpseStageOutputSchema as unknown as z.ZodSchema,
+  // ★ F-213 FIX (2026-09-24): direct assignment (see contract — same F-160 precedent).
+  outputSchema: MpseStageOutputSchema,
   staticPrompt: `IDENTITY: STAGE hunter — hunt stage-gate enforcement (pre/post/invariant violations in call chains, guard-skipping paths). Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`,
 };
 
@@ -151,8 +156,8 @@ export const mpseProvenanceTemplate: AuditorTemplate = {
     "path spec clause reference to code implementation",
     "find unreachable spec declarations",
   ],
-  filterTags: ["spec-clause", "trace"],
-  outputSchema: MpseProvenanceOutputSchema as unknown as z.ZodSchema,
+  // ★ F-213 FIX (2026-09-24): direct assignment (see contract — same F-160 precedent).
+  outputSchema: MpseProvenanceOutputSchema,
   staticPrompt: `IDENTITY: PROVENANCE hunter — hunt trace gaps (spec clauses with no implementing code, unreachable declarations). Missing trace = TRACE_GAP. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`,
 };
 

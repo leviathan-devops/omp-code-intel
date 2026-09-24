@@ -5,7 +5,12 @@ export function tridentLog(level: string, ns: string, msg: string): void {
   console.error(`[${level} ${ns}] ${msg}`)
 }
 export function shortFile(p: string, n = 46): string {
-  return p.length > n ? '…' + p.slice(-(n - 1)) : p
+  // ★ F-242 FIX (2026-09-24): small-n correctness — slice(-(n-1)) with n=1 is
+  //   slice(0), the WHOLE string, so '…'+p came out longer than p. n<=1 returns a
+  //   truncated ellipsis; n>=2 behavior is unchanged.
+  if (p.length <= n) return p;
+  if (n <= 1) return '…'.slice(0, n);
+  return '…' + p.slice(-(n - 1));
 }
 // ── THE CONFIDENCE-LABEL LADDER (the mpse threshold contract — named members
 // with calib: provenance; the audit report's confidenceLabel vocabulary) ──

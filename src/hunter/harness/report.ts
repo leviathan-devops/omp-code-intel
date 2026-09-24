@@ -131,6 +131,9 @@ function nextReportVersion(masterContextDir: string): number {
   return versions.length === 0 ? 1 : Math.max(...versions) + 1;
 }
 
+// ★ F-246 NOTE (2026-09-24): NOT-A-BUG (sync fs) — the readdir/mkdir/writeFileSync
+//   calls below run ONCE per hunt (N-version probe + single landed file), not per
+//   row; the async boundary is the writer seam (injectable), not the syscall shape.
 /** THE DEFAULT DIRECT WRITER (the report-writer stub-out's replacement): render
  *  the deterministic markdown report from the findings + sections (no network,
  *  no model — the writer's generation contract is a future wave) and write it
@@ -259,22 +262,30 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
       console.warn('[report] thinking-strip failed (non-fatal):', stripErr instanceof Error ? stripErr.message : String(stripErr));
     }
 
-    // ★ F-36 FIX (2026-09-24): the section rows commit only after the writer file
-    //   landed — a writer failure now leaves zero DB writes (clean), and a later DB
-    //   failure leaves at most an unpointed N-versioned file (benign, never overwrite).
-    for (const s of sections) {
-      appendReportSection(input.db, s, input.runId);
+    // ★ F-245 FIX (2026-09-24): the section rows + the HUNT_DONE event commit
+    //   atomically — a mid-loop throw no longer leaves sections without an event.
+    //   (The graph_facts memory wire below stays best-effort OUTSIDE the tx: it is
+    //   cross-run memory, not the hunt's own truth. Rollback failure is its own loud
+    //   state — the caller must know the batch error AND the tx may still be open.)
+    input.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const s of sections) {
+        appendReportSection(input.db, s, input.runId);
+      }
+      appendEvent(input.db, 'HUNT_DONE', {
+        runId: input.runId,
+        reportPath: writerResult.reportPath,
+        findingsCount: writerResult.findingsCount,
+        batteryVersion: input.batteryVersion,
+        fixOrder: input.fixOrder,
+      });
+    } catch (dbErr: unknown) {
+      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
+      }
+      throw dbErr;
     }
-
-    // 3. THE HUNT_DONE EVENT (the Hydra bus, spec §4.11:1692-1697 + §2.8:381 —
-    //    the payload {runId, reportPath, findingsCount, batteryVersion}).
-    appendEvent(input.db, 'HUNT_DONE', {
-      runId: input.runId,
-      reportPath: writerResult.reportPath,
-      findingsCount: writerResult.findingsCount,
-      batteryVersion: input.batteryVersion,
-      fixOrder: input.fixOrder,
-    });
+    input.db.exec('COMMIT');
 
     // 3.5 THE CROSS-RUN MEMORY WIRE (GRAPH_GATE_DPL1_SPEC.md §22.5): the hunt's
     //     VIOLATION findings become graph_facts — the next hunt's substrate

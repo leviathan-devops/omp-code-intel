@@ -520,18 +520,21 @@ export class CalibrationGate {
     let n = existing + 1;
     let file = path.join(recordPath, `CALIBRATION_v${n}.md`);
     for (;;) {
-      let fd: number | null = null;
+      // ★ F-242 FIX (2026-09-24): the old try wrapped open+close together, so a
+      // ★ closeSync throw re-entered the catch with fd !== null and closed a second
+      // ★ time (EBADF at best; on EINTR the fd may be recycled — a double-close can
+      // ★ close another file). The claim fd is opened (EEXIST probes upward) then
+      // ★ closed exactly once — a close failure throws loud, never retries.
+      let fd: number;
       try {
         fd = fs.openSync(file, 'wx', 0o644);
-        fs.closeSync(fd);
-        fd = null;
-        break;
       } catch (e: unknown) {
-        if (fd !== null) { try { fs.closeSync(fd); } catch { /* best-effort */ } }
         const code = (e as NodeJS.ErrnoException)?.code;
         if (code === 'EEXIST') { n += 1; file = path.join(recordPath, `CALIBRATION_v${n}.md`); continue; }
         throw e;
       }
+      fs.closeSync(fd);
+      break;
     }
     const rows = data.records
       .map((r) => `| ${r.predicateId} | ${r.verdict} | ${r.failedTest ?? '-'} | ${r.fire.fired ? 'FIRED' : 'MISS'} | ${r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE'} |`)

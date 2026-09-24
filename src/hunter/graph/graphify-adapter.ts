@@ -770,16 +770,26 @@ export class GraphifyAdapter implements GraphAdapter {
   private cachedRaw: GraphifyGraph | null = null;
   private lastGraphPath: string | null = null;
   private built = false;
+  // ★ F-250 FIX (2026-09-24): reentrancy flag — build()/buildSync() share cachedNodes/cachedEdges/cachedRaw/lastGraphPath/built + reindex().
+  private buildInFlight = false;
 
   constructor(private profile: ProjectProfile) {}
 
   async build(profile: ProjectProfile): Promise<BuildResult> {
+    // ★ F-250 FIX (2026-09-24): overlapping builds corrupted shared caches (built=true over half-written rows; lastGraphPath from the other build). Reentry now fails LOUD with ADAPTER_BUSY; commit is atomic (no await between assign and reindex).
+    if (this.buildInFlight) {
+      throw adapterFailed("graphify build", "ADAPTER_BUSY: a build() is already in flight on this adapter — serialize builds, one at a time");
+    }
+    this.buildInFlight = true;
+    this.built = false;
+    const t0 = Date.now();
+    let scopedNodes: GraphNode[] | null = null;
+    let scopedEdges: GraphEdge[] | null = null;
+    try {
     // ★ F-153 FIX (2026-09-24): the adapter caches the built profile — every verb falls back to this.profile, so building against a new profile without assigning it left all later verbs reading the stale constructor one.
     this.profile = profile;
     const root = path.resolve(profile.project.root);
     const graphPath = resolveGraphifyOut(profile);
-    this.lastGraphPath = graphPath;
-    const t0 = Date.now();
     if (!fs.existsSync(graphPath)) {
       throw new Error(
         `GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${root}')`,
@@ -819,15 +829,20 @@ export class GraphifyAdapter implements GraphAdapter {
     if (filtered.dropped > 0) {
       tridentLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
     }
-    const { nodes: scopedNodes, edges: scopedEdges } = filtered;
+    scopedNodes = filtered.nodes;
+    scopedEdges = filtered.edges;
     if (scopedNodes.length === 0) {
       throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${scopeDirs.join(",")})`);
     }
     this.cachedNodes = scopedNodes;
     this.cachedEdges = scopedEdges;
     this.cachedRaw = graph;
+    this.lastGraphPath = graphPath;
     this.built = true;
     this.reindex();
+    } finally {
+      this.buildInFlight = false;
+    }
     return {
       nodes: scopedNodes,
       edges: scopedEdges,
@@ -864,6 +879,8 @@ export class GraphifyAdapter implements GraphAdapter {
     for (const n of this.cachedNodes) {
       if (n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`)) return n.id;
     }
+    // ★ F-251 FIX (2026-09-24): phantom-id fallback is now LOUD — it used to return empty-reads downstream indistinguishable from "known symbol, zero results".
+    tridentLog("WARN", "graphify-adapter", `resolveNodeId: symbol '${symbol}' matched no node — phantom id 'graphify:${symbol}' (callers read empty, never wrong)`);
     return `graphify:${symbol}`;
   }
 
@@ -898,6 +915,11 @@ export class GraphifyAdapter implements GraphAdapter {
    *  resolution matches build()'s — the old hardcoded this.profile made the two
    *  variants disagree when the caller pointed build() at a different profile. */
   buildSync(graphPath: string, profileOverride?: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[]; graph: GraphifyGraph } {
+    // ★ F-250 FIX (2026-09-24): buildSync is atomic alone but not against an in-flight async build() suspended at its parse-yield await — refuse LOUD; a refused/failed build leaves built=false (fail-closed).
+    if (this.buildInFlight) {
+      throw adapterFailed("graphify buildSync", "ADAPTER_BUSY: an async build() is in flight on this adapter — serialize builds, one at a time");
+    }
+    this.built = false;
     const effectiveProfile = profileOverride ?? this.profile;
     const root = path.resolve(effectiveProfile.project.root);
     const graph = loadGraphifyFileSync(graphPath);

@@ -189,8 +189,16 @@ export async function resolveEntities(
           const reasoning = typeof rec.reasoning === 'string' ? rec.reasoning : '';
           const destructive = Boolean(rec.destructive);
           if (!alias || !verdict || !['same','related','unrelated'].includes(verdict)) continue;
-          const newEnt = newEntities.find((n) => n.id === alias || n.label === alias) ?? { id: alias, label: alias, kind: 'Class' };
+          // ★ F-253 FIX (2026-09-24): a harness alias matching NO input entity is a hallucination — the old code fabricated { id: alias, label: alias, kind: 'Class' } and let the heuristic judge a fake entity. Skipped; the length gate then falls back to heuristic.
+          const newEnt = newEntities.find((n) => n.id === alias || n.label === alias);
+          if (!newEnt) continue;
           const existCanon = existing.find((c) => c.canonical_id === canonicalId) ?? null;
+          // ★ F-254 FIX (2026-09-24): a same/related verdict pointing at a nonexistent canonical is a dangling reference — heuristic fallback for that record, never a trusting accept.
+          if ((verdict === 'same' || verdict === 'related') && !existCanon) {
+            const h = heuristicDecide(newEnt, existing);
+            decisions.push({ alias, canonicalId: h.canonical ? h.canonical.canonical_id : newEnt.id, verdict: h.verdict, reasoning: `harness canonical '${canonicalId || alias}' not found \u2014 heuristic fallback: ${h.reasoning}`, destructive: h.destructive, newEntity: newEnt, existingCanonical: h.canonical });
+            continue;
+          }
           decisions.push({ alias, canonicalId: canonicalId || alias, verdict, reasoning: reasoning || `harness verdict ${verdict}`, destructive, newEntity: newEnt, existingCanonical: existCanon });
         }
         if (decisions.length === newEntities.length) harnessDecisions = decisions;
@@ -214,8 +222,16 @@ export async function resolveEntities(
               const canonicalId = String((rec.canonical_id ?? rec.canonicalId ?? alias) as string).trim();
               const verdict = String(rec.verdict ?? '').trim() as ResolutionVerdict;
               if (!['same','related','unrelated'].includes(verdict)) continue;
-              const newEnt = newEntities.find((n) => n.id === alias) ?? { id: alias, label: alias, kind: 'Class' };
+              // ★ F-253 FIX (2026-09-24): run path — same no-fabrication rule as the decide path (skip hallucinated aliases).
+              const newEnt = newEntities.find((n) => n.id === alias);
+              if (!newEnt) continue;
               const existCanon = existing.find((c) => c.canonical_id === canonicalId) ?? null;
+              // ★ F-254 FIX (2026-09-24): run path — dangling canonical falls back to the heuristic for that record.
+              if ((verdict === 'same' || verdict === 'related') && !existCanon) {
+                const h = heuristicDecide(newEnt, existing);
+                decisions.push({ alias, canonicalId: h.canonical ? h.canonical.canonical_id : newEnt.id, verdict: h.verdict, reasoning: `harness canonical '${canonicalId || alias}' not found \u2014 heuristic fallback: ${h.reasoning}`, destructive: h.destructive, newEntity: newEnt, existingCanonical: h.canonical });
+                continue;
+              }
               decisions.push({ alias, canonicalId, verdict, reasoning: String(rec.reasoning ?? ''), destructive: Boolean(rec.destructive), newEntity: newEnt, existingCanonical: existCanon });
             }
             if (decisions.length === newEntities.length) harnessDecisions = decisions;
@@ -274,7 +290,13 @@ export async function resolveEntities(
       }
       db.exec('COMMIT');
     } catch (e: unknown) {
-      try { db.exec('ROLLBACK'); } catch (rbErr: unknown) { /* ★ F-142 FIX (2026-09-24): the rollback failure is no longer silent — warned, while the original write error stays the thrown one. */ console.warn(`[resolver] ROLLBACK failed after resolutions write error: ${rbErr instanceof Error ? rbErr.message : String(rbErr)}`); }
+      // ★ F-255 FIX (2026-09-24): a failed ROLLBACK leaves the DB partially committed — the old warn-only rethrew just the write error, hiding the suspect store. The rollback failure is folded into the thrown error (warn kept for the log trail).
+      try { db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        const rbMsg = rbErr instanceof Error ? rbErr.message : String(rbErr);
+        const origMsg = e instanceof Error ? e.message : String(e);
+        console.warn(`[resolver] ROLLBACK failed after resolutions write error: ${rbMsg} (original: ${origMsg})`);
+        throw new ResolverError(`RESOLVER_FAILED: resolutions write failed AND ROLLBACK failed (DB state suspect \u2014 verify store before reuse) \u2014 rollback: ${rbMsg}; original: ${origMsg}`);
+      }
       throw e;
     }
   }

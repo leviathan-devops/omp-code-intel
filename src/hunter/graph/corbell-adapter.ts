@@ -99,26 +99,40 @@ export function resolveCorbell(profile?: { graph?: { binaryPath?: string } }, en
 // loop stays free during the build.
 import { spawn } from 'node:child_process';
 
-export function buildCorbellGraphAsync(bin: string, cwd: string): Promise<string> {
+export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }): Promise<string> {
+  // ★ F-252 FIX (2026-09-24): closed the async twin's two gaps vs the sync path — (1) env passthrough (CORBELL_COUPLING_*/WALK_EXCLUDE knobs were dropped); (2) optional timeoutMs SIGTERMs a hung child and rejects NAMED (default none, per no-static-timeouts order). Backward compatible.
+  const timeoutMs = opts?.timeoutMs;
   return new Promise((resolve, reject) => {
     console.log(`[corbell-adapter] async graph build starting: ${bin} graph build --methods (cwd: ${cwd})`);
     const proc = spawn(bin, ['graph', 'build', '--methods'], {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...(opts?.env ?? {}) },
     });
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); fn(); };
+    if (typeof timeoutMs === 'number' && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { proc.kill('SIGTERM'); } catch { /* already exited */ }
+        reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child SIGTERMed, no partial graph accepted`));
+      }, timeoutMs);
+    }
     proc.stdout?.on('data', (data: Buffer) => { stdout += data.toString(); });
     proc.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
     proc.on('close', (code) => {
       console.log(`[corbell-adapter] async graph build exited: code=${code} stdout=${stdout.length}B stderr=${stderr.length}B`);
-      if (code === 0) resolve(stdout);
+      if (code === 0) done(() => resolve(stdout));
       // THE LOUD BUILD FAIL (the named-error vocabulary): a non-zero build exit
       // rejects with the command + the stderr head — never a silent empty graph.
-      else reject(new Error(`corbell graph build exited ${code}: ${stderr.slice(0, 300)}`));
+      else done(() => reject(new Error(`corbell graph build exited ${code}: ${stderr.slice(0, 300)}`)));
     });
     proc.on('error', (err) => {
-      reject(new Error(`corbell graph build spawn failed: ${err.message}`));
+      done(() => reject(new Error(`corbell graph build spawn failed: ${err.message}`)));
     });
   });
 }
@@ -801,6 +815,8 @@ export class CorbellAdapter implements GraphAdapter {
     const byName = this.cachedNodes.find((n) => n.name === symbol);
     if (byName) return byName.id;
     const bySuffix = this.cachedNodes.find((n) => n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`));
+    // ★ F-251 FIX (2026-09-24): parity with graphify F-251 — phantom-id fallback is LOUD (was silent empty-reads downstream).
+    if (!bySuffix) tridentLog("WARN", "corbell-adapter", `resolveNodeId: symbol '${symbol}' matched no node — phantom id 'corbell:${symbol}' (callers read empty, never wrong)`);
     return bySuffix?.id ?? `corbell:${symbol}`;
   }
 

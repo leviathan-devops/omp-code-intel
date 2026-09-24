@@ -84,6 +84,10 @@ export class HydraBus {
       }
       clean.push(row);
     }
+    // ★ F-247 NOTE (2026-09-24): NOT-A-BUG — events.id is INTEGER PRIMARY KEY so a
+    //   non-numeric id is unreachable from the real store (NULL never satisfies
+    //   `WHERE id > ?`); the loud skip above is defense for foreign rows, and every
+    //   numeric id advances the cursor.
     for (const row of clean) {
       let payload: Record<string, unknown> = {};
       try {

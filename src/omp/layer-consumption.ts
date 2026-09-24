@@ -13,7 +13,7 @@
 // The measured failure this prevents: 12 of 23 src/omp modules were unreachable from
 // the entry point, so bun tree-shook them and the deployed bundle carried zero v2.x
 // symbols while every layer read "up".
-import type { ConsumerId, ConsumerProbe, ConsumptionReport, LayerRegistry } from "./layer-registry.ts";
+import type { ConsumerId, ConsumerProbe, ConsumptionReport, LayerFact, LayerRegistry, Rung } from "./layer-registry.ts";
 import { createLayerRegistry } from "./layer-registry.ts";
 import { corbellProbe } from "./adapters/corbell.ts";
 import { graphifyProbe } from "./adapters/graphify.ts";
@@ -53,17 +53,27 @@ export function buildRegistry(
   //   credits (HTTP 402). KEV (`onnx-community/kev-0.6b-ONNX`) is the SAME CONTRACT, LOCALLY —
   //   the 0.6B member of the Kev family. When the local model is present it SERVES the TSG
   //   rung; the remote tsg probe remains the named fallback for a host without the model.
-  const kevAvailable = resolveKevCli(scopeRoot) !== null && resolveKevRuntime(scopeRoot) !== null;
-  const meaningProbe = kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot);
+  // ★ F-270 FIX (2026-09-24): a throwing probe constructor took down ALL 8 consumers — audit() guards RUNTIME failures, never CONSTRUCTION. An unbuildable probe registers DOWN, never fatal.
+  const downProbe = (id: ConsumerId, rung: Rung, reason: string): ConsumerProbe => ({
+    id, rung, dependency: "unconstructible probe (see evidence)", errorCode: "GI_REGISTRY_PROBE_BUILD",
+    up: () => ({ up: false, evidence: reason }),
+    facts: (): LayerFact[] => { throw new Error(reason); },
+  });
+  const tryProbe = (id: ConsumerId, rung: Rung, make: () => ConsumerProbe): ConsumerProbe => {
+    try { return make(); } catch (e) { return downProbe(id, rung, `GI_REGISTRY_PROBE_BUILD:${id} constructor threw — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`); }
+  };
+  const kevAvailable = ((): boolean => {
+    try { return resolveKevCli(scopeRoot) !== null && resolveKevRuntime(scopeRoot) !== null; } catch { return false; }
+  })();
   const probes: ConsumerProbe[] = [
-    corbellProbe(scopeRoot),
-    graphifyProbe(scopeRoot),
-    c2kgProbe(scopeRoot),
-    uaProbe(scopeRoot),
-    arsumbrisProbe(scopeRoot),
-    semanticaProbe(scopeRoot),
-    meaningProbe,
-    abideProbe(scopeRoot),
+    tryProbe("L5_CORBELL", "settlement", () => corbellProbe(scopeRoot)),
+    tryProbe("L6_GRAPHIFY", "settlement", () => graphifyProbe(scopeRoot)),
+    tryProbe("L4_C2KG", "context", () => c2kgProbe(scopeRoot)),
+    tryProbe("L3_UA", "context", () => uaProbe(scopeRoot)),
+    tryProbe("L2_ARSUMBRIS", "knowledge", () => arsumbrisProbe(scopeRoot)),
+    tryProbe("L1_SEMANTICA", "decision", () => semanticaProbe(scopeRoot)),
+    tryProbe("TSG", "meaning", () => (kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot))),
+    tryProbe("ABIDE", "repair", () => abideProbe(scopeRoot)),
   ];
   for (const p of probes) {
     const override = overrides?.[p.id];

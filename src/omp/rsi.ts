@@ -277,23 +277,31 @@ export class RsiStore {
 
   /** THE KERNEL WRITE PATH. Signs and chains. */
   write(input: ReflexInput, run: string): ReflexRow {
-    const prevHash = this.head();
-    const partial = {
-      canonicalId: input.canonicalId, kind: input.kind, label: input.label,
-      evidenceQuote: input.evidenceQuote, confidence: input.confidence,
-      confirmed: 0, refuted: 0, unresolved: 0,
-      createdRun: run, supersededRun: null, prevHash,
-    };
-    const sig = this.sign(partial);
-    this.db.run(
-      `INSERT INTO ${this.table}
-        (canonical_id, kind, label, evidence_quote, confidence, confirmed, refuted,
-         unresolved, created_run, superseded_run, prev_hash, sig)
-       VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, NULL, ?, ?)`,
-      [input.canonicalId, input.kind, input.label, input.evidenceQuote,
-       input.confidence, run, prevHash, sig],
-    );
-    return { id: 0, ...partial, sig } as ReflexRow;
+    // ★ F-272 FIX (2026-09-24): head()+INSERT ran as two autocommit statements — a concurrent process commit between them forked the chain on a stale prevHash. One IMMEDIATE txn, the retire() pattern below.
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const prevHash = this.head();
+      const partial = {
+        canonicalId: input.canonicalId, kind: input.kind, label: input.label,
+        evidenceQuote: input.evidenceQuote, confidence: input.confidence,
+        confirmed: 0, refuted: 0, unresolved: 0,
+        createdRun: run, supersededRun: null, prevHash,
+      };
+      const sig = this.sign(partial);
+      this.db.run(
+        `INSERT INTO ${this.table}
+          (canonical_id, kind, label, evidence_quote, confidence, confirmed, refuted,
+           unresolved, created_run, superseded_run, prev_hash, sig)
+         VALUES (?, ?, ?, ?, ?, 0, 0, 0, ?, NULL, ?, ?)`,
+        [input.canonicalId, input.kind, input.label, input.evidenceQuote,
+         input.confidence, run, prevHash, sig],
+      );
+      this.db.exec("COMMIT;");
+      return { id: 0, ...partial, sig } as ReflexRow;
+    } catch (e) {
+      try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
   }
 
   /** THE VERIFIED RETIREMENT (SC-5, G5). A supersede is honored ONLY if the
@@ -355,35 +363,51 @@ export class RsiStore {
   /** THE LEDGER. Outcomes append; firings append. NOTHING is updated, so the
    *  original verdict is preserved beside what the kernel later concluded. */
   appendFiring(canonicalId: string, firedAt: string): void {
-    const prev = this.db
-      .query(`SELECT sig FROM ${this.evidenceTable} ORDER BY id DESC LIMIT 1`)
-      .get() as { sig: string } | null;
-    const prevHash = prev?.sig ?? "GENESIS";
-    const sig = crypto
-      .createHmac("sha256", this.key)
-      .update(`${prevHash}|${JSON.stringify({ c: canonicalId, at: firedAt, o: "unresolved" })}`) // ★ F-21 FIX: sign the persisted outcome, not "pending"
-      .digest("hex");
-    this.db.run(
-      `INSERT INTO ${this.evidenceTable} (canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig)
-       VALUES (?, ?, 'unresolved', NULL, ?, ?)`,
-      [canonicalId, firedAt, prevHash, sig],
-    );
+    // ★ F-272 FIX (2026-09-24): tip-read+INSERT autocommit pair, same fork class as write() — one IMMEDIATE txn.
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const prev = this.db
+        .query(`SELECT sig FROM ${this.evidenceTable} ORDER BY id DESC LIMIT 1`)
+        .get() as { sig: string } | null;
+      const prevHash = prev?.sig ?? "GENESIS";
+      const sig = crypto
+        .createHmac("sha256", this.key)
+        .update(`${prevHash}|${JSON.stringify({ c: canonicalId, at: firedAt, o: "unresolved" })}`) // ★ F-21 FIX: sign the persisted outcome, not "pending"
+        .digest("hex");
+      this.db.run(
+        `INSERT INTO ${this.evidenceTable} (canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig)
+         VALUES (?, ?, 'unresolved', NULL, ?, ?)`,
+        [canonicalId, firedAt, prevHash, sig],
+      );
+      this.db.exec("COMMIT;");
+    } catch (e) {
+      try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
   }
 
   appendOutcome(canonicalId: string, outcome: Outcome, evidence: string): void {
-    const prev = this.db
-      .query(`SELECT sig FROM ${this.evidenceTable} ORDER BY id DESC LIMIT 1`)
-      .get() as { sig: string } | null;
-    const prevHash = prev?.sig ?? "GENESIS";
-    const sig = crypto
-      .createHmac("sha256", this.key)
-      .update(`${prevHash}|${JSON.stringify({ c: canonicalId, o: outcome })}`)
-      .digest("hex");
-    this.db.run(
-      `INSERT INTO ${this.evidenceTable} (canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [canonicalId, new Date().toISOString(), outcome, evidence, prevHash, sig],
-    );
+    // ★ F-272 FIX (2026-09-24): tip-read+INSERT autocommit pair, same fork class as write() — one IMMEDIATE txn.
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const prev = this.db
+        .query(`SELECT sig FROM ${this.evidenceTable} ORDER BY id DESC LIMIT 1`)
+        .get() as { sig: string } | null;
+      const prevHash = prev?.sig ?? "GENESIS";
+      const sig = crypto
+        .createHmac("sha256", this.key)
+        .update(`${prevHash}|${JSON.stringify({ c: canonicalId, o: outcome })}`)
+        .digest("hex");
+      this.db.run(
+        `INSERT INTO ${this.evidenceTable} (canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [canonicalId, new Date().toISOString(), outcome, evidence, prevHash, sig],
+      );
+      this.db.exec("COMMIT;");
+    } catch (e) {
+      try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
+    }
   }
 
   /** RECOMPUTE from the ledger — the SC-4 self-reference kill. Counts the
@@ -408,14 +432,6 @@ export class RsiStore {
     const d = deriveTier(counts.confirmed, counts.refuted, counts.unresolved);
     const current = this.liveIncludingForgedRetirement(canonicalId);
     if (current !== null && current.kind === d.tier) return null; // no change
-    const prevHash = this.head();
-    const partial = {
-      canonicalId, kind: d.tier, label: current?.label ?? canonicalId,
-      evidenceQuote: current?.evidenceQuote ?? "",
-      confidence: d.precision, confirmed: counts.confirmed, refuted: counts.refuted,
-      unresolved: counts.unresolved, createdRun: run, supersededRun: null, prevHash,
-    };
-    const sig = this.sign(partial);
     // ATOMIC retire-then-insert. The partial unique index allows ONE live row
     // per canonical_id, so the insert cannot precede the retire; and G5 ("a
     // retirement counts only if the successor verifies") is preserved by
@@ -425,6 +441,15 @@ export class RsiStore {
     // requires the kernel key.
     this.db.exec("BEGIN IMMEDIATE;");
     try {
+      // ★ F-273 FIX (2026-09-24): head() ran BEFORE the lock — a concurrent commit between the read and BEGIN chained a stale prevHash. The tip is read INSIDE the txn, after BEGIN IMMEDIATE.
+      const prevHash = this.head();
+      const partial = {
+        canonicalId, kind: d.tier, label: current?.label ?? canonicalId,
+        evidenceQuote: current?.evidenceQuote ?? "",
+        confidence: d.precision, confirmed: counts.confirmed, refuted: counts.refuted,
+        unresolved: counts.unresolved, createdRun: run, supersededRun: null, prevHash,
+      };
+      const sig = this.sign(partial);
       this.db.run(
         `UPDATE ${this.table} SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL`,
         [run, canonicalId],
@@ -438,11 +463,11 @@ export class RsiStore {
          counts.confirmed, counts.refuted, counts.unresolved, run, prevHash, sig],
       );
       this.db.exec("COMMIT;");
+      return { id: 0, ...partial, sig } as ReflexRow;
     } catch (e) {
       try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
       throw e;
     }
-    return { id: 0, ...partial, sig } as ReflexRow;
   }
 
   /** A FORGED WRITE — the attack shape, used by the tests to prove the reader

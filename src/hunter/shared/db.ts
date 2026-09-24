@@ -439,6 +439,10 @@ export class SharedDb implements DbClient {
   // fresh nodes + edges insert. The append-only law (spec 941-942) applies to
   // the findings/events/implementations LEDGER rows, never the per-run graph
   // (the mirror already drops+recreates — the main write now matches).
+// ★ F-249 NOTE (2026-09-24): NOT-A-BUG (snapshot design) — the DELETEs are the
+//   per-run rebuild (edges before nodes, the FK order); every hunt holds the
+//   hunt-lock from spawn to release, so two rebuilds can never interleave.
+//   (The F-44 recon note records the same lock ownership for the runId read.)
   writeGraph(nodes: GraphNode[], edges: GraphEdge[]): void {
     for (const n of nodes) {
       if (!isNodeLineage(n.lineage)) {
@@ -658,6 +662,10 @@ export class FamilyGraphStore {
     ensureFamilyTables(this.familyDb);
     ensureFamilyTables(this.branchDb);
     try { this.branchDb.exec("CREATE VIEW IF NOT EXISTS branch_union_view AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes"); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #1:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    // ★ F-250 NOTE (2026-09-24): NOT-A-BUG (guard scope) — these guards wrap
+    //   CREATE VIEW IF NOT EXISTS / ATTACH idempotent DDL only; every REAL write
+    //   path in this file (writeGraph, appends, mirror, migrations) throws loud named
+    //   errors with no catch. A DDL failure here is debug-logged, never success-shaped.
   }
 
   lookupByContentHash(hash: string | null | undefined): GraphNode | null {

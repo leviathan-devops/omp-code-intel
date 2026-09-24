@@ -176,8 +176,11 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
 
     const output = this.config.buildOutput(synthesis, results, evidence);
     this.log("PIPELINE_DONE", { name: this.config.name, totalDurationMs: Date.now() - t0 }, evidence);
-    this.evidence.length = 0;
-    this.evidence.push(...evidence);
+    // ★ F-212 FIX (2026-09-24): single-call snapshot — the length=0+push pair
+    //   exposed an empty array to any reader between the two statements.
+    //   splice() publishes the run in one synchronous call (same reference,
+    //   sequential readers keep working; no intermediate empty is observable).
+    this.evidence.splice(0, this.evidence.length, ...evidence);
     return output;
   }
 

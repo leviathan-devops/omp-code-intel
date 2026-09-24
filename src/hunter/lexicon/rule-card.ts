@@ -227,7 +227,9 @@ function extractInlineQuote(line: string): string {
  *  corpus's declared DOMAIN must win). */
 function makeCard(quote: string, anchor: string, sourceLine: string, declared?: { classification?: Classification; severity?: Severity }): RuleCard {
   const { classification: voted, ambiguous } = classify(quote);
-  const proposed: 0 | 1 = ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0;
+  // ★ F-260 FIX (2026-09-24): a fully curated rule (operator declared BOTH classification and severity — the D13 curatorial override) kept proposed=1 on ambiguous voice, flagging curated doctrine as needing curation. Curation suppresses the flag; undeclared rules still ride the vote/voice path.
+  const curated = declared?.classification !== undefined && declared?.severity !== undefined;
+  const proposed: 0 | 1 = curated ? 0 : (ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0);
   return {
     verbatimQuote: quote,
     anchor,

@@ -24,6 +24,9 @@ export function auEngineRead(repoRoot: string, read: string, subject: string): u
   // ★ F-24 FIX (2026-09-24): repoRoot/read reach a child-process path+argv — absolute-root + charset gate, never raw.
   if (!path.isAbsolute(repoRoot)) throw new Error(`GI_LAYER_ARSUMBRIS: repoRoot must be absolute, got ${JSON.stringify(repoRoot)}`);
   if (!/^[A-Za-z0-9_-]+$/.test(read)) throw new Error(`GI_LAYER_ARSUMBRIS: refusing unknown engine read ${JSON.stringify(read)}`);
+  // ★ F-262 FIX (2026-09-24): `subject` reaches the child argv + the daemon query unbounded — length + NUL gate, the F-24 discipline extended to the third param.
+  if (subject.length > 1024) throw new Error(`GI_LAYER_ARSUMBRIS: subject exceeds 1024 chars (${subject.length}) — refusing`);
+  if (subject.includes("\0")) throw new Error(`GI_LAYER_ARSUMBRIS: subject carries NUL — refusing`);
   const repoCanon = path.resolve(repoRoot);
   const script = path.join(repoCanon, "scripts/au-read.ts");
   if (!path.resolve(script).startsWith(repoCanon + path.sep)) throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root — refusing`);

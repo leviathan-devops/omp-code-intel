@@ -13,6 +13,8 @@
 // collapsed to the OMP populate File/Function vocabulary).
 
 import * as fs from "node:fs";
+// ★ F-256 FIX (2026-09-24): path.dirname for the checkout parent dir (see writeCorbellCheckout).
+import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import type { GraphEdge, GraphNode } from "./interface.ts";
 import {
@@ -230,7 +232,8 @@ export function writeCorbellCheckout(
   const runTag = opts?.runTag ?? `corbell-checkout-${Date.now().toString(36)}`;
   const { nodeRows, edgeRows } = mapCorbellToTyped(nodes, edges, runTag, opts?.nodeTypeById);
   const fsMod = fs;
-  fsMod.mkdirSync(checkoutPath.slice(0, checkoutPath.lastIndexOf("/")), { recursive: true });
+  // ★ F-256 FIX (2026-09-24): bare filenames broke the parent math — "store.sqlite".lastIndexOf("/") is -1, so slice(0,-1) mkdir'd "store.sqlit" (silent wrong dir). path.dirname() is total: "store.sqlite"->".", "a/b.sqlite"->"a".
+  fsMod.mkdirSync(path.dirname(checkoutPath), { recursive: true });
   const db = new Database(checkoutPath, { create: true });
   try {
     db.exec("PRAGMA journal_mode = WAL;");

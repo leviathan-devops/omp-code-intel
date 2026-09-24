@@ -84,7 +84,8 @@ export function probeSocketConnect(dir: string, timeoutMs = 1200, match: RegExp 
     const code = (e as NodeJS.ErrnoException).code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} — ${code}` };
   }
-  if (files.length === 0) return { up: false, evidence: `${dir} — no *.instance.sock (the daemon is not running)` };
+  // ★ F-261 FIX (2026-09-24): the message named `*.instance.sock` while `match` defaults to `<16hex>.sock` — it described a pattern never checked. Name what was actually sought.
+  if (files.length === 0) return { up: false, evidence: `${dir} — no matching socket files (${match}) — the daemon is not running` };
   const attempts: string[] = [];
   for (const f of files) {
     const sock = `${dir}/${f}`;
@@ -102,7 +103,12 @@ export function probeSocketConnect(dir: string, timeoutMs = 1200, match: RegExp 
       //   connected, no HTTP response) and 56 (recv failure — connected, then broke).
       //   0 is handled by the success branch above; everything else (7 refused, 28 timeout,
       //   2 usage, 6 no-host) is DOWN.
-      const code = (e as { status?: number }).status;
+      const err = e as { status?: number; code?: string };
+      // ★ F-260 FIX (2026-09-24): curl UN-RUNNABLE (ENOENT = binary missing) has no `status` — it is broken probe infrastructure, never a socket verdict. Laundered as `refused` it sent operators debugging the daemon instead of installing curl.
+      if (err.status === undefined) {
+        return { up: false, evidence: `${dir} — PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) — install curl; this is NOT a socket verdict` };
+      }
+      const code = err.status;
       if (code === 52 || code === 56) {
         attempts.push(`${f}=LIVE(exit ${code} — connected, no HTTP reply)`);
         return { up: true, evidence: `${dir} — connect() accepted on ${f} (curl exit ${code})` };

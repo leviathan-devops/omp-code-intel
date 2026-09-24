@@ -323,7 +323,8 @@ export interface RegisterConfig {
 
 export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
   const env = cfg.env ?? process.env;
-  const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/");
+  // ★ F-268 FIX (2026-09-24): no slash normalization — a trailing-slash scopeRoot built `//` paths that mismatched stat evidence. Local paths only; no protocol prefixes flow through here.
+  const join = (...parts: string[]): string => parts.filter((p) => p.length > 0).join("/").replace(/\/{2,}/g, "/");
   return [
     // ── the six graph layers ──────────────────────────────────────────────
     // ★ L3 VERIFIED (2026-09-21): UA's own persistence module writes
@@ -339,8 +340,9 @@ export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
       join(cfg.scopeRoot, ".omp/graph-intelligence/layers/semantica")),
     // ★ the au runtime lives in HOME, not the scope root, and liveness (not existence) is
     //   the dependency the register names. No code creates <scopeRoot>/.arsumbris.
+    // ★ F-269 FIX (2026-09-24): HOME bypassed the injectable `env` — hermetic tests could not stub it. env first, process.env fallback, literal last.
     liveSocketComponent("L2_ARSUMBRIS", "layer", "the au daemon socket + its typed repo graph", "GI_LAYER_ARSUMBRIS",
-      join(process.env.HOME ?? "/home/leviathan", ".arsumbris/au-host/run")),
+      join(env.HOME ?? process.env.HOME ?? "/home/leviathan", ".arsumbris/au-host/run")),
     pathComponent("L3_UA", "layer", "the understand-anything graph (.ua/knowledge-graph.json)", "GI_LAYER_UA",
       join(cfg.scopeRoot, ".ua/knowledge-graph.json")),
     pathComponent("L4_C2KG", "layer", "the code-to-knowledge-graph LSP index", "GI_LAYER_C2KG",

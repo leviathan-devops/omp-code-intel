@@ -512,13 +512,16 @@ export function loadProfile(profilePath: string): ProjectProfile {
   // ★ F-18 FIX (2026-09-24): CONTAINMENT. `path.resolve(resolvedRoot, entry)` let an entry
   //   like `../../etc/passwd` resolve OUTSIDE the project root (a path-traversal oracle).
   //   Resolve + require the result stay under resolvedRoot.
-  // ★ F-66 FIX (2026-09-24): TOCTOU — the old helper fell back to the lexical path when
-  //   realpathSync threw, and existence was checked on a different resolution. Now existence
-  //   is checked FIRST inside this helper, then realpath (which cannot throw for an existing
-  //   entry), then containment on the REAL path — one resolution, no lexical fallback.
+  // ★ F-66 FIX (2026-09-24): SUPERSEDED by ★ F-248 below — the existsSync pre-check is
+  //   removed; realpathSync alone decides, so only one stat matters.
+  // ★ F-248 FIX (2026-09-24): single-resolution — the existsSync pre-check was a
+  //   redundant stat before the resolving stat (a swap between them changed nothing:
+  //   realpath still resolved the live path). realpathSync alone decides: it throws
+  //   on missing (→ false, the CORPUS_MISSING/HISTORY_MISSING contract holds) and
+  //   resolves symlinks for the containment check. (A writer racing the check already
+  //   owns the project root — and the profile content — so nothing untrusted is gained.)
   const contained = (entry: string): boolean => {
     const abs = path.resolve(resolvedRoot, entry);
-    if (!fs.existsSync(abs)) return false;
     let real: string;
     try { real = fs.realpathSync(abs); } catch { return false; }
     return real === resolvedRoot || real.startsWith(resolvedRoot + path.sep);

@@ -176743,7 +176743,6 @@ var init_mpse = __esm(() => {
       "path spec clause reference to code implementation",
       "find unreachable spec declarations"
     ],
-    filterTags: ["spec-clause", "trace"],
     outputSchema: MpseProvenanceOutputSchema,
     staticPrompt: `IDENTITY: PROVENANCE hunter \u2014 hunt trace gaps (spec clauses with no implementing code, unreachable declarations). Missing trace = TRACE_GAP. Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`
   };
@@ -178966,7 +178965,7 @@ function openSessionStore(input) {
   if (callerKey !== ownerKey) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: session ${callerKey} cannot open store owned by ${ownerKey}`);
   }
-  if (!path6.isAbsolute(input.scopeRoot) || input.scopeRoot.split(path6.sep).includes("..")) {
+  if (!path6.isAbsolute(input.scopeRoot) || input.scopeRoot.split(/[\\/]/).includes("..") || input.scopeRoot.includes("\x00")) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
   }
   const storePath = sessionStorePath(input.scopeRoot, input.sessionId);
@@ -179229,8 +179228,7 @@ function consecutiveUnverified(state, now = Date.now()) {
       break;
     if (edit.symbols.length === 0)
       continue;
-    const unverified = edit.symbols.some((s) => !symbolVerified(s, state));
-    if (!unverified)
+    if (edit.symbols.some((s) => symbolVerified(s, state)))
       break;
     n += 1;
   }
@@ -179986,6 +179984,8 @@ class CorbellAdapter {
     if (byName)
       return byName.id;
     const bySuffix = this.cachedNodes.find((n) => n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`));
+    if (!bySuffix)
+      tridentLog("WARN", "corbell-adapter", `resolveNodeId: symbol '${symbol}' matched no node \u2014 phantom id 'corbell:${symbol}' (callers read empty, never wrong)`);
     return bySuffix?.id ?? `corbell:${symbol}`;
   }
   nodeById(id) {
@@ -180687,53 +180687,66 @@ class GraphifyAdapter {
   cachedRaw = null;
   lastGraphPath = null;
   built = false;
+  buildInFlight = false;
   constructor(profile) {
     this.profile = profile;
   }
   async build(profile) {
-    this.profile = profile;
-    const root = path8.resolve(profile.project.root);
-    const graphPath = resolveGraphifyOut(profile);
-    this.lastGraphPath = graphPath;
+    if (this.buildInFlight) {
+      throw adapterFailed("graphify build", "ADAPTER_BUSY: a build() is already in flight on this adapter \u2014 serialize builds, one at a time");
+    }
+    this.buildInFlight = true;
+    this.built = false;
     const t0 = Date.now();
-    if (!fs7.existsSync(graphPath)) {
-      throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${root}')`);
-    }
-    let text;
-    let size;
+    let scopedNodes = null;
+    let scopedEdges = null;
     try {
-      ({ text, size } = statAndReadGraphJson(graphPath));
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith(`GRAPHIFY_STAT_FAILED:${graphPath}:`)) {
-        throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e.message.slice(`GRAPHIFY_STAT_FAILED:${graphPath}:`.length, `GRAPHIFY_STAT_FAILED:${graphPath}:`.length + 80)}`);
+      this.profile = profile;
+      const root = path8.resolve(profile.project.root);
+      const graphPath = resolveGraphifyOut(profile);
+      if (!fs7.existsSync(graphPath)) {
+        throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${root}')`);
       }
-      throw e;
+      let text;
+      let size;
+      try {
+        ({ text, size } = statAndReadGraphJson(graphPath));
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith(`GRAPHIFY_STAT_FAILED:${graphPath}:`)) {
+          throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e.message.slice(`GRAPHIFY_STAT_FAILED:${graphPath}:`.length, `GRAPHIFY_STAT_FAILED:${graphPath}:`.length + 80)}`);
+        }
+        throw e;
+      }
+      if (size > GRAPH_PARSE_YIELD_BYTES) {
+        await new Promise((resolve) => setImmediate(() => resolve()));
+      }
+      let raw;
+      try {
+        raw = parseGraphJsonGuarded(text);
+      } catch (e) {
+        throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      const graph = normalizeGraphifyGraph(raw, { root: path8.resolve(profile.project.root) });
+      const scopeDirs = profile.graph?.scope ?? ["src"];
+      const projected = projectGraphifyGraph(graph, root);
+      const filtered = scopeBuildToProfile(projected.nodes, projected.edges, root, scopeDirs);
+      if (filtered.dropped > 0) {
+        tridentLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
+      }
+      scopedNodes = filtered.nodes;
+      scopedEdges = filtered.edges;
+      if (scopedNodes.length === 0) {
+        throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${scopeDirs.join(",")})`);
+      }
+      this.cachedNodes = scopedNodes;
+      this.cachedEdges = scopedEdges;
+      this.cachedRaw = graph;
+      this.lastGraphPath = graphPath;
+      this.built = true;
+      this.reindex();
+    } finally {
+      this.buildInFlight = false;
     }
-    if (size > GRAPH_PARSE_YIELD_BYTES) {
-      await new Promise((resolve) => setImmediate(() => resolve()));
-    }
-    let raw;
-    try {
-      raw = parseGraphJsonGuarded(text);
-    } catch (e) {
-      throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    const graph = normalizeGraphifyGraph(raw, { root: path8.resolve(profile.project.root) });
-    const scopeDirs = profile.graph?.scope ?? ["src"];
-    const projected = projectGraphifyGraph(graph, root);
-    const filtered = scopeBuildToProfile(projected.nodes, projected.edges, root, scopeDirs);
-    if (filtered.dropped > 0) {
-      tridentLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
-    }
-    const { nodes: scopedNodes, edges: scopedEdges } = filtered;
-    if (scopedNodes.length === 0) {
-      throw graphEmpty(`graphify graph build produced zero in-scope nodes (graph.json at ${graphPath}; scope=${scopeDirs.join(",")})`);
-    }
-    this.cachedNodes = scopedNodes;
-    this.cachedEdges = scopedEdges;
-    this.cachedRaw = graph;
-    this.built = true;
-    this.reindex();
     return {
       nodes: scopedNodes,
       edges: scopedEdges,
@@ -180768,6 +180781,7 @@ class GraphifyAdapter {
       if (n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`))
         return n.id;
     }
+    tridentLog("WARN", "graphify-adapter", `resolveNodeId: symbol '${symbol}' matched no node \u2014 phantom id 'graphify:${symbol}' (callers read empty, never wrong)`);
     return `graphify:${symbol}`;
   }
   nodeById(id) {
@@ -180794,6 +180808,10 @@ class GraphifyAdapter {
     return out;
   }
   buildSync(graphPath, profileOverride) {
+    if (this.buildInFlight) {
+      throw adapterFailed("graphify buildSync", "ADAPTER_BUSY: an async build() is in flight on this adapter \u2014 serialize builds, one at a time");
+    }
+    this.built = false;
     const effectiveProfile = profileOverride ?? this.profile;
     const root = path8.resolve(effectiveProfile.project.root);
     const graph = loadGraphifyFileSync(graphPath);
@@ -181466,12 +181484,14 @@ function runRaw(root, args, timeoutMs, env) {
     maxBuffer: RIPWIRE_MAX_BUFFER,
     env: e
   });
+  const rawErr = res.error;
+  const execError = rawErr === undefined ? null : rawErr.code === "ENOBUFS" ? `TRUNCATED: stdout exceeded maxBuffer ${RIPWIRE_MAX_BUFFER}B \u2014 ${rawErr.message}` : rawErr.message;
   return {
     bin,
     status: res.status,
     stdout: String(res.stdout ?? ""),
     stderr: String(res.stderr ?? ""),
-    execError: res.error ? res.error.message : null
+    execError
   };
 }
 function xmlPayload(stdout) {
@@ -182699,8 +182719,6 @@ function loadProfile(profilePath) {
   }
   const contained = (entry) => {
     const abs = path15.resolve(resolvedRoot, entry);
-    if (!fs13.existsSync(abs))
-      return false;
     let real;
     try {
       real = fs13.realpathSync(abs);
@@ -183652,10 +183670,12 @@ function violationFrequencies(profile, ruleIds) {
   for (const id of ruleIds)
     counts.set(id, 0);
   const rootReal = fs14.realpathSync(profile.project.root);
+  const rootPrefix = rootReal === path16.sep ? path16.sep : rootReal + path16.sep;
+  const containedIn = (parentReal) => parentReal === rootReal || parentReal.startsWith(rootPrefix);
   for (const logPath of profile.history.failureLogs) {
     const abs = path16.resolve(profile.project.root, logPath);
     const parentReal = fs14.realpathSync(path16.dirname(abs));
-    const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path16.sep);
+    const contained = containedIn(parentReal);
     if (!contained)
       throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
     let text;
@@ -184034,7 +184054,8 @@ function extractInlineQuote(line) {
 }
 function makeCard(quote, anchor, sourceLine, declared) {
   const { classification: voted, ambiguous } = classify(quote);
-  const proposed = ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0;
+  const curated = declared?.classification !== undefined && declared?.severity !== undefined;
+  const proposed = curated ? 0 : ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0;
   return {
     verbatimQuote: quote,
     anchor,
@@ -184214,7 +184235,7 @@ function selectTemplate(card) {
     case "DOMAIN":
       return need("domain.numeric-threshold");
     default:
-      return need("process.gates-measure-outputs-not-logic");
+      throw new LexiconError("CLASSIFICATION_UNKNOWN", `CLASSIFICATION_UNKNOWN: card anchor=${card.anchor} carries classification '${String(card.classification)}' \u2014 no template binding exists (expected ARCH|LOGIC|PROCESS|DOMAIN)`);
   }
 }
 function compileCards(cards, profile, version) {
@@ -184257,9 +184278,8 @@ function compileDeclared(profile, version) {
   return battery;
 }
 async function compile(profile) {
-  const version = await batteryVersionAsync(profile);
-  const cards = extractRuleCards(profile.rules.corpus);
-  return [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
+  const { battery } = await compileBattery(profile);
+  return battery;
 }
 async function compileBattery(profile, db) {
   const version = await batteryVersionAsync(profile);
@@ -184282,7 +184302,9 @@ async function compileBattery(profile, db) {
     } catch (e) {
       try {
         db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?").run(version);
-      } catch {}
+      } catch (cleanupErr) {
+        console.warn(`[lexicon-compiler] writeBattery failed AND orphan cleanup DELETE failed (orphaned rule_cards under corpus_hash=${version}): cleanup: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}; original: ${e instanceof Error ? e.message : String(e)}`);
+      }
       throw e;
     }
   }
@@ -184559,18 +184581,10 @@ ${p.verbatimQuote}`).join(`
     let n = existing + 1;
     let file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
     for (;; ) {
-      let fd = null;
+      let fd;
       try {
         fd = fs17.openSync(file, "wx", 420);
-        fs17.closeSync(fd);
-        fd = null;
-        break;
       } catch (e) {
-        if (fd !== null) {
-          try {
-            fs17.closeSync(fd);
-          } catch {}
-        }
         const code = e?.code;
         if (code === "EEXIST") {
           n += 1;
@@ -184579,6 +184593,8 @@ ${p.verbatimQuote}`).join(`
         }
         throw e;
       }
+      fs17.closeSync(fd);
+      break;
     }
     const rows = data.records.map((r) => `| ${r.predicateId} | ${r.verdict} | ${r.failedTest ?? "-"} | ${r.fire.fired ? "FIRED" : "MISS"} | ${r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE"} |`).join(`
 `);
@@ -184946,16 +184962,27 @@ async function report(input) {
     } catch (stripErr) {
       console.warn("[report] thinking-strip failed (non-fatal):", stripErr instanceof Error ? stripErr.message : String(stripErr));
     }
-    for (const s of sections) {
-      appendReportSection(input.db, s, input.runId);
+    input.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const s of sections) {
+        appendReportSection(input.db, s, input.runId);
+      }
+      appendEvent(input.db, "HUNT_DONE", {
+        runId: input.runId,
+        reportPath: writerResult.reportPath,
+        findingsCount: writerResult.findingsCount,
+        batteryVersion: input.batteryVersion,
+        fixOrder: input.fixOrder
+      });
+    } catch (dbErr) {
+      try {
+        input.db.exec("ROLLBACK");
+      } catch (rbErr) {
+        throw new Error(`REPORT_ROLLBACK_FAILED: batch error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open \u2014 do not reuse this handle for writes)`);
+      }
+      throw dbErr;
     }
-    appendEvent(input.db, "HUNT_DONE", {
-      runId: input.runId,
-      reportPath: writerResult.reportPath,
-      findingsCount: writerResult.findingsCount,
-      batteryVersion: input.batteryVersion,
-      fixOrder: input.fixOrder
-    });
+    input.db.exec("COMMIT");
     try {
       const insertFact = input.db.prepare("INSERT INTO graph_facts (subject, predicate, object, evidence, confidence, created_at) VALUES (?,?,?,?,?,?)");
       for (const f of input.findings) {
@@ -185372,9 +185399,21 @@ async function spawnBugHunterLoop(args) {
   }
   acquireHuntLock(absTarget);
   try {
+    const absProfile = typeof args.profilePath === "string" && args.profilePath.length > 0 ? path23.resolve(args.profilePath) : undefined;
+    if (absProfile !== undefined) {
+      let profileOk = false;
+      try {
+        profileOk = fsDyn.statSync(absProfile).isFile();
+      } catch {
+        profileOk = false;
+      }
+      if (!profileOk) {
+        throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
+      }
+    }
     const machine = createMicroLoop({
-      targetPath: args.targetPath,
-      profilePath: args.profilePath,
+      targetPath: absTarget,
+      profilePath: absProfile ?? "",
       ...args.adapter ? { adapter: args.adapter } : {},
       ...args.profile ? { profile: args.profile } : {},
       ...args.battery ? { battery: args.battery } : {},
@@ -185991,7 +186030,7 @@ function probeSocketConnect(dir, timeoutMs = 1200, match = /^[0-9a-f]{16}\.sock$
     return { up: false, evidence: `${dir} \u2014 ${code}` };
   }
   if (files.length === 0)
-    return { up: false, evidence: `${dir} \u2014 no *.instance.sock (the daemon is not running)` };
+    return { up: false, evidence: `${dir} \u2014 no matching socket files (${match}) \u2014 the daemon is not running` };
   const attempts = [];
   for (const f of files) {
     const sock = `${dir}/${f}`;
@@ -186003,7 +186042,11 @@ function probeSocketConnect(dir, timeoutMs = 1200, match = /^[0-9a-f]{16}\.sock$
       attempts.push(`${f}=LIVE`);
       return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f}` };
     } catch (e) {
-      const code = e.status;
+      const err = e;
+      if (err.status === undefined) {
+        return { up: false, evidence: `${dir} \u2014 PROBE INFRA BROKEN: curl could not exec (${err.code ?? "unknown"}) \u2014 install curl; this is NOT a socket verdict` };
+      }
+      const code = err.status;
       if (code === 52 || code === 56) {
         attempts.push(`${f}=LIVE(exit ${code} \u2014 connected, no HTTP reply)`);
         return { up: true, evidence: `${dir} \u2014 connect() accepted on ${f} (curl exit ${code})` };
@@ -186151,7 +186194,7 @@ function c2kgProbe(scopeRoot) {
 import * as fs21 from "fs";
 import * as path27 from "path";
 function uaProbe(scopeRoot) {
-  if (!path27.isAbsolute(scopeRoot) || scopeRoot.split(path27.sep).includes(".."))
+  if (!path27.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]/).includes("..") || scopeRoot.includes("\x00"))
     throw new Error(`GI_LAYER_UA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   const graphPath = path27.join(path27.resolve(scopeRoot), ".ua/knowledge-graph.json");
   return {
@@ -186195,6 +186238,10 @@ function auEngineRead(repoRoot, read, subject) {
     throw new Error(`GI_LAYER_ARSUMBRIS: repoRoot must be absolute, got ${JSON.stringify(repoRoot)}`);
   if (!/^[A-Za-z0-9_-]+$/.test(read))
     throw new Error(`GI_LAYER_ARSUMBRIS: refusing unknown engine read ${JSON.stringify(read)}`);
+  if (subject.length > 1024)
+    throw new Error(`GI_LAYER_ARSUMBRIS: subject exceeds 1024 chars (${subject.length}) \u2014 refusing`);
+  if (subject.includes("\x00"))
+    throw new Error(`GI_LAYER_ARSUMBRIS: subject carries NUL \u2014 refusing`);
   const repoCanon = path28.resolve(repoRoot);
   const script = path28.join(repoCanon, "scripts/au-read.ts");
   if (!path28.resolve(script).startsWith(repoCanon + path28.sep))
@@ -186521,7 +186568,7 @@ function tailEvents(eventsPath, limit) {
     if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs)
       return hit.events.slice(-limit);
     const TAIL_BYTES_START = 1024 * 1024;
-    const TAIL_BYTES_MAX = Math.max(st.size, 64 * 1024 * 1024);
+    const TAIL_BYTES_MAX = Math.min(st.size, 64 * 1024 * 1024);
     let fd = null;
     try {
       fd = fs26.openSync(eventsPath, "r");
@@ -186639,17 +186686,39 @@ var L2E_CONSUMERS = [
 ];
 function buildRegistry(scopeRoot, overrides) {
   const registry = createLayerRegistry();
-  const kevAvailable = resolveKevCli(scopeRoot) !== null && resolveKevRuntime(scopeRoot) !== null;
-  const meaningProbe = kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot);
+  const downProbe = (id, rung, reason) => ({
+    id,
+    rung,
+    dependency: "unconstructible probe (see evidence)",
+    errorCode: "GI_REGISTRY_PROBE_BUILD",
+    up: () => ({ up: false, evidence: reason }),
+    facts: () => {
+      throw new Error(reason);
+    }
+  });
+  const tryProbe = (id, rung, make) => {
+    try {
+      return make();
+    } catch (e) {
+      return downProbe(id, rung, `GI_REGISTRY_PROBE_BUILD:${id} constructor threw \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+    }
+  };
+  const kevAvailable = (() => {
+    try {
+      return resolveKevCli(scopeRoot) !== null && resolveKevRuntime(scopeRoot) !== null;
+    } catch {
+      return false;
+    }
+  })();
   const probes = [
-    corbellProbe(scopeRoot),
-    graphifyProbe(scopeRoot),
-    c2kgProbe(scopeRoot),
-    uaProbe(scopeRoot),
-    arsumbrisProbe(scopeRoot),
-    semanticaProbe(scopeRoot),
-    meaningProbe,
-    abideProbe(scopeRoot)
+    tryProbe("L5_CORBELL", "settlement", () => corbellProbe(scopeRoot)),
+    tryProbe("L6_GRAPHIFY", "settlement", () => graphifyProbe(scopeRoot)),
+    tryProbe("L4_C2KG", "context", () => c2kgProbe(scopeRoot)),
+    tryProbe("L3_UA", "context", () => uaProbe(scopeRoot)),
+    tryProbe("L2_ARSUMBRIS", "knowledge", () => arsumbrisProbe(scopeRoot)),
+    tryProbe("L1_SEMANTICA", "decision", () => semanticaProbe(scopeRoot)),
+    tryProbe("TSG", "meaning", () => kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot)),
+    tryProbe("ABIDE", "repair", () => abideProbe(scopeRoot))
   ];
   for (const p of probes) {
     const override = overrides?.[p.id];

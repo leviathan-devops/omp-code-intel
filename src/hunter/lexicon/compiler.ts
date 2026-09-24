@@ -127,7 +127,8 @@ export function selectTemplate(card: RuleCard): PredicateTemplate {
     case 'LOGIC': return need('provenance.traces-to-source');
     case 'PROCESS': return need('process.gates-measure-outputs-not-logic');
     case 'DOMAIN': return need('domain.numeric-threshold');
-    default: return need('process.gates-measure-outputs-not-logic');
+    // ★ F-258 FIX (2026-09-24): unknown classifications used to SILENTLY compile against the PROCESS template — a corrupted/new value shipped a wrong-but-valid-looking battery. Fail LOUD with the value named.
+    default: throw new LexiconError('CLASSIFICATION_UNKNOWN', `CLASSIFICATION_UNKNOWN: card anchor=${card.anchor} carries classification '${String((card as { classification?: unknown }).classification)}' \u2014 no template binding exists (expected ARCH|LOGIC|PROCESS|DOMAIN)`);
   }
 }
 
@@ -199,9 +200,9 @@ function compileDeclared(profile: ProjectProfile, version: string): CompiledPred
  *  compiled battery. DETERMINISTIC (K20.3) — the same corpus always produces
  *  the same ids + the same version; a corpus edit invalidates the battery. */
 export async function compile(profile: ProjectProfile): Promise<CompiledPredicate[]> {
-  const version = await batteryVersionAsync(profile);
-  const cards = extractRuleCards(profile.rules.corpus);
-  return [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
+  // ★ F-259 FIX (2026-09-24): compile() carried its own copy of the extract\u2192compileCards\u2192compileDeclared pipeline — a fix to one copy silently diverged the other. It delegates to compileBattery()'s uncached path: ONE pipeline, determinism by construction.
+  const { battery } = await compileBattery(profile);
+  return battery;
 }
 
 export interface CompileResult {
@@ -235,7 +236,10 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
     try {
       writeBattery(db, battery);
     } catch (e: unknown) {
-      try { db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?').run(version); } catch { /* best-effort cleanup */ }
+      // ★ F-257 FIX (2026-09-24): the orphan-cleanup DELETE used to fail SILENTLY (empty catch) — a double failure left orphaned rule_cards with no trace. Now WARNED with both messages; the original write error still throws.
+      try { db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?').run(version); } catch (cleanupErr: unknown) {
+        console.warn(`[lexicon-compiler] writeBattery failed AND orphan cleanup DELETE failed (orphaned rule_cards under corpus_hash=${version}): cleanup: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}; original: ${e instanceof Error ? e.message : String(e)}`);
+      }
       throw e;
     }
   }

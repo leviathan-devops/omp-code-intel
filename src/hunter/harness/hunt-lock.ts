@@ -17,6 +17,10 @@ function lockPathFor(targetPath: string): string {
   return path.join(targetPath, '.trident', 'hunt.lock');
 }
 
+// ★ F-243 NOTE (2026-09-24): NOT-A-BUG — EPERM-as-alive errs toward exclusion
+//   (worst case a hunt waits; isStale bounds every hold by the 30min TTL). A
+//   recycled PID owned by another user needs platform owner reads for a delay-only
+//   failure — never corruption, never a false free.
 function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);

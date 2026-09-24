@@ -241,14 +241,20 @@ function violationFrequencies(profile: ProjectProfile, ruleIds: string[]): Map<s
   const counts = new Map<string, number>();
   for (const id of ruleIds) counts.set(id, 0);
   const rootReal = fs.realpathSync(profile.project.root);
-  for (const logPath of profile.history.failureLogs) {
-    // ★ F-3 FIX (2026-09-24): `path.resolve(root, logPath)` lets `../` escape the
-    // ★ project root (arbitrary-file read via profile history). Resolve, realpath the
-    // ★ parent (file may not exist — realpath the dir), and require containment.
-    const abs = path.resolve(profile.project.root, logPath);
-    const parentReal = fs.realpathSync(path.dirname(abs));
-    const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path.sep);
-    if (!contained) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+  // ★ F-244 FIX (2026-09-24): rootReal + path.sep is '//' when rootReal is '/',
+  // ★ so parentReal.startsWith('//') never matches and every nested file under a
+  // ★ filesystem-root project is rejected (fail-closed but wrong). The '/' root
+  // ★ contains every absolute path — normalize the prefix for it.
+  const rootPrefix = rootReal === path.sep ? path.sep : rootReal + path.sep;
+  const containedIn = (parentReal: string): boolean => parentReal === rootReal || parentReal.startsWith(rootPrefix);
+   for (const logPath of profile.history.failureLogs) {
+     // ★ F-3 FIX (2026-09-24): `path.resolve(root, logPath)` lets `../` escape the
+     // ★ project root (arbitrary-file read via profile history). Resolve, realpath the
+     // ★ parent (file may not exist — realpath the dir), and require containment.
+     const abs = path.resolve(profile.project.root, logPath);
+     const parentReal = fs.realpathSync(path.dirname(abs));
+    const contained = containedIn(parentReal);
+     if (!contained) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
     let text: string;
     try {
       text = fs.readFileSync(abs, 'utf8');
@@ -494,8 +500,12 @@ function collectLocalTsFiles(root: string): string[] {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (e: unknown) {
-      console.error(`[engine:local-build] readdir failed for ${dir}: ${String(e)}`);
-      return;
+      // ★ F-243 FIX (2026-09-24): the old body did console.error+return here —
+      // ★ an unreadable subdir silently vanished from the scope while this file's
+      // ★ own fail-closed law (line 14: unreadable source is a LOUD named fail,
+      // ★ never an empty read) demands SOURCE_READ_FAILED. Fail-closed like the
+      // ★ F-43 read leg below.
+      throw sourceReadFailed(dir, `local build readdir failed: ${String(e)}`);
     }
     for (const e of entries) {
       if (e.name === '.' || e.name === '..') continue;

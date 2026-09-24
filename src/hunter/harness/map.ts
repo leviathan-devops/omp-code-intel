@@ -60,6 +60,9 @@ export async function map(profile: ProjectProfile, adapterOverride?: GraphAdapte
   // kind. SPEC_DERIVED stage/rule nodes carry a corpus anchor — exempt by
   // lineage (the interface.ts contract).
   assertMappableLines(buildResult);
+// ★ F-244 NOTE (2026-09-24): NOT-A-BUG — the LINELESS guard (line above) runs
+//   BEFORE the open (line below), so a guard throw leaves no handle behind. The
+//   error-path close covers only post-open failures (writeGraph/mirror).
   const dbPath = path.join(profile.project.root, '.trident', 'knowledge-graph', 'shared.db');
   const db: DbClient = openStore(dbPath);
 

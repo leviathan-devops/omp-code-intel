@@ -15,7 +15,8 @@ interface UaGraph {
 
 export function uaProbe(scopeRoot: string): ConsumerProbe {
   // ★ F-29 FIX (2026-09-24): scopeRoot reaches the fs — canonical absolute form only (`..` segments would let `/allowed/../../etc` escape the intended tree; path.join normalizes them away silently).
-  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(path.sep).includes("..")) throw new Error(`GI_LAYER_UA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
+  // ★ F-263 FIX (2026-09-24): the `..` split used path.sep only — Node accepts `/` on Windows, so `C:/allowed/../../etc` never split. Both separators + NUL reject.
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]/).includes("..") || scopeRoot.includes("\0")) throw new Error(`GI_LAYER_UA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   const graphPath = path.join(path.resolve(scopeRoot), ".ua/knowledge-graph.json");
   return {
     id: "L3_UA",

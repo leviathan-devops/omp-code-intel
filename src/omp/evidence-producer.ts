@@ -78,11 +78,24 @@ function escapeLike(s: string): string {
 }
 function touches(event: ToolEvent, subject: Subject): boolean {
   if (event.target === undefined) return subject.tool === event.tool;
-  // exact match, or the event names a path/symbol the subject contains (a fire names a file,
-  // an edit names the symbol inside it — either direction is a relationship)
-  return event.target === subject.target
-    || event.target.includes(subject.target)
-    || subject.target.includes(event.target);
+  if (event.target === subject.target) return true;
+  // ★ F-264 FIX (2026-09-24): bare includes() matched "app"↔"application.js"/"append.txt" — false evidence. Containment must land on a PATH/symbol boundary, never mid-token. Either direction still holds (a fire names a file, an edit the symbol inside it).
+  return containsAtBoundary(event.target, subject.target) || containsAtBoundary(subject.target, event.target);
+}
+/** A needle inside a haystack only at a separator boundary (/, :, ., -, _, space, quotes…). */
+function isBoundaryChar(ch: string): boolean {
+  return ch === "" || "/:.\\-_ \t@#()[]{}'\"".includes(ch);
+}
+function containsAtBoundary(hay: string, needle: string): boolean {
+  if (needle.length === 0 || hay.length <= needle.length) return false;
+  let i = hay.indexOf(needle);
+  while (i !== -1) {
+    const before = i === 0 ? "" : hay[i - 1]!;
+    const after = i + needle.length >= hay.length ? "" : hay[i + needle.length]!;
+    if (isBoundaryChar(before) && isBoundaryChar(after)) return true;
+    i = hay.indexOf(needle, i + 1);
+  }
+  return false;
 }
 
 /**
@@ -227,13 +240,17 @@ export function persistRecords(recordsPath: string, fireStateHash: string, recor
 /** Read back every record persisted for one fire — the reproducibility half. */
 export function readRecords(recordsPath: string, fireStateHash: string): OutcomeRecord[] {
   if (!fs.existsSync(recordsPath)) return [];
-  return fs
+  // ★ F-265 FIX (2026-09-24): corrupt lines were dropped SILENTLY — re-derivation shrank with no signal (Law 1). Still skipped (one torn line must not brick a whole resolution) but COUNTED + LOUD.
+  let corrupt = 0;
+  const out = fs
     .readFileSync(recordsPath, "utf8")
     .split("\n")
     .filter((l) => l.trim() !== "")
-    .map((l) => { try { return JSON.parse(l) as OutcomeRecord & { fireStateHash: string }; } catch { return null; } })
+    .map((l) => { try { return JSON.parse(l) as OutcomeRecord & { fireStateHash: string }; } catch { corrupt += 1; return null; } })
     .filter((r): r is OutcomeRecord & { fireStateHash: string } => r !== null && r.fireStateHash === fireStateHash)
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  if (corrupt > 0) console.error(`[gi-omp] GI_EVIDENCE_CORRUPT_LINES: ${corrupt} unparseable line(s) skipped in ${recordsPath} (fire ${fireStateHash}) — re-derivation is degraded, not silent`);
+  return out;
 }
 
 /** ★ THE CONVENIENCE: produce from EVERY source and persist the result. This is what a caller

@@ -57,6 +57,8 @@ export interface SessionQueryArgs {
 export async function runQueryTool(args: SessionQueryArgs): Promise<string> {
   const opened = openSessionStore({ sessionId: args.sessionId, scopeRoot: args.scopeRoot, callerSessionId: args.sessionId });
   const db = openStore(opened.storePath);
+  // ★ F-253 NOTE (2026-09-24): NOT-A-BUG — the open sits OUTSIDE the try, so an
+  //   openStore throw never enters the finally (no undefined close, no masked error).
   try {
     const rows = runQuery(
       {

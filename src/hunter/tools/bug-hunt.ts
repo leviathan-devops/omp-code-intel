@@ -72,9 +72,26 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
   }
   acquireHuntLock(absTarget);
   try {
+    // ★ F-251 FIX (2026-09-24): the machine rides the VALIDATED absolute target —
+    //   the lock (above) and the loop (here) now share one path, so relative
+    //   spellings can no longer split them onto different dirs.
+    // ★ F-252 FIX (2026-09-24): profilePath rides the same fail-closed shape as
+    //   targetPath — resolve + require an existing FILE (a traversal that escapes
+    //   the scope no longer passes a bare existence check on the raw string).
+    const absProfile: string | undefined = typeof args.profilePath === 'string' && args.profilePath.length > 0 ? path.resolve(args.profilePath) : undefined;
+    if (absProfile !== undefined) {
+      let profileOk = false;
+      try { profileOk = fsDyn.statSync(absProfile).isFile(); } catch { profileOk = false; }
+      if (!profileOk) {
+        throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
+      }
+    }
+    // ★ F-252b FIX (2026-09-24): build the options object as a SINGLE typed literal — the
+    //   spread union widened `profilePath` to `string | undefined`, which the required
+    //   MicroLoopOptions.profilePath rejects. `absProfile` is set whenever the caller passed one.
     const machine = createMicroLoop({
-      targetPath: args.targetPath,
-      profilePath: args.profilePath,
+      targetPath: absTarget,
+      profilePath: absProfile ?? "",
       ...(args.adapter ? { adapter: args.adapter } : {}),
       ...(args.profile ? { profile: args.profile } : {}),
       ...(args.battery ? { battery: args.battery } : {}),

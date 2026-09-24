@@ -222,8 +222,8 @@ function consecutiveUnverified(state: GraphGateSessionState, now: number = Date.
     if (now - edit.timestamp >= DRIFT_WINDOW_MS) break;
     // ★ F-35 FIX (2026-09-24): symbol-less edits were counted here as unverified while computeDrift gives them zero weight — comment edits inflated the T2/T3 consecutive gate. Skipped, matching computeDrift.
     if (edit.symbols.length === 0) continue;
-    const unverified = edit.symbols.some((s) => !symbolVerified(s, state));
-    if (!unverified) break;
+    // ★ F-267 FIX (2026-09-24): edit-level coverage is the W1 ruling in computeDrift above — an edit with ANY verified symbol is covered. Counting it unverified here fired T2/T3 on zero drift.
+    if (edit.symbols.some((s) => symbolVerified(s, state))) break;
     n += 1;
   }
   return n;

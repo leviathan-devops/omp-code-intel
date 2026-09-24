@@ -42,7 +42,8 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
     );
   }
   // ★ F-44 FIX (2026-09-24): scopeRoot flows into path.join, which normalizes `..` — `/allowed/../../etc` escapes the intended tree while still passing the session regex downstream. Require canonical absolute form (no `..` segments).
-  if (!path.isAbsolute(input.scopeRoot) || input.scopeRoot.split(path.sep).includes("..")) {
+  // ★ F-274 FIX (2026-09-24): same bypass class as ua.ts — the split used path.sep only while Node accepts `/` on Windows. Both separators + NUL reject.
+  if (!path.isAbsolute(input.scopeRoot) || input.scopeRoot.split(/[\\/]/).includes("..") || input.scopeRoot.includes("\0")) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
   }
   const storePath = sessionStorePath(input.scopeRoot, input.sessionId);
