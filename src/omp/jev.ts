@@ -167,7 +167,8 @@ export class JevJudge implements Judge {
     }
     for (const q of questions) {
       const a = answers[q.id];
-      if (a === undefined) continue;
+      // ★ F-909 FIX (2026-09-24): a null answer passed the undefined-only check and `a.noul` threw raw TypeError past the JevError contract (completes F-JEVAL's map-level validation). Null/non-object answers are DROPPED like unknown shapes — missing ⇒ UNCERTIFIABLE, never a pass.
+      if (a == null || typeof a !== "object") continue;
       // A Noul answer carries the probability in `noul`; anything else is a shape
       // we did not ask for and is DROPPED (the caller sees fewer answers and must
       // treat a missing answer as UNCERTIFIABLE, never as a pass).

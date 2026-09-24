@@ -182,6 +182,8 @@ export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe
         //   it to GI_LAYER_DOWN). It never returns [] dressed as "no facts".
         throw new Error(`GI_ENFORCE_ABIDE: the Abide event ledger is absent at ${eventsPath}`);
       }
+      // ★ F-906 FIX (2026-09-24): hay.includes('') is always true — a blank subject matched EVERY flag, flooding repair facts. Blank subject ⇒ zero facts (an empty span never matches per F-506; an empty subject matches nothing).
+      if (!subject || subject.trim().length === 0) return [];
       const events = tailEvents(eventsPath, 4000);
       const hits = events.filter((e) => {
         if (e.band !== "flag") return false; // ★ only a FLAG is a repair opportunity

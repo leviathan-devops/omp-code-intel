@@ -192,13 +192,15 @@ function compileDeclared(profile: ProjectProfile, version: string): CompiledPred
         `TEMPLATE_UNKNOWN: declaredPredicate ${ruleId} names template '${templateId}' which is not in the library`,
       );
     }
-    const verbatimQuote = String(binding['verbatimQuote'] ?? '');
-    if (!verbatimQuote || verbatimQuote.trim() === '') {
+    // ★ F-904 FIX (2026-09-24): String() coerced truthy non-strings (42 → '42', true → 'true', {} → '[object Object]') past D13 with no quoted doctrine. Only a real non-blank string satisfies D13; the corpus path is already string-typed by the parser.
+    const rawQuote = binding['verbatimQuote'];
+    if (typeof rawQuote !== 'string' || rawQuote.trim() === '') {
       throw new LexiconError(
         'D13_VIOLATION',
         `D13_VIOLATION: declaredPredicate ${ruleId} lacks a verbatim quote — doctrine is QUOTED, never synthesized`,
       );
     }
+    const verbatimQuote = rawQuote;
     const anchor = String(binding['anchor'] ?? `${ruleId}`);
     const severity = severityFromBinding(binding['severity']);
     battery.push(compileTemplate(template, binding, { verbatimQuote, anchor, severity }, version));

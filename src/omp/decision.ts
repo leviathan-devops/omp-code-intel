@@ -119,6 +119,10 @@ export function decideFromRegistry(
   if (typeof a.queriedBefore !== "boolean") {
     throw new Error("GI_DECIDE_BAD_INPUT: act.queriedBefore must be a boolean (undefined would silently read as blind)");
   }
+  // ★ F-907 FIX (2026-09-24): scopeRoot flows into path.join for store/ledger/policy paths — a relative traversal (../../etc) would escape the .omp tree. Canonical absolute form required (absolute + no .. on either separator + no NUL), mirroring store-open.ts/ua.ts; any absolute root (tmp, repo) still passes. Both entry points carry it.
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]/).includes("..") || scopeRoot.includes("\0")) {
+    throw new Error(`GI_DECIDE_BAD_INPUT: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
+  }
   const registry = buildRegistry(scopeRoot);
 
   // The registry's facts for this subject — the decision's evidence base. `factsFor`
@@ -211,6 +215,10 @@ export function decideFireFromGraph(
   // ★ F-843 FIX (2026-09-24): `intent` was the one unvalidated public input — TypeScript's union does not stop `undefined` at runtime, which sailed into graphFacts, matched NO M-GRAPH branch, and returned an empty fact set dressed as "the graph has no fact". Same fail-fast discipline as scopeRoot/target above.
   if (intent !== "consume" && intent !== "declare" && intent !== "mutate" && intent !== "measure") {
     throw new Error(`GI_DECIDE_BAD_INPUT: intent must be one of consume|declare|mutate|measure (got ${String(intent)})`);
+  }
+  // ★ F-907 FIX (2026-09-24): same traversal hole as decideFromRegistry — symmetric guard so both entry points name a bad scopeRoot instead of joining it into store/ledger/policy paths.
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(/[\\/]/).includes("..") || scopeRoot.includes("\0")) {
+    throw new Error(`GI_DECIDE_BAD_INPUT: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   }
   const storePath = corbellCheckoutPath(scopeRoot);
   const verdicts = graphFacts({ storePath, target, intent });

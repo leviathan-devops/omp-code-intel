@@ -323,16 +323,22 @@ export function loadFixtureProfile(fixtureProfileDir: string): { profile: Projec
  *  verdicts are computed + surfaced, the live flip is the operator's curation).
  *  The coordination fact (the profileFromDisk flag — battery-p6's profile.yaml
  *  landed or the spec-shaped profile was constructed) rides the loader's
- *  FixtureLoadResult; the caller reports it, never hides it. */
+ *  FixtureLoadResult; the caller reports it, never hides it.
+ *  ★ F-930 FIX (2026-09-24): the old `const { profile } = loadFixtureProfile(...)`
+ *  ★ DISCARDED profileFromDisk, so a caller could not tell a landed profile.yaml from
+ *  ★ the constructed spec-shaped profile (a SILENT gap). The return widens to
+ *  ★ CalibrationResult & { profileFromDisk } (an intersection, never a calibration.ts
+ *  ★ edit — that file is another slice's). No callers exist yet; the extra prop is
+ *  ★ backward-compatible for readers. */
 export async function runFixtureCalibration(
   fixtureProfileDir: string,
   opts: { recordPath?: string; dryRun?: boolean; battery?: CompiledPredicate[] } = {},
-): Promise<CalibrationResult> {
+): Promise<CalibrationResult & { profileFromDisk: boolean }> {
   try {
     // ★ F-701b FIX (2026-09-24): `loadFixtureProfileFixtures` does not exist — the real
     //   helpers are `loadFixtureProfile` (the profile) and `loadCalibrationFixtures` (the
     //   fire/golden dirs). Composed here so the closed-loop check below has both.
-    const { profile } = loadFixtureProfile(fixtureProfileDir);
+    const { profile, profileFromDisk } = loadFixtureProfile(fixtureProfileDir);
     const fixtures = loadCalibrationFixtures(fixtureProfileDir);
     const battery = opts.battery ?? (await compileFixtureBattery(profile));
     // ★ F-701 FIX (2026-09-24): the CLOSED-LOOP invariant (C26) — every fire
@@ -349,11 +355,12 @@ export async function runFixtureCalibration(
       }
     }
     const recordPath = opts.recordPath ?? fixtureProfileDir;
-    return runCalibration(profile, fixtures, {
+    const result = await runCalibration(profile, fixtures, {
       battery,
       dryRun: opts.dryRun ?? true,
       recordPath,
     });
+    return { ...result, profileFromDisk };
   } catch (e: unknown) {
     console.warn(`[fixture-calibration] runFixtureCalibration failed: ${e instanceof Error ? e.message : String(e)}`);
     throw e;

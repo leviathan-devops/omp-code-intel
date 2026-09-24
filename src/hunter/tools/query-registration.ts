@@ -83,6 +83,7 @@ export async function runQueryTool(args: SessionQueryArgs): Promise<string> {
     );
     return JSON.stringify(rows, null, 2);
   } finally {
-    db.close();
+    // ★ F-905 FIX (2026-09-24): an unguarded close() throw in finally would mask the try block's original error (db.ts close() calls handle.close() unguarded). Close failure on a read-only handle is non-fatal; the original error stands.
+    try { db.close(); } catch { /* close failure is non-fatal; original error preserved */ }
   }
 }
