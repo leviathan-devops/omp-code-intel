@@ -230,8 +230,15 @@ export function severityScore(s: Severity): number {
 function violationFrequencies(profile: ProjectProfile, ruleIds: string[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const id of ruleIds) counts.set(id, 0);
+  const rootReal = fs.realpathSync(profile.project.root);
   for (const logPath of profile.history.failureLogs) {
+    // ★ F-3 FIX (2026-09-24): `path.resolve(root, logPath)` lets `../` escape the
+    // ★ project root (arbitrary-file read via profile history). Resolve, realpath the
+    // ★ parent (file may not exist — realpath the dir), and require containment.
     const abs = path.resolve(profile.project.root, logPath);
+    const parentReal = fs.realpathSync(path.dirname(abs));
+    const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path.sep);
+    if (!contained) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
     let text: string;
     try {
       text = fs.readFileSync(abs, 'utf8');
@@ -276,9 +283,15 @@ export function rankFindings(findings: NormalizedFinding[], profile: ProjectProf
  *  K21.2 pure-over-the-reads law); an unreadable source is the loud
  *  SOURCE_READ_FAILED. */
 export function lockdownReadSource(profile: ProjectProfile): { read(file: string, range?: [number, number]): string } {
+  const rootReal = fs.realpathSync(profile.project.root);
   return {
     read(file: string, range?: [number, number]): string {
+      // ★ F-3 FIX (2026-09-24): same containment gate on the source read — a
+      // ★ predicate-supplied `file` with `../` must not read outside the root.
       const abs = path.resolve(profile.project.root, file);
+      const parentReal = fs.realpathSync(path.dirname(abs));
+      const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path.sep);
+      if (!contained) throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
       let text: string;
       try {
         text = fs.readFileSync(abs, 'utf8');
@@ -611,17 +624,31 @@ function readStoredGraph(dbPath: string): { nodes: GraphNode[]; edges: GraphEdge
     const nrows = db.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as unknown as StoredNodeRow[];
     if (nrows.length === 0) return null;
     const erows = db.prepare('SELECT source_id,target_id,kind,lineage FROM graph_edges').all() as unknown as StoredEdgeRow[];
+    // ★ F-4 FIX (2026-09-24): a single malformed `r.data` JSON must not poison the
+    // ★ whole read — JSON.parse inside the row map throws into the outer catch,
+    // ★ which returns null and triggers a full DB overwrite (data loss). Guard
+    // ★ per-row: unparseable data becomes {} with a named warn, rows survive.
     return {
-      nodes: nrows.map((r) => ({
-        id: r.id,
-        kind: r.kind as GraphNode['kind'],
-        name: r.name,
-        file: r.file,
-        line: r.line,
-        lineage: r.lineage as GraphNode['lineage'],
-        source: r.source,
-        data: r.data ? (JSON.parse(r.data) as Record<string, unknown>) : {},
-      })),
+      nodes: nrows.map((r) => {
+        let data: Record<string, unknown> = {};
+        if (r.data) {
+          try {
+            data = JSON.parse(r.data) as Record<string, unknown>;
+          } catch (e: unknown) {
+            console.error(`[engine:graph-logic] graph_nodes row ${r.id} carries malformed data JSON — defaulting to {}: ${String(e)}`);
+          }
+        }
+        return {
+          id: r.id,
+          kind: r.kind as GraphNode['kind'],
+          name: r.name,
+          file: r.file,
+          line: r.line,
+          lineage: r.lineage as GraphNode['lineage'],
+          source: r.source,
+          data,
+        };
+      }),
       edges: erows.map((r) => ({ sourceId: r.source_id, targetId: r.target_id, kind: r.kind as GraphEdge['kind'], lineage: r.lineage as GraphEdge['lineage'] })),
     };
   } catch (e: unknown) {

@@ -183173,7 +183173,7 @@ var P1 = {
         if ((lines[i] ?? "").includes("process.cwd()")) {
           const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 12)).join(`
 `);
-          if (/(writeFileSync?|appendFileSync?|mkdirSync?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFileSync?|mkdirSync?|(?:path\.)?join)/.test(win)) {
+          if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|mkdir(Sync)?|(?:path\.)?join)/.test(win)) {
             const triad = makeTriad(file, i + 1, "semantic.process-cwd-persistence", sev);
             findings.push({ ruleId: "semantic.process-cwd-persistence", severity: sev, file, line: i + 1, evidence: evEdge("semantic.process-cwd-persistence", file, i + 1, lines[i].trim(), "HT-BUG-3b/15", anchor), verdict: "VIOLATION", triad });
           }
@@ -183491,8 +183491,13 @@ function violationFrequencies(profile, ruleIds) {
   const counts = new Map;
   for (const id of ruleIds)
     counts.set(id, 0);
+  const rootReal = fs14.realpathSync(profile.project.root);
   for (const logPath of profile.history.failureLogs) {
     const abs = path16.resolve(profile.project.root, logPath);
+    const parentReal = fs14.realpathSync(path16.dirname(abs));
+    const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path16.sep);
+    if (!contained)
+      throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
     let text;
     try {
       text = fs14.readFileSync(abs, "utf8");
@@ -183522,9 +183527,14 @@ function rankFindings(findings, profile) {
   });
 }
 function lockdownReadSource(profile) {
+  const rootReal = fs14.realpathSync(profile.project.root);
   return {
     read(file, range) {
       const abs = path16.resolve(profile.project.root, file);
+      const parentReal = fs14.realpathSync(path16.dirname(abs));
+      const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path16.sep);
+      if (!contained)
+        throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
       let text;
       try {
         text = fs14.readFileSync(abs, "utf8");

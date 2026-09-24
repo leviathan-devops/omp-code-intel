@@ -86,7 +86,8 @@ export const P1: PredicateTemplate = {
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if ((lines[i] ?? '').includes('process.cwd()')) {
         const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 12)).join('\n');
-        if (/(writeFileSync?|appendFileSync?|mkdirSync?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFileSync?|mkdirSync?|(?:path\.)?join)/.test(win)) {
+        // ★ F-7 FIX (2026-09-24): `Sync?` made only the trailing `c` optional (matched `writeFileSyn`). `(Sync)?` makes the whole suffix optional: matches `writeFile`/`writeFileSync`, never the truncated stem.
+        if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|mkdir(Sync)?|(?:path\.)?join)/.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.process-cwd-persistence', sev);
           findings.push({ ruleId: 'semantic.process-cwd-persistence', severity: sev, file, line: i + 1, evidence: evEdge('semantic.process-cwd-persistence', file, i + 1, lines[i]!.trim(), 'HT-BUG-3b/15', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }
