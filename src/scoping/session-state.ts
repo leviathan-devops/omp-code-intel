@@ -52,18 +52,29 @@ export function writeSessionState(statePath: string, state: SessionStateMap): vo
  *  the atomic tmp+rename inside writeSessionState stays. Stale-lock reclaim after 2s. */
 function withStateLock<T>(statePath: string, fn: () => T): T {
   const lockPath = statePath + ".lock";
-  const deadline = Date.now() + 2000;
-  let fd: number;
+  // ★ F-135 FIX (2026-09-24): the lock carries a TOKEN; the release unlinks only if the token
+  //   still matches (else a peer's reclaimed lock would be destroyed by our late release).
+  const token = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   for (;;) {
-    try { fd = fs.openSync(lockPath, "wx"); break; }
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
     catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
-      if (Date.now() > deadline) { try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
-      const t = Date.now(); while (Date.now() - t < 3) { /* the sync spin (no async file-lock API) */ }
+      // ★ F-134 FIX (2026-09-24): a FRESH age per iteration. The old single upfront deadline meant
+      //   that after the first reclaim every later EEXIST re-unlinked (mutual exclusion broken) and
+      //   the deadline was never reset. Now a peer's FRESH lock (age < 2s) is never unlinked.
+      let ageMs = Infinity;
+      try { ageMs = Date.now() - fs.statSync(lockPath).mtimeMs; } catch { continue; /* vanished → retry */ }
+      if (ageMs > 2000) { try { fs.unlinkSync(lockPath); } catch { /* a peer reclaimed first */ } continue; }
+      // ★ F-136 FIX: a longer sync spin (10ms) — the shortest wait that still bounds the busy loop.
+      const t = Date.now(); while (Date.now() - t < 10) { /* the sync spin (no async file-lock API) */ }
     }
   }
   try { return fn(); }
-  finally { try { fs.closeSync(fd); } catch { /* closed */ } try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
+  finally {
+    let holder = "";
+    try { holder = fs.readFileSync(lockPath, "utf8").trim(); } catch { /* gone */ }
+    if (holder === token) { try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
+  }
 }
 
 /** THE BUDGET TICK — the latch semantics: (1) the plan's mtime CHANGED since

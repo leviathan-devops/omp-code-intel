@@ -470,14 +470,17 @@ export class CalibrationGate {
    *  result FIRED|SILENT|FALSE-FIRE|MISS / evidence / run_id (the shared-db
    *  contract, §9.6 + §9.9). The run_id is the session's (`calibration-<version>`)
    *  — the calibration evidence is queryable per session, forever. */
+  // ★ F-1 FIX (2026-09-24): created_at rides the SESSION timestamp
+  // ★ (this.calibratedAt, fixed at construction per O22.4) — per-row Date.now()
+  // ★ makes rows in one session differ and replays diverge.
   private writeCalibrationRows(db: DbClient, records: CalibrationRecord[], fixtureVersion: string): void {
     const ins = db.prepare(
       'INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)',
     );
     const runId = `calibration-${fixtureVersion}`;
     for (const r of records) {
-      ins.run(r.predicateId, 'FIRE', r.fire.fixtureAnchor, r.fire.fired ? 'FIRED' : 'MISS', r.fire.evidence, runId, Date.now());
-      ins.run(r.predicateId, 'SILENT', r.silent.goldenFixture, r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE', r.silent.evidence, runId, Date.now());
+      ins.run(r.predicateId, 'FIRE', r.fire.fixtureAnchor, r.fire.fired ? 'FIRED' : 'MISS', r.fire.evidence, runId, this.calibratedAt);
+      ins.run(r.predicateId, 'SILENT', r.silent.goldenFixture, r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE', r.silent.evidence, runId, this.calibratedAt);
     }
   }
 
@@ -490,10 +493,27 @@ export class CalibrationGate {
     recordPath: string,
     data: { version: string; records: CalibrationRecord[]; excluded: CompiledPredicate[]; coverageNote: string },
   ): void {
+    // ★ F-2 FIX (2026-09-24): read→compute→write races — a concurrent session can
+    // ★ claim the same N. O_CREAT|O_EXCL makes the claim atomic: EEXIST means lost
+    // ★ the race, so probe upward for the first unclaimed N instead of overwriting.
     fs.mkdirSync(recordPath, { recursive: true });
     const existing = fs.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
-    const n = existing + 1;
-    const file = path.join(recordPath, `CALIBRATION_v${n}.md`);
+    let n = existing + 1;
+    let file = path.join(recordPath, `CALIBRATION_v${n}.md`);
+    for (;;) {
+      let fd: number | null = null;
+      try {
+        fd = fs.openSync(file, 'wx', 0o644);
+        fs.closeSync(fd);
+        fd = null;
+        break;
+      } catch (e: unknown) {
+        if (fd !== null) { try { fs.closeSync(fd); } catch { /* best-effort */ } }
+        const code = (e as NodeJS.ErrnoException)?.code;
+        if (code === 'EEXIST') { n += 1; file = path.join(recordPath, `CALIBRATION_v${n}.md`); continue; }
+        throw e;
+      }
+    }
     const rows = data.records
       .map((r) => `| ${r.predicateId} | ${r.verdict} | ${r.failedTest ?? '-'} | ${r.fire.fired ? 'FIRED' : 'MISS'} | ${r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE'} |`)
       .join('\n');

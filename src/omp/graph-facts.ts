@@ -120,10 +120,16 @@ function freshnessGate(db: Database, input: GraphFactInput): GraphFactVerdict | 
 
 /** Count the edges into a node whose canonical_id matches the target. */
 function inDegree(db: Database, target: string, predicate?: string): { n: number; sample: string[] } {
-  const rows = (predicate === undefined
-    ? db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target))
-    : db.query(`SELECT src_canonical FROM typed_edges WHERE dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL LIMIT 5`).all(LIKE(target), predicate)) as { src_canonical: string }[];
-  return { n: rows.length, sample: rows.map((r) => r.src_canonical) };
+  // ★ F-133 FIX (2026-09-24): the count is the TRUE in-degree (COUNT(*)); the SAMPLE is bounded
+  //   separately (LIMIT 5). The old shape returned n = rows.length from a LIMIT-5 query, so every
+  //   in-degree > 5 read as exactly 5 — the sample bound was silently the count bound.
+  const where = predicate === undefined
+    ? `dst_canonical LIKE ?1 AND superseded_run IS NULL`
+    : `dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL`;
+  const params: (string | number)[] = predicate === undefined ? [LIKE(target)] : [LIKE(target), predicate];
+  const n = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE ${where}`).get(...params) as { n: number }).n;
+  const rows = db.query(`SELECT src_canonical FROM typed_edges WHERE ${where} LIMIT 5`).all(...params) as { src_canonical: string }[];
+  return { n, sample: rows.map((r) => r.src_canonical) };
 }
 
 /** ★ THE FULL FACT SET for one intent. Returns every applicable verdict, in rule order.

@@ -55,10 +55,14 @@ describe("st-w3-criticals: ★ THE 8 CRITICALS, EACH PINNED", () => {
   test("test_crit4_graph_facts_superseded_filter", () => {
     // ★ THE CLAIM: all 4 typed_edges reads counted DEAD (superseded) edges.
     const src = read("src/omp/graph-facts.ts");
-    const edgeQueries = src.split("\n").filter((l) => l.includes("FROM typed_edges"));
-    const filtered = edgeQueries.filter((l) => l.includes("superseded_run IS NULL"));
-    expect(edgeQueries.length).toBeGreaterThan(0);
-    expect(filtered.length).toBe(edgeQueries.length); // EVERY one filters
+    // ★ after F-133 the inDegree filter lives in the `where` template (still applied via ${where});
+    //   every OTHER typed_edges read must carry the filter inline.
+    expect(src.includes("dst_canonical LIKE ?1 AND superseded_run IS NULL")).toBe(true);
+    expect((src.match(/superseded_run IS NULL/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    // no typed_edges read is left unfiltered: every `FROM typed_edges` is paired with the filter
+    const edgeLines = src.split("\n").filter((l) => l.includes("FROM typed_edges"));
+    const unfiltered = edgeLines.filter((l) => !l.includes("superseded_run IS NULL") && !l.includes("${where}"));
+    expect(unfiltered.length).toBe(0);
   });
 
   // ── #5 populate-graphify.ts · the populated_at marker rides INSIDE the tx ─────────────────

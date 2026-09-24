@@ -77,13 +77,17 @@ export function resolveCorbell(profile?: { graph?: { binaryPath?: string } }, en
   // install class and is never a sanctioned resolution target.
   const VENV_SITES = [path.join('/home', 'leviathan', 'corbell-venv', 'bin', 'corbell'), path.join('/', 'opt', 'corbell-venv', 'bin', 'corbell')];
   for (const candidate of VENV_SITES) {
-    if (fs.existsSync(candidate)) return candidate;
+    // ★ F-2 FIX (2026-09-24): VENV_SITES ride the same sh -c interpolation as
+    // every other resolution — validated through safe() like profile/env paths.
+    if (fs.existsSync(candidate)) return safe(candidate);
   }
   const pathEnv = env.PATH ?? process.env.PATH ?? '';
   for (const dir of pathEnv.split(':')) {
     if (!dir) continue;
     const cand = path.join(dir, 'corbell');
-    if (fs.existsSync(cand)) return cand;
+    // ★ F-2 FIX (2026-09-24): PATH-walk dirs come from env (operator-influenced)
+    // and interpolate into sh -c — fail closed on metacharacters like the rest.
+    if (fs.existsSync(cand)) return safe(cand);
   }
   throw new Error("CORBELL_NOT_FOUND - the corbell binary is missing; install it with 'pip install git+https://github.com/Corbell-AI/Corbell.git' or set CORBELL_BIN or graph.binaryPath");
 }
@@ -148,7 +152,10 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
       if (!/database is locked|SQLITE_BUSY/i.test(msg) || attempt === ATTEMPTS) break;
       const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1));
       console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) — retrying in ${backoff}ms`);
-      execSync(`sleep ${backoff / 1000}`);
+      // ★ F-1 FIX (2026-09-24): blocking sleep WITHOUT a shell spawn — the old
+      // execSync('sleep …') forked /bin/sh + /bin/sleep per retry on top of the
+      // block. Atomics.wait honors the same sync-ExecFn contract with no child.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
     }
   }
   throw lastErr;
