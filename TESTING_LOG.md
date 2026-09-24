@@ -2481,7 +2481,22 @@ directly comparable — the meaningful read is the MATERIALITY: run 6's critical
 
 ---
 
-## 2026-09-24 — THE RUN-7 WHOLE-TREE AUDIT — **0 CRITICAL** (the class closed)
+## 2026-09-24 — THE RUN-7 WHOLE-TREE AUDIT — 1 CRITICAL / 61 HIGH
+
+**★ CORRECTION (recorded, not hidden):** the first aggregation of this run read 0 critical / 52
+high — it was taken from the parts directory while workers were still writing, so it measured a
+PARTIAL tree. The audit process's OWN aggregate (which ran to completion at 19:01) reads **1
+critical / 61 high / 209 medium / 133 low = 404 comments**. The official numbers are these; the
+hand-built aggregate is superseded.
+
+**The 1 critical (adjudicated REAL, fixed):** `src/omp/populate-graphify.ts:415` — the content-hash
+sidecar write failure was logged at `console.log` (invisible to an operator watching errors) and it
+seeds a REBUILD LOOP: with no sidecar the next freshness probe falls back to the mtime walk, may
+still prove fresh, rebuilds, and fails the write again. The store update itself DID succeed (so it
+must not throw) → **F-400** makes it `console.error` + names the consequence
+(`SIDECAR_WRITE_FAILED … may REBUILD on every populate (rebuild loop)`).
+
+### THE (CORRECTED) TREND
 
 **The instrument:** `ocr` scan (Alibaba OpenCodeReview), 112 `src/**/*.ts`, provider
 `muse-go-mimo`, 12 parallel workers. The aggregate: `artifacts/w7-run7-full-audit.json` (735 KB).
@@ -2502,10 +2517,10 @@ EMPTY_RESULT (the explicit marker).
    4        6       65     post run-3 wave (~80 fixes)
    5        4       51     post run-4 wave (~50 fixes)
    6        4       65     post run-5 wave (~40 fixes)   ← every wave adds code
-   7        0       52     post run-6 wave (F-301..F-359) ← ★ THE CRITICAL CLASS CLOSED
+   7        1       61     post run-6 wave (F-301..F-359)
 ```
 
-**The critical curve is the load-bearing one: 8 → 5 → 3 → 6 → 4 → 4 → 0.** The last two runs'
+**The critical curve: 8 → 5 → 3 → 6 → 4 → 4 → 1.** The last two runs'
 criticals were both the SAME class — containment gates on the filesystem (`C1` the parent-only
 realpath that a symlink at the target escaped; `C3` the unbounded `resolve` + `isDirectory` that
 accepted `/etc`). Both were adjudicated REAL and fixed by **F-301/F-302/F-303/F-303b**, and the
