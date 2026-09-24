@@ -2400,3 +2400,22 @@ dist ca1d04645cc29d33).
 because the reviewer returns a NEW set each run on the SAME code — the non-determinism is measured,
 not assumed. Every adjudicated-REAL finding is fixed + pinned; the run-4 blocking set (6 crit + 65
 high) is dispatched to 5 agents.
+
+## TEST RESULT — 2026-09-24 — the run-4 wave (F-40..F-73, F-200..F-209)
+
+- **L0 tsc:** `exit 0`.
+- **L1/L2 battery:** `bun run test` → **430 pass / 0 fail** + **528 pass / 0 fail**, exit 0.
+- **The run-4 fixes (4 of 5 agents + the orchestrator; R4Omp did not converge):**
+  - R4GraphLexicon: 7 REAL (the rule-card blockquote CRITICAL, the corbell per-file cache, the
+    graphify misalignment, the mechanical exclusion bypass, the resolver contradiction, the
+    store-map LRU, the compiler runtime-null).
+  - R4SurfaceDiagFirewall: 9 REAL (F-40..F-49 — the query-tool union, the calibration topology,
+    the engine blind-guard, the error-swallow → fail-closed, the graph-lock, the ROLLBACK naming,
+    the severity coercion, the `/read/`→`\bread\b`, the readonly dead branch, the lsp `/g`).
+  - R4HarnessSharedHooks: ~14 REAL (F-60..F-73 — the hunt-lock CRITICAL race, the bus poison-row,
+    the profile TOCTOU, the CTE 2x traversal, the recursion cap).
+  - R4HydraKernelScoping: 9 REAL (F-201..F-209).
+  - The orchestrator: F-200 (graph-test-target db guard).
+- **★ THE 5-RUN TREND (the highs fall):** 92 → 90 → 80 → 65 (the next run measures the post-wave tree).
+- **R4Omp (26 findings) did not converge** — the largest slice; its CRITICAL (abide.ts tail read)
+  is adjudicated NOT-A-BUG (the fallthrough when the tail lacks enough events is CORRECT).

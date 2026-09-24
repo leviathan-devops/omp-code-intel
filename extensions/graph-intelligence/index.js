@@ -179863,6 +179863,7 @@ class CorbellAdapter {
       throw adapterFailed(`read ${dbPath}`, `could not open the corbell store: ${String(e)}`);
     }
     const nodes = [];
+    const srcCache = new Map;
     try {
       for (const row of db.prepare("SELECT id, node_type, data FROM graph_nodes").all()) {
         const id = String(row["id"]);
@@ -179877,7 +179878,11 @@ class CorbellAdapter {
         if (file && typeof data["comparator"] !== "number") {
           try {
             const srcPath = path7.isAbsolute(file) ? file : path7.join(profile.project.root, file);
-            const src = fs6.readFileSync(srcPath, "utf8");
+            let src = srcCache.get(srcPath);
+            if (src === undefined) {
+              src = fs6.readFileSync(srcPath, "utf8");
+              srcCache.set(srcPath, src);
+            }
             const nums = [...src.matchAll(/(\d+\.\d+)/g)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n));
             if (nums.length > 0) {
               data["comparator"] = Math.max(...nums);
@@ -180225,6 +180230,7 @@ function normalizeGraphifyGraph(raw, opts) {
   const nodeIdByRaw = new Map;
   let dropped = 0;
   const nodes = [];
+  const keptRaw = [];
   for (const n of rawNodes) {
     if (n === null || typeof n !== "object" || Array.isArray(n)) {
       dropped++;
@@ -180246,6 +180252,7 @@ function normalizeGraphifyGraph(raw, opts) {
     }
     seenIds.add(id);
     nodeIdByRaw.set(r, id);
+    keptRaw.push(r);
     nodes.push({
       id,
       label,
@@ -180321,9 +180328,10 @@ function normalizeGraphifyGraph(raw, opts) {
       const safeFile = contained ? rel.split(path8.sep).join("/") : "";
       if (safeFile !== n.file) {
         nodes[i] = { ...n, file: safeFile };
-        const at = nodeIdByRaw.get(rawNodes[i]);
+        const raw = keptRaw[i];
+        const at = nodeIdByRaw.get(raw);
         if (at === n.id)
-          nodeIdByRaw.set(rawNodes[i], nodes[i].id);
+          nodeIdByRaw.set(raw, nodes[i].id);
       }
     }
   }
@@ -181711,10 +181719,30 @@ function acquireHuntLock(targetPath) {
     if (code !== "EEXIST")
       throw e;
     const existing = readPayload(lockPath);
-    if (existing && isStale(existing)) {
+    let stale = existing ? isStale(existing) : false;
+    if (!existing) {
+      try {
+        const ageMs = Date.now() - fs11.statSync(lockPath).mtimeMs;
+        if (!Number.isNaN(ageMs) && ageMs > STALE_LOCK_TTL_MS)
+          stale = true;
+      } catch {}
+    }
+    if (stale) {
+      const reread = readPayload(lockPath);
+      if (existing) {
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) \u2014 retry the hunt.`);
+        }
+      } else if (reread) {
+        throw new Error(`HUNT_ALREADY_RUNNING: pid=${reread.pid} acquiredAt=${reread.acquiredAt} holds ${lockPath} \u2014 wait for it to finish or delete the stale lock.`);
+      }
       try {
         fs11.unlinkSync(lockPath);
       } catch (err) {
+        const unlinkCode = err !== undefined && err !== null && typeof err === "object" && "code" in err ? err.code : undefined;
+        if (unlinkCode === "ENOENT") {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) \u2014 retry the hunt.`);
+        }
         console.warn(`[hunt-lock] stale unlink failed for ${lockPath}: ${err instanceof Error ? err.message : String(err)}`);
       }
       try {
@@ -182184,7 +182212,7 @@ var ProjectProfileSchema = object({
   }),
   rules: object({
     corpus: array(string2()).min(1),
-    bindings: record(string2(), any()).default({})
+    bindings: record(string2(), any()).default({}).refine((b) => Object.keys(b).length <= 500, { message: "the bindings map is capped at 500 keys (abuse cap \u2014 split the profile)" })
   }),
   pipeline: object({
     stages: array(PipelineStageSchema).min(1)
@@ -182517,7 +182545,9 @@ function parseYamlSubset(raw) {
     yamlErr([], "(empty document)", 1, "the profile must contain a top-level mapping");
   let pos = 0;
   const keyPath = [];
-  function parseMapping(indent) {
+  function parseMapping(indent, depth = 0) {
+    if (depth > 100)
+      yamlErr(keyPath, "(nested mapping)", pos < logical.length ? logical[pos].line : 0, "maximum profile nesting depth (100) exceeded");
     const obj = {};
     while (pos < logical.length) {
       const l = logical[pos];
@@ -182541,7 +182571,7 @@ function parseYamlSubset(raw) {
       if (rest === "") {
         if (pos < logical.length && logical[pos].indent > indent) {
           const childIndent = logical[pos].indent;
-          obj[key] = logical[pos].text.startsWith("-") ? parseSequence(childIndent) : parseMapping(childIndent);
+          obj[key] = logical[pos].text.startsWith("-") ? parseSequence(childIndent, depth + 1) : parseMapping(childIndent, depth + 1);
         } else {
           obj[key] = null;
         }
@@ -182552,7 +182582,9 @@ function parseYamlSubset(raw) {
     }
     return obj;
   }
-  function parseSequence(indent) {
+  function parseSequence(indent, depth = 0) {
+    if (depth > 100)
+      yamlErr(keyPath, "(nested sequence)", pos < logical.length ? logical[pos].line : 0, "maximum profile nesting depth (100) exceeded");
     const arr = [];
     while (pos < logical.length) {
       const l = logical[pos];
@@ -182578,14 +182610,14 @@ function parseYamlSubset(raw) {
         if (rest === "") {
           if (pos < logical.length && logical[pos].indent > indent) {
             const childIndent = logical[pos].indent;
-            itemMap[key] = logical[pos].text.startsWith("-") ? parseSequence(childIndent) : parseMapping(childIndent);
+            itemMap[key] = logical[pos].text.startsWith("-") ? parseSequence(childIndent, depth + 1) : parseMapping(childIndent, depth + 1);
           } else {
             itemMap[key] = null;
           }
         } else {
           itemMap[key] = parseFlowValue(rest, l.line);
           if (pos < logical.length && logical[pos].indent > indent) {
-            Object.assign(itemMap, parseMapping(logical[pos].indent));
+            Object.assign(itemMap, parseMapping(logical[pos].indent, depth + 1));
           }
         }
         arr.push(itemMap);
@@ -182665,19 +182697,23 @@ function loadProfile(profilePath) {
   }
   const contained = (entry) => {
     const abs = path15.resolve(resolvedRoot, entry);
-    let real = abs;
+    if (!fs13.existsSync(abs))
+      return false;
+    let real;
     try {
       real = fs13.realpathSync(abs);
-    } catch {}
+    } catch {
+      return false;
+    }
     return real === resolvedRoot || real.startsWith(resolvedRoot + path15.sep);
   };
   for (const entry of profile.rules.corpus) {
-    if (!contained(entry) || !fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
+    if (!contained(entry)) {
       throw corpusMissing(entry);
     }
   }
   for (const entry of profile.history.failureLogs) {
-    if (!contained(entry) || !fs13.existsSync(path15.resolve(resolvedRoot, entry))) {
+    if (!contained(entry)) {
       throw historyMissing(entry);
     }
   }
@@ -182713,7 +182749,9 @@ function appendFindings(db, findings, runId, week) {
   } catch (e) {
     try {
       db.exec("ROLLBACK");
-    } catch {}
+    } catch (rb) {
+      throw new Error(`FINDING_ROLLBACK_FAILED: batch error=${e instanceof Error ? e.message : String(e)} rollback error=${rb instanceof Error ? rb.message : String(rb)} (the transaction may still be open \u2014 do not reuse this handle for writes)`);
+    }
     throw e;
   }
   return { runId, week: week ?? null, appended: findings.length };
@@ -183203,7 +183241,7 @@ function isEvidenceTriad(v) {
   const ev = t.evidence;
   if (!pat || typeof pat.memberId !== "string" || pat.memberId.trim() === "")
     return false;
-  if (!pat.familySeverity || typeof pat.familySeverity !== "string")
+  if (pat.familySeverity !== "CRITICAL" && pat.familySeverity !== "HIGH" && pat.familySeverity !== "MEDIUM" && pat.familySeverity !== "LOW")
     return false;
   if (!sta || typeof sta.machineId !== "string" || sta.machineId.trim() === "")
     return false;
@@ -183435,7 +183473,7 @@ var P5 = {
         if (/PHASE_REQUIRED_TOOLS/i.test(lines[i] ?? "")) {
           const win = lines.slice(Math.max(0, i - 5), Math.min(lines.length, i + 30)).join(`
 `);
-          if (!/DIAGNOSTIC_TOOLS|AUDIT_TOOLS|read/.test(win)) {
+          if (!/DIAGNOSTIC_TOOLS|AUDIT_TOOLS|\bread\b/.test(win)) {
             const triad = makeTriad(file, i + 1, "semantic.diagnostics-jail", sev);
             findings.push({ ruleId: "semantic.diagnostics-jail", severity: sev, file, line: i + 1, evidence: evEdge("semantic.diagnostics-jail", file, i + 1, lines[i].trim(), "HT-BUG-21", anchor), verdict: "VIOLATION", triad });
           }
@@ -183693,11 +183731,12 @@ function runBattery(battery, graph, profile, runId, db, week) {
     dedupedCount: ranked.length,
     predicatesExecuted: fullBattery.length
   };
+  const nodeIds = new Set(graph.nodes().map((n) => n.id));
   assertNoBlindness({
-    graphNodesBefore: graph.nodes().length,
+    graphNodesBefore: nodeIds.size,
     graphNodesAfter: graph.nodes().length,
-    changedNodeIds: new Set(ranked.map((f) => f.ruleId)),
-    rerunNodeIds: new Set(ranked.map((f) => f.ruleId)),
+    changedNodeIds: new Set(nodeIds),
+    rerunNodeIds: new Set(nodeIds),
     runResult: ranked
   });
   return summary;
@@ -183985,7 +184024,7 @@ function collectBlockquote(lines, start) {
     collected.push(line.slice(m[0].length));
     i++;
   }
-  return { text: collected.join(" ").trim() };
+  return { text: collected.join(" ").trim(), end: i };
 }
 function extractInlineQuote(line) {
   const m = line.match(/["\u201C]([^"\u201D]+)["\u201D]/);
@@ -184014,7 +184053,8 @@ function extractRuleCards(corpusPaths) {
       const line = lines[i];
       if (isBlockquote(line)) {
         const collected = collectBlockquote(lines, i);
-        cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, i + 1)));
+        cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
+        i = collected.end - 1;
       } else if (isQuotedPassage(line)) {
         cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
       } else if (isRuleShaped(line)) {
@@ -184156,17 +184196,23 @@ ${JSON.stringify(profile.rules.bindings)}`);
   return `${projectTokenSlug(profile.project.name)}-${batteryName(profile)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
 }
 function selectTemplate(card) {
+  const need = (key) => {
+    const t = TEMPLATE_LIBRARY[key];
+    if (!t)
+      throw new LexiconError("TEMPLATE_MISSING", `TEMPLATE_MISSING: no predicate template for key '${key}' (classification=${card.classification})`);
+    return t;
+  };
   switch (card.classification) {
     case "ARCH":
-      return TEMPLATE_LIBRARY[ARCH_TEMPLATE_KEY];
+      return need(ARCH_TEMPLATE_KEY);
     case "LOGIC":
-      return TEMPLATE_LIBRARY["provenance.traces-to-source"];
+      return need("provenance.traces-to-source");
     case "PROCESS":
-      return TEMPLATE_LIBRARY["process.gates-measure-outputs-not-logic"];
+      return need("process.gates-measure-outputs-not-logic");
     case "DOMAIN":
-      return TEMPLATE_LIBRARY["domain.numeric-threshold"];
+      return need("domain.numeric-threshold");
     default:
-      return TEMPLATE_LIBRARY["process.gates-measure-outputs-not-logic"];
+      return need("process.gates-measure-outputs-not-logic");
   }
 }
 function compileCards(cards, profile, version) {
@@ -184319,7 +184365,14 @@ ${p.verbatimQuote}`).join(`
         lineage: n.lineage,
         source: n.source,
         data: n.data ?? null
-      }))
+      })),
+      edges: graph.nodes().map((n) => {
+        try {
+          return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
+        } catch {
+          return { to: n.id, callers: [] };
+        }
+      })
     });
     return JSON.stringify({
       fire: this.fixtures.fire.map((f) => ({
@@ -184583,7 +184636,14 @@ function markCalibrated(p, verdict) {
 
 // src/hunter/harness/scan.ts
 function resolveCorpusPaths(profile) {
-  const corpus = profile.rules.corpus.map((entry) => path20.isAbsolute(entry) ? entry : path20.resolve(profile.project.root, entry));
+  const root = path20.resolve(profile.project.root);
+  const corpus = profile.rules.corpus.map((entry) => {
+    const abs = path20.isAbsolute(entry) ? path20.normalize(entry) : path20.resolve(root, entry);
+    if (abs !== root && !abs.startsWith(root + path20.sep)) {
+      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} escapes the project root (${root}) \u2014 corpus entries must stay under the root.`);
+    }
+    return abs;
+  });
   return {
     ...profile,
     rules: { ...profile.rules, corpus }
@@ -184742,7 +184802,7 @@ function sectionFromFinding(f, trace) {
   return {
     findingId: findingIdOf(f),
     howBroken: mechanism,
-    whyBroken: trace?.rootCause ?? `the ${f.ruleId} predicate fired on the evidence at ${anchor}`,
+    whyBroken: trace?.rootCause ? `the ${f.ruleId} predicate fired because ${trace.rootCause} (at ${anchor})` : `the ${f.ruleId} predicate fired on the evidence at ${anchor}`,
     whatViolates: f.evidence,
     howToFix: `resolve the ${f.ruleId} violation at ${anchor}`,
     whatToDo: `1. fix ${f.file}:${f.line} per the evidence; 2. re-run the battery to confirm the ${f.ruleId} predicate is silent`,
@@ -185184,19 +185244,31 @@ function createMicroLoop(options) {
           resolve();
           return;
         }
+        const snapStatus = actor.getSnapshot().status;
+        if (snapStatus === "stopped" || snapStatus === "error") {
+          resolve();
+          return;
+        }
+        let settled = false;
         const sub2 = actor.subscribe((s) => {
           if (s.status === "done") {
-            sub2.unsubscribe();
-            resolve();
+            settle();
           }
         });
         const sub3 = actor.subscribe((s) => {
           const value = typeof s.value === "string" ? s.value : Object.values(s.value)[0];
           if (value === "inconclusive") {
-            sub3.unsubscribe();
-            resolve();
+            settle();
           }
         });
+        function settle() {
+          if (settled)
+            return;
+          settled = true;
+          sub2.unsubscribe();
+          sub3.unsubscribe();
+          resolve();
+        }
         handleDisposables.push(sub2, sub3);
       });
     },
@@ -185279,7 +185351,24 @@ function machineTypes() {
 
 // src/hunter/tools/bug-hunt.ts
 async function spawnBugHunterLoop(args) {
-  acquireHuntLock(args.targetPath);
+  const fsDyn = await import("fs");
+  const absTarget = path23.resolve(args.targetPath);
+  let targetOk = false;
+  try {
+    targetOk = fsDyn.statSync(absTarget).isDirectory();
+  } catch {
+    targetOk = false;
+  }
+  if (!targetOk) {
+    throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} \u2014 the hunt target must be a real directory inside the scope)`);
+  }
+  if (typeof args.profilePath === "string" && args.profilePath.length > 0) {
+    const absProfile = path23.resolve(args.profilePath);
+    if (!fsDyn.existsSync(absProfile)) {
+      throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
+    }
+  }
+  acquireHuntLock(absTarget);
   try {
     const machine = createMicroLoop({
       targetPath: args.targetPath,
@@ -185326,7 +185415,7 @@ async function spawnBugHunterLoop(args) {
     }
   } finally {
     try {
-      releaseHuntLock(args.targetPath);
+      releaseHuntLock(absTarget);
     } catch (e) {
       console.error(`[bug-hunt] HUNT_LOCK_RELEASE_FAILED target=${args.targetPath} error=${e instanceof Error ? e.message : String(e)} (loud, never masking the hunt RESULT)`);
     }
@@ -185549,10 +185638,22 @@ function stageEntry(node) {
   }
   return node.name;
 }
+function codeNameSet(db) {
+  const names = new Set;
+  try {
+    for (const r of rowsAs(db.prepare("SELECT label FROM typed_nodes WHERE superseded_run IS NULL").all(), "code-names typed")) {
+      if (r.label)
+        names.add(r.label);
+    }
+  } catch {}
+  for (const r of rowsAs(db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "code-names graph")) {
+    names.add(r.name);
+  }
+  return names;
+}
 function mustImplement(db) {
   const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED' AND kind = 'stage'").all(), "must-implement spec");
-  const code = rowsAs(db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "must-implement code");
-  const codeNames = new Set(code.map((r) => r.name));
+  const codeNames = codeNameSet(db);
   return spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ stage: s.name, entry: stageEntry(s), id: s.id, declaredSource: s.source, status: "MUST_IMPLEMENT" }));
 }
 function unwired(db, adapter) {
@@ -185604,8 +185705,7 @@ function violations(input, db) {
 }
 function consistency(db) {
   const spec = rowsAs(db.prepare("SELECT id, name, source, data FROM graph_nodes WHERE lineage = 'SPEC_DERIVED'").all(), "consistency spec");
-  const code = rowsAs(db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "consistency code");
-  const codeNames = new Set(code.map((r) => r.name));
+  const codeNames = codeNameSet(db);
   return spec.filter((s) => !codeNames.has(stageEntry(s))).map((s) => ({ status: "DRIFT", specNode: s.name, entry: stageEntry(s), specId: s.id, declaredSource: s.source }));
 }
 function semanticVerb(input, surface) {

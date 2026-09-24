@@ -353,7 +353,8 @@ export function runKernelV2(input: KernelInput): KernelRun {
   // was present, otherwise allows.
   let verdict: KernelRun["verdict"];
   if (worst.outcome.verdict === "VIOLATION") {
-    verdict = TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] ? "REFUSE" : "STEER";
+    // ★ F-KV1 FIX (2026-09-24): destructive T0/T1 violations were advisory-only by default, but the fail-closed surface needs a stronger escalation than STEER for destructive acts without full certification — refuse them instead.
+    verdict = TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] || worst.detector.class === "destructive" ? "REFUSE" : "STEER";
   } else if (worst.outcome.verdict === "UNCERTIFIABLE") {
     verdict = "REFUSE"; // T-6: uncertifiable is NOT a pass
   } else {

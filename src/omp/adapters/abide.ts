@@ -49,23 +49,37 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
   if (st !== null) {
     const hit = tailCache.get(eventsPath);
     if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.events.slice(-limit);
-    const TAIL_BYTES = 1024 * 1024;
-    const start = Math.max(0, st.size - TAIL_BYTES);
+    // ★ F-AB1 FIX (2026-09-24): the bounded tail previously assumed the last 1 MiB contained a newline; if it did not, the function discarded the window and fell through to a full-file read. Grow exponentially so very long lines are still captured without materializing the entire ledger.
+    const TAIL_BYTES_START = 1024 * 1024;
+    const TAIL_BYTES_MAX = Math.max(st.size, 64 * 1024 * 1024);
     let fd: number | null = null;
     try {
       fd = fs.openSync(eventsPath, "r");
-      const buf = Buffer.alloc(st.size - start);
-      fs.readSync(fd, buf, 0, buf.length, start);
-      let text = buf.toString("utf8");
-      if (start > 0) { const nl = text.indexOf("\n"); text = nl === -1 ? "" : text.slice(nl + 1); }
-      const lines = text.split("\n").filter((l) => l.trim().length > 0);
-      if (lines.length >= limit || start === 0) {
-        const out: AbideEvent[] = [];
-        for (const l of lines.slice(-limit)) {
-          try { out.push(JSON.parse(l) as AbideEvent); } catch { /* torn line — counted, never fatal */ }
+      let accepted = false;
+      let tailBytes = TAIL_BYTES_START;
+      while (tailBytes <= TAIL_BYTES_MAX && !accepted) {
+        const start = Math.max(0, st.size - tailBytes);
+        const buf = Buffer.alloc(st.size - start);
+        fs.readSync(fd, buf, 0, buf.length, start);
+        let text = buf.toString("utf8");
+        if (start > 0) {
+          const nl = text.indexOf("\n");
+          if (nl === -1) {
+            tailBytes *= 2;
+            continue;
+          }
+          text = text.slice(nl + 1);
         }
-        tailCache.set(eventsPath, { size: st.size, mtimeMs: st.mtimeMs, events: out });
-        return out;
+        const lines = text.split("\n").filter((l) => l.trim().length > 0);
+        if (lines.length >= limit || start === 0) {
+          const out: AbideEvent[] = [];
+          for (const l of lines.slice(-limit)) {
+            try { out.push(JSON.parse(l) as AbideEvent); } catch { /* torn line — counted, never fatal */ }
+          }
+          tailCache.set(eventsPath, { size: st.size, mtimeMs: st.mtimeMs, events: out });
+          return out;
+        }
+        tailBytes *= 2;
       }
     } catch { /* fall through to the full read */ } finally {
       if (fd !== null) { try { fs.closeSync(fd); } catch { /* ignore */ } }
