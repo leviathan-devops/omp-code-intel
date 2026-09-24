@@ -223,8 +223,22 @@ function bindRange(bindings: Record<string, unknown>): [number, number] | undefi
 
 /** The content-addressed predicate id: the template + the anchor + the bound
  *  params → the same inputs ALWAYS produce the same id (K20.3 determinism). */
+/** ★ F-149 FIX (2026-09-24): key-order-stable JSON — {a:1,b:2} and {b:2,a:1} address the same predicate id (K20.3 determinism survives binding construction order; matches JSON.stringify drop-nil semantics). */
+function stableBindingsJson(v: unknown): string {
+  if (v === undefined) return 'null';
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
+  if (Array.isArray(v)) return `[${v.map((x) => (x === undefined ? 'null' : stableBindingsJson(x))).join(',')}]`;
+  const obj = v as Record<string, unknown>;
+  const parts: string[] = [];
+  for (const k of Object.keys(obj).sort()) {
+    const val = obj[k];
+    if (val === undefined) continue;
+    parts.push(`${JSON.stringify(k)}:${stableBindingsJson(val)}`);
+  }
+  return `{${parts.join(',')}}`;
+}
 function contentAddress(templateId: string, bindings: Record<string, unknown>, anchor: string): string {
-  return `${templateId}:${sha256(`${anchor}|${JSON.stringify(bindings)}`).slice(0, 12)}`;
+  return `${templateId}:${sha256(`${anchor}|${stableBindingsJson(bindings)}`).slice(0, 12)}`;
 }
 
 /** The D13 card fields EVERY template's schema carries — the quote, the anchor

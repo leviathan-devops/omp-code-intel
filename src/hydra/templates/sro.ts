@@ -6,7 +6,6 @@
 // SubagentOutputSchema directly; cycles/graph/path import the instances alias of that shape).
 // LAW: 14 hunter-template zod bindings — this file owns the 4 SRO templates (R28-R31).
 
-import { z } from "zod";
 import type { AuditorTemplate } from "./types.ts";
 import { SubagentOutputSchema } from "./types.ts";
 
@@ -24,7 +23,10 @@ function sroTemplate(
     layerNumber,
     graphQueries,
     filterTags,
-    outputSchema: SubagentOutputSchema as unknown as z.ZodSchema,
+    // ★ F-160 FIX (2026-09-24): direct assignment — SubagentOutputSchema is a
+    //   z.ZodObject which already extends z.ZodSchema; the double cast hid shape
+    //   drift from the compiler (covers both duplicate scanner bullets).
+    outputSchema: SubagentOutputSchema,
     staticPrompt: `IDENTITY: ${anchorPredicate.toUpperCase()} hunter — ${mandate} You query the SAME shared graph all gates used (one-graph law). MEASURED, never assumed — an empty list is valid when genuinely measured empty. Every candidate CONFIRMED by graph query AND file grep (two-leg verification). GRAPH LAW: prefer EXTRACTED; subgraph depth 3 for blast radius; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks (predicate/file path:line/evidence/spec) + ## SUMMARY.`,
   };
 }

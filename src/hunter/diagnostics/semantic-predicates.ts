@@ -259,6 +259,10 @@ export const SEMANTIC_TEMPLATES: Readonly<Record<string, PredicateTemplate>> = {
   'semantic.unscoped-walker': P6,
 };
 export const SEMANTIC_PREDICATE_IDS = Object.keys(SEMANTIC_TEMPLATES);
+// ★ F-28 NOTE (2026-09-24): rawBindings and card are INTENTIONALLY the same shape —
+// ★ every semantic template's `parameters` schema IS z.object({...CARD_FIELDS}), so the
+// ★ zod parse validates exactly the card fields, and compileTemplate splits them internally
+// ★ (validated → bindings, card → row meta). NOT-A-BUG: no bypass, no confusion.
 export function buildSemanticBattery(batteryVersion = 'semantic-v1'): CompiledPredicate[] {
   const out: CompiledPredicate[] = [];
   for (const [id, tmpl] of Object.entries(SEMANTIC_TEMPLATES)) out.push(compileTemplate(tmpl, { verbatimQuote: tmpl.id, anchor: `semantic-predicates.ts:${id}`, severity: 'HIGH' as Severity }, { verbatimQuote: tmpl.id, anchor: `semantic-predicates.ts:${id}`, severity: 'HIGH' as Severity }, batteryVersion));

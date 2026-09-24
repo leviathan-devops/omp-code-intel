@@ -9,7 +9,8 @@
 //   1. EXPLICIT projectToken absolute path WINS (the strongest signal) —
 //      and PINS the session's cache.
 //   2. THE STICKY CACHE — a session that already resolved NEVER re-derives
-//      (the flush-proof guarantee). THE LAW BEHIND IT (:340-347): the
+//      (the flush-proof guarantee; sole exception: the cached path itself
+//      vanished — see resolve() ★ F-156 (2026-09-24)). THE LAW BEHIND IT (:340-347): the
 //      first extraction used a FLUSHABLE 200-part window — a run of
 //      workdir-less log greps pushed the project anchors out and the
 //      resolver grabbed a FOREIGN root (the live misfire: the stale
@@ -86,7 +87,10 @@ export class ScopeResolver {
       }
       return this.cwd;
     }
-    // 2) THE STICKY CACHE — never re-derive mid-session.
+    // 2) THE STICKY CACHE — never re-derive mid-session (★ F-156 FIX 2026-09-24:
+    //   doc corrected — the existsSync guard below IS the sole exception: a
+    //   vanished cached path falls through and re-pins instead of scoping
+    //   state into a ghost dir).
     if (typeof sessionId === 'string' && sessionId.length > 0) {
       const cached = this.cache.get(sessionId);
       if (cached && fs.existsSync(cached)) return cached;
@@ -109,6 +113,10 @@ export class ScopeResolver {
             for (const c of list) {
               const s = String(c);
               if (!s.startsWith('/')) continue;
+              // ★ F-157 FIX (2026-09-24): skip URL-shaped tokens — the match starts
+              //   at the first slash, so "https://host/path" arrives as
+              //   "//host/path" and poisoned the scorer with a foreign root.
+              if (s.startsWith('//') || s.includes('://')) continue;
               const base = s.slice(0, s.indexOf('?') === -1 ? s.length : s.indexOf('?'));
               if (base.length < 3) continue;
               abs.set(base, (abs.get(base) ?? 0) + 1);

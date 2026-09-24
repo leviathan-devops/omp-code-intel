@@ -69,9 +69,16 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
   if (!db || typeof db.exec !== 'function') {
     throw new Error('TYPED_MIGRATION_FAILED: db handle missing exec');
   }
+  // ★ F-43 FIX (2026-09-24): the multi-statement DDL ran without an explicit
+  //   transaction — a late-statement failure left a half-migrated schema.
+  //   BEGIN/COMMIT makes it atomic; a driver without explicit-BEGIN support
+  //   falls through to the bare exec, still failing loud below.
   try {
+    try { db.exec('BEGIN IMMEDIATE'); } catch { /* no explicit-BEGIN support: bare exec below */ }
     db.exec(TYPED_GRAPH_DDL);
+    try { db.exec('COMMIT'); } catch { /* no explicit BEGIN above: nothing to commit */ }
   } catch (e: unknown) {
+    try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is the truth */ }
     throw new Error(`TYPED_MIGRATION_FAILED: ${e instanceof Error ? e.message : String(e)}`);
   }
 }

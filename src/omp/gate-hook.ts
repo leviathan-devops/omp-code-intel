@@ -59,7 +59,8 @@ function reconstruct(toolName: string, input: Record<string, unknown>): { oldTex
 export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => void }): void {
   // ★ F-PS1 FIX (2026-09-24): keyed per tool name — a single slot let two interleaved
   //   write/edit calls overwrite each other's steer note, delivering the wrong advisory.
-  const pendingSteer = new Map<string, string>();
+  // ★ F-39 FIX (2026-09-24): keyed per tool name — two interleaved write/edit calls overwrote each other's steer note (call-B's tool_call clobbered call-A's). FIFO per (session, tool), mirroring the F-GQ1 query queue below.
+  const pendingSteer = new Map<string, Array<{ tool: string; note: string }>>();
   pi.on("tool_call", (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = (event.input && typeof event.input === "object" ? event.input : {}) as Record<string, unknown>;
@@ -93,23 +94,35 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
         fs.appendFileSync("/tmp/gi-gate.log", JSON.stringify({ recFile: rec.file, dial, verdict }) + "\n");
       } catch { /* ignore */ }
     }
+    const steerSid = resolveSessionIdFromEvent(event).id;
     if (verdict.cancel && verdict.token) {
-      pendingSteer.delete(name);
+      const stale = pendingSteer.get(steerSid);
+      if (stale) {
+        const rest = stale.filter((e) => e.tool !== name);
+        if (rest.length > 0) pendingSteer.set(steerSid, rest);
+        else pendingSteer.delete(steerSid);
+      }
       throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
     }
-    if (verdict.token === "[GATE STEER]") pendingSteer.set(name, `[GATE STEER] ${verdict.advisory ?? ""}`.trim());
-    else pendingSteer.delete(name);
+    if (verdict.token === "[GATE STEER]") {
+      const queue = pendingSteer.get(steerSid) ?? [];
+      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim() });
+      pendingSteer.set(steerSid, queue);
+    }
     return undefined;
   });
   pi.on("tool_result", (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
-      pendingSteer.delete(name);
       return undefined;
     }
-    const note = pendingSteer.get(name);
-    if (!note) return undefined;
-    pendingSteer.delete(name);
+    const sid = resolveSessionIdFromEvent(event).id;
+    const queue = pendingSteer.get(sid);
+    if (!queue || queue.length === 0) return undefined;
+    const qi = queue.findIndex((e) => e.tool === name);
+    if (qi === -1) return undefined;
+    const note = queue.splice(qi, 1)[0]!.note;
+    if (queue.length === 0) pendingSteer.delete(sid);
     const extra = { type: "text", text: note };
     const prev = Array.isArray(event.content) ? event.content : [];
     return { content: [extra, ...prev], details: { ...(typeof event.details === "object" && event.details ? event.details : {}), giSteer: note } };

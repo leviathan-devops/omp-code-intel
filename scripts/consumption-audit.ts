@@ -24,7 +24,8 @@ const expected = Number.isFinite(expectArg) ? expectArg : null;
 // the positional args are the ones that are not the flags (or an --expect value)
 const positionals = argv.filter((a, i) => !a.startsWith("--") && !(expectIdx >= 0 && i === expectIdx + 1));
 
-const scopeRoot = positionals[0] ?? process.cwd();
+// ★ F-35 FIX (2026-09-24): RESOLVE to absolute (the adapters require it; the pin passes '.').
+const scopeRoot = path.resolve(positionals[0] ?? process.cwd());
 const subject = positionals[1] ?? "populateSessionStore";
 
 const audit = consumptionAudit(scopeRoot, subject);

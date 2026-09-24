@@ -176968,12 +176968,8 @@ class GraphifyMapReader {
       throw new Error("GRAPHIFY_QUERY_INVALID: question must be non-empty");
     if (this.mcp?.isConnected()) {
       try {
-        const raw = await this.mcp.callTool("query_graph", { question });
-        String(raw);
-        const matched = graph.nodes.filter((n) => question.toLowerCase().split(/\s+/).some((tok) => tok.length > 2 && (n.label.toLowerCase().includes(tok) || n.id.toLowerCase().includes(tok))));
-        const relatedEdges = graph.edges.filter((e) => matched.some((m) => m.id === e.src || m.id === e.dst));
-        if (matched.length > 0)
-          return { nodes: matched, edges: relatedEdges, query: question };
+        String(await this.mcp.callTool("query_graph", { question }));
+        return tokenScan(graph, question);
       } catch (e) {
         console.error("[map-reader] MCP query_graph failed (falling back to local scan) token=GRAPHIFY_MCP_FALLBACK reason=" + (e instanceof Error ? e.message : String(e)) + " remedy=local token-scan over loaded graph");
       }
@@ -177109,7 +177105,7 @@ import path35 from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 function sanitizeReportField(v) {
-  return String(v ?? "").replace(/[\n\u2028\u2029\u000B\u000C]+/g, " ").replace(/^##\s*/g, "").replace(/\s*##\s*/g, " ");
+  return String(v ?? "").replace(/[\r\n\u2028\u2029\u000B\u000C]+/g, " ").replace(/^##\s*/g, "").replace(/\s*##\s*/g, " ");
 }
 function realResolve(p) {
   const resolved = path35.resolve(p);
@@ -177917,7 +177913,7 @@ async function runTemplateAudit(args) {
       const slice = await reader.query(graph, q0);
       calls.count += 1;
       calls.names.push("graph-query");
-      sliceNote = `graphSlice query "${q0}" \u2192 ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
+      sliceNote = `graphSlice query "${sanitizeReportField(q0)}" \u2192 ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
     } catch (e) {
       errors.push("GRAPH_SLICE_FAILED: " + String(e.message).slice(0, 200));
       sliceNote = "graphSlice unavailable (see errors)";
@@ -177932,7 +177928,7 @@ async function runTemplateAudit(args) {
   const sanitize = (v) => sanitizeReportField(v);
   const blocks = swept.map((c) => [
     `## FINDING: ${sanitize(c.subject)}`,
-    `- layer: ${layerId}`,
+    `- layer: ${sanitize(layerId)}`,
     `- predicate: ${sanitize(c.predicate)}`,
     `- object: Contract`,
     `- file: ${sanitize(c.file)}:${c.line}`,
@@ -178177,7 +178173,9 @@ function resolveSessionId(ctx, env = process.env, scopeRoot) {
   }
   const root = scopeRoot ?? env["GI_SCOPE_ROOT"] ?? process.cwd();
   const slug = path3.resolve(root).replace(/[^A-Za-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  const id = `scope-${slug}`.slice(0, 24);
+  let id = `scope-${slug}`.slice(0, 24);
+  if (id.length < 8)
+    id = (id + "-xxxxxxxx").slice(0, 8);
   return { id, source: "scope-root" };
 }
 function resolveSessionIdFromEvent(event, env = process.env) {
@@ -178968,6 +178966,9 @@ function openSessionStore(input) {
   if (callerKey !== ownerKey) {
     throw new GiScopeError(`GI_SCOPE_REFUSED: session ${callerKey} cannot open store owned by ${ownerKey}`);
   }
+  if (!path6.isAbsolute(input.scopeRoot) || input.scopeRoot.split(path6.sep).includes("..")) {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
+  }
   const storePath = sessionStorePath(input.scopeRoot, input.sessionId);
   const existing = findGiSessionByStorePath(storePath);
   if (existing && existing.session_id !== ownerKey) {
@@ -178982,11 +178983,17 @@ function openSessionStore(input) {
     if (e.code !== "EEXIST")
       throw e;
   }
-  upsertGiSession({
-    sessionId: ownerKey,
-    scopeRoot: input.scopeRoot,
-    storePath
-  });
+  const current = findGiSessionByStorePath(storePath);
+  if (current && current.session_id !== ownerKey) {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} owned by ${current.session_id}; caller ${callerKey}`);
+  }
+  if (!current) {
+    upsertGiSession({
+      sessionId: ownerKey,
+      scopeRoot: input.scopeRoot,
+      storePath
+    });
+  }
   return { storePath, ownerKey, created };
 }
 
@@ -178996,6 +179003,17 @@ import * as fs5 from "fs";
 // src/omp/gate-middleware.ts
 import * as fs4 from "fs";
 var EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+var EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
+var EXPORT_DESTRUCT_RE = /export\s+(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])/g;
+function eachDestructuredName(list, cb) {
+  for (const spec of list.split(",")) {
+    const noDefault = spec.split("=")[0] ?? "";
+    const parts = noDefault.split(":");
+    const name = (parts[parts.length - 1] ?? "").trim().replace(/^\.\.\./, "");
+    if (/^[A-Za-z_$][\w$]*$/.test(name))
+      cb(name);
+  }
+}
 var EXPORT_BRACES_RE = /export\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]*['"])?/g;
 var EXPORT_DEFAULT_RE = /export\s+default\b/g;
 function parseExports(src) {
@@ -179004,6 +179022,12 @@ function parseExports(src) {
   EXPORT_PARSE_RE.lastIndex = 0;
   while (m = EXPORT_PARSE_RE.exec(src))
     out.add(m[1]);
+  EXPORT_GEN_RE.lastIndex = 0;
+  while (m = EXPORT_GEN_RE.exec(src))
+    out.add(m[1]);
+  EXPORT_DESTRUCT_RE.lastIndex = 0;
+  while (m = EXPORT_DESTRUCT_RE.exec(src))
+    eachDestructuredName(m[1].slice(1, -1), (n) => out.add(n));
   EXPORT_BRACES_RE.lastIndex = 0;
   while (m = EXPORT_BRACES_RE.exec(src)) {
     for (const spec of m[1].split(",")) {
@@ -179203,7 +179227,9 @@ function consecutiveUnverified(state, now = Date.now()) {
     const edit = state.editLog[i];
     if (now - edit.timestamp >= DRIFT_WINDOW_MS)
       break;
-    const unverified = edit.symbols.length === 0 ? true : edit.symbols.some((s) => !symbolVerified(s, state));
+    if (edit.symbols.length === 0)
+      continue;
+    const unverified = edit.symbols.some((s) => !symbolVerified(s, state));
     if (!unverified)
       break;
     n += 1;
@@ -179330,26 +179356,40 @@ function attachGiGraphGate(pi) {
 `);
       } catch {}
     }
+    const steerSid = resolveSessionIdFromEvent(event).id;
     if (verdict.cancel && verdict.token) {
-      pendingSteer.delete(name);
+      const stale = pendingSteer.get(steerSid);
+      if (stale) {
+        const rest = stale.filter((e) => e.tool !== name);
+        if (rest.length > 0)
+          pendingSteer.set(steerSid, rest);
+        else
+          pendingSteer.delete(steerSid);
+      }
       throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
     }
-    if (verdict.token === "[GATE STEER]")
-      pendingSteer.set(name, `[GATE STEER] ${verdict.advisory ?? ""}`.trim());
-    else
-      pendingSteer.delete(name);
+    if (verdict.token === "[GATE STEER]") {
+      const queue = pendingSteer.get(steerSid) ?? [];
+      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim() });
+      pendingSteer.set(steerSid, queue);
+    }
     return;
   });
   pi.on("tool_result", (event) => {
     const name = String(event.toolName ?? "").toLowerCase();
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
-      pendingSteer.delete(name);
       return;
     }
-    const note = pendingSteer.get(name);
-    if (!note)
+    const sid = resolveSessionIdFromEvent(event).id;
+    const queue = pendingSteer.get(sid);
+    if (!queue || queue.length === 0)
       return;
-    pendingSteer.delete(name);
+    const qi = queue.findIndex((e) => e.tool === name);
+    if (qi === -1)
+      return;
+    const note = queue.splice(qi, 1)[0].note;
+    if (queue.length === 0)
+      pendingSteer.delete(sid);
     const extra = { type: "text", text: note };
     const prev = Array.isArray(event.content) ? event.content : [];
     return { content: [extra, ...prev], details: { ...typeof event.details === "object" && event.details ? event.details : {}, giSteer: note } };
@@ -180141,28 +180181,38 @@ function resolveGraphifyOut(profile, override, env = process.env) {
   const pick = typeof override === "string" && override.length > 0 ? override : typeof profile?.graph?.graphifyOut === "string" && profile.graph.graphifyOut.length > 0 ? profile.graph.graphifyOut : typeof env[GRAPHIFY_OUT_ENV] === "string" && env[GRAPHIFY_OUT_ENV].length > 0 ? env[GRAPHIFY_OUT_ENV] : GRAPHIFY_OUT_DEFAULT;
   return path8.isAbsolute(pick) ? pick : path8.resolve(root, pick);
 }
-function loadGraphifyFileSync(graphPath) {
+function statAndReadGraphJson(graphPath) {
   let size = 0;
   try {
     size = fs7.statSync(graphPath).size;
-  } catch {
-    throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${path8.dirname(path8.dirname(graphPath))}')`);
+  } catch (e) {
+    throw new Error(`GRAPHIFY_STAT_FAILED:${graphPath}:${e instanceof Error ? e.message : String(e)}`);
   }
   if (size === 0)
     throw graphEmpty(`graphify graph.json is empty (0 bytes at ${graphPath})`);
   if (size > GRAPH_LOAD_BUDGET_BYTES) {
     throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${size} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
   }
+  const text = fs7.readFileSync(graphPath, "utf8");
+  if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
+  }
+  return { text, size };
+}
+function loadGraphifyFileSync(graphPath) {
+  let text;
+  try {
+    text = statAndReadGraphJson(graphPath).text;
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("GRAPHIFY_STAT_FAILED:")) {
+      throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${path8.dirname(path8.dirname(graphPath))}')`);
+    }
+    throw e;
+  }
   let raw;
   try {
-    const text = fs7.readFileSync(graphPath, "utf8");
-    if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
-      throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
-    }
     raw = parseGraphJsonGuarded(text);
   } catch (e) {
-    if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
-      throw e;
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed \u2014 ${e instanceof Error ? e.message : String(e)}`);
   }
   return normalizeGraphifyGraph(raw, { root: path8.dirname(path8.dirname(graphPath)) });
@@ -180267,7 +180317,7 @@ function normalizeGraphifyGraph(raw, opts) {
         real = fs7.realpathSync(abs);
       } catch {}
       const rel = path8.relative(rootReal, real);
-      const contained = rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel);
+      const contained = isContainedRel(rel);
       const safeFile = contained ? rel.split(path8.sep).join("/") : "";
       if (safeFile !== n.file) {
         nodes[i] = { ...n, file: safeFile };
@@ -180497,6 +180547,9 @@ function containedRel(root, f) {
     return "";
   return rel;
 }
+function isContainedRel(rel) {
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel);
+}
 function graphifyEvidence(predicate, src, dst, file, line) {
   const anchor = file && file.length > 0 ? `${file}:${line}` : src;
   return `explicit: ${predicate} in source ${src}->${dst} @ ${anchor}`;
@@ -180552,7 +180605,7 @@ function projectGraphifyGraph(graph, root) {
         real = fs7.realpathSync(abs);
       } catch {}
       const rel = path8.relative(rootReal, real);
-      const contained = rel !== "" && rel !== ".." && !rel.startsWith(`..${path8.sep}`) && !path8.isAbsolute(rel);
+      const contained = isContainedRel(rel);
       if (contained)
         file = rel.split(path8.sep).join("/");
     }
@@ -180628,6 +180681,7 @@ class GraphifyAdapter {
     this.profile = profile;
   }
   async build(profile) {
+    this.profile = profile;
     const root = path8.resolve(profile.project.root);
     const graphPath = resolveGraphifyOut(profile);
     this.lastGraphPath = graphPath;
@@ -180635,30 +180689,23 @@ class GraphifyAdapter {
     if (!fs7.existsSync(graphPath)) {
       throw new Error(`GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${root}')`);
     }
-    let size = 0;
+    let text;
+    let size;
     try {
-      size = fs7.statSync(graphPath).size;
+      ({ text, size } = statAndReadGraphJson(graphPath));
     } catch (e) {
-      throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e instanceof Error ? e.message.slice(0, 80) : String(e)}`);
-    }
-    if (size === 0)
-      throw graphEmpty(`graphify graph.json is empty (0 bytes at ${graphPath})`);
-    if (size > GRAPH_LOAD_BUDGET_BYTES) {
-      throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${size} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
+      if (e instanceof Error && e.message.startsWith(`GRAPHIFY_STAT_FAILED:${graphPath}:`)) {
+        throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e.message.slice(`GRAPHIFY_STAT_FAILED:${graphPath}:`.length, `GRAPHIFY_STAT_FAILED:${graphPath}:`.length + 80)}`);
+      }
+      throw e;
     }
     if (size > GRAPH_PARSE_YIELD_BYTES) {
       await new Promise((resolve) => setImmediate(() => resolve()));
     }
     let raw;
     try {
-      const text = fs7.readFileSync(graphPath, "utf8");
-      if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
-        throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
-      }
       raw = parseGraphJsonGuarded(text);
     } catch (e) {
-      if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE"))
-        throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
     const graph = normalizeGraphifyGraph(raw, { root: path8.resolve(profile.project.root) });
@@ -181209,13 +181256,13 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
 }
 function populateFromCorbellCheckout(storePath, root, runTag) {
   const warmPath = corbellCheckoutPath(root);
+  const stBefore = warmStoreStat(warmPath);
   const freshness = isCorbellCheckoutFreshFor(root, warmPath);
   if (!freshness.fresh) {
     return { ok: false, reason: `CORBELL_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath: warmPath };
   }
   let rows = [];
   let edges = [];
-  const stBefore = warmStoreStat(warmPath);
   const MAX_WARM_ROWS = 50000;
   let src = null;
   try {
@@ -181354,20 +181401,22 @@ function populateGraphifySessionStore(storePath, root, runTag, scope) {
   }
   const db = openTypedStore(storePath);
   try {
-    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
-      ["substrate", "graphify"],
-      ["graphify_graph", graphPath],
-      ["graphify_nodes", String(nodeRows.length)],
-      ["graphify_edges", String(edgeRows.length)],
-      ["populated_at", new Date().toISOString()]
-    ]);
-  } catch (e) {
+    try {
+      supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
+        ["substrate", "graphify"],
+        ["graphify_graph", graphPath],
+        ["graphify_nodes", String(nodeRows.length)],
+        ["graphify_edges", String(edgeRows.length)],
+        ["populated_at", new Date().toISOString()]
+      ]);
+    } catch (e) {
+      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
+    }
+  } finally {
     try {
       db.close();
     } catch {}
-    throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
   }
-  db.close();
   console.error(`[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`);
   return { filesIndexed: 0, nodes: nodeRows.length, edges: edgeRows.length, runTag, skipped: false, substrate: "graphify", graphifyGraph: graphPath };
 }
@@ -182758,8 +182807,25 @@ function bindRange(bindings) {
   }
   return;
 }
+function stableBindingsJson(v) {
+  if (v === undefined)
+    return "null";
+  if (v === null || typeof v !== "object")
+    return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v))
+    return `[${v.map((x) => x === undefined ? "null" : stableBindingsJson(x)).join(",")}]`;
+  const obj = v;
+  const parts = [];
+  for (const k of Object.keys(obj).sort()) {
+    const val = obj[k];
+    if (val === undefined)
+      continue;
+    parts.push(`${JSON.stringify(k)}:${stableBindingsJson(val)}`);
+  }
+  return `{${parts.join(",")}}`;
+}
 function contentAddress(templateId, bindings, anchor) {
-  return `${templateId}:${sha256(`${anchor}|${JSON.stringify(bindings)}`).slice(0, 12)}`;
+  return `${templateId}:${sha256(`${anchor}|${stableBindingsJson(bindings)}`).slice(0, 12)}`;
 }
 var CARD_FIELDS = {
   verbatimQuote: string2(),
@@ -183822,7 +183888,7 @@ function assertMappableLines(buildResult) {
 import path20 from "path";
 
 // src/hunter/lexicon/compiler.ts
-import fs17 from "fs";
+import { readFile } from "fs/promises";
 
 // src/hunter/lexicon/rule-card.ts
 import fs16 from "fs";
@@ -184072,17 +184138,18 @@ function batteryName(profile) {
   const stem = first.anchor.split("/").pop()?.split(".")[0] ?? "rules";
   return `${first.classification.toLowerCase()}-${stem}`;
 }
-function batteryVersion(profile) {
-  const corpusText = profile.rules.corpus.map((p) => {
+async function batteryVersionAsync(profile) {
+  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
     let text;
     try {
-      text = fs17.readFileSync(p, "utf8");
+      text = await readFile(p, "utf8");
     } catch (e) {
       throw corpusUnreadable(p, String(e));
     }
     return `${p}
 ${text}`;
-  }).join(`
+  }));
+  const corpusText = texts.join(`
 `);
   const hash = sha256(`${corpusText}
 ${JSON.stringify(profile.rules.bindings)}`);
@@ -184142,12 +184209,12 @@ function compileDeclared(profile, version) {
   return battery;
 }
 async function compile(profile) {
-  const version = batteryVersion(profile);
+  const version = await batteryVersionAsync(profile);
   const cards = extractRuleCards(profile.rules.corpus);
   return [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
 }
 async function compileBattery(profile, db) {
-  const version = batteryVersion(profile);
+  const version = await batteryVersionAsync(profile);
   if (db) {
     const row = db.prepare("SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?").get(version);
     if (Number(row?.["c"] ?? 0) > 0) {
@@ -184157,8 +184224,19 @@ async function compileBattery(profile, db) {
   const cards = extractRuleCards(profile.rules.corpus);
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
-    writeRuleCards(db, cards, version);
-    writeBattery(db, battery);
+    try {
+      writeRuleCards(db, cards, version);
+    } catch (e) {
+      throw e;
+    }
+    try {
+      writeBattery(db, battery);
+    } catch (e) {
+      try {
+        db.prepare("DELETE FROM rule_cards WHERE corpus_hash = ?").run(version);
+      } catch {}
+      throw e;
+    }
   }
   return { battery, batteryVersion: version, fromCache: false };
 }
@@ -184170,7 +184248,7 @@ function severityFromBinding(v) {
 }
 
 // src/hunter/diagnostics/calibration.ts
-import fs18 from "fs";
+import fs17 from "fs";
 import path19 from "path";
 class CalibrationError extends Error {
   code;
@@ -184421,21 +184499,21 @@ ${p.verbatimQuote}`).join(`
     }
   }
   writeCalibrationRecord(recordPath, data) {
-    fs18.mkdirSync(recordPath, { recursive: true });
-    const existing = fs18.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
+    fs17.mkdirSync(recordPath, { recursive: true });
+    const existing = fs17.readdirSync(recordPath).filter((f) => /^CALIBRATION_v\d+\.md$/.test(f)).length;
     let n = existing + 1;
     let file = path19.join(recordPath, `CALIBRATION_v${n}.md`);
     for (;; ) {
       let fd = null;
       try {
-        fd = fs18.openSync(file, "wx", 420);
-        fs18.closeSync(fd);
+        fd = fs17.openSync(file, "wx", 420);
+        fs17.closeSync(fd);
         fd = null;
         break;
       } catch (e) {
         if (fd !== null) {
           try {
-            fs18.closeSync(fd);
+            fs17.closeSync(fd);
           } catch {}
         }
         const code = e?.code;
@@ -184481,7 +184559,7 @@ ${p.verbatimQuote}`).join(`
       ""
     ].join(`
 `);
-    fs18.writeFileSync(file, body);
+    fs17.writeFileSync(file, body);
   }
 }
 async function runCalibration(profile, fixtures, opts = {}) {
@@ -184644,7 +184722,7 @@ function strike(findings, profile, traces = []) {
 }
 
 // src/hunter/harness/report.ts
-import fs19 from "fs";
+import fs18 from "fs";
 import path21 from "path";
 
 // src/hunter/firewall/lexicon-types.ts
@@ -184686,7 +184764,7 @@ function toWriterSection(s) {
 function resolveMasterContextDir(projectRoot) {
   let entries = [];
   try {
-    entries = fs19.readdirSync(projectRoot);
+    entries = fs18.readdirSync(projectRoot);
   } catch {
     return null;
   }
@@ -184701,7 +184779,7 @@ var REPORT_FILE_RE = /^bug_hunter_report_v(\d+)\.md$/;
 function nextReportVersion(masterContextDir) {
   let names = [];
   try {
-    names = fs19.readdirSync(masterContextDir);
+    names = fs18.readdirSync(masterContextDir);
   } catch {
     return 1;
   }
@@ -184715,7 +184793,7 @@ function nextReportVersion(masterContextDir) {
 }
 async function writeReportDirect(input) {
   const masterContextDir = resolveMasterContextDir(input.projectRoot) ?? path21.join(input.projectRoot, "MASTER_CONTEXT");
-  fs19.mkdirSync(masterContextDir, { recursive: true });
+  fs18.mkdirSync(masterContextDir, { recursive: true });
   const version = nextReportVersion(masterContextDir);
   const reportPath = path21.join(masterContextDir, `bug_hunter_report_v${version}.md`);
   const lines = [
@@ -184753,7 +184831,7 @@ async function writeReportDirect(input) {
   const document = lines.join(`
 `);
   try {
-    fs19.writeFileSync(reportPath, document, { encoding: "utf-8", flag: "wx" });
+    fs18.writeFileSync(reportPath, document, { encoding: "utf-8", flag: "wx" });
   } catch (e) {
     const code = e !== null && typeof e === "object" && "code" in e ? String(e.code) : "";
     if (code === "EEXIST")
@@ -184793,14 +184871,14 @@ async function report(input) {
       }))
     });
     try {
-      const raw = fs19.readFileSync(writerResult.reportPath, "utf-8");
+      const raw = fs18.readFileSync(writerResult.reportPath, "utf-8");
       let stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
       const titleMatch = stripped.match(/^# .*$/m);
       if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
         stripped = stripped.substring(titleMatch.index);
       }
       if (stripped !== raw) {
-        fs19.writeFileSync(writerResult.reportPath, stripped, "utf-8");
+        fs18.writeFileSync(writerResult.reportPath, stripped, "utf-8");
         console.log("[report] thinking-strip applied \u2014 removed", raw.length - stripped.length, "chars of meta-commentary");
       }
     } catch (stripErr) {
@@ -185788,12 +185866,12 @@ function createLayerRegistry() {
 import * as path24 from "path";
 
 // src/omp/adapters/_shared.ts
-import * as fs20 from "fs";
+import * as fs19 from "fs";
 import { execFileSync } from "child_process";
 import { Database as Database6 } from "bun:sqlite";
 function probePath(p, mustBeFile = false) {
   try {
-    const st = fs20.statSync(p);
+    const st = fs19.statSync(p);
     if (mustBeFile && !st.isFile())
       return { up: false, evidence: `${p} exists but is not a file` };
     return { up: true, evidence: `${p} (${st.isFile() ? `${st.size}B` : "dir"})` };
@@ -185805,7 +185883,7 @@ function probePath(p, mustBeFile = false) {
 function probeSocketConnect(dir, timeoutMs = 1200, match = /^[0-9a-f]{16}\.sock$/) {
   let files;
   try {
-    files = fs20.readdirSync(dir).filter((n) => match.test(n));
+    files = fs19.readdirSync(dir).filter((n) => match.test(n));
   } catch (e) {
     const code = e.code ?? "UNKNOWN";
     return { up: false, evidence: `${dir} \u2014 ${code}` };
@@ -185935,7 +186013,7 @@ function graphifyProbe(scopeRoot) {
 }
 
 // src/omp/adapters/c2kg.ts
-import * as fs21 from "fs";
+import * as fs20 from "fs";
 import * as path26 from "path";
 function c2kgProbe(scopeRoot) {
   const indexPath = path26.join(scopeRoot, ".c2kg/index.json");
@@ -185946,12 +186024,12 @@ function c2kgProbe(scopeRoot) {
     errorCode: "GI_LAYER_C2KG",
     up: () => probePath(indexPath, true),
     facts: (subject) => {
-      if (!fs21.existsSync(indexPath)) {
+      if (!fs20.existsSync(indexPath)) {
         throw new Error(`GI_LAYER_C2KG: the index is absent at ${indexPath}`);
       }
       let idx;
       try {
-        idx = JSON.parse(fs21.readFileSync(indexPath, "utf8"));
+        idx = JSON.parse(fs20.readFileSync(indexPath, "utf8"));
       } catch (e) {
         throw new Error(`GI_LAYER_C2KG: the index is unparseable \u2014 ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
@@ -185968,11 +186046,11 @@ function c2kgProbe(scopeRoot) {
 }
 
 // src/omp/adapters/ua.ts
-import * as fs22 from "fs";
+import * as fs21 from "fs";
 import * as path27 from "path";
 function uaProbe(scopeRoot) {
-  if (!path27.isAbsolute(scopeRoot))
-    throw new Error(`GI_LAYER_UA: scopeRoot must be absolute, got ${JSON.stringify(scopeRoot)}`);
+  if (!path27.isAbsolute(scopeRoot) || scopeRoot.split(path27.sep).includes(".."))
+    throw new Error(`GI_LAYER_UA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   const graphPath = path27.join(path27.resolve(scopeRoot), ".ua/knowledge-graph.json");
   return {
     id: "L3_UA",
@@ -185983,7 +186061,7 @@ function uaProbe(scopeRoot) {
     facts: (subject) => {
       let raw;
       try {
-        raw = fs22.readFileSync(graphPath, "utf8");
+        raw = fs21.readFileSync(graphPath, "utf8");
       } catch (e) {
         throw new Error(`GI_LAYER_UA: the knowledge graph is absent/unreadable at ${graphPath} \u2014 ${e.code ?? (e instanceof Error ? e.message.slice(0, 80) : String(e))}`);
       }
@@ -186006,6 +186084,7 @@ function uaProbe(scopeRoot) {
 }
 
 // src/omp/adapters/arsumbris.ts
+import * as fs22 from "fs";
 import * as os6 from "os";
 import * as path28 from "path";
 import { execFileSync as execFileSync2 } from "child_process";
@@ -186018,6 +186097,8 @@ function auEngineRead(repoRoot, read, subject) {
   const script = path28.join(repoCanon, "scripts/au-read.ts");
   if (!path28.resolve(script).startsWith(repoCanon + path28.sep))
     throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root \u2014 refusing`);
+  if (!fs22.existsSync(script))
+    throw new Error(`GI_LAYER_ARSUMBRIS: the reader is absent at ${script}`);
   let out;
   try {
     out = execFileSync2(process.execPath, ["run", script, read, subject], {
@@ -186047,13 +186128,19 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
       const res = auEngineRead(scopeRoot, "instances", subject);
       const instances = res.reply?.result?.instances ?? [];
       const hits = subject.length === 0 ? instances : instances.filter((i) => {
-        const claim = Array.isArray(i["claim"]) ? i["claim"].map(String).join(`
-`) : "";
-        const closureRaw = i["closure"];
-        const closure = typeof closureRaw === "string" ? closureRaw : JSON.stringify(closureRaw ?? "");
-        const shapeRaw = i["effective_shape"];
-        const shape = typeof shapeRaw === "string" ? shapeRaw : JSON.stringify(shapeRaw ?? "");
-        return claim.includes(subject) || closure.includes(subject) || shape.includes(subject);
+        const values = [];
+        const walk = (v) => {
+          if (typeof v === "string")
+            values.push(v);
+          else if (Array.isArray(v))
+            for (const x of v)
+              walk(x);
+          else if (v && typeof v === "object")
+            for (const x of Object.values(v))
+              walk(x);
+        };
+        walk(i);
+        return values.some((v) => v.includes(subject));
       });
       return hits.slice(0, 50).map((i) => {
         const claim = Array.isArray(i["claim"]) ? i["claim"].map(String) : [];
@@ -186073,8 +186160,8 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
 import * as fs23 from "fs";
 import * as path29 from "path";
 function semanticaProbe(scopeRoot) {
-  if (!path29.isAbsolute(scopeRoot))
-    throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be absolute, got ${JSON.stringify(scopeRoot)}`);
+  if (!path29.isAbsolute(scopeRoot) || scopeRoot.split(path29.sep).includes(".."))
+    throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   const kgPath = path29.join(path29.resolve(scopeRoot), ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",
@@ -186598,10 +186685,21 @@ function graphFacts(input) {
       });
     }
     return verdicts;
+  } catch (e) {
+    return [{
+      rule: "M-GRAPH-3",
+      settles: false,
+      action: null,
+      reason: "the graph layer query failed \u2014 no fact exists to settle on",
+      evidence: `GI_GRAPH_FACTS_QUERY_FAILED: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`
+    }];
   } finally {
     db.close();
   }
 }
+
+// src/omp/fire-gate.ts
+var DESTRUCTIVE_COMMANDS = new Set(["rm", "rmdir", "dd", "mkfs", "shutdown", "reboot", "kill", "pkill", "drop", "truncate"]);
 
 // src/omp/kernel-v2.ts
 function preflight(layers) {
@@ -186971,7 +187069,8 @@ class FireLedger {
         } catch (inner) {
           const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
           failed.push({ row: r, error: err });
-          this.notePersistFailure(`GI_LEDGER_${err.code}`, err.message);
+          const bare45 = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_".length) : err.code;
+          this.notePersistFailure(`GI_LEDGER_${bare45}`, err.message);
         }
       }
       return { committed, failed };

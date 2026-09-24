@@ -102,6 +102,9 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
       throw new Error(`[${this.config.name}] GATE FAILED: subagents — pipeline requires at least 1 subagent`);
     }
     const t0 = Date.now();
+    // ★ F-141 FIX (2026-09-24): reset per-run — evidence is instance-level and a
+    //   reused pipeline accumulated prior runs' entries into buildOutput.
+    this.evidence.length = 0;
     this.log("PIPELINE_START", { name: this.config.name, at: t0 });
 
     for (const gate of this.config.gates.pre) {

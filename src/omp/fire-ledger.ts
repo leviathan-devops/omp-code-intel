@@ -336,7 +336,9 @@ export class FireLedger {
           failed.push({ row: r, error: err });
           // the recorded code carries the greppable prefix, consistently with the
           // withLedger path — a reader greps GI_LEDGER_*, not a bare suffix.
-          this.notePersistFailure(`GI_LEDGER_${err.code}`, err.message);
+          // ★ F-45 FIX (2026-09-24): normalize — a code that already carries the prefix must not gain it twice.
+          const bare45 = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_".length) : err.code;
+          this.notePersistFailure(`GI_LEDGER_${bare45}`, err.message);
         }
       }
       return { committed, failed };
@@ -617,7 +619,9 @@ export function withLedger(gate: FireGate, ledger: FireLedger): FireGate {
       // ★ R6's consumer fix — the CODE is read off the error, never parsed out of its
       // message. The F1 fix did `e.message.split(":")[0]`, which is exactly the kind
       // of fragile coupling the re-verify scan flagged.
-      const code = e instanceof LedgerError ? `GI_LEDGER_${e.code}` : "GI_LEDGER_PERSIST_FAILED";
+      // ★ F-45 FIX (2026-09-24): normalize — a code that already carries the prefix must not gain it twice.
+      const bare45 = e instanceof LedgerError ? (e.code.startsWith("GI_LEDGER_") ? e.code.slice("GI_LEDGER_".length) : e.code) : "PERSIST_FAILED";
+      const code = `GI_LEDGER_${bare45}`;
       const message = e instanceof Error ? e.message : String(e);
       ledger.notePersistFailure(code, message);
       // The row is STILL in the gate's memory, so a later drain will land it —

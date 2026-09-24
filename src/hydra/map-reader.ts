@@ -192,13 +192,11 @@ export class GraphifyMapReader {
     if (typeof question !== "string" || question.trim() === "") throw new Error("GRAPHIFY_QUERY_INVALID: question must be non-empty");
     if (this.mcp?.isConnected()) {
       try {
-        const raw = await this.mcp.callTool("query_graph", { question });
-        void String(raw);
-        const matched = graph.nodes.filter((n) =>
-          question.toLowerCase().split(/\s+/).some((tok) => tok.length > 2 && (n.label.toLowerCase().includes(tok) || n.id.toLowerCase().includes(tok))),
-        );
-        const relatedEdges = graph.edges.filter((e) => matched.some((m) => m.id === e.src || m.id === e.dst));
-        if (matched.length > 0) return { nodes: matched, edges: relatedEdges, query: question };
+        // ★ F-140 FIX (2026-09-24): the MCP leg is a connectivity probe — the
+        //   ranked result IS the local token scan (single implementation; the old
+        //   inline duplicate had drifted and dropped the n.file match leg).
+        void String(await this.mcp.callTool("query_graph", { question }));
+        return tokenScan(graph, question);
       } catch (e) {
         console.error("[map-reader] MCP query_graph failed (falling back to local scan) token=GRAPHIFY_MCP_FALLBACK reason=" + (e instanceof Error ? e.message : String(e)) + " remedy=local token-scan over loaded graph");
       }

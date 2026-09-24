@@ -253,6 +253,15 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     //   caller, never as a pass (the pin: a generic gate preempting a specific one is
     //   UNOBSERVED, never PASS).
     return verdicts;
+  } catch (e) {
+    // ★ F-34 FIX (2026-09-24): the try had a finally but no catch — a corrupt DB / schema mismatch / throwing layerFreshness escaped as a raw driver error from a function whose contract returns verdicts. A query-layer fault is a NAMED unavailable fact set, never a raw throw.
+    return [{
+      rule: "M-GRAPH-3",
+      settles: false,
+      action: null,
+      reason: "the graph layer query failed — no fact exists to settle on",
+      evidence: `GI_GRAPH_FACTS_QUERY_FAILED: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`,
+    }];
   } finally {
     db.close();
   }

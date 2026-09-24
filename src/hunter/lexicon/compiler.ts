@@ -18,6 +18,8 @@
 // impossible (the check signature is a pure graph/source read).
 
 import fs from 'node:fs';
+// ★ F-146 FIX (2026-09-24): non-blocking corpus reads for the async compile paths (below).
+import { readFile } from 'node:fs/promises';
 import type { ProjectProfile } from '../profile/schema.ts';
 import type { DbClient, Severity } from '../shared/db-canon.ts';
 import { SEVERITIES } from '../shared/db-canon.ts';
@@ -87,6 +89,22 @@ export function batteryVersion(profile: ProjectProfile): string {
       return `${p}\n${text}`;
     })
     .join('\n');
+  const hash = sha256(`${corpusText}\n${JSON.stringify(profile.rules.bindings)}`);
+  return `${projectTokenSlug(profile.project.name)}-${batteryName(profile)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+}
+
+/** The async twin of batteryVersion (★ F-146 FIX (2026-09-24)): the identical version string via non-blocking reads — the async compile paths below must not block the event loop on corpus I/O. The sync export stays for sync callers. */
+export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
+  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text: string;
+    try {
+      text = await readFile(p, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return `${p}\n${text}`;
+  }));
+  const corpusText = texts.join('\n');
   const hash = sha256(`${corpusText}\n${JSON.stringify(profile.rules.bindings)}`);
   return `${projectTokenSlug(profile.project.name)}-${batteryName(profile)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
 }
@@ -175,7 +193,7 @@ function compileDeclared(profile: ProjectProfile, version: string): CompiledPred
  *  compiled battery. DETERMINISTIC (K20.3) — the same corpus always produces
  *  the same ids + the same version; a corpus edit invalidates the battery. */
 export async function compile(profile: ProjectProfile): Promise<CompiledPredicate[]> {
-  const version = batteryVersion(profile);
+  const version = await batteryVersionAsync(profile);
   const cards = extractRuleCards(profile.rules.corpus);
   return [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
 }
@@ -192,7 +210,7 @@ export interface CompileResult {
  *  compiled + persisted (the rule cards under the corpus_hash + the battery rows
  *  INSERT OR REPLACE). A corpus edit changes the hash → a cache miss → re-compile. */
 export async function compileBattery(profile: ProjectProfile, db?: DbClient): Promise<CompileResult> {
-  const version = batteryVersion(profile);
+  const version = await batteryVersionAsync(profile);
   if (db) {
     const row = db.prepare('SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?').get(version);
     if (Number(row?.['c'] ?? 0) > 0) {
@@ -202,8 +220,18 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
   const cards = extractRuleCards(profile.rules.corpus);
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
-    writeRuleCards(db, cards, version);
-    writeBattery(db, battery);
+    // ★ F-147 FIX (2026-09-24): no half-cache — writeRuleCards and writeBattery each commit internally (no nesting), so a writeBattery failure after writeRuleCards succeeded cleans up the orphaned cards and throws named.
+    try {
+      writeRuleCards(db, cards, version);
+    } catch (e: unknown) {
+      throw e;
+    }
+    try {
+      writeBattery(db, battery);
+    } catch (e: unknown) {
+      try { db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?').run(version); } catch { /* best-effort cleanup */ }
+      throw e;
+    }
   }
   return { battery, batteryVersion: version, fromCache: false };
 }

@@ -27,6 +27,7 @@ export function auEngineRead(repoRoot: string, read: string, subject: string): u
   const repoCanon = path.resolve(repoRoot);
   const script = path.join(repoCanon, "scripts/au-read.ts");
   if (!path.resolve(script).startsWith(repoCanon + path.sep)) throw new Error(`GI_LAYER_ARSUMBRIS: reader escapes the repo root — refusing`);
+  if (!fs.existsSync(script)) throw new Error(`GI_LAYER_ARSUMBRIS: the reader is absent at ${script}`);
   let out: string;
   try {
     out = execFileSync(process.execPath, ["run", script, read, subject], {
@@ -79,13 +80,19 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
       const hits = subject.length === 0
         ? instances
         : instances.filter((i) => {
-            // ★ F-25 FIX (2026-09-24): whole-JSON substring matched keys/unrelated values — match the semantic fields only.
-            const claim = Array.isArray(i["claim"]) ? (i["claim"] as unknown[]).map(String).join("\n") : "";
-            const closureRaw = i["closure"];
-            const closure = typeof closureRaw === "string" ? closureRaw : JSON.stringify(closureRaw ?? "");
-            const shapeRaw = i["effective_shape"];
-            const shape = typeof shapeRaw === "string" ? shapeRaw : JSON.stringify(shapeRaw ?? "");
-            return claim.includes(subject) || closure.includes(subject) || shape.includes(subject);
+            // ★ F-25 FIX (2026-09-24) + F-36 (2026-09-24): match the VALUE space, never the
+            //   KEYS. F-25's 3-field narrowing (claim/closure/effective_shape) was too tight:
+            //   the L2 contract is "the au engine answers REPO NAMES", which live in the
+            //   instance's other value fields (name/source/path/id), so the narrowing made
+            //   L2 read NEVER_CONSUMED for every subject. All VALUES (recursively), no keys.
+            const values: string[] = [];
+            const walk = (v: unknown): void => {
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) for (const x of v) walk(x);
+              else if (v && typeof v === "object") for (const x of Object.values(v as Record<string, unknown>)) walk(x);
+            };
+            walk(i);
+            return values.some((v) => v.includes(subject));
           });
       return hits.slice(0, 50).map((i) => {
         const claim = Array.isArray(i["claim"]) ? (i["claim"] as unknown[]).map(String) : [];

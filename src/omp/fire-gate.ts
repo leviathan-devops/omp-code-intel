@@ -742,7 +742,14 @@ export interface Advisory {
   skipped: { code: string; message: string } | null;
 }
 
-const DESTRUCTIVE_HINT = /(^|[\s"])(rm|rmdir|dd|mkfs|shutdown|reboot|kill|pkill|drop|truncate)(\s|$)|--force|--hard|-rf\b|:\s*>|>\s*\/dev\/sd/;
+// ★ F-40 FIX (2026-09-24): substring matching fired on paths merely CONTAINING a command name (`farm/rm-logs` read as `rm`) and MISSED real ones (`rm/log` — `/` was neither a boundary nor a delimiter). Commands match only as whole `/`-delimited tokens; flags keep their substring form.
+const DESTRUCTIVE_COMMANDS = new Set(["rm", "rmdir", "dd", "mkfs", "shutdown", "reboot", "kill", "pkill", "drop", "truncate"]);
+const DESTRUCTIVE_FLAG = /--force|--hard|-rf\b|:\s*>|>\s*\/dev\/sd/;
+/** Whole-token test: `farm/rm-logs` tokenizes to `rm-logs` (no match); `rm -rf /` carries `rm` (match). Case-insensitive. */
+export function hasDestructiveToken(probe: string): boolean {
+  if (DESTRUCTIVE_FLAG.test(probe)) return true;
+  return probe.toLowerCase().split(/[\s"'/\\;:|&]+/).some((t) => DESTRUCTIVE_COMMANDS.has(t));
+}
 const CLOSE_HINT = /(complete|close|done|finish|ship|finalize|merge)/i;
 
 /** Derive the class of an INTENT with the SAME vocabulary the detectors use
@@ -750,7 +757,7 @@ const CLOSE_HINT = /(complete|close|done|finish|ship|finalize|merge)/i;
  *  could destroy outranks one that merely claims. */
 export function intentFire(intent: Intent): Fire {
   const probe = `${intent.tool} ${intent.target}`;
-  const cls = DESTRUCTIVE_HINT.test(probe)
+  const cls = hasDestructiveToken(probe)
     ? "destructive"
     : CLOSE_HINT.test(intent.tool)
       ? "theatrical"

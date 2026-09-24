@@ -97,6 +97,8 @@ export function corbellEdgeToPredicate(kind: string): string {
 
 /** A real source line from the caller's file at the edge/node line (trimmed,
  *  capped), or the `src -> dst` id pair when no readable line exists. */
+// ★ F-143 FIX (2026-09-24): per-file line cache — the old code readFileSync'd the whole file once PER EDGE (thousands of blocking re-reads of the same bytes on large graphs). Each file is read at most once per process.
+const edgeEvidenceLineCache = new Map<string, string[]>();
 export function edgeEvidence(edge: GraphEdge, nodesById: Map<string, GraphNode>): string {
   const src = nodesById.get(edge.sourceId);
   const lineNo = edge.line ?? src?.line ?? null;
@@ -109,9 +111,15 @@ export function edgeEvidence(edge: GraphEdge, nodesById: Map<string, GraphNode>)
     lineNo >= 1
   ) {
     try {
-      const line = fs.readFileSync(file, "utf8").split("\n")[lineNo - 1]?.trim();
+      let lines = edgeEvidenceLineCache.get(file);
+      if (!lines) {
+        lines = fs.readFileSync(file, "utf8").split("\n");
+        edgeEvidenceLineCache.set(file, lines);
+      }
+      const line = lines[lineNo - 1]?.trim();
       if (line && line.length > 0) return line.slice(0, 500);
     } catch {
+      edgeEvidenceLineCache.delete(file);
       // unreadable source — fall through to the id pair
     }
   }
@@ -165,6 +173,9 @@ export function writeCorbellToTypedStore(
   const runTag = opts?.runTag ?? `corbell-${Date.now().toString(36)}`;
   const { nodeRows, edgeRows } = mapCorbellToTyped(nodes, edges, runTag, opts?.nodeTypeById);
   const db = openTypedStore(storePath);
+  // ★ F-144 FIX (2026-09-24): pre-close verification reads — the counts below are captured before db.close() (see COMMIT site); fresh connections opened AFTER close can miss the close-triggered WAL checkpoint.
+  let storeNodes = 0;
+  let storeEdges = 0;
   try {
     // ★ F-124 FIX (2026-09-24): the supersede UPDATEs ride INSIDE the transaction.
     //   The old order (supersede AUTOCOMMIT before BEGIN, no ROLLBACK) left ZERO live
@@ -177,6 +188,9 @@ export function writeCorbellToTypedStore(
       insertForkNodesBatch(db, nodeRows);
       insertForkEdgesBatch(db, edgeRows);
       db.exec("COMMIT;");
+      // ★ F-144 FIX (2026-09-24): verification reads ride the pre-close order — the writer has committed but not yet closed, so the fresh-reader helpers see the commit.
+      storeNodes = countTypedNodes(storePath);
+      storeEdges = countTypedEdges(storePath);
     } catch (e) {
       try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
       throw e;
@@ -188,8 +202,8 @@ export function writeCorbellToTypedStore(
     nodes: nodeRows.length,
     edges: edgeRows.length,
     runTag,
-    storeNodes: countTypedNodes(storePath),
-    storeEdges: countTypedEdges(storePath),
+    storeNodes,
+    storeEdges,
   };
 }
 

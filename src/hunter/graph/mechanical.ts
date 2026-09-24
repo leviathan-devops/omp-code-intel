@@ -2,7 +2,6 @@
 import * as tsImport from 'typescript';
 const ts: typeof tsImport = (tsImport as unknown as { default?: typeof tsImport }).default ?? tsImport;
 import path from 'node:path';
-import fs from 'node:fs';
 import { PREDICATE_SET, isPredicate, type Predicate } from '../shared/ontology.ts';
 
 export interface TypedTriple {
@@ -70,8 +69,7 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
   if (!program || typeof program.getSourceFiles !== 'function') {
     throw new MechanicalExtractionError('MECHANICAL_EXTRACTION_FAILED: program is null/undefined or missing getSourceFiles');
   }
-  const checker = program.getTypeChecker();
-  void checker;
+  // ★ F-137 FIX (2026-09-24): dead type-checker instantiation removed — the checker was voided unused, and getTypeChecker() is expensive on large programs; the extraction is purely syntactic.
 
   const sourceFiles = program.getSourceFiles();
   if (!Array.isArray(sourceFiles)) {
@@ -232,9 +230,7 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
     }
   }
 
-  if (triples.length === 0) {
-    void fs;
-  }
+  // ★ F-138 FIX (2026-09-24): dead `void fs` block removed — the empty-triples case returns [] honestly; the no-op kept a now-removed import alive.
 
   return triples;
 }

@@ -102,8 +102,11 @@ function projectToken(projectName: string): string {
 /** Open (create) the store + derive the named hunt run id —
  *  '<project>-hunt-<yyyyMMdd>-<seq>' with the per-day sequence counter (the
  *  prior HUNT_DONE runs for the day counted, +1). The store EXISTS after this
- *  call — the durable truth materialized on the first run (the WAL + the
- *  busy_timeout 5000 pragmas ride openStore's applyPragmas). */
+ *  call. ★ F-44 NOTE (2026-09-24): the read-compute cycle is intentionally NOT
+ *  atomic — atomicity rides the hunt-lock (spawnBugHunterLoop acquires it before
+ *  the micro-loop reaches recon; two lock-holding hunts can never interleave).
+ *  Identical runIds require bypassing acquireHuntLock — a caller bug, guarded by
+ *  contract, not by code (a lock here would deadlock the single-threaded loop). */
 function openAndNextRunId(token: string, dbPath: string): string {
   const db: DbClient = openStore(dbPath);
   try {

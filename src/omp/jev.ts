@@ -103,7 +103,13 @@ export class JevJudge implements Judge {
       const body = await res.text().catch(() => "");
       throw new JevError("GI_JEV_HTTP", `${res.status} ${body.slice(0, 160)}`, res.status);
     }
-    const json = (await res.json()) as ApiResponse;
+    // ★ F-36 FIX (2026-09-24): a non-JSON error page (CDN/proxy HTML) threw a raw SyntaxError past callers that contract on JevError. Named, never raw.
+    let json: ApiResponse;
+    try {
+      json = (await res.json()) as ApiResponse;
+    } catch (e) {
+      throw new JevError("GI_JEV_BAD_JSON", `non-JSON response from ${this.opts.url ?? TYPESAFE_URL}: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`, res.status);
+    }
     const out: JudgeAnswer[] = [];
     for (const q of questions) {
       const a = json.answers[q.id];

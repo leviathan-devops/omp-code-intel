@@ -64,7 +64,10 @@ function withStateLock<T>(statePath: string, fn: () => T): T {
       //   the deadline was never reset. Now a peer's FRESH lock (age < 2s) is never unlinked.
       let ageMs = Infinity;
       try { ageMs = Date.now() - fs.statSync(lockPath).mtimeMs; } catch { continue; /* vanished → retry */ }
-      if (ageMs > 2000) { try { fs.unlinkSync(lockPath); } catch { /* a peer reclaimed first */ } continue; }
+      // ★ F-158 FIX (2026-09-24): 5s reclaim floor — coarse-granularity filesystems
+      //   (FAT32/HFS+, 1-2s mtime resolution) truncate mtime DOWN, so a live lock
+      //   can read up to ~2s older than it is; 2s risked unlinking a live peer.
+      if (ageMs > 5000) { try { fs.unlinkSync(lockPath); } catch { /* a peer reclaimed first */ } continue; }
       // ★ F-136 FIX: a longer sync spin (10ms) — the shortest wait that still bounds the busy loop.
       const t = Date.now(); while (Date.now() - t < 10) { /* the sync spin (no async file-lock API) */ }
     }

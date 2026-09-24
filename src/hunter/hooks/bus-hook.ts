@@ -111,6 +111,15 @@ export class HydraBus {
   getCursor(): number {
     return this.cursor;
   }
+  /** ★ F-45 FIX (2026-09-24): the cursor reset to 0 on restart and replayed history
+   *  (duplicate dispatches). The platform wiring owns persistence — call this with
+   *  the last-processed event id at boot so a restart resumes instead of replaying.
+   *  No auto-read here: the bus never invents delivered state it did not observe. */
+  restoreCursor(lastDeliveredId: number): void {
+    if (typeof lastDeliveredId === 'number' && Number.isFinite(lastDeliveredId) && lastDeliveredId >= 0) {
+      this.cursor = Math.floor(lastDeliveredId);
+    }
+  }
 }
 
 function isBusKind(k: string): k is EventKind {

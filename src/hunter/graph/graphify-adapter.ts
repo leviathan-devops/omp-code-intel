@@ -149,14 +149,13 @@ export function resolveGraphifyOut(
 
 /** Sync guarded read + normalize (for files <= the yield floor call directly;
  *  larger files: yield first — see GraphifyAdapter.build). */
-export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
+/** ★ F-150 FIX (2026-09-24): the ONE stat→read→budget-guard path — build() and loadGraphifyFileSync() carried the same ~25 lines by copy-paste (stat-size check → readFileSync → actual-byte guard). Parse-error mapping stays per-caller (sync EXTRACT_FAILED vs async adapterParseError); the bytes + budget law lives here exactly once. */
+export function statAndReadGraphJson(graphPath: string): { text: string; size: number } {
   let size = 0;
   try {
     size = fs.statSync(graphPath).size;
-  } catch {
-    throw new Error(
-      `GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${path.dirname(path.dirname(graphPath))}')`,
-    );
+  } catch (e: unknown) {
+    throw new Error(`GRAPHIFY_STAT_FAILED:${graphPath}:${e instanceof Error ? e.message : String(e)}`);
   }
   if (size === 0) throw graphEmpty(`graphify graph.json is empty (0 bytes at ${graphPath})`);
   if (size > GRAPH_LOAD_BUDGET_BYTES) {
@@ -164,18 +163,32 @@ export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
       `GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${size} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`,
     );
   }
+  // H13: read ONCE, then guard on the ACTUAL byte count — growth between stat
+  // and read can no longer bypass the budget.
+  const text = fs.readFileSync(graphPath, "utf8");
+  if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
+  }
+  return { text, size };
+}
+
+export function loadGraphifyFileSync(graphPath: string): GraphifyGraph {
+  let text: string;
+  try {
+    text = statAndReadGraphJson(graphPath).text;
+  } catch (e: unknown) {
+    // ★ F-150 FIX (2026-09-24): the shared stat→read path; the mapping preserves the old contract (missing/unreadable → NOT_WARM, empty → graphEmpty, oversize → TOO_LARGE).
+    if (e instanceof Error && e.message.startsWith("GRAPHIFY_STAT_FAILED:")) {
+      throw new Error(
+        `GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${path.dirname(path.dirname(graphPath))}')`,
+      );
+    }
+    throw e;
+  }
   let raw: Record<string, unknown>;
   try {
-    // H13 (qwen 33d64eca): read ONCE, then guard on the ACTUAL byte count —
-    // the pre-read stat size is only a fast-fail hint; growth between stat
-    // and read can no longer bypass the budget (the guard re-checks).
-    const text = fs.readFileSync(graphPath, "utf8");
-    if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
-      throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
-    }
     raw = parseGraphJsonGuarded(text);
   } catch (e: unknown) {
-    if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
     throw new Error(`GRAPHIFY_EXTRACT_FAILED: graph.json parse failed — ${e instanceof Error ? e.message : String(e)}`);
   }
   return normalizeGraphifyGraph(raw, { root: path.dirname(path.dirname(graphPath)) });
@@ -300,7 +313,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       let real = abs;
       try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
       const rel = path.relative(rootReal, real);
-      const contained = rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+      const contained = isContainedRel(rel);
       const safeFile = contained ? rel.split(path.sep).join("/") : "";
       if (safeFile !== n.file) {
         nodes[i] = { ...n, file: safeFile };
@@ -572,6 +585,11 @@ function containedRel(root: string, f: string): string {
   return rel;
 }
 
+/** ★ F-152 FIX (2026-09-24): the ONE containment predicate — normalizeGraphifyGraph and projectGraphifyGraph each inlined their own variant (normalize accepted the "" root-self case, project rejected it), so a root-anchored row judged differently per stage. Both call sites ride this. */
+function isContainedRel(rel: string): boolean {
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+
 // Typed projection (pure — no I/O). W9 CONTRACT: node rows may carry
 // line = null (lineless is schema-legal; the VERBS skip + count them per
 // the W3 policy) — only the EDGE branch fails loud (LINELESS_NODE) when an
@@ -664,7 +682,7 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
       let real = abs;
       try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
       const rel = path.relative(rootReal, real);
-      const contained = rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+      const contained = isContainedRel(rel);
       // P1.2.4 (W2 gi-containment): contained anchors are root-relative
       // POSIX — the SAME format normalize emits (the old absolute format
       // diverged from every other layer's anchor spelling).
@@ -752,6 +770,8 @@ export class GraphifyAdapter implements GraphAdapter {
   constructor(private profile: ProjectProfile) {}
 
   async build(profile: ProjectProfile): Promise<BuildResult> {
+    // ★ F-153 FIX (2026-09-24): the adapter caches the built profile — every verb falls back to this.profile, so building against a new profile without assigning it left all later verbs reading the stale constructor one.
+    this.profile = profile;
     const root = path.resolve(profile.project.root);
     const graphPath = resolveGraphifyOut(profile);
     this.lastGraphPath = graphPath;
@@ -761,31 +781,24 @@ export class GraphifyAdapter implements GraphAdapter {
         `GRAPHIFY_NOT_WARM:no-graph at ${graphPath} (rebuild with: bun scripts/graphify-build.ts --target '${root}')`,
       );
     }
-    let size = 0;
+    // ★ F-150 FIX (2026-09-24): the shared stat→read→guard path (see statAndReadGraphJson) — the old inline copy is gone; the error mapping below preserves the exact NOT_WARM codes.
+    let text: string;
+    let size: number;
     try {
-      size = fs.statSync(graphPath).size;
+      ({ text, size } = statAndReadGraphJson(graphPath));
     } catch (e: unknown) {
-      throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e instanceof Error ? e.message.slice(0, 80) : String(e)}`);
-    }
-    if (size === 0) throw graphEmpty(`graphify graph.json is empty (0 bytes at ${graphPath})`);
-    if (size > GRAPH_LOAD_BUDGET_BYTES) {
-      throw new Error(
-        `GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${size} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`,
-      );
+      if (e instanceof Error && e.message.startsWith(`GRAPHIFY_STAT_FAILED:${graphPath}:`)) {
+        throw new Error(`GRAPHIFY_NOT_WARM:unreadable ${graphPath}: ${e.message.slice(`GRAPHIFY_STAT_FAILED:${graphPath}:`.length, `GRAPHIFY_STAT_FAILED:${graphPath}:`.length + 80)}`);
+      }
+      throw e;
     }
     if (size > GRAPH_PARSE_YIELD_BYTES) {
       await new Promise<void>((resolve) => setImmediate(() => resolve()));
     }
     let raw: Record<string, unknown>;
     try {
-      // H13: read-once + actual-bytes guard (same law as the sync path).
-      const text = fs.readFileSync(graphPath, "utf8");
-      if (Buffer.byteLength(text, "utf8") > GRAPH_LOAD_BUDGET_BYTES) {
-        throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json grew past the budget between stat and read (${Buffer.byteLength(text, "utf8")} bytes).`);
-      }
       raw = parseGraphJsonGuarded(text);
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes("GRAPHIFY_GRAPH_TOO_LARGE")) throw e;
       throw adapterParseError("graphify graph.json", `graph.json parse failed: ${e instanceof Error ? e.message : String(e)}`);
     }
     // W8 (frozen-scan HIGH fixed): containment judges against the PROFILE's

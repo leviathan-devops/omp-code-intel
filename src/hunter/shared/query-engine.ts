@@ -221,6 +221,12 @@ export class QueryEngine {
 
   community(): CommunityResult[] {
     try {
+      // ★ F-42 FIX (2026-09-24): fail-loud cap — the full-graph BFS is O(V+E) in
+      //   memory. Production stores are ~50K edges (fine); past 500K the old code
+      //   OOM-crashed silently. Now a loud named error names the scale instead.
+      const edgeCountRow = this.db.prepare('SELECT COUNT(*) AS c FROM typed_edges WHERE superseded_run IS NULL').get() as Record<string, unknown> | null | undefined;
+      const edgeCount = edgeCountRow?.['c'];
+      if (typeof edgeCount === 'number' && edgeCount > 500000) throw new Error(`COMMUNITY_TOO_LARGE: edges=${edgeCount} exceeds the 500000 in-memory BFS cap (page by predicate or raise the cap deliberately)`);
       const edges = this.db.prepare('SELECT src_canonical, dst_canonical FROM typed_edges WHERE superseded_run IS NULL').all() as Array<{ src_canonical: string; dst_canonical: string }>;
       const nodes = this.db.prepare('SELECT canonical_id FROM typed_nodes WHERE superseded_run IS NULL').all() as Array<{ canonical_id: string }>;
       const adj = new Map<string, Set<string>>();

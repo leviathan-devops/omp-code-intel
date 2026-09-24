@@ -14,8 +14,8 @@ interface SemanticaKg {
 }
 
 export function semanticaProbe(scopeRoot: string): ConsumerProbe {
-  // ★ F-27 FIX (2026-09-24): scopeRoot reaches the fs — it must be an absolute path, never a relative traversal.
-  if (!path.isAbsolute(scopeRoot)) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be absolute, got ${JSON.stringify(scopeRoot)}`);
+  // ★ F-27 FIX (2026-09-24): scopeRoot reaches the fs — canonical absolute form only (`..` segments would let `/allowed/../../etc` escape the intended tree; path.join normalizes them away silently).
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(path.sep).includes("..")) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
   const kgPath = path.join(path.resolve(scopeRoot), ".omp/graph-intelligence/layers/semantica/kg.json");
   return {
     id: "L1_SEMANTICA",

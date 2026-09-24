@@ -92,19 +92,22 @@ function populateGraphifySessionStore(storePath: string, root: string, runTag: s
   //   5x setMeta reopened the DB after close (partial meta on failure). One BEGIN/COMMIT
   //   covers supersede + inserts + meta; any throw → ROLLBACK → NAMED throw.
   const db = openTypedStore(storePath);
+  // ★ F-46 FIX (2026-09-24): the close sat outside the try — any throw between open and close leaked the handle. The finally owns the close on every path.
   try {
-    supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
-      ["substrate", "graphify"],
-      ["graphify_graph", graphPath],
-      ["graphify_nodes", String(nodeRows.length)],
-      ["graphify_edges", String(edgeRows.length)],
-      ["populated_at", new Date().toISOString()],
-    ]);
-  } catch (e) {
-    try { db.close(); } catch { /* close best-effort after a failed write */ }
-    throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
+    try {
+      supersedeThenInsert(db, runTag, nodeRows, edgeRows, [
+        ["substrate", "graphify"],
+        ["graphify_graph", graphPath],
+        ["graphify_nodes", String(nodeRows.length)],
+        ["graphify_edges", String(edgeRows.length)],
+        ["populated_at", new Date().toISOString()],
+      ]);
+    } catch (e) {
+      throw new Error(`GRAPHIFY_WRITE_FAILED: session store write for ${resolvedRoot} did not commit (${e instanceof Error ? e.message : String(e)})`);
+    }
+  } finally {
+    try { db.close(); } catch { /* close best-effort on every path */ }
   }
-  db.close();
   console.error(`[gi-omp] populate substrate=graphify graph=${graphPath} nodes=${nodeRows.length} edges=${edgeRows.length}`);
   return { filesIndexed: 0, nodes: nodeRows.length, edges: edgeRows.length, runTag, skipped: false, substrate: "graphify", graphifyGraph: graphPath };
 }

@@ -112,6 +112,8 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
 
 export function populateFromCorbellCheckout(storePath: string, root: string, runTag: string): CorbellPopulateResult {
   const warmPath = corbellCheckoutPath(root);
+  // ★ F-37 FIX (2026-09-24): the TOCTOU baseline was captured AFTER the freshness probe — a swap between the probe's stat and the baseline went undetected. Baseline first: any change across the whole read refuses below.
+  const stBefore = warmStoreStat(warmPath);
   const freshness = isCorbellCheckoutFreshFor(root, warmPath);
   if (!freshness.fresh) {
     return { ok: false, reason: `CORBELL_NOT_WARM:${freshness.reason}`, nodes: 0, edges: 0, checkoutPath: warmPath };
@@ -124,8 +126,7 @@ export function populateFromCorbellCheckout(storePath: string, root: string, run
   // survive the copy — never re-hardcoded to 1.0 on insert. ForkEdge gains
   // an optional confidence; insertForkEdgesBatch honors it (typed-write).
 
-  // V21 cleanup fix-now: the TOCTOU baseline is captured BEFORE the reads.
-  const stBefore = warmStoreStat(warmPath);
+  // V21 cleanup fix-now: the reads below are covered by the TOCTOU baseline captured above the probe (F-37).
   // W44 (qwen scan HIGH): the SQL LIMIT must DERIVE from the cap constant —
   // the old hardcoded 20001 silently cut rows the 50k cap claimed to allow,
   // and rows dropped by SQL never reached the skipped counter. LIMIT is

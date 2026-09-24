@@ -366,6 +366,8 @@ export async function populateFromGraphifyCheckout(
   }
   // W46 (frozen-scan HIGH): capture the VETTED source hash at gate-pass time.
   const vettedHash = sourceHashProvider ? sourceHashProvider() : computeSourceHash(resolvedRoot, pinned.graph?.scope ?? ["src"], pinned.graph?.excludes ?? []);
+  // ★ F-38 FIX (2026-09-24): the freshness gate stats graph.json, then build() re-reads it — a swap in between builds rows the gate never vetted. Stat-compare the file across the build; any change refuses.
+  const graphBefore = (() => { try { const s = fs.statSync(graphPath); return `${s.mtimeMs}:${s.size}`; } catch { return null; } })();
   let build: BuildResult;
   try {
     build = await new GraphifyAdapter(pinned).build(pinned);
@@ -375,6 +377,10 @@ export async function populateFromGraphifyCheckout(
       ? msg.slice(0, 200)
       : `GRAPHIFY_BUILD_FAILED: ${msg.slice(0, 140)}`;
     return { ok: false, reason: named, nodes: 0, edges: 0, checkoutPath, graphPath };
+  }
+  const graphAfter = (() => { try { const s = fs.statSync(graphPath); return `${s.mtimeMs}:${s.size}`; } catch { return null; } })();
+  if (graphBefore === null || graphAfter === null || graphBefore !== graphAfter) {
+    return { ok: false, reason: "GRAPHIFY_NOT_WARM:changed-mid-build", nodes: 0, edges: 0, checkoutPath, graphPath };
   }
   let nodeRows: ForkNode[];
   let edgeRows: ForkEdge[];

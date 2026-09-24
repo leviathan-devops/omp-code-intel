@@ -26,6 +26,9 @@ export interface PreFlightResult {
  *  ≥50 → domain-level (architectural review BEFORE coding). */
 export function preFlight(storePath: string, target: string): PreFlightResult {
   const db = openTypedStore(storePath);
+  // ★ F-162 FIX (2026-09-24): name the failing leg — propagation stays LOUD (no
+  //   swallow; finally still closes the DB), but the error carries target + leg
+  //   instead of a raw driver TypeError.
   try {
     const q = whoCallsInDb(db, target);
     const imp = impactInDb(db, target, 8);
@@ -65,6 +68,8 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
       testTargets,
       warnings,
     };
+  } catch (e) {
+    throw new Error(`GI_PREFLIGHT_FAILED: target ${target} — ${e instanceof Error ? e.message : String(e)}`);
   } finally {
     db.close();
   }

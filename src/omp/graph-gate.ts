@@ -219,9 +219,9 @@ function consecutiveUnverified(state: GraphGateSessionState, now: number = Date.
   for (let i = state.editLog.length - 1; i >= 0; i--) {
     const edit = state.editLog[i];
     if (now - edit.timestamp >= DRIFT_WINDOW_MS) break;
-    const unverified = edit.symbols.length === 0
-      ? true
-      : edit.symbols.some((s) => !symbolVerified(s, state));
+    // ★ F-35 FIX (2026-09-24): symbol-less edits were counted here as unverified while computeDrift gives them zero weight — comment edits inflated the T2/T3 consecutive gate. Skipped, matching computeDrift.
+    if (edit.symbols.length === 0) continue;
+    const unverified = edit.symbols.some((s) => !symbolVerified(s, state));
     if (!unverified) break;
     n += 1;
   }

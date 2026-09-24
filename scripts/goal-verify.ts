@@ -17,7 +17,10 @@ import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import { consumptionAudit } from "../src/omp/layer-consumption.ts";
 
-const scopeRoot = process.argv[2] ?? process.cwd();
+// ★ F-35 FIX (2026-09-24): RESOLVE to absolute — the adapters now require an absolute
+//   scopeRoot (GI_LAYER_UA/SEMANTICA: scopeRoot must be absolute), and the pin invokes
+//   this with `.`.
+const scopeRoot = path.resolve(process.argv[2] ?? process.cwd());
 const subject = process.argv[3] ?? "evidence";
 
 interface Check {

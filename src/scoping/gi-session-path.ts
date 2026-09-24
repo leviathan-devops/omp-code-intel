@@ -88,7 +88,11 @@ export function resolveSessionId(
   // A stable, filesystem-derived key: the scope root, made into a legal
   // session id (the store-path guard accepts [A-Za-z0-9_-]{8,24}).
   const slug = path.resolve(root).replace(/[^A-Za-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  const id = (`scope-${slug}`).slice(0, 24);
+  // ★ F-164 FIX (2026-09-24): floor the id at 8 chars — an all-punctuation root
+  //   (e.g. "/") yields slug "" → "scope-" (6 chars), which fails the
+  //   SESSION_STORE_RE {8,24} check downstream. sessionStorePath pads the same way.
+  let id = (`scope-${slug}`).slice(0, 24);
+  if (id.length < 8) id = (id + "-xxxxxxxx").slice(0, 8);
   return { id, source: "scope-root" };
 }
 

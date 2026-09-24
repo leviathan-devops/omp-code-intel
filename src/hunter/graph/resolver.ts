@@ -273,7 +273,7 @@ export async function resolveEntities(
       }
       db.exec('COMMIT');
     } catch (e: unknown) {
-      try { db.exec('ROLLBACK'); } catch { /* best-effort: the write error above is the one that matters */ }
+      try { db.exec('ROLLBACK'); } catch (rbErr: unknown) { /* ★ F-142 FIX (2026-09-24): the rollback failure is no longer silent — warned, while the original write error stays the thrown one. */ console.warn(`[resolver] ROLLBACK failed after resolutions write error: ${rbErr instanceof Error ? rbErr.message : String(rbErr)}`); }
       throw e;
     }
   }

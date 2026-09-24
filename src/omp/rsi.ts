@@ -300,21 +300,35 @@ export class RsiStore {
    *  SUPERSEDING row exists, is live, and VERIFIES. A forged retire is IGNORED
    *  and the victim row STAYS LIVE. */
   retire(canonicalId: string, supersedingRun: string): { honored: boolean; reason: string } {
-    const raw = this.db
-      .query(`SELECT * FROM ${this.table} WHERE canonical_id = ? AND created_run = ? AND superseded_run IS NULL`)
-      .get(canonicalId, supersedingRun) as Record<string, unknown> | null;
-    const successor = raw === null ? null : this.mapRow(raw);
-    if (successor === null) {
-      return { honored: false, reason: "no live superseding row — the retire is IGNORED and the row stays live" };
+    // ★ F-42 FIX (2026-09-24): SELECT-then-UPDATE ran as two autocommit statements — a concurrent supersede could retire the victim between them while this call still reported honored:true. One IMMEDIATE txn serializes concurrents; the changes count decides the verdict: zero rows touched means nothing was honored.
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const raw = this.db
+        .query(`SELECT * FROM ${this.table} WHERE canonical_id = ? AND created_run = ? AND superseded_run IS NULL`)
+        .get(canonicalId, supersedingRun) as Record<string, unknown> | null;
+      const successor = raw === null ? null : this.mapRow(raw);
+      if (successor === null) {
+        try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        return { honored: false, reason: "no live superseding row — the retire is IGNORED and the row stays live" };
+      }
+      if (!this.verify(successor)) {
+        try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        return { honored: false, reason: "the superseding row does NOT verify — the retire is IGNORED and the row stays live" };
+      }
+      const r = this.db.run(
+        `UPDATE ${this.table} SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL AND created_run <> ?`,
+        [supersedingRun, canonicalId, supersedingRun],
+      ) as unknown as { changes?: number | bigint };
+      const changed = Number(r.changes ?? 0);
+      this.db.exec("COMMIT;");
+      if (changed === 0) {
+        return { honored: false, reason: "the victim row was already retired by a concurrent supersede — nothing was honored" };
+      }
+      return { honored: true, reason: `superseded by verified run ${supersedingRun}` };
+    } catch (e) {
+      try { this.db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+      throw e;
     }
-    if (!this.verify(successor)) {
-      return { honored: false, reason: "the superseding row does NOT verify — the retire is IGNORED and the row stays live" };
-    }
-    this.db.run(
-      `UPDATE ${this.table} SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL AND created_run <> ?`,
-      [supersedingRun, canonicalId, supersedingRun],
-    );
-    return { honored: true, reason: `superseded by verified run ${supersedingRun}` };
   }
 
   /** Live rows, with unverified rows treated as ABSENT (G4). */

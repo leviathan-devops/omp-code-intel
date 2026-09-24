@@ -41,6 +41,10 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
       `GI_SCOPE_REFUSED: session ${callerKey} cannot open store owned by ${ownerKey}`,
     );
   }
+  // ★ F-44 FIX (2026-09-24): scopeRoot flows into path.join, which normalizes `..` — `/allowed/../../etc` escapes the intended tree while still passing the session regex downstream. Require canonical absolute form (no `..` segments).
+  if (!path.isAbsolute(input.scopeRoot) || input.scopeRoot.split(path.sep).includes("..")) {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
+  }
   const storePath = sessionStorePath(input.scopeRoot, input.sessionId);
   const existing = findGiSessionByStorePath(storePath);
   if (existing && existing.session_id !== ownerKey) {
@@ -60,10 +64,19 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
   }
-  upsertGiSession({
-    sessionId: ownerKey,
-    scopeRoot: input.scopeRoot,
-    storePath,
-  });
+  // ★ F-43 FIX (2026-09-24): the pre-create registry check raced a concurrent opener — an unconditional upsert could overwrite another session's row. Re-verify after winning the create; never overwrite a foreign owner.
+  const current = findGiSessionByStorePath(storePath);
+  if (current && current.session_id !== ownerKey) {
+    throw new GiScopeError(
+      `GI_SCOPE_REFUSED: store ${storePath} owned by ${current.session_id}; caller ${callerKey}`,
+    );
+  }
+  if (!current) {
+    upsertGiSession({
+      sessionId: ownerKey,
+      scopeRoot: input.scopeRoot,
+      storePath,
+    });
+  }
   return { storePath, ownerKey, created };
 }

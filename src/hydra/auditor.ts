@@ -44,7 +44,7 @@ export const MD_REQUIRED_FIELDS = ["predicate", "file", "evidence", "spec"] as c
 //   in markdown parsers. Hoisted here so the brief writer can use it too.
 export function sanitizeReportField(v: unknown): string {
   return String(v ?? "")
-    .replace(/[\n\u2028\u2029\u000B\u000C]+/g, " ")
+    .replace(/[\r\n\u2028\u2029\u000B\u000C]+/g, " ")
     .replace(/^##\s*/g, "")
     .replace(/\s*##\s*/g, " ");
 }
@@ -1036,7 +1036,8 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
       const slice = await reader.query(graph, q0);
       calls.count += 1;
       calls.names.push("graph-query");
-      sliceNote = `graphSlice query "${q0}" → ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
+      // ★ F-166 FIX (2026-09-24): q0 sanitized — template-controlled, same forgery class.
+      sliceNote = `graphSlice query "${sanitizeReportField(q0)}" → ${slice.nodes.length} nodes / ${slice.edges.length} edges`;
     } catch (e) {
       errors.push("GRAPH_SLICE_FAILED: " + String((e as Error).message).slice(0, 200));
       sliceNote = "graphSlice unavailable (see errors)";
@@ -1056,7 +1057,7 @@ export async function runTemplateAudit(args: RunTemplateAuditArgs): Promise<Hunt
   const sanitize = (v: string): string => sanitizeReportField(v);
   const blocks = swept.map((c) => [
     `## FINDING: ${sanitize(c.subject)}`,
-    `- layer: ${layerId}`,
+    `- layer: ${sanitize(layerId)}`, // ★ F-165 FIX (2026-09-24): layerId is external template data — the summary/brief lines were covered by F-137, this one was missed
     `- predicate: ${sanitize(c.predicate)}`,
     `- object: Contract`,
     `- file: ${sanitize(c.file)}:${c.line}`,

@@ -32,6 +32,11 @@ export const GATE_LEVELS: Record<string, GateCriteria> = {
 export function gateCheck(diff: GraphDiffResult, criteria: GateCriteria): GateResult {
   const failures: string[] = [];
   const warnings: string[] = [];
+  // ★ F-145 FIX (2026-09-24): fail CLOSED on a null/malformed diff — property
+  //   access on null threw a raw TypeError past the gate boundary.
+  if (!diff || typeof diff !== "object") {
+    return { verdict: "FAIL", failures: ["GATE_DIFF_INVALID: diff is null or not an object — refusing to pass an unmeasured gate"], warnings };
+  }
 
   const edgesLost = Math.max(0, -diff.edgesDelta);
   if (edgesLost > criteria.maxEdgesLost) {
@@ -44,7 +49,9 @@ export function gateCheck(diff: GraphDiffResult, criteria: GateCriteria): GateRe
   if (unwiredNew > criteria.maxNewUnwired) {
     warnings.push(`new unwired nodes ${unwiredNew} > budget ${criteria.maxNewUnwired} (dead code introduced — justify or delete)`);
   }
-  for (const b of diff.blastRadiusChanges) {
+  // ★ F-161 FIX (2026-09-24): default a missing blastRadiusChanges to [] — a
+  //   malformed diff threw TypeError on for..of instead of gating.
+  for (const b of diff.blastRadiusChanges ?? []) {
     if (b.after - b.before > criteria.maxBlastRadius) {
       warnings.push(`blast radius jump on ${b.label}: +${b.after - b.before} inbound (budget ${criteria.maxBlastRadius}) — maintenance bomb risk`);
     }

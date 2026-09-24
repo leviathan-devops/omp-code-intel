@@ -10,6 +10,18 @@ export type GiDial = "OFF" | "STEER" | "FULL";
 // yields the ALIAS; `export default` yields 'default'. OMP baseline recall was
 // 0.366 on the 238-file live tree (564/1542) with the function-only regex.
 const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+// ★ F-41 FIX (2026-09-24): `export function*` (the `*` between function and name) and `export const {a}/[a]` never matched — stripped exports evaded the gate. Generator + destructured forms covered in both fns below.
+const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
+const EXPORT_DESTRUCT_RE = /export\s+(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])/g;
+/** The bound names of one `{...}`/`[...]` spec list: `b: c` binds `c`, `...rest` binds `rest`, holes/defaults skipped. Nested patterns are out of scope (the old code missed the whole statement). */
+function eachDestructuredName(list: string, cb: (name: string) => void): void {
+  for (const spec of list.split(",")) {
+    const noDefault = spec.split("=")[0] ?? "";
+    const parts = noDefault.split(":");
+    const name = (parts[parts.length - 1] ?? "").trim().replace(/^\.\.\./, "");
+    if (/^[A-Za-z_$][\w$]*$/.test(name)) cb(name);
+  }
+}
 const EXPORT_BRACES_RE = /export\s*\{([^}]*)\}(?:\s*from\s*['"][^'"]*['"])?/g;
 const EXPORT_DEFAULT_RE = /export\s+default\b/g;
 
@@ -18,6 +30,10 @@ export function parseExports(src: string): string[] {
   let m: RegExpExecArray | null;
   EXPORT_PARSE_RE.lastIndex = 0;
   while ((m = EXPORT_PARSE_RE.exec(src))) out.add(m[1]);
+  EXPORT_GEN_RE.lastIndex = 0;
+  while ((m = EXPORT_GEN_RE.exec(src))) out.add(m[1]);
+  EXPORT_DESTRUCT_RE.lastIndex = 0;
+  while ((m = EXPORT_DESTRUCT_RE.exec(src))) eachDestructuredName(m[1].slice(1, -1), (n) => out.add(n));
   EXPORT_BRACES_RE.lastIndex = 0;
   while ((m = EXPORT_BRACES_RE.exec(src))) {
     for (const spec of m[1].split(",")) {
@@ -133,6 +149,13 @@ export function parseExportSites(src: string): ExportSite[] {
   let m: RegExpExecArray | null;
   EXPORT_PARSE_RE.lastIndex = 0;
   while ((m = EXPORT_PARSE_RE.exec(src))) put(m[1], m.index);
+  EXPORT_GEN_RE.lastIndex = 0;
+  while ((m = EXPORT_GEN_RE.exec(src))) put(m[1], m.index);
+  EXPORT_DESTRUCT_RE.lastIndex = 0;
+  while ((m = EXPORT_DESTRUCT_RE.exec(src))) {
+    const idx = m.index;
+    eachDestructuredName(m[1].slice(1, -1), (n) => put(n, idx));
+  }
   EXPORT_BRACES_RE.lastIndex = 0;
   while ((m = EXPORT_BRACES_RE.exec(src))) {
     for (const spec of m[1].split(",")) {

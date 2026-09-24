@@ -136,6 +136,9 @@ export async function callWithStallDetection(
     // stream-read: every chunk resets the stall timer
     const reader = response.body?.getReader();
     if (!reader) {
+      // ★ F-148 FIX (2026-09-24): clear the stall interval — the early return
+      //   leaked it (fired every 5s forever and held the process open).
+      clearInterval(stallTimer);
       return { ok: false, reason: 'NO-STREAM: response body is not readable' };
     }
     const decoder = new TextDecoder();
@@ -166,7 +169,9 @@ export async function callWithStallDetection(
           const chunk = JSON.parse(line.slice(6));
           const delta = chunk.choices?.[0]?.delta?.content
             ?? chunk.choices?.[0]?.message?.content;
-          if (delta) return { ok: true, content: full }; // full stream accumulated
+          // ★ F-163 FIX (2026-09-24): return the EXTRACTED delta — the old form
+          //   returned the raw accumulated stream (data: prefixes + newlines).
+          if (delta) return { ok: true, content: delta };
         } catch { /* skip malformed SSE lines */ }
       }
       return { ok: false, reason: 'PARSE: could not extract content from stream' };
