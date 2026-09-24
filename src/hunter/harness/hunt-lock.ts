@@ -159,6 +159,15 @@ export function releaseHuntLock(targetPath: string): void {
       console.warn(`[hunt-lock] release skipped for ${lockPath}: held by host ${existing.hostname} (this host ${os.hostname()} — a colliding PID must not unlink a foreign lock)`);
       return;
     }
+    // ★ F-831 FIX (2026-09-24): close the release TOCTOU — the payload above was read before
+    //   the pid/host checks, but the TTL-stale-recovery path in acquireHuntLock may have replaced
+    //   the lock between that read and this unlink. Re-read and compare the FULL ownership triple;
+    //   a changed (or vanished) holder keeps its lock — fail closed, never unlink a stranger.
+    const fresh = readPayload(lockPath);
+    if (!fresh || fresh.pid !== existing.pid || fresh.acquiredAt !== existing.acquiredAt || fresh.hostname !== existing.hostname) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed during release (a peer won the race) — keeping the current holder's lock`);
+      return;
+    }
     fs.unlinkSync(lockPath);
   } catch (e: unknown) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);

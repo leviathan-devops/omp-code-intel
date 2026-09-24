@@ -258,16 +258,18 @@ export class CalibrationGate {
     // ★ logical fixture set hashed differently across runs (spurious invalidation). Nodes
     // ★ AND edges are sorted by stable id before serialization; the hash is order-free.
     const graphOf = (graph: GraphAdapter): unknown => {
-      // ★ F-500 FIX (2026-09-24): graph.nodes() was unguarded - a throwing adapter crashed
-      // ★ serializeFixtures with no diagnostic (whoCalls below was already guarded). A throwing
-      // ★ nodes() now yields [] LOUD (warned); the single materialization also feeds edges,
-      // ★ so a flaky adapter cannot return two different snapshots mid-hash.
+      // ★ F-830 FIX (2026-09-24): a throwing nodes() is the loud named
+      // ★ CALIBRATION_FIXTURE_INVALID — the file's own malformed-fixture law (top of
+      // ★ file: "never a coerced default"). The old warn + [] made a broken adapter
+      // ★ hash-identical to an empty graph (a stale calibration silently reused, or a
+      // ★ valid one silently invalidated). The single materialization still feeds edges below.
       let rawNodes: ReturnType<GraphAdapter['nodes']>;
       try {
         rawNodes = graph.nodes();
       } catch (e: unknown) {
-        console.warn(`[calibration] graph.nodes() threw: ${e instanceof Error ? e.message : String(e)} - recording empty graph in version hash`);
-        rawNodes = [];
+        throw calibrationFixtureInvalid(
+          `graph.nodes() threw for fixture: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
       const nodes = rawNodes.map((n) => ({
         id: n.id, kind: n.kind, name: n.name,
