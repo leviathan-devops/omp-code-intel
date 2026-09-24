@@ -163,8 +163,17 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
           existing.conflict = true;
           existing.conflictReason = `CONTRADICTION: mechanical predicate=${mech.predicate} vs semantic predicate=${s.predicate} for ${s.subject}->${s.object} (both preserved, flagged as L8 contradiction)`;
         } else if (existing?.conflict) {
-          const add = `; ALSO vs semantic predicate=${s.predicate} for ${s.subject}->${s.object}`;
-          if (existing.conflictReason !== null && !existing.conflictReason.includes(add)) existing.conflictReason = `${existing.conflictReason}${add}`;
+          // ★ F-822 FIX (2026-09-24): string.includes() for dedup is fragile — an object name
+          //   that is a prefix of another produces a false-positive match (e.g. 'contain' is a
+          //   prefix-substring of 'container', so 'container->x' is contained inside
+          //   'contain->x'). Use a Set keyed by the exact composite instead.
+          const dedupKey = `${s.predicate}|${s.subject}|${s.object}`;
+          if (!existing.seenContradictions) (existing as MergedTriple & { seenContradictions?: Set<string> }).seenContradictions = new Set();
+          if (!existing.seenContradictions!.has(dedupKey)) {
+            existing.seenContradictions!.add(dedupKey);
+            const add = `; ALSO vs semantic predicate=${s.predicate} for ${s.subject}->${s.object}`;
+            existing.conflictReason = `${existing.conflictReason}${add}`;
+          }
         }
       }
       merged.push({

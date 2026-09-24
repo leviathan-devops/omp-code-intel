@@ -129,7 +129,10 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         const clsEvidence = evidenceQuoteForNode(sf, stmt);
         pushTriple(fileCanon, 'declares', toClassCanonical(clsName), clsEvidence, relPosix, clsLine);
         for (const member of stmt.members) {
-          if ((ts.isMethodDeclaration(member) || ts.isPropertyDeclaration(member) || ts.isConstructorDeclaration(member)) && member.name && ts.isIdentifier(member.name)) {
+          // ★ F-820 FIX (2026-09-24): getters/setters are class members — the old
+          //   method|property|constructor check silently dropped accessors, so class
+          //   topology missed method:Foo.bar triples for `get bar`/`set bar`.
+          if ((ts.isMethodDeclaration(member) || ts.isPropertyDeclaration(member) || ts.isConstructorDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) && member.name && ts.isIdentifier(member.name)) {
             const mName = member.name.text;
             const mLine = lineOf(sf, member);
             const mEvidence = evidenceQuoteForNode(sf, member);
@@ -166,6 +169,24 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         const modEvidence = evidenceQuoteForNode(sf, stmt);
         pushTriple(fileCanon, 'declares', toModuleCanonical(modName), modEvidence, relPosix, modLine);
       }
+      // ★ F-821b FIX (2026-09-24): inline exports (`export class/function/const`)
+      //   produce triples for the declaration but no `exports` triple linking the
+      //   symbol back to the file.  Detect the export modifier and emit it.
+      if (ts.canHaveModifiers(stmt) && ts.getModifiers(stmt)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) && !ts.isExportDeclaration(stmt) && !ts.isExportAssignment(stmt)) {
+        const expLine = lineOf(sf, stmt);
+        const expEvidence = evidenceQuoteForNode(sf, stmt);
+        if (ts.isClassDeclaration(stmt) && stmt.name) {
+          pushTriple(fileCanon, 'exports', toClassCanonical(stmt.name.text), expEvidence, relPosix, expLine);
+        } else if (ts.isFunctionDeclaration(stmt) && stmt.name) {
+          pushTriple(fileCanon, 'exports', toFnCanonical(stmt.name.text), expEvidence, relPosix, expLine);
+        } else if (ts.isVariableStatement(stmt)) {
+          for (const decl of stmt.declarationList.declarations) {
+            if (ts.isIdentifier(decl.name)) {
+              pushTriple(fileCanon, 'exports', `fn:${decl.name.text}`, expEvidence, relPosix, expLine);
+            }
+          }
+        }
+      }
       if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const target = stmt.moduleSpecifier.text;
         let targetRel = target;
@@ -183,7 +204,13 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         const impEvidence = evidenceQuoteForNode(sf, stmt);
         pushTriple(fileCanon, 'imports', targetCanon, impEvidence, relPosix, impLine);
       }
-      if (ts.isExportDeclaration(stmt)) {
+      // ★ F-821 FIX (2026-09-24): handle ExportAssignment (`export default expr`).
+      if (ts.isExportAssignment(stmt)) {
+        const expLine = lineOf(sf, stmt);
+        const expEvidence = evidenceQuoteForNode(sf, stmt);
+        pushTriple(fileCanon, 'exports', `default:${moduleCanon}`, expEvidence, relPosix, expLine);
+      }
+      if (ts.isExportDeclaration(stmt) || ts.isExportAssignment(stmt)) {
         const expLine = lineOf(sf, stmt);
         const expEvidence = evidenceQuoteForNode(sf, stmt);
         if (stmt.moduleSpecifier && ts.isStringLiteral(stmt.moduleSpecifier)) {
@@ -214,7 +241,8 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
       try {
         if (ts.isClassDeclaration(node) && node.name) currentClass = node.name.text;
         if (ts.isFunctionDeclaration(node) && node.name) currentFnId = `fn:${node.name.text}`;
-        if ((ts.isMethodDeclaration(node) || ts.isPropertyDeclaration(node) || ts.isConstructorDeclaration(node)) && node.name && ts.isIdentifier(node.name)) {
+        // ★ F-820b FIX (2026-09-24): mirror member iteration — getters/setters track as method: too.
+        if ((ts.isMethodDeclaration(node) || ts.isPropertyDeclaration(node) || ts.isConstructorDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) && node.name && ts.isIdentifier(node.name)) {
           currentFnId = currentClass ? `method:${currentClass}.${node.name.text}` : `fn:${node.name.text}`;
         }
         if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {

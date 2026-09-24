@@ -256,7 +256,11 @@ export async function runScanChain(
       //   break to the next rung (failover, not spin).
       const rmsg = result.reason ?? "";
       if (/SCAN_HTTP_(401|404)\b/.test(rmsg)) break; // fail-fast: auth/not-found never heals on retry
-      if (!RETRYABLE_RE.test(rmsg)) break; // fatal/non-transient → next rung, no backoff burn
+      // ★ F-801 FIX (2026-09-24, run-11): a STALL (the stall-detector's transient timeout) did
+      //   not match RETRYABLE_RE and was not 401/404 — so it fell to the `break`, treating the
+      //   most TRANSIENT failure class as fatal. A stall is the definition of retryable.
+      if (/^STALL:/.test(rmsg)) { /* transient — fall through to the retry below */ }
+      else if (!RETRYABLE_RE.test(rmsg)) break; // fatal/non-transient → next rung, no backoff burn
       // retryable? backoff and retry.
       if (attempt < RETRY_ATTEMPTS) {
         await new Promise(resolve => setTimeout(resolve, rung.backoffMs));

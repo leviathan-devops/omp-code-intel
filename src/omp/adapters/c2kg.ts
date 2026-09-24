@@ -39,13 +39,23 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       //   shape (string/number/object) threw raw TypeError at .filter, bypassing the
       //   GI_LAYER_C2KG contract. Array.isArray narrows; non-array reads as zero hits.
       const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
-      const hits = symbols.filter((s) => (s.name ?? "").includes(subject));
+      // ★ F-815 FIX (2026-09-24): each symbol is runtime-untrusted JSON — a null /
+      //   primitive row threw raw TypeError at s.name (bypassing the GI_LAYER_C2KG
+      //   contract), and non-string kind/file or non-number line leaked into LayerFact.
+      //   Guard per-row AND per-field; `??` alone only covers null/undefined.
+      const hits = symbols.filter(
+        (s) => typeof s === "object" && s !== null && typeof s.name === "string" && s.name.includes(subject),
+      );
       return hits.map((s) => ({
         consumer: "L4_C2KG" as const,
         rung: "context" as const,
         subject,
-        value: { kind: s.kind, file: s.file, line: s.line },
-        source: `${indexPath}#symbols(${s.file ?? "?"}:${s.line ?? "?"})`,
+        value: {
+          kind: typeof s.kind === "string" ? s.kind : undefined,
+          file: typeof s.file === "string" ? s.file : undefined,
+          line: typeof s.line === "number" ? s.line : undefined,
+        },
+        source: `${indexPath}#symbols(${typeof s.file === "string" ? s.file : "?"}:${typeof s.line === "number" ? s.line : "?"})`,
       }));
     },
   };

@@ -65,7 +65,14 @@ export function projectTokenSlug(projectName: string): string {
  *  classification + the anchor's file stem form the human-readable slug
  *  (the example's spirit 'p6-price-anchor' — the project + the rule identity). */
 function batteryName(profile: ProjectProfile): string {
-  const cards = extractRuleCards(profile.rules.corpus);
+  return batteryNameFromCards(extractRuleCards(profile.rules.corpus));
+}
+
+/** ★ F-832 FIX (2026-09-24): the name from PRE-EXTRACTED cards — batteryVersionAsync extracts
+ *  once via extractRuleCardsAsync and never touches the sync readFileSync extractor, so the
+ *  F-146 non-blocking contract holds on the async path. The sync twin above keeps readFileSync
+ *  for sync callers; both feed the same first-card rule, so the version string is unchanged. */
+function batteryNameFromCards(cards: RuleCard[]): string {
   if (cards.length === 0) return 'rules';
   const first = cards[0];
   const stem = first.anchor.split('/').pop()?.split('.')[0] ?? 'rules';
@@ -95,18 +102,25 @@ export function batteryVersion(profile: ProjectProfile): string {
 
 /** The async twin of batteryVersion (★ F-146 FIX (2026-09-24)): the identical version string via non-blocking reads — the async compile paths below must not block the event loop on corpus I/O. The sync export stays for sync callers. */
 export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
-  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
-    let text: string;
-    try {
-      text = await readFile(p, 'utf8');
-    } catch (e: unknown) {
-      throw corpusUnreadable(p, String(e));
-    }
-    return `${p}\n${text}`;
-  }));
+  // ★ F-832 (cont.): ZERO sync I/O on the async path — the corpus texts feed the hash and the
+  //   async cards feed the name, overlapped in one Promise.all (one wall-time pass, no event-loop
+  //   block). extractRuleCardsAsync shares the cardsFromLines core with the sync twin (K20.3),
+  //   so the version string is byte-identical to batteryVersion.
+  const [texts, cards] = await Promise.all([
+    Promise.all(profile.rules.corpus.map(async (p) => {
+      let text: string;
+      try {
+        text = await readFile(p, 'utf8');
+      } catch (e: unknown) {
+        throw corpusUnreadable(p, String(e));
+      }
+      return `${p}\n${text}`;
+    })),
+    extractRuleCardsAsync(profile.rules.corpus),
+  ]);
   const corpusText = texts.join('\n');
   const hash = sha256(`${corpusText}\n${JSON.stringify(profile.rules.bindings)}`);
-  return `${projectTokenSlug(profile.project.name)}-${batteryName(profile)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+  return `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
 }
 
 // ---------------------------------------------------------------------------

@@ -523,7 +523,18 @@ const LOCAL_BUILD_SKIPS = new Set(['node_modules', '.trident', 'dist', 'Checkpoi
 /** Collect the .ts sources under root (the skip set is the walker-exclude canon). */
 function collectLocalTsFiles(root: string): string[] {
   const out: string[] = [];
+  // ★ F-802 FIX (2026-09-24, run-11): SYMLINK-CYCLE protection. `e.isDirectory()` is TRUE for a
+  //   symlink-to-directory, so a link pointing at an ancestor (or at the root itself) recursed
+  //   forever until the stack blew. The walk tracks the REALPATH of every directory it enters
+  //   and refuses to re-enter one — a cycle terminates LOUD (named), never as a stack overflow.
+  const visitedDirs = new Set<string>();
   const walk = (dir: string): void => {
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { realDir = dir; }
+    if (visitedDirs.has(realDir)) {
+      throw sourceReadFailed(dir, `symlink cycle: ${dir} resolves to ${realDir}, already visited — refusing to recurse forever`);
+    }
+    visitedDirs.add(realDir);
     let entries: import('node:fs').Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });

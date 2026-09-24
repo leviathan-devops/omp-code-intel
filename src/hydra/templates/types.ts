@@ -46,7 +46,10 @@ export interface AuditorTemplate {
   anchorPredicate: string;
   layerNumber: number;
   staticPrompt: string;
-  outputSchema: z.ZodSchema;
+  // ★ F-824 FIX (2026-09-24): ZodSchema accepts ANY schema — tighten to ZodType so callers
+  //   cannot assign a schema that does not produce SubagentOutput.  ZodType<SubagentOutput>
+  //   is assignable from ZodObject and ZodType variants (tested with all current templates).
+  outputSchema: z.ZodType<SubagentOutput>;
   graphQueries: string[];
   filterTags?: string[];
 }

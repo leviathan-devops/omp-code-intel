@@ -191,8 +191,14 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     // ★ F-364 FIX (2026-09-24): last-caller-wins — an older concurrent call that
     //   finishes late skips the publish instead of overwriting the newer run snapshot.
     //   Sequential callers always see their own run (seq is monotonic).
+    // ★ F-814 FIX (2026-09-24): the old splice(0, len, ...evidence) spread blows the
+    //   V8 ~65k-argument ceiling on large runs (RangeError). Length-reset + push loop
+    //   publishes without a spread (same reference kept per F-212, same seq gate).
     if (seq >= this.publishedSeq) {
-      this.evidence.splice(0, this.evidence.length, ...evidence);
+      this.evidence.length = 0;
+      for (const entry of evidence) {
+        this.evidence.push(entry);
+      }
       this.publishedSeq = seq;
     }
     return output;

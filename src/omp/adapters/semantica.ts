@@ -68,6 +68,12 @@ export function semanticaProbe(scopeRoot: string): ConsumerProbe {
       } catch (e) {
         throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
+      // ★ F-825 FIX (2026-09-24): runtime guard after JSON.parse — a corrupted or adversarially
+      //   shaped kg.json where `entities` is a string/number/object (not an array) would cause
+      //   an unguarded TypeError in .filter(). Validate the shape before consumption.
+      if (kg !== null && typeof kg === "object" && !Array.isArray(kg) && kg.entities !== undefined && !Array.isArray(kg.entities)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' field (expected array, got ${typeof kg.entities})`);
+      }
       const hits = (kg.entities ?? []).filter((e) => (e.name ?? "").includes(subject));
       return hits.map((e) => ({
         consumer: "L1_SEMANTICA" as const,

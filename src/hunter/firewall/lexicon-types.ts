@@ -79,12 +79,38 @@ export interface LexiconDecision {
   /** THE MPSE TRIPLET — recorded on EVERY decision, no exceptions. */
   mPSE: MPSE;
   // THE TEST ALIASES (the spec's 6.2 pseudocode asserts these names — §6.2:2588-2594):
+  // ★ F-800 FIX (2026-09-24): CONTAIN the alias-desync class — state/triplet were
+  //   independently-assignable fields, so verdict BLOCKED + state ALLOW_READ typechecked
+  //   silently. readonly freezes post-construction drift (zero src/ mutations — grep-verified);
+  //   makeLexiconDecision/assertLexiconDecisionConsistent below are the synced constructor
+  //   + the loud mismatch guard. Build via makeLexiconDecision; assert before enforcing.
   /** Alias of verdict — the pseudocode asserts d.state. */
-  state: LexiconDecision['verdict'];
+  readonly state: LexiconDecision['verdict'];
   /** Alias of mPSE — the pseudocode asserts d.triplet.Pattern. */
-  triplet: MPSE;
+  readonly triplet: MPSE;
   /** The resolved master-context dir (the report-scope decision's create/reuse resolution). */
   resolvedDir?: string;
+}
+/** THE SYNCED CONSTRUCTOR — the single sanctioned way to build a decision. Sets both
+ *  aliases from their sources so they cannot desync at construction. */
+export function makeLexiconDecision(
+  base: Pick<LexiconDecision, 'verdict' | 'pattern' | 'token' | 'message' | 'mPSE'> & { resolvedDir?: string },
+): LexiconDecision {
+  return { ...base, state: base.verdict, triplet: base.mPSE };
+}
+/** THE LOUD MISMATCH GUARD — value-compares the aliases against their sources (clone-safe:
+ *  JSON round-trips break reference identity, so Pattern/State/Evidence compare by value).
+ *  Throws LEXICON_ALIAS_MISMATCH on any drift — call before enforcing. */
+export function assertLexiconDecisionConsistent(d: LexiconDecision): void {
+  const tripletOk = d.triplet.Pattern === d.mPSE.Pattern
+    && d.triplet.State === d.mPSE.State
+    && d.triplet.Evidence === d.mPSE.Evidence;
+  if (d.state !== d.verdict || !tripletOk) {
+    throw new Error(
+      `LEXICON_ALIAS_MISMATCH: state=${JSON.stringify(d.state)} vs verdict=${JSON.stringify(d.verdict)}, ` +
+      `triplet=${JSON.stringify(d.triplet)} vs mPSE=${JSON.stringify(d.mPSE)} — rebuild via makeLexiconDecision`,
+    );
+  }
 }
 
 /** THE BASH LOCKDOWN DECISION — the readonly.ts contract (the L2 spec §7.2:3096-3101). */
@@ -93,7 +119,7 @@ export interface LexiconDecision {
 // ★ 'ALLOW_REPORT') the narrowed verdict can never carry.
 export interface BashLockdownDecision extends LexiconDecision {
   verdict: 'ALLOW_READ' | 'BLOCKED';
-  state: 'ALLOW_READ' | 'BLOCKED';
+  readonly state: 'ALLOW_READ' | 'BLOCKED';
 }
 
 /** THE REPORT SCOPE DECISION — the artifact-scope.ts contract (the L2 spec §7.3). */
@@ -101,7 +127,7 @@ export interface BashLockdownDecision extends LexiconDecision {
 // ★ `verdict`, never the full 4-member base union.
 export interface ReportScopeDecision extends LexiconDecision {
   verdict: 'ALLOW_REPORT' | 'BLOCKED';
-  state: 'ALLOW_REPORT' | 'BLOCKED';
+  readonly state: 'ALLOW_REPORT' | 'BLOCKED';
 }
 
 /** THE EXACT BASH ERROR MESSAGE (the operator's C1.10, quoted verbatim at the spec §7.2:3103-3104). */

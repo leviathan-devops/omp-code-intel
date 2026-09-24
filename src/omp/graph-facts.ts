@@ -191,7 +191,10 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
             evidence: `in-degree 0 (calls) · out-degree ${outD}` }
         : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
             reason: `the consumed symbol "${input.target}" has producers`,
-            evidence: `in-degree ${producers.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
+            // ★ F-826 FIX (2026-09-24): evidence must match the decision criteria — the verdict
+            //   was based on `producers.n` (calls-only in-degree), not `inD.n` (total in-degree).
+            //   The old string showed the wrong count; label it clearly.
+            evidence: `in-degree (calls) ${producers.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
     }
 
     // ── M-GRAPH-2 · HAS-READER ─────────────────────────────────────────────────

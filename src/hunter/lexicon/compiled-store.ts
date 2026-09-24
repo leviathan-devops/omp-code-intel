@@ -93,14 +93,16 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
  */
 export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: string): void {
   db.exec('BEGIN');
-  const del = db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?');
-  // ★ F-358b FIX (2026-09-24): `ins` is declared BEFORE the try — the finally block
-  //   finalizes it, and a `const` inside the try is out of scope there (TS2304 on the
-  //   finally's `ins.finalize()`). Scope it to the function, not the try body.
-  const ins = db.prepare(
-    'INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)',
-  );
+  // ★ F-823 FIX (2026-09-24): both prepared statements MUST be created inside the try —
+  //   if `del` succeeds but `ins` fails, `del` leaks a native handle (same class as F-358).
+  //   Move both inside try; finally always cleans up whatever was allocated.
+  let del: ReturnType<DbClient["prepare"]> | undefined;
+  let ins: ReturnType<DbClient["prepare"]> | undefined;
   try {
+    del = db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?');
+    ins = db.prepare(
+      'INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)',
+    );
     del.run(corpusHash);
     for (const c of cards) {
       ins.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);

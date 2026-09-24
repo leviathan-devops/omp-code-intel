@@ -124,10 +124,18 @@ export function normalizeGraph(raw: Record<string, unknown>): GraphifyGraph {
     }
     return e as Record<string, unknown>;
   });
-  const nodes: GraphifyNode[] = rawNodes.map((n) => {
+  const nodes: GraphifyNode[] = rawNodes.map((n, i) => {
     const r = n as Record<string, unknown>;
+    // ★ F-800 FIX (2026-09-24, run-11): a node lacking BOTH id and label produced `id: ""` —
+    //   and every such node COLLIDED on the same empty key, silently merging distinct nodes
+    //   in the topology (the F-403 element guard already rejects non-objects; this is the
+    //   missing-FIELD case). A row with no usable identity is refused LOUD, naming its index.
+    const idRaw = r["id"] ?? r["label"];
+    if (idRaw === undefined || idRaw === null || String(idRaw).length === 0) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: nodes[${i}] has neither id nor label — an identity-less node would collide with every other on the empty key`);
+    }
     return {
-      id: String(r["id"] ?? r["label"] ?? ""),
+      id: String(idRaw),
       label: String(r["label"] ?? r["id"] ?? ""),
       type: String(r["file_type"] ?? r["type"] ?? "unknown"),
       file: String(r["source_file"] ?? r["file"] ?? ""),
