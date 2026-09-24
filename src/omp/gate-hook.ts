@@ -68,7 +68,18 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   // ★ F-PS1 FIX (2026-09-24): keyed per tool name — a single slot let two interleaved
   //   write/edit calls overwrite each other's steer note, delivering the wrong advisory.
   // ★ F-39 FIX (2026-09-24): keyed per tool name — two interleaved write/edit calls overwrote each other's steer note (call-B's tool_call clobbered call-A's). FIFO per (session, tool), mirroring the F-GQ1 query queue below.
-  const pendingSteer = new Map<string, Array<{ tool: string; note: string }>>();
+  // ★ F-915 FIX (2026-09-24): UNBOUNDED pendingSteer — entries whose tool_result never arrived (abort/timeout/cancel-throw) lived forever, unlike pendingQueries (F-837 TTL+sweep+cap). Same bound here: TTL sweep on the tool_call clock + per-sid cap.
+  const PENDING_STEER_TTL_MS = 120_000;
+  const PENDING_STEER_MAX_PER_SID = 10;
+  interface PendingSteer { tool: string; note: string; enqueuedAt: number; }
+  const pendingSteer = new Map<string, Array<PendingSteer>>();
+  const sweepStaleSteer = (now: number): void => {
+    for (const [sid, q] of pendingSteer) {
+      const live = q.filter((e) => now - (e.enqueuedAt ?? 0) <= PENDING_STEER_TTL_MS);
+      if (live.length === 0) pendingSteer.delete(sid);
+      else if (live.length !== q.length) pendingSteer.set(sid, live);
+    }
+  };
   pi.on("tool_call", (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = (event.input && typeof event.input === "object" ? event.input : {}) as Record<string, unknown>;
@@ -113,8 +124,10 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
     }
     if (verdict.token === "[GATE STEER]") {
+      sweepStaleSteer(Date.now());
       const queue = pendingSteer.get(steerSid) ?? [];
-      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim() });
+      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim(), enqueuedAt: Date.now() });
+      while (queue.length > PENDING_STEER_MAX_PER_SID) queue.shift();
       pendingSteer.set(steerSid, queue);
     }
     return undefined;

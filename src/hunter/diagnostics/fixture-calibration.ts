@@ -26,6 +26,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { requireContained } from '../shared/containment.ts';
 import { loadProfile } from '../profile/loader.ts';
 import { ProjectProfileSchema, type ProjectProfile } from '../profile/schema.ts';
 import { TEMPLATE_LIBRARY, compileTemplate, type CompiledPredicate } from '../lexicon/templates.ts';
@@ -164,14 +165,31 @@ function severityFromBinding(v: unknown): 'CRIT' | 'HIGH' | 'MED' | 'WARN' {
  *  ★ F-702 FIX (2026-09-24): manifest.sourceFile used to join straight into
  *  ★ readFileSync — a malicious manifest.json referencing ../../etc/passwd
  *  ★ read ARBITRARY files. The resolved source must stay inside the fixture
- *  ★ dir (the loader.ts F-18 containment law, same shape). */
+ *  ★ dir (the loader.ts F-18 containment law, same shape).
+ *  ★ F-931 FIX (2026-09-24): `path.resolve` collapses `..` but follows NO symlinks —
+ *  ★ a link planted INSIDE the dir (fixtures/fire/link → /etc) passed the startsWith
+ *  ★ check while readFileSync followed it OUT (the GI_SESSION_PATH class, five runs in a
+ *  ★ row). Both sides now resolve through the shared requireContained primitive
+ *  ★ (nearest-existing-ancestor realpath + the caller's CALIBRATION_FIXTURE_INVALID
+ *  ★ vocabulary — a shared helper that invents a generic error would erase the
+ *  ★ named-error contract the health register depends on). */
 export function loadFireFixture(dir: string): FireFixture {
   const manifest = asFixture<FireFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'fire manifest');
-  const resolvedSource = path.resolve(dir, manifest.sourceFile);
-  if (resolvedSource !== path.resolve(dir) && !resolvedSource.startsWith(path.resolve(dir) + path.sep)) {
+  // The manifest's own SPELLING is still checked lexically (a `..` that escapes is refused
+  // on the string form — the shape question, asked before any filesystem touch).
+  const spelled = path.resolve(dir, manifest.sourceFile);
+  const dirSpelled = path.resolve(dir);
+  if (spelled !== dirSpelled && !spelled.startsWith(dirSpelled + path.sep)) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory`);
   }
-  const source = fs.readFileSync(resolvedSource, 'utf8');
+  // The SYMLINK question is asked against the real path (requireContained resolves the
+  // nearest existing ancestor, so a dangling link target still answers containment).
+  const contained = requireContained(
+    spelled,
+    dir,
+    ({ real }) => { throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory (realpath ${real})`); },
+  );
+  const source = fs.readFileSync(contained, 'utf8');
   if (!manifest.ruleId || !manifest.file || !manifest.line) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} carries an empty ruleId/file/line anchor`);
   }
@@ -187,14 +205,23 @@ export function loadFireFixture(dir: string): FireFixture {
 
 /** Read one golden fixture dir (manifest.json + the source file) → a GoldenFixture.
  *  ★ F-702 FIX (2026-09-24): same traversal containment as loadFireFixture —
- *  ★ the resolved source must stay inside the fixture dir. */
+ *  ★ the resolved source must stay inside the fixture dir.
+ *  ★ F-931 FIX (2026-09-24): same symlink-blindness class as loadFireFixture above —
+ *  ★ the lexical startsWith passed a planted in-dir link while the read followed it out.
+ *  ★ Same two-question shape: lexical spelling check, then requireContained. */
 export function loadGoldenFixture(dir: string): GoldenFixture {
   const manifest = asFixture<GoldenFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'golden manifest');
-  const resolvedSource = path.resolve(dir, manifest.sourceFile);
-  if (resolvedSource !== path.resolve(dir) && !resolvedSource.startsWith(path.resolve(dir) + path.sep)) {
+  const spelled = path.resolve(dir, manifest.sourceFile);
+  const dirSpelled = path.resolve(dir);
+  if (spelled !== dirSpelled && !spelled.startsWith(dirSpelled + path.sep)) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory`);
   }
-  const source = fs.readFileSync(resolvedSource, 'utf8');
+  const contained = requireContained(
+    spelled,
+    dir,
+    ({ real }) => { throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory (realpath ${real})`); },
+  );
+  const source = fs.readFileSync(contained, 'utf8');
   if (!manifest.anchor || !manifest.file) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} carries an empty anchor/file`);
   }

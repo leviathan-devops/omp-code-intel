@@ -36,6 +36,26 @@ export function reportCoverage(findings: ReportFinding[]): { total: number; byRu
   return { total: findings.length, byRule };
 }
 
+/** ★ F-913 FIX (2026-09-24): fence-aware heading scan — /^#{1,6} / matched inside fenced code blocks, so the no-H1 promotion path promoted a fence heading (proven: "```json\n## Fenced-Only" → "# Fenced-Only"). Lines inside ```/~~~ fences are skipped; fence-free input is byte-identical to s.search. */
+function headingIdxOutsideFence(s: string, re: RegExp): number {
+  const lines = s.split("\n");
+  let offset = 0;
+  let inFence = false;
+  let fenceChar = "";
+  for (const line of lines) {
+    const fence = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      const ch = fence[1]?.[0] ?? "";
+      if (!inFence) { inFence = true; fenceChar = ch; }
+      else if (ch === fenceChar) { inFence = false; fenceChar = ""; }
+    } else if (!inFence && re.test(line)) {
+      return offset;
+    }
+    offset += line.length + 1;
+  }
+  return -1;
+}
+
 /** THE THINKING STRIP (fork report-writer.ts:959-986, verbatim) — removes (a)
  *  <think>…</think> blocks and (b) any leading meta-commentary before the
  *  FIRST '# ' heading (the deliberation class), then the caller asserts the
@@ -44,18 +64,18 @@ export function reportCoverage(findings: ReportFinding[]): { total: number; byRu
 export function stripBeforeSeal(raw: string): string {
   let s = raw.replace(/<think>[\s\S]*?<\/think>/gi, "");
   s = s.replace(/<think>[\s\S]*$/gi, "");
-  let idx = s.search(/^# /m);
+  let idx = headingIdxOutsideFence(s, /^# /);
   if (idx === -1) {
     // THE DEEP-HEADING PROMOTION (2026-09-06 — the ST-1 live catch): content
     // written entirely at ###-depth gets its FIRST deeper heading promoted to
     // '# ' so the seal contract (a titled report) holds without a
     // re-generation round-trip. The preamble before it is still stripped.
-    const deepIdx = s.search(/^#{2,6} /m);
+    const deepIdx = headingIdxOutsideFence(s, /^#{2,6} /);
     if (deepIdx !== -1) {
       const before = s.slice(0, deepIdx);
       const after = s.slice(deepIdx).replace(/^#{2,6}[ ]?/, "# ");
       s = before + after;
-      idx = s.search(/^# /m);
+      idx = headingIdxOutsideFence(s, /^# /);
     }
   }
   if (idx === -1) return s.trim();

@@ -119,8 +119,16 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
         // CLI ever echoes the key (debug/verbose/server-echoed context), the raw tail would
         // carry it into logs. Redact exact key occurrences (split/join - the key may hold
         // regex metacharacters) before the output is surfaced.
-        const redact = (s: string): string =>
-          key !== null && key.length > 0 ? s.split(key).join(key.slice(0, 4) + '...[redacted]') : s;
+        // ★ F-914 FIX (2026-09-24): PARTIAL-EXPOSURE redaction — exact-only split/join missed a tail echo in a trace (proven: key.slice(-8) survived verbatim). Exact via split/join (metachar-safe) + a tail-8 heuristic for keys >= 16 chars; over-redaction is fail-closed.
+        const redact = (s: string): string => {
+          if (key === null || key.length === 0) return s;
+          let out: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
+          if (key.length >= 16) {
+            const tail: string = key.slice(-8);
+            if (tail.length >= 8) out = out.split(tail).join('...[redacted-tail]');
+          }
+          return out;
+        };
         const out = redact(String(err.stdout ?? "").slice(-400));
         const errOut = redact(String(err.stderr ?? "").slice(-200));
         const detail = [out, errOut].filter((x) => x.length > 0).join(" | ");

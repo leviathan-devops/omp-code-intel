@@ -59,10 +59,20 @@ export function getStoreDb(opts?: ScopedStoreOptions): Database {
   }
   fs.mkdirSync(path.dirname(want), { recursive: true });
   const fresh = new Database(want, { create: true });
+  // ★ F-919 FIX (2026-09-24): SILENT WAL fallback — the old catch swallowed the failure, losing the module's ONLY race protection. Loud warn on throw + a mode read-back (PRAGMA returns the mode instead of throwing on refusal, so the catch alone never fires for the common case).
   try {
     fresh.exec('PRAGMA journal_mode = WAL;');
     fresh.exec('PRAGMA busy_timeout = 5000;');
-  } catch (_nonfatal) { /* some filesystems refuse WAL — non-fatal */ }
+  } catch (walErr) {
+    console.error(`[scoped-store${opts?.id ? ' ' + opts.id : ''}] WAL mode FAILED — falling back to rollback journal (race-condition protection DEGRADED):`, walErr instanceof Error ? walErr.message : String(walErr));
+  }
+  try {
+    const modeRow = fresh.query('PRAGMA journal_mode').get() as { journal_mode?: unknown } | null;
+    const mode = typeof modeRow?.journal_mode === 'string' ? modeRow.journal_mode.toLowerCase() : '';
+    if (mode !== '' && mode !== 'wal') {
+      console.error(`[scoped-store${opts?.id ? ' ' + opts.id : ''}] WAL mode NOT ACTIVE (journal_mode=${mode || 'unknown'}) — concurrent writers race (see the 8-session law above)`);
+    }
+  } catch { /* the mode read-back is best-effort; the exec catch above stays the loud path */ }
   if (opts?.schema?.length) {
     // THE SCHEMA-SETUP RACE REMEDY: idempotent DDL + the 3-attempt busy
     // retry with the busy_timeout re-arm (the winner wave-db.ts:19-73).
@@ -71,9 +81,11 @@ export function getStoreDb(opts?: ScopedStoreOptions): Database {
         for (const stmt of opts.schema) fresh.run(stmt);
         break;
       } catch (e) {
+        // ★ F-920 FIX (2026-09-24): STALE broken handle — the old break cached a table-less handle every later op reused (health-check SELECT 1 passes without tables). Close + throw: nothing broken is cached, the next call retries fresh, and the cause surfaces instead of downstream missing-table noise.
         if (attempt === 2) {
-          console.error(`[scoped-store${opts.id ? ' ' + opts.id : ''}] schema setup failed after 3 attempts:`, e instanceof Error ? e.message : String(e));
-          break; // boot continues; downstream fails WARN-soft (the v6 behavior)
+          console.error(`[scoped-store${opts.id ? ' ' + opts.id : ''}] schema setup failed after 3 attempts — evicting broken handle:`, e instanceof Error ? e.message : String(e));
+          try { fresh.close(); } catch { /* best effort */ }
+          throw e;
         }
         try { fresh.exec('PRAGMA busy_timeout = 5000;'); } catch { /* re-arm best-effort */ }
       }
@@ -93,6 +105,7 @@ export function closeStoreDb(): void {
     // generalized). Only an explicit repoint changes it.
   }
   // ★ F-537 FIX (2026-09-24): the in-flight async-open gate survived close — a later getStoreDbAsync reused the resolved gate and returned a stale/closed handle. Close clears every pending gate so the next open starts fresh.
+  // ★ F-921 NOTE (2026-09-24): NOT-A-BUG on the clear-strands-awaiters claim — PROVEN by probe: clear() drops the map's reference, not the promise's settlors (close-then-resolve STILL SETTLES, close-then-reject STILL REJECTS — the resolveOpen/rejectOpen closures are unaffected). Plus the census: zero external getStoreDbAsync awaiters exist (only runWithRetry/withImmediateTx internals, same-tick, no close window). Reject-on-close would ADD a spurious failure to a path that already settles correctly.
   storeOpenInFlightByPath.clear();
 }
 
