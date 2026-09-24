@@ -2542,3 +2542,24 @@ the question.
 
 **The gate is now `0 critical / 52 high`.** 42 of the 52 ride the run-7 fix wave (5 disjoint
 agents); the other 10 belong to two agents still in flight.
+
+---
+
+## 2026-09-24 — THE R7 WAVE (post-run-7 fixes) — battery green
+
+**The wave:** 5 disjoint agents over `artifacts/w7-run7-slices/*.md` (42 findings across 37 files) +
+the orchestrator. ~43 findings adjudicated: **~36 REAL fixed**, 8 NOT-A-BUG with quoted proofs
+(“the reviewer read a stale line” — each cites the actual code).
+
+**The battery after integration:** `bunx tsc --noEmit` → exit 0 · `bun run test` →
+**430 pass / 0 fail** (42 files) AND **528 pass / 0 fail** (59 files), exit 0.
+
+**The dist:** `9e42a7428111e355`, deployed == repo.
+
+**★ THE REGRESSION THE WAVE CAUGHT (the value of a pinned test):** F-341's poison-row quarantine
+keyed on OBJECT IDENTITY broke `st-gi-v21-audit-fixes`' F0b-critical — “a row that FAILED to commit
+is retried on the next drain” — because a repaired row is the SAME object with a rewritten field.
+**F-420** re-keyed the quarantine on the CONTENT SIGNATURE, satisfying both invariants: an
+unrepaired malformed row stays quarantined; a repaired one retries. The suite returned to 10/0.
+
+**Run 8** (the whole-tree audit on the frozen tree at HEAD `873abf5`) is in flight.

@@ -1177,3 +1177,41 @@ blame the provider.
   target (symlink-following) AND an explicit root. And the audit's convergence measure is the
   ADJUDICATED-REAL count PER CLASS, not the raw per-run count — the raw count tracks the tree's
   size, which every fix wave grows.
+
+---
+
+## EN-W3-RUN7-WAVE — the R7 wave (5 agents, ~43 findings) + F-420 (2026-09-24)
+
+- **THE FINDING:** run 7's whole-tree audit returned 1 critical / 61 high (404 comments). 42 of the
+  61 highs sat in 37 files nobody had reached.
+- **THE CRITICAL (F-400, populate-graphify.ts):** the content-hash sidecar write failure was logged
+  at `console.log` — invisible to an operator watching errors — and it seeds a REBUILD LOOP: with
+  no sidecar the next freshness probe falls back to the mtime walk, may still prove fresh,
+  rebuilds, and fails the write again, forever. The store update DID succeed, so throwing would be
+  wrong → `console.error` + the consequence NAMED.
+- **THE WAVE:** R7High1 (6 REAL + 3 NOT-A-BUG proven: calibration rollback loud, read-verb quoted
+  args, `readPath` proto blocklist, lasme double-cast, abide tail cap, gate-middleware header) ·
+  R7High2 (11+ REAL: week null check, corbell metachar guard, async SIGKILL in the exit handler,
+  watch 'error' handler, mpse filterTags, c2kg name coercion, gate-state close, typed-write
+  truncated flag, scoped-store per-path in-flight map) · R7High3 (5 REAL: Substrate union
+  narrowed, micro-loop pendingSettle, bug-hunt realpath fail-closed, jev key 0600 check) ·
+  R7High4 (7 REAL: mechanical ext guard, db readonly cast, branch view rebuild, triad line guard,
+  test-target dedupe, enforcement code derivation) · R7High5 (7 REAL: merge semantic dedupe,
+  bus-hook continue, map-reader type + nesting guards, scan-chain reader cancel, fire-ledger
+  method cache, ripwire NaN guard).
+- **THE ORCHESTRATOR'S INTEGRATION FIXES:** F-405 (the `ix` guard hoisted out of a narrowed switch
+  — TS2678), F-359 (the shared `minimalGraphifyProfile`), F-358b (the `ins` hoist).
+- **★ F-420 — THE CONFLICT BETWEEN A NEW FIX AND A PINNED REGRESSION (the most instructive one):**
+  F-341 quarantined "poison" rows (persistent malformed rows that flooded retries) in a WeakSet
+  keyed by the row OBJECT. But `st-gi-v21-audit-fixes` pins the F0b-critical behavior: a row that
+  FAILED to commit must be RETRIED after an IN-PLACE REPAIR (the same object, one field
+  rewritten). OBJECT IDENTITY DOES NOT CHANGE WHEN A FIELD IS WRITTEN — so the repaired row
+  stayed quarantined and the test went red (`drain` returned 0, expected 1).
+  **THE FIX: key the quarantine on the row's CONTENT SIGNATURE.** An unrepaired malformed row
+  keeps its signature (still quarantined — F-341's guarantee holds); a REPAIRED row has a NEW
+  signature and is retried (the F0b-critical holds). Both invariants, one key.
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **430/0 + 528/0**, exit 0; the dist
+  `9e42a7428111e355`, deployed == repo.
+- **THE LESSON:** when a quarantine/dedupe/cache keys on OBJECT IDENTITY but the system's
+  contract is about CONTENT, an in-place repair is invisible to it. Ask "what changes when the
+  thing is FIXED?" — if the answer is "a field", the key must be content.
