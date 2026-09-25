@@ -115,6 +115,29 @@ export function acquireHuntLock(targetPath: string): HuntLockPayload {
         }
       } else if (reread) {
         throw new Error(`HUNT_ALREADY_RUNNING: pid=${reread.pid} acquiredAt=${reread.acquiredAt} holds ${lockPath} — wait for it to finish or delete the stale lock.`);
+      } else {
+        // ★ W17-HIGH FIX (2026-09-25): the null/null path (corrupted lock, stale by
+        //   mtime) reached unlinkSync with NO pre-unlink re-validation — a peer's
+        //   fresh wx-created lock between the reread (above) and the unlink (below)
+        //   was deleted unconditionally. Re-validate immediately before the unlink:
+        //   a now-readable payload or a now-fresh mtime means a peer won the race —
+        //   throw HUNT_ALREADY_RUNNING (retry the hunt) instead of unlinking.
+        //   Residual (same class as the F-1022 release comment below): path locks
+        //   cannot unlink atomically without an fd lock — the window is now µs
+        //   (fresh2+stat → unlink adjacent), never ms.
+        const fresh2 = readPayload(lockPath);
+        if (fresh2) {
+          throw new Error(`HUNT_ALREADY_RUNNING: pid=${fresh2.pid} acquiredAt=${fresh2.acquiredAt} holds ${lockPath} — wait for it to finish or delete the stale lock.`);
+        }
+        let ageMs2 = Number.NaN;
+        try {
+          ageMs2 = Date.now() - fs.statSync(lockPath).mtimeMs;
+        } catch {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
+        if (Number.isNaN(ageMs2) || ageMs2 <= STALE_LOCK_TTL_MS) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
       }
       try {
         fs.unlinkSync(lockPath);

@@ -312,6 +312,14 @@ function cardsFromLines(file: string, lines: string[]): RuleCard[] {
   }
   return cards;
 }
+/** ★ W17-HIGH FIX (2026-09-25): the single-read splitter — (file, text) → cards
+ *  with EXACTLY the extractRuleCardsAsync split (`text.split('\n')`) over the ONE
+ *  shared cardsFromLines core. ADDITIVE ONLY: extractRuleCardsAsync and
+ *  cardsFromLines are untouched; this export lets compiler.ts derive the hash
+ *  input AND the cards from the SAME bytes (one file read per path, no TOCTOU). */
+export function cardsFromText(file: string, text: string): RuleCard[] {
+  return cardsFromLines(file, text.split('\n'));
+}
 
 function readLinesOrThrow(file: string): string[] {
   let text: string;

@@ -27,7 +27,7 @@ import {
   TEMPLATE_LIBRARY, compileTemplate, LexiconError, sha256,
   type CompiledPredicate, type PredicateTemplate,
 } from './templates.ts';
-import { extractRuleCards, extractRuleCardsAsync, corpusUnreadable, type RuleCard } from './rule-card.ts';
+import { extractRuleCards, extractRuleCardsAsync, cardsFromText, corpusUnreadable, type RuleCard } from './rule-card.ts';
 import { writeBattery, writeRuleCards, writeCompiledCache, loadBattery } from './compiled-store.ts';
 
 // ---------------------------------------------------------------------------
@@ -108,22 +108,33 @@ export function batteryVersion(profile: ProjectProfile): string {
  *  over this core.
  *  ★ W16-HIGH FIX (version-vs-cards double-read skew). */
 export async function batteryVersionWithCardsAsync(profile: ProjectProfile): Promise<{ version: string; cards: RuleCard[] }> {
-  // ★ F-832 (cont.): ZERO sync I/O on the async path — the corpus texts feed the hash and the
-  //   async cards feed the name, overlapped in one Promise.all (one wall-time pass, no event-loop
-  //   block). extractRuleCardsAsync shares the cardsFromLines core with the sync twin (K20.3),
-  //   so the version string is byte-identical to batteryVersion.
-  const [texts, cards] = await Promise.all([
-    Promise.all(profile.rules.corpus.map(async (p) => {
-      let text: string;
-      try {
-        text = await readFile(p, 'utf8');
-      } catch (e: unknown) {
-        throw corpusUnreadable(p, String(e));
-      }
-      return `${p}\n${text}`;
-    })),
-    extractRuleCardsAsync(profile.rules.corpus),
-  ]);
+  // ★ F-832 (cont.): ZERO sync I/O on the async path — the corpus is read ONCE per
+  //   path (non-blocking); the SAME bytes feed BOTH the hash input and the cards,
+  //   so a concurrent corpus edit can no longer fingerprint one byte-set and
+  //   compile another. cardsFromText shares the cardsFromLines core with the sync
+  //   twin (K20.3), so the version string is byte-identical to batteryVersion.
+  //   ★ W17-HIGH FIX (2026-09-25): the Promise.all above read each corpus file
+  //   TWICE in parallel (readFile for the hash + extractRuleCardsAsync's own
+  //   readFile for the cards) — a corpus edit between the two reads hashed one
+  //   byte-set and compiled another. Now ONE readFile per path; texts and cards
+  //   both derive from the same in-memory bytes.
+  if (profile.rules.corpus.length === 0) {
+    const { corpusEmpty } = await import('./rule-card.ts');
+    throw corpusEmpty();
+  }
+  const reads = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text: string;
+    try {
+      text = await readFile(p, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return { file: p, text };
+  }));
+  const texts = reads.map(({ file, text }) => `${file}\n${text}`);
+  // SEQUENTIAL assembly in corpus order — Promise.all resolves out of order;
+  // mapping in input order keeps the card order deterministic (K20.3).
+  const cards = reads.flatMap(({ file, text }) => cardsFromText(file, text));
   const corpusText = texts.join('\n');
   const hash = sha256(`${corpusText}\n${JSON.stringify(profile.rules.bindings)}`);
   const version = `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;

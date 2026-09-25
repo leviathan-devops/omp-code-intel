@@ -32,19 +32,47 @@ export function awarenessDocMissing(docPath: string): Error {
  *  MECHANICAL DETECTOR ONLY (the '>' quote marker, spec §3.8:1158); the count
  *  is the measurement, never a decision. */
 const QUOTE_MARKER_RE = /^\s*>/;
+/** The canonical project root (symlink-aware) — realpath once, fail LOUD. */
+function projectRootReal(root: string): string {
+  try {
+    return fs.realpathSync(root);
+  } catch (e: unknown) {
+    throw new Error(`CORPUS_UNREADABLE: project root ${root} cannot resolve (realpath failed: ${e instanceof Error ? e.message : String(e)} — chmod/fix permissions or remove broken symlinks)`);
+  }
+}
+
+/** Symlink-aware containment — realpath the candidate and require it stay under
+ *  the real root. Returns the REAL path for the caller to read, so a symlink
+ *  swapped between check and read cannot redirect outside. Throws the named
+ *  CORPUS_UNREADABLE on unresolvable paths and on escapes (never a raw throw). */
+function assertInsideProject(root: string, absPath: string): string {
+  const rootReal = projectRootReal(root);
+  let real: string;
+  try {
+    real = fs.realpathSync(absPath);
+  } catch (e: unknown) {
+    throw new Error(`CORPUS_UNREADABLE: path=${absPath} cannot resolve for containment check (realpath failed: ${e instanceof Error ? e.message : String(e)} — the corpus path must exist inside the project)`);
+  }
+  if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
+    throw new Error(`CORPUS_UNREADABLE: path=${absPath} (real: ${real}) escapes project root ${root} (real: ${rootReal}) — resolve corpus paths inside the project`);
+  }
+  return real;
+}
+
 
 /** Count the blockquote-marked lines across the corpus files (data-driven). */
 function countQuotedRules(profile: ProjectProfile): number {
   let count = 0;
   for (const entry of profile.rules.corpus) {
     const abs = path.isAbsolute(entry) ? entry : path.resolve(profile.project.root, entry);
-    // ★ R15: containment — resolved path must stay under project root; cap size to prevent OOM.
-    if (!abs.startsWith(profile.project.root + path.sep) && abs !== profile.project.root) {
-      throw new Error(`CORPUS_UNREADABLE: path=${abs} escapes project root ${profile.project.root} — resolve corpus paths inside the project`);
-    }
+    // ★ W3-RUN17 FIX: symlink-aware containment (the resolve-only check let a
+    //   symlink inside the root point at /etc/passwd and still pass) — the
+    //   shared assertInsideProject realpaths BOTH sides and returns the REAL
+    //   path, which is what gets read (no check/read swap window).
+    const real = assertInsideProject(profile.project.root, abs);
     let text: string;
     try {
-      text = fs.readFileSync(abs, 'utf8');
+      text = fs.readFileSync(real, 'utf8');
     } catch (e: unknown) {
       // ★ F-39 FIX (2026-09-24): the old warn+continue undercounted batteryCount
       //   against the "never a silent zero" contract — an unreadable corpus file is

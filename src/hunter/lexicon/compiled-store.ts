@@ -109,7 +109,36 @@ export function writeCompiledCache(
 }
 
 export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
+  // ★ W3-R17 FIX (2026-09-25, run-17 HIGH): STANDALONE EVICTION.
+  //   Standalone writeBattery only INSERT OR REPLACE-d by id — a recompile whose id set
+  //   changed (some ids added, some removed) left the dropped ids as orphans, and loadBattery
+  //   reads by battery_version so the orphans rode the live battery. writeCompiledCache already
+  //   owns the fix (delete-then-insert per version); this ports the SAME discipline here.
+  //   Discipline notes (reuse of the writeCompiledCache contract, not a new pattern):
+  //   (a) SCOPE IS THE VERSION ROWS THEMSELVES — the DELETE runs INSIDE this function's own
+  //   BEGIN/COMMIT (same transaction as the inserts), exactly like writeCompiledCache's lines
+  //   82-100, so no concurrent reader can observe an emptied-but-not-yet-reinserted version
+  //   (a pre-BEGIN standalone DELETE would widen that window). There is no concurrent writer
+  //   to protect within this surface: writeCompiledCache nests nothing and compileBattery is
+  //   the sole live caller (grep-verified 2026-09-25: writeBattery( appears only here + the old
+  //   two-call order in Checkpoints/ + audit JSON). Concurrent writes serialize on SQLite's
+  //   write lock; the eviction deletes only the incoming version, never a foreign one.
+  //   (b) VERSION SOURCE IS THE ROWS — no batteryVersion param was added (the suggested
+  //   signature change would break compileBattery's sole call site + any external caller).
+  //   Mixed-version input cannot name one authoritative version, so it is a loud
+  //   LexiconError VERSION_MISMATCH — the same code writeCompiledCache throws — never a
+  //   silent first-row pick.
+  //   (c) EMPTY MEANS NOTHING TO EVICT — with no rows no version can be derived, so the
+  //   function returns before BEGIN (unchanged). Callers needing to clear a version with
+  //   zero rows must use writeCompiledCache with the explicit corpusHash, whose DELETE runs
+  //   even for empty batteries.
   if (battery.length === 0) return;
+  const version = battery[0]!.batteryVersion;
+  for (const p of battery) {
+    if (p.batteryVersion !== version) {
+      throw new LexiconError('VERSION_MISMATCH', `VERSION_MISMATCH: writeBattery battery mixes versions ${version} vs ${p.batteryVersion} for predicate ${p.id} — refusing to evict-or-write (pass a single-version battery, or use writeCompiledCache with the explicit corpusHash)`);
+    }
+  }
   // ★ F-6 FIX (2026-09-24): atomic battery commit — BEGIN/COMMIT/ROLLBACK like
   // writeRuleCards below; a mid-loop failure rolls back instead of half-writing.
   db.exec('BEGIN');
@@ -121,14 +150,23 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
   //   finalizes are THEMSELVES try/caught best-effort, so no finalize throw can reach a
   //   ROLLBACK — verified by reading lines 94-109, not assumed.)
   let committed = false;
+  let stmt: ReturnType<DbClient['prepare']> | undefined;
+  let del: ReturnType<DbClient['prepare']> | undefined;
   try {
-  const stmt = db.prepare(
-    `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-  );
-  // ★ F-358 FIX (2026-09-24): finalize the prepared statement — bun:sqlite holds
+  // ★ F-358 FIX (2026-09-24): finalize the prepared statements — bun:sqlite holds
   //   a native handle per prepare; a mid-loop/COMMIT throw leaked it. finally runs
   //   before the outer catch's ROLLBACK; finalize itself is best-effort.
+  //   (F-823 shape: both handles are `| undefined` — prepare itself may throw before the
+  //   second is allocated — so the finally guards before finalizing.)
   try {
+  // F-1204 (standalone port): evict the incoming version's stale rows first — a recompile
+  // under the SAME version with fewer/different ids deletes the dropped ids instead of
+  // orphaning them (loadBattery reads by version). Same-transaction, same-version-only.
+  del = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');
+  del.run(version);
+  stmt = db.prepare(
+    `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+  );
   for (const p of battery) {
     const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
     stmt.run(
@@ -147,7 +185,8 @@ export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
     db.exec('COMMIT');
     committed = true;
   } finally {
-    try { stmt.finalize(); } catch { /* already finalized or driver-closed — the ROLLBACK below is what matters */ }
+    try { stmt?.finalize(); } catch { /* already finalized or driver-closed — the ROLLBACK below is what matters */ }
+    try { del?.finalize(); } catch { /* already finalized or driver-closed — the ROLLBACK below is what matters */ }
   }
   } catch (e: unknown) {
     if (!committed) db.exec('ROLLBACK');

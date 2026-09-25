@@ -371,7 +371,15 @@ export async function resolveEntities(
         console.warn(`[resolver] ROLLBACK failed after resolutions write error: ${rbMsg} (original: ${origMsg})`);
         throw new ResolverError(`RESOLVER_FAILED: resolutions write failed AND ROLLBACK failed (DB state suspect \u2014 verify store before reuse) \u2014 rollback: ${rbMsg}; original: ${origMsg}`);
       }
-      throw e;
+      // ★ W3-R17 FIX (2026-09-25, run-17 HIGH): BEGIN (:340) and COMMIT (:365) ride inside
+      //   this try but outside the per-row ResolverError wrappers — a raw driver throw from
+      //   either (lock contention, I/O failure, disk full) used to escape via `throw e` as an
+      //   unnamed error, breaking the ResolverError contract every other path honors. Extend
+      //   the SAME contract (the R15 BEGIN-inside-try shape above — no second pattern): a
+      //   ResolverError rethrows untouched, anything else is wrapped loud. F-255 still owns
+      //   the ROLLBACK-failure fold; this owns the BEGIN/COMMIT wrap.
+      if (e instanceof ResolverError) throw e;
+      throw new ResolverError(`RESOLVER_FAILED: resolutions transaction failed — ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return decisions;

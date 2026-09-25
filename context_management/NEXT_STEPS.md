@@ -1,6 +1,6 @@
 # NEXT_STEPS — the W1-W9 wave plan + the risk register
 
-**The dist SHA: 1c73723445f659730099c1bc1266e88bdaea9231e76b065fae88603b48433249**
+**The dist SHA: 8a2bf1a6c58c7a9d9f81e73e50cdea59102b27d8fc2a108db8e380a7dddf045f**
 **Authority: packages/gi-kernel-v2.1/06-WAVES.md (WAVES: 9) + the DPL1 spec S4.**
 
 ## THE WAVES (parallel where files are disjoint; interfaces land first)

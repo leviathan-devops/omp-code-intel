@@ -4043,6 +4043,411 @@ var init_ontology = __esm(() => {
   PREDICATE_SET = new Set(ALL_PREDICATES);
 });
 
+// src/hunter/shared/migrations.ts
+function sqlList(values) {
+  return values.map((v) => `'${v.replace(/'/g, "''")}'`).join(",");
+}
+var NODE_KINDS_SQL, PREDICATES_SQL, GRAPH_FACT_PREDICATES_SQL, TYPED_GRAPH_DDL;
+var init_migrations = __esm(() => {
+  init_ontology();
+  NODE_KINDS_SQL = sqlList(NODE_TYPES);
+  PREDICATES_SQL = sqlList(ALL_PREDICATES);
+  GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
+  TYPED_GRAPH_DDL = `
+CREATE TABLE IF NOT EXISTS typed_nodes (
+  id INTEGER PRIMARY KEY,
+  canonical_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN (${NODE_KINDS_SQL})),
+  label TEXT NOT NULL,
+  file TEXT,
+  line INTEGER,
+  created_run TEXT NOT NULL,
+  superseded_run TEXT
+);
+CREATE TABLE IF NOT EXISTS typed_edges (
+  id INTEGER PRIMARY KEY,
+  src_canonical TEXT NOT NULL,
+  dst_canonical TEXT NOT NULL,
+  predicate TEXT NOT NULL CHECK (predicate IN (${PREDICATES_SQL})),
+  evidence_quote TEXT NOT NULL CHECK (length(evidence_quote) > 0),
+  confidence REAL NOT NULL DEFAULT 1.0,
+  created_run TEXT NOT NULL,
+  superseded_run TEXT
+);
+CREATE TABLE IF NOT EXISTS resolutions (
+  alias TEXT PRIMARY KEY,
+  canonical_id TEXT NOT NULL,
+  verdict TEXT NOT NULL CHECK (verdict IN ('same','related','unrelated')),
+  reasoning TEXT NOT NULL,
+  created_run TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS graph_facts (
+  id INTEGER PRIMARY KEY,
+  subject TEXT NOT NULL,
+  predicate TEXT NOT NULL CHECK (predicate IN (${GRAPH_FACT_PREDICATES_SQL})),
+  object TEXT NOT NULL,
+  evidence TEXT NOT NULL CHECK (length(evidence) > 0),
+  confidence REAL NOT NULL,
+  created_at INTEGER NOT NULL,
+  superseded_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id);
+CREATE INDEX IF NOT EXISTS idx_tn_kind ON typed_nodes(kind);
+-- THE FILE INDEX (GG-BUG-5, the host live-fire 2026-09-10): the graph gate's
+-- blast-radius CTE joins dst.file = blast.file per recursion row \u2014 with no
+-- index on file each step full-scans typed_nodes (measured: 468-row closure
+-- at depth 2 took 81s on the 51K-edge production store; indexed it is ms).
+CREATE INDEX IF NOT EXISTS idx_tn_file ON typed_nodes(file);
+CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical);
+CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical);
+CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate);
+CREATE INDEX IF NOT EXISTS idx_res_canonical ON resolutions(canonical_id);
+CREATE INDEX IF NOT EXISTS idx_gf_subject ON graph_facts(subject);
+`;
+});
+
+// src/hunter/shared/db.ts
+import fs13 from "fs";
+import path14 from "path";
+import { Database as Database5 } from "bun:sqlite";
+function lineageMissing(id) {
+  return new Error(`LINEAGE_MISSING: id=${id} (the SPEC_DERIVED/CODE_DERIVED/HYBRID duality cannot degrade - O28.4)`);
+}
+function findingNoTriplet(detail) {
+  return new Error(`FINDING_NO_TRIPLET: ${detail} (no triplet = no finding - a non-empty evidence string is mandatory - O9.1)`);
+}
+function findingInvalid(field, value) {
+  return new Error(`FINDING_INVALID: field=${field} value=${JSON.stringify(value)} (the severity canon is CRIT|HIGH|MED|WARN; the verdict is VIOLATION|PASS - fix the finding)`);
+}
+function eventInvalid(kind) {
+  return new Error(`EVENT_INVALID: kind=${JSON.stringify(kind)} (the bus kinds are HUNT_DONE|BUILD_DONE|AUDIT_DONE - fix the event)`);
+}
+function implementationInvalid(field, value) {
+  return new Error(`IMPLEMENTATION_INVALID: field=${field} value=${JSON.stringify(value)} (the status canon is PENDING|CHANGED|UNCHANGED|VERIFIED|REJECTED - fix the row)`);
+}
+function verdictInvalid(field, value) {
+  return new Error(`VERDICT_INVALID: field=${field} value=${JSON.stringify(value)} (the verdict canon is CONFORMANT|VIOLATED|PARTIAL - fix the row)`);
+}
+function mirrorWriteFailed(mirrorPath, detail) {
+  return new Error(`MIRROR_WRITE_FAILED: path=${mirrorPath} detail=${detail} (the MASTER_CONTEXT mirror is the awareness surface, not the truth - the .trident shared.db is the truth - D27)`);
+}
+function pragmaFailed(pragma, detail) {
+  return new Error(`PRAGMA_FAILED: pragma=${pragma} detail=${detail} (a pragma exec failure is a loud named error - a database-is-locked on open must name the driver + the pragma, never surface as a raw sqlite throw - the store's fail-closed contract)`);
+}
+function applyPragmas(db) {
+  const execPragma = (pragma) => {
+    try {
+      db.exec(pragma);
+    } catch (e) {
+      throw pragmaFailed(pragma, `driver=bun:sqlite message=${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  execPragma("PRAGMA journal_mode = WAL");
+  execPragma("PRAGMA synchronous = NORMAL");
+  execPragma("PRAGMA busy_timeout = 5000");
+  execPragma("PRAGMA foreign_keys = ON");
+  execPragma("PRAGMA user_version = 184");
+}
+function isNodeLineage(v) {
+  return v === "SPEC_DERIVED" || v === "CODE_DERIVED" || v === "HYBRID";
+}
+
+class SharedDb {
+  dbPath;
+  handle;
+  open = true;
+  constructor(dbPath, handle) {
+    this.dbPath = dbPath;
+    this.handle = handle;
+  }
+  exec(sql) {
+    this.handle.exec(sql);
+  }
+  prepare(sql) {
+    const stmt = this.handle.prepare(sql);
+    if (stmt !== undefined && stmt !== null) {
+      return stmt;
+    }
+    throw new Error("[db] the sqlite prepare returned no statement");
+  }
+  close() {
+    if (this.open) {
+      this.handle.close();
+      this.open = false;
+    }
+  }
+  writeGraph(nodes, edges) {
+    for (const n of nodes) {
+      if (!isNodeLineage(n.lineage)) {
+        throw lineageMissing(n.id);
+      }
+    }
+    for (const e of edges) {
+      if (!isNodeLineage(e.lineage)) {
+        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
+      }
+    }
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    for (const e of edges) {
+      if (!nodeIds.has(e.sourceId) || !nodeIds.has(e.targetId)) {
+        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId} (dangling endpoint \u2014 no such node in this write batch)`);
+      }
+    }
+    const tx = this.handle.transaction(() => {
+      this.handle.prepare("DELETE FROM graph_edges").run();
+      this.handle.prepare("DELETE FROM graph_nodes").run();
+      const nodeStmt = this.handle.prepare("INSERT INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)");
+      for (const n of nodes) {
+        nodeStmt.run(n.id, n.kind, n.name, n.file ?? null, n.line ?? null, n.lineage, n.source, JSON.stringify(n.data ?? {}));
+      }
+      const edgeStmt = this.handle.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)");
+      for (const e of edges) {
+        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
+      }
+    });
+    tx();
+  }
+  appendFinding(finding, runId, week) {
+    if (typeof finding.ruleId !== "string" || finding.ruleId.trim() === "") {
+      throw findingNoTriplet(`finding at ${finding.file ?? "?"}:${finding.line ?? "?"} carries an empty ruleId \u2014 the Pattern leg of the EvidenceTriad is mandatory`);
+    }
+    if (typeof finding.evidence !== "string" || finding.evidence.trim() === "") {
+      throw findingNoTriplet(`finding ${finding.ruleId} at ${finding.file ?? "?"}:${finding.line ?? "?"} carries an empty evidence string`);
+    }
+    if (!SEVERITIES.includes(finding.severity))
+      throw findingInvalid("severity", finding.severity);
+    if (!FINDING_VERDICTS.includes(finding.verdict))
+      throw findingInvalid("verdict", finding.verdict);
+    const persistedEvidence = finding.evidence;
+    this.handle.prepare(`INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(finding.ruleId, finding.severity, finding.file ?? null, finding.line ?? null, finding.rangeStart ?? null, finding.rangeEnd ?? null, persistedEvidence, finding.verdict, week ?? null, runId, Date.now());
+  }
+  appendReportSection(section, runId) {
+    this.handle.prepare(`INSERT INTO report_sections (finding_id,how_broken,why_broken,what_violates,how_to_fix,what_to_do,why_works,run_id)
+       VALUES (?,?,?,?,?,?,?,?)`).run(section.findingId, section.howBroken, section.whyBroken, section.whatViolates, section.howToFix, section.whatToDo, section.whyWorks, runId);
+  }
+  appendImplementation(row, runId) {
+    if (!IMPLEMENTATION_STATUSES.includes(row.status)) {
+      throw implementationInvalid("status", row.status);
+    }
+    this.handle.prepare("INSERT INTO implementations (file,before_sha,after_sha,claim,status,run_id) VALUES (?,?,?,?,?,?)").run(row.file, row.beforeSha, row.afterSha, row.claim, row.status, runId);
+  }
+  appendConformanceVerdict(row, runId) {
+    if (!CONFORMANCE_VERDICTS.includes(row.verdict)) {
+      throw verdictInvalid("verdict", row.verdict);
+    }
+    this.handle.prepare("INSERT INTO conformance_verdicts (finding_id,verdict,evidence,fixed_at,fixed_by,run_id) VALUES (?,?,?,?,?,?)").run(row.findingId, row.verdict, row.evidence, row.fixedAt ?? null, row.fixedBy, runId);
+  }
+  appendEvent(kind, payload) {
+    if (!EVENT_KINDS.includes(kind))
+      throw eventInvalid(kind);
+    this.handle.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)").run(kind, JSON.stringify(payload), Date.now());
+  }
+  mirrorToMasterContext(profile) {
+    const mirrorDir = path14.join(profile.project.root, "MASTER_CONTEXT", "knowledge-graph");
+    const mirrorPath = path14.join(mirrorDir, "graph.db");
+    let mirror;
+    try {
+      fs13.mkdirSync(mirrorDir, { recursive: true });
+      mirror = new Database5(mirrorPath);
+      applyPragmas(mirror);
+    } catch (e) {
+      try {
+        mirror?.close();
+      } catch {}
+      throw mirrorWriteFailed(mirrorPath, `mirror open failed: ${String(e)}`);
+    }
+    const openMirror = mirror;
+    try {
+      const rebuild = openMirror.transaction(() => {
+        openMirror.exec("DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;");
+        openMirror.exec(MIRROR_SCHEMA_SQL);
+        const nodeIns = openMirror.prepare("INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)");
+        for (const row of this.handle.prepare("SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes").all()) {
+          nodeIns.run(row["id"], row["kind"], row["name"], row["file"], row["line"], row["lineage"], row["source"], row["data"]);
+        }
+        const edgeIns = openMirror.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)");
+        for (const row of this.handle.prepare("SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges").all()) {
+          edgeIns.run(row["source_id"], row["target_id"], row["kind"], row["lineage"], row["created_at"]);
+        }
+        const findIns = openMirror.prepare("INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+        for (const row of this.handle.prepare("SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings").all()) {
+          findIns.run(row["rule_id"], row["severity"], row["file"], row["line"], row["range_start"], row["range_end"], row["evidence"], row["verdict"], row["week"], row["run_id"], row["created_at"]);
+        }
+        const evIns = openMirror.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)");
+        for (const row of this.handle.prepare("SELECT kind,payload,created_at FROM events").all()) {
+          evIns.run(row["kind"], row["payload"], row["created_at"]);
+        }
+      });
+      rebuild();
+    } catch (e) {
+      throw mirrorWriteFailed(mirrorPath, `mirror copy failed: ${String(e)}`);
+    } finally {
+      openMirror.close();
+    }
+    return mirrorPath;
+  }
+}
+function openStore(dbPath) {
+  if (dbPath !== ":memory:") {
+    fs13.mkdirSync(path14.dirname(dbPath), { recursive: true });
+  }
+  const handle = new Database5(dbPath);
+  applyPragmas(handle);
+  handle.exec(CREATE_TABLES_SQL);
+  handle.exec(TYPED_GRAPH_DDL);
+  return new SharedDb(dbPath, handle);
+}
+function writeGraph(db, nodes, edges) {
+  db.writeGraph(nodes, edges);
+}
+function appendReportSection(db, section, runId) {
+  db.appendReportSection(section, runId);
+}
+function appendEvent(db, kind, payload) {
+  db.appendEvent(kind, payload);
+}
+function mirrorToMasterContext(db, profile) {
+  return db.mirrorToMasterContext(profile);
+}
+var SEVERITIES, EVENT_KINDS, IMPLEMENTATION_STATUSES, CONFORMANCE_VERDICTS, FINDING_VERDICTS, CREATE_TABLES_SQL = `
+CREATE TABLE IF NOT EXISTS graph_nodes (
+  id        TEXT PRIMARY KEY,
+  kind      TEXT NOT NULL,
+  name      TEXT NOT NULL,
+  file      TEXT,
+  line      INTEGER,
+  lineage   TEXT NOT NULL,
+  source    TEXT NOT NULL,
+  data      TEXT
+);
+CREATE TABLE IF NOT EXISTS graph_edges (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_id  TEXT NOT NULL REFERENCES graph_nodes(id),
+  target_id  TEXT NOT NULL REFERENCES graph_nodes(id),
+  kind       TEXT NOT NULL,
+  lineage    TEXT NOT NULL,
+  created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS findings (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  rule_id     TEXT NOT NULL,
+  severity    TEXT NOT NULL,
+  file        TEXT,
+  line        INTEGER,
+  range_start INTEGER,
+  range_end   INTEGER,
+  evidence    TEXT NOT NULL,
+  verdict     TEXT NOT NULL,
+  week        TEXT,
+  run_id      TEXT NOT NULL,
+  created_at  INTEGER
+);
+CREATE TABLE IF NOT EXISTS report_sections (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  finding_id  TEXT NOT NULL,
+  how_broken  TEXT NOT NULL,
+  why_broken  TEXT NOT NULL,
+  what_violates TEXT NOT NULL,
+  how_to_fix  TEXT NOT NULL,
+  what_to_do  TEXT NOT NULL,
+  why_works   TEXT NOT NULL,
+  run_id      TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS implementations (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  file       TEXT NOT NULL,
+  before_sha TEXT NOT NULL,
+  after_sha  TEXT NOT NULL,
+  claim      TEXT NOT NULL,
+  status     TEXT NOT NULL,
+  run_id     TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS conformance_verdicts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  finding_id TEXT NOT NULL,
+  verdict    TEXT NOT NULL,
+  evidence   TEXT NOT NULL,
+  fixed_at   INTEGER,
+  fixed_by   TEXT NOT NULL,
+  run_id     TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind       TEXT NOT NULL,
+  payload    TEXT NOT NULL,
+  created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS compiled_predicates (
+  id         TEXT PRIMARY KEY,
+  family     TEXT NOT NULL,
+  template   TEXT NOT NULL,
+  bindings   TEXT NOT NULL,
+  verbatim_quote TEXT NOT NULL,
+  anchor     TEXT NOT NULL,
+  severity   TEXT NOT NULL,
+  check_code TEXT NOT NULL,
+  battery_version TEXT NOT NULL,
+  calibrated TEXT NOT NULL DEFAULT 'PENDING'
+);
+CREATE TABLE IF NOT EXISTS calibrations (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  predicate_id   TEXT NOT NULL,
+  test           TEXT NOT NULL,
+  fixture        TEXT NOT NULL,
+  result         TEXT NOT NULL,
+  evidence       TEXT NOT NULL,
+  run_id         TEXT NOT NULL,
+  created_at     INTEGER
+);
+CREATE TABLE IF NOT EXISTS rule_cards (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  quote      TEXT NOT NULL,
+  anchor     TEXT NOT NULL,
+  classification TEXT NOT NULL,
+  severity   TEXT NOT NULL,
+  proposed   INTEGER NOT NULL DEFAULT 0,
+  corpus_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS audits (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id     TEXT NOT NULL,
+  actor      TEXT NOT NULL,
+  event      TEXT NOT NULL,
+  triplet    TEXT NOT NULL,
+  created_at INTEGER
+);
+`, MIRROR_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS graph_nodes (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL,
+  file TEXT, line INTEGER, lineage TEXT NOT NULL, source TEXT NOT NULL, data TEXT
+);
+CREATE TABLE IF NOT EXISTS graph_edges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_id TEXT NOT NULL REFERENCES graph_nodes(id),
+  target_id TEXT NOT NULL REFERENCES graph_nodes(id),
+  kind TEXT NOT NULL, lineage TEXT NOT NULL, created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS findings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rule_id TEXT NOT NULL, severity TEXT NOT NULL, file TEXT, line INTEGER,
+  range_start INTEGER, range_end INTEGER, evidence TEXT NOT NULL,
+  verdict TEXT NOT NULL, week TEXT, run_id TEXT NOT NULL, created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER
+);
+`;
+var init_db = __esm(() => {
+  init_migrations();
+  SEVERITIES = ["CRIT", "HIGH", "MED", "WARN"];
+  EVENT_KINDS = ["HUNT_DONE", "BUILD_DONE", "AUDIT_DONE"];
+  IMPLEMENTATION_STATUSES = ["PENDING", "CHANGED", "UNCHANGED", "VERIFIED", "REJECTED"];
+  CONFORMANCE_VERDICTS = ["CONFORMANT", "VIOLATED", "PARTIAL"];
+  FINDING_VERDICTS = ["VIOLATION", "PASS"];
+});
+
 // node_modules/typescript/lib/typescript.js
 var require_typescript = __commonJS(function(exports, module) {
   var __dirname = "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/node_modules/typescript/lib", __filename = "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/node_modules/typescript/lib/typescript.js";
@@ -176552,6 +176957,650 @@ var init_zod = __esm(() => {
   init_external();
 });
 
+// src/hunter/shared/db-canon.ts
+var init_db_canon = __esm(() => {
+  init_db();
+});
+
+// src/hunter/lexicon/templates.ts
+import { createHash as createHash4 } from "crypto";
+function templateBindingInvalid(templateId, detail) {
+  return new LexiconError("TEMPLATE_BINDING_INVALID", `TEMPLATE_BINDING_INVALID: template=${templateId} detail=${detail} (the bound params failed the template's zod schema \u2014 an invalid binding is a loud named error, never a coerced default)`);
+}
+function templateMissing(templateId) {
+  return new LexiconError("TEMPLATE_MISSING", `TEMPLATE_MISSING: template=${templateId} (the stored check_code names a template absent from the library \u2014 the battery cannot be reinstated)`);
+}
+function sha256(input) {
+  return createHash4("sha256").update(input, "utf8").digest("hex");
+}
+function readPath(obj, dotted) {
+  let cur = obj;
+  for (const part of dotted.split(".")) {
+    if (cur === null || cur === undefined || typeof cur !== "object")
+      return;
+    if (!Object.hasOwn(cur, part))
+      return;
+    if (part === "__proto__" || part === "constructor" || part === "prototype")
+      return;
+    cur = cur[part];
+  }
+  return cur;
+}
+function compareOperator(op, value, threshold) {
+  switch (op) {
+    case "lt":
+      return value < threshold;
+    case "lte":
+      return value <= threshold;
+    case "gt":
+      return value > threshold;
+    case "gte":
+      return value >= threshold;
+    default:
+      return value > threshold;
+  }
+}
+function bindSeverity(bindings) {
+  const sev = bindings["severity"];
+  if (typeof sev === "string" && SEVERITIES.includes(sev)) {
+    return sev;
+  }
+  throw templateBindingInvalid("severity", `the severity binding must be one of ${SEVERITIES.join("|")}`);
+}
+function bindStringArray(bindings, key) {
+  const v = bindings[key];
+  if (Array.isArray(v)) {
+    return v.filter((el) => typeof el === "string");
+  }
+  return [];
+}
+function bindStages(bindings) {
+  const v = bindings["stages"];
+  if (Array.isArray(v)) {
+    return v.filter((el) => typeof el === "object" && el !== null && typeof el.id === "string" && typeof el.entry === "string");
+  }
+  return [];
+}
+function bindOperator(bindings) {
+  const v = bindings["operator"];
+  if (typeof v === "string" && (v === "lt" || v === "lte" || v === "gt" || v === "gte")) {
+    return v;
+  }
+  throw templateBindingInvalid("domain.numeric-threshold", `the operator binding must be one of lt|lte|gt|gte, got ${JSON.stringify(v)}`);
+}
+function bindNumber(bindings, key) {
+  const v = bindings[key];
+  if (typeof v === "number") {
+    return v;
+  }
+  return;
+}
+function bindRange(bindings) {
+  const v = bindings["range"];
+  if (Array.isArray(v) && v.length === 2 && typeof v[0] === "number" && typeof v[1] === "number") {
+    return [v[0], v[1]];
+  }
+  return;
+}
+function stableBindingsJson(v) {
+  if (v === undefined)
+    return "null";
+  if (v === null || typeof v !== "object")
+    return JSON.stringify(v) ?? "null";
+  if (Array.isArray(v))
+    return `[${v.map((x) => x === undefined ? "null" : stableBindingsJson(x)).join(",")}]`;
+  const obj = v;
+  const parts = [];
+  for (const k of Object.keys(obj).sort()) {
+    const val = obj[k];
+    if (val === undefined)
+      continue;
+    parts.push(`${JSON.stringify(k)}:${stableBindingsJson(val)}`);
+  }
+  return `{${parts.join(",")}}`;
+}
+function contentAddress(templateId, bindings, anchor) {
+  return `${templateId}:${sha256(`${anchor}|${stableBindingsJson(bindings)}`).slice(0, 12)}`;
+}
+function compileTemplate(template, rawBindings, card, batteryVersion) {
+  let validated;
+  try {
+    validated = template.parameters.parse(rawBindings);
+  } catch (e) {
+    throw templateBindingInvalid(template.id, `the bound params failed the template's zod schema: ${String(e)}`);
+  }
+  return {
+    id: contentAddress(template.id, validated, card.anchor),
+    family: template.family,
+    template: template.id,
+    bindings: validated,
+    verbatimQuote: card.verbatimQuote,
+    anchor: card.anchor,
+    severity: card.severity,
+    batteryVersion,
+    check: (ctx) => template.check({ ...ctx, bindings: validated })
+  };
+}
+function safeWhoCalls(graph, sym) {
+  try {
+    return graph.whoCalls(sym) ?? [];
+  } catch {
+    return [];
+  }
+}
+function safeImports(graph, module) {
+  try {
+    return graph.imports(module) ?? [];
+  } catch {
+    return [];
+  }
+}
+function safeChain(graph, id) {
+  try {
+    return graph.chain(id) ?? [];
+  } catch {
+    return [];
+  }
+}
+function safeAwaits(graph, sym) {
+  try {
+    return graph.awaits(sym) ?? [];
+  } catch {
+    return [];
+  }
+}
+function safeNodes(graph) {
+  try {
+    return graph.nodes() ?? [];
+  } catch {
+    return [];
+  }
+}
+function resolveEdgeAnchor(graph, spec) {
+  const files = new Set;
+  const cites = new Map;
+  const add = (file, c) => {
+    if (!file)
+      return;
+    files.add(file);
+    const arr = cites.get(file) ?? [];
+    arr.push(c);
+    cites.set(file, arr);
+  };
+  for (const sym of spec.callSymbols) {
+    for (const cs of safeWhoCalls(graph, sym)) {
+      add(cs.file, { from: cs.caller, to: sym, kind: "calls", file: cs.file, line: cs.line });
+    }
+  }
+  for (const n of safeNodes(graph)) {
+    const keys = [];
+    if (n.id)
+      keys.push(n.id);
+    if (n.name && n.name !== n.id)
+      keys.push(n.name);
+    if (n.file && n.file !== n.name && n.file !== n.id)
+      keys.push(n.file);
+    if (keys.length === 0)
+      continue;
+    for (const key of keys) {
+      for (const e of safeImports(graph, key)) {
+        const target = String(e.to);
+        if (spec.importMatchers.some((m) => target.includes(m))) {
+          add(e.file || n.file || "", { from: String(e.from), to: String(e.to), kind: "imports", file: e.file, line: e.line });
+        }
+      }
+    }
+  }
+  for (const n of safeNodes(graph)) {
+    if (n.kind !== "function" && n.kind !== "method" && n.kind !== "class")
+      continue;
+    if (!spec.defMatchers.some((rx) => {
+      rx.lastIndex = 0;
+      const hit = rx.test(n.name);
+      rx.lastIndex = 0;
+      return hit;
+    }))
+      continue;
+    const inbound = safeWhoCalls(graph, n.name);
+    const steps = safeChain(graph, n.id);
+    const aw = safeAwaits(graph, n.name);
+    if (inbound.length === 0 && steps.length === 0 && aw.length === 0)
+      continue;
+    const file = n.file ?? "";
+    if (inbound.length > 0) {
+      const c0 = inbound[0];
+      add(file, { from: c0.caller, to: n.name, kind: "calls", file: c0.file, line: c0.line });
+    } else if (steps.length > 0) {
+      const s0 = steps[0];
+      add(file, { from: String(s0.from), to: String(s0.to), kind: String(s0.kind), file: s0.file, line: s0.line });
+    } else {
+      const a0 = aw[0];
+      add(file, { from: String(a0.from), to: String(a0.to), kind: "awaits", file: a0.file, line: a0.line });
+    }
+  }
+  return { files, cites };
+}
+function edgeEvidence(c) {
+  return `edge ${c.from} -[${c.kind}]-> ${c.to} (${c.file}:${c.line})`;
+}
+function firstCite(cites, file) {
+  return cites.get(file)?.[0];
+}
+var LexiconError, CARD_FIELDS, WIRING_DEAD_MODULE, WIRING_EXPORT_IMPORTER, CONTRACT_MUST_IMPLEMENT, PROVENANCE_TRACES_TO_SOURCE, PROVENANCE_QUOTED_NOT_SYNTHESIZED, DOMAIN_NUMERIC_THRESHOLD, PROCESS_GATES_OUTPUTS, TEMPLATE_LIBRARY;
+var init_templates = __esm(() => {
+  init_zod();
+  init_db_canon();
+  LexiconError = class LexiconError extends Error {
+    code;
+    constructor(code, message) {
+      super(message);
+      this.name = code;
+      this.code = code;
+    }
+  };
+  CARD_FIELDS = {
+    verbatimQuote: string2(),
+    anchor: string2(),
+    severity: _enum(SEVERITIES)
+  };
+  WIRING_DEAD_MODULE = {
+    id: "wiring.no-dead-module",
+    family: "WIRING",
+    parameters: object({ ...CARD_FIELDS }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      for (const dead of ctx.graph.unwired()) {
+        findings.push({
+          ruleId: "wiring.no-dead-module",
+          severity: sev,
+          file: dead.file,
+          line: dead.line,
+          evidence: `dead module ${dead.name} (${dead.file}:${dead.line}) has zero inbound callers \u2014 the unwired() graph read lists it`,
+          verdict: "VIOLATION"
+        });
+      }
+      return findings;
+    }
+  };
+  WIRING_EXPORT_IMPORTER = {
+    id: "wiring.every-export-has-an-importer",
+    family: "WIRING",
+    parameters: object({ ...CARD_FIELDS }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      const exportLinesByFile = new Map;
+      const isExportedDecl = (file, line) => {
+        if (!file || typeof line !== "number" || line <= 0)
+          return false;
+        let lines = exportLinesByFile.get(file);
+        if (!lines) {
+          lines = new Set;
+          try {
+            const src = ctx.source.read(file).split(`
+`);
+            for (let i = 0;i < src.length; i++)
+              if (/^\s*export\s/.test(src[i]))
+                lines.add(i + 1);
+          } catch {}
+          exportLinesByFile.set(file, lines);
+        }
+        return lines.has(line);
+      };
+      for (const node of ctx.graph.nodes()) {
+        if (node.kind !== "class" && node.kind !== "function")
+          continue;
+        if (!isExportedDecl(node.file, node.line ?? null))
+          continue;
+        const callers = ctx.graph.whoCalls(node.name);
+        if (callers.length === 0 && node.file) {
+          findings.push({
+            ruleId: "wiring.every-export-has-an-importer",
+            severity: sev,
+            file: node.file,
+            line: node.line ?? 0,
+            evidence: `export ${node.name} (${node.file}:${node.line ?? "?"}) has zero call sites \u2014 whoCalls('${node.name}') returned []`,
+            verdict: "VIOLATION"
+          });
+        }
+      }
+      return findings;
+    }
+  };
+  CONTRACT_MUST_IMPLEMENT = {
+    id: "contract.must-implement",
+    family: "CONTRACT",
+    parameters: object({
+      ...CARD_FIELDS,
+      declaredInterface: string2().default(""),
+      requiredMembers: array(string2()).default([])
+    }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      const declaredInterface = String(ctx.bindings["declaredInterface"] ?? "");
+      const requiredMembers = bindStringArray(ctx.bindings, "requiredMembers");
+      if (!declaredInterface || requiredMembers.length === 0)
+        return findings;
+      for (const node of ctx.graph.nodes("class")) {
+        const nodeInterface = node.data ? readPath(node.data, "interface") : undefined;
+        if (node.name !== declaredInterface && nodeInterface !== declaredInterface)
+          continue;
+        const membersRaw = node.data ? readPath(node.data, "members") : undefined;
+        const members = Array.isArray(membersRaw) ? membersRaw.filter((el) => typeof el === "string") : [];
+        const missing = requiredMembers.filter((m) => !members.includes(m));
+        if (missing.length > 0) {
+          findings.push({
+            ruleId: "contract.must-implement",
+            severity: sev,
+            file: node.file ?? "",
+            line: node.line ?? 0,
+            evidence: `class ${node.name} (${node.file}:${node.line ?? "?"}) declares members ${JSON.stringify(members)} \u2014 missing the declared members ${missing.join(", ")}`,
+            verdict: "VIOLATION"
+          });
+        }
+      }
+      return findings;
+    }
+  };
+  PROVENANCE_TRACES_TO_SOURCE = {
+    id: "provenance.traces-to-source",
+    family: "PROVENANCE",
+    parameters: object({
+      ...CARD_FIELDS,
+      targetKinds: array(string2()).default([]),
+      requiredTraces: array(string2()).default([])
+    }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      const targetKinds = bindStringArray(ctx.bindings, "targetKinds");
+      const requiredTraces = bindStringArray(ctx.bindings, "requiredTraces");
+      for (const targetKind of targetKinds) {
+        for (const node of ctx.graph.nodes(targetKind)) {
+          const incoming = ctx.graph.chain(node.id);
+          const present = requiredTraces.some((r) => incoming.some((step) => step.to === node.id && step.kind === "traces-to" && step.from.includes(r)));
+          if (!present) {
+            findings.push({
+              ruleId: "provenance.traces-to-source",
+              severity: sev,
+              file: node.file ?? "",
+              line: node.line ?? 0,
+              evidence: `${node.name} lacks a traces-to edge from ${requiredTraces.join("/")} \u2014 incoming edges: ${incoming.map((s) => `${s.kind}@${s.from}`).join(", ") || "NONE"}`,
+              verdict: "VIOLATION"
+            });
+          }
+        }
+      }
+      return findings;
+    }
+  };
+  PROVENANCE_QUOTED_NOT_SYNTHESIZED = {
+    id: "provenance.quoted-not-synthesized",
+    family: "PROVENANCE",
+    parameters: object({
+      ...CARD_FIELDS,
+      file: string2().default(""),
+      quote: string2().default(""),
+      range: tuple([number2(), number2()]).optional()
+    }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      const file = String(ctx.bindings["file"] ?? "");
+      const quote = String(ctx.bindings["quote"] ?? "");
+      if (!file || !quote)
+        return findings;
+      const range = bindRange(ctx.bindings);
+      const text = ctx.source.read(file, range);
+      if (!text.includes(quote)) {
+        findings.push({
+          ruleId: "provenance.quoted-not-synthesized",
+          severity: sev,
+          file,
+          line: range?.[0] ?? 0,
+          evidence: `the verbatim quote '${quote.slice(0, 80)}...' is absent from ${file} \u2014 doctrine is QUOTED, never synthesized (D13)`,
+          verdict: "VIOLATION"
+        });
+      }
+      return findings;
+    }
+  };
+  DOMAIN_NUMERIC_THRESHOLD = {
+    id: "domain.numeric-threshold",
+    family: "DOMAIN",
+    parameters: object({
+      ...CARD_FIELDS,
+      symbol: string2().default(""),
+      valuePath: string2().default(""),
+      operator: _enum(["lt", "lte", "gt", "gte"]).default("gt"),
+      threshold: number2().optional()
+    }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      const symbol = String(ctx.bindings["symbol"] ?? "");
+      const valuePath = String(ctx.bindings["valuePath"] ?? "");
+      const operator = bindOperator(ctx.bindings);
+      const threshold = bindNumber(ctx.bindings, "threshold");
+      if (!symbol || !valuePath || typeof threshold !== "number" || !Number.isFinite(threshold))
+        return findings;
+      for (const node of ctx.graph.nodes()) {
+        if (node.name !== symbol)
+          continue;
+        const value = readPath(node.data ?? {}, valuePath);
+        if (typeof value !== "number" || !Number.isFinite(value))
+          continue;
+        if (compareOperator(operator, value, threshold)) {
+          findings.push({
+            ruleId: "domain.numeric-threshold",
+            severity: sev,
+            file: node.file ?? "",
+            line: node.line ?? 0,
+            evidence: `${node.name}.${valuePath} = ${value} violates the declared ${operator} ${threshold} ceiling (bindings: ${JSON.stringify(ctx.bindings)})`,
+            verdict: "VIOLATION"
+          });
+        }
+      }
+      return findings;
+    }
+  };
+  PROCESS_GATES_OUTPUTS = {
+    id: "process.gates-measure-outputs-not-logic",
+    family: "PROCESS",
+    parameters: object({
+      ...CARD_FIELDS,
+      stages: array(object({ id: string2(), entry: string2() })).default([])
+    }),
+    check(ctx) {
+      const findings = [];
+      const sev = bindSeverity(ctx.bindings);
+      const stages = bindStages(ctx.bindings);
+      for (let i = 0;i + 1 < stages.length; i++) {
+        const cur = stages[i];
+        const next = stages[i + 1];
+        const outgoing = ctx.graph.awaits(cur.entry);
+        const callers = ctx.graph.whoCalls(next.entry);
+        const connected = outgoing.some((e) => e.to.includes(next.entry)) || callers.some((c) => c.caller === cur.entry);
+        if (!connected) {
+          let stageFile = "";
+          try {
+            const hit = ctx.graph.nodes().find((n) => n.name === cur.entry);
+            if (hit?.file)
+              stageFile = hit.file;
+          } catch {}
+          findings.push({
+            ruleId: "process.gates-measure-outputs-not-logic",
+            severity: sev,
+            file: stageFile,
+            line: 0,
+            evidence: `stage ${cur.id} (entry ${cur.entry}) has no graph edge reaching stage ${next.id} (entry ${next.entry}) \u2014 the declared sequence is not wired in the call graph`,
+            verdict: "VIOLATION"
+          });
+        }
+      }
+      return findings;
+    }
+  };
+  TEMPLATE_LIBRARY = {
+    "wiring.no-dead-module": WIRING_DEAD_MODULE,
+    "wiring.every-export-has-an-importer": WIRING_EXPORT_IMPORTER,
+    "contract.must-implement": CONTRACT_MUST_IMPLEMENT,
+    "provenance.traces-to-source": PROVENANCE_TRACES_TO_SOURCE,
+    "provenance.quoted-not-synthesized": PROVENANCE_QUOTED_NOT_SYNTHESIZED,
+    "domain.numeric-threshold": DOMAIN_NUMERIC_THRESHOLD,
+    "process.gates-measure-outputs-not-logic": PROCESS_GATES_OUTPUTS
+  };
+});
+
+// src/hunter/lexicon/rule-card.ts
+function corpusUnreadable(corpusPath, detail) {
+  return new LexiconError("CORPUS_UNREADABLE", `CORPUS_UNREADABLE: path=${corpusPath} detail=${detail} (a corpus path that cannot be read is a loud named error, never a silent skip)`);
+}
+function corpusEmpty() {
+  return new LexiconError("CORPUS_EMPTY", `CORPUS_EMPTY: the corpus path list is empty \u2014 the profile's rules.corpus is min(1); a compile with zero corpus paths is a profile error, never an empty battery`);
+}
+function countMatches(re, text) {
+  const m = text.match(re);
+  return m ? m.length : 0;
+}
+function classify(quote) {
+  const scores = {
+    ARCH: countMatches(ARCH_TERMS, quote),
+    LOGIC: countMatches(LOGIC_TERMS, quote),
+    PROCESS: countMatches(PROCESS_TERMS, quote),
+    DOMAIN: countMatches(DOMAIN_TERMS, quote)
+  };
+  const max = Math.max(...Object.values(scores));
+  const CLASSIFICATIONS = ["ARCH", "LOGIC", "PROCESS", "DOMAIN"];
+  const winners = CLASSIFICATIONS.filter((k) => scores[k] === max && scores[k] > 0);
+  if (winners.length === 1)
+    return { classification: winners[0], ambiguous: false };
+  return { classification: "PROCESS", ambiguous: true };
+}
+function rate(text) {
+  if (/(^|\W)(NEVER|FUCKING|ABSOLUTELY|MANDATORY)(\W|$)/i.test(text))
+    return "CRIT";
+  if (/(^|\W)(MUST|ALWAYS|BANNED|FORBIDDEN|CRITICAL)(\W|$)/i.test(text))
+    return "HIGH";
+  if (/(^|\W)(SHOULD|SHALL|REQUIRE|REQUIRES|REQUIRED|ENSURE)(\W|$)/i.test(text))
+    return "MED";
+  return "WARN";
+}
+function voiceAmbiguous(text) {
+  return SOFT_VOICE.test(text) || CONDITIONAL_HEDGE.test(text);
+}
+function readDeclaredMeta(lines, start) {
+  const meta = {};
+  for (let i = start;i < lines.length && i < start + META_SCAN_WINDOW; i++) {
+    const line = lines[i];
+    if (line.trim() === "")
+      break;
+    const cm = line.match(DECLARED_CLASSIFICATION);
+    if (cm && !meta.classification) {
+      const v = String(cm[1]).toUpperCase();
+      if (isClassification(v))
+        meta.classification = v;
+    }
+    const sm = line.match(DECLARED_SEVERITY);
+    if (sm && !meta.severity) {
+      const v = String(sm[1]).toUpperCase();
+      if (isSeverity(v))
+        meta.severity = v;
+    }
+    if (cm || sm)
+      continue;
+    if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line))
+      break;
+  }
+  return meta;
+}
+function isClassification(v) {
+  return v === "ARCH" || v === "LOGIC" || v === "PROCESS" || v === "DOMAIN";
+}
+function isSeverity(v) {
+  return SEVERITIES.includes(v);
+}
+function isBlockquote(line) {
+  return BLOCKQUOTE.test(line);
+}
+function isQuotedPassage(line) {
+  return QUOTED_PASSAGE.test(line);
+}
+function isRuleShaped(line) {
+  return RULE_SHAPE.test(line);
+}
+function collectBlockquote(lines, start) {
+  const collected = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === "")
+      break;
+    const m = line.match(/^\s*>\s?/);
+    if (!m)
+      break;
+    collected.push(line.slice(m[0].length));
+    i++;
+  }
+  return { text: collected.join(" ").trim(), end: i };
+}
+function extractInlineQuote(line) {
+  const m = line.match(/["\u201C]([^"\u201D]+)["\u201D]/);
+  return m ? m[1].trim() : line.trim();
+}
+function makeCard(quote, anchor, sourceLine, declared) {
+  const { classification: voted, ambiguous } = classify(quote);
+  const curated = declared?.classification !== undefined && declared?.severity !== undefined;
+  const proposed = curated ? 0 : ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0;
+  return {
+    verbatimQuote: quote,
+    anchor,
+    classification: declared?.classification ?? voted,
+    severity: declared?.severity ?? rate(quote),
+    proposed
+  };
+}
+function cardsFromLines(file, lines) {
+  const cards = [];
+  for (let i = 0;i < lines.length; i++) {
+    const lineNo = i + 1;
+    const anchor = `${file}:${lineNo}`;
+    const line = lines[i];
+    if (isBlockquote(line)) {
+      const collected = collectBlockquote(lines, i);
+      cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
+      i = collected.end - 1;
+    } else if (isQuotedPassage(line)) {
+      cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
+    } else if (isRuleShaped(line)) {
+      cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
+    }
+  }
+  return cards;
+}
+function cardsFromText(file, text) {
+  return cardsFromLines(file, text.split(`
+`));
+}
+var BLOCKQUOTE, QUOTED_PASSAGE, RULE_SHAPE, SOFT_VOICE, CONDITIONAL_HEDGE, ARCH_TERMS, LOGIC_TERMS, PROCESS_TERMS, DOMAIN_TERMS, DECLARED_CLASSIFICATION, DECLARED_SEVERITY, META_SCAN_WINDOW = 4;
+var init_rule_card = __esm(() => {
+  init_db_canon();
+  init_templates();
+  BLOCKQUOTE = /^\s*>\s?/;
+  QUOTED_PASSAGE = /["\u201C][^"\u201D]{3,}["\u201D]/;
+  RULE_SHAPE = /(^|\W)(NEVER|MUST|FUCKING|ALWAYS|ABSOLUTELY|BANNED|FORBIDDEN|MANDATORY)(\W|$)/i;
+  SOFT_VOICE = /(^|\W)(may|might|could|should|perhaps|probably|maybe|consider|suggests?|possibly|ideally|eventually)(\W|$)/i;
+  CONDITIONAL_HEDGE = /\bif\b[^\n]{0,60}\b(then|it would|we can|one could|may|might)\b/i;
+  ARCH_TERMS = /architecture|pipeline|stage|module|layer|wiring|chain/gi;
+  LOGIC_TERMS = /anchor|derive|compare|provenance|cascade|divergence|compute|inject/gi;
+  PROCESS_TERMS = /audit|gate|verify|test|document|quote|evidence|harness/gi;
+  DOMAIN_TERMS = /zone|liquidity|SL|TP|RRR|pip|mitigation|pressure|entry/gi;
+  DECLARED_CLASSIFICATION = /^\s*classification\s*[:=]\s*(ARCH|LOGIC|PROCESS|DOMAIN)\b/i;
+  DECLARED_SEVERITY = /^\s*severity\s*[:=]\s*(CRIT|HIGH|MED|WARN)\b/i;
+});
+
 // src/hunter/shared/containment.ts
 import * as fs18 from "fs";
 import * as path20 from "path";
@@ -176837,7 +177886,7 @@ function templateByLayerId(layerId) {
   return BY_LAYER_ID[layerId] ?? null;
 }
 var ALL_TEMPLATES, BY_LAYER_ID;
-var init_templates = __esm(() => {
+var init_templates2 = __esm(() => {
   init_lasme();
   init_mpse();
   init_sro();
@@ -182300,6 +183349,20 @@ function acquireHuntLock(targetPath) {
         }
       } else if (reread) {
         throw new Error(`HUNT_ALREADY_RUNNING: pid=${reread.pid} acquiredAt=${reread.acquiredAt} holds ${lockPath} \u2014 wait for it to finish or delete the stale lock.`);
+      } else {
+        const fresh2 = readPayload(lockPath);
+        if (fresh2) {
+          throw new Error(`HUNT_ALREADY_RUNNING: pid=${fresh2.pid} acquiredAt=${fresh2.acquiredAt} holds ${lockPath} \u2014 wait for it to finish or delete the stale lock.`);
+        }
+        let ageMs2 = Number.NaN;
+        try {
+          ageMs2 = Date.now() - fs12.statSync(lockPath).mtimeMs;
+        } catch {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) \u2014 retry the hunt.`);
+        }
+        if (Number.isNaN(ageMs2) || ageMs2 <= STALE_LOCK_TTL_MS) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) \u2014 retry the hunt.`);
+        }
       }
       try {
         fs12.unlinkSync(lockPath);
@@ -182373,411 +183436,11 @@ function releaseHuntLock(targetPath) {
 var import_xstate_development_cjs = __toESM(require_xstate_development_cjs(), 1);
 
 // src/hunter/harness/micro-loop-machine.ts
+init_db();
 import path23 from "path";
 
-// src/hunter/shared/db.ts
-import fs13 from "fs";
-import path14 from "path";
-import { Database as Database5 } from "bun:sqlite";
-
-// src/hunter/shared/migrations.ts
-init_ontology();
-function sqlList(values) {
-  return values.map((v) => `'${v.replace(/'/g, "''")}'`).join(",");
-}
-var NODE_KINDS_SQL = sqlList(NODE_TYPES);
-var PREDICATES_SQL = sqlList(ALL_PREDICATES);
-var GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
-var TYPED_GRAPH_DDL = `
-CREATE TABLE IF NOT EXISTS typed_nodes (
-  id INTEGER PRIMARY KEY,
-  canonical_id TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN (${NODE_KINDS_SQL})),
-  label TEXT NOT NULL,
-  file TEXT,
-  line INTEGER,
-  created_run TEXT NOT NULL,
-  superseded_run TEXT
-);
-CREATE TABLE IF NOT EXISTS typed_edges (
-  id INTEGER PRIMARY KEY,
-  src_canonical TEXT NOT NULL,
-  dst_canonical TEXT NOT NULL,
-  predicate TEXT NOT NULL CHECK (predicate IN (${PREDICATES_SQL})),
-  evidence_quote TEXT NOT NULL CHECK (length(evidence_quote) > 0),
-  confidence REAL NOT NULL DEFAULT 1.0,
-  created_run TEXT NOT NULL,
-  superseded_run TEXT
-);
-CREATE TABLE IF NOT EXISTS resolutions (
-  alias TEXT PRIMARY KEY,
-  canonical_id TEXT NOT NULL,
-  verdict TEXT NOT NULL CHECK (verdict IN ('same','related','unrelated')),
-  reasoning TEXT NOT NULL,
-  created_run TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS graph_facts (
-  id INTEGER PRIMARY KEY,
-  subject TEXT NOT NULL,
-  predicate TEXT NOT NULL CHECK (predicate IN (${GRAPH_FACT_PREDICATES_SQL})),
-  object TEXT NOT NULL,
-  evidence TEXT NOT NULL CHECK (length(evidence) > 0),
-  confidence REAL NOT NULL,
-  created_at INTEGER NOT NULL,
-  superseded_at INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_tn_canonical ON typed_nodes(canonical_id);
-CREATE INDEX IF NOT EXISTS idx_tn_kind ON typed_nodes(kind);
--- THE FILE INDEX (GG-BUG-5, the host live-fire 2026-09-10): the graph gate's
--- blast-radius CTE joins dst.file = blast.file per recursion row \u2014 with no
--- index on file each step full-scans typed_nodes (measured: 468-row closure
--- at depth 2 took 81s on the 51K-edge production store; indexed it is ms).
-CREATE INDEX IF NOT EXISTS idx_tn_file ON typed_nodes(file);
-CREATE INDEX IF NOT EXISTS idx_te_src ON typed_edges(src_canonical);
-CREATE INDEX IF NOT EXISTS idx_te_dst ON typed_edges(dst_canonical);
-CREATE INDEX IF NOT EXISTS idx_te_pred ON typed_edges(predicate);
-CREATE INDEX IF NOT EXISTS idx_res_canonical ON resolutions(canonical_id);
-CREATE INDEX IF NOT EXISTS idx_gf_subject ON graph_facts(subject);
-`;
-
-// src/hunter/shared/db.ts
-function lineageMissing(id) {
-  return new Error(`LINEAGE_MISSING: id=${id} (the SPEC_DERIVED/CODE_DERIVED/HYBRID duality cannot degrade - O28.4)`);
-}
-function findingNoTriplet(detail) {
-  return new Error(`FINDING_NO_TRIPLET: ${detail} (no triplet = no finding - a non-empty evidence string is mandatory - O9.1)`);
-}
-function findingInvalid(field, value) {
-  return new Error(`FINDING_INVALID: field=${field} value=${JSON.stringify(value)} (the severity canon is CRIT|HIGH|MED|WARN; the verdict is VIOLATION|PASS - fix the finding)`);
-}
-function eventInvalid(kind) {
-  return new Error(`EVENT_INVALID: kind=${JSON.stringify(kind)} (the bus kinds are HUNT_DONE|BUILD_DONE|AUDIT_DONE - fix the event)`);
-}
-function implementationInvalid(field, value) {
-  return new Error(`IMPLEMENTATION_INVALID: field=${field} value=${JSON.stringify(value)} (the status canon is PENDING|CHANGED|UNCHANGED|VERIFIED|REJECTED - fix the row)`);
-}
-function verdictInvalid(field, value) {
-  return new Error(`VERDICT_INVALID: field=${field} value=${JSON.stringify(value)} (the verdict canon is CONFORMANT|VIOLATED|PARTIAL - fix the row)`);
-}
-function mirrorWriteFailed(mirrorPath, detail) {
-  return new Error(`MIRROR_WRITE_FAILED: path=${mirrorPath} detail=${detail} (the MASTER_CONTEXT mirror is the awareness surface, not the truth - the .trident shared.db is the truth - D27)`);
-}
-function pragmaFailed(pragma, detail) {
-  return new Error(`PRAGMA_FAILED: pragma=${pragma} detail=${detail} (a pragma exec failure is a loud named error - a database-is-locked on open must name the driver + the pragma, never surface as a raw sqlite throw - the store's fail-closed contract)`);
-}
-var SEVERITIES = ["CRIT", "HIGH", "MED", "WARN"];
-var EVENT_KINDS = ["HUNT_DONE", "BUILD_DONE", "AUDIT_DONE"];
-var IMPLEMENTATION_STATUSES = ["PENDING", "CHANGED", "UNCHANGED", "VERIFIED", "REJECTED"];
-var CONFORMANCE_VERDICTS = ["CONFORMANT", "VIOLATED", "PARTIAL"];
-var FINDING_VERDICTS = ["VIOLATION", "PASS"];
-var CREATE_TABLES_SQL = `
-CREATE TABLE IF NOT EXISTS graph_nodes (
-  id        TEXT PRIMARY KEY,
-  kind      TEXT NOT NULL,
-  name      TEXT NOT NULL,
-  file      TEXT,
-  line      INTEGER,
-  lineage   TEXT NOT NULL,
-  source    TEXT NOT NULL,
-  data      TEXT
-);
-CREATE TABLE IF NOT EXISTS graph_edges (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  source_id  TEXT NOT NULL REFERENCES graph_nodes(id),
-  target_id  TEXT NOT NULL REFERENCES graph_nodes(id),
-  kind       TEXT NOT NULL,
-  lineage    TEXT NOT NULL,
-  created_at INTEGER
-);
-CREATE TABLE IF NOT EXISTS findings (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  rule_id     TEXT NOT NULL,
-  severity    TEXT NOT NULL,
-  file        TEXT,
-  line        INTEGER,
-  range_start INTEGER,
-  range_end   INTEGER,
-  evidence    TEXT NOT NULL,
-  verdict     TEXT NOT NULL,
-  week        TEXT,
-  run_id      TEXT NOT NULL,
-  created_at  INTEGER
-);
-CREATE TABLE IF NOT EXISTS report_sections (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  finding_id  TEXT NOT NULL,
-  how_broken  TEXT NOT NULL,
-  why_broken  TEXT NOT NULL,
-  what_violates TEXT NOT NULL,
-  how_to_fix  TEXT NOT NULL,
-  what_to_do  TEXT NOT NULL,
-  why_works   TEXT NOT NULL,
-  run_id      TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS implementations (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  file       TEXT NOT NULL,
-  before_sha TEXT NOT NULL,
-  after_sha  TEXT NOT NULL,
-  claim      TEXT NOT NULL,
-  status     TEXT NOT NULL,
-  run_id     TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS conformance_verdicts (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  finding_id TEXT NOT NULL,
-  verdict    TEXT NOT NULL,
-  evidence   TEXT NOT NULL,
-  fixed_at   INTEGER,
-  fixed_by   TEXT NOT NULL,
-  run_id     TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS events (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  kind       TEXT NOT NULL,
-  payload    TEXT NOT NULL,
-  created_at INTEGER
-);
-CREATE TABLE IF NOT EXISTS compiled_predicates (
-  id         TEXT PRIMARY KEY,
-  family     TEXT NOT NULL,
-  template   TEXT NOT NULL,
-  bindings   TEXT NOT NULL,
-  verbatim_quote TEXT NOT NULL,
-  anchor     TEXT NOT NULL,
-  severity   TEXT NOT NULL,
-  check_code TEXT NOT NULL,
-  battery_version TEXT NOT NULL,
-  calibrated TEXT NOT NULL DEFAULT 'PENDING'
-);
-CREATE TABLE IF NOT EXISTS calibrations (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  predicate_id   TEXT NOT NULL,
-  test           TEXT NOT NULL,
-  fixture        TEXT NOT NULL,
-  result         TEXT NOT NULL,
-  evidence       TEXT NOT NULL,
-  run_id         TEXT NOT NULL,
-  created_at     INTEGER
-);
-CREATE TABLE IF NOT EXISTS rule_cards (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  quote      TEXT NOT NULL,
-  anchor     TEXT NOT NULL,
-  classification TEXT NOT NULL,
-  severity   TEXT NOT NULL,
-  proposed   INTEGER NOT NULL DEFAULT 0,
-  corpus_hash TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS audits (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  run_id     TEXT NOT NULL,
-  actor      TEXT NOT NULL,
-  event      TEXT NOT NULL,
-  triplet    TEXT NOT NULL,
-  created_at INTEGER
-);
-`;
-var MIRROR_SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS graph_nodes (
-  id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL,
-  file TEXT, line INTEGER, lineage TEXT NOT NULL, source TEXT NOT NULL, data TEXT
-);
-CREATE TABLE IF NOT EXISTS graph_edges (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  source_id TEXT NOT NULL REFERENCES graph_nodes(id),
-  target_id TEXT NOT NULL REFERENCES graph_nodes(id),
-  kind TEXT NOT NULL, lineage TEXT NOT NULL, created_at INTEGER
-);
-CREATE TABLE IF NOT EXISTS findings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  rule_id TEXT NOT NULL, severity TEXT NOT NULL, file TEXT, line INTEGER,
-  range_start INTEGER, range_end INTEGER, evidence TEXT NOT NULL,
-  verdict TEXT NOT NULL, week TEXT, run_id TEXT NOT NULL, created_at INTEGER
-);
-CREATE TABLE IF NOT EXISTS events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  kind TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER
-);
-`;
-function applyPragmas(db) {
-  const execPragma = (pragma) => {
-    try {
-      db.exec(pragma);
-    } catch (e) {
-      throw pragmaFailed(pragma, `driver=bun:sqlite message=${e instanceof Error ? e.message : String(e)}`);
-    }
-  };
-  execPragma("PRAGMA journal_mode = WAL");
-  execPragma("PRAGMA synchronous = NORMAL");
-  execPragma("PRAGMA busy_timeout = 5000");
-  execPragma("PRAGMA foreign_keys = ON");
-  execPragma("PRAGMA user_version = 184");
-}
-function isNodeLineage(v) {
-  return v === "SPEC_DERIVED" || v === "CODE_DERIVED" || v === "HYBRID";
-}
-
-class SharedDb {
-  dbPath;
-  handle;
-  open = true;
-  constructor(dbPath, handle) {
-    this.dbPath = dbPath;
-    this.handle = handle;
-  }
-  exec(sql) {
-    this.handle.exec(sql);
-  }
-  prepare(sql) {
-    const stmt = this.handle.prepare(sql);
-    if (stmt !== undefined && stmt !== null) {
-      return stmt;
-    }
-    throw new Error("[db] the sqlite prepare returned no statement");
-  }
-  close() {
-    if (this.open) {
-      this.handle.close();
-      this.open = false;
-    }
-  }
-  writeGraph(nodes, edges) {
-    for (const n of nodes) {
-      if (!isNodeLineage(n.lineage)) {
-        throw lineageMissing(n.id);
-      }
-    }
-    for (const e of edges) {
-      if (!isNodeLineage(e.lineage)) {
-        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
-      }
-    }
-    const nodeIds = new Set(nodes.map((n) => n.id));
-    for (const e of edges) {
-      if (!nodeIds.has(e.sourceId) || !nodeIds.has(e.targetId)) {
-        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId} (dangling endpoint \u2014 no such node in this write batch)`);
-      }
-    }
-    const tx = this.handle.transaction(() => {
-      this.handle.prepare("DELETE FROM graph_edges").run();
-      this.handle.prepare("DELETE FROM graph_nodes").run();
-      const nodeStmt = this.handle.prepare("INSERT INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)");
-      for (const n of nodes) {
-        nodeStmt.run(n.id, n.kind, n.name, n.file ?? null, n.line ?? null, n.lineage, n.source, JSON.stringify(n.data ?? {}));
-      }
-      const edgeStmt = this.handle.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)");
-      for (const e of edges) {
-        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
-      }
-    });
-    tx();
-  }
-  appendFinding(finding, runId, week) {
-    if (typeof finding.ruleId !== "string" || finding.ruleId.trim() === "") {
-      throw findingNoTriplet(`finding at ${finding.file ?? "?"}:${finding.line ?? "?"} carries an empty ruleId \u2014 the Pattern leg of the EvidenceTriad is mandatory`);
-    }
-    if (typeof finding.evidence !== "string" || finding.evidence.trim() === "") {
-      throw findingNoTriplet(`finding ${finding.ruleId} at ${finding.file ?? "?"}:${finding.line ?? "?"} carries an empty evidence string`);
-    }
-    if (!SEVERITIES.includes(finding.severity))
-      throw findingInvalid("severity", finding.severity);
-    if (!FINDING_VERDICTS.includes(finding.verdict))
-      throw findingInvalid("verdict", finding.verdict);
-    const persistedEvidence = finding.evidence;
-    this.handle.prepare(`INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(finding.ruleId, finding.severity, finding.file ?? null, finding.line ?? null, finding.rangeStart ?? null, finding.rangeEnd ?? null, persistedEvidence, finding.verdict, week ?? null, runId, Date.now());
-  }
-  appendReportSection(section, runId) {
-    this.handle.prepare(`INSERT INTO report_sections (finding_id,how_broken,why_broken,what_violates,how_to_fix,what_to_do,why_works,run_id)
-       VALUES (?,?,?,?,?,?,?,?)`).run(section.findingId, section.howBroken, section.whyBroken, section.whatViolates, section.howToFix, section.whatToDo, section.whyWorks, runId);
-  }
-  appendImplementation(row, runId) {
-    if (!IMPLEMENTATION_STATUSES.includes(row.status)) {
-      throw implementationInvalid("status", row.status);
-    }
-    this.handle.prepare("INSERT INTO implementations (file,before_sha,after_sha,claim,status,run_id) VALUES (?,?,?,?,?,?)").run(row.file, row.beforeSha, row.afterSha, row.claim, row.status, runId);
-  }
-  appendConformanceVerdict(row, runId) {
-    if (!CONFORMANCE_VERDICTS.includes(row.verdict)) {
-      throw verdictInvalid("verdict", row.verdict);
-    }
-    this.handle.prepare("INSERT INTO conformance_verdicts (finding_id,verdict,evidence,fixed_at,fixed_by,run_id) VALUES (?,?,?,?,?,?)").run(row.findingId, row.verdict, row.evidence, row.fixedAt ?? null, row.fixedBy, runId);
-  }
-  appendEvent(kind, payload) {
-    if (!EVENT_KINDS.includes(kind))
-      throw eventInvalid(kind);
-    this.handle.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)").run(kind, JSON.stringify(payload), Date.now());
-  }
-  mirrorToMasterContext(profile) {
-    const mirrorDir = path14.join(profile.project.root, "MASTER_CONTEXT", "knowledge-graph");
-    const mirrorPath = path14.join(mirrorDir, "graph.db");
-    let mirror;
-    try {
-      fs13.mkdirSync(mirrorDir, { recursive: true });
-      mirror = new Database5(mirrorPath);
-      applyPragmas(mirror);
-    } catch (e) {
-      try {
-        mirror?.close();
-      } catch {}
-      throw mirrorWriteFailed(mirrorPath, `mirror open failed: ${String(e)}`);
-    }
-    const openMirror = mirror;
-    try {
-      const rebuild = openMirror.transaction(() => {
-        openMirror.exec("DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;");
-        openMirror.exec(MIRROR_SCHEMA_SQL);
-        const nodeIns = openMirror.prepare("INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)");
-        for (const row of this.handle.prepare("SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes").all()) {
-          nodeIns.run(row["id"], row["kind"], row["name"], row["file"], row["line"], row["lineage"], row["source"], row["data"]);
-        }
-        const edgeIns = openMirror.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)");
-        for (const row of this.handle.prepare("SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges").all()) {
-          edgeIns.run(row["source_id"], row["target_id"], row["kind"], row["lineage"], row["created_at"]);
-        }
-        const findIns = openMirror.prepare("INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-        for (const row of this.handle.prepare("SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings").all()) {
-          findIns.run(row["rule_id"], row["severity"], row["file"], row["line"], row["range_start"], row["range_end"], row["evidence"], row["verdict"], row["week"], row["run_id"], row["created_at"]);
-        }
-        const evIns = openMirror.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)");
-        for (const row of this.handle.prepare("SELECT kind,payload,created_at FROM events").all()) {
-          evIns.run(row["kind"], row["payload"], row["created_at"]);
-        }
-      });
-      rebuild();
-    } catch (e) {
-      throw mirrorWriteFailed(mirrorPath, `mirror copy failed: ${String(e)}`);
-    } finally {
-      openMirror.close();
-    }
-    return mirrorPath;
-  }
-}
-function openStore(dbPath) {
-  if (dbPath !== ":memory:") {
-    fs13.mkdirSync(path14.dirname(dbPath), { recursive: true });
-  }
-  const handle = new Database5(dbPath);
-  applyPragmas(handle);
-  handle.exec(CREATE_TABLES_SQL);
-  handle.exec(TYPED_GRAPH_DDL);
-  return new SharedDb(dbPath, handle);
-}
-function writeGraph(db, nodes, edges) {
-  db.writeGraph(nodes, edges);
-}
-function appendReportSection(db, section, runId) {
-  db.appendReportSection(section, runId);
-}
-function appendEvent(db, kind, payload) {
-  db.appendEvent(kind, payload);
-}
-function mirrorToMasterContext(db, profile) {
-  return db.mirrorToMasterContext(profile);
-}
-
 // src/hunter/diagnostics/engine.ts
+init_db();
 var import_typescript = __toESM(require_typescript(), 1);
 import fs15 from "fs";
 import path16 from "path";
@@ -183347,7 +184010,10 @@ function loadProfile(profilePath) {
   }
   return profile;
 }
+
 // src/hunter/diagnostics/findings-store.ts
+init_db_canon();
+init_db_canon();
 function toFindingInput(f) {
   return {
     ruleId: f.ruleId,
@@ -183399,494 +184065,8 @@ function appendFindings(db, findings, runId, week) {
 
 // src/hunter/diagnostics/semantic-predicates.ts
 init_zod();
-
-// src/hunter/lexicon/templates.ts
-init_zod();
-import { createHash as createHash4 } from "crypto";
-class LexiconError extends Error {
-  code;
-  constructor(code, message) {
-    super(message);
-    this.name = code;
-    this.code = code;
-  }
-}
-function templateBindingInvalid(templateId, detail) {
-  return new LexiconError("TEMPLATE_BINDING_INVALID", `TEMPLATE_BINDING_INVALID: template=${templateId} detail=${detail} (the bound params failed the template's zod schema \u2014 an invalid binding is a loud named error, never a coerced default)`);
-}
-function templateMissing(templateId) {
-  return new LexiconError("TEMPLATE_MISSING", `TEMPLATE_MISSING: template=${templateId} (the stored check_code names a template absent from the library \u2014 the battery cannot be reinstated)`);
-}
-function sha256(input) {
-  return createHash4("sha256").update(input, "utf8").digest("hex");
-}
-function readPath(obj, dotted) {
-  let cur = obj;
-  for (const part of dotted.split(".")) {
-    if (cur === null || cur === undefined || typeof cur !== "object")
-      return;
-    if (!Object.hasOwn(cur, part))
-      return;
-    if (part === "__proto__" || part === "constructor" || part === "prototype")
-      return;
-    cur = cur[part];
-  }
-  return cur;
-}
-function compareOperator(op, value, threshold) {
-  switch (op) {
-    case "lt":
-      return value < threshold;
-    case "lte":
-      return value <= threshold;
-    case "gt":
-      return value > threshold;
-    case "gte":
-      return value >= threshold;
-    default:
-      return value > threshold;
-  }
-}
-function bindSeverity(bindings) {
-  const sev = bindings["severity"];
-  if (typeof sev === "string" && SEVERITIES.includes(sev)) {
-    return sev;
-  }
-  throw templateBindingInvalid("severity", `the severity binding must be one of ${SEVERITIES.join("|")}`);
-}
-function bindStringArray(bindings, key) {
-  const v = bindings[key];
-  if (Array.isArray(v)) {
-    return v.filter((el) => typeof el === "string");
-  }
-  return [];
-}
-function bindStages(bindings) {
-  const v = bindings["stages"];
-  if (Array.isArray(v)) {
-    return v.filter((el) => typeof el === "object" && el !== null && typeof el.id === "string" && typeof el.entry === "string");
-  }
-  return [];
-}
-function bindOperator(bindings) {
-  const v = bindings["operator"];
-  if (typeof v === "string" && (v === "lt" || v === "lte" || v === "gt" || v === "gte")) {
-    return v;
-  }
-  throw templateBindingInvalid("domain.numeric-threshold", `the operator binding must be one of lt|lte|gt|gte, got ${JSON.stringify(v)}`);
-}
-function bindNumber(bindings, key) {
-  const v = bindings[key];
-  if (typeof v === "number") {
-    return v;
-  }
-  return;
-}
-function bindRange(bindings) {
-  const v = bindings["range"];
-  if (Array.isArray(v) && v.length === 2 && typeof v[0] === "number" && typeof v[1] === "number") {
-    return [v[0], v[1]];
-  }
-  return;
-}
-function stableBindingsJson(v) {
-  if (v === undefined)
-    return "null";
-  if (v === null || typeof v !== "object")
-    return JSON.stringify(v) ?? "null";
-  if (Array.isArray(v))
-    return `[${v.map((x) => x === undefined ? "null" : stableBindingsJson(x)).join(",")}]`;
-  const obj = v;
-  const parts = [];
-  for (const k of Object.keys(obj).sort()) {
-    const val = obj[k];
-    if (val === undefined)
-      continue;
-    parts.push(`${JSON.stringify(k)}:${stableBindingsJson(val)}`);
-  }
-  return `{${parts.join(",")}}`;
-}
-function contentAddress(templateId, bindings, anchor) {
-  return `${templateId}:${sha256(`${anchor}|${stableBindingsJson(bindings)}`).slice(0, 12)}`;
-}
-var CARD_FIELDS = {
-  verbatimQuote: string2(),
-  anchor: string2(),
-  severity: _enum(SEVERITIES)
-};
-function compileTemplate(template, rawBindings, card, batteryVersion) {
-  let validated;
-  try {
-    validated = template.parameters.parse(rawBindings);
-  } catch (e) {
-    throw templateBindingInvalid(template.id, `the bound params failed the template's zod schema: ${String(e)}`);
-  }
-  return {
-    id: contentAddress(template.id, validated, card.anchor),
-    family: template.family,
-    template: template.id,
-    bindings: validated,
-    verbatimQuote: card.verbatimQuote,
-    anchor: card.anchor,
-    severity: card.severity,
-    batteryVersion,
-    check: (ctx) => template.check({ ...ctx, bindings: validated })
-  };
-}
-var WIRING_DEAD_MODULE = {
-  id: "wiring.no-dead-module",
-  family: "WIRING",
-  parameters: object({ ...CARD_FIELDS }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    for (const dead of ctx.graph.unwired()) {
-      findings.push({
-        ruleId: "wiring.no-dead-module",
-        severity: sev,
-        file: dead.file,
-        line: dead.line,
-        evidence: `dead module ${dead.name} (${dead.file}:${dead.line}) has zero inbound callers \u2014 the unwired() graph read lists it`,
-        verdict: "VIOLATION"
-      });
-    }
-    return findings;
-  }
-};
-var WIRING_EXPORT_IMPORTER = {
-  id: "wiring.every-export-has-an-importer",
-  family: "WIRING",
-  parameters: object({ ...CARD_FIELDS }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    const exportLinesByFile = new Map;
-    const isExportedDecl = (file, line) => {
-      if (!file || typeof line !== "number" || line <= 0)
-        return false;
-      let lines = exportLinesByFile.get(file);
-      if (!lines) {
-        lines = new Set;
-        try {
-          const src = ctx.source.read(file).split(`
-`);
-          for (let i = 0;i < src.length; i++)
-            if (/^\s*export\s/.test(src[i]))
-              lines.add(i + 1);
-        } catch {}
-        exportLinesByFile.set(file, lines);
-      }
-      return lines.has(line);
-    };
-    for (const node of ctx.graph.nodes()) {
-      if (node.kind !== "class" && node.kind !== "function")
-        continue;
-      if (!isExportedDecl(node.file, node.line ?? null))
-        continue;
-      const callers = ctx.graph.whoCalls(node.name);
-      if (callers.length === 0 && node.file) {
-        findings.push({
-          ruleId: "wiring.every-export-has-an-importer",
-          severity: sev,
-          file: node.file,
-          line: node.line ?? 0,
-          evidence: `export ${node.name} (${node.file}:${node.line ?? "?"}) has zero call sites \u2014 whoCalls('${node.name}') returned []`,
-          verdict: "VIOLATION"
-        });
-      }
-    }
-    return findings;
-  }
-};
-var CONTRACT_MUST_IMPLEMENT = {
-  id: "contract.must-implement",
-  family: "CONTRACT",
-  parameters: object({
-    ...CARD_FIELDS,
-    declaredInterface: string2().default(""),
-    requiredMembers: array(string2()).default([])
-  }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    const declaredInterface = String(ctx.bindings["declaredInterface"] ?? "");
-    const requiredMembers = bindStringArray(ctx.bindings, "requiredMembers");
-    if (!declaredInterface || requiredMembers.length === 0)
-      return findings;
-    for (const node of ctx.graph.nodes("class")) {
-      const nodeInterface = node.data ? readPath(node.data, "interface") : undefined;
-      if (node.name !== declaredInterface && nodeInterface !== declaredInterface)
-        continue;
-      const membersRaw = node.data ? readPath(node.data, "members") : undefined;
-      const members = Array.isArray(membersRaw) ? membersRaw.filter((el) => typeof el === "string") : [];
-      const missing = requiredMembers.filter((m) => !members.includes(m));
-      if (missing.length > 0) {
-        findings.push({
-          ruleId: "contract.must-implement",
-          severity: sev,
-          file: node.file ?? "",
-          line: node.line ?? 0,
-          evidence: `class ${node.name} (${node.file}:${node.line ?? "?"}) declares members ${JSON.stringify(members)} \u2014 missing the declared members ${missing.join(", ")}`,
-          verdict: "VIOLATION"
-        });
-      }
-    }
-    return findings;
-  }
-};
-var PROVENANCE_TRACES_TO_SOURCE = {
-  id: "provenance.traces-to-source",
-  family: "PROVENANCE",
-  parameters: object({
-    ...CARD_FIELDS,
-    targetKinds: array(string2()).default([]),
-    requiredTraces: array(string2()).default([])
-  }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    const targetKinds = bindStringArray(ctx.bindings, "targetKinds");
-    const requiredTraces = bindStringArray(ctx.bindings, "requiredTraces");
-    for (const targetKind of targetKinds) {
-      for (const node of ctx.graph.nodes(targetKind)) {
-        const incoming = ctx.graph.chain(node.id);
-        const present = requiredTraces.some((r) => incoming.some((step) => step.to === node.id && step.kind === "traces-to" && step.from.includes(r)));
-        if (!present) {
-          findings.push({
-            ruleId: "provenance.traces-to-source",
-            severity: sev,
-            file: node.file ?? "",
-            line: node.line ?? 0,
-            evidence: `${node.name} lacks a traces-to edge from ${requiredTraces.join("/")} \u2014 incoming edges: ${incoming.map((s) => `${s.kind}@${s.from}`).join(", ") || "NONE"}`,
-            verdict: "VIOLATION"
-          });
-        }
-      }
-    }
-    return findings;
-  }
-};
-var PROVENANCE_QUOTED_NOT_SYNTHESIZED = {
-  id: "provenance.quoted-not-synthesized",
-  family: "PROVENANCE",
-  parameters: object({
-    ...CARD_FIELDS,
-    file: string2().default(""),
-    quote: string2().default(""),
-    range: tuple([number2(), number2()]).optional()
-  }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    const file = String(ctx.bindings["file"] ?? "");
-    const quote = String(ctx.bindings["quote"] ?? "");
-    if (!file || !quote)
-      return findings;
-    const range = bindRange(ctx.bindings);
-    const text = ctx.source.read(file, range);
-    if (!text.includes(quote)) {
-      findings.push({
-        ruleId: "provenance.quoted-not-synthesized",
-        severity: sev,
-        file,
-        line: range?.[0] ?? 0,
-        evidence: `the verbatim quote '${quote.slice(0, 80)}...' is absent from ${file} \u2014 doctrine is QUOTED, never synthesized (D13)`,
-        verdict: "VIOLATION"
-      });
-    }
-    return findings;
-  }
-};
-var DOMAIN_NUMERIC_THRESHOLD = {
-  id: "domain.numeric-threshold",
-  family: "DOMAIN",
-  parameters: object({
-    ...CARD_FIELDS,
-    symbol: string2().default(""),
-    valuePath: string2().default(""),
-    operator: _enum(["lt", "lte", "gt", "gte"]).default("gt"),
-    threshold: number2().optional()
-  }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    const symbol = String(ctx.bindings["symbol"] ?? "");
-    const valuePath = String(ctx.bindings["valuePath"] ?? "");
-    const operator = bindOperator(ctx.bindings);
-    const threshold = bindNumber(ctx.bindings, "threshold");
-    if (!symbol || !valuePath || typeof threshold !== "number" || !Number.isFinite(threshold))
-      return findings;
-    for (const node of ctx.graph.nodes()) {
-      if (node.name !== symbol)
-        continue;
-      const value = readPath(node.data ?? {}, valuePath);
-      if (typeof value !== "number" || !Number.isFinite(value))
-        continue;
-      if (compareOperator(operator, value, threshold)) {
-        findings.push({
-          ruleId: "domain.numeric-threshold",
-          severity: sev,
-          file: node.file ?? "",
-          line: node.line ?? 0,
-          evidence: `${node.name}.${valuePath} = ${value} violates the declared ${operator} ${threshold} ceiling (bindings: ${JSON.stringify(ctx.bindings)})`,
-          verdict: "VIOLATION"
-        });
-      }
-    }
-    return findings;
-  }
-};
-var PROCESS_GATES_OUTPUTS = {
-  id: "process.gates-measure-outputs-not-logic",
-  family: "PROCESS",
-  parameters: object({
-    ...CARD_FIELDS,
-    stages: array(object({ id: string2(), entry: string2() })).default([])
-  }),
-  check(ctx) {
-    const findings = [];
-    const sev = bindSeverity(ctx.bindings);
-    const stages = bindStages(ctx.bindings);
-    for (let i = 0;i + 1 < stages.length; i++) {
-      const cur = stages[i];
-      const next = stages[i + 1];
-      const outgoing = ctx.graph.awaits(cur.entry);
-      const callers = ctx.graph.whoCalls(next.entry);
-      const connected = outgoing.some((e) => e.to.includes(next.entry)) || callers.some((c) => c.caller === cur.entry);
-      if (!connected) {
-        let stageFile = "";
-        try {
-          const hit = ctx.graph.nodes().find((n) => n.name === cur.entry);
-          if (hit?.file)
-            stageFile = hit.file;
-        } catch {}
-        findings.push({
-          ruleId: "process.gates-measure-outputs-not-logic",
-          severity: sev,
-          file: stageFile,
-          line: 0,
-          evidence: `stage ${cur.id} (entry ${cur.entry}) has no graph edge reaching stage ${next.id} (entry ${next.entry}) \u2014 the declared sequence is not wired in the call graph`,
-          verdict: "VIOLATION"
-        });
-      }
-    }
-    return findings;
-  }
-};
-function safeWhoCalls(graph, sym) {
-  try {
-    return graph.whoCalls(sym) ?? [];
-  } catch {
-    return [];
-  }
-}
-function safeImports(graph, module) {
-  try {
-    return graph.imports(module) ?? [];
-  } catch {
-    return [];
-  }
-}
-function safeChain(graph, id) {
-  try {
-    return graph.chain(id) ?? [];
-  } catch {
-    return [];
-  }
-}
-function safeAwaits(graph, sym) {
-  try {
-    return graph.awaits(sym) ?? [];
-  } catch {
-    return [];
-  }
-}
-function safeNodes(graph) {
-  try {
-    return graph.nodes() ?? [];
-  } catch {
-    return [];
-  }
-}
-function resolveEdgeAnchor(graph, spec) {
-  const files = new Set;
-  const cites = new Map;
-  const add = (file, c) => {
-    if (!file)
-      return;
-    files.add(file);
-    const arr = cites.get(file) ?? [];
-    arr.push(c);
-    cites.set(file, arr);
-  };
-  for (const sym of spec.callSymbols) {
-    for (const cs of safeWhoCalls(graph, sym)) {
-      add(cs.file, { from: cs.caller, to: sym, kind: "calls", file: cs.file, line: cs.line });
-    }
-  }
-  for (const n of safeNodes(graph)) {
-    const keys = [];
-    if (n.id)
-      keys.push(n.id);
-    if (n.name && n.name !== n.id)
-      keys.push(n.name);
-    if (n.file && n.file !== n.name && n.file !== n.id)
-      keys.push(n.file);
-    if (keys.length === 0)
-      continue;
-    for (const key of keys) {
-      for (const e of safeImports(graph, key)) {
-        const target = String(e.to);
-        if (spec.importMatchers.some((m) => target.includes(m))) {
-          add(e.file || n.file || "", { from: String(e.from), to: String(e.to), kind: "imports", file: e.file, line: e.line });
-        }
-      }
-    }
-  }
-  for (const n of safeNodes(graph)) {
-    if (n.kind !== "function" && n.kind !== "method" && n.kind !== "class")
-      continue;
-    if (!spec.defMatchers.some((rx) => {
-      rx.lastIndex = 0;
-      const hit = rx.test(n.name);
-      rx.lastIndex = 0;
-      return hit;
-    }))
-      continue;
-    const inbound = safeWhoCalls(graph, n.name);
-    const steps = safeChain(graph, n.id);
-    const aw = safeAwaits(graph, n.name);
-    if (inbound.length === 0 && steps.length === 0 && aw.length === 0)
-      continue;
-    const file = n.file ?? "";
-    if (inbound.length > 0) {
-      const c0 = inbound[0];
-      add(file, { from: c0.caller, to: n.name, kind: "calls", file: c0.file, line: c0.line });
-    } else if (steps.length > 0) {
-      const s0 = steps[0];
-      add(file, { from: String(s0.from), to: String(s0.to), kind: String(s0.kind), file: s0.file, line: s0.line });
-    } else {
-      const a0 = aw[0];
-      add(file, { from: String(a0.from), to: String(a0.to), kind: "awaits", file: a0.file, line: a0.line });
-    }
-  }
-  return { files, cites };
-}
-function edgeEvidence(c) {
-  return `edge ${c.from} -[${c.kind}]-> ${c.to} (${c.file}:${c.line})`;
-}
-function firstCite(cites, file) {
-  return cites.get(file)?.[0];
-}
-var TEMPLATE_LIBRARY = {
-  "wiring.no-dead-module": WIRING_DEAD_MODULE,
-  "wiring.every-export-has-an-importer": WIRING_EXPORT_IMPORTER,
-  "contract.must-implement": CONTRACT_MUST_IMPLEMENT,
-  "provenance.traces-to-source": PROVENANCE_TRACES_TO_SOURCE,
-  "provenance.quoted-not-synthesized": PROVENANCE_QUOTED_NOT_SYNTHESIZED,
-  "domain.numeric-threshold": DOMAIN_NUMERIC_THRESHOLD,
-  "process.gates-measure-outputs-not-logic": PROCESS_GATES_OUTPUTS
-};
+init_db();
+init_templates();
 
 // src/hunter/triad.ts
 function isEvidenceTriad(v) {
@@ -184482,20 +184662,39 @@ function assertNoBlindness(checkpoint) {
 // src/hunter/harness/recon.ts
 import fs16 from "fs";
 import path17 from "path";
+init_db();
 function awarenessDocMissing(docPath) {
   return new Error(`CORPUS_MISSING: path=${docPath} remedy=the awareness doc must exist (fix the profile's awareness.docs)`);
 }
 var QUOTE_MARKER_RE = /^\s*>/;
+function projectRootReal(root) {
+  try {
+    return fs16.realpathSync(root);
+  } catch (e) {
+    throw new Error(`CORPUS_UNREADABLE: project root ${root} cannot resolve (realpath failed: ${e instanceof Error ? e.message : String(e)} \u2014 chmod/fix permissions or remove broken symlinks)`);
+  }
+}
+function assertInsideProject(root, absPath) {
+  const rootReal = projectRootReal(root);
+  let real;
+  try {
+    real = fs16.realpathSync(absPath);
+  } catch (e) {
+    throw new Error(`CORPUS_UNREADABLE: path=${absPath} cannot resolve for containment check (realpath failed: ${e instanceof Error ? e.message : String(e)} \u2014 the corpus path must exist inside the project)`);
+  }
+  if (real !== rootReal && !real.startsWith(rootReal + path17.sep)) {
+    throw new Error(`CORPUS_UNREADABLE: path=${absPath} (real: ${real}) escapes project root ${root} (real: ${rootReal}) \u2014 resolve corpus paths inside the project`);
+  }
+  return real;
+}
 function countQuotedRules(profile) {
   let count = 0;
   for (const entry of profile.rules.corpus) {
     const abs = path17.isAbsolute(entry) ? entry : path17.resolve(profile.project.root, entry);
-    if (!abs.startsWith(profile.project.root + path17.sep) && abs !== profile.project.root) {
-      throw new Error(`CORPUS_UNREADABLE: path=${abs} escapes project root ${profile.project.root} \u2014 resolve corpus paths inside the project`);
-    }
+    const real = assertInsideProject(profile.project.root, abs);
     let text;
     try {
-      text = fs16.readFileSync(abs, "utf8");
+      text = fs16.readFileSync(real, "utf8");
     } catch (e) {
       throw new Error(`CORPUS_UNREADABLE: path=${abs} detail=${e instanceof Error ? e.message : String(e)} (a corpus path that cannot be read is a loud named error, never a silent skip)`);
     }
@@ -184579,6 +184778,7 @@ function openAndNextRunId(token, dbPath) {
 }
 
 // src/hunter/harness/map.ts
+init_db();
 import path18 from "path";
 
 // src/hunter/shared/line-resolve.ts
@@ -184678,164 +184878,14 @@ function assertMappableLines(buildResult) {
 import path21 from "path";
 
 // src/hunter/lexicon/compiler.ts
-import { readFile as readFile2 } from "fs/promises";
-
-// src/hunter/lexicon/rule-card.ts
+init_db_canon();
+init_templates();
+init_rule_card();
 import { readFile } from "fs/promises";
-function corpusUnreadable(corpusPath, detail) {
-  return new LexiconError("CORPUS_UNREADABLE", `CORPUS_UNREADABLE: path=${corpusPath} detail=${detail} (a corpus path that cannot be read is a loud named error, never a silent skip)`);
-}
-function corpusEmpty() {
-  return new LexiconError("CORPUS_EMPTY", `CORPUS_EMPTY: the corpus path list is empty \u2014 the profile's rules.corpus is min(1); a compile with zero corpus paths is a profile error, never an empty battery`);
-}
-var BLOCKQUOTE = /^\s*>\s?/;
-var QUOTED_PASSAGE = /["\u201C][^"\u201D]{3,}["\u201D]/;
-var RULE_SHAPE = /(^|\W)(NEVER|MUST|FUCKING|ALWAYS|ABSOLUTELY|BANNED|FORBIDDEN|MANDATORY)(\W|$)/i;
-var SOFT_VOICE = /(^|\W)(may|might|could|should|perhaps|probably|maybe|consider|suggests?|possibly|ideally|eventually)(\W|$)/i;
-var CONDITIONAL_HEDGE = /\bif\b[^\n]{0,60}\b(then|it would|we can|one could|may|might)\b/i;
-var ARCH_TERMS = /architecture|pipeline|stage|module|layer|wiring|chain/gi;
-var LOGIC_TERMS = /anchor|derive|compare|provenance|cascade|divergence|compute|inject/gi;
-var PROCESS_TERMS = /audit|gate|verify|test|document|quote|evidence|harness/gi;
-var DOMAIN_TERMS = /zone|liquidity|SL|TP|RRR|pip|mitigation|pressure|entry/gi;
-function countMatches(re, text) {
-  const m = text.match(re);
-  return m ? m.length : 0;
-}
-function classify(quote) {
-  const scores = {
-    ARCH: countMatches(ARCH_TERMS, quote),
-    LOGIC: countMatches(LOGIC_TERMS, quote),
-    PROCESS: countMatches(PROCESS_TERMS, quote),
-    DOMAIN: countMatches(DOMAIN_TERMS, quote)
-  };
-  const max = Math.max(...Object.values(scores));
-  const CLASSIFICATIONS = ["ARCH", "LOGIC", "PROCESS", "DOMAIN"];
-  const winners = CLASSIFICATIONS.filter((k) => scores[k] === max && scores[k] > 0);
-  if (winners.length === 1)
-    return { classification: winners[0], ambiguous: false };
-  return { classification: "PROCESS", ambiguous: true };
-}
-function rate(text) {
-  if (/(^|\W)(NEVER|FUCKING|ABSOLUTELY|MANDATORY)(\W|$)/i.test(text))
-    return "CRIT";
-  if (/(^|\W)(MUST|ALWAYS|BANNED|FORBIDDEN|CRITICAL)(\W|$)/i.test(text))
-    return "HIGH";
-  if (/(^|\W)(SHOULD|SHALL|REQUIRE|REQUIRES|REQUIRED|ENSURE)(\W|$)/i.test(text))
-    return "MED";
-  return "WARN";
-}
-function voiceAmbiguous(text) {
-  return SOFT_VOICE.test(text) || CONDITIONAL_HEDGE.test(text);
-}
-var DECLARED_CLASSIFICATION = /^\s*classification\s*[:=]\s*(ARCH|LOGIC|PROCESS|DOMAIN)\b/i;
-var DECLARED_SEVERITY = /^\s*severity\s*[:=]\s*(CRIT|HIGH|MED|WARN)\b/i;
-function readDeclaredMeta(lines, start) {
-  const meta = {};
-  for (let i = start;i < lines.length && i < start + META_SCAN_WINDOW; i++) {
-    const line = lines[i];
-    if (line.trim() === "")
-      break;
-    const cm = line.match(DECLARED_CLASSIFICATION);
-    if (cm && !meta.classification) {
-      const v = String(cm[1]).toUpperCase();
-      if (isClassification(v))
-        meta.classification = v;
-    }
-    const sm = line.match(DECLARED_SEVERITY);
-    if (sm && !meta.severity) {
-      const v = String(sm[1]).toUpperCase();
-      if (isSeverity(v))
-        meta.severity = v;
-    }
-    if (cm || sm)
-      continue;
-    if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line))
-      break;
-  }
-  return meta;
-}
-var META_SCAN_WINDOW = 4;
-function isClassification(v) {
-  return v === "ARCH" || v === "LOGIC" || v === "PROCESS" || v === "DOMAIN";
-}
-function isSeverity(v) {
-  return SEVERITIES.includes(v);
-}
-function isBlockquote(line) {
-  return BLOCKQUOTE.test(line);
-}
-function isQuotedPassage(line) {
-  return QUOTED_PASSAGE.test(line);
-}
-function isRuleShaped(line) {
-  return RULE_SHAPE.test(line);
-}
-function collectBlockquote(lines, start) {
-  const collected = [];
-  let i = start;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.trim() === "")
-      break;
-    const m = line.match(/^\s*>\s?/);
-    if (!m)
-      break;
-    collected.push(line.slice(m[0].length));
-    i++;
-  }
-  return { text: collected.join(" ").trim(), end: i };
-}
-function extractInlineQuote(line) {
-  const m = line.match(/["\u201C]([^"\u201D]+)["\u201D]/);
-  return m ? m[1].trim() : line.trim();
-}
-function makeCard(quote, anchor, sourceLine, declared) {
-  const { classification: voted, ambiguous } = classify(quote);
-  const curated = declared?.classification !== undefined && declared?.severity !== undefined;
-  const proposed = curated ? 0 : ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0;
-  return {
-    verbatimQuote: quote,
-    anchor,
-    classification: declared?.classification ?? voted,
-    severity: declared?.severity ?? rate(quote),
-    proposed
-  };
-}
-async function extractRuleCardsAsync(corpusPaths) {
-  if (corpusPaths.length === 0)
-    throw corpusEmpty();
-  const texts = await Promise.all(corpusPaths.map(async (file) => {
-    let text;
-    try {
-      text = await readFile(file, "utf8");
-    } catch (e) {
-      throw corpusUnreadable(file, String(e));
-    }
-    return { file, lines: text.split(`
-`) };
-  }));
-  return texts.flatMap(({ file, lines }) => cardsFromLines(file, lines));
-}
-function cardsFromLines(file, lines) {
-  const cards = [];
-  for (let i = 0;i < lines.length; i++) {
-    const lineNo = i + 1;
-    const anchor = `${file}:${lineNo}`;
-    const line = lines[i];
-    if (isBlockquote(line)) {
-      const collected = collectBlockquote(lines, i);
-      cards.push(makeCard(collected.text, anchor, line, readDeclaredMeta(lines, collected.end)));
-      i = collected.end - 1;
-    } else if (isQuotedPassage(line)) {
-      cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
-    } else if (isRuleShaped(line)) {
-      cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
-    }
-  }
-  return cards;
-}
 
 // src/hunter/lexicon/compiled-store.ts
+init_db_canon();
+init_templates();
 var COMPILED_PREDICATES_COLUMNS = [
   "id",
   "family",
@@ -184963,19 +185013,22 @@ function batteryNameFromCards(cards) {
   return `${first.classification.toLowerCase()}-${stem}`;
 }
 async function batteryVersionWithCardsAsync(profile) {
-  const [texts, cards] = await Promise.all([
-    Promise.all(profile.rules.corpus.map(async (p) => {
-      let text;
-      try {
-        text = await readFile2(p, "utf8");
-      } catch (e) {
-        throw corpusUnreadable(p, String(e));
-      }
-      return `${p}
-${text}`;
-    })),
-    extractRuleCardsAsync(profile.rules.corpus)
-  ]);
+  if (profile.rules.corpus.length === 0) {
+    await Promise.resolve().then(() => init_rule_card());
+    throw corpusEmpty();
+  }
+  const reads = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text;
+    try {
+      text = await readFile(p, "utf8");
+    } catch (e) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return { file: p, text };
+  }));
+  const texts = reads.map(({ file, text }) => `${file}
+${text}`);
+  const cards = reads.flatMap(({ file, text }) => cardsFromText(file, text));
   const corpusText = texts.join(`
 `);
   const hash = sha256(`${corpusText}
@@ -185072,6 +185125,7 @@ function severityFromBinding(v) {
 }
 
 // src/hunter/diagnostics/calibration.ts
+init_templates();
 import fs17 from "fs";
 import path19 from "path";
 class CalibrationError extends Error {
@@ -185634,6 +185688,7 @@ function strike(findings, profile, traces = []) {
 }
 
 // src/hunter/harness/report.ts
+init_db();
 import fs19 from "fs";
 import path22 from "path";
 
@@ -186498,6 +186553,9 @@ function createBugHuntTool(pi, opts) {
     }
   });
 }
+
+// src/hunter/tools/query-registration.ts
+init_db();
 
 // src/hunter/surface/query-tool.ts
 var MAX_BLAST_DEPTH = 64;
@@ -189239,7 +189297,7 @@ ${wipeAudit.text}`, { ok: false, error: "WIPE_AUDIT_FAILED", wipeAudited: false 
     const layerId = sanitized.layerId;
     try {
       const [{ templateByLayerId }, { runTemplateAudit }] = await Promise.all([
-        Promise.resolve().then(() => (init_templates(), exports_templates)),
+        Promise.resolve().then(() => (init_templates2(), exports_templates)),
         Promise.resolve().then(() => (init_auditor(), exports_auditor))
       ]);
       const { join, resolve } = await import("path");
