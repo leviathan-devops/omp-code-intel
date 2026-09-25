@@ -1048,3 +1048,31 @@ The wrong invocation (`--repo <dir>`) exits 2 with `unexpected argument '--repo'
 **★ THE LESSON: a downstream green can break when an UPSTREAM SUBSTRATE dies, with no code change.** The
 register's liveness check was CORRECT (`GI_LAYER_DOWN` on a stale socket — the named refusal, never a
 silent empty). **The remedy was to restart the substrate, not to touch the kernel.**
+
+---
+
+## ★★★ RUN 20 MEASURED — 0 CRITICAL / 11 HIGH (the tree improved 23→11 highs)
+
+**HALF A (57 files, muse-go-mimo): 0 critical · 11 high · 49 medium · 35 low · 0 EMPTY.**
+Run 19 measured 23 highs on half A; run 20 measures 11 — **the R19 fixes landed and the tree improved.**
+**ALL 11 FIXED (10 real + 1 adjudicated NOT-A-BUG):**
+
+| # | the finding | the fix |
+|---|---|---|
+| 1 | `semantic-predicates.ts` regex omitted `rmSync`/`existsSync` from BOTH alternatives (they ARE in `P1_SPEC.callSymbols:74`) | both alternatives now match the symbol list — the F-840 drift class |
+| 2 | `engine.ts` `buildLocalGraph` read `abs` with no containment (the F-441/F-550 TOCTOU class) | resolve + contain + read the resolved path |
+| 3 | `resolver.ts` `line` interpolated RAW into the LLM prompt | `promptSafe(String(e.line ?? ''), 20)` — the format half |
+| 4 | `resolver.ts` `line`/`file` unvalidated on `NewEntity` (only id/label/kind checked) | both type-validated at entry — the type half |
+| 5 | `lexicon-types.ts` shallow freeze left nested `mPSE` fields mutable | deep-freeze |
+| 6 | `readonly.ts` the find-flag `\b` fires at ANY word boundary | `(?![\w-])` — the flag must END |
+| 7 | `fixture-calibration.ts` an empty fixture set was silently legal | `GI_FIXTURES_ABSENT` named failure |
+| 8 | `calibration.ts` `BEGIN IMMEDIATE` outside the try → a throw escaped with no ROLLBACK | moved inside the try |
+| 9 | `scan.ts` the broad catch re-wrapped `HUNT_NO_COVERAGE` as `SCAN_CALIBRATION_FAILED` | the verdict token passes through verbatim |
+| 10 | `recon.ts` dbPath containment was string-based (followed no symlink) | realpath-based containment |
+| 11 | `micro-loop-machine.ts` db leak on `done()` | ★ **NOT-A-BUG** — the code documents `F-1202 REVERTED`: closing on settle breaks the pinned `st-hunter-port` contract (a caller reads the store after `done()`) |
+
+**THE VERIFICATION:** tsc 0 · battery 441/0 + 539/0 (exit 0) · dist rebuilt `bf94ce1ec725ca81` (748K,
+the freshness test green).
+**★ THE LESSON: 11 highs in, 10 real + 1 documented-contract.** The reviewer's leak finding was CORRECT
+about the symptom and WRONG about the remedy — the close belongs in `stop()`, not `settle()`, because a
+caller legitimately inspects the store after the loop terminates.
