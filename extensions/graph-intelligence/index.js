@@ -10700,7 +10700,8 @@ function assertSessionStorePath(p, optScopeRoot) {
   }
   if (parentReal !== null) {
     const parentNorm = parentReal.replace(/\\/g, "/");
-    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);
+    const normParent = path3.dirname(norm);
+    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(normParent);
     const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
     if (want !== null && (got === null || got[1] !== want[1])) {
       throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: the session dir RESOLVES elsewhere (logical=${norm} real=${parentNorm}) \u2014 a symlinked session dir is a scope escape`);
@@ -16658,8 +16659,13 @@ ${p.family}`).join(`
         let deleteDetail = "no-db-write";
         if (write.db) {
           try {
-            write.db.prepare("DELETE FROM calibrations WHERE run_id = ? AND created_at = ?").run(`calibration-${fixtureVersion}`, this.calibratedAt);
-            compensated = true;
+            const del = write.db.prepare("DELETE FROM calibrations WHERE run_id = ? AND created_at = ?").run(`calibration-${fixtureVersion}`, this.calibratedAt);
+            const affected = typeof del === "object" && del !== null && "changes" in del ? Number(del.changes) : NaN;
+            if (Number.isFinite(affected) && affected > 0) {
+              compensated = true;
+            } else {
+              deleteDetail = `the DELETE affected ${Number.isFinite(affected) ? affected : "an unknown number of"} rows (no rows matched run_id=calibration-${fixtureVersion} created_at=${this.calibratedAt}) \u2014 the half-evidence may still stand`;
+            }
           } catch (delErr) {
             deleteDetail = delErr instanceof Error ? delErr.message : String(delErr);
           }
@@ -17173,17 +17179,19 @@ async function writeReportDirect(input) {
     }
     lines.push("");
   }
-  const document = lines.join(`
+  let document = lines.join(`
 `);
+  let wrote = false;
   for (let attempt = 0;attempt < 5; attempt++) {
     const retryVersion = nextReportVersion(masterContextDir);
     const retryPath = path22.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);
     try {
-      const document = [`# BUG-HUNT REPORT \u2014 v${retryVersion}`, ...lines.slice(1)].join(`
+      document = [`# BUG-HUNT REPORT \u2014 v${retryVersion}`, ...lines.slice(1)].join(`
 `);
       fs19.writeFileSync(retryPath, document, { encoding: "utf-8", flag: "wx" });
       version = retryVersion;
       reportPath = retryPath;
+      wrote = true;
       break;
     } catch (e) {
       const code = e !== null && typeof e === "object" && "code" in e ? String(e.code) : "";
@@ -17191,6 +17199,9 @@ async function writeReportDirect(input) {
         continue;
       throw new Error(`REPORT_WRITE_FAILED: path=${retryPath} detail=${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+  if (!wrote) {
+    throw new Error(`REPORT_WRITE_FAILED: the retry loop exhausted without writing ${masterContextDir} \u2014 refusing to return a phantom reportPath`);
   }
   const bytes = Buffer.byteLength(document, "utf-8");
   return {

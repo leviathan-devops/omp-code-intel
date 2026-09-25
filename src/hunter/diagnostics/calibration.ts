@@ -416,8 +416,17 @@ export class CalibrationGate {
         let deleteDetail = 'no-db-write';
         if (write.db) {
           try {
-            write.db.prepare('DELETE FROM calibrations WHERE run_id = ? AND created_at = ?').run(`calibration-${fixtureVersion}`, this.calibratedAt);
-            compensated = true;
+            // ★ R21-CRITICAL FIX (2026-09-25): `compensated = true` was set whenever the DELETE
+            //   did not THROW — even if it affected ZERO rows (a run_id/created_at divergence). The
+            //   error then claimed "rows were compensated (deleted)" while they still stood. Check
+            //   the affected-row count: compensated is true ONLY when rows were actually removed.
+            const del = write.db.prepare('DELETE FROM calibrations WHERE run_id = ? AND created_at = ?').run(`calibration-${fixtureVersion}`, this.calibratedAt);
+            const affected = typeof del === 'object' && del !== null && 'changes' in del ? Number((del as { changes: unknown }).changes) : NaN;
+            if (Number.isFinite(affected) && affected > 0) {
+              compensated = true;
+            } else {
+              deleteDetail = `the DELETE affected ${Number.isFinite(affected) ? affected : 'an unknown number of'} rows (no rows matched run_id=calibration-${fixtureVersion} created_at=${this.calibratedAt}) — the half-evidence may still stand`;
+            }
           } catch (delErr: unknown) {
             deleteDetail = delErr instanceof Error ? delErr.message : String(delErr);
           }
