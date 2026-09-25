@@ -228,7 +228,14 @@ export function createLayerRegistry(): LayerRegistry {
       //   factsFor() keeps its facts-only contract and delegates to this method below.
       const facts: LayerFact[] = [];
       const faults: FactsForResult["faults"] = [];
-      for (const p of byId.values()) {
+      // ★ F-1209 FIX (2026-09-25): snapshot the Map — audit() and consumers() iterate
+      //   [...byId.values()]; factsForWithFaults iterated byId.values() directly, so a
+      //   consumer whose up()/facts() reentrantly calls register() mutated the Map mid-iteration.
+      for (const p of [...byId.values()]) {
+        // ★ F-1208 FIX (2026-09-25): split the probe phase from the query phase, mirroring
+        //   auditOne — an up() THROW is GI_LAYER_DOWN (substrate absent), never the "facts()
+        //   threw mid-query" GI_LAYER_ERROR token. The single try/catch classified both legs as
+        //   a mid-query fault, contradicting auditOne's taxonomy (two-view drift).
         try {
           // ★ F-405 FIX (2026-09-24): auditOne validates the probe shape (malformed → DOWN
           //   with evidence); factsFor trusted p.up().up, so a non-object truthy return
@@ -254,6 +261,15 @@ export function createLayerRegistry(): LayerRegistry {
             faults.push({ consumer: p.id, reason });
             continue;
           }
+        } catch (upErr) {
+          // ★ F-1208: the probe leg — a throwing up() is DOWN (auditOne line 150-153), never
+          //   a mid-query ERROR. Same GI_LAYER_DOWN token, LOUD on stderr + faults.
+          const reason = `GI_LAYER_DOWN:${p.id} - the probe threw: ${upErr instanceof Error ? upErr.message : String(upErr)}`;
+          console.error('[layer-registry] factsFor: consumer ' + p.id + ' probe threw - see audit GI_LAYER_DOWN:' + p.id + ': ' + reason);
+          faults.push({ consumer: p.id, reason });
+          continue;
+        }
+        try {
           // ★ F-354 FIX (2026-09-24): a null/non-object fact used to throw inside
           //   isAnchored, and the catch dropped the consumer's ENTIRE contribution —
           //   auditOne already filtered before isAnchored, factsFor did not. Same

@@ -60,11 +60,16 @@ export function getStoreDb(opts?: ScopedStoreOptions): Database {
   fs.mkdirSync(path.dirname(want), { recursive: true });
   const fresh = new Database(want, { create: true });
   // ★ F-919 FIX (2026-09-24): SILENT WAL fallback — the old catch swallowed the failure, losing the module's ONLY race protection. Loud warn on throw + a mode read-back (PRAGMA returns the mode instead of throwing on refusal, so the catch alone never fires for the common case).
+  // ★ F-1248 FIX (2026-09-25): separate try-catch per PRAGMA — a WAL throw used to skip busy_timeout, leaving the default 0 (fail-immediately instead of 5s wait, undermining the busy retry).
   try {
     fresh.exec('PRAGMA journal_mode = WAL;');
-    fresh.exec('PRAGMA busy_timeout = 5000;');
   } catch (walErr) {
     console.error(`[scoped-store${opts?.id ? ' ' + opts.id : ''}] WAL mode FAILED — falling back to rollback journal (race-condition protection DEGRADED):`, walErr instanceof Error ? walErr.message : String(walErr));
+  }
+  try {
+    fresh.exec('PRAGMA busy_timeout = 5000;');
+  } catch (btErr) {
+    console.error(`[scoped-store${opts?.id ? ' ' + opts.id : ''}] busy_timeout FAILED — busy/locked operations fail immediately instead of waiting 5s:`, btErr instanceof Error ? btErr.message : String(btErr));
   }
   try {
     const modeRow = fresh.query('PRAGMA journal_mode').get() as { journal_mode?: unknown } | null;

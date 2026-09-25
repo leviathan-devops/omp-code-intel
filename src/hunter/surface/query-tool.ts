@@ -313,7 +313,15 @@ function codeNameSet(db: DbClient): Set<string> {
       db.prepare('SELECT label FROM typed_nodes WHERE superseded_run IS NULL').all(), 'code-names typed')) {
       if (r.label) names.add(r.label);
     }
-  } catch { /* typed leg absent on this store — the graph_nodes leg below decides */ }
+  } catch (e: unknown) {
+    // ★ F-1203 FIX (2026-09-25): the bare `catch {}` swallowed EVERYTHING — a locked DB /
+    // ★ dropped connection silently yielded only the graph_nodes leg, and mustImplement /
+    // ★ consistency then reported MUST_IMPLEMENT / DRIFT for symbols present in typed_nodes
+    // ★ (false positives). `no such table` stays tolerated (legacy stores legitimately lack
+    // ★ the typed leg); anything else is LOUD — the caller sees the failure, never fake data.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such table/i.test(msg)) throw e;
+  }
   for (const r of rowsAs<{ name: string }>(
     db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), 'code-names graph')) {
     names.add(r.name);

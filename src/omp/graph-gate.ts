@@ -178,6 +178,11 @@ function symbolVerified(sym: string, state: GraphGateSessionState): boolean {
 }
 
 export function computeDrift(state: GraphGateSessionState, now: number = Date.now()): DriftResult {
+  // ★ F-1209 FIX (2026-09-25): editLog/graphQueries grew without bound (O(n) scan per call,
+  //   ever-growing JSON blob on save). Evict entries past DRIFT_WINDOW_MS up front — the
+  //   loop below already ignores them, so pruning changes no verdict, only the cost.
+  state.editLog = state.editLog.filter((e) => now - e.timestamp < DRIFT_WINDOW_MS);
+  state.graphQueries = state.graphQueries.filter((q) => now - q.timestamp < DRIFT_WINDOW_MS);
   let unverifiedWeight = 0;
   let totalWeight = 0;
   let unverifiedCount = 0;
@@ -322,6 +327,10 @@ function openSessionDb(storePath: string): Database {
   const dir = path.dirname(storePath);
   fs.mkdirSync(dir, { recursive: true });
   const db = new Database(storePath);
+  // ★ F-1208 FIX (2026-09-25): concurrent sessions sharing one storePath hit SQLITE_BUSY
+  //   with zero wait. WAL + a 5s busy timeout lets a second writer wait its turn.
+  try { db.exec("PRAGMA journal_mode=WAL;"); } catch { /* read-only or memory — best effort */ }
+  try { db.exec("PRAGMA busy_timeout=5000;"); } catch { /* best effort */ }
   db.exec(GATE_DDL);
   return db;
 }

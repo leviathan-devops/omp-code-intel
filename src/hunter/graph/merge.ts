@@ -180,7 +180,7 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
           }
         }
       }
-        // ★ F-1200 FIX (2026-09-25): inherit subjectKind/objectKind from anchor like the exact-match path — semantic rows lacking kinds no longer emit undefined where mechExact would inherit.
+      // ★ F-1240 FIX (2026-09-25): inherit subjectKind/objectKind from anchor like the exact-match path — semantic rows lacking kinds no longer emit undefined where mechExact would inherit.
       merged.push({
         subject: s.subject.trim(),
         predicate: s.predicate as Predicate,

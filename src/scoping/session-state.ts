@@ -51,9 +51,18 @@ export function readSessionState(statePath: string): SessionStateMap {
 /** THE RAW ATOMIC WRITE (lock-free core): tmp+rename so a concurrent reader
  *  never sees torn JSON. Call ONLY from inside withStateLock (tickSessionBudget)
  *  or via writeSessionState (the lock-holding entry below). */
+// ★ F-1211 FIX (2026-09-25): writeFileSync leaves bytes in the OS page cache — a crash
+//   between write and rename could land a partial/empty tmp file via the atomic swap.
+//   fsync the tmp fd BEFORE rename so the swap only ever publishes durable bytes.
 function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
   const tmp = statePath + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  const fd = fs.openSync(tmp, 'w');
+  try {
+    fs.writeSync(fd, JSON.stringify(state, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
   fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
 }
 

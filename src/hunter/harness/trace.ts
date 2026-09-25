@@ -78,7 +78,10 @@ function deriveRootCause(f: NormalizedFinding, evidenceLen: number): string {
   //   intended payload is the FIRST EVIDENCE SEGMENT (`first`), which the edit computed and
   //   then dropped (TS1128/TS2304 territory: a half-applied edit). `first` is what the
   //   sentence needs.
-  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${first}`;
+  // ★ F-1203 FIX (2026-09-25): return the TRUNCATED `mechanism` (120 chars + ellipsis),
+  //   not the raw `first` — `mechanism` was computed and left as dead code, letting
+  //   arbitrarily long evidence ride the root-cause string.
+  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${mechanism}`;
 }
 
 /** Legacy deterministic solver — the port's sole path (MC-B-09 fallback law). */

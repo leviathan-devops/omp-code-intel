@@ -21,7 +21,7 @@ import { compileBattery } from '../lexicon/compiler.ts';
 import { runBattery, type RunSummary } from '../diagnostics/engine.ts';
 import { runCalibration } from '../diagnostics/calibration.ts';
 
-import { requireContained } from "../shared/containment.ts";
+import { checkContained } from "../shared/containment.ts";
 /** The SCAN actor's output — the compiled battery + the run summary. */
 export interface ScanResult {
   battery: CompiledPredicate[];
@@ -46,9 +46,15 @@ export function resolveCorpusPaths(profile: ProjectProfile): ProjectProfile {
   const root = path.resolve(profile.project.root);
   const corpus = profile.rules.corpus.map((entry) => {
     const abs = path.isAbsolute(entry) ? path.normalize(entry) : path.resolve(root, entry);
-    return requireContained(abs, root, (ev) => {
+    // ★ F-1241 FIX (2026-09-25): check the `resolved` flag — requireContained only tested `contained`, so an unresolved spelling (symlink not followed, nearest-ancestor miss) passed insideRoot on string prefix alone (the F-440 class). Outside is LOUD fail-closed; unresolved-but-inside is LOUD (warn) and returns the ancestor-contained real.
+    const ev = checkContained(abs, root);
+    if (!ev.contained) {
       throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${ev.rootReal} real=${ev.real}) — corpus entries must stay under the root.`);
-    });
+    }
+    if (!ev.resolved) {
+      console.warn(`[scan] HUNT_INVALID_CORPUS WARNING: entry=${entry} could not be resolved through symlinks (real=${ev.real}) — contained on the nearest ancestor, treating as inside but unverified`);
+    }
+    return ev.real;
   });
   return {
     ...profile,

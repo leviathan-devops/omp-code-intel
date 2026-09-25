@@ -75,6 +75,13 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
   // ★ F-43 FIX (2026-09-24): the pre-create registry check raced a concurrent opener — an unconditional upsert could overwrite another session's row. Re-verify after winning the create; never overwrite a foreign owner.
   const current = findGiSessionByStorePath(storePath);
   if (current && current.session_id !== ownerKey) {
+    // ★ F-1210 FIX (2026-09-25): this opener CREATED the file (wx won) but lost the registry
+    //   race — throwing without cleanup orphaned the store (future openers get EEXIST with no
+    //   matching row). Remove the file we created before refusing LOUD. Best-effort: an unlink
+    //   failure warns, never masks the GI_SCOPE_REFUSED verdict.
+    if (created) {
+      try { fs.unlinkSync(storePath); } catch (e) { console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`); }
+    }
     throw new GiScopeError(
       `GI_SCOPE_REFUSED: store ${storePath} owned by ${current.session_id}; caller ${callerKey}`,
     );

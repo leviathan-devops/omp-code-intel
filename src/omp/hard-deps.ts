@@ -298,9 +298,14 @@ export function requireUp(decl: ComponentDecl): void {
  *  A component with a blank dependency is an undeclared dependency — the exact
  *  thing this register exists to make impossible. */
 export function assertRegisterComplete(register: readonly ComponentDecl[]): void {
+  // ★ F-1208 FIX (2026-09-25): two components sharing an id were silently accepted, making the
+  // ★ HardDependencyError `component` field ambiguous at triage. A duplicate id is a loud refusal.
   const bad: string[] = [];
+  const seenIds = new Set<string>();
   for (const d of register) {
     if (d.id.trim() === "") bad.push("<blank id>");
+    else if (seenIds.has(d.id)) bad.push(`${d.id}: duplicate id`);
+    else seenIds.add(d.id);
     if (d.dependency.trim() === "") bad.push(`${d.id}: blank dependency`);
     if (d.errorCode.trim() === "") bad.push(`${d.id}: blank errorCode`);
   }

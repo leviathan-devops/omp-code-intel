@@ -202,18 +202,20 @@ function mergePartialHarness(
     seenIds.add(d.newEntity.id);
     uniqDecisions.push(d);
   }
-  decisions.length = 0;
-  decisions.push(...uniqDecisions);
-  const resolvedEntityIds = new Set(decisions.map((d) => d.newEntity.id));
-  if (resolvedEntityIds.size === newEntities.length) return decisions;
+  // ★ F-1202 FIX (2026-09-25): no in-place mutation of the caller's `decisions` array
+  //   (the old `length = 0; push(...)` surprised any shared/reused input). Merge into a
+  //   LOCAL array and return it; the input is read-only.
+  const merged: ResolutionDecision[] = [...uniqDecisions];
+  const resolvedEntityIds = new Set(merged.map((d) => d.newEntity.id));
+  if (resolvedEntityIds.size === newEntities.length) return merged;
   if (resolvedEntityIds.size === 0) return null;
   for (const ne of newEntities) {
     if (!resolvedEntityIds.has(ne.id)) {
       const h = heuristicDecide(ne, existing);
-      decisions.push({ alias: ne.id, canonicalId: h.canonical ? h.canonical.canonical_id : ne.id, verdict: h.verdict, reasoning: `harness partial — heuristic fallback for '${ne.id}': ${h.reasoning}`, destructive: h.destructive, newEntity: ne, existingCanonical: h.canonical });
+      merged.push({ alias: ne.id, canonicalId: h.canonical ? h.canonical.canonical_id : ne.id, verdict: h.verdict, reasoning: `harness partial — heuristic fallback for '${ne.id}': ${h.reasoning}`, destructive: h.destructive, newEntity: ne, existingCanonical: h.canonical });
     }
   }
-  return decisions;
+  return merged;
 }
 
 export interface ResolveEntitiesOptions {

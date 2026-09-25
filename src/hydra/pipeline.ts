@@ -173,35 +173,29 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     }, evidence);
 
     this.log("SYNTHESIZE_START", {}, evidence);
-    const synthesis = await this.config.synthesizer(results, graph);
-    this.log("SYNTHESIZE_DONE", {}, evidence);
-
-    for (const gate of this.config.gates.post) {
-      this.log("GATE_CHECK", { gate: gate.name, phase: "post" }, evidence);
-      const result = await gate.check(synthesis);
-      if (!result.passed) this.failLoud(gate, result.reason ?? "post-gate failed");
-    }
-
-    const output = this.config.buildOutput(synthesis, results, evidence);
-    this.log("PIPELINE_DONE", { name: this.config.name, totalDurationMs: Date.now() - t0 }, evidence);
-    // ★ F-212 FIX (2026-09-24): single-call snapshot — the length=0+push pair
-    //   exposed an empty array to any reader between the two statements.
-    //   splice() publishes the run in one synchronous call (same reference,
-    //   sequential readers keep working; no intermediate empty is observable).
-    // ★ F-364 FIX (2026-09-24): last-caller-wins — an older concurrent call that
-    //   finishes late skips the publish instead of overwriting the newer run snapshot.
-    //   Sequential callers always see their own run (seq is monotonic).
-    // ★ F-814 FIX (2026-09-24): the old splice(0, len, ...evidence) spread blows the
-    //   V8 ~65k-argument ceiling on large runs (RangeError). Length-reset + push loop
-    //   publishes without a spread (same reference kept per F-212, same seq gate).
-    if (seq >= this.publishedSeq) {
-      this.evidence.length = 0;
-      for (const entry of evidence) {
-        this.evidence.push(entry);
+    // ★ F-1205 FIX (2026-09-25): evidence died with the throw — SYNTHESIZE_START, a failed
+    //   post-gate check, and PIPELINE_DONE were appended to the LOCAL array AFTER buildOutput
+    //   had its snapshot, and any synthesizer/gate throw skipped the publish below, so the only
+    //   externally-readable surface (this.evidence) showed nothing of a failed run. Publish on
+    //   ALL exits: the try body runs synthesis → gates → output; the catch publishes the partial
+    //   trail (with a PIPELINE_FAILED entry) then re-throws; success publishes as before.
+    try {
+      const synthesis = await this.config.synthesizer(results, graph);
+      this.log("SYNTHESIZE_DONE", {}, evidence);
+      for (const gate of this.config.gates.post) {
+        this.log("GATE_CHECK", { gate: gate.name, phase: "post" }, evidence);
+        const result = await gate.check(synthesis);
+        if (!result.passed) this.failLoud(gate, result.reason ?? "post-gate failed");
       }
-      this.publishedSeq = seq;
+      const output = this.config.buildOutput(synthesis, results, evidence);
+      this.log("PIPELINE_DONE", { name: this.config.name, totalDurationMs: Date.now() - t0 }, evidence);
+      this.publishRun(seq, evidence);
+      return output;
+    } catch (e) {
+      this.log("PIPELINE_FAILED", { name: this.config.name, error: e instanceof Error ? e.message : String(e) }, evidence);
+      this.publishRun(seq, evidence);
+      throw e;
     }
-    return output;
   }
 
   /**
@@ -217,6 +211,18 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     _tools: unknown[],
   ): Promise<TSubResult> {
     throw new Error("AETHER_MIGRATION: buildAndRunSubagent removed — the primary path fans out via spec.run (runTemplateAudit) with Promise.allSettled settlement");
+  }
+
+  private publishRun(seq: number, evidence: EvidenceEntry[]): void {
+    // ★ F-1205 helper (2026-09-25): the single-call snapshot publish (F-212 splice→length+push
+    //   per F-814, F-364 last-caller-wins seq gate) — shared by the success and failure exits.
+    if (seq >= this.publishedSeq) {
+      this.evidence.length = 0;
+      for (const entry of evidence) {
+        this.evidence.push(entry);
+      }
+      this.publishedSeq = seq;
+    }
   }
 
   private failLoud<T>(gate: GateCheck<T>, reason: string): never {

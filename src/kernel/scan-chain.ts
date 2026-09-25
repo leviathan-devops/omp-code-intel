@@ -48,13 +48,29 @@ function getGoKey(): string {
   } catch { return ''; }
 }
 
+// ★ F-1243 FIX (2026-09-25): cache the parsed auth.json at module scope — getOpenRouterKey/
+//   getNvidiaKey each did a synchronous readFileSync, and runScanChain calls both per rung
+//   attempt (up to 12 reads under retry pressure, blocking the event loop each time).
+//   One read per process; still resolved at call time (zero key material at import).
+let cachedAuth: Record<string, { key?: string }> | null | undefined;
+function readAuthFile(): Record<string, { key?: string }> {
+  if (cachedAuth !== undefined) return cachedAuth ?? {};
+  try {
+    const raw = JSON.parse(require('fs').readFileSync(
+      require('os').homedir() + '/.local/share/opencode/auth.json', 'utf8'
+    )) as Record<string, { key?: string }>;
+    cachedAuth = raw;
+    return raw;
+  } catch {
+    cachedAuth = null;
+    return {};
+  }
+}
+
 function getOpenRouterKey(): string {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const auth = JSON.parse(require('fs').readFileSync(
-      require('os').homedir() + '/.local/share/opencode/auth.json', 'utf8'
-    ));
-    return auth.openrouter?.key ?? '';
+    return readAuthFile().openrouter?.key ?? '';
   } catch { return ''; }
 }
 
@@ -63,8 +79,7 @@ function getNvidiaKey(): string {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     // ★ F-20 FIX (2026-09-24): READ the file content — the old form passed the PATH STRING
     //   to JSON.parse (always a SyntaxError → the NVIDIA rungs never got their key).
-    const auth = JSON.parse(require('fs').readFileSync(require('os').homedir() + '/.local/share/opencode/auth.json', 'utf8'));
-    return auth.nvidia?.key ?? '';
+    return readAuthFile().nvidia?.key ?? '';
   } catch { return ''; }
 }
 

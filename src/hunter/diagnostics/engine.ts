@@ -541,14 +541,19 @@ function collectLocalTsFiles(root: string): string[] {
   //   symlink-to-directory, so a link pointing at an ancestor (or at the root itself) recursed
   //   forever until the stack blew. The walk tracks the REALPATH of every directory it enters
   //   and refuses to re-enter one — a cycle terminates LOUD (named), never as a stack overflow.
-  const visitedDirs = new Set<string>();
+  // ★ F-1201 FIX (2026-09-25): ONE visited-realpath set (was two: `visitedDirs` at walk-top
+  //   plus `visitedRealDirs` in the symlink/dir branches, which could disagree — a real dir
+  //   entered via symlink was absent from `visitedDirs` and re-enterable by direct path).
+  //   Declared up-front (seeded with rootReal below before walk(root)) so every entry
+  //   path — direct, symlink-to-dir, or plain dir — checks and records the same set.
+  const visitedRealDirs = new Set<string>();
   const walk = (dir: string): void => {
     let realDir: string;
     try { realDir = fs.realpathSync(dir); } catch { realDir = dir; }
-    if (visitedDirs.has(realDir)) {
+    if (visitedRealDirs.has(realDir)) {
       throw sourceReadFailed(dir, `symlink cycle: ${dir} resolves to ${realDir}, already visited — refusing to recurse forever`);
     }
-    visitedDirs.add(realDir);
+    visitedRealDirs.add(realDir);
     let entries: import('node:fs').Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -607,7 +612,7 @@ function collectLocalTsFiles(root: string): string[] {
   try { rootReal = fs.realpathSync(root); } catch (err: unknown) {
     throw sourceReadFailed(root, `local build root realpath failed: ${String(err)}`);
   }
-  const visitedRealDirs = new Set<string>([rootReal]);
+  visitedRealDirs.add(rootReal);
   walk(root);
   return out;
 }
@@ -634,7 +639,10 @@ export function buildLocalGraph(root: string): { nodes: GraphNode[]; edges: Grap
     nodes.push(n);
   };
   for (const abs of collectLocalTsFiles(root)) {
-    const rel = path.relative(root, abs);
+    // ★ F-1200 FIX (2026-09-25): `path.relative` yields backslashes on Windows
+    //   while import-edge targetIds use path.posix — normalize once (no-op on POSIX)
+    //   so `keptIds` matches and the edge is not silently dropped.
+    const rel = path.relative(root, abs).split(path.sep).join('/');
     let text: string;
     try {
       text = fs.readFileSync(abs, 'utf8');

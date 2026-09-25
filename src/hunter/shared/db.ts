@@ -764,7 +764,15 @@ export class FamilyGraphStore {
     try {
       const rows = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data, origin FROM branch_union_view').all() as Record<string, SQLQueryBindings>[];
       if (rows.length > 0) return rows.map(r => ({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['data'] as string); } catch (pe) { console.debug('[kg-store] branch_union data parse failed — empty object:', pe instanceof Error ? pe.message : String(pe)); return {}; }})(), origin: r['origin'] as string }));
-    } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #4:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    } catch (viewErr) {
+      // ★ F-1204 FIX (2026-09-25): the catch-all masked EVERY view-query failure (schema
+      //   mismatch, corruption) as "view not yet created" and fell through to the manual union,
+      //   which can return different results. Only 'no such table' is the absent-view case;
+      //   anything else re-throws LOUD.
+      const msg = viewErr instanceof Error ? viewErr.message : String(viewErr);
+      if (!/no such table/.test(msg)) throw viewErr;
+      console.debug('[kg-store] branch_union_view not yet created — using fallback:', msg);
+    }
     // fallback: manual union. ★ F-6 FIX (2026-09-24): family_nodes stores (id, node_json);
     //   only graph_nodes has the flat columns. The old `fam` query selected columns family_nodes
     //   does NOT have (it THREW, so the whole fallback returned []), and the `delta` rows were

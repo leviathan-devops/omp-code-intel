@@ -105,14 +105,12 @@ export const mpseStageTemplate: AuditorTemplate = {
   staticPrompt: `IDENTITY: STAGE hunter — hunt stage-gate enforcement (pre/post/invariant violations in call chains, guard-skipping paths). Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`,
 };
 
-export const TraceGapSchema = z.object({
-  contractId: z.string().min(1),
-  specPath: z.string().min(1),
-  specLine: z.number().int().positive(),
-  specQuote: z.string().min(1),
+// ★ F-1206 FIX (2026-09-25): TraceGapSchema re-declared every base field — a field added to
+// ★ MpseConformanceBaseSchema silently diverged it (the F-1044 class). Extend the base; narrow
+// ★ implementationStatus to the literal, require evidence, add gapReason. Same accepted set:
+// ★ every previously-valid TraceGap still validates (base fields identical, evidence was required).
+export const TraceGapSchema = MpseConformanceBaseSchema.extend({
   implementationStatus: z.literal("unimplemented"),
-  file: z.string().optional(),
-  line: z.number().int().positive().optional(),
   evidence: z.string().min(1),
   gapReason: z.string().min(1).optional(),
 });

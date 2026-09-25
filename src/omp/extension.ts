@@ -208,9 +208,10 @@ const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; r
   let stAfter: { isDirectory: () => boolean } | null = null;
   try { stAfter = fs.statSync(realAfter); } catch { stAfter = null; }
   if (!stAfter || !stAfter.isDirectory()) {
-    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory after re-resolve: '${realAfter.slice(0, 120)}'` };
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory after re-resolve: '${(realAfter ?? normalized).slice(0, 120)}'` };
   }
-  return { ok: true, real };
+  // ★ F-1244 FIX (2026-09-25): return the freshly-verified realAfter, not the first-resolution real — the stability check verified realAfter, so it is the safe handle for the caller's subsequent open. Null-safe slice above (realAfter is string|null).
+  return { ok: true, real: realAfter ?? real };
 };
 
 

@@ -71,8 +71,12 @@ export interface NodeDetail {
 export const GRAPH_LOAD_BUDGET_BYTES = 128 * 1024 * 1024;
 export const GRAPH_PARSE_YIELD_BYTES = 8 * 1024 * 1024;
 
-function parseGraphJson(contents: string, size: number): Record<string, unknown> {
-  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+// ★ F-1205 FIX (2026-09-25): TOCTOU — the stat size is a HINT ONLY. A file that grows
+//   between stat and readFile must not sail past the budget on a stale small `size`.
+//   The budget ALWAYS checks the ACTUAL bytes just read (the pre-stat guard stays as
+//   the cheap early bail; this post-read gate is authoritative).
+function parseGraphJson(contents: string, _sizeHint: number): Record<string, unknown> {
+  const byteLen = Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES) {
     throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
   }

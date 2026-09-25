@@ -394,14 +394,18 @@ export class RsiStore {
         .query(`SELECT sig FROM ${this.evidenceTable} ORDER BY id DESC LIMIT 1`)
         .get() as { sig: string } | null;
       const prevHash = prev?.sig ?? "GENESIS";
+      // ★ F-1210 FIX (2026-09-25): the outcome body signed {c,o} only — `fired_at` and
+      //   `outcome_evidence` rode UNSIGNED and were forgeable by a direct DB writer.
+      //   Both now ride the signed body (fired_at is generated here, so signing is exact).
+      const firedAt = new Date().toISOString();
       const sig = crypto
         .createHmac("sha256", this.key)
-        .update(`${prevHash}|${JSON.stringify({ c: canonicalId, o: outcome })}`)
+        .update(`${prevHash}|${JSON.stringify({ c: canonicalId, at: firedAt, o: outcome, e: evidence })}`)
         .digest("hex");
       this.db.run(
         `INSERT INTO ${this.evidenceTable} (canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [canonicalId, new Date().toISOString(), outcome, evidence, prevHash, sig],
+        [canonicalId, firedAt, outcome, evidence, prevHash, sig],
       );
       this.db.exec("COMMIT;");
     } catch (e) {
@@ -422,8 +426,10 @@ export class RsiStore {
     //   was the one place that skipped it. Rows are mapped (the snake_case mapper) and
     //   verified; a forged row counts as ABSENT, never as evidence.
     const raw = this.db
-      .query(`SELECT canonical_id, fired_at, outcome, prev_hash, sig FROM ${this.evidenceTable} WHERE canonical_id = ? ORDER BY id`)
-      .all(canonicalId) as Array<{ canonical_id: string; fired_at: string; outcome: Outcome; prev_hash: string; sig: string }>;
+      // ★ F-1210 (cont.): outcome_evidence rides the new signature — select it so new
+      //   outcome rows verify on the first form instead of falling to legacy/ABSENT.
+      .query(`SELECT canonical_id, fired_at, outcome, outcome_evidence, prev_hash, sig FROM ${this.evidenceTable} WHERE canonical_id = ? ORDER BY id`)
+      .all(canonicalId) as Array<{ canonical_id: string; fired_at: string; outcome: Outcome; outcome_evidence: string | null; prev_hash: string; sig: string }>;
     let confirmed = 0, refuted = 0, unresolved = 0, forged = 0;
     for (const r of raw) {
       if (!this.verifyEvidenceRow(r)) { forged += 1; continue; } // ABSENT — never evidence
@@ -442,8 +448,14 @@ export class RsiStore {
    *  appendOutcome signs `${prevHash}|{c,o}`. Reconstruct EXACTLY that (key order and the
    *  'unresolved' default matter — a wrong form verifies NOTHING). A firing row has no
    *  `fired_at` in its signed body; an outcome row has no `at`. Both are re-derived here. */
-  private verifyEvidenceRow(r: { canonical_id: string; fired_at: string; outcome: Outcome; prev_hash: string; sig: string }): boolean {
+  // ★ F-1210 (cont.): verify tries the NEW outcome form {c,at,o,e} first, then the two
+  //   LEGACY forms (firing {c,at,o:'unresolved'} and pre-F-1210 outcome {c,o}) so old
+  //   rows keep verifying — no migration, no silent invalidation of the existing ledger.
+  //   `outcome_evidence` must be READ for the new form: callers that select without it
+  //   cannot verify new outcome rows (they fall to the legacy forms and read ABSENT).
+  private verifyEvidenceRow(r: { canonical_id: string; fired_at: string; outcome: Outcome; outcome_evidence?: string | null; prev_hash: string; sig: string }): boolean {
     const forms: string[] = [
+      `${r.prev_hash}|${JSON.stringify({ c: r.canonical_id, at: r.fired_at, o: r.outcome, e: r.outcome_evidence ?? null })}`,
       `${r.prev_hash}|${JSON.stringify({ c: r.canonical_id, at: r.fired_at, o: "unresolved" })}`,
       `${r.prev_hash}|${JSON.stringify({ c: r.canonical_id, o: r.outcome })}`,
     ];

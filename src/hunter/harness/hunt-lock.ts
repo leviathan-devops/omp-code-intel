@@ -193,7 +193,15 @@ export function releaseHuntLock(targetPath: string): void {
       throw e;
     }
   } catch (e: unknown) {
+    // ★ F-1200 FIX (2026-09-25): the outer catch swallowed ALL unexpected unlink failures
+    //   (EACCES, EMFILE, ENOSPC) with a warn — the caller never learned the lock leaked and
+    //   every future acquireHuntLock threw HUNT_ALREADY_RUNNING indefinitely (TTL-bounded by
+    //   the 30min stale-recovery, never permanent). Benign races return early above (F-30/
+    //   F-342/F-831/F-1022 + ENOENT); anything reaching the inner `throw e` or this catch is
+    //   unexpected — warn LOUD then re-throw so the caller (bug-hunt.ts finally) records
+    //   HUNT_LOCK_RELEASE_FAILED instead of silently leaking.
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
   }
 }
 

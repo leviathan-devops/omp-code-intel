@@ -115,15 +115,26 @@ function openAndNextRunId(token: string, dbPath: string): string {
     let seq = 0;
     for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
       let payload: { runId?: unknown };
+      let rawText = '';
       try {
         // ★ F-1053 FIX (2026-09-25): a driver returning an already-parsed object made String() yield '[object Object]' → parse throw → silent skip → duplicate runId (SILENT). Objects assign directly; only strings/buffers go through JSON.parse.
         // THE R16 TYPE_CERTAINTY FIX — JSON.parse returns `any`; the assignment
         // to the typed variable needs no cast at all (no AsExpression to flag),
         // and the runId read below is typeof-guarded before use.
         const raw: unknown = row['payload'];
+        rawText = typeof raw === 'string' ? raw : String(raw ?? '');
         payload = raw !== null && typeof raw === 'object' ? (raw as { runId?: unknown }) : JSON.parse(String(raw ?? '{}'));
       } catch (e: unknown) {
-        console.warn(`[recon] HUNT_DONE payload parse failed — skipped: ${e instanceof Error ? e.message : String(e)}`);
+        // ★ F-1201 FIX (2026-09-25): the parse-failure `continue` silently dropped the
+        // ★ row's sequence number — a corrupt row carrying a HIGH seq let the next runId
+        // ★ collide with it. Salvage: the raw text often still carries `<prefix><digits>`
+        // ★ even when the JSON envelope is corrupt — extract it before skipping.
+        const idx = rawText.indexOf(prefix);
+        if (idx !== -1) {
+          const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
+          if (dm) seq = Math.max(seq, Number(dm[0]!));
+        }
+        console.warn(`[recon] HUNT_DONE payload parse failed — skipped: ${e instanceof Error ? e.message : String(e)}; raw=${rawText.slice(0, 120)}`);
         continue;
       }
       if (typeof payload.runId === 'string' && payload.runId.startsWith(prefix)) {

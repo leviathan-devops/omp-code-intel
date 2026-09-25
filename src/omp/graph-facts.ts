@@ -200,10 +200,16 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     // ── M-GRAPH-2 · HAS-READER ─────────────────────────────────────────────────
     if (input.intent === "declare") {
       // ★ A DECLARED FIELD WITH NO READER IS THE D-6 CLASS: config promising consumption.
-      verdicts.push(outD === 0 && inD.n === 0
+      // ★ F-1207 FIX (2026-09-25): the FIRE condition was `outD === 0 && inD.n === 0` — but a
+      //   READER is an incoming edge (inD); out-edges are what the symbol itself references,
+      //   irrelevant to whether anyone reads it. A declared field with outD > 0 and inD == 0
+      //   (nothing reads it) fell into IGNORE with the reason "is referenced" — contradicted by
+      //   its own evidence (in-degree 0). Fire on inD.n === 0. The FIRE reason keeps the
+      //   battery-pinned "declared, never consumed" token; the evidence now names both degrees.
+      verdicts.push(inD.n === 0
         ? { rule: "M-GRAPH-2", settles: true, action: "FIRE",
-            reason: `the declared symbol "${input.target}" has ZERO edges in or out — declared, never consumed`,
-            evidence: "in-degree 0 · out-degree 0" }
+            reason: `the declared symbol "${input.target}" has ZERO incoming edges — declared, never consumed`,
+            evidence: `in-degree 0 · out-degree ${outD}` }
         : { rule: "M-GRAPH-2", settles: true, action: "IGNORE",
             reason: `the declared symbol "${input.target}" is referenced`,
             evidence: `in-degree ${inD.n} · out-degree ${outD}` });

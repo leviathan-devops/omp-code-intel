@@ -226,11 +226,23 @@ function db(sessionId?: string): Database {
     fresh.run(`ALTER TABLE go_key_pool ADD COLUMN keyid TEXT`);
   } catch (_dup) { /* column exists */ }
   poolDbByPath.set(want, fresh);
+  // ★ F-1203 FIX (2026-09-25): LRU eviction closed the oldest handle INLINE while another call
+  //   frame could hold it mid-transaction (db() → BEGIN IMMEDIATE … COMMIT is synchronous, but
+  //   a re-entrant db() for a different path with a full LRU evicted the still-open handle and
+  //   the holder got 'database is closed' mid-transaction). Delete-first, close-after: the map
+  //   no longer names the evicted handle before its close runs, and a close failure never
+  //   removes a live entry. Bun is single-threaded so same-path re-entry cannot interleave here;
+  //   the hazard is cross-path eviction during a held transaction — this narrows that window.
+  const toClose: Database[] = [];
   while (poolDbByPath.size > POOL_DB_LRU_MAX) {
     const oldest = poolDbByPath.keys().next();
     if (oldest.done) break;
-    try { poolDbByPath.get(oldest.value)?.close(); } catch { /* already closed */ }
+    const evicted = poolDbByPath.get(oldest.value);
     poolDbByPath.delete(oldest.value);
+    if (evicted && evicted !== fresh) toClose.push(evicted);
+  }
+  for (const db of toClose) {
+    try { db.close(); } catch { /* already closed */ }
   }
   return fresh;
 }

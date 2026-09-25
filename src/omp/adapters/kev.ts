@@ -95,6 +95,11 @@ export function kevProbe(scopeRoot: string): ConsumerProbe {
       }
       return { up: true, evidence: `${cli} + ${runtime} (the local KEV meaning gate)` };
     },
+    // ★ F-1206 NOTE (2026-09-25, REAL-DEFERRED on async migration): facts() is a SYNCHRONOUS
+    //   ConsumerProbe method, so this stays execFileSync (bounded: 120s timeout, 8MB cap) —
+    //   an async execFile migration needs the probe contract + both callers (auditOne,
+    //   factsForWithFaults) to go async. In a server/concurrent probe-runner, run this probe
+    //   in a worker thread or dedicated process: a slow/hung CLI blocks the event loop here.
     facts: (subject: string): LayerFact[] => {
       if (cli === null) throw new Error(`GI_ENFORCE_KEV: no KEV CLI at ${path.join(scopeRoot, KEV_CLI_REL)}`);
       let out: string;

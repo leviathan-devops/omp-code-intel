@@ -234,12 +234,14 @@ function bindNumber(bindings: Record<string, unknown>, key: string): number | un
   return undefined;
 }
 
-/** THE R16 TYPE_CERTAINTY GUARDED READ — the range binding (Array.isArray-
- *  guarded; the z.tuple schema validated the shape at compile). */
+/** THE R16 TYPE_CERTAINTY GUARDED READ — the range binding (length + element-type
+ *  guarded; the z.tuple schema validates shape at compile, but check() also runs on
+ *  loader-bypassing bindings so a ["a","b"] or 3-tuple never reaches source.read).
+ *  ★ F-1242 FIX (2026-09-25): length===2 + both numbers — mirrors bindStages/bindStringArray. */
 function bindRange(bindings: Record<string, unknown>): [number, number] | undefined {
   const v = bindings['range'];
-  if (Array.isArray(v)) {
-    return v as [number, number];
+  if (Array.isArray(v) && v.length === 2 && typeof v[0] === 'number' && typeof v[1] === 'number') {
+    return [v[0], v[1]];
   }
   return undefined;
 }

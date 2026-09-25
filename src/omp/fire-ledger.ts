@@ -27,6 +27,7 @@
 
 import { Database } from "bun:sqlite";
 import * as path from "node:path";
+import * as nodePath from "node:path";
 import type { DecisionRow, FireGate } from "./fire-gate.ts";
 import type { ResolvedCounts } from "./calibration.ts";
 
@@ -106,6 +107,15 @@ export class LedgerError extends Error {
   }
 }
 
+/** ★ F-1245 FIX (2026-09-25): the single-prefix normalizer — appendManyDetailed's
+ *  fallback and withLedger's catch each stripped + re-added GI_LEDGER_ inline (duplicated
+ *  logic that drifts). One helper applies the prefix exactly once; stored lastPersist
+ *  codes carry exactly one prefix (tests assert toContain("GI_LEDGER")). */
+export function toLedgerCode(code: string): string {
+  const bare = code.startsWith("GI_LEDGER_") ? code.slice("GI_LEDGER_".length) : code;
+  return `GI_LEDGER_${bare}`;
+}
+
 // ── THE LEDGER ──────────────────────────────────────────────────────────────
 export class FireLedger {
   private readonly db: Database;
@@ -113,6 +123,9 @@ export class FireLedger {
   private closed = false;
   private persistFailureCount = 0;
   private lastPersist: { code: string; message: string; at: string } | null = null;
+  /** ★ F-1246 FIX (2026-09-25): the CWD-stable key — resolved once at open time so a
+   *  chdir() between drain calls cannot fork the exactly-once watermark. */
+  readonly resolvedPath: string;
 
   constructor(readonly path: string) {
     // A bad path must THROW — never degrade to an in-memory ledger that looks
@@ -123,6 +136,8 @@ export class FireLedger {
     if (path.trim() === "" || path.trim() === ":memory:" || path.trim().startsWith("file::memory:")) {
       throw new LedgerError("NOT_PERSISTENT", `path ${JSON.stringify(path)} names an in-memory database — the ledger must survive the process or it is not a ledger`);
     }
+    // ★ F-1246 FIX (2026-09-25): nodePath (not path — the param shadows the module here).
+    this.resolvedPath = nodePath.resolve(path);
     let db: Database;
     try {
       db = new Database(path, { create: true });
@@ -337,8 +352,8 @@ export class FireLedger {
           // the recorded code carries the greppable prefix, consistently with the
           // withLedger path — a reader greps GI_LEDGER_*, not a bare suffix.
           // ★ F-45 FIX (2026-09-24): normalize — a code that already carries the prefix must not gain it twice.
-          const bare45 = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_".length) : err.code;
-          this.notePersistFailure(`GI_LEDGER_${bare45}`, err.message);
+          // ★ F-1245 FIX (2026-09-25): ride the shared toLedgerCode helper (was duplicated with withLedger).
+          this.notePersistFailure(toLedgerCode(err.code), err.message);
         }
       }
       return { committed, failed };
@@ -577,7 +592,8 @@ function poisonSignature(row: object): string {
 /** Persist every row the gate has produced that this ledger has not seen.
  *  Returns the number of NEW rows written (0 on a repeat drain). */
 export function drain(gate: FireGate, ledger: FireLedger): number {
-  const key = path.resolve(ledger.path);
+  // ★ F-1246 FIX (2026-09-25): the ledger's own construction-time resolved path — path.resolve(ledger.path) re-resolves against the CALL-time cwd, forking the drained/poisoned maps after a chdir() and double-writing every row (exactly-once break).
+  const key = ledger.resolvedPath ?? nodePath.resolve(ledger.path);
   let seen = drained.get(key);
   if (seen === undefined) {
     // ★ PASS-4 HIGH — THE EVICTION IS GONE, AND IT SHOULD NEVER HAVE BEEN ADDED.
@@ -644,8 +660,8 @@ export function withLedger(gate: FireGate, ledger: FireLedger): FireGate {
       // message. The F1 fix did `e.message.split(":")[0]`, which is exactly the kind
       // of fragile coupling the re-verify scan flagged.
       // ★ F-45 FIX (2026-09-24): normalize — a code that already carries the prefix must not gain it twice.
-      const bare45 = e instanceof LedgerError ? (e.code.startsWith("GI_LEDGER_") ? e.code.slice("GI_LEDGER_".length) : e.code) : "PERSIST_FAILED";
-      const code = `GI_LEDGER_${bare45}`;
+      // ★ F-1245 FIX (2026-09-25): ride the shared toLedgerCode helper (was duplicated with appendManyDetailed).
+      const code = e instanceof LedgerError ? toLedgerCode(e.code) : toLedgerCode("PERSIST_FAILED");
       const message = e instanceof Error ? e.message : String(e);
       ledger.notePersistFailure(code, message);
       // The row is STILL in the gate's memory, so a later drain will land it —

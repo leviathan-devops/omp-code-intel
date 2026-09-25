@@ -161,11 +161,18 @@ function readDeclaredMeta(lines: string[], start: number): { classification?: Cl
   for (let i = start; i < lines.length && i < start + META_SCAN_WINDOW; i++) {
     const line = lines[i];
     if (line.trim() === '') break;                       // the blank line ends the metadata block
-    if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line)) break; // the next rule line ends it
+    // ★ F-1202 FIX (2026-09-25): the rule-shape guard ran BEFORE the declared-metadata
+    // ★ extraction — a metadata line carrying a rule keyword (`severity: HIGH — MUST
+    // ★ audit`) broke out first and the curated override was silently lost to the
+    // ★ mechanical vote. The DECLARED regexes are anchored (`^\s*(classification|severity)`)
+    // ★ so a genuine new-rule line can never match them: extract FIRST, and a line that
+    // ★ declares metadata IS metadata (skip the guard) even when rule-shaped.
     const cm = line.match(DECLARED_CLASSIFICATION);
     if (cm && !meta.classification) { const v = String(cm[1]).toUpperCase(); if (isClassification(v)) meta.classification = v; }
     const sm = line.match(DECLARED_SEVERITY);
     if (sm && !meta.severity) { const v = String(sm[1]).toUpperCase(); if (isSeverity(v)) meta.severity = v; }
+    if (cm || sm) continue;                              // a declaring line is metadata, not the next rule
+    if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line)) break; // the next rule line ends it
   }
   return meta;
 }

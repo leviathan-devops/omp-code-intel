@@ -131,6 +131,14 @@ function tailEvents(eventsPath: string, limit: number): AbideEvent[] {
   let raw: string;
   try {
     raw = fs.readFileSync(eventsPath, "utf8");
+  // ★ F-1206 FIX (2026-09-25): when `st` is null (stat failed) the pre-guard above is
+  //   skipped — a successful read of a giant ledger would materialize unbounded.
+  //   Enforce the same 32MiB ceiling on the ACTUAL bytes just read.
+    if (Buffer.byteLength(raw, "utf8") > MAX_SAFE_FULL_READ) {
+      throw new Error(
+        `GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${Buffer.byteLength(raw, "utf8")}B read) and full read exceeds ${MAX_SAFE_FULL_READ}B — refusing to materialize the ledger`,
+      );
+    }
   } catch (e) {
     throw new Error(`GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} and the fallback read is unavailable (${(e as NodeJS.ErrnoException).code ?? (e instanceof Error ? e.message : String(e))}) — the ledger cannot be read`);
   }

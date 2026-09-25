@@ -79,7 +79,20 @@ export class ScopeBindingManager {
    *  live view). */
   register(spec: EcosystemSpec): ScopeBinding {
     const existing = this.bindings.get(spec.ecosystem);
-    if (existing) return existing;
+    // ★ F-1206 FIX (2026-09-25): same-ecosystem re-registration with a DIFFERENT prefix
+    // ★ used to silently ignore the new prefix (idempotent no-op) — a misconfigured caller
+    // ★ would believe the namespace moved while ownerOf/isForeignWave still served the old
+    // ★ one. Identical re-registration stays a no-op; a CONFLICTING one is a loud contract
+    // ★ error. (No stale map entry ever existed — the early return runs before
+    // ★ prefixes.set — so ownerOf's longest-match is untouched by this change.)
+    if (existing) {
+      if (existing.wavePrefix !== spec.wavePrefix) {
+        throw new Error(
+          `[SCOPE] ecosystem "${spec.ecosystem}" already registered with wavePrefix "${existing.wavePrefix}" — cannot re-register with "${spec.wavePrefix}". Prefixes are immutable per ecosystem; use a new ecosystem id or restart the manager.`,
+        );
+      }
+      return existing;
+    }
     // ★ F-132 FIX (2026-09-24): refuse duplicate wavePrefix from a different ecosystem.
     //   Two ecosystems sharing a prefix silently breaks ownerOf (last-registered wins)
     //   and isForeignWave — the mutual-exclusivity contract depends on unique prefixes.

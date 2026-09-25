@@ -71,7 +71,11 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   // ★ F-915 FIX (2026-09-24): UNBOUNDED pendingSteer — entries whose tool_result never arrived (abort/timeout/cancel-throw) lived forever, unlike pendingQueries (F-837 TTL+sweep+cap). Same bound here: TTL sweep on the tool_call clock + per-sid cap.
   const PENDING_STEER_TTL_MS = 120_000;
   const PENDING_STEER_MAX_PER_SID = 10;
-  interface PendingSteer { tool: string; note: string; enqueuedAt: number; }
+  // ★ F-1207 FIX (2026-09-25): FIFO matched by tool NAME only — two concurrent `edit`
+  //   calls misattributed notes. Entries now carry the target FILE; the result matches
+  //   the same-file entry first and falls back to FIFO only when the result carries
+  //   no file hint (platform tool_result has no correlation id — file is the best key).
+  interface PendingSteer { tool: string; note: string; enqueuedAt: number; file: string; }
   const pendingSteer = new Map<string, Array<PendingSteer>>();
   const sweepStaleSteer = (now: number): void => {
     for (const [sid, q] of pendingSteer) {
@@ -126,7 +130,7 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     if (verdict.token === "[GATE STEER]") {
       sweepStaleSteer(Date.now());
       const queue = pendingSteer.get(steerSid) ?? [];
-      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim(), enqueuedAt: Date.now() });
+      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim(), enqueuedAt: Date.now(), file: rec.file });
       while (queue.length > PENDING_STEER_MAX_PER_SID) queue.shift();
       pendingSteer.set(steerSid, queue);
     }
@@ -140,7 +144,10 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     const sid = resolveSessionIdFromEvent(event).id;
     const queue = pendingSteer.get(sid);
     if (!queue || queue.length === 0) return undefined;
-    const qi = queue.findIndex((e) => e.tool === name);
+    const inRec = (event.input && typeof event.input === "object" ? event.input : {}) as Record<string, unknown>;
+    const resFile = str(inRec.file_path) || str(inRec.filePath) || str(inRec.path) || str(inRec.file);
+    let qi = resFile ? queue.findIndex((e) => e.tool === name && e.file === resFile) : -1;
+    if (qi === -1) qi = queue.findIndex((e) => e.tool === name);
     if (qi === -1) return undefined;
     const note = queue.splice(qi, 1)[0]!.note;
     if (queue.length === 0) pendingSteer.delete(sid);

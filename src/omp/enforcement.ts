@@ -325,7 +325,7 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
   try {
     // ★ F-935 FIX (2026-09-24): the JUDGE path of the close layer had the same unbounded
     //   await — a hung judge wedged a fail-CLOSED surface (worse: no verdict at all, not
-    //   even a refusal). Bounded with the same ceiling; timeout fails CLOSED as GI_JEV_DOWN
+    //   even a refusal). Bounded with the same ceiling; timeout fails CLOSED as GI_JEV_TIMEOUT
     //   with timeout evidence (the layer's promise is "fail closed on any engine failure").
     answers = await withEngineTimeout("judge", ENGINE_TIMEOUT_MS, deps.judge.evaluate(
       { claim, evidence: spans.map((s) => `${s.quote} @ ${s.source}`).join("\n---\n") },
@@ -337,10 +337,16 @@ export async function runCloseLayer(deps: EnforcementDeps, input: CloseInput): P
       }])
     );
   } catch (e) {
+    // ★ F-1207 FIX (2026-09-25): the timeout and crash branches shared GI_JEV_DOWN, losing the
+    // ★ slow-vs-broken distinction the TSG paths preserve (TSG_TIMEOUT vs TSG_DOWN, F-1056 above).
+    // ★ A timeout carries GI_JEV_TIMEOUT (may succeed on retry); a crash keeps GI_JEV_DOWN.
     if (e instanceof EngineTimeout) {
-      return { verdict: "FAIL_CLOSED", code: "GI_JEV_DOWN", reason: `the judge timed out at close after ${ENGINE_TIMEOUT_MS}ms (fail-closed)`, evidence: e.message, spans };
+      return { verdict: "FAIL_CLOSED", code: "GI_JEV_TIMEOUT", reason: `the judge timed out at close after ${ENGINE_TIMEOUT_MS}ms (fail-closed)`, evidence: e.message, spans };
     }
-    return { verdict: "FAIL_CLOSED", code: "GI_JEV_DOWN", reason: "the judge failed at close (fail-closed)", evidence: e instanceof Error ? e.message : String(e), spans };
+    const jevCode = e instanceof Error && "code" in e && typeof (e as { code?: unknown }).code === "string"
+      ? String((e as { code: unknown }).code)
+      : "GI_JEV_DOWN";
+    return { verdict: "FAIL_CLOSED", code: jevCode, reason: "the judge failed at close (fail-closed)", evidence: e instanceof Error ? e.message : String(e), spans };
   }
 
   // 4 ROUTE — code, never the model (low confidence REJECTS, it does not pass).

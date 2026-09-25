@@ -151,7 +151,6 @@ export class HydraBus {
       // ★ a future throwing line must add its own guard or accept redelivery. Kept + documented.
       this.cursor = cursorBefore;
       throw e;
-    }
     } finally {
       this.polling = false;
     }

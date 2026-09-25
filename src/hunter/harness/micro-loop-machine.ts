@@ -464,6 +464,12 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
           for (let i = handleDisposables.length - 1; i >= 0; i--) {
             if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3) handleDisposables.splice(i, 1);
           }
+          // ★ F-1202 FIX (2026-09-25): the DbClient opened in MAP lived in context.db and was
+          //   closed only in stop() — a caller awaiting done() without stop() (the happy path)
+          //   leaked the SQLite WAL fd until GC. Settle is the terminal path shared by done()
+          //   and stop(); close here. Close is idempotent (SharedDb guards), LOUD on failure,
+          //   never throwing past the resolver; stop() keeps its own close as the second arm.
+          try { snapshot.db?.close(); } catch (e) { console.error('[micro-loop] db close failed:', e instanceof Error ? e.message : String(e)); }
           resolve();
         }
       });
@@ -528,6 +534,10 @@ function snapshotState(s: { value: unknown }): string {
  *  a bare throw (O3.5). */
 function namedError(e: unknown): string {
   if (e instanceof Error) return e.message;
+  // ★ F-1201 FIX (2026-09-25): actorError returns undefined for malformed events — the old
+  //   String(e) branch then produced the literal "undefined" as the INCONCLUSIVE error,
+  //   masking the real cause. Nullish is a sentinel, never a message.
+  if (e === undefined || e === null) return 'unknown error (no error payload)';
   return String(e);
 }
 

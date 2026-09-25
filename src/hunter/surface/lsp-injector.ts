@@ -237,9 +237,56 @@ export class DiagnosticsServer {
     }
   }
 
+  /** ★ F-1205 FIX (2026-09-25): the glob→RegExp compiler shared with the in-memory
+   *  branch below (F-32/F-49 escaping + F-1043 ReDoS guards) — one compiler, so the DB
+   *  expansion and the state-key expansion cannot diverge. Null = refuse (never invent). */
+  private globToRegExp(candidate: string): RegExp | null {
+    const GLOB_MAX_LEN = 200;
+    const GLOB_MAX_STARS = 8;
+    if (candidate.length > GLOB_MAX_LEN) return null;
+    let starCount = 0;
+    for (const ch of candidate) if (ch === '*') starCount++;
+    if (starCount > GLOB_MAX_STARS) return null;
+    try {
+      return new RegExp('^' + [...candidate].map((ch) => {
+        if (ch === '*') return '.*';
+        if (ch === '?') return '.';
+        if (ch === '[' || ch === ']') return ch;
+        return ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      }).join('') + '$');
+    } catch { return null; }
+  }
+
+  /** ★ F-1205 FIX (2026-09-25): DB-backed glob expansion — the DISTINCT file column of
+   *  the findings table is the project truth the exact path would resolve against.
+   *  Empty/miss → [] (never the raw pattern — diagnosticsFor('src/*.ts') matched nothing). */
+  private expandGlobFromDb(candidate: string): string[] {
+    const rx = this.globToRegExp(candidate);
+    if (rx === null) return [];
+    try {
+      const rows = rowsAs<{ file?: string | null }>(
+        this.db!.prepare('SELECT DISTINCT file FROM findings').all(),
+        'distinct finding files',
+      );
+      const out: string[] = [];
+      for (const r of rows) {
+        if (typeof r.file !== 'string' || r.file.length === 0) continue;
+        if (rx.test(r.file)) out.push(r.file);
+      }
+      return out;
+    } catch { return []; }
+  }
+
   /** THE TOUCHED-FILE RESOLUTION — the exact key, else the glob-matched state keys. */
   resolveTouchedFiles(candidate: string): string[] {
-    if (this.db) return [candidate]; // the DB-backed read resolves the exact file (the project truth)
+    // ★ F-1205 FIX (2026-09-25): a glob pattern is not a file — the old short-circuit
+    // ★ returned [pattern] and diagnosticsFor matched it against nothing, so glob tool
+    // ★ results rode no diagnostic block in DB-backed (production) mode. Glob candidates
+    // ★ expand against the DB's file set; exact candidates keep the direct read.
+    if (this.db) {
+      if (/[*?[]/.test(candidate)) return this.expandGlobFromDb(candidate);
+      return [candidate];
+    }
     if (this.state.has(candidate)) return [candidate];
     // ★ F-32 FIX (2026-09-24): the old `candidate.replace(/[.*?]/g, '')` +
     // ★ startsWith matched wrong files both ways — `src/foo.ts` lost its dots

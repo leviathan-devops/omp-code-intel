@@ -134,6 +134,16 @@ export function requireContained(
   root: string,
   onViolation: (evidence: { real: string; rootReal: string; target: string; root: string }) => never,
 ): string {
+  // ★ F-1204 ADJUDICATION (2026-09-25, NOT-A-BUG as a blanket change): the suggested
+  //   `if (!contained || !resolved)` was PROBED and REVERTED — it refuses every
+  //   not-yet-existing in-root path (resolved=false when real===spelling and !exists),
+  //   which is the PINNED creation flow (st-containment-contract P1: a not-yet-existing
+  //   target under a real root is CONTAINED; the requireContained test's ok.ts likewise
+  //   does not exist). Truth table: existing-in-root T/T allow under both; not-yet-existing
+  //   T/F allow (old) vs REFUSE (suggested) — the suggested row breaks P1; `..` escape and
+  //   symlink-out are F under both. Per the F-602 design, `resolved` stays the per-caller
+  //   opt-in (checkContained exposes it) — a central refusal would erase the
+  //   create-before-it-exists contract this wrapper exists to serve.
   const { real, rootReal, contained } = checkContained(target, root);
   if (!contained) onViolation({ real, rootReal, target, root });
   return real;

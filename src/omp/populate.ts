@@ -32,7 +32,7 @@ export interface PopulateResult {
   graphifyGraph?: string;
 }
 
-export function populateSessionStore(storePath: string, root: string, runTag = "populate-" + Date.now().toString(36), opts?: { substrate?: "corbell" | "graphify" }): PopulateResult {
+export function populateSessionStore(storePath: string, root: string, runTag = "populate-" + Date.now().toString(36), opts?: { substrate?: "corbell" | "graphify"; scope?: string[] }): PopulateResult {
   // THE SUBSTRATE SWITCH (GI-OMP full-port W1): explicit substrate only —
   // DEFAULT stays corbell (zero behavior change for existing sessions).
   // opts.substrate === 'graphify' runs the graphify graph.json leg; anything
@@ -45,7 +45,8 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
     //   reason, never an exception (the extension's graphify caller already branches on
     //   pop.skipped/fallbackReason).
     try {
-      return populateGraphifySessionStore(storePath, root, runTag);
+      // ★ F-1247 FIX (2026-09-25): thread the caller's scope — the freshness probe walked the caller's scope only when provided, but this sole caller never passed one (always the blind ["src"] default).
+      return populateGraphifySessionStore(storePath, root, runTag, opts?.scope);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
@@ -115,8 +116,9 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
 function populateGraphifySessionStore(storePath: string, root: string, runTag: string, scope?: string[]): PopulateResult {
   const resolvedRoot = path.resolve(root);
   const graphPath = graphifyOutPath(resolvedRoot);
-  // H05 (qwen 33d64eca): the probe walks the CALLER's scope when provided
-  // (session bridge path) — never a blind ["src"] default.
+  // H05 (qwen 33d64eca) + ★ F-1247 FIX (2026-09-25): the probe walks the CALLER's scope
+  //   when provided (session bridge path threads opts.scope since F-1247) — otherwise the
+  //   ["src"] default, which assumes src-layout projects. Non-src layouts must pass scope.
   const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, scope ?? ["src"]);
   if (!freshness.fresh) {
     const reason = `GRAPHIFY_NOT_WARM:${freshness.reason}`;

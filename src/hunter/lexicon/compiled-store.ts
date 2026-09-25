@@ -69,6 +69,17 @@ export function writeCompiledCache(
     for (const c of cards) {
       insCard.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
     }
+    // ★ F-1204 FIX (2026-09-25): the cards above delete-then-insert per corpus_hash, but the
+    // ★ battery only INSERT OR REPLACE-d by id — a recompile under the SAME battery_version
+    // ★ with fewer/different ids orphaned the dropped rows (loadBattery reads by version, so
+    // ★ orphans of the live version would ride the battery). Delete the incoming version first.
+    // ★ Cross-version rows are unreachable by construction (version = sha(corpus+bindings);
+    // ★ same version ⇒ same deterministic id set), so no wider eviction is attempted here.
+    if (battery.length > 0 && battery[0] !== undefined) {
+      const delBat = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');
+      stmts.push(delBat);
+      delBat.run(battery[0].batteryVersion);
+    }
     if (battery.length > 0) {
       const insBat = db.prepare(
         `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,

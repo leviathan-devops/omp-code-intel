@@ -129,11 +129,19 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
   // The A4 container scenario ('cat file | python -c x') keeps its BASH_BYPASS: cat is a READ
   // verb — the full scan below applies, the pipe fires.
   const blockVerbExemption = EXECUTION_VERBS.has(firstToken) || MUTATION_VERBS.has(firstToken) || firstToken === ECHO_VERB;
+  // ★ F-1200 FIX (2026-09-25): the narrow splitter list lived as TWO inline literals
+  // ★ (block-verb + READ-verb) drifting by copy-paste — one named constant so the two
+  // ★ paths can never drift apart again. `(`, `)`, `{`, `}` are DELIBERATELY ABSENT:
+  // ★ without `$`/backtick/quote they cannot substitute or split — `echo (hi)` prints
+  // ★ literally, `node -e "x()"` is the verb's own argument syntax (already BLOCKED as
+  // ★ BASH_EXECUTION, proofCase §6.2:2555). Adding parens would BLOCK harmless echo and
+  // ★ only relabel execution-verbs BYPASS→BYPASS — zero security gain, real false positives.
+  const NARROW_SPLITTERS: ReadonlySet<string> = new Set(['|', ';', '&', '>', '<', '\n', '$', '`']);
   if (blockVerbExemption) {
     // ★ F-13 FIX (2026-09-24): `$` and backtick ride the splitter list — without them
     // ★ `node -e "$(whoami)"` sailed through the exemption as pure argument syntax.
     for (const ch of command) {
-      if (ch === '|' || ch === ';' || ch === '&' || ch === '>' || ch === '<' || ch === '\n' || ch === '$' || ch === '`') return ch;
+      if (NARROW_SPLITTERS.has(ch)) return ch;
     }
     return null;
   }
@@ -149,7 +157,7 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
   // ★ still blocks via `|`.
   if (READ_VERBS.has(firstToken)) {
     for (const ch of command) {
-      if (ch === '|' || ch === ';' || ch === '&' || ch === '>' || ch === '<' || ch === '\n' || ch === '$' || ch === '`') return ch;
+      if (NARROW_SPLITTERS.has(ch)) return ch;
     }
     return null;
   }

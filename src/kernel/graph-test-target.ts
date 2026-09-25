@@ -16,6 +16,10 @@ export interface TestTarget {
   priority: number;
   reason: string;
 }
+/** ★ F-1204 FIX (2026-09-25): the batch→per-label fallback was warn-only — a persistently
+ *  failing batch path degraded every call to O(N) reads with no observable signal. The
+ *  counter makes the degradation countable (tests/monitors read it); the warn stays. */
+export let batchFallbackCount = 0;
 
 /** The OPEN-DB overload (the F-835 seam): run the SAME targeting query against an already-open
  *  handle — no second connection, no second WAL lock, no stale read. `db` stays OPEN on return;
