@@ -1,0 +1,51 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 2,
+    "total_tokens": 50486,
+    "input_tokens": 43690,
+    "output_tokens": 6796,
+    "cache_read_tokens": 33472,
+    "elapsed": "3m19s"
+  },
+  "tool_calls": {
+    "total": 7,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 4,
+      "file_read": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/shared/ontology.ts",
+      "content": "The `Predicate` type union excludes `'has_finding'`, but `PREDICATE_SET` (used by `isPredicate`) includes it. This creates a type/runtime split: `isPredicate(x)` narrows to `Predicate | typeof HAS_FINDING_PREDICATE`, but `'has_finding'` is NOT assignable to `Predicate`. Any downstream code that stores the result in a `Predicate` variable or passes it to a `Predicate`-typed parameter will fail to compile — even though `'has_finding'` is a legitimate, schema-validated predicate.\n\nConcrete example in mechanical.ts line 100: `pushTriple` takes `predicate: Predicate`, so `'has_finding'` cannot be passed even though the DB CHECK constraint accepts it. If a future extractor needs to emit `has_finding` triples, it will be blocked by the type.\n\nRecommendation: Either (a) add `'has_finding'` to the `Predicate` type union (simplest, since the runtime already accepts it), or (b) introduce a widened type like `type GraphPredicate = Predicate | typeof HAS_FINDING_PREDICATE` and use it wherever the store-legal set is needed. The current split — where the guard return type doesn't match the declared type — will silently break any new code path that tries to unify the two.",
+      "suggestion_code": "// Option A: include 'has_finding' in the Predicate union\ntype PredicateBase = (typeof PREDICATES)[keyof typeof PREDICATES][number];\nexport type Predicate = PredicateBase | typeof HAS_FINDING_PREDICATE;\n\n// Option B: introduce a widened store-legal type (keeps canon separate)\ntype PredicateBase = (typeof PREDICATES)[keyof typeof PREDICATES][number];\nexport type Predicate = PredicateBase;\nexport type StorePredicate = Predicate | typeof HAS_FINDING_PREDICATE;\nexport function isPredicate(v: unknown): v is StorePredicate {\n  return typeof v === 'string' \u0026\u0026 (PREDICATE_SET as Set\u003cstring\u003e).has(v);\n}",
+      "existing_code": "export function isPredicate(v: unknown): v is Predicate | typeof HAS_FINDING_PREDICATE {\n  return typeof v === 'string' \u0026\u0026 (PREDICATE_SET as Set\u003cstring\u003e).has(v);\n}",
+      "start_line": 31,
+      "end_line": 33,
+      "category": "maintainability",
+      "severity": "high"
+    },
+    {
+      "path": "src/hunter/shared/ontology.ts",
+      "content": "`ALL_PREDICATES` is named as if it contains every valid predicate, but it explicitly excludes `has_finding`. A consumer reading the name will assume it is exhaustive — for example, a new validator might iterate `ALL_PREDICATES` to build an allow-list, silently rejecting `'has_finding'` writes.\n\nIn migrations.ts line 15, `PREDICATES_SQL = sqlList(ALL_PREDICATES)` builds only the canon half of the CHECK constraint, and line 24 must manually append `HAS_FINDING_PREDICATE` — a pattern that only works because the consumer knows the name is misleading.\n\nRename to `CANON_PREDICATES` or `CORE_PREDICATES` to match its actual semantics (the declared predicate families, excluding the one-off `has_finding`).",
+      "suggestion_code": "export const CANON_PREDICATES: readonly Predicate[] = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring] as const;",
+      "existing_code": "export const ALL_PREDICATES: readonly Predicate[] = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring] as const;",
+      "start_line": 18,
+      "end_line": 18,
+      "category": "maintainability",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Type/runtime split for `'has_finding'` predicate** (`src/hunter/shared/ontology.ts`): The `Predicate` type union excludes `'has_finding'`, yet `PREDICATE_SET` (consumed by `isPredicate`) includes it. This means `isPredicate(x)` narrows to `Predicate | typeof HAS_FINDING_PREDICATE`, but `'has_finding'` is *not* assignable to `Predicate`. Any code that calls `isPredicate()` and then passes the result into a `Predicate`-typed parameter will fail to compile — or worse, will compile under loosened checks and produce a runtime surprise. This is the single highest-severity defect in the file and likely breaks downstream consumers that rely on the type guard.\n\n2. **Misleading `ALL_PREDICATES` constant** (`src/hunter/shared/ontology.ts`): `ALL_PREDICATES` is named as if it is exhaustive but explicitly omits `'has_finding'`. Any code that iterates `ALL_PREDICATES` to build an allow-list, audit log, or schema will silently reject `'has_finding'`. This is a correctness and maintainability trap — a future contributor adding a new validator will almost certainly assume this constant is complete.\n\n### Module Hotspots\n\n- **`src/hunter/shared/ontology.ts`** — All comments target this single file. It is the authoritative source for predicate definitions and is therefore a critical shared module; bugs here propagate to every consumer.\n\n### Cross-Cutting Concerns\n\n- **Incomplete type-safety in shared type definitions**: Both comments stem from the same root cause — `'has_finding'` exists at the runtime level but was excluded from the `Predicate` type union. This kind of type/value divergence in a shared ontology module is exactly the pattern that silently breaks downstream code. A single source of truth (e.g., deriving both the type and the constant set from the same array literal via `as const`) would eliminate both issues.\n\n- **Naming conventions that hide incompleteness**: The gap between the name `ALL_PREDICATES` and its actual contents signals a broader risk — any constant or collection with a \"completeness\" name should be audited to verify it truly is exhaustive, or renamed to something like `VISIBLE_PREDICATES` or `NON_INTERNAL_PREDICATES`.\n\n### Quick Wins\n\n1. **Unify type and runtime set from a single source**: Define a `const ALL_PREDICATES_LITERAL = ['has_finding', ...] as const`, derive `Predicate = typeof ALL_PREDICATES_LITERAL[number]`, and derive `PREDICATE_SET` from the same array. This closes the type/runtime split and makes the `ALL_PREDICATES` name truthful in one change.\n\n2. **Decide the intent for `'has_finding'`**: If it is an internal-only predicate that callers should not construct, rename `ALL_PREDICATES` to `PUBLIC_PREDICATES` (or similar) and add an `INTERNAL_PREDICATES` set for the internal use-case. If it *should* be part of the public API, simply add it to the `Predicate` union. Either path removes the ambiguity in under 10 lines of code.",
+  "session_id": "49e3dbfa-5e80-4972-a4b3-dffd39fb1f07"
+}

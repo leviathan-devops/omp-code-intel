@@ -1,0 +1,57 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 29810,
+    "input_tokens": 23422,
+    "output_tokens": 6388,
+    "cache_read_tokens": 14272,
+    "elapsed": "3m11s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/harness/hunt-lock.ts",
+      "content": "When `fs.unlinkSync` fails with a non-ENOENT error (e.g., EACCES, EMFILE), the code only logs a warning and silently falls through to the `writeFileSync` wx-attempt. Since the stale lock file was NOT deleted, the wx write will always fail with EEXIST, and the caller receives a misleading `HUNT_ALREADY_RUNNING` error — hiding the real problem (a filesystem permission/resource issue preventing stale-lock cleanup). The caller has no way to distinguish 'another hunt is genuinely running' from 'a stale lock couldn't be deleted.' The non-ENOENT unlink failure should re-throw (or throw a descriptive error) so callers can surface the root cause.",
+      "suggestion_code": "        if (unlinkCode === 'ENOENT') {\n          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);\n        }\n        console.warn(`[hunt-lock] stale unlink failed for ${lockPath}: ${err instanceof Error ? err.message : String(err)}`);\n        throw new Error(`HUNT_LOCK_DELETE_FAILED: could not remove stale lock at ${lockPath}: ${err instanceof Error ? err.message : String(err)}`);",
+      "existing_code": "        if (unlinkCode === 'ENOENT') {\n          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);\n        }\n        console.warn(`[hunt-lock] stale unlink failed for ${lockPath}: ${err instanceof Error ? err.message : String(err)}`);",
+      "start_line": 148,
+      "end_line": 151,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/harness/hunt-lock.ts",
+      "content": "The error-code extraction boilerplate `e !== undefined \u0026\u0026 e !== null \u0026\u0026 typeof e === 'object' \u0026\u0026 'code' in e ? (e as { code: unknown }).code : undefined` is duplicated verbatim four times (lines ~80, ~95, ~128, ~163). Extracting a small helper (e.g., `function errorCodeOf(e: unknown): string | undefined`) would reduce the per-site cognitive load, eliminate copy-paste drift risk, and make future error-handling changes atomic.",
+      "existing_code": "    const code = e !== undefined \u0026\u0026 e !== null \u0026\u0026 typeof e === 'object' \u0026\u0026 'code' in e\n      ? (e as { code: unknown }).code\n      : undefined;\n    if (code !== 'EEXIST') throw e;",
+      "start_line": 85,
+      "end_line": 88,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/harness/hunt-lock.ts",
+      "content": "The residual TOCTOU comments (F-1022, W17-HIGH) claim the race window is now 'µs' because the re-read and unlinkSync are adjacent. On local SSDs this is typically true, but on NFS/CIFS-mounted shared storage (a plausible scenario given the cross-host design) metadata round-trips can take milliseconds, widening the window significantly. Consider noting in the comment that the µs claim is local-filesystem-only and that NFS-backed `.trident` directories should use advisory `flock()`/`fcntl()` locks or a coordination service for stronger guarantees.",
+      "existing_code": "    // ★ F-1022 FIX (2026-09-25): the F-831 re-read is NOT atomic with the unlink —\n    // ★ a stale-recovery in acquireHuntLock can replace the lock in between and this\n    // ★ unlink would delete the stranger's fresh lock. Narrow the window with a SECOND\n    // ★ re-read immediately before the unlink, and treat ENOENT as peer-won (warn,\n    // ★ keep). Residual: path locks cannot release atomically without an fd lock —\n    // ★ the window is now µs, never ms, and a lost race warns instead of corrupting.",
+      "start_line": 203,
+      "end_line": 208,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Stale-lock recovery silently fails on non-ENOENT errors** (`src/hunter/harness/hunt-lock.ts`): When `fs.unlinkSync` fails with errors like EACCES or EMFILE, the code logs a warning and proceeds to a `writeFileSync` wx-attempt. Because the stale lock file was never removed, the wx-write always fails with EEXIST, producing a misleading error to the caller. This is a correctness bug that breaks lock acquisition under realistic failure conditions.\n\n2. **TOCTOU race condition is not fully mitigated on remote filesystems** (`src/hunter/harness/hunt-lock.ts`): The re-read + unlinkSync pair assumes µs-level metadata consistency. On NFS/CIFS-mounted storage (plausible given the cross-host lock design implied by comments F-1022, W17-HIGH), the race window can be significant, allowing two hosts to both believe they hold the lock.\n\n### Module Hotspots\n\nAll findings concentrate in a single file:\n\n- **`src/hunter/harness/hunt-lock.ts`** — 3 comments covering a logic bug, duplicated boilerplate, and an unaddressed TOCTOU risk. This file is the sole lock-coordination primitive and warrants particular scrutiny.\n\n### Cross-Cutting Concerns\n\n- **Duplicated error-code extraction** (`src/hunter/harness/hunt-lock.ts`): The expression `e !== undefined \u0026\u0026 e !== null \u0026\u0026 typeof e === 'object' \u0026\u0026 'code' in e ? (e as { code: unknown }).code : undefined` is copy-pasted four times (~lines 80, 95, 128, 163). Beyond the DRY violation, each site could silently introduce subtle type-safety bugs if the pattern is modified in only some locations.\n\n- **Incomplete error-path handling in lock acquisition**: The fall-through from a failed unlinkSync to a wx-write attempts to be resilient but instead converts one recoverable error into an unrecoverable one. There is no test-visible indication that this path was validated.\n\n### Quick Wins\n\n1. **Extract `errorCodeOf` helper**: Replacing the four duplicated error-code extraction blocks with a single utility function is a ~10-line change that removes boilerplate and centralizes type narrowing for future maintenance.\n\n2. **Bail (or retry) when `unlinkSync` fails non-ENOENT**: Instead of falling through to the wx-write when the unlink fails for a reason other than \"file not present,\" the code should either propagate the error or attempt a retry. A small conditional check transforms a silent correctness bug into a clear failure.",
+  "session_id": "64482e0e-4bee-4652-b45e-de510431f73f"
+}

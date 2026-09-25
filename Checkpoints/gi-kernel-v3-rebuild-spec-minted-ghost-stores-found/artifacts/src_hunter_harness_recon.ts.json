@@ -1,0 +1,75 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 5,
+    "total_tokens": 54985,
+    "input_tokens": 42825,
+    "output_tokens": 12160,
+    "cache_read_tokens": 28096,
+    "elapsed": "5m50s"
+  },
+  "tool_calls": {
+    "total": 2,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "content": "Dead code: this condition is unreachable. `payload` is initialized as `{}` (an object literal) and is only ever reassigned to another object (`raw as { runId?: unknown }` in the `else if (raw !== null \u0026\u0026 typeof raw === 'object')` branch). Therefore `typeof payload !== 'object'` is always `false` at this point, making the entire condition always false. The line has no effect and should be removed to avoid confusion. The fallback to `'{}'` is unnecessary because when `rawText` is empty and no object was assigned, `payload` is already `{}`.",
+      "existing_code": "    if (!rawText \u0026\u0026 typeof payload !== 'object') rawText = String(raw ?? '{}');",
+      "start_line": 188,
+      "end_line": 188,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "content": "Variable shadowing: the local variable `projectRootReal` (line 126) shadows the module-level function `projectRootReal()` (line 36). While this doesn't cause a bug today (the `recon` function does its own inline `fs.realpathSync` instead of calling the function), it means any future code added to `recon()` that attempts to call `projectRootReal(somePath)` will fail at runtime with a confusing 'projectRootReal is not a function' error because the local `let` string takes precedence. Consider renaming the local variable (e.g., `resolvedRoot`) to eliminate the shadow.",
+      "existing_code": "  let projectRootReal: string;\n  try {\n    projectRootReal = fs.realpathSync(projectRootResolved);\n  }",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "content": "Performance: `assertInsideProject` calls `projectRootReal(root)` (which does `fs.realpathSync(root)`) on every invocation. In `countQuotedRules`, this is called once per corpus entry, and in the awareness-docs loop, once per doc. For a corpus of N files, this means N redundant `realpathSync` calls on the same root path. Consider computing the real root once before the loop and passing it in (or caching it within the function), especially since `recon()` already computes `projectRootReal` for its own use.",
+      "existing_code": "  for (const entry of profile.rules.corpus) {\n    const abs = path.isAbsolute(entry) ? entry : path.resolve(profile.project.root, entry);\n    // ★ W3-RUN17 FIX: symlink-aware containment (the resolve-only check let a\n    //   symlink inside the root point at /etc/passwd and still pass) — the\n    //   shared assertInsideProject realpaths BOTH sides and returns the REAL\n    //   path, which is what gets read (no check/read swap window).\n    const real = assertInsideProject(profile.project.root, abs);",
+      "start_line": 66,
+      "end_line": 72,
+      "category": "performance",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "content": "TOCTOU gap between containment check and file read: `assertInsideProject` realpaths the candidate and returns the real path, but the caller then calls `fs.readFileSync(real, ...)` in a separate step. A concurrent symlink swap between the return of `assertInsideProject` and the `readFileSync` call could redirect the read outside the project root. The same pattern exists in the awareness-docs loop (existsSync → assertInsideProject, with no guarantee the file stays at the checked path). This is a known limitation (the comments acknowledge it), but worth noting that the defense is not atomic — if the threat model includes concurrent symlink manipulation (e.g., a co-located attacker), a single `open()` + `fstat()` on the fd would close the window.",
+      "existing_code": "    const real = assertInsideProject(profile.project.root, abs);\n    let text: string;\n    try {\n      text = fs.readFileSync(real, 'utf8');",
+      "start_line": 72,
+      "end_line": 75,
+      "category": "security",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "content": "LIKE pattern over-matching: the `%${prefix}%` pattern matches any HUNT_DONE payload containing the prefix as a substring anywhere in the JSON text, not just in the `runId` field. For example, a payload with `\"error\": \"retry of my-project-hunt-20260925-3\"` would match the LIKE, be parsed, and then correctly filtered out by the downstream `startsWith` check. The correctness is preserved, but every matched row is parsed and inspected, which is wasteful if many unrelated HUNT_DONE rows exist. Consider whether a more targeted query (e.g., extracting runId from JSON) or at minimum a post-parse length guard would help at scale.",
+      "existing_code": "    for (const row of db.prepare(\"SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?\").all(`%${prefix}%`)) {",
+      "start_line": 178,
+      "end_line": 178,
+      "category": "performance",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **TOCTOU vulnerability in file containment checks** — `assertInsideProject` resolves a real path and returns it, but callers then read the file in a separate step. A concurrent symlink swap between the two operations could defeat the containment guarantee. (`src/hunter/harness/recon.ts`)\n\n2. **LIKE pattern over-matching in DB query** — The `%${prefix}%` pattern matches the HUNT_DONE prefix as an arbitrary substring of the entire JSON payload, not as the `runId` field specifically. This can cause false-positive matches on payloads where the prefix appears incidentally (e.g. in an `error` field). (`src/hunter/harness/recon.ts`)\n\n3. **Redundant `fs.realpathSync` per corpus entry** — `assertInsideProject` is called inside `countQuotedRules` (once per corpus file) and the awareness-docs loop (once per doc), each time performing a fresh syscall. For large corpora this is an O(N) unnecessary I/O cost. (`src/hunter/harness/recon.ts`)\n\n4. **Variable shadowing hides module-level function** — The local `projectRootReal` (line 126) shadows the module-level function of the same name (line 36). Today it does not cause a bug because `recon` does its own inline `fs.realpathSync`, but it masks the existing helper and will confuse future callers who expect to use the function after `recon`. (`src/hunter/harness/recon.ts`)\n\n5. **Dead/unreachable code branch** — The condition `typeof payload !== 'object'` is unreachable because `payload` is initialized as `{}` and only ever reassigned to another object. The branch can never execute. (`src/hunter/harness/recon.ts`)\n\n### Module Hotspots\n\nAll five findings concentrate in a single file:\n\n- **`src/hunter/harness/recon.ts`** — Contains all identified issues: a TOCTOU gap, an over-broad SQL LIKE pattern, redundant filesystem syscalls, variable shadowing, and dead code. This file warrants focused review and refactoring.\n\n### Cross-Cutting Concerns\n\nBecause all comments target a single file, no file-spanning pattern can be established from the data available. If other harness or harness-adjacent modules follow similar patterns (e.g. per-entry `assertInsideProject` calls, ad-hoc SQL query construction), the same classes of defect likely repeat there. The current sample is too narrow to confirm.\n\n### Quick Wins\n\n- **Remove the dead `typeof payload !== 'object'` branch** in `src/hunter/harness/recon.ts`. It can never execute and adds maintenance noise.\n- **Rename the local `projectRootReal` variable** (line 126) to e.g. `realRoot` to eliminate the shadow and make the module-level function accessible.\n- **Cache `projectRootReal(root)` once** at the top of `recon` and thread the result into `countQuotedRules` and the awareness-docs loop, removing N redundant `fs.realpathSync` calls.",
+  "session_id": "662c1863-d7bb-42fa-a427-ff4c4168cc60"
+}

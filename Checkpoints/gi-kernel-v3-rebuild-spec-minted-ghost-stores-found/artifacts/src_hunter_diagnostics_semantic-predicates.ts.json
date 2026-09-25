@@ -1,0 +1,74 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 5,
+    "total_tokens": 37062,
+    "input_tokens": 30811,
+    "output_tokens": 6251,
+    "cache_read_tokens": 14336,
+    "elapsed": "3m28s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "content": "**P3 fallback retains F-1200 name-collision false-negative bug.** When `ctx.graph.unwired()` throws, the fallback path (lines 222–227) uses `whoCalls(node.name)`, which is name-keyed. If two nodes share the name `enforce` (e.g., in files A and B), both resolve to the same caller set, so B's zero-caller verdict reads A's callers. This produces a false negative — the violation in B is silently missed. The comment on line 209 acknowledges this but the code ships the bug as-is. Consider making `whoCalls` accept an optional node-id or file qualifier, or abort the fallback with an explicit warning so the finding is degraded to a `WARN` rather than silently swallowed.",
+      "existing_code": "    let callers: { file: string; line: number; caller: string }[];\n        try {\n          callers = ctx.graph.whoCalls(node.name);\n        } catch (e: unknown) {\n          console.error(`[semantic-predicates] P3 whoCalls failed for ${node.name}: ${String(e)}`);\n          continue;\n        }\n        if (callers.length !== 0) continue;",
+      "start_line": 176,
+      "end_line": 183,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "content": "**P2 `/abort/i` regex is overly broad — likely false positives on comments, string literals, and variable names.** The intent is to detect bare `abort()` *calls* near `setAbortFlag`, but `/abort/i` matches any substring: `abortController`, `// user aborted`, `\"abort reason\"`, etc. Consider tightening to `/\\babort\\s*\\(/` (word-boundary + open-paren) to target actual call sites, or at minimum exclude comment lines with `/\\/\\/.*abort|\\/\\*.*abort/`.",
+      "existing_code": "        if (/abort/i.test(winWithoutTrigger) \u0026\u0026 !/writeStateAtomic|phase.*FAILED/.test(winWithoutTrigger)) {",
+      "start_line": 126,
+      "end_line": 126,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "content": "**Double cast `(node as unknown as { id?: string }).id` bypasses TypeScript's type system.** If the `node` type from `ctx.graph.nodes()` ever gains or loses an `id` field, this cast silently hides the mismatch at compile time. Prefer a runtime narrowing check (e.g. `'id' in node \u0026\u0026 typeof node.id === 'string'`) or extend the node interface to include an optional `id` field so the cast is unnecessary.",
+      "existing_code": "      const nid = (node as unknown as { id?: string }).id;",
+      "start_line": 172,
+      "end_line": 172,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "content": "**Systemic silent zero-finding-as-clean: `windowText` returns `undefined` and `anchored` returns `null` on any graph/source read failure, producing zero findings that look like 'clean code'.** A corrupt or unavailable graph database would make all six predicates silently pass with no indication of analysis failure. Consider (a) returning a sentinel result that distinguishes 'no violations found' from 'analysis could not run', or (b) having `anchored` propagate errors upward so `buildSemanticBattery` can emit a diagnostic finding (e.g. `severity: 'INFO', verdict: 'SKIPPED'`). At minimum, a single `console.warn` with a unique correlation id across predicates would make systemic failures observable.",
+      "existing_code": "function windowText(ctx: CheckContext, file: string): string | undefined {\n  const hoisted = ctx.contentMap?.get(file);\n  if (hoisted !== undefined) return hoisted;\n  try {\n    return ctx.source.read(file);\n  } catch (e: unknown) {\n    console.error(`[semantic-predicates] source read failed for ${file}: ${String(e)}`);\n    return undefined;\n  }\n}",
+      "start_line": 45,
+      "end_line": 54,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "content": "**`bindSeverity` silently defaults to `'HIGH'` for missing or unrecognized severity bindings.** A misconfigured card that omits the `severity` field (or passes a future enum value not yet in `SEVERITIES`) will silently upgrade or downgrade findings. Combined with `mapSeverity` defaulting unknown tokens to `'LOW'`, two silent defaults can compound: an unrecognized severity in `bindSeverity` → `'HIGH'`, then `mapSeverity('HIGH')` → `'HIGH'`; but an unrecognized token that *does* pass `bindSeverity`'s `includes` check (impossible today, but possible after a schema evolution) would map to `'LOW'`. Consider emitting a `console.warn` in the fallback branches so configuration drift is detected during test runs.",
+      "existing_code": "function bindSeverity(b: Record\u003cstring, unknown\u003e): Severity {\n  const v = b['severity'];\n  if (typeof v === 'string' \u0026\u0026 (SEVERITIES as readonly string[]).includes(v)) return v as Severity;\n  return 'HIGH';\n}",
+      "start_line": 29,
+      "end_line": 33,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Silent zero-finding-as-clean pattern** — `windowText` returns `undefined` and `anchored` returns `null` on any graph/source read failure. All six predicates in `src/hunter/diagnostics/semantic-predicates.ts` will silently produce zero findings, making corrupt or unavailable data look like clean code. This is the highest-impact issue because it defeats the entire diagnostic system without any visible signal.\n\n2. **Name-collision false-negative in fallback path** — The P3 fallback (lines 222–227) uses `whoCalls(node.name)`, which is name-keyed. Two nodes sharing a name (e.g. `enforce` in different files) resolve to the same callees, silently suppressing real findings. `src/hunter/diagnostics/semantic-predicates.ts`.\n\n3. **Overly broad `/abort/i` regex** — Matches substrings inside comments, string literals, and identifiers like `abortController`, causing false-positive findings. `src/hunter/diagnostics/semantic-predicates.ts`.\n\n4. **Unsafe double cast bypasses TypeScript** — `(node as unknown as { id?: string }).id` hides type mismatches at compile time; a future schema change to the `node` type from `ctx.graph.nodes()` would silently break. `src/hunter/diagnostics/semantic-predicates.ts`.\n\n5. **Silent severity defaulting in `bindSeverity`** — Missing or unrecognized severity bindings silently fall back to `'HIGH'`, which can upgrade or downgrade findings without any warning. Combined with `mapSeverity`, this creates a hard-to-audit severity path. `src/hunter/diagnostics/semantic-predicates.ts`.\n\n### Module Hotspots\n\n- **`src/hunter/diagnostics/`** — All 5 comments target a single file (`semantic-predicates.ts`). This module is the sole diagnostic predicate engine; defects here propagate to every scan result project-wide. Every comment is severity P2 or P3, indicating a concentrated cluster of correctness and reliability issues in one location.\n\n### Cross-Cutting Concerns\n\n- **Silent failure / degraded-accuracy pattern** — Three of five findings (`windowText`/`anchored` returning safe defaults, the name-keyed fallback, the regex false positives) share a root pattern: the system trades correctness for the appearance of success. Any predicate that cannot fulfill its contract degrades silently rather than surfacing an error. (`src/hunter/diagnostics/semantic-predicates.ts`)\n- **Unsafe type workarounds** — The double cast and the implicit contract on `node.id` reflect a broader risk: runtime graph data may drift from the assumed TypeScript types with no compile-time safety net. (`src/hunter/diagnostics/semantic-predicates.ts`)\n- **Configuration silently ignored** — `bindSeverity` absorbing unrecognized values without logging or failing means misconfigurations are invisible. This pattern likely extends to other configuration-reading code in the diagnostics pipeline. (`src/hunter/diagnostics/semantic-predicates.ts`)\n\n### Quick Wins\n\n- **Replace `whoCalls(node.name)` with an identity-based lookup** (e.g. node ID or qualified path) in the fallback path (lines 222–227) to eliminate name-collision false negatives.\n- **Narrow the `/abort/i` regex** to a call-site pattern such as `/abort\\s*\\(/i` or better yet, use an AST-based check to detect only `abort()` calls.\n- **Replace the double cast with a runtime guard**: `'id' in node ? (node as { id: string }).id : undefined` — adds two lines and restores type safety.\n- **Emit a diagnostic/warning** (not just return `undefined`/`null`) when `windowText` or `anchored` fail to read graph or source data, so clean-by-default does not mask infrastructure failures.\n- **Log and reject unrecognized severity values** in `bindSeverity` instead of defaulting to `'HIGH'`; at minimum, include the unrecognized string in the output so it can be traced.",
+  "session_id": "2da4f9b5-41a5-44d3-bc52-1c15eba8d76c"
+}

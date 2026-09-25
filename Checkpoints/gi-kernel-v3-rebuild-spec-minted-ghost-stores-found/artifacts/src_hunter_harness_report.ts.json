@@ -1,0 +1,51 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 2,
+    "total_tokens": 99028,
+    "input_tokens": 89083,
+    "output_tokens": 9945,
+    "cache_read_tokens": 75008,
+    "elapsed": "5m20s"
+  },
+  "tool_calls": {
+    "total": 8,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 2,
+      "file_read": 5
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/harness/report.ts",
+      "content": "After all 5 retry attempts are exhausted, `writeReportDirect` does NOT throw — it falls through the retry loop and returns a success-shaped `ReportWriterResult` with a `reportPath` that was **never written to disk**. The `report()` caller then records a HUNT_DONE event and commits sections to the DB, both referencing a phantom file. The side-effects-precede-claims law (documented in this file) is violated: the DB commits a truth that doesn't exist on the filesystem. This should throw immediately when all retries are exhausted rather than falling through to the return.",
+      "suggestion_code": "  for (let attempt = 0; attempt \u003c 5; attempt++) {\n    const retryVersion = nextReportVersion(masterContextDir);\n    const retryPath = path.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);\n    try {\n      const document = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\\n');\n      fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });\n      version = retryVersion;\n      reportPath = retryPath;\n      break;\n    } catch (e: unknown) {\n      const code = (e !== null \u0026\u0026 typeof e === 'object' \u0026\u0026 'code' in e) ? String((e as { code: unknown }).code) : '';\n      if (code === 'EEXIST' \u0026\u0026 attempt \u003c 4) continue;\n      throw new Error(`REPORT_WRITE_FAILED: path=${retryPath} detail=${e instanceof Error ? e.message : String(e)}`);\n    }\n  }\n  // If we reach here, all 5 attempts failed with EEXIST — do NOT return a phantom result.\n  throw new Error(`REPORT_WRITE_FAILED: exhausted 5 retry attempts in ${masterContextDir} without landing a report file`);",
+      "existing_code": "  for (let attempt = 0; attempt \u003c 5; attempt++) {\n    const retryVersion = nextReportVersion(masterContextDir);\n    const retryPath = path.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);\n    try {\n      const document = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\\n');\n      fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });\n      version = retryVersion;\n      reportPath = retryPath;\n      break;\n    } catch (e: unknown) {\n      const code = (e !== null \u0026\u0026 typeof e === 'object' \u0026\u0026 'code' in e) ? String((e as { code: unknown }).code) : '';\n      if (code === 'EEXIST' \u0026\u0026 attempt \u003c 4) continue;\n      throw new Error(`REPORT_WRITE_FAILED: path=${retryPath} detail=${e instanceof Error ? e.message : String(e)}`);\n    }\n  }",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "bug",
+      "severity": "critical"
+    },
+    {
+      "path": "src/hunter/harness/report.ts",
+      "content": "After a successful retry, `document` (the outer variable used on line 117 for `Buffer.byteLength`) still holds the body from the **initial** version (built at lines 78-93), not the body that was actually written to disk. When the retry lands on a different version number, `version` and `reportPath` are updated to the retry values, but `bytes` is computed from the stale `document`. The reported byte count can be wrong if the version number digit count differs (e.g., v9 vs v10), or silently inaccurate if the initial and retry documents diverge.",
+      "suggestion_code": "      const finalDocument = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\\n');\n      fs.writeFileSync(retryPath, finalDocument, { encoding: 'utf-8', flag: 'wx' });\n      version = retryVersion;\n      reportPath = retryPath;\n      // Keep a reference to the ACTUAL document for the byte count below\n      writtenDocument = finalDocument;\n      break;\n    }\n  }\n  // ...\n  const bytes = Buffer.byteLength(writtenDocument, 'utf-8');",
+      "existing_code": "      fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });\n      version = retryVersion;\n      reportPath = retryPath;\n      break;",
+      "start_line": 210,
+      "end_line": 213,
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Silent failure on retry exhaustion (`src/hunter/harness/report.ts`)** — After all 5 retry attempts fail in `writeReportDirect`, execution falls through the retry loop and returns a success-shaped `ReportWriterResult` carrying a `reportPath` that was never actually written to disk. The caller (`report()`) records a `HUNT_DONE` event and continues as if the operation succeeded. This means **report generation failures are completely invisible** to downstream consumers and any monitoring.\n\n2. **Stale `document` variable after successful retry (`src/hunter/harness/report.ts`)** — When a retry succeeds (potentially on a different version number), the `document` variable used on line 117 for `Buffer.byteLength` still holds the body built during the **initial** attempt (lines 78–93), not the body that was actually written to disk. The reported byte length is therefore incorrect, which could corrupt downstream size checks or metric reporting.\n\n### Module Hotspots\n\n- **`src/hunter/harness/report.ts`** — The only file with findings, but the two bugs interact dangerously: a failed report write is (a) never detected and (b) if a later retry partially succeeds, the metadata reported about it is wrong. This file's retry logic needs a thorough audit.\n\n### Cross-Cutting Concerns\n\n- **Missing error propagation in retry loops** — The pattern of swallowing exceptions after exhausting retries and returning a success-shaped result is a general anti-pattern. Any other modules that follow a similar retry structure should be checked for the same flaw.\n- **Stale-variable bugs in retry/refactor paths** — The use of an outer-scope `document` variable whose value is not refreshed when the retry changes the payload (e.g., version number) suggests a need to review other places where closure-captured or outer-scope state is used across retry iterations.\n\n### Quick Wins\n\n1. **Add a `throw` (or return an error result) when retries are exhausted** in `writeReportDirect` — this is a one-line fix that would make silent data loss impossible.\n2. **Move the `document` / `Buffer.byteLength` calculation inside the retry loop** (or re-read it from the value that was actually written) so it always reflects the current attempt's body. This eliminates the stale-metadata bug.\n3. **Add a test** that forces `writeReportDirect` to fail on all retries and asserts that the caller receives a failure result and does *not* emit `HUNT_DONE`.",
+  "session_id": "fd3f0dd0-7d53-4601-b03c-801649d34cfe"
+}

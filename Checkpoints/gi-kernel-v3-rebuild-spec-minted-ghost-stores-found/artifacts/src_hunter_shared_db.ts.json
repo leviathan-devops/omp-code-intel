@@ -1,0 +1,101 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 8,
+    "total_tokens": 66094,
+    "input_tokens": 59182,
+    "output_tokens": 6912,
+    "cache_read_tokens": 46784,
+    "elapsed": "3m51s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `applyPragmas` function unconditionally sets `PRAGMA user_version = 184` on every open. The comment says 'the migrations transaction applies pending migrations at the first open when the stored version is lower', but the pragma runs BEFORE any migration logic and overwrites any previously-set higher version. If a future migration bumps the version beyond 184, opening the store resets it to 184, potentially re-running all migrations on every open. This should either be conditional (only set when lower) or the migration system should handle version bumping after `applyPragmas`.",
+      "existing_code": "  execPragma('PRAGMA user_version = 184');",
+      "start_line": 410,
+      "end_line": 410,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `SharedDb.close()` method sets `this.open = false` but no other method (`exec`, `prepare`, `writeGraph`, `appendFinding`, etc.) checks this flag. Calling any method after `close()` will surface a raw bun:sqlite error instead of a named error. This violates the store's fail-closed contract (every error is supposed to be a named error). Add an idempotent guard (`if (!this.open) throw new Error('STORE_CLOSED')`) at the top of each public method, or at minimum in `exec` and `prepare`.",
+      "existing_code": "  close(): void {\n    if (this.open) {\n      this.handle.close();\n      this.open = false;\n    }\n  }",
+      "start_line": 447,
+      "end_line": 452,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `getBranchUnion` fallback manual union reads from `familyDb` and `branchDb` independently with no transactional guarantee between them. A concurrent write between the two SELECT statements could yield a union where the family and delta halves reflect different points in time. For a summary/awareness surface this may be tolerable, but it should be documented as a known inconsistency, or both reads should be wrapped in a single transaction or read-transaction.",
+      "existing_code": "    const out: Array\u003cGraphNode \u0026 { origin: string }\u003e = [];\n    try {\n      const fam = this.familyDb.prepare('SELECT id, node_json FROM family_nodes').all() as Record\u003cstring, SQLQueryBindings\u003e[];\n      for (const r of fam) {\n        // ★ R15 FIX: a corrupt node_json used to debug-log and return {}-shaped rows (or skip\n        //   rows) — corrupt graph data propagating as valid nodes. Fail closed with a named\n        //   throw carrying the row id (the fail-closed contract: corruption is loud, never\n        //   success-shaped empties). Zero callers outside this file (ripwire count=0), zero\n        //   tests pin the skip — no pin changes shape.\n        let n: GraphNode;\n        try {\n          n = JSON.parse(r['node_json'] as string) as GraphNode;\n        } catch (pe) { throw new Error(`FAMILY_NODE_CORRUPT: id=${String(r['id'])} cause=${pe instanceof Error ? pe.message : String(pe)}`); }\n        out.push({ ...n, id: (r['id'] as string) ?? n.id, origin: 'family' });\n      }\n    } catch (famErr) {\n      if (famErr instanceof Error \u0026\u0026 famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr;\n      // ★ R19-HIGH FIX (2026-09-25): this catch swallowed EVERY other error — I/O failure,\n      //   disk-full, a locked/corrupt DB, a driver fault — as a debug line, then returned the\n      //   branch delta as if the family store had simply been EMPTY. A degraded read was\n      //   reported as a complete one (the fail-closed violation). Only a MISSING family table\n      //   is the benign shape (a store that never had one); everything else is LOUD.\n      const msg = famErr instanceof Error ? famErr.message : String(famErr);\n      if (!/no such table|no such column|does not exist/i.test(msg)) {\n        throw new Error(`KG_STORE_FAMILY_READ_FAILED: the family_nodes fallback read failed (${msg}) — refusing to return a partial union as if the family store were empty`);\n      }\n      console.debug('[kg-store] family_nodes table absent — the branch delta is the whole union:', msg);\n    }\n    const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record\u003cstring, SQLQueryBindings\u003e[];",
+      "start_line": 820,
+      "end_line": 848,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The SQL-escape helper `familyPath.replace(/'/g, \"''\")` is duplicated at two separate ATTACH DATABASE sites (in `writeBranchView` and `openFamilyStore`). If the escaping logic needs to change (e.g., handling backslashes or other edge cases), one site could be updated while the other is missed. Extract a shared `escapeSqlPath(path: string): string` helper function and use it at both sites.",
+      "existing_code": "      this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, \"''\")}' AS family_attached`);",
+      "start_line": 790,
+      "end_line": 790,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `FamilyGraphStore.pendingPromotions` Map is never cleaned up. Once a hash is added via `requestPromotion`, it persists in memory for the lifetime of the `FamilyGraphStore` instance. If the caller catches the `FAMILY_PROMOTION_PENDING` throw and calls `requestPromotion` again (e.g., after a retry), the Map grows without bound. For long-running processes this is a memory leak. Consider removing entries from the Map when they are consumed (e.g., after promotion is confirmed), or document this as intentional.",
+      "existing_code": "  private pendingPromotions = new Map\u003cstring, string\u003e();\n  // ★ F-69 NOTE (2026-09-24): NOT-A-BUG — the throw IS this method's contract (the\n  //   operator-gate signal the caller catches as FAMILY_PROMOTION_PENDING); the writes are\n  //   the idempotent pending record (Map.set + INSERT OR REPLACE rerun safely on retry).\n  //   No state corrupts across the throw.\n  requestPromotion(hash: string, detail: string): void {\n    // ★ F-703 FIX (2026-09-24): the missing sealed guard - every other write path throws\n    // familyRootReadonly on a sealed store; this one wrote into SQLITE_READONLY and the\n    // idempotent guard swallowed it, so the promotion lived only in memory. Fail LOUD.\n    if (this.sealed) throw familyRootReadonly('cannot request promotion on sealed family store: ' + hash);\n    this.pendingPromotions.set(hash, detail);",
+      "start_line": 893,
+      "end_line": 903,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `prepare` method uses `as unknown` to cast the bun:sqlite statement, then guards with a null/undefined check. This is a weak type guard: if `this.handle.prepare()` returns a truthy non-null object that doesn't match the `StatementLike` interface (e.g., an object with different method signatures), it will pass the check and be cast unsafely to `StatementLike`. A more robust approach would be to duck-type check for the existence of expected methods (`run`, `get`, `all`), or trust the bun:sqlite types directly since `this.handle` is already typed as `Database`.",
+      "existing_code": "  prepare(sql: string): StatementLike {\n    // THE R16 TYPE_CERTAINTY GUARD — the sqlite statement handle is narrowed\n    // behind the null/undefined guard (the assertion is earned by the check).\n    const stmt = this.handle.prepare(sql) as unknown;\n    if (stmt !== undefined \u0026\u0026 stmt !== null) {\n      return stmt as StatementLike;\n    }\n    throw new Error('[db] the sqlite prepare returned no statement');\n  }",
+      "start_line": 437,
+      "end_line": 445,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `getBranchUnion` error-discrimination logic uses regex matching on error messages to distinguish benign 'view not yet created' from real failures. The `branch_union_view` check uses a case-sensitive `/no such table/` test while the `family_nodes` fallback uses a case-insensitive `/no such table|no such column|does not exist/i` test. If bun:sqlite or a future SQLite version changes the casing of these error messages (or wraps them in a different string), the regex will miss and a benign case will re-throw loudly, or a real failure will be silently swallowed. Consider checking the SQLite error code (SQLITE_ERROR = 1, SQLITE_NO_TABLE = 1) instead of string matching, if the bun:sqlite API exposes it.",
+      "existing_code": "      const msg = viewErr instanceof Error ? viewErr.message : String(viewErr);\n      if (!/no such table/.test(msg)) throw viewErr;",
+      "start_line": 812,
+      "end_line": 813,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "content": "The `openFamilyStore` function applies `CREATE_TABLES_SQL` (the full 11-table schema including `graph_nodes`, `graph_edges`, `findings`, etc.) to the family database. The `FamilyGraphStore` class only reads/writes `family_nodes`, `family_edges`, and `family_metadata` tables on the family database. Creating the full schema on the family DB is unnecessary, wastes startup time, and creates tables that will never be used—potentially confusing future maintainers about which tables belong to which store.",
+      "existing_code": "  const famHandle = new Database(familyPath);\n  applyPragmas(famHandle);\n  famHandle.exec(CREATE_TABLES_SQL);\n  famHandle.exec(FAMILY_TABLES_SQL);",
+      "start_line": 942,
+      "end_line": 945,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **`PRAGMA user_version` overwrites version before migration logic runs** (`src/hunter/shared/db.ts`): `applyPragmas` unconditionally sets `user_version = 184` on every open, running *before* any migration check. This defeats the migration system entirely — if a future migration bumps the version, the pragma will always set it to 184 first, meaning the migration engine will never see a lower stored version and never execute pending migrations.\n\n2. **Non-transactional dual-read in `getBranchUnion`** (`src/hunter/shared/db.ts`): The fallback union reads `familyDb` and `branchDb` independently with no transaction wrapping both SELECTs. A concurrent write between the two reads yields an inconsistent snapshot. This is a correctness bug under any concurrent workload.\n\n3. **`SharedDb.close()` does not gate subsequent operations** (`src/hunter/shared/db.ts`): Setting `this.open = false` is never checked by `exec`, `prepare`, `writeGraph`, `appendFinding`, etc. Post-close calls surface raw `bun:sqlite` errors instead of a controlled, named error, violating the store's fail-clean contract.\n\n4. **Full 11-table schema applied to family databases unnecessarily** (`src/hunter/shared/db.ts`): `openFamilyStore` runs `CREATE_TABLES_SQL` (including `graph_nodes`, `graph_edges`, `findings`, etc.) on family databases that only use `family_nodes`, `family_edges`, and `family_metadata`. This creates unused tables, slows open time, and risks unintended cross-table interactions.\n\n5. **`pendingPromotions` Map is never cleaned up** (`src/hunter/shared/db.ts`): Once a hash is added via `requestPromotion`, it persists for the lifetime of the `FamilyGraphStore` instance. Repeated failed-promotion callers accumulate stale entries — a slow memory leak.\n\n### Module Hotspots\n\n- **`src/hunter/shared/db.ts`** — the sole file scanned and the source of all 8 comments. This is the central database access layer (`SharedDb`, `FamilyGraphStore`, branch union logic, pragma management, ATTACH helpers). High comment density here indicates concentrated design debt in the persistence tier.\n\n### Cross-Cutting Concerns\n\n- **Defensive type-casting / weak type guards**: The `prepare` method uses `as unknown` casts with only a null/undefined check, which won't catch truthy objects that don't conform to `StatementLike`. (`src/hunter/shared/db.ts` — `prepare` method)\n\n- **Fragile error-discrimination via regex on error messages**: `getBranchUnion` uses case-sensitive `/no such table/` in one branch and case-insensitive matching in another to distinguish benign vs. fatal errors. This is brittle across SQLite versions and locale settings. (`src/hunter/shared/db.ts` — `getBranchUnion`)\n\n- **Duplicated SQL-escape logic**: `familyPath.replace(/'/g, \"''\")` is copy-pasted at two separate ATTACH DATABASE sites (`writeBranchView` and `openFamilyStore`). If escaping requirements change, one site could be updated while the other silently stays incorrect. (`src/hunter/shared/db.ts`)\n\n### Quick Wins\n\n1. **Move `PRAGMA user_version = 184` after the migration transaction** so migrations can compare and bump versions correctly — single-line reorder.\n2. **Extract the SQL-escape helper** (`familyPath.replace(/'/g, \"''\")`) into a shared function and call it from both ATTACH sites — eliminates duplication in minutes.\n3. **Gate all public `SharedDb` methods** with `if (!this.open) throw new DatabaseClosedError()` — straightforward guard clause addition.\n4. **Clean up `pendingPromotions`** after each completed (or failed-and-not-retried) promotion cycle — add a `Map.delete()` call in the relevant catch/finally.\n5. **Scope `CREATE_TABLES_SQL` in `openFamilyStore`** to only the three tables the family store actually uses (`family_nodes`, `family_edges`, `family_metadata`) — reduces schema surface and eliminates dead tables.",
+  "session_id": "f7999134-6c32-42f3-8e4b-4632466797a0"
+}

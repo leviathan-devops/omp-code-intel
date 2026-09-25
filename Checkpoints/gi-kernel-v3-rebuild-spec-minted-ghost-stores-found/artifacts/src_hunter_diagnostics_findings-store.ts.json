@@ -1,0 +1,51 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 2,
+    "total_tokens": 100975,
+    "input_tokens": 93100,
+    "output_tokens": 7875,
+    "cache_read_tokens": 72832,
+    "elapsed": "3m58s"
+  },
+  "tool_calls": {
+    "total": 5,
+    "by_tool": {
+      "code_comment": 1,
+      "file_find": 1,
+      "file_read": 3
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/diagnostics/findings-store.ts",
+      "content": "The evidence validation loop inside the transaction (lines 135-141) is unreachable dead code. The pre-validation loop (lines 117-123) already iterates over ALL findings and throws on the first empty evidence, meaning the transaction block is only ever entered when every finding has valid evidence. The inner loop's evidence check can never trigger, and the `landed=${i}` value in its error message would always equal `landed=0` if it could — making the landed/remaining diagnostic misleading. This dead code adds confusion and a false sense of defense-in-depth. Either remove the inner validation entirely (relying on the pre-validation guarantee), or remove the outer pre-validation loop and rely solely on the in-transaction check (at the cost of paying BEGIN/ROLLBACK for a validation failure).",
+      "suggestion_code": "    try {\n      for (let i = 0; i \u003c findings.length; i++) {\n        // evidence already validated by the pre-validation loop above — no re-check needed here.\n        db.appendFinding(toFindingInput(findings[i]), runId, week);\n      }",
+      "existing_code": "    try {\n      for (let i = 0; i \u003c findings.length; i++) {\n        const f = findings[i];\n        if (typeof f.evidence !== 'string' || f.evidence.trim() === '') {\n          throw findingNoTriplet(\n            `finding ${f.ruleId} at ${f.file}:${f.line} carries an empty evidence string (landed=${i} remaining=${findings.length - i} of ${findings.length})`,\n          );\n        }\n        db.appendFinding(toFindingInput(f), runId, week);\n      }",
+      "start_line": 134,
+      "end_line": 143,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/diagnostics/findings-store.ts",
+      "content": "Multiple instances of loose equality (`==` / `!=`) are used for null checks throughout the file (lines 184, 201, 202, 218, 219). While the `== null` idiom is a deliberate pattern to catch both `null` and `undefined` from database row values, it violates the project's strict equality rule. Consider replacing these with explicit `=== null || === undefined` checks to comply with the coding standard while preserving the same null-or-undefined semantics.",
+      "suggestion_code": "  if (opts.week !== null \u0026\u0026 opts.week !== undefined) {\n    clauses.push('week = ?');\n    params.push(opts.week);\n  }",
+      "existing_code": "  if (opts.week != null) {\n    clauses.push('week = ?');\n    params.push(opts.week);\n  }",
+      "start_line": 184,
+      "end_line": 187,
+      "category": "style",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "# Project-Level Review Summary\n\n### Top Issues\n\n1. **Dead code in `src/hunter/diagnostics/findings-store.ts`** — The evidence validation loop inside the transaction (lines 135–141) is unreachable. The pre-validation loop (lines 117–123) already iterates over all findings and throws on the first empty evidence, guaranteeing that the transaction block is only entered when every finding has valid evidence. The inner loop can never execute. This is misleading and adds maintenance burden.\n\n2. **Inconsistent equality operators in `src/hunter/diagnostics/findings-store.ts`** — Multiple uses of loose equality (`==` / `!=`) for null checks (lines 184, 201, 202, 218, 219) violate the project's strict-equality convention. While the `== null` idiom intentionally catches both `null` and `undefined` from database row values, the inconsistency with the rest of the codebase erodes lint discipline and sets a precedent for looser checks.\n\n### Module Hotspots\n\n- **`src/hunter/diagnostics/`** — The `findings-store.ts` file accounts for 100% of review comments (2 of 2), both flagged as design/lint concerns. This module warrants a closer look for additional dead paths and equality-practice drift.\n\n### Cross-Cutting Concerns\n\n- **Loose vs. strict null checks (`== null` convention drift)** — The `== null` pattern appears repeatedly in `src/hunter/diagnostics/findings-store.ts`. If this is a deliberate database-escape-hatch idiom, it should be documented and isolated behind a helper (e.g., `isNullish(x)`) so it doesn't spread to non-DB code. Representative lines: 184, 201, 218.\n- **Dead/redundant validation logic** — The double-validation in `findings-store.ts` (pre-check outside the transaction + identical check inside) suggests the transaction block may have been added without removing the redundant guard. A pattern of copy-paste-guard-once could exist elsewhere.\n\n### Quick Wins\n\n| Fix | File | Effort |\n|---|---|---|\n| Remove the unreachable evidence validation loop inside the transaction (lines 135–141) | `src/hunter/diagnostics/findings-store.ts` | Low — delete ~7 lines. |\n| Replace `== null` / `!= null` with `=== null` / `!== null` (or introduce a shared `isNullish` helper if both `null` and `undefined` need catching) | `src/hunter/diagnostics/findings-store.ts` | Low — mechanical find-and-replace at lines 184, 201, 202, 218, 219. |",
+  "session_id": "5fbba9aa-5659-4a58-8faa-5f6ece066c4d"
+}

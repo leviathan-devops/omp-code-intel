@@ -1,0 +1,57 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 16076,
+    "input_tokens": 11372,
+    "output_tokens": 4704,
+    "cache_read_tokens": 6528,
+    "elapsed": "2m23s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/shared/kind-for-layer.ts",
+      "content": "The project review checklist prohibits `==` and `!=`, requiring strict equality (`===` / `!==`). While the comments justify `== null` to catch both `null` and `undefined`, the guard should use explicit strict checks: `layerId === null || layerId === undefined`. This satisfies both the lint rule and the null+undefined intent. Note: the `typeof layerId !== 'string'` already catches `undefined`, so the `== null` could simply be replaced with `layerId === null`.",
+      "suggestion_code": "  if (layerId === null || typeof layerId !== 'string') return 'Threshold';",
+      "existing_code": "  if (layerId == null || typeof layerId !== 'string') return 'Threshold';",
+      "start_line": 11,
+      "end_line": 11,
+      "category": "style",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/kind-for-layer.ts",
+      "content": "All node-type return values ('Threshold', 'Gate', 'File', 'Container', etc.) and all matching substrings ('r28', 'r29', 'lexicon', etc.) are hardcoded as inline string literals. If these values are used elsewhere (e.g., to create nodes or query them), typos or divergent spellings across call sites could silently cause mismatches. Extracting these to shared constants would improve maintainability and make typos compile-time errors.",
+      "existing_code": "  if (low.includes('r28')) return 'Gate';",
+      "start_line": 13,
+      "end_line": 13,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/kind-for-layer.ts",
+      "content": "The substring matching relies on evaluation order — e.g., a layerId containing both 'r28' and 'lexicon' silently returns 'Gate' because 'r28' is checked first. If the order of checks is ever rearranged (during maintenance or re-port), the mapping results change without any compiler warning. Consider adding a comment noting that order matters, or, if the substrings are mutually exclusive in practice, document that assumption.",
+      "existing_code": "  if (low.includes('r28')) return 'Gate';\n  if (low.includes('r29')) return 'File';\n  if (low.includes('r30')) return 'File';\n  if (low.includes('r31')) return 'Container';\n  if (low.includes('lexicon')) return 'Lexicon';",
+      "start_line": 13,
+      "end_line": 17,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Fragile, order-dependent string matching** (`src/hunter/shared/kient-for-layer.ts`): The function maps `layerId` substrings to node types using a sequence of checks where evaluation order silently determines the result. A layerId containing both `'r28'` and `'lexicon'` returns `'Gate'` purely because `'r28'` is tested first. Any future reorder—during maintenance or porting—changes behavior silently with no compilation or runtime warning. This is the highest-impact finding because it is a latent correctness bug.\n\n2. **Hardcoded string literals for domain constants** (`src/hunter/shared/kind-for-layer.ts`): Both the node-type return values (`'Threshold'`, `'Gate'`, `'File'`, `'Container'`, etc.) and the matching substrings (`'r28'`, `'r29'`, `'lexicon'`, etc.) are inline literals. If these strings are used elsewhere to create or query nodes, divergent spellings or typos introduce silent mismatches. A single source of truth (enum, const map, or shared constants) would prevent this class of bug.\n\n3. **Loose equality (`== null`) instead of strict checks** (`src/hunter/shared/kind-for-layer.ts`): The guard uses `== null` to catch both `null` and `undefined`. While the intent is defensible, the project review checklist mandates `===` / `!==`, making this a standards violation and a potential source of confusion for contributors.\n\n### Module Hotspots\n\n- **`src/hunter/shared/`**: All three comments concentrate in a single shared utility file (`kind-for-layer.ts`). This file is a mapping hub used across the hunter subsystem; defects here propagate to every consumer.\n\n### Cross-Cutting Concerns\n\n- **Inconsistent use of strict equality**: The `== null` pattern in `src/hunter/shared/kind-for-layer.ts` suggests the project's strict-equality rule may not be uniformly enforced. A codebase-wide search for `==` / `!=` (excluding intentional patterns) is warranted.\n- **Scattered string-literal domain constants**: The hardcoded node-type and substring literals in `src/hunter/shared/kind-for-layer.ts` are likely duplicated elsewhere where nodes are created or queried. A dedicated constants or enum module would eliminate divergence risk across the repo.\n- **Order-dependent dispatch patterns**: The if/else-if chain in `src/hunter/shared/kind-for-layer.ts` is a code smell that may appear in other classification or routing logic. Refactoring to a deterministic lookup (e.g., a `Map` with longest-match or priority-scoring) would make the mapping both order-independent and auditable.\n\n### Quick Wins\n\n- Replace `== null` with `layerId === null || layerId === undefined` in `src/hunter/shared/kind-for-layer.ts` to satisfy the project's strict-equality policy. (Trivial diff, immediate compliance.)\n- Extract node-type strings and matching substrings into exported `const` values or an enum, then import them wherever they are used. This centralizes the source of truth with minimal refactoring.\n- Add a comment block or unit test that documents the intended priority/precedence of the substring checks so future rearrangements are caught by the test suite rather than discovered in production.",
+  "session_id": "c7444852-4534-4b55-8bb5-08c584148ee7"
+}

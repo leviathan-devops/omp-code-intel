@@ -1,0 +1,60 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 107589,
+    "input_tokens": 100353,
+    "output_tokens": 7236,
+    "cache_read_tokens": 86976,
+    "elapsed": "4m3s"
+  },
+  "tool_calls": {
+    "total": 6,
+    "by_tool": {
+      "code_comment": 1,
+      "file_read": 5
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/tools/bug-hunt.ts",
+      "content": "Dead null check in `inScope`: After the initialization block (lines 74–89), both branches either assign `scopeReal` a `string` value or return `inconclusive()` early. Therefore `scopeReal` is **guaranteed non-null** at line 99, making the `scopeReal === null` disjunct and the `scopePrefix !== null` guard dead code. The function always takes the middle branch (`real === scopeReal`) or the prefix branch. While not a runtime bug, this dead path is misleading — a future maintainer might assume the null branch provides a safe fallback, when in fact the fail-closed `return` already prevents that. Consider narrowing the type of `scopeReal` to `string` after the guard block and simplifying `inScope` to a direct comparison.",
+      "suggestion_code": "  // scopeReal is guaranteed non-null here (both branches assign or return inconclusive)\n  const scopePrefix = scopeReal + path.sep;\n  const inScope = (real: string): boolean =\u003e real === scopeReal || real.startsWith(scopePrefix);",
+      "existing_code": "  const scopePrefix = scopeReal === null ? null : scopeReal + path.sep;\n  const inScope = (real: string): boolean =\u003e scopeReal === null || real === scopeReal || (scopePrefix !== null \u0026\u0026 real.startsWith(scopePrefix));",
+      "start_line": 98,
+      "end_line": 99,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/tools/bug-hunt.ts",
+      "content": "Redundant `profilePath` existence check outside the hunt lock (lines 120–125): This block resolves `absProfile` and checks `existsSync` *before* the lock is acquired, then the identical logic is re-executed inside the lock (lines 134–139) with a more thorough `statSync().isFile()` check. The outer check performs unnecessary I/O (resolve + existsSync) that is immediately repeated and superseded. The outer block can be removed entirely since the inner block already returns INCONCLUSIVE for missing/non-file profiles.",
+      "suggestion_code": "  acquireHuntLock(lockTarget);",
+      "existing_code": "  if (typeof args.profilePath === 'string' \u0026\u0026 args.profilePath.length \u003e 0) {\n    const absProfile: string = path.resolve(args.profilePath);\n    if (!fsDyn.existsSync(absProfile)) {\n      return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);\n    }\n  }\n  acquireHuntLock(lockTarget);",
+      "start_line": 120,
+      "end_line": 126,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/tools/bug-hunt.ts",
+      "content": "Dead `scopeReal !== null` guard on profile containment (line 142): After the initialization block (lines 74–89), `scopeReal` is always a non-null string (both branches assign or return early). This means the profile containment check at line 142 is always executed when `absProfile` is defined — the guard never prevents it. The null check is redundant dead code that mirrors the same incomplete refactor as the `inScope` function above.",
+      "suggestion_code": "      // ★ F-303b FIX (2026-09-24): the profile obeys the SAME containment as the target.\n      // scopeReal is guaranteed non-null here.\n      {",
+      "existing_code": "      // ★ F-303b FIX (2026-09-24): the profile obeys the SAME containment as the target.\n      if (scopeReal !== null) {",
+      "start_line": 141,
+      "end_line": 142,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Dead `scopeReal === null` check in `inScope` (`src/hunter/tools/bug-hunt.ts`, line ~99):** After the initialization block (lines 74–89), `scopeReal` is guaranteed to be a non-null string — either assigned directly or the function returns early via `inconclusive()`. The null disjunct is dead code, and the guard makes the function harder to reason about.\n\n2. **Dead `scopeReal !== null` guard on profile containment (`src/hunter/tools/bug-hunt.ts`, line ~142):** Same root cause as #1 — the initialization block guarantees non-null, so this conditional branch is always entered and the guard is superfluous.\n\n3. **TOCTOU race: redundant `profilePath` existence check outside the hunt lock (`src/hunter/tools/bug-hunt.ts`, lines 120–125 vs. 134–139):** `absProfile` is resolved and `existsSync`-checked *before* the lock is acquired; the same logic is then repeated inside the lock with a stricter `statSync().isFile()` check. The pre-lock check is both redundant and racy — the file could disappear or change between the check and lock acquisition.\n\n### Module Hotspots\n\n- `src/hunter/tools/bug-hunt.ts` — All three findings originate here. The `inScope` function and the section immediately following it contain dead-guard code and a TOCTOU pattern that suggest the control flow was refactored without updating the guards.\n\n### Cross-Cutting Concerns\n\n- **Dead guards after early-return patterns:** The repeated null checks on `scopeReal` (lines 99 and 142) are a single root cause — the initialization block was likely refactored to guarantee non-null, but the downstream guards were never removed. This is a readability and maintenance concern: future readers may not realize the null paths are unreachable, leading to unnecessary defensive branches accumulating over time.\n\n### Quick Wins\n\n- **Remove the `scopeReal === null` disjunct** at line ~99 and the `scopeReal !== null` guard at line ~142 in `src/hunter/tools/bug-hunt.ts`. Since the init block always assigns or returns early, simplify both to unconditional code. This eliminates two dead branches in one pass.\n- **Delete the pre-lock `existsSync` block** (lines 120–125) that duplicates the logic already guarded inside the lock (lines 134–139). This removes a TOCTOU race and ~6 lines of redundant code.",
+  "session_id": "af27367a-1e89-47df-b4ec-e326f1c9a8bc"
+}

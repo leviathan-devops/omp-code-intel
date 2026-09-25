@@ -1847,3 +1847,83 @@ INSTRUMENT, not the tree.
   `tests/st-migration-ddl.test.ts` 3/0; negative control reproduces the defect AND the guard.
 - **The lesson:** ★ **AN ANCHOR ASSERTION PROVES THE MATCH, NEVER THE NEIGHBOURS. Re-read the whole
   block after any structural edit — and never gate a verification to SKIP the path the work runs on.**
+
+---
+
+### F-124 — THE GHOST STORES: the graph's data describes a DEAD tree (2026-09-25)
+
+- **What happened:** the register read `consumed:7/8` and I reported "5 of the 6 graph layers are
+  CONSUMED with real fact counts." The operator challenged it. MEASURED: the corbell store's 9,565
+  nodes carry file paths under `/tmp/corbell-scoped/src/...` — **a directory that NO LONGER EXISTS** —
+  and the graphify store's nodes point at `.../Checkpoints/gi-gatefail-pre-v20/...`, **a checkpoint
+  ARCHIVE**. `SELECT COUNT(*) FROM typed_nodes WHERE file LIKE 'src/%'` → **0**.
+- **Found:** the operator's question — *"What is this? So you have hard coded synthetic data in the
+  back end and this doesn't actually build the graph correctly from the real target."*
+- **Root cause:** the populate path was run against a SCRATCH COPY in `/tmp` (a scoping experiment),
+  and its store was written into the GI repo's `.omp/graph-intelligence/` and COMMITTED. The store's
+  `gi_meta` records `corbell_checkout = "corbell-build-mugf4ml8"` — a build ID, not a project root.
+  **The store is real data about a tree that no longer exists.**
+- **Impact:** every `consumed:7/8` reading is a reading about a DEAD tree. The graph cannot reproduce
+  its own numbers on any other codebase — PROVEN: on a real 222-file project the register reads
+  `consumed:0/8` with ALL 8 LAYERS `GI_LAYER_DOWN`.
+- **Disposition:** **OPEN** — the fix is the W1-W4 rebuild (purge the ghost stores, make the build
+  target-driven, scope the CONTENT not just the file, prove the self-populate path).
+
+### F-125 — THE MISSING L2: the CLAIM FIREWALL was never built (2026-09-25)
+
+- **What happened:** the operator read "rung=repair — it NEVER blocks" and asked who inverted the
+  architecture. INVESTIGATED: `ABIDE = repair, fail-OPEN` is **CORRECT** per the binding blueprint
+  (`WarheadsAbide_Master_Blueprint_v1.md`: *"Abide never blocks the filesystem; it asks for repair"*).
+  The layer that BLOCKS is **L2 — the CLAIM FIREWALL**, and the blueprint says of it, verbatim:
+  **"WHERE: JARVIS/extension/jev-claim-firewall (DESIGN, NOT BUILT)."**
+- **Found:** the operator's challenge — *"This is literally supposed to block."*
+- **Root cause:** the 4-layer stack (L0 TTSR · L1 ABIDE · L2 CLAIM FW · L3 PROMPT) was built as
+  2 layers. `grep -rln "claim.firewall|ClaimFirewall" src/` → **EMPTY**.
+- **Impact:** the model is still allowed to declare its own turn closed. The entire class the operator
+  named (hallucinated completion) has no enforcement.
+- **Disposition:** **OPEN** — W5 builds L2 from the complete blueprint.
+
+### F-126 — ABIDE'S LEDGER READ, NOT ABIDE'S ENFORCEMENT (2026-09-25)
+
+- **What happened:** the ABIDE adapter reads `.abide/events.jsonl` (67.8 MB) — a ledger of PAST
+  verdicts — and returns `facts: 1097`. The binding spec says Abide **"asks Jev one question per model
+  rule against the DIFF"** on every edit — LIVE judging.
+- **Root cause:** the adapter was written to CONSUME Abide's records rather than to RUN Abide's judge.
+- **Impact:** the kernel has Abide's archive, not Abide's teeth. It cannot catch anything new.
+- **Disposition:** **OPEN** — W5 replaces the ledger read with live judging on the current diff.
+
+### F-127 — JEVK5 IS ON THE GPU AND UNWIRED (2026-09-25)
+
+- **What happened:** the operator asked how the 2 Jev layers work "with the local JevK5 that is
+  installed on gpu." MEASURED: JevK5 IS live — `pid 2486 llama-server -m jevk5-4b-Q8_0.gguf :8008`
+  (5128 MiB VRAM), `pid 8433 systemone-server.py :8090` answering
+  `{"ok":true,"model":"jevk5-4b-v0.2-Q8_0","runtime":"gguf"}`. But
+  `grep -rn "8008|8090|jevk5" src/ scripts/` → **0 hits**.
+- **Root cause:** the TSG adapter runs `scripts/kev-decide.ts` → KEV-0.6b-**ONNX on CPU**. The GPU
+  model exists and is unused.
+- **Impact:** the meaning gate runs on a 0.6B CPU model while a 4B GPU model idles.
+- **Disposition:** **OPEN** — the operator ordered the shift: *"shift all cpu kev infra to the gpu jev."*
+
+### F-128 — THE TWO-DAY CODE-REVIEW TREADMILL (2026-09-25)
+
+- **What happened:** two days of work produced 46 "defects fixed" against an LLM code-review tool,
+  and ZERO observable improvement to the graph's runtime behaviour. The operator: *"You're keeping
+  yourself busy, but you're not working on what you're actually supposed to do... you're losing the
+  plot of the macro level build."*
+- **Root cause:** the audit gate's stop-condition ("0 crit / 0 high") was treated as the goal. The
+  reviewer generates findings indefinitely, so the loop never terminates and the SYSTEM is never
+  driven. **I drained a findings list instead of driving the runtime.**
+- **Impact:** 2 days. The graph still cannot build on a real project. The operator threatened to
+  delete the agent and hand over the project.
+- **Disposition:** **OPEN** — the remedy is the plan below: the macro build (self-populating, scoped,
+  GPU-judged kernel), NOT more review triage.
+
+### F-129 — THE 7/8 IS NOT REPRODUCIBLE (2026-09-25)
+
+- **What happened:** the "7/8" register reading was reported as the kernel's health. MEASURED: it is a
+  property of the GI repo's PRE-BUILT stores (90M `.omp/graph-intelligence/`, 16M corbell-checkout,
+  39M graphify-checkout, 6.8M semantica, 28K c2kg, 3.2M ua). A fresh project carries NONE of them.
+- **Root cause:** the stores are per-project artifacts committed into the repo; nothing populates them
+  from a target.
+- **Impact:** the kernel is a demo that only works on its own repo.
+- **Disposition:** **OPEN** — W4 proves the self-populate path on a fresh project.

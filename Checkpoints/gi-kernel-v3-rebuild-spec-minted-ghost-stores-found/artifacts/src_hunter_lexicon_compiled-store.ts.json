@@ -1,0 +1,92 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 6,
+    "total_tokens": 109500,
+    "input_tokens": 100331,
+    "output_tokens": 9169,
+    "cache_read_tokens": 89280,
+    "elapsed": "4m47s"
+  },
+  "tool_calls": {
+    "total": 10,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 5,
+      "file_find": 1,
+      "file_read": 3
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "content": "writeBattery uses `db.exec('BEGIN')` (deferred transaction) instead of `db.exec('BEGIN IMMEDIATE')`. A deferred transaction acquires the write lock only at the first actual write statement. Between BEGIN and the DELETE, a concurrent reader using snapshot isolation could observe stale data or, under certain SQLite journaling configurations, a concurrent writer could interleave. writeCompiledCache was specifically hardened to `BEGIN IMMEDIATE` for this reason (see the F-897 comment). Since writeBattery is a standalone entry point called by external callers, it should use the same `BEGIN IMMEDIATE` discipline to guarantee atomicity against concurrent readers.",
+      "suggestion_code": "  db.exec('BEGIN IMMEDIATE');",
+      "existing_code": "  db.exec('BEGIN');",
+      "start_line": 144,
+      "end_line": 144,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "content": "The rehydrate fallback chain silently substitutes the raw `row['template']` and `bindings` columns when `check_code` is malformed or missing fields. The file's header contract states: 'the check_code is the SERIALIZED reinstatement shape — { template, bindings }. NEVER a function string, NEVER a runtime-only closure.' If `check_code` is corrupted, falling back to the raw columns means the predicate is reinstantiated with potentially different bindings than what was originally compiled — the D13 verbatim-quote law is violated silently. A corrupted `check_code` row should be a loud `BINDINGS_UNPARSEABLE` (or similar named error), not a silent fallback to the secondary columns.",
+      "suggestion_code": "    if (code['template'] === undefined || code['bindings'] === undefined) {\n      throw new LexiconError(\n        'CHECK_CODE_INCOMPLETE',\n        `CHECK_CODE_INCOMPLETE: id=${String(row['id'])} check_code missing template or bindings fields`,\n      );\n    }\n    templateId = String(code['template']);\n    bound = code['bindings'];",
+      "existing_code": "    templateId = String(code['template'] ?? row['template'] ?? '');\n    bound = code['bindings'] ?? bindings;",
+      "start_line": 270,
+      "end_line": 271,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "content": "In writeCompiledCache, the battery version-validation loop (lines 89–92) runs AFTER `delBat.run(corpusHash)` has already deleted the existing rows (line 86). If any predicate fails the VERSION_MISMATCH check, the ROLLBACK undoes the DELETE, but the delete work is wasted on the failure path. More importantly, this ordering is fragile — if a future refactor changes the transaction semantics, the DELETE could become committed before the throw. The validation loop should execute before any destructive writes.",
+      "suggestion_code": "    for (const p of battery) {\n      if (p.batteryVersion !== corpusHash) {\n        throw new LexiconError('VERSION_MISMATCH', `VERSION_MISMATCH: battery predicate ${p.id} has batteryVersion ${p.batteryVersion} != corpusHash ${corpusHash}`);\n      }\n    }\n    delBat.run(corpusHash);",
+      "existing_code": "    delBat.run(corpusHash);\n    for (const p of battery) {\n      if (p.batteryVersion !== corpusHash) {\n        throw new LexiconError('VERSION_MISMATCH', `VERSION_MISMATCH: battery predicate ${p.id} has batteryVersion ${p.batteryVersion} != corpusHash ${corpusHash}`);\n      }\n    }",
+      "start_line": 84,
+      "end_line": 89,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "content": "severityFrom silently defaults to 'MED' and predicateFamilyFrom silently defaults to 'WIRING' when the stored value is invalid or unrecognized. This masks database corruption — a row with a truncated or altered severity/family string will be loaded as a valid predicate with a wrong default, causing the check to run with incorrect severity classification or dispatch to the wrong family logic. A corrupted or unknown severity string (e.g., 'CRITICAL' instead of 'CRIT') would also silently fall through with no diagnostic signal. Since these are defensive reads (R16 TYPE_CERTAINTY), the functions should log a warning at minimum or throw, so that corruption is detectable.",
+      "suggestion_code": "function predicateFamilyFrom(v: unknown): PredicateFamily {\n  if (v === 'WIRING' || v === 'CONTRACT' || v === 'PROVENANCE' || v === 'DOMAIN' || v === 'PROCESS') {\n    return v;\n  }\n  console.warn(`[compiled-store] UNKNOWN_FAMILY: unknown family value '${String(v)}', defaulting to WIRING`);\n  return 'WIRING';\n}",
+      "existing_code": "function predicateFamilyFrom(v: unknown): PredicateFamily {\n  if (v === 'WIRING' || v === 'CONTRACT' || v === 'PROVENANCE' || v === 'DOMAIN' || v === 'PROCESS') {\n    return v;\n  }\n  return 'WIRING';\n}",
+      "start_line": 298,
+      "end_line": 303,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "content": "writeBattery has deeply nested try/try/finally/catch blocks (lines 137–163) that make the control flow fragile and hard to reason about. The outer try guards the ROLLBACK catch, the inner try's finally handles statement finalization, and a bare catch swallows finalize errors. This triple-nesting is error-prone for future maintenance — a developer modifying one layer could easily break the transaction-invariant. Consider restructuring to match the flatter pattern used in writeRuleCards, where a single try/finally wraps the statement lifecycle and a single catch handles ROLLBACK.",
+      "suggestion_code": "  db.exec('BEGIN IMMEDIATE');\n  let committed = false;\n  let stmt: ReturnType\u003cDbClient['prepare']\u003e | undefined;\n  let del: ReturnType\u003cDbClient['prepare']\u003e | undefined;\n  try {\n    del = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');\n    del.run(version);\n    stmt = db.prepare(\n      `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,\n    );\n    for (const p of battery) {\n      const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });\n      stmt.run(\n        p.id, p.family, p.template, JSON.stringify(p.bindings), p.verbatimQuote,\n        p.anchor, p.severity, checkCode, p.batteryVersion, 'PENDING',\n      );\n    }\n    db.exec('COMMIT');\n    committed = true;\n  } catch (e: unknown) {\n    if (!committed) db.exec('ROLLBACK');\n    throw e;\n  } finally {\n    try { stmt?.finalize(); } catch { /* best-effort */ }\n    try { del?.finalize(); } catch { /* best-effort */ }\n  }",
+      "existing_code": "  db.exec('BEGIN');\n  let committed = false;\n  let stmt: ReturnType\u003cDbClient['prepare']\u003e | undefined;\n  let del: ReturnType\u003cDbClient['prepare']\u003e | undefined;\n  try {\n  try {\n  del = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');\n  del.run(version);\n  stmt = db.prepare(",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "content": "The string literal 'PENDING' is used in both writeCompiledCache (line 100) and writeBattery (line 149) without being extracted to a named constant. Since this value represents the calibrated-column default and is referenced in db.ts line 267, a typo in either location would silently write an incorrect calibration status. Extract to a shared constant (e.g., `const CALIBRATION_PENDING = 'PENDING'`) to ensure consistency and catch future drift.",
+      "suggestion_code": "const CALIBRATION_PENDING = 'PENDING';",
+      "existing_code": "        'PENDING',\n      );",
+      "start_line": 182,
+      "end_line": 183,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Deferred transaction in a write-heavy path** (`writeBattery`): Using `db.exec('BEGIN')` instead of `BEGIN IMMEDIATE` leaves a window between the transaction start and the first write where concurrent snapshot readers can observe inconsistent state. This is the most critical correctness bug.\n2. **Silent corruption masking in `severityFrom` and `predicateFamilyFrom`**: Invalid or unrecognized severity/family strings fall back to `'MED'` and `'WIRING'` respectively, allowing a truncated or tampered database row to be silently accepted as valid rather than raising an error.\n3. **Wasted DELETE before validation in `writeCompiledCache`**: The battery-version validation loop runs *after* `delBat.run(corpusHash)` has already deleted existing rows. A version mismatch triggers ROLLBACK, but the delete was unnecessary work and, under high concurrency, could affect readers that saw the deletion within the same transaction scope.\n4. **Unsafe fallback in `rehydrate`**: Malformed or missing `check_code` fields silently substitute raw `row['template']` and `bindings` values, violating the file's own header contract that `check_code` must never be a raw function/template pair. This can cause runtime errors or logic bugs downstream.\n5. **Fragile nested error-handling in `writeBattery`**: Deeply nested try/try/finally/catch blocks (lines 137–163) make control flow difficult to reason about and hide potential finalize errors behind a bare catch.\n\n### Module Hotspots\n\nAll six findings concentrate in a single file:\n\n- **`src/hunter/lexicon/compiled-store.ts`** — Every comment targets this file, covering its transaction management, deserialization fallbacks, validation ordering, error suppression, and missing constants. This module is the primary risk surface in the scanned scope.\n\n### Cross-Cutting Concerns\n\n- **Silent fallback / error suppression**: Three of six comments (`rehydrate` fallback, `severityFrom`/`predicateFamilyFrom` defaults, bare catch swallowing finalize errors) describe code that masks invalid data instead of failing fast. Pattern: `src/hunter/lexicon/compiled-store.ts`.\n- **SQLite transaction hygiene**: Both the deferred-BEGIN issue and the premature-DELETE-before-validation issue reflect a pattern of not fully considering SQLite's concurrency and rollback semantics. Pattern: `src/hunter/lexicon/compiled-store.ts`.\n- **Magic strings without named constants**: The string `'PENDING'` is duplicated in `writeCompiledCache` (line 100) and `writeBattery` (line 149) and also referenced in `src/hunter/lexicon/db.ts` (line 267) without a shared constant, risking silent divergence on typo.\n\n### Quick Wins\n\n- **Change `BEGIN` to `BEGIN IMMEDIATE`** in `writeBattery` to eliminate the concurrency window — a one-token fix.\n- **Extract `'PENDING'` to a named constant** and import it in both `writeCompiledCache` and `writeBattery` (and reference it in `db.ts`) — trivial refactor, eliminates a class of silent bug.\n- **Move the VERSION_MISMATCH validation loop before the DELETE** in `writeCompiledCache` — reordering two code blocks avoids wasted work and simplifies the rollback path.\n- **Throw on invalid severity/family in `severityFrom` / `predicateFamilyFrom`** instead of silently defaulting — changing two functions from returning a fallback to throwing surfaces data corruption immediately.\n- **Flatten the nested try/catch/finally in `writeBattery`** into a single try/catch with `db.exec('ROLLBACK')` in the catch and a single `finally` for statement cleanup — improves readability and eliminates the swallowed finalize error.",
+  "session_id": "536b963f-f929-4f6c-bf9e-97e4d66484a9"
+}

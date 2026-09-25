@@ -1,0 +1,58 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 112597,
+    "input_tokens": 102216,
+    "output_tokens": 10381,
+    "cache_read_tokens": 85632,
+    "elapsed": "4m42s"
+  },
+  "tool_calls": {
+    "total": 6,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 3,
+      "file_read": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "content": "**Misleading comment about `unknown` providing rename compile-error safety.**\n\nThe R19-HIGH FIX comment claims: \"Declared here (unknown — the adapters' own schemas own the inner shape), the reader needs no cast and a rename becomes a compile error.\"\n\nThis is inaccurate. With `source_location?: unknown`, consumers still need a runtime type assertion (e.g., `typeof edge.source_location === 'string'` or a cast) to read the value — `unknown` is the *opaque* type, not a structural contract. A rename of the adapter's *inner* field (e.g., the adapter stops writing to `source_location` and uses `loc` instead) would NOT produce a compile error in any consumer — the consumer compiles fine reading `unknown` from a non-existent adapter field, and fails only at runtime with `undefined`.\n\nThe fix is still a net improvement (eliminates the double-cast `as unknown as Record\u003cstring, unknown\u003e` at the interface boundary), but the stated safety property doesn't hold. Consider either:\n1. Defining a small interface (e.g., `interface GraphSourceRef { source_location?: string | number | null; metadata?: Record\u003cstring, unknown\u003e | null }`) and having adapters implement it — this gives real compile-time field-name safety.\n2. Or correcting the comment to say: \"the field is declared so consumers access it through the interface (no double-cast), but the inner shape is opaque — the adapter's schema governs the runtime shape.\"",
+      "existing_code": "  // ★ R19-HIGH FIX (2026-09-25): the graphify/corbell adapters CARRY these two — the line\n  //   resolver reads them — but the interface never declared them, so every consumer reached\n  //   them through `as unknown as Record\u003cstring, unknown\u003e`. A double-cast is the type system\n  //   being told to look away: it erases the shape AND removes the compiler's ability to catch a\n  //   renamed field. Declared here (unknown — the adapters' own schemas own the inner shape),\n  //   the reader needs no cast and a rename becomes a compile error.\n  source_location?: unknown;     // the adapter's raw locator (the line resolver's fallback)\n  metadata?: unknown;            // the adapter's raw metadata bag",
+      "start_line": 78,
+      "end_line": 85,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "content": "**`BuildResult.lineage` counts are not contract-validated against the actual arrays.**\n\nThe `lineage: { spec: number; code: number; hybrid: number }` counts are produced independently by adapters alongside `nodes: GraphNode[]` and `edges: GraphEdge[]`. A miscounting adapter would silently produce inconsistent K18.2 duality metrics — the spec/line/hybrid counts might not sum to `nodes.length`, or could exceed it.\n\nSince this is the *interface contract* file, consider adding a JSDoc `@remark` or a TODO noting that adapters MUST ensure `lineage.spec + lineage.code + lineage.hybrid === nodes.length` (and ideally the store should assert this on write). If runtime validation is added later, the exact invariant should be documented here at the contract boundary.",
+      "existing_code": "  lineage: { spec: number; code: number; hybrid: number };   // the node duality counts (K18.2)",
+      "start_line": 110,
+      "end_line": 110,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "content": "**`GraphError.name` is set to the error code string, overriding `Error.name`.**\n\nEvery subclass sets `this.name = code` (e.g., `this.name = 'ADAPTER_FAILED'`), which overrides the default `Error.name` (which would be the class name like `AdapterFailedError`). This means:\n- `error.name` returns `'ADAPTER_FAILED'`, not `'AdapterFailedError'`\n- External error handlers that pattern-match on `.name` expecting class names or the `Error` suffix will not match\n- `Error.prototype.toString()` produces `\"ADAPTER_FAILED: message\"` instead of `\"AdapterFailedError: message\"`\n\nThis appears intentional (the \"named-error vocabulary\" design), but it's worth noting that this breaks the standard Error contract. If any upstream framework (e.g., structured logging, Sentry, error boundary) parses `.name` expecting standard Error behavior, it will misinterpret the error. Consider a `code` property on the base class (which already exists) as the primary identifier, and let `name` remain the class name for standard compatibility.",
+      "existing_code": "export class GraphError extends Error {\n  readonly code: string;\n  constructor(code: string, message: string) {\n    super(message);\n    this.name = code;\n    this.code = code;\n  }\n}",
+      "start_line": 130,
+      "end_line": 137,
+      "category": "maintainability",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Misleading documentation on `unknown` type safety** (`src/hunter/graph/interface.ts`): A high-priority comment claims that using `unknown` in the adapter schema interface makes renames a compile error, which is factually incorrect. This could lead developers to rely on a false sense of type safety and miss necessary casts during refactors.\n\n2. **Unvalidated `lineage` counts in `BuildResult`** (`src/hunter/graph/interface.ts`): The `lineage` object (`spec`, `code`, `hybrid` counts) is produced independently by adapters without any contract validation against the actual `nodes` and `edges` arrays. A miscounting adapter will silently produce inconsistent data, potentially causing incorrect downstream behavior with no error raised.\n\n3. **`GraphError.name` overrides `Error.name` with the error code** (`src/hunter/graph/interface.ts`): Every `GraphError` subclass sets `this.name = code` (e.g., `'ADAPTER_FAILED'`), suppressing the default class name. This breaks standard `instanceof`-style diagnostics, logging patterns, and stack trace readability since the error name no longer reflects the class hierarchy.\n\n### Module Hotspots\n\n- **`src/hunter/graph/interface.ts`**: All three findings are concentrated in this single file, which serves as the core type/error contract for the graph subsystem. This interface file is disproportionately impactful—any inaccuracy here propagates to every adapter and consumer.\n\n### Cross-Cutting Concerns\n\n- **Contract / validation gaps between producers and consumers of shared types**: The `lineage` count issue reflects a pattern where data is assembled by multiple independent adapters with no centralized invariant check. If other `BuildResult` fields follow the same pattern, similar silent inconsistencies may exist. Representative path: `src/hunter/graph/interface.ts`.\n\n- **Error hierarchy design**: `GraphError` overriding `Error.name` suggests the error class hierarchy may not be designed for standard JS/TS error inspection patterns. If other error classes in the project follow this convention, logging, monitoring, and debugging tooling may be affected across the codebase.\n\n### Quick Wins\n\n- **Correct the misleading `unknown` comment** in `src/hunter/graph/interface.ts` to accurately describe the type-safety guarantees (or lack thereof) so developers don't make false assumptions.\n- **Add a runtime assertion or post-condition check** in the adapter contract that `lineage.spec + lineage.code + lineage.hybrid === nodes.length` (or the relevant invariant). A single validation line would catch all miscounting adapters.\n- **Stop overriding `Error.name`** in `GraphError` subclasses (or explicitly set it to the class name like `'AdapterFailedError'`) so that standard error inspection and logging tools work as expected.",
+  "session_id": "54a1a161-cf9e-46b4-b43d-6654b2a7a231"
+}

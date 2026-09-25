@@ -1,0 +1,61 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 94217,
+    "input_tokens": 79835,
+    "output_tokens": 14382,
+    "cache_read_tokens": 65472,
+    "elapsed": "6m16s"
+  },
+  "tool_calls": {
+    "total": 6,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 1,
+      "file_read": 4
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/graph/merge.ts",
+      "content": "Bug: Incorrect use of `||` or truthiness checks instead of `??` for file and line values at multiple sites in src/hunter/graph/merge.ts. Empty strings or zero values would fall back incorrectly; use nullish coalescing (`??`) to prefer the anchor when non-nullish.",
+      "suggestion_code": "        existing.file = anchor.file ?? s.file;\n        existing.line = anchor.line ?? s.line;",
+      "existing_code": "        existing.file = anchor.file || s.file;\n        existing.line = anchor.line || s.line;",
+      "start_line": 142,
+      "end_line": 143,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/hunter/graph/merge.ts",
+      "content": "**Dead code: unreachable `merged.push(...)` fallback after `if (existing)`.** When `mechExact` is truthy, it comes from `index.byKey` (built from mechanical triples, deduplicated to one per key). `mergedByKey` is built from the same deduplicated mechanical set. Therefore `mergedByKey.get(k)` is guaranteed to find the row — the `existing` branch always executes and the fallback `merged.push(...)` on line 134 is never reached. Consider removing it or converting it to a defensive assertion.",
+      "suggestion_code": "      const existing = mergedByKey.get(k);\n      if (!existing) throw new MergeError(`MERGE_FAILED: mechanical key ${k} missing from mergedByKey`);\n      existing.source = 'both';\n      existing.evidence = s.evidence.trim().slice(0, 500);\n      existing.confidence = s.confidence;\n      existing.file = anchor.file ?? s.file;\n      existing.line = anchor.line ?? s.line;\n      existing.subjectKind = s.subjectKind ?? anchor.subjectKind;\n      existing.objectKind = s.objectKind ?? anchor.objectKind;\n      existing.anchorFile = anchor.file ?? null;\n      existing.anchorLine = anchor.line ?? null;\n      continue;",
+      "existing_code": "      const existing = mergedByKey.get(k);\n      if (existing) {\n        existing.source = 'both';\n        existing.evidence = s.evidence.trim().slice(0, 500);\n        existing.confidence = s.confidence;\n        existing.file = anchor.file || s.file;\n        existing.line = anchor.line || s.line;\n        existing.subjectKind = s.subjectKind ?? anchor.subjectKind;\n        existing.objectKind = s.objectKind ?? anchor.objectKind;\n        existing.anchorFile = anchor.file ?? null;\n        existing.anchorLine = anchor.line ?? null;\n        continue;\n      }\n      merged.push({",
+      "start_line": 137,
+      "end_line": 150,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/merge.ts",
+      "content": "**Performance: `candidates.includes(hit)` is O(n) per call, making the 4-loop dedup O(n²) in the worst case.** The `candidates` array collects references from four index lookups; the same `TypedTriple` reference can appear in multiple indices for the same normalized key (e.g., a triple appears in both `bySubject` and `byObject` when subject equals object). Using a `Set\u003cTypedTriple\u003e` for dedup would make this O(n).",
+      "suggestion_code": "      const seenCandidates = new Set\u003cTypedTriple\u003e();\n      const candidates: TypedTriple[] = [];\n      for (const hit of index.bySubject.get(subjNorm) ?? []) { if (seenCandidates.add(hit)) candidates.push(hit); }\n      for (const hit of index.byObject.get(subjNorm) ?? []) { if (seenCandidates.add(hit)) candidates.push(hit); }\n      for (const hit of index.bySubject.get(objNorm) ?? []) { if (seenCandidates.add(hit)) candidates.push(hit); }\n      for (const hit of index.byObject.get(objNorm) ?? []) { if (seenCandidates.add(hit)) candidates.push(hit); }",
+      "existing_code": "      const candidates: TypedTriple[] = [];\n      for (const hit of index.bySubject.get(subjNorm) ?? []) candidates.push(hit);\n      for (const hit of index.byObject.get(subjNorm) ?? []) if (!candidates.includes(hit)) candidates.push(hit);\n      for (const hit of index.bySubject.get(objNorm) ?? []) if (!candidates.includes(hit)) candidates.push(hit);\n      for (const hit of index.byObject.get(objNorm) ?? []) if (!candidates.includes(hit)) candidates.push(hit);",
+      "start_line": 229,
+      "end_line": 233,
+      "category": "performance",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Incorrect nullish-coalescing semantics (`||` vs `??`)** — `src/hunter/graph/merge.ts` uses `||` or truthiness checks where `??` (nullish coalescing) is required. This means legitimate falsy values like empty strings or `0` for file/line fields silently fall through to anchor defaults, producing wrong merge results. High correctness impact.\n\n2. **Dead code / unreachable fallback branch** — After the `if (existing)` block, a `merged.push(...)` fallback is unreachable because `mechExact` and `mergedByKey` are derived from the same deduplicated mechanical index. This is both a logic smell and a maintenance hazard—future changes could silently break assumptions.\n\n3. **O(n²) deduplication via `candidates.includes(hit)`** — Each of the four dedup loops calls `.includes()` on a plain array, giving worst-case O(n²) time. On large merge operations this becomes a real performance bottleneck.\n\n### Module Hotspots\n\n- **`src/hunter/graph/merge.ts`** — All three comments (correctness, dead code, performance) concentrate here. This file warrants focused review and refactoring.\n\n### Cross-Cutting Concerns\n\n- **Falsy-value handling pattern** — The `||` vs `??` issue suggests the codebase may have a broader pattern of using truthiness checks where nullish checks are required. Other files performing similar field merging or default assignment should be audited.\n- **Deduplication strategy** — The O(n²) `includes()` pattern may appear in other merge/collect loops. Consider standardizing on `Set`-based dedup or `Map`-keyed grouping across the project.\n\n### Quick Wins\n\n| Fix | File | Effort |\n|---|---|---|\n| Replace `||` with `??` for file/line value defaults | `src/hunter/graph/merge.ts` | Low — find-and-replace with a correctness check |\n| Remove the unreachable `merged.push(...)` fallback | `src/hunter/graph/merge.ts` | Low — delete dead branch; add a comment or assertion documenting the invariant |\n| Swap `candidates.includes(hit)` for a `Set` lookup | `src/hunter/graph/merge.ts` | Low — `const seen = new Set(); … if (seen.has(ref)) continue; seen.add(ref);` reduces dedup to O(n) |",
+  "session_id": "d82ee13a-ff65-432a-b43e-c02dc34ff1c9"
+}

@@ -626,3 +626,16 @@ ZERO criteria named the deployed artifact.
 | V-101 | the DONE-condition law ("a condition needs a mechanical predicate") | every DONE condition's predicate MUST be honest at face value | C1's predicate was redefined while its text stayed at the old bar | **VIOLATED HIGH** | F-115 · `scripts/goal-verify.ts:36-68` · the CLEANUP_SPEC FR-1 |
 | P-56 | the anti-theatrical law (the agent's own review) | the agent MUST audit its own output before shipping | 3 operator-caught theatrical entries (TH-06..08) shipped to the operator | **VIOLATED HIGH** | THEATRICALITY_LOG TH-06..08 · the operator's order to audit |
 | P-57 | the fresh-capture law (the docs at the moment of work) | the manifest's SHA MUST track the dist | `Baseline SHA: d4872b48` vs the true `e13d0f59` | **VIOLATED MEDIUM → FIXED** | F-120 · the manifest, refreshed this pass |
+
+---
+
+## 2026-09-25 — THE OPERATOR'S REJECTION (the violations it named)
+
+| V- | spec § | the spec REQUIRES (quoted) | what actually happened (observed) | VERDICT | evidence |
+|---|---|---|---|---|---|
+| V-2026-09-25-1 | JEV_ABIDE blueprint §1 | "the 4-layer stack: L0 TTSR · L1 ABIDE · **L2 CLAIM FW** · L3 PROMPT" — L2 "rejects hallucinated completion" | L2 was NEVER BUILT: `grep -rln "claim.firewall" src/` → EMPTY. The blocking half of the architecture is absent. | **VIOLATED CRITICAL** | the blueprint's own line: "WHERE: JARVIS/extension/jev-claim-firewall (DESIGN, NOT BUILT)" |
+| V-2026-09-25-2 | JEV_ABIDE blueprint §2.3 | "on every edit or turn Abide asks Jev one question per **model** rule against the **diff**" | the adapter READS `.abide/events.jsonl` (a 67.8 MB ledger of PAST verdicts); it never runs the judge. | **VIOLATED HIGH** | `adapters/abide.ts:212` — `tailEvents(eventsPath, 4000)` |
+| V-2026-09-25-3 | the operator's ruling 2026-09-25 | "shift all cpu kev infra to the gpu jev it is the exact same architecture and this is just better" | the meaning gate runs KEV-0.6b-ONNX on CPU; JevK5-4b on GPU is unwired (`grep -rn "8008\|8090\|jevk5" src/` → 0). | **VIOLATED HIGH** | `adapters/kev.ts:22` `KEV_MODEL = "onnx-community/kev-0.6b-ONNX"` |
+| V-2026-09-25-4 | the scoping boilerplate README | "EVERYTHING IS PROJECT WORKSPACE SCOPED" + "NO JSON fallback, NO dual-write" | the store FILE is scoped but its CONTENT describes `/tmp/corbell-scoped` (dead) + a Checkpoints archive. | **VIOLATED CRITICAL** | `SELECT COUNT(*) FROM typed_nodes WHERE file LIKE 'src/%'` → 0 |
+| V-2026-09-25-5 | the no-stub law (Warhead 23) | "every module that WORKS in the source MUST be ported with its full import graph resolved" | the graph's per-project stores are PRE-BUILT and committed; the POPULATE path (the thing that makes it work) is not exercised. | **VIOLATED HIGH** | a fresh project reads `consumed:0/8` |
+| P-2026-09-25-1 | the operator's macro-build directive | "you're losing the plot of the macro level build" | two days of LLM-code-review triage (46 "fixes") with ZERO change to the graph's runtime behaviour. | **VIOLATED** | the register on a real project: 0/8 before AND after |

@@ -1,0 +1,28 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "message": "No comments generated. Looks good to me.",
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 0,
+    "total_tokens": 10190,
+    "input_tokens": 8029,
+    "output_tokens": 2161,
+    "cache_read_tokens": 5312,
+    "elapsed": "1m5s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "file_find": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "session_id": "97dc438f-7522-4724-876c-c4fb26ad4a5a"
+}

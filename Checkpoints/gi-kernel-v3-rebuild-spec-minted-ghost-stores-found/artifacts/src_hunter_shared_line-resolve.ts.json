@@ -1,0 +1,56 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 17148,
+    "input_tokens": 13941,
+    "output_tokens": 3207,
+    "cache_read_tokens": 8704,
+    "elapsed": "1m44s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/shared/line-resolve.ts",
+      "content": "`linelessNode()` duplicates the same `LINELESS_NODE` error message construction from `resolveLine()`. If the message format is ever updated (e.g., to include additional fields), one site may be missed, causing inconsistent error messages across the two call paths. Consider having `resolveLine` call `linelessNode` internally (or both call a single shared factory) to keep the refusal message in one place.",
+      "existing_code": "/** The named-error factory — the same refusal as an Error value (for guards that build before throwing). */\nexport function linelessNode(context: string): Error {\n  const who = context \u0026\u0026 context.length \u003e 0 ? context : \"graph node\";\n  return new Error(\n    `LINELESS_NODE: no line for ${who} (checked line/line_start/line_end/source_location)`,\n  );\n}",
+      "start_line": 66,
+      "end_line": 72,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/shared/line-resolve.ts",
+      "content": "The `context` parameter defaults to `\"\"` and the guard `context \u0026\u0026 context.length \u003e 0` is slightly redundant — `context.length \u003e 0` alone already handles the empty-string case. More importantly, the hardcoded fallback `\"graph node\"` means callers who omit context produce error messages that obscure the actual adapter path (corbell vs graphify), complicating triage. Consider making `context` required in `resolveLine` so callers are forced to identify themselves, or at minimum use a more descriptive default like the function/module name.",
+      "existing_code": "export function resolveLine(\n  node: { line?: unknown; data?: Record\u003cstring, unknown\u003e; source_location?: unknown },\n  edge?: { source_location?: unknown; metadata?: unknown } | null,\n  context = \"\",\n): number {\n  const n = tryResolveLine(node, edge);\n  if (n !== undefined) return n;\n  const who = context \u0026\u0026 context.length \u003e 0 ? context : \"graph node\";\n  throw new Error(\n    `LINELESS_NODE: no line for ${who} (checked line/line_start/line_end/source_location)`,\n  );\n}",
+      "start_line": 53,
+      "end_line": 64,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/shared/line-resolve.ts",
+      "content": "The runtime type assertion `(edge?.metadata as Record\u003cstring, unknown\u003e | undefined)?.[\"line\"]` is compile-time-only; at runtime, if `metadata` is a primitive (number, boolean) or an array, the bracket access succeeds silently (returning `undefined` via auto-boxing) rather than surfacing a type mismatch. This means a misconfigured edge with e.g. `metadata: [\"line\", 42]` would silently skip the array form and return `undefined` instead of picking up index `\"line\"`. If metadata is expected to always be a plain object, consider adding a runtime guard (`typeof metadata === 'object' \u0026\u0026 metadata !== null \u0026\u0026 !Array.isArray(metadata)`), or document the contract that non-object metadata is treated as having no `.line`.",
+      "existing_code": "    (edge?.metadata as Record\u003cstring, unknown\u003e | undefined)?.[\"line\"],",
+      "start_line": 43,
+      "end_line": 43,
+      "category": "bug",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Silent failure from unsafe runtime type assertion** — In `src/hunter/shared/line-resolve.ts`, the cast `(edge?.metadata as Record\u003cstring, unknown\u003e | undefined)?.[\"line\"]` is compile-time-only. If `metadata` is a primitive or array, bracket access silently returns `undefined` instead of surfacing the mismatch, potentially masking bugs. A runtime validation or guard is needed.\n\n2. **Duplicated error message construction** — `linelessNode()` and `resolveLine()` in `src/hunter/shared/line-resolve.ts` each independently build the same `LINELESS_NODE` error message. If the format is ever changed, one site can easily be missed, producing inconsistent error output across call paths.\n\n3. **Hardcoded fallback obscuring caller identity** — When `context` is omitted, the error message falls back to the generic string `\"graph node\"` in `src/hunter/shared/line-resolve.ts`. This makes it harder to trace the originating call site during debugging.\n\n### Module Hotspots\n\n- **`src/hunter/shared/line-resolve.ts`** — All 3 comments target this single file. The three issues (duplication, redundant guard, unsafe assertion) indicate the module needs a focused cleanup pass.\n\n### Cross-Cutting Concerns\n\n- **Unsafe type narrowing** — The runtime type assertion pattern (`as Record\u003cstring, unknown\u003e` followed by property access) appears in `src/hunter/shared/line-resolve.ts`. If this pattern is used elsewhere in the `hunter/shared` directory or broader `src/hunter` tree, the same silent-failure risk applies. Worth auditing for similar `as` casts used as runtime guards.\n\n- **DRY violations in error handling** — The duplicated `LINELESS_NODE` message in `src/hunter/shared/line-resolve.ts` is a classic case where a shared helper or constant would prevent drift. If other shared modules in `src/hunter/shared/` follow a similar pattern, the same maintenance risk exists.\n\n### Quick Wins\n\n- **Extract a single error-message builder** in `src/hunter/shared/line-resolve.ts` and have both `linelessNode()` and `resolveLine()` call it, eliminating the duplication immediately.\n- **Simplify the guard** — Replace `context \u0026\u0026 context.length \u003e 0` with just `context.length \u003e 0` (since `context` defaults to `\"\"`), removing the redundant truthiness check.\n- **Add a runtime type guard** before the bracket access on `metadata` — even a simple `typeof edge?.metadata === 'object' \u0026\u0026 edge?.metadata !== null` check would prevent the silent auto-boxing behavior and fail explicitly.",
+  "session_id": "0f2ccbd8-eece-4c2c-9336-3ff5fdab7213"
+}

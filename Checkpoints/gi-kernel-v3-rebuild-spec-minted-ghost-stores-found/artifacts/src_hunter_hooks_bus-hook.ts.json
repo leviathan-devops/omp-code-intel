@@ -1,0 +1,69 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 4,
+    "total_tokens": 31810,
+    "input_tokens": 25514,
+    "output_tokens": 6296,
+    "cache_read_tokens": 17728,
+    "elapsed": "3m23s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "content": "Non-numeric poison rows cause an infinite re-selection loop in the defensive code path. When a row has a non-numeric `id`, the code `continue`s without advancing `this.cursor`. On the next poll, `WHERE id \u003e \u003cnumeric_cursor\u003e` re-selects the same row (SQLite treats text values as greater than numerics). The `poisonLogged` set silences the log after the first occurrence, but the row keeps appearing in every query result. The F-401 comment claims \"can never block clean intake,\" but the row IS re-fetched every poll — it doesn't block clean rows numerically above it, yet it wastes a full query round-trip and row-processing cycle indefinitely. Since this code exists precisely for defensive robustness, it should either break out of the first loop upon encountering a non-numeric id (all subsequent rows would also be suspect), or log a one-time warning that intake is degraded.",
+      "suggestion_code": "        const sig = JSON.stringify(row).slice(0, 160);\n        if (!this.poisonLogged.has(sig)) {\n          this.poisonLogged.add(sig);\n          console.error(`[hydra-bus] POISON events row (non-numeric id, skipped past cursor ${this.cursor}): ${sig}`);\n        }\n        // Non-numeric ids are un-coverable by the numeric cursor. Break here to stop\n        // re-selecting this and all subsequent rows on every poll; intake resumes only\n        // after the caller resets the cursor past the poison via restoreCursor().\n        break;",
+      "existing_code": "        const sig = JSON.stringify(row).slice(0, 160);\n        if (!this.poisonLogged.has(sig)) {\n          this.poisonLogged.add(sig);\n          console.error(`[hydra-bus] POISON events row (non-numeric id, skipped past cursor ${this.cursor}): ${sig}`);\n        }\n        // F-401 FIX: poison rows SKIP, never HALT — old break stalled intake without covering\n        // the poison id, so WHERE id \u003e ? re-selected it every poll (permanent stall).\n        // continue delivers all clean numerics; non-numeric id stays un-coverable by cursor\n        // (logged ONCE via poisonLogged) but can never block clean intake. Unreachable on real store.\n        continue;",
+      "start_line": 109,
+      "end_line": 118,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "content": "`failuresDropped` is private and never exposed via a getter or logged anywhere. The `trimFailedEvents` method silently discards the oldest dead-letter records and increments this counter, but no code path ever reads or logs it. The inline comment says \"loud-once via the counter\" but the loudness never materializes — an operator inspecting a running instance has zero visibility into dropped failures. At minimum, add a getter for `failuresDropped` and/or log once when the first drop occurs.",
+      "suggestion_code": "  private static readonly MAX_FAILED_EVENTS = 500;\n  private failuresDropped = 0;\n  private dropLogged = false;\n\n  /** Returns the total number of failed-event records that were trimmed (dropped) due to the cap. */\n  getFailuresDropped(): number {\n    return this.failuresDropped;\n  }",
+      "existing_code": "  private static readonly MAX_FAILED_EVENTS = 500;\n  private failuresDropped = 0;",
+      "start_line": 71,
+      "end_line": 72,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "content": "Inconsistent indentation inside the `poll()` try-block: the statements after `try {` are indented at the same level as the `try` keyword itself (4 spaces) rather than being nested inside it (6 spaces). This makes the code harder to read and signals that the try-block boundary may have been overlooked during a refactor.",
+      "suggestion_code": "    const cursorBefore = this.cursor;\n    try {\n      const rows = rowsAs\u003cEventRow\u003e(db.prepare('SELECT id, kind, payload FROM events WHERE id \u003e ? ORDER BY id ASC').all(this.cursor), 'events');",
+      "existing_code": "    const cursorBefore = this.cursor;\n    try {\n    const rows = rowsAs\u003cEventRow\u003e(db.prepare('SELECT id, kind, payload FROM events WHERE id \u003e ? ORDER BY id ASC').all(this.cursor), 'events');",
+      "start_line": 90,
+      "end_line": 92,
+      "category": "style",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "content": "When the JSON payload is parsed but is not a plain object (null, array, or primitive), the event is consumed (cursor advances via `this.cursor = row.id`) and `continue` skips delivery — the event is silently lost with no dead-letter recording. Compare this to subscriber failures (F-349) which are explicitly recorded in `failedEvents` for retry. A malformed-but-deliverable payload (e.g., an array the subscriber could handle) is lost without any recovery path. Consider recording it in `failedEvents` or at least logging with the event id so the loss is inspectable.",
+      "suggestion_code": "        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {\n          console.error(`[hydra-bus] event id=${row.id} payload is not an object, skipped`);\n          this.failedEvents.push({ row, payload: { raw: row.payload }, error: new Error('payload is not a plain object'), attempt: 1, failedIndex: -1 });\n          this.trimFailedEvents();\n          this.cursor = row.id;\n          continue;\n        }",
+      "existing_code": "        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {\n          console.error(`[hydra-bus] event id=${row.id} payload is not an object, skipped`);\n          this.cursor = row.id;\n          continue;\n        }",
+      "start_line": 130,
+      "end_line": 134,
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Infinite re-selection loop on non-numeric poison rows** (`src/hunter/hooks/bus-hook.ts`): When the poll loop encounters a row whose `id` is non-numeric, the `continue` path does not advance `this.cursor`. The next poll re-selects the same row via `WHERE id \u003e \u003ccursor\u003e`, creating a tight infinite loop that will stall all event processing. This is the highest-severity finding — a single malformed row can bring down the entire hook.\n\n2. **Silent event loss on non-object JSON payloads** (`src/hunter/hooks/bus-hook.ts`): When a parsed payload is a non-plain-object value (null, array, primitive), the cursor advances and the event is consumed but never delivered or dead-lettered. Unlike subscriber failures, there is no `trimFailedEvents` path that captures these. Data is silently dropped with no recovery mechanism.\n\n3. **`failuresDropped` counter is write-only** (`src/hunter/hooks/bus-hook.ts`): The private `failuresDropped` field is incremented by `trimFailedEvents` but never exposed via a getter, logged, or surfaced in any metric. The intent (stated in an inline comment) was to be \"loud-once,\" but this is entirely dead observability. Combined with issues 1 and 2, the operator has no visibility into poison rows or dropped events.\n\n4. **Indentation inconsistency inside `poll()` try-block** (`src/hunter/hooks/bus-hook.ts`): Statements after `try {` share the same indent level as the `try` keyword itself rather than being nested inside the block. This makes the try-catch boundary ambiguous and hinders readability.\n\n### Module Hotspots\n\nAll four comments target a single file:\n\n- **`src/hunter/hooks/bus-hook.ts`** — 4 comments covering a correctness bug (infinite loop), a data-loss bug (silent event drop), a dead observability path, and a style issue. This file is the clear hotspot and warrants focused review and testing.\n\n### Cross-Cutting Concerns\n\n- **Inconsistent error-handling for malformed events** (`src/hunter/hooks/bus-hook.ts`): Subscriber failures are routed to dead-letter storage, but non-plain-object payloads are silently consumed. There is no unified \"poison event\" handling strategy — different failure modes produce different (and incomplete) outcomes.\n- **Observability gaps in defensive code paths** (`src/hunter/hooks/bus-hook.ts`): Multiple defensive `continue` branches exist, but counters and dead-letter mechanisms are incomplete or unexposed. There is no single surface (log, metric, or getter) that reports the health of the event poll loop.\n\n### Quick Wins\n\n1. **Advance `this.cursor` before `continue` on non-numeric id** (`src/hunter/hooks/bus-hook.ts`): Adding `this.cursor = row.id` (or a string-equivalent comparison that moves past the row) on the non-numeric path eliminates the infinite loop. This is a one-line fix with critical impact.\n2. **Route non-plain-object payloads to dead-letter storage** (`src/hunter/hooks/bus-hook.ts`): After detecting the payload is not a plain object, store it via the same dead-letter path used for subscriber failures instead of silently consuming it.\n3. **Expose `failuresDropped` via a getter or log it** (`src/hunter/hooks/bus-hook.ts`): Add a public getter and log the value at warning level (at least once, as originally intended) so operators have visibility into silent drop events.\n4. **Fix indentation inside the `poll()` try-block** (`src/hunter/hooks/bus-hook.ts`): Re-indent the body to 6 spaces so the try-catch scope is visually clear.",
+  "session_id": "9ce7f91d-d407-43e4-8ce1-2eaf13ecaf1f"
+}

@@ -1,0 +1,79 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 5,
+    "total_tokens": 215018,
+    "input_tokens": 205340,
+    "output_tokens": 9678,
+    "cache_read_tokens": 177920,
+    "elapsed": "4m50s"
+  },
+  "tool_calls": {
+    "total": 12,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 2,
+      "file_find": 1,
+      "file_read": 8
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "content": "**Misleading parameter name `profilePath` — wrong value printed in error messages.**\n\nBoth `corpusMissing` and `historyMissing` name their parameter `profilePath`, but at the call sites (lines 588 and 595), they are invoked with `entry` — a corpus or failure-log path, NOT the profile path. The resulting error message `CORPUS_MISSING: path=\u003centry\u003e` labels the corpus entry path as if it were the profile path, which contradicts the named-error contract (O32.1) and will confuse debugging. Rename the parameter to `entryPath` (or similar) so the error message semantics match the actual value.",
+      "existing_code": "export function corpusMissing(profilePath: string): Error {\n  return new Error(`CORPUS_MISSING: path=${profilePath} remedy=the corpus file must exist (fix the profile's rules.corpus)`);\n}\n\nexport function historyMissing(profilePath: string): Error {\n  return new Error(`HISTORY_MISSING: path=${profilePath} remedy=the failure log must exist (fix the profile's history.failureLogs)`);\n}",
+      "start_line": 46,
+      "end_line": 52,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "content": "**Duplicate YAML mapping keys are silently overwritten — violates fail-closed intent.**\n\nIn `parseMapping` (lines 361–389), when the same key appears twice at the same indentation level, the second assignment (`obj[key] = ...`) silently overwrites the first. The file's entire design philosophy is fail-closed — malformed input should produce a `PROFILE_INVALID` error, not silent data loss. A duplicate key is almost certainly a mistake in a hand-written profile (e.g., two `project:` blocks). Add a guard that checks `key in obj` before assignment and calls `yamlErr` when a duplicate is found.",
+      "suggestion_code": "    const obj: Record\u003cstring, unknown\u003e = {};\n    while (pos \u003c logical.length) {\n      const l = logical[pos];\n      if (l.indent \u003c indent) break;\n      if (l.indent \u003e indent) yamlErr(keyPath, l.text, l.line, `unexpected indentation (expected depth ${indent})`);\n      if (l.text.startsWith('-')) yamlErr(keyPath, l.text, l.line, 'a sequence item cannot appear where a mapping key is expected');\n      const ci = l.text.indexOf(':');\n      if (ci \u003c 0) yamlErr(keyPath, l.text, l.line, 'expected \"key: value\"');",
+      "existing_code": "    const obj: Record\u003cstring, unknown\u003e = {};\n    while (pos \u003c logical.length) {\n      const l = logical[pos];\n      if (l.indent \u003c indent) break;\n      if (l.indent \u003e indent) yamlErr(keyPath, l.text, l.line, `unexpected indentation (expected depth ${indent})`);\n      if (l.text.startsWith('-')) yamlErr(keyPath, l.text, l.line, 'a sequence item cannot appear where a mapping key is expected');\n      const ci = l.text.indexOf(':');\n      if (ci \u003c 0) yamlErr(keyPath, l.text, l.line, 'expected \"key: value\"');",
+      "start_line": 361,
+      "end_line": 368,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "content": "**Missing `depth + 1` increment in sequence-continuation-key recursive descent (inconsistent with block-map branch).**\n\nIn `parseSequence`, when a sequence map item has inline value + continuation keys at a deeper indent (line 430), `parseMapping` is called with `depth + 1`. However, when the item has no inline value and the continuation block is entered (line 422), `parseMapping`/`parseSequence` also uses `depth + 1` — BUT line 422 was already reached from the `rest === ''` branch, meaning depth was NOT incremented before calling. Compare with the block-map `parseMapping` function (line 382) which does `depth + 1`. The real inconsistency is at line 422: this is inside `parseSequence` which received `depth` from its caller, and passes `depth + 1` into the child — this is correct. BUT: the `Object.assign(itemMap, parseMapping(...))` at line 430 also passes `depth + 1`, meaning continuation keys get a slightly inflated depth budget when combined with the inline value at line 427 (which passes `depth` into `parseFlowValue`). The net effect is that deeply nested sequence-continuation maps get 1 fewer nesting level of headroom than equivalent block-map children. This is a minor inconsistency but could cause surprising depth-limit failures on deeply nested stages. Consider unifying the depth accounting.",
+      "existing_code": "        if (rest === '') {\n          if (pos \u003c logical.length \u0026\u0026 logical[pos].indent \u003e indent) {\n            const childIndent = logical[pos].indent;\n            itemMap[key] = logical[pos].text.startsWith('-') ? parseSequence(childIndent, depth + 1) : parseMapping(childIndent, depth + 1);\n          } else {\n            itemMap[key] = null;\n          }\n        } else {\n          itemMap[key] = parseFlowValue(rest, l.line);\n          // continuation keys (entry:/contract:) at a deeper indent belong to this item\n          if (pos \u003c logical.length \u0026\u0026 logical[pos].indent \u003e indent) {\n            Object.assign(itemMap, parseMapping(logical[pos].indent, depth + 1));\n          }\n        }",
+      "start_line": 419,
+      "end_line": 432,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "content": "**`statSync` catch block masks real filesystem errors (permission denied, too many symlink levels, etc.) as generic PROFILE_INVALID.**\n\nThe catch block at line 552 re-throws only errors whose message starts with 'PROFILE_INVALID' and converts everything else to a generic `PROFILE_INVALID` with the message 'the project root must exist and be a directory'. This masks genuine OS errors — e.g., `EACCES` (permission denied), `ELOOP` (too many symlink levels), or `ENAMETOOLONG` — all of which get reported as if the root simply doesn't exist or isn't a directory. This makes production debugging harder and contradicts the named-error contract's intent of precise remediation. Consider surfacing the original error's `code` property in the remedy string.",
+      "suggestion_code": "  try {\n    const st = fs.statSync(resolvedRoot);\n    if (!st.isDirectory()) {\n      throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');\n    }\n  } catch (e: unknown) {\n    if (e instanceof Error \u0026\u0026 e.message.startsWith('PROFILE_INVALID')) throw e;\n    const code = (e as NodeJS.ErrnoException)?.code ?? 'UNKNOWN';\n    throw profileInvalid('project.root', profile.project.root, `the project root must exist and be a directory (os error: ${code})`);\n  }",
+      "existing_code": "  try {\n    const st = fs.statSync(resolvedRoot);\n    if (!st.isDirectory()) {\n      throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');\n    }\n  } catch (e: unknown) {\n    if (e instanceof Error \u0026\u0026 e.message.startsWith('PROFILE_INVALID')) throw e;\n    throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');\n  }",
+      "start_line": 547,
+      "end_line": 555,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "content": "**`parseMapping` does not apply `isKeyColon` guard consistently with how `parseFlowValue` rejects bare colons.**\n\nIn `parseMapping` (line 372), when `isKeyColon` returns false, the error message says `'foo:bar' is a plain scalar, not a mapping` — but the token isn't then fed to `parseFlowValue` as a scalar. Instead, the function throws immediately. This means a bare line like `foo:bar` (which is valid YAML plain-scalar content) at mapping indentation level is rejected rather than being parsed as a scalar value. For the restricted profile subset this is likely acceptable (mapping-level bare scalars are not expected), but it's inconsistent with how `parseSequence` (line 435–436) falls through to `parseFlowValue` for non-map items. If a future profile field allows a scalar at mapping level, this will silently reject valid input.",
+      "existing_code": "      if (!isKeyColon(l.text, ci)) yamlErr(keyPath, l.text, l.line, 'expected \"key: value\" (a \":\" must be followed by a space — \"foo:bar\" is a plain scalar, not a mapping)');",
+      "start_line": 372,
+      "end_line": 372,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Silent YAML duplicate-key overwrite defeats fail-closed design.** In `src/hunter/profile/loader.ts` (`parseMapping`, lines 361–389), a duplicate key at the same indentation level is silently overwritten. Since the system's intent is fail-closed on malformed profiles, this means a tampered or buggy YAML file can inject unexpected values without triggering any error. This is the highest-impact finding because it can change profile behaviour undetectably.\n\n2. **`statSync` catch block masks real filesystem errors as generic `PROFILE_INVALID`.** In `src/hunter/profile/loader.ts` (line 552), every exception that doesn't start with `'PROFILE_INVALID'` — including permission denied, ELOOP, and other genuine I/O failures — is swallowed and re-thrown as a generic profile-invalid error. This hides root causes and makes debugging operational issues far harder.\n\n3. **Misleading `profilePath` parameter name causes wrong paths in error messages.** Both `corpusMissing` and `historyMissing` in `src/hunter/profile/loader.ts` name their parameter `profilePath`, but they are called (lines 588, 595) with `entry` — a corpus or failure-log path. Error messages therefore print the wrong path, directing developers/operators to investigate the wrong file.\n\n4. **Inconsistent depth tracking in recursive YAML parser.** In `src/hunter/profile/loader.ts` (line 430), the sequence-continuation-key branch calls `parseMapping` but doesn't consistently pass `depth + 1` in all recursive descent paths, unlike the block-map branch. This can cause incorrect indentation validation or subtle parse failures on valid (or invalid) YAML input.\n\n5. **`parseMapping` / `parseFlowValue` inconsistency on bare-colon tokens.** In `src/hunter/profile/loader.ts` (line 372), when `isKeyColon` returns false, the error message claims the token is a plain scalar — but the token isn't forwarded to `parseFlowValue`, so the actual parse path doesn't match the stated error. This can produce confusing diagnostics on edge-case YAML input.\n\n### Module Hotspots\n\n- **`src/hunter/profile/loader.ts`** — the only file with comments, but all five are concentrated here. It houses a hand-rolled YAML parser, filesystem access, and profile validation logic. Severity is uniformly medium-to-high (semantic correctness, security/fail-closed posture, and debuggability). This file is the clear hotspot of the repository.\n\n### Cross-Cutting Concerns\n\n- **Hand-rolled YAML parser correctness.** Three of the five findings (duplicate-key overwrite, inconsistent depth tracking, `isKeyColon` / `parseFlowValue` mismatch) stem from a custom YAML parser that lacks rigorous recursive-descent invariants. Representative locations: `parseMapping` (lines 361–389), `parseSequence` (line 430), and the `isKeyColon` check (line 372).\n- **Error-path fidelity.** Two findings (misleading `profilePath` name, `statSync` catch masking) share a root cause: error paths and error messages lose or distort the original failure information. Both occur in the profile-loading orchestration section of `loader.ts` (lines 552, 588, 595).\n- **Fail-closed intent not enforced end-to-end.** The project's design philosophy is to reject invalid input, yet the duplicate-key silent overwrite and the catch-all re-throw as `PROFILE_INVALID` both defeat that intent.\n\n### Quick Wins\n\n| Fix | Effort | Impact |\n|---|---|---|\n| Rename the `profilePath` parameter to `filePath` (or `entry`) in `corpusMissing` and `historyMissing` and update error templates — eliminates misleading log output. | ~5 min | High debuggability improvement |\n| Throw or log the original `stat` error before re-throwing `PROFILE_INVALID` (e.g. `console.error` or wrap with cause) so filesystem issues aren't hidden. | ~10 min | High operational safety |\n| Reject duplicate keys in `parseMapping` by checking `key in obj` before assignment, and throw `PROFILE_INVALID`. Aligns parser with fail-closed design. | ~15 min | Critical security/correctness |",
+  "session_id": "f50e8c2a-0ce3-4c8b-ab52-424bd701fc3d"
+}

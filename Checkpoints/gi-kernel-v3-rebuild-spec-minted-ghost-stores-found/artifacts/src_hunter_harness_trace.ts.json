@@ -1,0 +1,56 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 19575,
+    "input_tokens": 15170,
+    "output_tokens": 4405,
+    "cache_read_tokens": 11456,
+    "elapsed": "2m21s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/harness/trace.ts",
+      "content": "The `graph` parameter is accepted by `legacySolveTrace` but never referenced in the function body. This is dead/unused code that will confuse maintainers and suggests either a missed integration point or a parameter that should have been removed during the port. Since `solveTrace` is the public API and also passes `graph` through, consider removing it from both signatures (or at minimum from `legacySolveTrace`) to keep the interface honest.",
+      "existing_code": "function legacySolveTrace(findings: NormalizedFinding[], graph: GraphAdapter): TraceRow[] {",
+      "start_line": 88,
+      "end_line": 88,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/harness/trace.ts",
+      "content": "`solveTrace` validates `findings` but does not validate the `graph` parameter. Even though `graph` is currently unused downstream, it is part of the public contract and will be used when the L6 loop is ported. A missing or malformed `graph` would silently pass now and crash later. Add a basic guard (e.g., `if (!graph) throw`) or at least document the intentional non-validation.",
+      "existing_code": "export async function solveTrace(findings: NormalizedFinding[], graph: GraphAdapter): Promise\u003cTraceRow[]\u003e {\n  if (!Array.isArray(findings)) {\n    throw new Error('TRACE_INVALID: findings must be array');\n  }",
+      "start_line": 125,
+      "end_line": 128,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/harness/trace.ts",
+      "content": "The `severityWeight` switch does not handle all `Severity` variants exhaustively at compile time — any new severity added to the union will silently fall through to the `default: 0.5` case, potentially producing incorrect relevance scores without any compile-time or runtime warning. Consider using a discriminated exhaustive check (e.g., `default: { const _exhaustive: never = s; return 0.5; }`) so the compiler flags new variants that need explicit weighting.",
+      "existing_code": "function severityWeight(s: Severity): number {\n  switch (s) {\n    case 'CRIT': return 1;\n    case 'HIGH': return 0.75;\n    case 'MED': return 0.5;\n    case 'WARN': return 0.25;\n    default: return 0.5;\n  }\n}",
+      "start_line": 56,
+      "end_line": 64,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Unused `graph` parameter in `legacySolveTrace`** (`src/hunter/harness/trace.ts`): The parameter is accepted but never referenced in the function body. This is dead code that signals either a missed integration during a port or a parameter that should have been removed.\n\n2. **Missing validation of `graph` parameter in `solveTrace`** (`src/hunter/harness/trace.ts`): `findings` is validated, but `graph` is not. Although unused today, it is part of the public contract and will be needed when the L6 loop is ported. A malformed graph will silently pass now and cause a hard crash later.\n\n3. **Non-exhaustive `severityWeight` switch** (`src/hunter/harness/trace.ts`): The switch over `Severity` variants does not enforce exhaustiveness at compile time. Any new severity added to the union will silently fall through to `default: 0.5`, producing incorrect relevance scores with no compile-time or runtime warning.\n\n### Module Hotspots\n\nAll three findings are concentrated in a single file:\n\n- **`src/hunter/harness/trace.ts`** — Contains an unused parameter, missing input validation, and a non-exhaustive switch. This file needs attention on multiple fronts before further porting work continues.\n\n### Cross-Cutting Concerns\n\nWith only one file flagged, there is no broad cross-cutting pattern to report. However, the issues found here point to a **type-safety and contract-validation discipline** that should be checked project-wide:\n\n- **Exhaustive switch/match handling** — If `Severity` is used in switch statements elsewhere, the same silent-default risk may apply.\n- **Parameter validation consistency** — If other public functions in `src/hunter/harness/` accept structured parameters, it is worth verifying they validate inputs uniformly.\n\n### Quick Wins\n\n1. **Remove the unused `graph` parameter from `legacySolveTrace`** — If the L6 loop is not yet ported, the parameter should be removed from the signature (or at minimum prefixed with `_`) to avoid confusion.\n2. **Add a runtime assertion or guard for `graph` in `solveTrace`** — A simple check (`if (!graph) throw ...`) will prevent silent misconfiguration from cascading into later crashes.\n3. **Make `severityWeight` exhaustive** — Either add explicit cases for every `Severity` variant or change `default` to an unreachable branch (e.g., `const _exhaustive: never = sev; throw new Error(...)`) so new variants produce a compile error instead of a silent 0.5 weight.",
+  "session_id": "e94f3224-a87d-4c5f-b244-2009c2aea525"
+}

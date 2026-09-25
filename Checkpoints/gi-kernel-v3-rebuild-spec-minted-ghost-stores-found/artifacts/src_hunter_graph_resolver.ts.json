@@ -1,0 +1,69 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 4,
+    "total_tokens": 39707,
+    "input_tokens": 32646,
+    "output_tokens": 7061,
+    "cache_read_tokens": 23872,
+    "elapsed": "3m49s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/graph/resolver.ts",
+      "content": "The DB write loop repeats the same `INSERT OR REPLACE INTO resolutions` statement with identical parameter lists across three branches — a maintainability hazard where a future fix applied to only one branch would silently diverge. Additionally, the `unrelated` + `destructive` and `unrelated` + `!destructive` paths write logically the same canonical (`d.alias` / `newEntity.id`) but through different code paths, making intent unclear. Extract a single `writeResolution(db, alias, target, verdict, reasoning, runId)` helper and unify all unrelated decisions by setting `target = d.newEntity.id` explicitly, so all three branches call the same helper with a clear target variable.",
+      "suggestion_code": "        function writeResolution(alias: string, canonical: string, verdict: string, reasoning: string, run: string): void {\n          try {\n            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(alias, canonical, verdict, reasoning, run);\n          } catch (e: unknown) {\n            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${alias} — ${e instanceof Error ? e.message : String(e)}`);\n          }\n        }\n        for (const d of decisions) {\n          let target = d.canonicalId;\n          if (d.verdict === 'unrelated' \u0026\u0026 d.destructive) {\n            target = d.alias;\n          } else if (d.verdict === 'same') {\n            target = d.existingCanonical ? d.existingCanonical.canonical_id : d.canonicalId;\n          }\n          writeResolution(d.alias, target, d.verdict, d.reasoning, runId);\n        }",
+      "existing_code": "        if (d.verdict === 'unrelated' \u0026\u0026 d.destructive) {\n          try {\n            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, d.alias, d.verdict, d.reasoning, runId);\n          } catch (e: unknown) {\n            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} — ${e instanceof Error ? e.message : String(e)}`);\n          }\n          continue;\n        }\n        if (d.verdict === 'same') {\n          const target = d.existingCanonical ? d.existingCanonical.canonical_id : d.canonicalId;\n          try {\n            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, target, d.verdict, d.reasoning, runId);\n          } catch (e: unknown) {\n            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} → ${target} — ${e instanceof Error ? e.message : String(e)}`);\n          }\n        } else {\n          try {\n            db.prepare('INSERT OR REPLACE INTO resolutions (alias, canonical_id, verdict, reasoning, created_run) VALUES (?,?,?,?,?)').run(d.alias, d.canonicalId, d.verdict, d.reasoning, runId);\n          } catch (e: unknown) {\n            throw new ResolverError(`RESOLVER_FAILED: resolutions write failed for alias=${d.alias} — ${e instanceof Error ? e.message : String(e)}`);\n          }\n        }",
+      "start_line": 368,
+      "end_line": 389,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/resolver.ts",
+      "content": "`promptSafe` strips newlines, quotes, and bidirectional override characters, but does not strip backslashes (`\\`). In the prompt format, values are interpolated into `kind=... file=...:...` without surrounding quotes on all fields. While the current format does not interpret backslashes, a downstream consumer that parses the prompt or a future format change could interpret `\\n` as a newline or `\\\"` as a quote escape. Since this is the sole prompt-injection defense for attacker-controlled source identifiers, a fail-closed approach should also collapse backslashes to avoid format-dependent edge cases.",
+      "suggestion_code": "  return v\n    .replace(/[\\r\\n\\t]+/g, ' ')     // one line per entry — a newline forges a new row\n    .replace(/[\"'`]/g, '')            // the delimiters the format uses to quote fields\n    .replace(/[\\u202A-\\u202E\\u2066-\\u2069]/g, '') // bidi overrides cannot reorder what a reader sees\n    .replace(/\\\\/g, '')              // strip backslashes — fail-closed against format escaping\n    .slice(0, max);",
+      "existing_code": "  return v\n    .replace(/[\\r\\n\\t]+/g, ' ')     // one line per entry — a newline forges a new row\n    .replace(/[\"'`]/g, '')            // the delimiters the format uses to quote fields\n    .replace(/[\\u202A-\\u202E\\u2066-\\u2069]/g, '') // bidi overrides cannot reorder what a reader sees\n    .slice(0, max);",
+      "start_line": 86,
+      "end_line": 90,
+      "category": "security",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/graph/resolver.ts",
+      "content": "There is no validation that `existing` is non-empty. While an empty array is handled by `heuristicDecide` (returns 'unrelated' immediately), the `buildPrompt2Batch` function renders a \"no existing canonicals\" message, and the harness receives a prompt that may confuse some LLMs. More importantly, when `existing` is empty, the harness path (if provided) still incurs the full LLM call cost for what is always a trivial all-unrelated result. Consider short-circuiting early when `existing.length === 0` to skip the harness entirely and return heuristic results directly.",
+      "suggestion_code": "  if (!Array.isArray(newEntities)) throw new ResolverError('RESOLVER_FAILED: newEntities must be an array');\n  if (!Array.isArray(existing)) throw new ResolverError('RESOLVER_FAILED: existing must be an array');\n  // Short-circuit: no existing canonicals means every entity is unrelated — skip harness.\n  if (existing.length === 0) {\n    return newEntities.map((ne) =\u003e ({\n      alias: ne.id, canonicalId: ne.id, verdict: 'unrelated' as ResolutionVerdict,\n      reasoning: `no existing canonicals — \"${ne.label}\" is new`, destructive: false,\n      newEntity: ne, existingCanonical: null,\n    }));\n  }",
+      "existing_code": "  if (!Array.isArray(newEntities)) throw new ResolverError('RESOLVER_FAILED: newEntities must be an array');\n  if (!Array.isArray(existing)) throw new ResolverError('RESOLVER_FAILED: existing must be an array');",
+      "start_line": 262,
+      "end_line": 263,
+      "category": "performance",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/graph/resolver.ts",
+      "content": "The outer `catch (e)` block catches both the `ResolverError` thrown by the inner per-row catch and any raw driver error from `BEGIN`/`COMMIT`. When the inner catch throws a `ResolverError`, the outer block re-throws it directly (`if (e instanceof ResolverError) throw e`), which replaces the original stack trace with the stack at the re-throw site rather than preserving the stack from where the `ResolverError` was first constructed. For debugging, consider using a cause-chaining approach (e.g., `{ cause: e }` in the Error constructor) or at minimum noting that stack trace fidelity is intentionally traded here.",
+      "suggestion_code": "      if (e instanceof ResolverError) throw e;\n      const wrapped = new ResolverError(`RESOLVER_FAILED: resolutions transaction failed — ${e instanceof Error ? e.message : String(e)}`);\n      if (e instanceof Error) wrapped.stack = `${wrapped.message}\\n  ↳ original stack: ${e.stack}`;\n      throw wrapped;",
+      "existing_code": "      if (e instanceof ResolverError) throw e;\n      throw new ResolverError(`RESOLVER_FAILED: resolutions transaction failed — ${e instanceof Error ? e.message : String(e)}`);",
+      "start_line": 407,
+      "end_line": 408,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Duplicated DB write logic across branches** — The `INSERT OR REPLACE INTO resolutions` statement with identical parameter lists is repeated across three branches in the write loop. A future fix applied to only one branch would silently diverge, creating data-integrity risk. (`src/hunter/graph/resolver.ts`)\n\n2. **Missing backslash stripping in `promptSafe`** — The function strips newlines, quotes, and bidirectional override characters but not backslashes. Since values are interpolated into `kind=... file=...:...` without surrounding quotes on all fields, crafted input could corrupt the prompt format. (`src/houter/graph/resolver.ts`)\n\n3. **No validation that `existing` is non-empty before prompting** — An empty canonicals list falls through to a \"no existing canonicals\" message in `buildPrompt2Batch`, producing a prompt that may confuse or mislead some LLMs. The correct path (returning 'unrelated' via `heuristicDecide`) exists but is bypassed when the prompt path is reached. (`src/hunter/graph/resolver.ts`)\n\n4. **Outer catch block re-throws `ResolverError` but then falls through to a generic driver-error handler** — When the inner per-row catch throws a `ResolverError`, the outer block re-throws it, but the `COMMIT`/driver-error path is not cleanly separated. A raw driver error from `BEGIN`/`COMMIT` could be conflated with a resolution error, obscuring the root cause. (`src/hunter/graph/resolver.ts`)\n\n### Module Hotspots\n\nAll four findings concentrate in a single file:\n\n- **`src/hunter/graph/resolver.ts`** — This file carries every comment in the scan (4/4), covering logic duplication, input sanitization gaps, missing validation, and error-handling ambiguity. It is the clear hotspot for maintainability and security concerns.\n\n### Cross-Cutting Concerns\n\n- **Input sanitization incompleteness** — `promptSafe` whitelists some dangerous characters but misses backslashes. This pattern (partial sanitization) is a common source of prompt-injection and format-corruption bugs. When other prompt-building sites appear in the codebase, they will need the same scrutiny.\n- **Duplicated SQL statements** — The same `INSERT OR REPLACE` with identical params across three branches signals a missing abstraction (e.g., a single `upsertResolution(...)` helper). Any future schema change or parameter addition must be applied in lockstep across all three locations.\n\n### Quick Wins\n\n| Fix | Effort | Impact |\n|---|---|---|\n| Extract the repeated `INSERT OR REPLACE INTO resolutions` into a single helper function and call it from each branch. | Low | Eliminates the silent-divergence hazard and simplifies future schema changes. |\n| Add `\\\\` (backslash) to the character set stripped by `promptSafe`. | Low | Prevents prompt-format corruption from adversarial or accidental input. |\n| Guard the prompt path with an early return when `existing` is empty, so `buildPrompt2Batch` is never called without canonicals. | Low | Avoids sending misleading prompts to the LLM. |\n| Restructure the outer `catch` to handle `ResolverError` and driver errors in separate, explicit branches (e.g., separate `try/catch` around `BEGIN`/`COMMIT`). | Low–Medium | Makes error provenance clear and prevents accidental swallowing of resolution-specific errors. |",
+  "session_id": "2b270020-f542-4448-a433-23746b14f9e8"
+}

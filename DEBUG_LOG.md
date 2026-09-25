@@ -1788,3 +1788,56 @@ dir + a working AST walk at v5.9.3).
 battery 441/0 + 539/0.
 **LESSON:** every `--bundle` build needs an externalization pass for its heavy deps (the compiler, the
 ONNX runtime, any multi-MB library), or the artifact pays the whole dependency tree's weight per load.
+
+---
+
+## EN-7 — THE STORE'S FILE ANCHORS POINT AT A DELETED TREE (2026-09-25)
+
+- **THE FINDING:** the corbell store (`9,565 nodes / 29,541 edges`) reports `file` values under
+  `/tmp/corbell-scoped/src/...`. That directory does not exist.
+- **THE ROOT CAUSE:** `corbell-build.ts` was run with `--target /tmp/corbell-scoped` (a scoping
+  experiment) and the resulting store was written to `{GI-REPO}/.omp/graph-intelligence/corbell-checkout/`
+  and committed. The store's `gi_meta.corbell_checkout = "corbell-build-mugf4ml8"` — a build ID, not a
+  project root, so NOTHING can detect the drift by reading the store.
+- **THE MECHANISM:** the store path is scoped (`{projectRoot}/.omp/...`) but the store's CONTENT is not
+  — it carries no build-root assertion, so a store built from tree A is served as if it described
+  tree B.
+- **THE FIX (planned, W1-W3):** purge the ghost stores; make the build discover the target's source
+  roots from ITS OWN config; add a `build_root` assertion to `gi_meta` and refuse a read whose subject
+  root ≠ the store's build root.
+- **THE VERIFICATION:** `SELECT COUNT(*) FROM typed_nodes WHERE file LIKE 'src/%'` → 0 (the real path
+  never appears). The fix's verification is the same query returning >0 after the rebuild.
+- **THE LESSON:** **a store is scoped by its PATH, but trustworthy only if its CONTENT asserts the root
+  it was built from.** A per-project store path is necessary and NOT sufficient.
+
+## EN-8 — THE GRAPH IS NOT SELF-POPULATING (2026-09-25)
+
+- **THE FINDING:** on a real 222-file project (`Understand-Anything`, extracted to
+  `/workspace/realproj` in `omp-ct-gi20`), the deployed kernel reads `consumed:0/8` with ALL 8 LAYERS
+  `GI_LAYER_DOWN`; `graph-query who-calls` → `rows=0`, `substrate=undefined`,
+  `reason=GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent`.
+- **THE ROOT CAUSE:** two compounding causes. (a) `corbell` is NOT INSTALLED in the container
+  (`/opt/corbell-venv` absent, not on PATH). (b) On the HOST, the build itself fails:
+  `corbell: "✗ NOT FOUND understand-anything → .../Understand-Anything/src"` → `GRAPH_EMPTY` — because
+  the build assumes `<target>/src` and that project's sources are in
+  `understand-anything-plugin/packages/*/src`.
+- **THE MECHANISM:** the build has a HARDCODED source-root assumption (`<target>/src`) instead of
+  discovering the target's workspace layout (pnpm-workspace.yaml / package.json / tsconfig).
+- **THE FIX (planned, W2):** source-root discovery from the target's own config; a project with no
+  discoverable root is a NAMED refusal, never `GRAPH_EMPTY` after a wrong-path attempt.
+- **THE VERIFICATION:** the same build on `Understand-Anything` must produce >0 nodes; then the
+  register on that project must read 8/8 or a NAMED per-layer reason.
+- **THE LESSON:** **"it works on the GI repo" is not a capability — it is the repo carrying its own
+  pre-built stores.** The capability is the POPULATE path from an arbitrary target.
+
+## EN-9 — JEVK5 ON GPU vs KEV-0.6B ON CPU (2026-09-25)
+
+- **THE FINDING:** `llama-server -m jevk5-4b-Q8_0.gguf :8008` (5128 MiB VRAM) and
+  `systemone-server.py :8090` are LIVE and answer. The kernel's TSG adapter runs
+  `scripts/kev-decide.ts` → `onnx-community/kev-0.6b-ONNX` on CPU.
+- **THE ROOT CAUSE:** the adapter's `KEV_MODEL` constant + CLI path were set before JevK5 existed; no
+  wiring was added when the GPU model landed.
+- **THE FIX (planned, W5):** probe the `:8090` contract, then repoint the meaning gate at it.
+- **THE VERIFICATION:** the TSG probe's evidence line must name the JevK5 model + the GPU port.
+- **THE LESSON:** **an installed-and-serving model is not a wired model.** `grep -rn "<port>" src/`
+  returning 0 is the test for "wired," and it must be run, not assumed.

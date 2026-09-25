@@ -872,3 +872,58 @@ imports (`src/hunter/diagnostics/engine.ts:44`, `src/hunter/graph/mechanical.ts:
 The 20 s is a STACK whose largest measured component is the **MCP server spawns** (serena alone =
 1.2 s; six servers, two loading heavyweight runtimes: `plutus-au` boots a `.ts` via node,
 `semantica` boots a Python venv). **The 9 MB is a real defect worth fixing; it is not the whole 20 s.**
+
+---
+
+## 2026-09-25 — THE OPERATOR'S REJECTION + THE MACRO-BUILD RE-ANCHOR
+
+**The built:** nothing yet — this entry is the RECORD OF THE REJECTION and the re-anchored plan. The
+two-day work (46 defects fixed against an LLM reviewer) is recorded as a FAILED trajectory: it changed
+no runtime behaviour.
+
+**The why:** the operator's verdict, verbatim:
+> *"you wasted two days being a complete waste of fucking space... you're keeping yourself busy, but
+> you're not working on what you're actually supposed to do... you're losing the plot of the macro
+> level build... Prove me wrong."*
+
+**The how — the measurement that settles it:**
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  THE OPERATOR'S THREE CHALLENGES, MEASURED THIS SESSION                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│  1  "why did you delete 92% of the codebase"                            │
+│     src/*.ts DELETED, all-time:            0                            │
+│     src files:  112 → 113  ·  src lines: 27,686 → 34,566                │
+│     the 92% = the BUNDLE: 9,560,681 B → 770,048 B (a build-config fix)  │
+│                                                                          │
+│  2  "the 7/8 is hard-coded synthetic data"                              │
+│     NOT synthetic — WORSE: it is REAL data describing a DEAD tree.      │
+│     corbell nodes → /tmp/corbell-scoped/src/…  (the dir is GONE)        │
+│     graphify nodes → …/Checkpoints/gi-gatefail-pre-v20/…  (an ARCHIVE)  │
+│     SELECT COUNT(*) FROM typed_nodes WHERE file LIKE 'src/%'  →  0      │
+│                                                                          │
+│  3  "the graph on a real codebase"                                      │
+│     container omp-ct-gi20 · 222-file real project · the deployed dist   │
+│     gi-consumption → consumed:0/8 · ALL 8 LAYERS GI_LAYER_DOWN          │
+│     the host build → GRAPH_EMPTY (corbell: "✗ NOT FOUND …/src")         │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**The evidence:** dist `3595ff900bf6581b…` (752 KB) · tsc 0 · battery 441/0 + 539/0 · HEAD `75d2586` ·
+container `omp-ct-gi20` · F-124..F-129 · EN-7..EN-9 · V-2026-09-25-1..5 · T-2026-09-25-A..D.
+
+**The verification:** the two runtime runs above (the container register + the host build) are the
+ground truth. Both FAILED, both LOUD.
+
+**The honest notes (what is OPEN):**
+1. The graph's stores describe dead trees — purge + rebuild (W1-W3).
+2. The build has a hardcoded `<target>/src` assumption — source-root discovery (W2).
+3. The kernel is NOT self-populating — prove it on a fresh project (W4).
+4. **L2 THE CLAIM FIREWALL WAS NEVER BUILT** — the blocking half of the architecture (W5).
+5. ABIDE reads a ledger instead of judging live (W5).
+6. JevK5-4b is on the GPU and UNWIRED (W5).
+7. The audit gate is demoted from "the goal" to "a hygiene check."
+
+**THE RE-ANCHOR:** the plan below (`GI_KERNEL_V3_REBUILD_SPEC.md` + the master blueprint) makes the
+kernel self-populating, correctly scoped, and GPU-judged — the thing the operator can deploy.

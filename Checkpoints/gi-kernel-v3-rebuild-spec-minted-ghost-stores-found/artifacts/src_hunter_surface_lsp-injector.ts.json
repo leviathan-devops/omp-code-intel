@@ -1,0 +1,75 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 5,
+    "total_tokens": 56449,
+    "input_tokens": 46341,
+    "output_tokens": 10108,
+    "cache_read_tokens": 34112,
+    "elapsed": "5m3s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/surface/lsp-injector.ts",
+      "content": "Nested ternary expressions are used in both the 'read' and 'write' cases, violating the review checklist rule \"Nested ternary expressions are not allowed.\" Extract both into explicit if-else blocks or helper functions for readability and compliance.",
+      "suggestion_code": "    case 'read': {\n      if (typeof args.filePath === 'string') return args.filePath;\n      if (typeof args.path === 'string') return args.path;\n      return null;\n    }",
+      "existing_code": "    case 'read':    return typeof args.filePath === 'string' ? args.filePath\n                    : typeof args.path === 'string' ? args.path : null;",
+      "start_line": 612,
+      "end_line": 613,
+      "category": "style",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/surface/lsp-injector.ts",
+      "content": "The comments repeatedly claim the registry is 'SHARED across every agent session + process', but `projectServers` is an in-memory Map which is process-local. Two separate processes each create their own `DiagnosticsServer` with independent in-memory dedupe windows (`recent` map), meaning the O32.2 collapse threshold (REPEAT_COLLAPSE_AFTER = 3) is applied inconsistently across sessions. Cross-process truth is only shared via the DB. The comments should accurately describe the scope: shared within a process, durable across processes only via shared.db.",
+      "existing_code": "/** THE PROJECT-SCOPED SERVER — ONE per project root, SHARED across every agent\n *  session + process (the registry + the db-bound truth). A fresh session\n *  resolves the SAME server object (in-process) or a NEW server bound to the\n *  SAME shared.db (cross-process) — either way, the SAME diagnostics. */",
+      "start_line": 541,
+      "end_line": 544,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/surface/lsp-injector.ts",
+      "content": "`expandGlobFromDb` executes `SELECT DISTINCT file FROM findings` — a full scan of the findings table's file column — on every glob-pattern tool result. For a project with a large findings history, this query runs in O(n) on every glob expansion. Consider caching the distinct file set and invalidating it on new findings insertion, or adding a WHERE clause to narrow the scope (e.g., only recent runs).",
+      "existing_code": "  private expandGlobFromDb(candidate: string): string[] {\n    // ★ R19-HIGH: the ReDoS guard and the regex compile are GONE — a malformed-or-hostile glob\n    //   can no longer make this hang. The length ceiling stays as a sanity bound, not as the\n    //   safety mechanism (the matcher is linear at any length).\n    if (candidate.length \u003e GLOB_MAX_LEN) return [];\n    try {\n      const rows = rowsAs\u003c{ file?: string | null }\u003e(\n        this.db!.prepare('SELECT DISTINCT file FROM findings').all(),\n        'distinct finding files',\n      );",
+      "start_line": 310,
+      "end_line": 319,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/surface/lsp-injector.ts",
+      "content": "The `projectServers` Map grows monotonically — servers are never evicted or released. In a long-running process that touches many projects, this accumulates `DiagnosticsServer` instances (each holding a `recent` map up to 5000 entries, a `state` map, and a DB handle) without bound. Consider adding a least-recently-used eviction policy or exposing a `releaseProjectServer` function.",
+      "existing_code": "const projectServers = new Map\u003cstring, DiagnosticsServer\u003e();",
+      "start_line": 524,
+      "end_line": 524,
+      "category": "performance",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/surface/lsp-injector.ts",
+      "content": "The base class `DiagnosticsServer.watch` silently discards both `dir` and `onChange` parameters (suppressed via `void dir; void onChange;`). Callers of the base class who pass an `onChange` callback will never have it invoked, which is a footgun. Consider making `onChange` required in the subclass or adding a runtime assertion that `onChange` is only called when overridden.",
+      "existing_code": "void dir;\nvoid onChange;",
+      "start_line": 138,
+      "end_line": 139,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Misleading \"shared registry\" documentation (`src/hunter/surface/lsp-injector.ts`)** — Comments claim `projectServers` and the deduplication window are shared across all agent sessions and processes, but the `Map` is process-local with independent per-process state. This can cause silent bugs when multiple processes operate on the same project simultaneously (e.g., duplicate diagnostics delivery). Correct the documentation or move shared state to a genuinely cross-process mechanism.\n\n2. **Uncapped memory leak in `projectServers` (`src/hunter/surface/lsp-injector.ts`)** — The `projectServers` Map grows monotonically with no eviction policy. Each entry holds a `DiagnosticsServer` with a `recent` map (up to 5,000 entries), a `state` map, and a DB handle. In a long-running process touching many projects this will leak unboundedly. Add an LRU eviction or explicit release mechanism.\n\n3. **Full table scan on every glob expansion (`src/hunter/surface/lsp-injector.ts`)** — `expandGlobFromDb` runs `SELECT DISTINCT file FROM findings` on every call. For projects with large findings histories this is O(n) per glob pattern tool result. Cache the distinct file list or use an indexed/materialized approach.\n\n4. **Silent suppression of `onChange` callback in base class (`src/hunter/surface/l3-injector.ts`)** — `DiagnosticsServer.watch` discards both `dir` and `onChange` via `void` casts. Callers passing an `onChange` callback will never be notified. This is a latent footgun for any future subclass or caller that expects reactivity.\n\n5. **Nested ternary expressions violate style guide (`src/hunter/surface/lsp-injector.ts`)** — Both the `read` and `write` code paths use nested ternaries, violating the explicit \"no nested ternaries\" rule. Extract into if-else blocks or helper functions.\n\n### Module Hotspots\n\n- **`src/hunter/surface/`** — All 5 comments concentrate in a single file (`lsp-injector.ts`), indicating it is the primary hotspot for design, performance, and style issues.\n\n### Cross-Cutting Concerns\n\n- **In-memory state with no lifecycle management** — The monotonic `projectServers` growth and process-local dedup maps show a pattern of in-process caching without eviction, expiration, or cross-process awareness. This likely recurs wherever `DiagnosticsServer` or similar singletons are instantiated (`src/hunter/surface/lsp-injector.ts`).\n- **Documentation/code drift** — Comments describe a shared, cross-process registry while the implementation is process-local. Review comment accuracy across the `lsp-injector.ts` module to ensure docs reflect actual behavior.\n\n### Quick Wins\n\n| Fix | File | Effort |\n|---|---|---|\n| Replace nested ternaries with if-else blocks | `src/hunter/surface/lsp-injector.ts` | Low |\n| Cache `SELECT DISTINCT file FROM findings` result (invalidate on new findings) | `src/hunter/surface/lsp-injector.ts` | Low–Medium |\n| Add an LRU cap or TTL eviction to `projectServers` | `src/hunter/surface/lsp-injector.ts` | Medium |\n| Correct \"shared across every process\" comments to reflect process-local semantics | `src/hunter/surface/lsp-injector.ts` | Low |\n| Make `onChange` a required parameter or add a visible deprecation warning in `DiagnosticsServer.watch` | `src/hunter/surface/lsp-injector.ts` | Low |",
+  "session_id": "76dd0896-906d-4d18-9d6e-24bf2a71fda6"
+}

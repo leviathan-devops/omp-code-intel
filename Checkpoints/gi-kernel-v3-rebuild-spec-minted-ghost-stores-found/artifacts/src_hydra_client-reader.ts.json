@@ -1,0 +1,51 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 2,
+    "total_tokens": 80077,
+    "input_tokens": 71799,
+    "output_tokens": 8278,
+    "cache_read_tokens": 59904,
+    "elapsed": "4m50s"
+  },
+  "tool_calls": {
+    "total": 6,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 3,
+      "file_read": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hydra/client-reader.ts",
+      "content": "**callTool error re-throw asymmetry**: `GRAPHIFY_NOT_CONNECTED` errors are re-thrown raw while all other errors are wrapped in `GRAPHIFY_MCP_CALL_FAILED`. This creates an inconsistent error contract for callers — they must detect error types by substring-matching the message rather than relying on a uniform wrapping pattern.\n\nIf the transport throws an error whose message coincidentally contains `\"GRAPHIFY_NOT_CONNECTED\"`, it will also be re-thrown raw, bypassing the GRAPHIFY_MCP_CALL_FAILED wrapping entirely. This is fragile.\n\nCompare with `listTools()` (lines 114–116), which uniformly wraps ALL errors in `GRAPHIFY_MCP_LIST_FAILED` with no special-casing — a much cleaner pattern.\n\nSuggestion: either (a) wrap all non-timeout errors uniformly like `listTools()` does, or (b) at minimum, use a distinct error type/code (e.g. `instanceof` check or a dedicated error class) rather than string-contains matching on the message.",
+      "suggestion_code": "    } catch (err) {\n      if (callTimer) clearTimeout(callTimer);\n      // If the captured transport reference became null between capture and call\n      // (impossible with current code but defensive), throw a typed sentinel.\n      if (err instanceof Error \u0026\u0026 err.message.startsWith(\"GRAPHIFY_NOT_CONNECTED\")) {\n        throw err;\n      }\n      throw new Error(`GRAPHIFY_MCP_CALL_FAILED: ${name} — ${String((err as Error).message ?? err)}`);\n    }",
+      "existing_code": "    } catch (err) {\n      if (String((err as Error).message ?? \"\").includes(\"GRAPHIFY_NOT_CONNECTED\")) { if (callTimer) clearTimeout(callTimer); throw err; }\n      if (callTimer) clearTimeout(callTimer);\n      throw new Error(`GRAPHIFY_MCP_CALL_FAILED: ${name} — ${String((err as Error).message ?? err)}`);\n    }",
+      "start_line": 144,
+      "end_line": 148,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hydra/client-reader.ts",
+      "content": "**Unreachable `|| undefined` in parameter type**: `client: GraphifyClientReader | null | undefined` — the `| undefined` in the union is dead weight. The `!client` guard on line 195 already covers `null`, `undefined`, `0`, `false`, `\"\"`, and `NaN`. Since the parameter is typed as `GraphifyClientReader | null | undefined`, only `null | undefined` can reach the guard, and both are already handled. The `|| undefined` fallback in the type is unreachable and adds noise to the signature.\n\nSuggestion: simplify to `client: GraphifyClientReader | null`.",
+      "suggestion_code": "export function createGraphifyToolDefs(client: GraphifyClientReader | null): GraphifyToolDef[] {\n  if (!client) throw new Error(\"GRAPHIFY_TOOLS_INVALID: mcp client required\");",
+      "existing_code": "export function createGraphifyToolDefs(client: GraphifyClientReader | null | undefined): GraphifyToolDef[] {\n  if (!client) throw new Error(\"GRAPHIFY_TOOLS_INVALID: mcp client required\");",
+      "start_line": 194,
+      "end_line": 195,
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Inconsistent error re-throw in `src/hydra/client-reader.ts`**: `GRAPHIFY_NOT_CONNECTED` errors are re-thrown as-is, while all other errors are wrapped in `GRAPHIFY_MCP_CALL_FAILED`. This asymmetry forces callers to inspect error messages by substring rather than relying on a uniform error type, making error handling fragile and difficult to test.\n\n### Module Hotspots\n\n- **`src/hydra/client-reader.ts`**: Both findings in the repository are concentrated here, covering an error-handling contract issue and a dead-code type annotation.\n\n### Cross-Cutting Concerns\n\n- **Inconsistent error contract**: The pattern of selectively re-throwing vs. wrapping errors in `src/hydra/client-reader.ts` suggests there may not be a centralized error-handling convention. If other modules follow similar ad-hoc patterns, callers across the codebase would face the same substring-matching fragility.\n\n### Quick Wins\n\n1. **Normalize error wrapping in `src/hydra/client-reader.ts`**: Wrap `GRAPHIFY_NOT_CONNECTED` in the same `GRAPHIFY_MCP_CALL_FAILED` envelope as other errors (or create a distinct, typed error class for it), so callers can rely on error types rather than message inspection.\n2. **Remove `| undefined` from the `client` parameter type in `src/hydra/client-reader.ts`**: The `!client` truthiness guard already covers `undefined`, so the extra type member is misleading dead weight—clean it up to keep the type honest.",
+  "session_id": "de54f8d7-27a4-496f-92c2-a330a044ebb0"
+}

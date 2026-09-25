@@ -2935,3 +2935,88 @@ edit + an explicit ordering) in a dedicated hardening pass.**
 **★ THE FLAKE RULE (this host's test law):** a suite-level flake makes a single "0 fail" claim
 UNSTABLE. The report states **441/0 + 539/0 in the passing runs AND the flake's signature + its measured
 isolation pass rate** — never a bare "green".
+
+---
+
+## TEST PLAN ENTRY — 2026-09-25 — THE REAL RUNTIME TEST (the operator's demand)
+
+### CONTAINER
+- **What:** prove the 6L+2E kernel on a REAL codebase it has never seen — every graph layer's
+  verdict + the 2 Jev layers' behaviour, driven through the deployed bundle's OWN registration path.
+- **How:** container `omp-ct-gi20` (image `omp-ct:master`); deploy the current dist
+  (sha `3595ff900bf6581b…`); extract a REAL 222-file project (`Understand-Anything`) to
+  `/workspace/realproj`; `import` the deployed bundle; call `default(pi)` with a capturing `pi`;
+  invoke each registered tool's `execute` with `ctx.cwd = /workspace/realproj`.
+- **PASS criteria:** every layer reports `CONSUMED` with facts > 0; `graph-query who-calls` returns
+  rows > 0; the register reads 8/8 (or a NAMED per-layer reason).
+- **FAIL criteria:** any layer `GI_LAYER_DOWN` with no named reason; `rows=0` on a symbol that
+  provably exists; `GRAPH_EMPTY`.
+- **Status:** **FAILED** (recorded below) — and the FAILURE IS THE FINDING.
+
+## TEST RESULT — 2026-09-25 — THE REAL RUNTIME TEST (container omp-ct-gi20)
+
+### CONTAINER
+- **The run (verbatim commands):**
+  ```
+  container-testing action=cp   → the dist into /root/.omp/agent/extensions/graph-intelligence/
+  container-testing action=cp   → /tmp/realtarget.tar.gz (25,099,499 B)
+  container-testing action=exec → mkdir -p /workspace/realproj && tar xzf … && bun /tmp/realtest.mjs
+  ```
+- **The raw output:**
+  ```
+  [gi-omp] registered graph-probe, graph-query, bug-hunt, aether-code-audit, gi-consumption, gi-decide
+  TOOLS: graph-probe, graph-query, bug-hunt, aether-code-audit, graph-code-audit, gi-consumption, gi-decide
+  ---
+  graph-probe (1ms): {"token":"PROBE_TOOL_OK","sessionID":"sesRealTest0000000001", …}
+  [gi-omp] populate LOUD FAIL (no regex fallback): GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent
+  graph-query (434ms): substrate=undefined reason=GI_POPULATE_FAILED:CORBELL_NOT_WARM:absent
+  rows=0
+  ripwire: 0 callers
+  gi-consumption (1ms):
+  consumed:0/8 rungs=none GI_LAYER_DOWN=L5_CORBELL,L6_GRAPHIFY,L4_C2KG,L3_UA,L2_ARSUMBRIS,L1_SEMANTICA,TSG,ABIDE
+  subject=cosineSimilarity
+  L5_CORBELL	GI_LAYER_DOWN	rung=settlement	facts=0
+  L6_GRAPHIFY	GI_LAYER_DOWN	rung=context	facts=0
+  L4_C2KG	GI_LAYER_DOWN	rung=context	facts=0
+  L3_UA	GI_LAYER_DOWN	rung=context	facts=0
+  L2_ARSUMBRIS	GI_LAYER_DOWN	rung=knowledge	facts=0
+  L1_SEMANTICA	GI_LAYER_DOWN	rung=decision	facts=0
+  TSG	GI_LAYER_DOWN	rung=meaning	facts=0
+  ABIDE	GI_LAYER_DOWN	rung=repair	facts=0
+  ```
+- **The verdict:** **FAIL** — 0/8 layers on a real codebase. The kernel's 7/8 is a property of the GI
+  repo's pre-built stores, NOT of the code. **The failure IS the finding (F-129, EN-8).**
+- **The artifacts:** this TESTING_LOG entry; F-129; EN-8; the container `omp-ct-gi20`.
+
+## TEST RESULT — 2026-09-25 — THE HOST BUILD on a real target
+
+### HOST
+- **The run:** `hub start` → `bun scripts/corbell-build.ts --target
+  research/graph-infra-repos/Understand-Anything --rebuild` (cwd = the GI repo).
+- **The raw output:**
+  ```
+  [corbell-build] no profile under …/Understand-Anything — synthesized in-memory profile
+                  (name=understand-anything, rebuild=true)
+  [corbell-adapter] writing the profile-driven corbell workspace config at
+                  …/Understand-Anything/corbell-data/workspace.yaml (absent)
+  GRAPH_EMPTY: corbell graph build produced zero nodes (the CLI reported:
+    "Building graph for 1 service(s)... ✗ NOT FOUND understand-anything →
+     …/Understand-Anything/src ✓ Graph bu…")
+    at build (src/hunter/graph/corbell-adapter.ts:611:13)
+  ```
+- **The verdict:** **FAIL (LOUD — the correct behaviour)** — `GRAPH_EMPTY` because corbell assumes
+  `<target>/src` and that project's sources live in `understand-anything-plugin/packages/*/src`.
+- **The artifacts:** F-124/F-129; EN-8.
+
+## TEST PLAN ENTRY — 2026-09-25 — THE SELF-POPULATE PROOF (the W4 gate)
+
+### HOST + CONTAINER
+- **What:** prove the populate path builds the stores FROM a target and the register then reads 8/8
+  (or a NAMED per-layer reason), on a project the kernel has never seen.
+- **How:** W1 purge the ghost stores → W2 target-driven source-root discovery → W3 content-scoping
+  assertion → rebuild on `Understand-Anything` → run the register against it.
+- **PASS criteria:** the rebuild produces >0 nodes; the register reads `consumed:8/8` (or each
+  non-consumed layer names its reason); the GI repo's own 7/8 is REPRODUCIBLE from a fresh build.
+- **FAIL criteria:** `GRAPH_EMPTY`; any layer DOWN with no named reason; a store whose
+  `build_root` ≠ the subject root.
+- **Status:** **PENDING** — the W1-W5 build is the plan below.

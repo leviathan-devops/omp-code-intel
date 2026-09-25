@@ -1,0 +1,72 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-go-mimo",
+    "model": "mimo-v2.5"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 4,
+    "total_tokens": 97167,
+    "input_tokens": 79459,
+    "output_tokens": 17708,
+    "cache_read_tokens": 61312,
+    "elapsed": "8m7s"
+  },
+  "tool_calls": {
+    "total": 5,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 2,
+      "file_find": 1,
+      "file_read": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/tools/report-writer-local.ts",
+      "content": "**Bug: Fence toggle treats opening fences (with info strings) as closing fences.** The regex `/^\\s*(`{3,}|~{3,})/` matches any line starting with 3+ fence characters, regardless of trailing content. A line like ` ```python ` or ` ```json ` is a valid *opening* fence (with an info string), but the toggle logic treats it as a fence boundary in both directions. If such a line appears inside an already-open fence block, it will incorrectly close the fence (`ch === fenceChar`), exposing subsequent fenced content to heading detection. Conversely, the next bare ` ``` ` would re-open the fence.\n\nIn CommonMark, a closing code fence must consist *only* of the fence character (with optional leading/trailing whitespace) — it must not have an info string. The fix is to distinguish openers from closers: only toggle from open→closed when the line is a bare fence run (no trailing content after the fence characters, other than whitespace).",
+      "suggestion_code": "  const fence = /^\\s*(`{3,}|~{3,})/.exec(line);\n  if (fence) {\n    const ch = fence[1]?.[0] ?? \"\";\n    if (!inFence) {\n      inFence = true;\n      fenceChar = ch;\n    } else if (ch === fenceChar) {\n      // Closing fence: must be ONLY the fence char (no info string) per CommonMark.\n      const trimmed = line.trim();\n      const fenceLen = fence[1].length;\n      if (trimmed.length === fenceLen) {\n        inFence = false;\n        fenceChar = \"\";\n      }\n    }\n  }",
+      "existing_code": "  const fence = /^\\s*(`{3,}|~{3,})/.exec(line);\n  if (fence) {\n    const ch = fence[1]?.[0] ?? \"\";\n    if (!inFence) { inFence = true; fenceChar = ch; }\n    else if (ch === fenceChar) { inFence = false; fenceChar = \"\"; }\n  }",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/tools/report-writer-local.ts",
+      "content": "**Low-severity correctness: Closing fence length is not validated.** CommonMark requires a closing fence to be at least as long as the corresponding opening fence. The current code only checks character type (`ch === fenceChar`), so a 3-backtick line would close a 5-backtick fence. This could cause premature fence closure in rare cases with nested or multi-length fences.",
+      "suggestion_code": "    } else if (ch === fenceChar \u0026\u0026 fence[1].length \u003e= openingFenceLength) { inFence = false; fenceChar = \"\"; }\n    // (requires storing fence[1].length at open-time in a new `openingFenceLen` variable)",
+      "existing_code": "    } else if (ch === fenceChar) { inFence = false; fenceChar = \"\"; }",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/tools/report-writer-local.ts",
+      "content": "**Error stack trace is lost when wrapping.** The `throw new Error(...)` discards the original error's stack trace, making it harder to diagnose the root cause of `writeReportDirect` failures. Use the `cause` option (ES2022) to preserve the full error chain.",
+      "suggestion_code": "    throw new Error(`REPORT_WRITE_FAILED: runId=${input.runId} detail=${e instanceof Error ? e.message : String(e)} (the N-versioned write failed — disk full, permission, or missing MASTER_CONTEXT)`, { cause: e });",
+      "existing_code": "    throw new Error(`REPORT_WRITE_FAILED: runId=${input.runId} detail=${e instanceof Error ? e.message : String(e)} (the N-versioned write failed — disk full, permission, or missing MASTER_CONTEXT)`);",
+      "start_line": 122,
+      "end_line": 122,
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/tools/report-writer-local.ts",
+      "content": "**Redundant full-string re-scan after deep heading promotion.** After the deep-heading promotion succeeds (`deepIdx !== -1`), the code calls `headingIdxOutsideFence(s, /^# /)` again on the entire string. Since the first call already proved there is no `^# ` heading in `before` (the portion before `deepIdx`), the promoted heading at `deepIdx` is guaranteed to be the first match. Setting `idx = deepIdx` directly avoids an unnecessary O(n) scan of the preamble.",
+      "suggestion_code": "      s = before + after;\n      idx = deepIdx; // guaranteed first `# ` heading — the one we just promoted",
+      "existing_code": "      s = before + after;\n      idx = headingIdxOutsideFence(s, /^# /);",
+      "start_line": 77,
+      "end_line": 78,
+      "category": "performance",
+      "severity": "low"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **Fence toggle bug treats opening fences as closing fences** (`src/hunter/tools/report-writer-local.ts`): The regex `/^\\s*(`{3,}|~{3,})/` matches lines like `` ```python `` or `` ```json `` — which are valid *opening* fences with info strings — as closing fences. This is a functional correctness bug that can cause fence blocks to be incorrectly toggled (e.g., content inside fenced code blocks gets heading-promoted when it shouldn't).\n\n2. **Closing fence length not validated against CommonMark spec** (`src/hunter/tools/report-writer-local.ts`): CommonMark requires a closing fence to be at least as long as the corresponding opening fence. The current code only checks character type (`ch === fenceChar`), so a 3-backtick line would incorrectly close a 5-backtick fence. This compounds the fence-handling reliability concerns from the above issue.\n\n3. **Error stack trace discarded on re-throw** (`src/hunter/tools/report-writer-local.ts`): `throw new Error(...)` inside `writeReportDirect` drops the original error's stack trace. Use the `cause` option (ES2022) to preserve the full chain for debugging.\n\n4. **Redundant full-string re-scan after deep heading promotion** (`src/hunter/tools/report-writer-local.ts`): After `headingIdxOutsideFence(s, /^# /)` returns `-1` (proving no `^# ` heading exists in `before`), a second full-string scan with the same pattern is performed unnecessarily — an O(n) waste.\n\n### Module Hotspots\n\n- **`src/hunter/tools/report-writer-local.ts`**: All 4 project comments target this single file. It is the sole hotspot, housing both the most severe finding (fence-toggle bug) and secondary correctness/performance issues. Concentrated review attention here is warranted.\n\n### Cross-Cutting Concerns\n\n- **Markdown fence handling correctness** (two of four comments): Both the opening-fence misclassification and the missing length validation indicate the Markdown fence state machine in `report-writer-local.ts` does not fully implement the CommonMark spec. Any future code touching fence detection or heading promotion in this module should be validated against the [CommonMark fence rule](https://spec.commonmark.org/0.30/#closing-code-fences).\n\n- **Error propagation hygiene** (`src/hunter/tools/report-writer-local.ts`): The stack-trace loss is a single instance but reflects a pattern worth auditing — any `throw new Error(original.message)` wrapper elsewhere in the repo would suffer the same problem.\n\n### Quick Wins\n\n- **Fix fence regex to account for info strings** (`src/hunter/tools/report-writer-local.ts`): Change the closing-fence regex to require that the rest of the line is whitespace-only (e.g., ``/^\\s*(`{3,}|~{3,})\\s*$/``), so `` ```python `` no longer matches as a closing fence. This single regex change addresses the highest-severity bug.\n\n- **Add fence-length check** (`src/hunter/tools/report-writer-local.ts`): After matching a potential closing fence, verify `matchedFenceLength \u003e= openingFenceLength` before toggling state. Low effort once the fence length is already tracked.\n\n- **Preserve error cause** (`src/hunter/tools/report-writer-local.ts`): Replace `throw new Error(msg)` with `throw new Error(msg, { cause: originalError })` — a one-line change that restores full diagnostics.\n\n- **Remove redundant re-scan** (`src/hunter/tools/report-writer-local.ts`): After the deep-heading promotion succeeds, skip the second call to `headingIdxOutsideFence(s, /^# /)` since the first call already established the result. This eliminates an unnecessary O(n) pass over the string.",
+  "session_id": "97fb100e-5eb4-4b13-b933-0e665e6aa025"
+}
