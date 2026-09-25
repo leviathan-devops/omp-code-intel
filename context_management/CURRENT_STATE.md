@@ -310,6 +310,26 @@ fix the findings → **RE-RUN the gate** → the re-run's verdict IS the gate.
 The goal is **NOT complete** until the gate **tangibly fully clears**. FORBIDDEN: a scope shrink ·
 BLOCKED-as-done · a partial-scope close · "zero bugs" as success · a green battery as capability.
 
+## ★ THE AUDIT LANE (2026-09-25) — ★ THE GO LANE EXHAUSTS; THE ZEN-FREE LANE IS THE FALLBACK
+
+```
+the go lane (muse-go-mimo, :4097/zen/go/v1)   ← the primary; 3 of 8 pool keys hit the
+                                                 MONTHLY quota (dead until 2026-10-25),
+                                                 4 hourly-reset, go-8 → 403. EXHAUSTIBLE.
+the zen-free lane (muse-free, :4098/zen/v1)   ← the fallback; NO subscription needed,
+                                                 80 models, 10 `-free` variants. Wired via
+                                                 /home/leviathan/.omp/agent/bin/zen-free-adapter.mjs
+                                                 (a Bun SSE-decoding bridge — ocr cannot
+                                                 decode text/event-stream, and the proxy
+                                                 enforces the 4-gate fingerprint).
+★ THE PRE-FLIGHT PROBE: scripts/whole-tree-audit.sh now probes the lane with ONE real
+  completion BEFORE launching the wave and REFUSES on a non-200. Run 15 burned 113 parts
+  onto an exhausted lane and returned 109 EMPTY_RESULT markers — 40 minutes for nothing.
+  The probe makes that class impossible. (The F-607 instrument gate still catches a
+  mid-run death: ≥50% empty parts ⇒ AUDIT_INSTRUMENT_DEAD ⇒ the run is VOID.)
+★ LANE SWITCH: AUDIT_PROVIDER=muse-free bash scripts/whole-tree-audit.sh …  (default muse-free)
+```
+
 ## ★ THE CURRENT GATE STATE (2026-09-23) — ★★★ CLEARED
 ```
 qwen-code-audit:  ★ COMPLETED — DONE rc=0
