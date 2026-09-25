@@ -197,8 +197,13 @@ export async function classify(
     // must be BLOCKED, never followed. fs.stat follows the link; lstat sees it.
     const lt = await fs.lstat(targetNorm);
     if (lt.isSymbolicLink()) return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
-    await fs.stat(targetNorm);
-    // The target EXISTS -> the explicit overwrite is BLOCKED (the N-versioning: v1 exists -> v2 allowed).
+    // ★ R19-HIGH FIX (2026-09-25): the `await fs.stat(targetNorm)` here was REDUNDANT — lstat
+    //   already succeeded, which PROVES the target exists (lstat throws ENOENT otherwise). Worse,
+    //   it opened a TOCTOU window: between lstat and stat the entry can be swapped, and if the
+    //   swap leaves the path ABSENT the stat throws ENOENT — which the catch below reads as "does
+    //   not exist" and routes to the CREATE path. The existence proof lstat already gave is the
+    //   one that counts; a second, later probe only adds a way to be wrong.
+    //   The target EXISTS -> the explicit overwrite is BLOCKED (N-versioning: v1 exists -> v2 allowed).
     return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
   } catch (e: unknown) {
     // ★ F-8 FIX (2026-09-24): ONLY ENOENT means "does not exist" (the CREATE path).

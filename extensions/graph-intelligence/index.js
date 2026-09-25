@@ -182940,8 +182940,8 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
       return populateGraphifySessionStore(storePath, root, runTag, opts?.scope);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
-      console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
-      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason };
+      console.error(`[gi-omp] populate substrate=graphify FAILED (build or write, not a freshness miss): ${reason}`);
+      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: `GRAPHIFY_BUILD_FAILED: ${reason}` };
     }
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);

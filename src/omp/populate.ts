@@ -49,8 +49,15 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
       return populateGraphifySessionStore(storePath, root, runTag, opts?.scope);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
-      console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
-      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason };
+      // ★ R19-HIGH FIX (2026-09-25): this catch is reached ONLY on a THROW — and the inner leg
+      //   RETURNS a result for a freshness miss (it never throws one). So a throw here is a BUILD
+      //   or WRITE failure, never a miss — yet it produced the SAME `skipped + fallbackReason`
+      //   shape a miss produces, and the caller could not tell "the store is stale, rebuild it"
+      //   from "the build crashed" without parsing prose. The distinction is STRUCTURAL (throw vs
+      //   return), so it is now named in the reason: a caller can branch on the prefix instead of
+      //   on the message body.
+      console.error(`[gi-omp] populate substrate=graphify FAILED (build or write, not a freshness miss): ${reason}`);
+      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: `GRAPHIFY_BUILD_FAILED: ${reason}` };
     }
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
