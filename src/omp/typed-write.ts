@@ -630,24 +630,10 @@ export interface ForkNode {
   run: string;
 }
 
-// W13 (frozen-scan HIGH): BEGIN IMMEDIATE can throw SQLITE_BUSY under
-// contention — retry with a short backoff instead of failing the write.
-function beginImmediateWithRetry(db: Database, attempts = 3): void {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      db.exec("BEGIN IMMEDIATE;");
-      return;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (!/busy|locked/i.test(msg) || i === attempts - 1) throw e;
-      // W15+W20: sync backoff that works under Bun AND Node runners (the
-      // Bun-only global threw ReferenceError under node-compatible runners).
-      // Deliberately SYNC: the caller is mid-retry on a sync sqlite handle.
-      const spinUntil = Date.now() + 50 * (i + 1);
-      while (Date.now() < spinUntil) { /* bounded sync backoff */ }
-    }
-  }
-}
+// ★ R21-HIGH FIX (2026-09-25): `beginImmediateWithRetry` was DEAD CODE — defined but never called
+//   (every caller relies on the open-time `busy_timeout=5000`, per W31's own note). A dead helper
+//   that LOOKS like the sanctioned BEGIN path is a footgun (a future caller would pick it up and
+//   get a spin loop the codebase decided against). Removed.
 
 export function insertForkNode(storePath: string, node: ForkNode): void {
   const db = openTypedStore(storePath);
