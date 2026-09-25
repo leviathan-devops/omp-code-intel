@@ -87,7 +87,13 @@ function isBoundaryChar(ch: string): boolean {
   return ch === "" || "/:.\\-_ \t@#()[]{}'\"".includes(ch);
 }
 function containsAtBoundary(hay: string, needle: string): boolean {
-  if (needle.length === 0 || hay.length <= needle.length) return false;
+  // ★ R19-HIGH FIX (2026-09-25, found by the pinned suite): the guard was `hay.length <=
+  //   needle.length` — which returns FALSE when the two are the SAME LENGTH, i.e. an EXACT
+  //   MATCH is not a touch. That is exactly the strongest possible touch. The callers pair the
+  //   predicate both ways (`touches()`, and the graph source), so whenever an event's target
+  //   EQUALLED the subject's target BOTH calls returned false and the match was dropped — a
+  //   silent false negative on the most obvious case. Off by one: `<=` should be `<`.
+  if (needle.length === 0 || hay.length < needle.length) return false;
   let i = hay.indexOf(needle);
   while (i !== -1) {
     const before = i === 0 ? "" : hay[i - 1]!;
@@ -206,6 +212,14 @@ export function laterEditFromGraph(
       .all(`%${escapeLike(subject.target)}%`, `%${escapeLike(subject.target)}%`) as { file: string; created_run: string; superseded_run: string | null }[];
     for (const r of rows) {
       if (r.superseded_run !== null) continue;                 // only LIVE declarations
+      // ★ R19-HIGH FIX (2026-09-25): the SQL narrowing is `LIKE '%target%'` — a PLAIN SUBSTRING
+      //   match — while the event path decides with `containsAtBoundary`. So the graph source
+      //   could serve a fact the event source would REFUSE: target `foo` matched a node whose
+      //   label is `foobar`. Two sources of the same fact disagreeing about what "touches" means
+      //   is exactly the claim-vs-artifact drift this project exists to kill. The LIKE stays as
+      //   the CANDIDATE NARROWING (SQL cannot express the boundary rule); the authoritative
+      //   predicate is applied here, in JS, so both sources agree by construction.
+      if (!containsAtBoundary(r.file ?? "", subject.target) && !containsAtBoundary(r.created_run ?? "", subject.target)) continue;
       const m = /^structural-([0-9a-f]+)$/.exec(r.created_run);
       if (m === null) continue;
       const indexedAt = parseInt(m[1]!, 16);

@@ -215,9 +215,15 @@ export function gather(
   // `from + windowMs` NaN, and `Math.min(NaN, cap)` is NaN, so `at > to` was false for
   // every record and the window admitted EVERYTHING — the same fail-open shape as O0,
   // reached through a different parameter.
+  // ★ R19-HIGH FIX (2026-09-25): the guard was right; the POLARITY was wrong. It returned an
+  //   EMPTY BAG carrying the explanation in `notes` — and **NO CALLER READS `.notes`** (checked:
+  //   every consumer reads laterEdit/permitted/… only). So an invalid `windowMs` reached the
+  //   caller as `laterEdit: false` — "no later edit" — a SILENT FALSE NEGATIVE dressed as a clean
+  //   answer, while the sibling parameter `notAfter` THROWS on its own unparseable input. Two
+  //   window parameters, one class of bad input, two polarities; the module's own principle
+  //   ("a bound that cannot be established is not a bound") settles it: THROW, as notAfter does.
   if (typeof windowMs !== "number" || !Number.isFinite(windowMs) || windowMs <= 0) {
-    const note = `windowMs ${JSON.stringify(windowMs)} is not a positive finite number — refusing to derive a window`;
-    return { laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0, withdrawn: false, permitted: false, signals: [], notes: [note], dismissed: [note] };
+    throw new Error(`GI_ORACLE_BAD_WINDOW: windowMs ${JSON.stringify(windowMs)} is not a positive finite number — refusing to run without a derivable window`);
   }
   const from = Date.parse(row.at);
   const ev: Evidence = {
