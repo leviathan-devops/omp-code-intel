@@ -184613,7 +184613,12 @@ function lockdownReadSource(profile) {
         throw sourceReadFailed(abs, `symlink escapes project root (root=${rootReal} file=${fileReal})`);
       let text;
       try {
-        text = fs15.readFileSync(fileReal, "utf8");
+        const fd = fs15.openSync(fileReal, fs15.constants.O_RDONLY | fs15.constants.O_NOFOLLOW);
+        try {
+          text = fs15.readFileSync(fd, "utf8");
+        } finally {
+          fs15.closeSync(fd);
+        }
       } catch (e) {
         throw sourceReadFailed(abs, String(e));
       }

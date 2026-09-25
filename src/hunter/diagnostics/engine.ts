@@ -350,7 +350,21 @@ export function lockdownReadSource(profile: ProjectProfile): { read(file: string
         //   spelling. Between the realpath and the read, `abs` can be swapped for a
         //   symlink out of the tree (a classic TOCTOU): the check passes on one inode and
         //   the read opens another. `fileReal` is the path the check actually validated.
-        text = fs.readFileSync(fileReal, 'utf8');
+        //
+        // ★ R19-HIGH FIX (2026-09-25): F-441 removed the FIRST traversal gap but `fileReal`
+        //   is STILL A PATH — the read re-traverses it, so the class survived one layer down
+        //   (swap the resolved path itself between the resolve and the open). The COMPLETE
+        //   form is to bind the read to the INODE the check saw: open with O_NOFOLLOW (the
+        //   resolved path is not a link, so a link appearing now is a swap — refused by the
+        //   kernel) and READ FROM THE DESCRIPTOR. No path is traversed after the open, so
+        //   there is no second resolution to race. This is the only construction that closes
+        //   the class rather than narrowing it.
+        const fd = fs.openSync(fileReal, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+        try {
+          text = fs.readFileSync(fd, 'utf8');
+        } finally {
+          fs.closeSync(fd);
+        }
       } catch (e: unknown) {
         throw sourceReadFailed(abs, String(e));
       }
