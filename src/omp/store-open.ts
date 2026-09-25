@@ -99,6 +99,14 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
   // ★ just written; a foreign owner means this opener lost — refuse LOUD.
   const written = findGiSessionByStorePath(storePath);
   if (written && written.session_id !== ownerKey) {
+    // ★ R19-HIGH FIX (2026-09-25): when THIS opener CREATED the file and then lost the upsert
+    //   race, the throw left an ORPHAN — a store file on disk with no registry row, which the
+    //   next opener reads as "someone else's store" and the first branch already knows to clean
+    //   (the F-1210 unlink). Same discipline here: a file this call created and cannot claim is
+    //   removed before the refusal, so the loser leaves NOTHING behind.
+    if (created) {
+      try { fs.unlinkSync(storePath); } catch (e) { console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`); }
+    }
     throw new GiScopeError(
       `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`,
     );

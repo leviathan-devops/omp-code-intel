@@ -423,6 +423,16 @@ export class RsiStore {
   /** RECOMPUTE from the ledger — the SC-4 self-reference kill. Counts the
    *  outcome rows; NEVER reads or increments a counter on the row. */
   recount(canonicalId: string): { confirmed: number; refuted: number; unresolved: number } {
+    // ★ R19 NOT-A-BUG ADJUDICATION (2026-09-25) — the finding claimed "calling this externally,
+    //   outside a BEGIN IMMEDIATE transaction, [lets] concurrent writes [tear the read]". FALSE:
+    //   this method makes EXACTLY ONE statement (the SELECT below) and then verifies and counts
+    //   ENTIRELY IN MEMORY — it reads nothing else from the DB. A single SQLite statement is
+    //   ATOMIC and returns a consistent snapshot (the read is taken under the engine's own
+    //   read lock); there is no second statement for a concurrent write to land between, so no
+    //   torn read is reachable through this path. A transaction would add nothing a single
+    //   statement does not already guarantee. (The F-610 discipline — every row signature-
+    //   verified, a forged row counted ABSENT — is intact and is the real integrity control
+    //   here; it is unaffected by the caller's transaction state.)
     // ★ F-610 FIX (2026-09-24, run-10 CRITICAL): the HMAC signatures on the evidence rows were
     //   WRITTEN (appendFiring/appendOutcome) but NEVER VERIFIED here — `recount` read
     //   `outcome` raw and trusted it. An attacker with direct DB write access could forge

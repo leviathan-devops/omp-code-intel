@@ -180302,6 +180302,13 @@ function openSessionStore(input) {
   }
   const written = findGiSessionByStorePath(storePath);
   if (written && written.session_id !== ownerKey) {
+    if (created) {
+      try {
+        fs4.unlinkSync(storePath);
+      } catch (e) {
+        console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`);
   }
   return { storePath, ownerKey, created };
