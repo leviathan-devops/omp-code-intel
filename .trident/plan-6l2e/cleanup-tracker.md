@@ -661,3 +661,52 @@ applies to code applies to the report's own arithmetic.
 *(The fixes themselves are unaffected and each is committed with tsc + the battery. One fix —
 evidence-producer — also uncovered a bug NOT in the reviewer's list: containsAtBoundary returned
 false on an exact match.)*
+
+---
+
+## ★★★ RUN 19 EXHAUSTED — 36 OF 37 ADDRESSED (33 fixed + 3 refuted)
+
+**HEAD `43b820e` · uncommitted 0 · dist `04840c57105a7837` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 35  fixture-calibration.ts:194   the two-question containment check was copied into both loaders
+                                  and fixed IN LOCKSTEP three times (F-702, F-931, R15) — the cost
+                                  of the copy. Extracted to containedFixtureSource(); both loaders
+                                  ask it.
+ 36  layer-registry.ts:0          ★ THE ONE THAT HAD ALREADY DRIFTED FOUR TIMES. auditOne and
+                                  factsForWithFaults each called p.up() + validated + interpreted
+                                  INDEPENDENTLY, and drifted on F-405, F-706, F-1007 and F-1208 —
+                                  EVERY one a "two-view drift" fix, each patching one side while
+                                  the other kept the old rule. FOUR unlucky edits is not bad luck;
+                                  it is the signature of a missing unit. Extracted probeConsumer();
+                                  both views read the SAME normalized result.
+```
+
+**THE ONE REMAINING (`micro-loop-machine.ts:451`)** is DELIBERATELY HELD OPEN: the `st-hunter-port`
+pin (3/0) records that a caller may legitimately read `loop.context.db` AFTER `await loop.done()`,
+so the DbClient stays open by contract and teardown is `stop()`'s job. Adjudicated, pinned,
+documented — not open work.
+
+---
+
+## ⚠ RUN 20 — BLOCKED (the audit lane), WITH ITS RESUME CONDITION
+
+**BOTH lanes are down, and the probe said so before a second was burned:**
+```
+  the go lane  (:4097/zen/go/v1)   → HTTP 403
+     "Upstream request failed: An active OpenCode Go subscription is required to use Go models."
+     ★ THIS IS NOT A RATE LIMIT — the SUBSCRIPTION has lapsed. Terminal until it is renewed.
+  the zen-free lane (:4098 adapter) → HTTP 429 FreeUsageLimitError
+     ★ A burst window; it RECOVERS (it carried runs 16-19's re-audits after the same refusal).
+```
+**THE PRE-FLIGHT PROBE REFUSED BOTH LAUNCHES** — run 20 produced ZERO parts and ZERO findings.
+A refused launch is the guard working, not a failure of the run.
+
+**THE RESUME CONDITION (one of two):**
+1. the zen-free lane answers 200 — a retry launcher is ARMED (`/tmp/r20-launcher.sh`: re-probes
+   every 4 min for up to ~2.7 h and fires both halves the moment it is live); **or**
+2. the Go subscription is renewed, which restores the primary lane.
+
+**★ A BLOCKED STATE IS NEVER A STOP.** The gate cannot move until a lane is live; everything else
+the run owes is already green (tsc 0 · battery 441/0 + 539/0 · goal-verify 5/5 · register 7/8 ·
+ledger 4 distinct · the whole tree audited through run 19).
