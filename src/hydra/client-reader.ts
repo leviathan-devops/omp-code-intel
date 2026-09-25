@@ -124,15 +124,26 @@ export class GraphifyClientReader {
     if (typeof name !== "string" || name.trim() === "") {
       throw new Error("GRAPHIFY_CALL_INVALID: name must be non-empty string");
     }
+    // ★ R16C FIX (2026-09-25): mirror the listTools capture/clear — the inline
+    //   `setTimeout(...).unref?.()` form left an ABANDONED timer alive for the full 5000ms
+    //   after a SUCCESSFUL call. Capture it, unref it explicitly, and clear it on settle
+    //   (both arms) so a fast call leaves nothing pending on the event loop.
+    let callTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       // ★ F-1024 FIX (2026-09-25): same unbounded-hang class on the call path — a hung
       // ★ callTool() blocked the caller indefinitely. Same 5000ms race as listTools().
-      return await Promise.race([
+      const out = await Promise.race([
         t.callTool(name, args ?? {}),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`GRAPHIFY_CALL_TIMEOUT: callTool(${name}) exceeded 5000ms`)), 5000).unref?.()),
+        new Promise<never>((_, rej) => {
+          callTimer = setTimeout(() => rej(new Error(`GRAPHIFY_CALL_TIMEOUT: callTool(${name}) exceeded 5000ms`)), 5000);
+          callTimer?.unref?.();
+        }),
       ]);
+      if (callTimer) clearTimeout(callTimer); // ★ the success arm — nothing pending after a fast call
+      return out;
     } catch (err) {
-      if (String((err as Error).message ?? "").includes("GRAPHIFY_NOT_CONNECTED")) throw err;
+      if (String((err as Error).message ?? "").includes("GRAPHIFY_NOT_CONNECTED")) { if (callTimer) clearTimeout(callTimer); throw err; }
+      if (callTimer) clearTimeout(callTimer);
       throw new Error(`GRAPHIFY_MCP_CALL_FAILED: ${name} — ${String((err as Error).message ?? err)}`);
     }
   }
