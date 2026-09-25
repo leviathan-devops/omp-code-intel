@@ -45,3 +45,9 @@ graphify-out/
 
 # the au-engine folder-repo marker (created 2026-09-23 for the L2 daemon probe)
 .arsumbris/
+
+# ★ R19 hygiene: SQLite WAL/SHM sidecars are RUNTIME artifacts — they appear on every store
+# read and vanish on checkpoint. Tracked, they churn the status line and can be committed
+# half-written (a torn sidecar beside a clean db is worse than no sidecar at all).
+*.db-shm
+*.db-wal
