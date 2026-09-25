@@ -1740,3 +1740,34 @@ Both ran in SECONDS, not the 90+ minutes F-96 recorded — because the profile d
 suite is what tells you.** A failure in the REGISTER's suite after a code change is a stale
 substrate until proven otherwise; rebuild BOTH stores (each is seconds with the scope fix) and
 re-run. Never treat the stale refusal as a register bug — the refusal is the guard working.
+
+---
+
+## EN-W3-R18 — THE ORCHESTRATOR WORKS THE SLICE (2026-09-25)
+
+**WHY.** The R18 fix wave (5 agents, 35 highs) ran ~1h with ZERO disk output — the same
+read-without-landing pattern that killed the W17 wave. Cancelled. The orchestrator took the slice
+and adjudicated directly, with tsc as the referee on every step.
+
+**WHAT LANDED (4 REAL, tsc-verified, battery 441/0 + 539/0):**
+| finding | the defect | the fix |
+|---|---|---|
+| `gate-middleware.ts:20` | `EXPORT_PARSE_RE` was `function\*?` — it did NOT match `export function * foo()` (a space before the `*`), so a stripped generator export could evade the gate | `function\s*\*?` |
+| `tsg.ts:131` | the redaction replacement was `key.slice(0, 4) + '...[redacted]'` — a **live API-key PREFIX** in every redacted message | `'[redacted]'` — no fragment survives |
+| `report-writer-local.ts:103` | the comment promised a "stable tie-break by original index"; the comparator never implemented it, and `MAX_REPORT_FINDINGS` cuts **by position** — which findings survive truncation depended on the sort engine's stability | the index is captured at map time and compared explicitly |
+| `log.ts:7` | `shortFile(p: string)` handled null/undefined in the body while the type DENIED it, and `(p as unknown) == null` **defeated narrowing** | the type is honest (`string \| null \| undefined`) and the guard now narrows — tsc PROVED it by exposing the next error the moment the cast was removed |
+| `query-tool.ts:183` | `whoCalls` had **no LIMIT** while `violations` caps at `MAX_QUERY_ROWS_FULL` — an unbounded read on a ubiquitous symbol | `LIMIT ${MAX_QUERY_ROWS_FULL}` |
+
+**★ ONE PROBE-ERROR, REFUTED BY THE COMPILER.** `populate-corbell.ts:129` claimed the `storePath`
+parameter "is never referenced in the function body". FALSE — it is read at `:258`. The reviewer
+read a TRUNCATED body. The rename I applied produced `Cannot find name 'storePath'` at `:258` —
+**tsc named the parameter's real use.** Reverted; the site now carries the PROBE-ERROR note.
+
+**★ THE EDIT THAT BROKE THE BUILD (and taught the lesson again).** The `whoCalls` LIMIT was inserted
+inside a JS **template literal** with a SQL comment containing a BACKTICK (`` `violations` ``) —
+which **terminated the template** and produced `TS1005 ',' expected`. Caught by `tsc` in the same
+step. **Re-read the whole block after any edit; a delimiter inside a comment is still a delimiter.**
+
+**THE HONEST REMAINDER:** run 18's gate read `CRITICAL=0 HIGH=35`; 4 highs are now fixed and 1
+refuted. The remaining ~30 are adjudicated in the slices (`artifacts/r18-full-slices/`) and the
+loop continues. The gate is a MEASUREMENT — the next run measures the next state.
