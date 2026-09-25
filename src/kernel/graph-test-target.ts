@@ -83,7 +83,11 @@ export function getTestTargetsFromDb(db: ReturnType<typeof openTypedStore>, modi
   //   try as both batch loops, so a mid-iteration throw skips it and degreeCache stays EMPTY;
   //   degreeOf() below then serves correct per-label reads. A clear() in the catch is a no-op.
   } catch (e) {
-  console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads: ${e instanceof Error ? e.message : String(e)}`);
+  // ★ F-1204 (2026-09-24, landed 2026-09-25): the per-label fallback was WARN-ONLY — no
+  //   observable metric, so a persistently failing batch query was invisible to any caller.
+  //   The counter is exported; the warn stays (it names the cause).
+  batchFallbackCount += 1;
+  console.warn(`[graph-test-target] batch degree query failed, falling back to per-label reads (batchFallbackCount=${batchFallbackCount}): ${e instanceof Error ? e.message : String(e)}`);
 }
 const degreeOf = (label: string): number => {
   const hit = degreeCache.get(label);
