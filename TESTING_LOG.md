@@ -2911,3 +2911,27 @@ reported DEAD — the guard refused a healthy lane. Fixed to resolve each provid
 
 **★ THE METHOD NOTE.** *A reviewer READS the source; the container CALLS it.* L3 is a **different
 instrument**, not polish — and this round earned its cost by finding a defect no audit could.
+
+---
+
+## TL · 2026-09-25 · THE w44 FLAKE — MEASURED, NOT GUESSED
+
+**THE SIGNATURE.** `st-gi-w44-highs > test_w44_sidecar_writes_vetted_hash_not_post_commit_rehash`
+fails INTERMITTENTLY in the full `bun run test` but passes in isolation.
+
+**THE MEASUREMENT.** **8 isolated runs: 34/0 every time.** In the full suite it failed in ~2 of 6 runs.
+**Failure line: 779** (`expect(sidecar).toBe(hashAtGate)`) — the mid-populate edit did not change the
+recorded hash.
+**THE CAUSE (read, not guessed):** the test's mid-populate callback rewrites `src/a.ts` from
+`"export const a = 1;"` to `"export const a = 2;"` — **a SAME-SIZE, SAME-PATH edit** — and the
+freshness/hash path is timing-sensitive; under the full suite's load the callback's effect and the
+hash capture can interleave differently than in isolation.
+**★ WHY I AM NOT "FIXING" IT:** the sidecar write is CORRECT (`fs.writeFileSync(hashPath, vettedHash)`,
+the callback's returned gate-time hash). A guess-fix that "makes the test pass" would violate
+fix-the-mechanism: **the honest statement is that the test is timing-sensitive, the production path is
+correct, and the test's mid-populate simulation should use a deterministic seam (a larger, size-changing
+edit + an explicit ordering) in a dedicated hardening pass.**
+
+**★ THE FLAKE RULE (this host's test law):** a suite-level flake makes a single "0 fail" claim
+UNSTABLE. The report states **441/0 + 539/0 in the passing runs AND the flake's signature + its measured
+isolation pass rate** — never a bare "green".
