@@ -81,6 +81,7 @@ export const MUTATION_VERBS: ReadonlySet<string> = new Set([
 const FORMAT_CONTROL_CHARS: ReadonlySet<string> = new Set([
   ...Array.from({ length: 5 }, (_, i) => String.fromCharCode(0x202a + i)),   // LRE RLE PDF LRO RLO
   ...Array.from({ length: 4 }, (_, i) => String.fromCharCode(0x2066 + i)),   // LRI RLI FSI PDI
+  '\u200e', '\u200f',                                                      // LRM RLM (bidi marks — the R20-HIGH gap)
   '\u200b', '\u200c', '\u200d', '\u2060', '\ufeff',                    // zero-width family
   '\u00ad',                                                                 // soft hyphen
 ]);

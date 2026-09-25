@@ -9863,6 +9863,10 @@ async function readFindingsReport(reportPath, schema) {
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
   }
+  const MAX_REPORT_BYTES = 64 * 1024 * 1024;
+  if (stat.size > MAX_REPORT_BYTES) {
+    throw new Error(`REPORT_PARSE_FAILED: report too large (${stat.size}B > ${MAX_REPORT_BYTES}B) \u2014 refusing to materialize`);
+  }
   const raw = fs31.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0)
     throw new Error("REPORT_PARSE_FAILED: empty file");
