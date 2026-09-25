@@ -72,9 +72,23 @@ export const MUTATION_VERBS: ReadonlySet<string> = new Set([
  * This is the load-bearing family: 'cat file | python -c' has a READ verb first —
  * only BYPASS catches the pipe (§7.2:3182).
  */
+/** ★ R19-HIGH: THE FORMAT-AND-CONTROL CLASS — codepoints that make a command DISPLAY
+ *  differently from its BYTES (the Trojan-Source class): the bidi overrides/isolates reorder what
+ *  an operator reads, the zero-width family hides characters entirely. Checked in BOTH scan arms
+ *  below — a READ verb takes the narrow arm and would otherwise never see them.
+ *  NOT the C0 controls: that range includes SPACE and TAB, and refusing those would block every
+ *  read with an argument separator. Only the codepoints that are invisible-but-load-bearing. */
+const FORMAT_CONTROL_CHARS: ReadonlySet<string> = new Set([
+  ...Array.from({ length: 5 }, (_, i) => String.fromCharCode(0x202a + i)),   // LRE RLE PDF LRO RLO
+  ...Array.from({ length: 4 }, (_, i) => String.fromCharCode(0x2066 + i)),   // LRI RLI FSI PDI
+  '\u200b', '\u200c', '\u200d', '\u2060', '\ufeff',                    // zero-width family
+  '\u00ad',                                                                 // soft hyphen
+]);
+
 const BYPASS_METACHARACTERS: ReadonlySet<string> = new Set([
   '|', ';', '&', '>', '<', '(', ')', '*', '?', '[', ']', '{', '}',
   '#', '!', '%', '~', '$', '`', '\\', '\'', '"', '\n',
+  ...FORMAT_CONTROL_CHARS,
 ]);
 
 /** The sed -n quoted-range pattern — the carve-out's inner content (the sed range shape: 1,20p / 5p / 1,20). */
@@ -138,6 +152,9 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
     // ★ `node -e "$(whoami)"` sailed through the exemption as pure argument syntax.
     for (const ch of command) {
       if (NARROW_SPLITTERS.has(ch)) return ch;
+      // ★ R19-HIGH: the format/control class rides the NARROW arm too — this arm is where a READ
+      //   verb lands, and a bidi-laced `cat` is exactly the disguise case.
+      if (FORMAT_CONTROL_CHARS.has(ch)) return ch;
     }
     return null;
   }
@@ -160,6 +177,7 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
     if (firstToken === 'find' && /\s(-exec|-execdir|-delete|-fls|-fprint|-fprint0|-ok|-okdir)\b/.test(command)) return 'E';
     for (const ch of command) {
       if (NARROW_SPLITTERS.has(ch)) return ch;
+      if (FORMAT_CONTROL_CHARS.has(ch)) return ch;
     }
     return null;
   }

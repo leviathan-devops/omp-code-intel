@@ -119,9 +119,15 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     }
     const steerSid = resolveSessionIdFromEvent(event).id;
     if (verdict.cancel && verdict.token) {
+      // ★ R19-HIGH FIX (2026-09-25): this filtered by TOOL NAME, so cancelling ONE `edit`
+      //   call discarded EVERY pending steer for `edit` in that session — including ones
+      //   queued for entirely different files. The only per-call discriminator the entry
+      //   carries is `file`, which is what the cancelled call names; scope the removal to it.
+      //   (RESIDUAL: two steers for the SAME tool+file in flight still collapse together —
+      //   closing that needs a call id on the entry, which the event does not expose here.)
       const stale = pendingSteer.get(steerSid);
       if (stale) {
-        const rest = stale.filter((e) => e.tool !== name);
+        const rest = stale.filter((e) => !(e.tool === name && e.file === rec.file));
         if (rest.length > 0) pendingSteer.set(steerSid, rest);
         else pendingSteer.delete(steerSid);
       }

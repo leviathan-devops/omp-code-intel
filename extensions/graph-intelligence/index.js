@@ -180703,7 +180703,7 @@ function attachGiGraphGate(pi) {
     if (verdict.cancel && verdict.token) {
       const stale = pendingSteer.get(steerSid);
       if (stale) {
-        const rest = stale.filter((e) => e.tool !== name);
+        const rest = stale.filter((e) => !(e.tool === name && e.file === rec.file));
         if (rest.length > 0)
           pendingSteer.set(steerSid, rest);
         else
