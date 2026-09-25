@@ -8,6 +8,12 @@ export const PREDICATES = {
   sro: ['caused','derived_from','resolved_to','superseded_by','flagged_by'] as const,
   wiring: ['calls','imports','awaits','exports','unwired'] as const,
 } as const;
+// ★ R21-HIGH ADJUDICATION (2026-09-25): `Predicate` deliberately EXCLUDES `has_finding` — that
+//   predicate is the ONE off-canon member, carried as the separate `HAS_FINDING_PREDICATE` const so
+//   `isPredicate()`'s type guard can return `Predicate | typeof HAS_FINDING_PREDICATE` (see line 31).
+//   Adding it to the union would make the guard's second arm redundant. The reviewer's "union
+//   excludes it" is BY DESIGN; `PREDICATE_SET` (the runtime set) includes it, which is what the
+//   guard checks. Documented, not changed.
 export type Predicate = (typeof PREDICATES)[keyof typeof PREDICATES][number];
 // ★ R18-HIGH FIX (2026-09-25): `has_finding` is the ONE predicate NOT in the canon — it is
 //   written by a single live producer (report.ts) and appears verbatim in the graph_facts
