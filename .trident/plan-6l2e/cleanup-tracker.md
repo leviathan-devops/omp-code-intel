@@ -464,3 +464,32 @@ runtime artifacts (they appear on every store read, vanish on checkpoint) — no
 half-written sidecar committed beside a clean db is worse than no sidecar.
 
 **THE REMAINING 13** are in `artifacts/r19-full-slices/`.
+
+---
+
+## ★★ RUN-19 PROGRESS — 25 OF 37 HIGHS FIXED
+
+**HEAD `c699aa5` · uncommitted 0 · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+**★★ THE STRONGEST EVIDENCE OF THE RUN — `lsp-injector.ts:245`, the ReDoS class REMOVED (not bounded):**
+```
+  THE OLD PATH:  glob -> `^.*a.*a.*…$` -> .test()
+                 with k stars the engine explores every way to split the subject across k `.*`
+                 groups. EIGHT stars on a long path is ALREADY catastrophic — `GLOB_MAX_STARS`
+                 reduced the exponent, it never removed it.
+  THE NEW PATH:  the two-pointer matcher, ONE star-backtrack point, O(pattern × subject).
+                 '*a*a*a*a*a*a*a*a' vs a 4001-char subject -> FALSE in 0.36 ms.
+                 Both sites (DB-backed + state-key expansion) share it; the compiler and its
+                 star guard are DELETED.
+  ★ THE DIFFERENTIAL: old compiler vs new matcher over 144 pattern × subject pairs ->
+    **0 disagreements**. And the differential CAUGHT A REAL DRIFT: the old compiler ESCAPED `^`
+    (it was in its escape set), so `[^a]` compiled to `[\^a]` — matching the literal caret OR 'a',
+    NOT a negation. A negating matcher matched "xbc" where the old one did not. Behaviour
+    preservation wins: no negation; `^`/`!` are ordinary class members.
+```
+
+**THE REMAINING 12** are in `artifacts/r19-full-slices/`.
+
+**★ THE METHOD NOTE FOR THE NEXT SESSION:** the differential probe is what made this fix
+trustworthy — a unit probe alone would have shipped the `[^a]` drift. When replacing a mechanism,
+run the OLD and the NEW over a matrix and require zero disagreements; the disagreement is the bug.
