@@ -1163,3 +1163,22 @@ LRU-vs-FIFO comment (then fixed as LRU).
 PINNED tests. `calibrated` means "derived from MEASURED counts" — a DIFFERENT axis from the interval
 width. **The honest fix SURFACES the flag; it does not redefine a pinned contract.** A finding's
 remedy must fit the code's EXISTING semantics, or it is a contract change, not a fix.
+
+---
+
+## ★★★ RUN-20 TRIAGE — SESSION CLOSE (18 fixed · 9 adjudicated · ~17 open)
+
+**THE FINAL MEASURED STATE:** dist `a40488ee1d7cbedb` · 752 KB · tsc 0 · battery 441/0 + 539/0 ·
+goal-verify 5/5 · register consumed:7/8 · ledger distinct=4 · the seal sha-matched.
+
+**THE OPERATOR'S COMPLAINT — RESOLVED:** 9.2 MB → 752 KB (92% smaller); import 139 ms → 41 ms.
+**The 20 s boot:** the 9.2 MB import measured 139 ms, NOT 20 s — the 20 s is a STACK (the largest
+measured component is serena's MCP handshake at 1.2 s).
+
+**THE AUDIT GATE (the one open stop-condition):** the FULL 113-file tree = **1 critical (FIXED) /
+44 high**. Of the 44: **18 fixed, 9 adjudicated NOT-A-BUG, ~17 open** — all small, same-class fixes
+(unbounded reads, TOCTOU, containment, logic guards). **Each run samples a fresh comment set**, so the
+count does not reach zero on its own; the measure is the CONFIRMED defects fixed.
+
+**★ THE GOAL IS NOT COMPLETE.** Five of six stop-conditions are green, measured; the sixth (the audit
+at 0/0) is not. **The goal stays ACTIVE** — "5 of 6" is not a redefinition of success.

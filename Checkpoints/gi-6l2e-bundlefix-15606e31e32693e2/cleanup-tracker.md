@@ -1127,3 +1127,39 @@ first batch.
 - **containment checks** ([23] corbell scopeRoot, [9] the DDL migration)
 Each fix is small; the CLASS is the work. **THE FIX ORDER: the security classes first (the unbounded
 reads + the TOCTOU + the containment), then the logic bugs.**
+
+---
+
+## ★★ RUN-20 TRIAGE — FINAL (15 fixed · 6 adjudicated NOT-A-BUG · ~23 open)
+
+**THE FINAL STATE (measured):** dist `a40488ee1d7cbedb` · 752 KB · tsc 0 · battery 441/0 + 539/0.
+**FIXED (15):** the fail-closed BEGIN (CRIT) · `cwd` in the predicate regex · the report read bound ·
+the unused import · LRM+RLM bidi marks · drift range · log caps · `mustBeFile` · the buildLocalGraph
+TOCTOU · the auth failure-cache · the tsg fd-based read · the DDL catch · the LRU fix · + 2.
+**ADJUDICATED NOT-A-BUG (6):** the SQL-injection (values `?`-bound) · LRU-vs-FIFO comment (then fixed
+as LRU) · the mkdir mode (already `0o700`) · the append atomicity · the semantica realpath cache · the
+`inTransaction` premise (refuted, but the fail-closed remedy applied).
+**OPEN (~23):** the remaining findings, each a small fix; the classes are unbounded-reads, TOCTOU,
+containment, and logic guards.
+
+**★ THE PROGRESS MEASURE (the goal's own anti-derail):** the tree went **23 highs (run 19 half A) → 11
+highs (run 20 half A)** — the fixes landed and the code measurably improved. **The audit gate is at 1
+crit (FIXED) / 44 high (15 fixed, 6 adjudicated, ~23 open)** — NOT 0/0. **The goal stays ACTIVE.**
+
+---
+
+## ★★ RUN-20 TRIAGE — CUMULATIVE (17 fixed · 9 adjudicated · ~18 open)
+
+**FIXED (17):** the fail-closed BEGIN (CRIT) · `cwd` in the predicate regex · the report read bound ·
+the unused import · LRM+RLM bidi marks · drift range · log caps · `mustBeFile` · the buildLocalGraph
+TOCTOU · the auth failure-cache · the tsg fd-based read · the DDL catch · the LRU fix · `sufficient`
+surfaced · the jev short-answer guard · + 2.
+**ADJUDICATED NOT-A-BUG (9):** the SQL-injection (`?`-bound) · the mkdir mode (already `0o700`) · the
+append atomicity · the semantica realpath cache · the `inTransaction` premise · report.ts [7][8]
+(already R19-fixed) · kev.ts execFileSync (documented) · graph-test-target degreeOf (documented) · the
+LRU-vs-FIFO comment (then fixed as LRU).
+
+**★ THE RECONCILIATION LAW (learned this batch):** an initial `calibrated = est.sufficient` broke 2
+PINNED tests. `calibrated` means "derived from MEASURED counts" — a DIFFERENT axis from the interval
+width. **The honest fix SURFACES the flag; it does not redefine a pinned contract.** A finding's
+remedy must fit the code's EXISTING semantics, or it is a contract change, not a fix.
