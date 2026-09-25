@@ -176748,14 +176748,8 @@ var init_mpse = __esm(() => {
     outputSchema: MpseStageOutputSchema,
     staticPrompt: `IDENTITY: STAGE hunter \u2014 hunt stage-gate enforcement (pre/post/invariant violations in call chains, guard-skipping paths). Fire on what IS (file+line+verbatim quote or [INFERRED]+graph edge). GRAPH LAW: query graph before files; prefer EXTRACTED; never fabricate. FINDINGS CONTRACT: findings/report.md via write_findings, ## FINDING: blocks + ## SUMMARY.`
   };
-  TraceGapSchema = object({
-    contractId: string2().min(1),
-    specPath: string2().min(1),
-    specLine: number2().int().positive(),
-    specQuote: string2().min(1),
+  TraceGapSchema = MpseConformanceBaseSchema.extend({
     implementationStatus: literal("unimplemented"),
-    file: string2().optional(),
-    line: number2().int().positive().optional(),
     evidence: string2().min(1),
     gapReason: string2().min(1).optional()
   });
@@ -176896,8 +176890,8 @@ function kindForLayer(layerId) {
 // src/hydra/map-reader.ts
 import fs30 from "fs";
 import path35 from "path";
-function parseGraphJson(contents, size) {
-  const byteLen = size > 0 ? size : Buffer.byteLength(contents, "utf-8");
+function parseGraphJson(contents, _sizeHint) {
+  const byteLen = Buffer.byteLength(contents, "utf-8");
   if (byteLen > GRAPH_LOAD_BUDGET_BYTES2) {
     throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${byteLen} bytes (> ${GRAPH_LOAD_BUDGET_BYTES2} budget). Fix: scope/extract a subtree or lower the graph cardinality.`);
   }
@@ -178207,9 +178201,13 @@ function getStoreDb(opts) {
   const fresh = new Database(want, { create: true });
   try {
     fresh.exec("PRAGMA journal_mode = WAL;");
-    fresh.exec("PRAGMA busy_timeout = 5000;");
   } catch (walErr) {
     console.error(`[scoped-store${opts?.id ? " " + opts.id : ""}] WAL mode FAILED \u2014 falling back to rollback journal (race-condition protection DEGRADED):`, walErr instanceof Error ? walErr.message : String(walErr));
+  }
+  try {
+    fresh.exec("PRAGMA busy_timeout = 5000;");
+  } catch (btErr) {
+    console.error(`[scoped-store${opts?.id ? " " + opts.id : ""}] busy_timeout FAILED \u2014 busy/locked operations fail immediately instead of waiting 5s:`, btErr instanceof Error ? btErr.message : String(btErr));
   }
   try {
     const modeRow = fresh.query("PRAGMA journal_mode").get();
@@ -179186,6 +179184,13 @@ function openSessionStore(input) {
   }
   const current = findGiSessionByStorePath(storePath);
   if (current && current.session_id !== ownerKey) {
+    if (created) {
+      try {
+        fs4.unlinkSync(storePath);
+      } catch (e) {
+        console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} owned by ${current.session_id}; caller ${callerKey}`);
   }
   if (!current) {
@@ -179395,6 +179400,8 @@ function symbolVerified(sym, state) {
   return state.graphQueries.some((q) => q.target === t && q.resolved === true);
 }
 function computeDrift(state, now = Date.now()) {
+  state.editLog = state.editLog.filter((e) => now - e.timestamp < DRIFT_WINDOW_MS);
+  state.graphQueries = state.graphQueries.filter((q) => now - q.timestamp < DRIFT_WINDOW_MS);
   let unverifiedWeight = 0;
   let totalWeight = 0;
   let unverifiedCount = 0;
@@ -179607,7 +179614,7 @@ function attachGiGraphGate(pi) {
     if (verdict.token === "[GATE STEER]") {
       sweepStaleSteer(Date.now());
       const queue = pendingSteer.get(steerSid) ?? [];
-      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim(), enqueuedAt: Date.now() });
+      queue.push({ tool: name, note: `[GATE STEER] ${verdict.advisory ?? ""}`.trim(), enqueuedAt: Date.now(), file: rec.file });
       while (queue.length > PENDING_STEER_MAX_PER_SID)
         queue.shift();
       pendingSteer.set(steerSid, queue);
@@ -179623,7 +179630,11 @@ function attachGiGraphGate(pi) {
     const queue = pendingSteer.get(sid);
     if (!queue || queue.length === 0)
       return;
-    const qi = queue.findIndex((e) => e.tool === name);
+    const inRec = event.input && typeof event.input === "object" ? event.input : {};
+    const resFile = str(inRec.file_path) || str(inRec.filePath) || str(inRec.path) || str(inRec.file);
+    let qi = resFile ? queue.findIndex((e) => e.tool === name && e.file === resFile) : -1;
+    if (qi === -1)
+      qi = queue.findIndex((e) => e.tool === name);
     if (qi === -1)
       return;
     const note = queue.splice(qi, 1)[0].note;
@@ -181781,7 +181792,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
 function populateSessionStore(storePath, root, runTag = "populate-" + Date.now().toString(36), opts) {
   if (opts?.substrate === "graphify") {
     try {
-      return populateGraphifySessionStore(storePath, root, runTag);
+      return populateGraphifySessionStore(storePath, root, runTag, opts?.scope);
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
@@ -182266,6 +182277,7 @@ function releaseHuntLock(targetPath) {
     }
   } catch (e) {
     console.warn(`[hunt-lock] release failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
   }
 }
 
@@ -183353,8 +183365,8 @@ function bindNumber(bindings, key) {
 }
 function bindRange(bindings) {
   const v = bindings["range"];
-  if (Array.isArray(v)) {
-    return v;
+  if (Array.isArray(v) && v.length === 2 && typeof v[0] === "number" && typeof v[1] === "number") {
+    return [v[0], v[1]];
   }
   return;
 }
@@ -183908,6 +183920,12 @@ var P3 = {
     const anchor = anchored(ctx, P3_SPEC);
     if (anchor === null)
       return findings;
+    let deadIds = null;
+    try {
+      deadIds = new Set(ctx.graph.unwired().map((d) => d.id));
+    } catch {
+      deadIds = null;
+    }
     for (const node of ctx.graph.nodes()) {
       if (node.kind !== "function" && node.kind !== "method" && node.kind !== "class")
         continue;
@@ -183918,22 +183936,28 @@ var P3 = {
         continue;
       if (!anchor.files.has(file))
         continue;
-      let callers;
-      try {
-        callers = ctx.graph.whoCalls(node.name);
-      } catch (e) {
-        console.error(`[semantic-predicates] P3 whoCalls failed for ${node.name}: ${String(e)}`);
-        continue;
+      const nid = node.id;
+      if (deadIds !== null) {
+        if (nid === undefined || !deadIds.has(nid))
+          continue;
+      } else {
+        let callers;
+        try {
+          callers = ctx.graph.whoCalls(node.name);
+        } catch (e) {
+          console.error(`[semantic-predicates] P3 whoCalls failed for ${node.name}: ${String(e)}`);
+          continue;
+        }
+        if (callers.length !== 0)
+          continue;
       }
-      if (callers.length !== 0)
-        continue;
       const text = windowText(ctx, file);
       if (text === undefined)
         continue;
       if (!/(enforcer|gate|firewall)/i.test(file) && !/(enforcer|gate)/i.test(text.slice(0, 2000)))
         continue;
       const triad = makeTriad(file, node.line ?? 1, "semantic.unwired-enforcement", sev);
-      const evidence = evEdge("semantic.unwired-enforcement", file, node.line ?? 1, `${node.name} \u2014 whoCalls("${node.name}")=[] over the calls edges (no inbound caller in the edge store)`, "wired-dead", anchor);
+      const evidence = evEdge("semantic.unwired-enforcement", file, node.line ?? 1, `${node.name} \u2014 ${deadIds !== null ? `unwired() lists id ${nid ?? node.name}` : `whoCalls("${node.name}")=[]`} over the calls edges (no inbound caller in the edge store)`, "wired-dead", anchor);
       findings.push({ ruleId: "semantic.unwired-enforcement", severity: sev, file, line: node.line ?? 1, evidence, verdict: "VIOLATION", triad });
     }
     return findings;
@@ -184368,11 +184392,19 @@ function openAndNextRunId(token, dbPath) {
     let seq = 0;
     for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
       let payload;
+      let rawText = "";
       try {
         const raw = row["payload"];
+        rawText = typeof raw === "string" ? raw : String(raw ?? "");
         payload = raw !== null && typeof raw === "object" ? raw : JSON.parse(String(raw ?? "{}"));
       } catch (e) {
-        console.warn(`[recon] HUNT_DONE payload parse failed \u2014 skipped: ${e instanceof Error ? e.message : String(e)}`);
+        const idx = rawText.indexOf(prefix);
+        if (idx !== -1) {
+          const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
+          if (dm)
+            seq = Math.max(seq, Number(dm[0]));
+        }
+        console.warn(`[recon] HUNT_DONE payload parse failed \u2014 skipped: ${e instanceof Error ? e.message : String(e)}; raw=${rawText.slice(0, 120)}`);
         continue;
       }
       if (typeof payload.runId === "string" && payload.runId.startsWith(prefix)) {
@@ -184436,6 +184468,9 @@ async function map(profile, adapterOverride) {
   const adapter = adapterOverride ?? selectAdapter(profile);
   const buildResult = await adapter.build(profile);
   assertMappableLines(buildResult);
+  if (buildResult.nodes.length === 0) {
+    throw graphEmpty("map actor: adapter build produced zero nodes");
+  }
   const dbPath = path18.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
   const db = openStore(dbPath);
   try {
@@ -184540,8 +184575,6 @@ function readDeclaredMeta(lines, start) {
     const line = lines[i];
     if (line.trim() === "")
       break;
-    if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line))
-      break;
     const cm = line.match(DECLARED_CLASSIFICATION);
     if (cm && !meta.classification) {
       const v = String(cm[1]).toUpperCase();
@@ -184554,6 +184587,10 @@ function readDeclaredMeta(lines, start) {
       if (isSeverity(v))
         meta.severity = v;
     }
+    if (cm || sm)
+      continue;
+    if (isRuleShaped(line) || isQuotedPassage(line) || isBlockquote(line))
+      break;
   }
   return meta;
 }
@@ -184663,6 +184700,11 @@ function writeCompiledCache(db, battery, cards, corpusHash) {
     stmts.push(insCard);
     for (const c of cards) {
       insCard.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
+    }
+    if (battery.length > 0 && battery[0] !== undefined) {
+      const delBat = db.prepare("DELETE FROM compiled_predicates WHERE battery_version = ?");
+      stmts.push(delBat);
+      delBat.run(battery[0].batteryVersion);
     }
     if (battery.length > 0) {
       const insBat = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
@@ -185235,9 +185277,14 @@ function resolveCorpusPaths(profile) {
   const root = path21.resolve(profile.project.root);
   const corpus = profile.rules.corpus.map((entry) => {
     const abs = path21.isAbsolute(entry) ? path21.normalize(entry) : path21.resolve(root, entry);
-    return requireContained(abs, root, (ev) => {
+    const ev = checkContained(abs, root);
+    if (!ev.contained) {
       throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${ev.rootReal} real=${ev.real}) \u2014 corpus entries must stay under the root.`);
-    });
+    }
+    if (!ev.resolved) {
+      console.warn(`[scan] HUNT_INVALID_CORPUS WARNING: entry=${entry} could not be resolved through symlinks (real=${ev.real}) \u2014 contained on the nearest ancestor, treating as inside but unverified`);
+    }
+    return ev.real;
   });
   return {
     ...profile,
@@ -185322,7 +185369,7 @@ function deriveRootCause(f, evidenceLen) {
   const first = evidenceText.split(/\n|\.\s/)[0]?.trim() ?? evidenceText;
   const mechanism = first.length > 120 ? `${first.slice(0, 120)}\u2026` : first;
   const depth = evidenceLen > 3 ? "a multi-step edge chain" : "a single-edge mechanism";
-  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${first}`;
+  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${mechanism}`;
 }
 function legacySolveTrace(findings, graph) {
   const ruleCounts = new Map;
@@ -185932,6 +185979,11 @@ function createMicroLoop(options) {
             if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3)
               handleDisposables.splice(i, 1);
           }
+          try {
+            snapshot.db?.close();
+          } catch (e) {
+            console.error("[micro-loop] db close failed:", e instanceof Error ? e.message : String(e));
+          }
           resolve();
         }
       });
@@ -185978,6 +186030,8 @@ function snapshotState(s) {
 function namedError(e) {
   if (e instanceof Error)
     return e.message;
+  if (e === undefined || e === null)
+    return "unknown error (no error payload)";
   return String(e);
 }
 function actorOutput(event, actorName) {
@@ -186393,7 +186447,11 @@ function codeNameSet(db) {
       if (r.label)
         names.add(r.label);
     }
-  } catch {}
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such table/i.test(msg))
+      throw e;
+  }
   for (const r of rowsAs(db.prepare("SELECT name FROM graph_nodes WHERE lineage = 'CODE_DERIVED'").all(), "code-names graph")) {
     names.add(r.name);
   }
@@ -186675,7 +186733,7 @@ function createLayerRegistry() {
     factsForWithFaults(subject) {
       const facts = [];
       const faults = [];
-      for (const p of byId.values()) {
+      for (const p of [...byId.values()]) {
         try {
           const rawProbe = p.up();
           const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof rawProbe.up === "boolean";
@@ -186686,6 +186744,13 @@ function createLayerRegistry() {
             faults.push({ consumer: p.id, reason });
             continue;
           }
+        } catch (upErr) {
+          const reason = `GI_LAYER_DOWN:${p.id} - the probe threw: ${upErr instanceof Error ? upErr.message : String(upErr)}`;
+          console.error("[layer-registry] factsFor: consumer " + p.id + " probe threw - see audit GI_LAYER_DOWN:" + p.id + ": " + reason);
+          faults.push({ consumer: p.id, reason });
+          continue;
+        }
+        try {
           const got = p.facts(subject);
           if (!Array.isArray(got)) {
             console.error("[layer-registry] factsFor: consumer " + p.id + " returned non-array facts - see audit GI_LAYER_ERROR:" + p.id);
@@ -187433,6 +187498,9 @@ function tailEvents(eventsPath, limit) {
   let raw;
   try {
     raw = fs27.readFileSync(eventsPath, "utf8");
+    if (Buffer.byteLength(raw, "utf8") > MAX_SAFE_FULL_READ) {
+      throw new Error(`GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${Buffer.byteLength(raw, "utf8")}B read) and full read exceeds ${MAX_SAFE_FULL_READ}B \u2014 refusing to materialize the ledger`);
+    }
   } catch (e) {
     throw new Error(`GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} and the fallback read is unavailable (${e.code ?? (e instanceof Error ? e.message : String(e))}) \u2014 the ledger cannot be read`);
   }
@@ -187665,12 +187733,12 @@ function graphFacts(input) {
       });
     }
     if (input.intent === "declare") {
-      verdicts.push(outD === 0 && inD.n === 0 ? {
+      verdicts.push(inD.n === 0 ? {
         rule: "M-GRAPH-2",
         settles: true,
         action: "FIRE",
-        reason: `the declared symbol "${input.target}" has ZERO edges in or out \u2014 declared, never consumed`,
-        evidence: "in-degree 0 \xB7 out-degree 0"
+        reason: `the declared symbol "${input.target}" has ZERO incoming edges \u2014 declared, never consumed`,
+        evidence: `in-degree 0 \xB7 out-degree ${outD}`
       } : {
         rule: "M-GRAPH-2",
         settles: true,
@@ -187922,6 +187990,7 @@ import * as fs29 from "fs";
 
 // src/omp/fire-ledger.ts
 import { Database as Database8 } from "bun:sqlite";
+import * as nodePath from "path";
 var FIRE_DECISIONS_DDL = `
 CREATE TABLE IF NOT EXISTS fire_decisions (
   id               INTEGER PRIMARY KEY,
@@ -187956,6 +188025,10 @@ class LedgerError extends Error {
     this.name = "LedgerError";
   }
 }
+function toLedgerCode(code) {
+  const bare = code.startsWith("GI_LEDGER_") ? code.slice("GI_LEDGER_".length) : code;
+  return `GI_LEDGER_${bare}`;
+}
 
 class FireLedger {
   path;
@@ -187964,11 +188037,13 @@ class FireLedger {
   closed = false;
   persistFailureCount = 0;
   lastPersist = null;
+  resolvedPath;
   constructor(path) {
     this.path = path;
     if (path.trim() === "" || path.trim() === ":memory:" || path.trim().startsWith("file::memory:")) {
       throw new LedgerError("NOT_PERSISTENT", `path ${JSON.stringify(path)} names an in-memory database \u2014 the ledger must survive the process or it is not a ledger`);
     }
+    this.resolvedPath = nodePath.resolve(path);
     let db;
     try {
       db = new Database8(path, { create: true });
@@ -188095,8 +188170,7 @@ class FireLedger {
         } catch (inner) {
           const err = inner instanceof LedgerError ? inner : new LedgerError("APPEND_FAILED", "row did not commit", inner);
           failed.push({ row: r, error: err });
-          const bare45 = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_".length) : err.code;
-          this.notePersistFailure(`GI_LEDGER_${bare45}`, err.message);
+          this.notePersistFailure(toLedgerCode(err.code), err.message);
         }
       }
       return { committed, failed };
@@ -188651,9 +188725,9 @@ var confineTargetPath = (normalized, callerCwd) => {
     stAfter = null;
   }
   if (!stAfter || !stAfter.isDirectory()) {
-    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory after re-resolve: '${realAfter.slice(0, 120)}'` };
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory after re-resolve: '${(realAfter ?? normalized).slice(0, 120)}'` };
   }
-  return { ok: true, real };
+  return { ok: true, real: realAfter ?? real };
 };
 function textResult2(text, details) {
   return { content: [{ type: "text", text }], details };

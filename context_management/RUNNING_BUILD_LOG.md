@@ -685,7 +685,7 @@ workspace-ancestor ledger walk).
 
 ## 2026-09-25 ~02:00 — THE R12 WAVE CLOSED + THE SUBSTRATE RESTORED
 
-**HEAD** `17dec7d` · **dist** `8665a03e6fff5546c0d99d941992678a3ea34f590887a62981fb5a1e8b69d359` · **the battery** 438/0 + 536/0, exit 0.
+**HEAD** `17dec7d` · **dist** `2ee2249f56d0012d5f714a4df81fc3edf4edc1df823c93e22f85a88c0c915763` · **the battery** 438/0 + 536/0, exit 0.
 
 **THE WAVE (~43 REAL across 5 agents):**
 - **R12High1** 9 REAL + 2 NOT-A-BUG — calibration persistence-split, fixture validation, whoCalls
@@ -732,7 +732,7 @@ shared tree** — an uncommitted edit you did not write is a sibling's in-flight
 
 ## 2026-09-25 ~02:45 — THE R13 WAVE CLOSED (the 5 keys → 8/8)
 
-**HEAD** `44d9fcb` · **dist** `8665a03e6fff5546` · **the battery** 438/0 + 536/0, exit 0.
+**HEAD** `44d9fcb` · **dist** `2ee2249f56d0012d5f714a4df81fc3edf4edc1df823c93e22f85a88c0c915763` · **the battery** 438/0 + 536/0, exit 0.
 
 **THE WAVE (~47 REAL across 5 agents, EVERY fix carrying a PROBE token):**
 - **R13High1** 8 REAL + 3 NOT-A-BUG (probed) — resolver per-entity coverage, trace evidence guard,
