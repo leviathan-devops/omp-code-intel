@@ -180,12 +180,18 @@ export async function callWithStallDetection(
     try {
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) break;
+        // ★ R19-HIGH FIX (2026-09-25): `streamComplete = !dead` was evaluated AFTER the loop, so
+        //   a timer callback queued in the microtask gap between observing `done` and reaching
+        //   that assignment set `dead` and flipped `streamComplete` to FALSE — turning a
+        //   COMPLETE stream into `STALL` and DISCARDING the fully buffered `full`, exactly what
+        //   the F-705 comment above says must never happen. The comment described the opposite of
+        //   the code. Completion is now recorded AT THE MOMENT IT IS OBSERVED, so no late timer
+        //   can un-complete it.
+        if (done) { streamComplete = true; break; }
         lastActivity = Date.now(); // ← THE EVENT: tokens are flowing, reset the timer
         full += decoder.decode(value, { stream: true });
         if (dead) break;
       }
-      streamComplete = !dead;
     } catch {
       // ★ F-405 FIX (2026-09-24): reader.read() may throw after abort — fall through
       //   to finally for deterministic cleanup (the old code leaked the underlying

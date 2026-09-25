@@ -184790,7 +184790,9 @@ function openAndNextRunId(token, dbPath) {
     }
     return `${prefix}${seq + 1}`;
   } finally {
-    db.close();
+    try {
+      db.close();
+    } catch {}
   }
 }
 

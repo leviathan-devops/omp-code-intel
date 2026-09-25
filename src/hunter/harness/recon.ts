@@ -196,6 +196,11 @@ function openAndNextRunId(token: string, dbPath: string): string {
     }
     return `${prefix}${seq + 1}`;
   } finally {
-    db.close();
+    // ★ R19-HIGH FIX (2026-09-25): a raw close() in `finally` REPLACES any in-flight exception —
+    //   if the try block is unwinding from a real failure (a corrupt row, a locked DB) and
+    //   close() ALSO throws (WAL checkpoint failure, EIO), the close error becomes the thrown
+    //   one and the ORIGINAL cause is lost. The caller then chases the wrong fault. The close is
+    //   best-effort; the try block's error is the truth.
+    try { db.close(); } catch { /* the in-flight error is the truth; a failed close must not mask it */ }
   }
 }
