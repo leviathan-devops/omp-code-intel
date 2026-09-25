@@ -303,3 +303,33 @@ wrote the 5 slices), then re-run the whole-tree audit (`scripts/whole-tree-audit
 `tsc` 0 and the full battery (441/0 + 539/0); a src edit makes the corbell/graphify stores stale —
 rebuild with `bun scripts/corbell-build.ts --target . --rebuild` (17 s) and
 `bun scripts/graphify-build.ts --target . --extract` (32 s) BEFORE believing a register failure.
+
+---
+
+## ★★ RUN-19 PROGRESS — 10 OF 37 HIGHS FIXED (2026-09-25)
+
+**HEAD `524561e` · uncommitted 0 · dist `4e41cdd65c988b42` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+**★ THE FINDING THE FRESH RUN CAUGHT IN MY OWN LAST BATCH** (the reason the loop runs):
+`ontology.ts` — I exported `HAS_FINDING_PREDICATE` but never added it to `PREDICATE_SET`, so
+`isPredicate('has_finding')` returned **FALSE** while the `graph_facts` CHECK accepts it and
+`report.ts` writes it. **A validator that contradicts the schema it validates.** The type union
+stays canon-only (it describes the declared canon); the SET now describes what the store can hold.
+Probe: 6 cases / 0 wrong · `PREDICATE_SET.has` → true.
+
+**THE TEN FIXED, EACH BY MECHANISM:**
+| the finding | the mechanism |
+|---|---|
+| `ontology.ts` ×2 — `has_finding` outside `PREDICATE_SET` + `isPredicate` blind to it | added to the set; the guard's return type widened |
+| `strike.ts:46` — `Object.entries(null)` THREW | the spread arm above tolerated what the loop threw on — one loop, two polarities; now both tolerate |
+| `fire-gate.ts:542` — the timer's rejection unobserved when the judge won | an UNHANDLED rejection (process-fatal under Node defaults); same class as the enforcement.ts fix |
+| `gi-ecosystem.ts:16/:37` — the scratch base `mkdir`'d with NO mode | umask-dependent (commonly 0755 — world-searchable: the very plant surface the function defends). Now 0700 |
+| `gi-session-path.ts:84` — the catch swallowed EVERY realpath error | the symlink containment guard was **silently skipped** on EACCES/ELOOP/EIO. Only ENOENT (the stated intent) may skip; the rest is LOUD |
+| `typed-write.ts:404` ×2 — both backfill catches swallowed everything | EACCES/SQLITE_CORRUPT/SQLITE_FULL left `layer_id` NULL for every row and returned clean. Only the schema-shape error is benign |
+| `resolver.ts:80` — entity ids/labels/kinds interpolated RAW into the SRO prompt | these come from PARSED SOURCE — a crafted symbol name is attacker-controlled text in an instruction channel. Normalized: one line per entry, delimiters stripped, bidi overrides removed, bounded |
+| `tsg.ts:53` — a bare `readFileSync(KEY_FILE)` | follows a planted symlink, no mode check, while the register's own `keyFileComponent` uses O_NOFOLLOW + mode. Now: lstat (never follows), refuse a link, refuse group/other-readable |
+
+**THE REMAINING ~27** are in `artifacts/r19-full-slices/` — each needs FIXED or a NOT-A-BUG with a
+quoted/executed proof. **A w44 suite test appeared once as a failure and did NOT reproduce:
+isolated 34/0, the re-run green — an order-dependence flake (the shared-temp-dir class), recorded
+not buried.**
