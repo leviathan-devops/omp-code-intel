@@ -573,3 +573,27 @@ the same class. **When a fix narrows a race rather than removing the resolution 
 layer down** — the same defect usually survives as "the new path is also a path".
 
 **THE REMAINING 7** are in `artifacts/r19-full-slices/`.
+
+---
+
+## ★★ RUN-19 PROGRESS — 31 OF 37 ADDRESSED (29 fixed + 2 refuted)
+
+**HEAD `04ba26b` · uncommitted 0 · dist `69e7d4ae7eb7da13` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 30  pipeline.ts:142   THE SAME FIX AT THREE SITES, ONE OF THEM DONE. The R16D fix published the
+                       partial evidence trail before throwing on PRE-GATE rejections — but the
+                       input-extractor throw, the 'required fields' throw, and the graph-load
+                       failure were left bare, so a failing run at any of them left concurrent
+                       readers on a STALE snapshot: exactly the defect R16D set out to kill. All
+                       three now log PIPELINE_FAILED, publish, then throw.
+```
+
+**★ THE ONE-SITE-OF-THREE PATTERN (a fourth method note):** R16D named its finding as ONE site and
+fixed it; the reviewer found the SECOND; grepping the class found the THIRD. **A fix that names one
+site has not fixed the class — count the throw sites of the kind it names before closing it.**
+
+**THE REMAINING 6** are in `artifacts/r19-full-slices/`: engine.ts:755 (edge metadata on the reuse
+path) · kernel-v2.ts:550 (prose-keyed classification) · the duplication set (query-engine ×2,
+fixture-calibration, layer-registry) · micro-loop-machine.ts:451 (the DbClient residual, which the
+st-hunter-port pin deliberately holds open).
