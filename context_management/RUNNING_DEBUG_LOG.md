@@ -726,3 +726,53 @@ REPORTED on the run (the no-silent-catch law working).
   (mutual exclusion broken). FIX: a fresh age check per iteration.
 - F-135: the release unlinked unconditionally ⇒ a peer's reclaimed lock destroyed. FIX: a token.
 - F-136: a 3ms spin. FIX: 10ms.
+
+---
+
+## RD · 2026-09-25 · THE CLEANUP RUN — the measured state + the traps avoided
+
+**THE BASELINE DIFF (the pin was frozen; disk is truth).** Every number in the pin
+(`2cc1fee` · `e13d0f5939e3707b` · 496 tests · 112 .ts / 27686 L · 34 rows/1 distinct) was STALE.
+The pin itself says "A fresh session resumes from DISK, never from this pin's frozen numbers" —
+honored: the baseline was re-measured before any wave fired.
+
+**THE 4 FAILURES THE R15/R16 WAVE AUDIT CAUGHT (this session's most important finding):**
+1. `st-gi-w3-validation` 8/1 — the fail-closed anchor leg (`realpathSync` fails → `file: ""`)
+   dropped EVERY fixture node whose anchor was not yet on disk → zero in-scope → `GRAPH_EMPTY`.
+   **Revised, not reverted:** `path.resolve` + `path.normalize` already collapse `../` LEXICALLY
+   (the escape the reviewer feared was already dead); what a lexical path cannot prove is SYMLINK
+   containment — and for that the correct polarity is **keep the node and COUNT it**
+   (`anchorUnverified` + a WARN). Dropping a node converts "unprovable" into "silently invisible".
+2. `st-w3-criticals` 8/1 — a SOURCE-SHAPE pin grepped the literal
+   `dst_canonical LIKE ?1 AND superseded_run IS NULL`; the LIKE-escape fix (`ESCAPE CHAR(92)`,
+   a REAL bug: `foo_bar` matched `foobar`) broke the literal. **The pin was re-specified to its own
+   intent** (a regex tolerating the clause), documented inline; its other two assertions
+   (`>= 4 superseded_run IS NULL`, "every `FROM typed_edges` is filtered") were unchanged and green.
+3. `st-gi-w7-scanhighs` 1/1 — the W16 re-home handles a DISPLACED *different* keyid at `idx`;
+   nothing collapsed a GHOST row carrying the SAME keyid at ANOTHER idx. Fixed by folding the
+   sibling's exile (`MAX(dead_until)`) into the effective window before deleting, inside the SAME
+   transaction. The owner then removed its own redundant early DELETE that would have destroyed
+   the exile window.
+4. `st-artifact-coverage` — the dist was stale after the wave's src edits. Rebuilt; the suite
+   computes the sha and refuses a stale artifact by design.
+
+**THE CWD TRAP (90 minutes lost, then diagnosed).** Five dispatched agents inherited a worktree
+cwd (`/home/leviathan/.omp/wt/graph-intelligence-66dfa4c` — a worktree of the *Shared_Workspace*
+repo) while the target was a SEPARATE repo (`.../Shared_Workspace/Graph_Intelligence`). Every
+RELATIVE edit failed with "File not found, wrong tree". One agent named it verbatim. Remedy baked
+into the next dispatch: the ABSOLUTE-PATH RULE + a `git status` self-check after the first edit.
+Captured as a managed skill (`subagent-cwd-tree-trap`).
+
+**THE HAND-TRANSCRIBED FILE LIST.** The R15 dispatch carried file lists I typed from a PARTIAL
+read of the slice headers → a wrong ownership partition. A subagent HELD its edits and asked
+rather than guessing. Ruling: the slice file is authoritative. **Never hand-transcribe a list into
+a dispatch — generate it from disk.**
+
+**THE LANE EXHAUSTION.** The go pool: 3 keys MONTHLY-dead (`2026-10-25`), the rest hourly. Run 15
+launched 113 parts onto an exhausted lane → 109 EMPTY markers. The F-607 instrument gate named it
+(≥50% empty ⇒ VOID). Remedy: the **pre-flight lane probe** — the audit script now makes ONE real
+completion call before launching and REFUSES on a non-200 (proven live: it refused a re-run at
+05:04 with a 429). The zen-free lane was wired as the fallback via
+`~/.omp/agent/bin/zen-free-adapter.mjs` (a Bun SSE-decoding bridge on 4098, now a supervised
+systemd service), fixing the Responses-API tool shape (flat `tools[].name`, not the nested
+chat-completions form).

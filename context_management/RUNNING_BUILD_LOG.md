@@ -768,3 +768,51 @@ commit and their `git diff` then reads empty — two agents (R12High2, R13High2)
 a sibling had stolen their slice. **The remedy: name the commit in the commit message AND tell the
 sweep is coming.** And the standing law holds: NEVER `git checkout` / `git restore` / `git stash` in
 this shared tree.
+
+---
+
+## RB · 2026-09-25 · THE CLEANUP RUN — P0→P2 CLOSED, W3 IN FLIGHT
+
+**P0 ABSORB — the baseline re-measured from disk (the pin's numbers were frozen 2026-09-24):**
+```
+  HEAD            2cc1fee (pin)  →  2ec8cc3 (disk)
+  the dist        e13d0f5939e3707b (pin)  →  1c73723445f65973 (disk)
+  the tree        112 .ts / 27686 L (pin) →  113 .ts / 33616 L (disk)
+  the ledger      34 rows · 1 distinct (pin) → 168 rows · 4 distinct (disk)
+  C1 stdout       PASS consumed:8 contradicting its detail (pin)
+                  → PASS + detail both honest-phrased (disk)
+```
+
+**P1 SPEC — the binding authority read:** `packages/gi-cleanup/CLEANUP_SPEC.md` (§2 the fraud
+ledger FR-1..FR-6, §6 the exit battery). The wave plan reads `WAVES: 4`.
+
+**P2 PREFLIGHT — the named tests all exist on disk:**
+```
+  test_goal_predicate ....................... tests/st-gi-audit-fixes.test.ts
+  test_goal_predicate_honest_text ........... tests/st-gi-audit-fixes.test.ts
+  test_ledger_diversity_four_verdicts ....... tests/st-runtime-diversity.test.ts
+  test_act_theatrical_fires ................. tests/st-runtime-diversity.test.ts
+  test_act_destructive_fires ................ tests/st-runtime-diversity.test.ts
+  test_act_grounded_allows .................. tests/st-runtime-diversity.test.ts
+  test_audit_whole_tree_coverage ............ tests/st-w3-audit-coverage.test.ts
+  test_container_register_reads_eight_of_eight  tests/st-container-coverage.test.ts
+```
+
+**THE W1 + W2 GATES RE-RUN BY THE ORCHESTRATOR (builder-under-audit — not trusted):**
+```
+  bun test -t test_goal_predicate ................. 4 pass / 0 fail  (434 filtered)
+  bun test -t test_goal_predicate_honest_text ..... 1 pass / 0 fail  (437 filtered)
+  bun test -t test_ledger_diversity_four_verdicts . 1 pass / 0 fail  (437 filtered)
+  sqlite3 fire_decisions → 168 rows · 4 DISTINCT (rule_id,band,action)
+```
+
+**W3 — THE CRITICAL PATH.** The board's last read was `FAIL (6 critical, 82 high)` across 105
+files, from the OLD audit. Since then R14/R15/R16 fixed ~120 findings (54 src files, battery
+438/0 + 536/0 exit 0, tsc 0). **RUN 17 — the fresh whole-tree audit — is the new measurement**,
+split across two lanes (A: the go lane, 50 files, 8 workers · B: the zen-free adapter lane, 63
+files, 4 workers) after the single-lane run proved too slow on a 3-key go pool.
+
+**THE TRASH LEDGER (spec §3):** T2 EXECUTED — the 4 stale au-engine sockets
+(`3a3143c03eedd217` · `a855309d2a21adb2` · `c002a9b683ce1746` · `1878207f121ea431`) removed after
+proving each REFUSED a connection while `5066bda3d0a390b3` CONNECTS (the live daemon, pid 176379,
+kept).
