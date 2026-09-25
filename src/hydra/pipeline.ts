@@ -140,9 +140,18 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
       targetRoot = String(this.config.targetRootFor(input) ?? "");
       graphPath = String(this.config.graphPathFor(input) ?? "");
     } catch (e) {
+      // ★ R19-HIGH FIX (2026-09-25): the R16D fix published the partial trail for PRE-GATE
+      //   rejections; the input-validation and graph-load throws were left bare, so the same
+      //   defect survived at two more sites — a failing run left concurrent readers on a STALE
+      //   snapshot. Same discipline here: log the failure, publish, then throw.
+      this.log("PIPELINE_FAILED", { name: this.config.name, error: `input extractor threw: ${e instanceof Error ? e.message : String(e)}` }, evidence);
+      this.publishRun(seq, evidence);
       throw new Error(`[${this.config.name}] GATE FAILED: input — targetRootFor/graphPathFor threw: ${e instanceof Error ? e.message : String(e)}`);
     }
     if (targetRoot.trim() === "" || graphPath.trim() === "") {
+      // ★ R19-HIGH: publish before the throw — same class as above.
+      this.log("PIPELINE_FAILED", { name: this.config.name, error: "targetRoot and graphPath required" }, evidence);
+      this.publishRun(seq, evidence);
       throw new Error(`[${this.config.name}] GATE FAILED: input — targetRoot and graphPath required`);
     }
     this.log("GRAPH_EXTRACT_START", {}, evidence);
@@ -150,6 +159,10 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     try {
       graph = await readGraphJson(graphPath);
     } catch (e) {
+      // ★ R19-HIGH: the THIRD bare throw of the same class — the graph-load failure also
+      //   left the trail unpublished. All three sites now publish before they throw.
+      this.log("PIPELINE_FAILED", { name: this.config.name, error: `GRAPH_LOAD_FAILED: ${String((e as Error).message ?? e)}` }, evidence);
+      this.publishRun(seq, evidence);
       throw new Error(`[${this.config.name}] GRAPH_LOAD_FAILED: ${String((e as Error).message ?? e)}`);
     }
     this.log("GRAPH_EXTRACT_DONE", { nodeCount: graph.nodes.length, edgeCount: graph.edges.length, durationMs: Date.now() - t0 }, evidence);
