@@ -1182,3 +1182,32 @@ count does not reach zero on its own; the measure is the CONFIRMED defects fixed
 
 **★ THE GOAL IS NOT COMPLETE.** Five of six stop-conditions are green, measured; the sixth (the audit
 at 0/0) is not. **The goal stays ACTIVE** — "5 of 6" is not a redefinition of success.
+
+---
+
+## ★★★ RUN-20 TRIAGE — THE NAMED REMAINDER (20 fixed · 10 adjudicated · ~14 open)
+
+**THE SESSION'S CLOSE STATE:** dist 47bf33443f4e9e83 · 752 KB · tsc 0 · battery 441/0 + 539/0
+(7121 expect() calls) · goal-verify 5/5 · the register consumed:7/8 · the ledger distinct=4 · the seal
+sha-matched.
+
+**THE ~14 OPEN (each a small, same-class fix — NAMED so the next pass starts here):**
+| # | file:line | the finding | the class |
+|---|---|---|---|
+| [3] | hydra/auditor.ts:200 | `grep -p` is GNU-only (fails on BSD/macOS) | portability |
+| [15] | hunter/keys/go-key-pool.ts:473 | the F-941b sentinel UPDATE target (SUBTLE — needs the displacement semantics read) | pool rotation |
+| [16] | hunter/keys/go-key-pool.ts:160 | the sidecar ELOOP handling differs cached-vs-fresh | symmetry |
+| [17] | hunter/harness/scan.ts:176 | `batteryVersion` is pre-calibration vs the post-calibration `liveBattery` | semantic mismatch |
+| [20] | omp/populate.ts:68 | `openTypedStore` throwing escapes the `PopulateResult` contract | error contract |
+| [22] | omp/adapters/corbell.ts:22 | `assertStoreFresh` in facts() but not up() (SUBTLE — up is liveness, facts is consumption) | symmetry |
+| [23] | omp/adapters/corbell.ts:16 | `scopeRoot` joined without normalization | containment |
+| [28] | omp/jev.ts | ALREADY FIXED ([26] the short-answer guard) | — |
+| [29] | omp/store-open.ts:100 | `findGiSessionByStorePath` returning null after upsert | verify-after-write |
+| [32] | omp/adapters/kev.ts:103 | `execFileSync` blocks the loop (DOCUMENTED with its remedy) | documented |
+| [40] | kernel/graph-test-target.ts:99 | `degreeOf` fallback OUTSIDE the try/catch | error coverage |
+| [41] | kernel/scan-chain.ts:55 | ALREADY FIXED ([39] the auth cache) | — |
+| [42] | kernel/graph-pre-flight.ts:74 | `q.truncated` from whoCallsInDb unchecked | truncation |
+| [43] | scoping/scoped-store.ts:228 | the ROLLBACK-failure catch does not call `closeStoreDb()` | lifecycle |
+
+**★ THE MEASURE.** Run 19 half A = 23 highs → run 20 half A = 11 highs. **The fixes landed and the code
+measurably improved.** The audit gate remains the ONE open stop-condition; the goal STAYS ACTIVE.

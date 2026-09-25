@@ -96,7 +96,17 @@ const degreeOf = (label: string): number => {
   //   typed-write.ts:798 `{ rows: number; names; callers }`), NOT a rows array — the
   //   audit misread the API. The original `d = .rows` was correct; `callers` is the array.
   //   Reached only when the batch path above missed (empty store or batch fallback).
-  const d = whoCallsInDb(db, label).rows;
+  // ★ R20-HIGH FIX (2026-09-25): the batch path is guarded (try/catch above) but THIS fallback
+  //   called whoCallsInDb UNGUARDED — a malformed row or a closed handle threw out of degreeOf
+  //   during the map phase. Guard it: a failed count is 0 (the safe floor — an unknown degree must
+  //   not abort the target selection), LOUD on stderr.
+  let d = 0;
+  try {
+    d = whoCallsInDb(db, label).rows;
+  } catch (e) {
+    console.error(`[gi-omp] getTestTargets: degreeOf('${label}') failed — counting 0 (${e instanceof Error ? e.message : String(e)})`);
+    d = 0;
+  }
   degreeCache.set(label, d);
   return d;
 };

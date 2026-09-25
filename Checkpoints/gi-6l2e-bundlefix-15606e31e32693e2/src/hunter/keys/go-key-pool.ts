@@ -158,7 +158,15 @@ function db(sessionId?: string): Database {
       // chmodding the victim through the link.
       hardenPoolFile(want);
       for (const side of [want + '-wal', want + '-shm']) {
-        try { hardenPoolFile(side); } catch { /* sidecar absent — best-effort */ }
+        try { hardenPoolFile(side); } catch (sideErr) {
+          // ★ R20-HIGH FIX (2026-09-25): the fresh-open path treats a planted sidecar symlink
+          //   (ELOOP) as a FAIL-CLOSED refusal, but this cached path swallowed ALL errors as
+          //   "sidecar absent". A sidecar ELOOP here means the cached handle's sidecar was swapped
+          //   for a link — the SAME plant the fresh path refuses. Re-raise ELOOP (the outer catch
+          //   drops the handle + reopens fresh); an absent sidecar stays best-effort.
+          const code = (sideErr as NodeJS.ErrnoException).code;
+          if (code === 'ELOOP') throw sideErr;
+        }
       }
       return hit;
     } catch (swapErr) {

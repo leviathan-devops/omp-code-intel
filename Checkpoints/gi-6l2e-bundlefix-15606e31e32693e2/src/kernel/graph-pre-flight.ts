@@ -72,6 +72,11 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
     const warnings: string[] = [];
     if (srcIdsTruncated) warnings.push(`USES TRUNCATED: the label ${target} resolves to more than ${SRC_ID_CAP} live canonical IDs — the uses count covers the first ${SRC_ID_CAP} only (the raw-fan-in is larger than reported)`);
     if ((imp as { truncated?: boolean }).truncated === true) warnings.push(`IMPACT TRUNCATED: blast-radius ledger capped at 5000 rows — reachability UNDER-REPORTED for ${target}; commit strategy may be too lenient`);
+    // ★ R20-HIGH FIX (2026-09-25): `q.truncated` (whoCallsInDb over >500 canonical IDs) was NEVER
+    //   checked — only `imp.truncated` above. A direct-inbound count from a truncated whoCalls
+    //   UNDER-REPORTS callers, and `directInbound` drives the commit strategy, so an under-count
+    //   reads as a smaller blast radius than the truth. Named, like its sibling.
+    if ((q as { truncated?: boolean }).truncated === true) warnings.push(`CALLERS TRUNCATED: who-calls resolved more than 500 canonical IDs for ${target} — directInbound UNDER-REPORTED; commit strategy may be too lenient`);
     if (q.rows === 0 && uses === 0) warnings.push(`NO CONSUMERS: ${target} has zero callers and zero uses — dead-code candidate, safe-delete before building on it`);
     if (imp.reaches >= 50) warnings.push(`WIDE BLAST RADIUS: ${imp.reaches} nodes reached — architectural review required before coding`);
 

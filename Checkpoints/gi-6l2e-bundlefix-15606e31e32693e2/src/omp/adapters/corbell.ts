@@ -13,7 +13,12 @@ import type { ConsumerProbe, LayerFact } from "../layer-registry.ts";
 import { assertStoreFresh, probePath, storeFacts } from "./_shared.ts";
 
 export function corbellProbe(scopeRoot: string): ConsumerProbe {
-  const storePath = path.join(scopeRoot, CORBELL_CHECKOUT_REL);
+  // ★ R20-HIGH FIX (2026-09-25): scopeRoot was joined RAW — a `..` segment (or a relative form)
+  //   could probe a location outside the intended scope. Normalize + require an ABSOLUTE path; a
+  //   non-absolute input is a caller bug, refused LOUD (the probe is a read surface, not a resolver).
+  if (!path.isAbsolute(scopeRoot)) throw new Error(`GI_LAYER_CORBELL: scopeRoot must be absolute, got '${scopeRoot.slice(0, 120)}'`);
+  const normalizedRoot = path.resolve(scopeRoot);
+  const storePath = path.join(normalizedRoot, CORBELL_CHECKOUT_REL);
   return {
     id: "L5_CORBELL",
     rung: "settlement",

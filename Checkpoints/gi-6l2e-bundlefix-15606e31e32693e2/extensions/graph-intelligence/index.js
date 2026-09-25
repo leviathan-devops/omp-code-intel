@@ -9651,7 +9651,7 @@ function makeCappedGrepTool(targetRoot) {
       const rootReal = realResolve(path36.resolve(targetRoot));
       let out = await run("rg", ["-n", "--no-follow", "--max-count", String(maxResults), "--", pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-p", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-I", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
       }
       if (!out.startsWith("SEARCH_FAILED")) {
         const kept = [];
@@ -11614,6 +11614,16 @@ function openSessionStore(input) {
       }
     }
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`);
+  }
+  if (!written) {
+    if (created) {
+      try {
+        fs4.unlinkSync(storePath);
+      } catch (e) {
+        console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} was not persisted to the registry (upsert wrote no row for ${ownerKey})`);
   }
   return { storePath, ownerKey, created };
 }
@@ -14265,26 +14275,34 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
   }
   const corbell = populateFromCorbellCheckout(storePath, root, runTag);
   if (corbell.ok) {
-    const db = openTypedStore(storePath);
+    let db = null;
     let metaDegraded = false;
     try {
-      db.exec("BEGIN IMMEDIATE;");
+      db = openTypedStore(storePath);
+    } catch (openErr) {
+      metaDegraded = true;
+      console.error(`[gi-omp] GI_META_WRITE_FAILED: could not open ${storePath} for the meta write (${openErr instanceof Error ? openErr.message : String(openErr)}) \u2014 data populated, meta degraded`);
+    }
+    if (db !== null) {
       try {
-        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
-        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
-        db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
-        db.exec("COMMIT;");
-      } catch (e) {
+        db.exec("BEGIN IMMEDIATE;");
         try {
-          db.exec("ROLLBACK;");
+          db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
+          db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
+          db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
+          db.exec("COMMIT;");
+        } catch (e) {
+          try {
+            db.exec("ROLLBACK;");
+          } catch {}
+          metaDegraded = true;
+          console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
+        }
+      } finally {
+        try {
+          db.close();
         } catch {}
-        metaDegraded = true;
-        console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
       }
-    } finally {
-      try {
-        db.close();
-      } catch {}
     }
     console.error(`[gi-omp] populate substrate=corbell checkout=${corbell.checkoutPath} nodes=${corbell.nodes} edges=${corbell.edges}`);
     return {
@@ -18558,7 +18576,10 @@ function escapeLike(s) {
 
 // src/omp/adapters/corbell.ts
 function corbellProbe(scopeRoot) {
-  const storePath = path25.join(scopeRoot, CORBELL_CHECKOUT_REL);
+  if (!path25.isAbsolute(scopeRoot))
+    throw new Error(`GI_LAYER_CORBELL: scopeRoot must be absolute, got '${scopeRoot.slice(0, 120)}'`);
+  const normalizedRoot = path25.resolve(scopeRoot);
+  const storePath = path25.join(normalizedRoot, CORBELL_CHECKOUT_REL);
   return {
     id: "L5_CORBELL",
     rung: "settlement",
