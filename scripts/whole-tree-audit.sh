@@ -47,10 +47,24 @@ worker() {
     f=$(flock /tmp/w3queue.lock -c "head -1 $QLIST; sed -i 1d $QLIST" 2>/dev/null)
     [ -z "$f" ] && break
     local pf="$PARTS/$(echo "$f" | tr '/' '_').json"
-    timeout 1800 ocr scan --path "$f" --provider ${AUDIT_PROVIDER:-muse-free} --format json 2>/dev/null \
-      | head -c 300000 > "$pf"
-    # ★ the EMPTY-RESULT law: a 0-byte part is recorded as an explicit marker, so a
-    #   re-audit can tell "the scan returned nothing" from "the file was never scanned".
+    # ★ THE RATE-LIMIT RETRY (measured 2026-09-25): the zen-free tier answers
+    #   FreeUsageLimitError 429 after a sustained burst (run 16: 25 files at 12 workers,
+    #   then 57 EMPTY). A 0-byte part is RETRIED with backoff instead of being recorded
+    #   as empty — the free tier RECOVERS, so the retry is the correct response, not a
+    #   different lane.
+    local attempt=0
+    while [ "$attempt" -lt 4 ]; do
+      timeout 1800 ocr scan --path "$f" --provider ${AUDIT_PROVIDER:-muse-free} --format json 2>/dev/null \
+        | head -c 300000 > "$pf"
+      [ -s "$pf" ] && break
+      attempt=$((attempt + 1))
+      printf "  [%s] w%s RETRY %d %s (rate limit)\n" "$(date +%H:%M:%S)" "$id" "$attempt" "$f"
+      # backoff: 45s, 90s, 180s — paced under the free tier's window
+      sleep $((45 * attempt))
+    done
+    # ★ the EMPTY-RESULT law: a part still empty after the retries is recorded as an
+    #   explicit marker, so a re-audit can tell "the scan returned nothing" from
+    #   "the file was never scanned".
     [ -s "$pf" ] || printf '{"comments":[],"note":"EMPTY_RESULT"}' > "$pf"
     printf "  [%s] w%s %s (%sB)\n" "$(date +%H:%M:%S)" "$id" "$f" "$(wc -c < "$pf")"
   done
