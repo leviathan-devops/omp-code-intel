@@ -597,3 +597,39 @@ site has not fixed the class — count the throw sites of the kind it names befo
 path) · kernel-v2.ts:550 (prose-keyed classification) · the duplication set (query-engine ×2,
 fixture-calibration, layer-registry) · micro-loop-machine.ts:451 (the DbClient residual, which the
 st-hunter-port pin deliberately holds open).
+
+---
+
+## ★★ RUN-19 PROGRESS — 32 OF 37 ADDRESSED (30 fixed + 2 refuted)
+
+**HEAD `ee5ad19` · uncommitted 0 · dist `a5b3382bda79c52d` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 31  engine.ts:755 + db.ts   THE EDGE'S ANCHOR — the loss was STRUCTURAL and FOUR LINKS LONG, each
+                             invisible from the one before it:
+                               1. the DDL    graph_edges stored endpoints+kind+lineage only: no file, no line
+                               2. the write  inserted 4 columns
+                               3. the read   selected 4 columns
+                               4. the MAP    built the edge from 4 fields and DISCARDED the anchor
+                                             in the same expression — even after the SELECT was
+                                             taught to read it
+                             Fixed at all four + an idempotent column-existence migration (CREATE
+                             TABLE IF NOT EXISTS cannot ALTER an existing table).
+                             PROBE: write an edge with file:'src/a.ts' line:7 -> read the raw row:
+                             {"file":"src/a.ts","line":7} — THE ANCHOR SURVIVES THE STORE.
+```
+
+**★ THE FOUR-LINK PATTERN (a fifth method note):** a value that is "lost" is lost at **one link of
+a chain** (DDL → write → read → map) — and fixing the links you can see still yields the loss if
+the map discards it. **Trace the value end to end; the bug is the link you did not check.**
+
+**THE FIVE METHOD NOTES, each earned in this run:**
+1. the **differential probe** (old vs new over a matrix)
+2. the **refutation by suspension point** (count the `await`s)
+3. the **inherited-fix pattern** (look one layer down)
+4. the **one-site-of-three pattern** (count the sites of the kind the finding names)
+5. the **four-link pattern** (trace the value through the whole chain)
+
+**THE REMAINING 5** are in `artifacts/r19-full-slices/`: kernel-v2.ts:550 (prose-keyed
+classification) · the duplication set (query-engine ×2, fixture-calibration, layer-registry) ·
+micro-loop-machine.ts:451 (the DbClient residual, pinned open by st-hunter-port).
