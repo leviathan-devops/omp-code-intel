@@ -126,3 +126,37 @@ R3HydraKernelScoping2 (the same 87 highs, the same disjoint slices).
 ★ **THE RESTART LESSON (recorded):** the host restart killed the au-engine daemon (L2's Rust
 per-repo serve process) — the substrate, not the code. `au daemon start <repo>` restores it.
 The audit5 run is now measuring the post-wave tree.
+
+
+---
+
+## ★ THE 2026-09-25 RUN — THE PIN'S BASELINE IS STALE; W1/W2/W4 VERIFIED BY THE ORCHESTRATOR
+
+**The baseline re-measured from disk (the pin's numbers were frozen at 2026-09-24):**
+
+| the number | the pin (frozen) | DISK (measured 2026-09-25) |
+|---|---|---|
+| HEAD | 2cc1fee | **2ec8cc3** |
+| the dist | e13d0f5939e3707b | **1c73723445f65973** |
+| the tree | 112 .ts / 27686 L | **113 .ts / 33616 L** |
+| the ledger | 34 rows · 1 distinct | **168 rows · 4 distinct** |
+| C1 stdout | PASS consumed:8 (contradicts its detail) | **PASS + detail both honest-phrased** |
+
+**THE GATES THE ORCHESTRATOR RE-RAN (builder-under-audit — not trusted, re-executed):**
+
+```
+bun test -t test_goal_predicate ................ 4 pass / 0 fail   (434 filtered)
+bun test -t test_goal_predicate_honest_text .... 1 pass / 0 fail   (437 filtered)
+bun test -t test_ledger_diversity_four_verdicts  1 pass / 0 fail   (437 filtered)
+sqlite3 fire_decisions: 168 rows · 4 DISTINCT (rule_id,band,action):
+     kernel-v2:benign:ALLOW|ignore|IGNORE        ×1
+     kernel-v2:destructive:REFUSE|act|FIRE       ×1
+     kernel-v2:theatrical:REFUSE|act|FIRE        ×1
+     kernel-v2:dumb:STEER|escalate|ESCALATE      ×165
+```
+
+**THE STATE:** W1 ★DONE · W2 ★DONE · W4 ★DONE (honest 6/8) · **W3 = THE CRITICAL PATH.**
+
+**W3's position:** the board's last read was `FAIL (6 critical, 82 high)` across 105 files — from
+the OLD audit. Since then the R14/R15/R16 waves fixed ~120 findings (~54 src files changed,
+battery 438/0 + 536/0 exit 0, tsc 0). **A FRESH whole-tree audit (RUN 17) is now the gate.**
