@@ -431,6 +431,13 @@ export async function readFindingsReport(
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
   }
+  // ★ R20-HIGH FIX (2026-09-25): the read was UNBOUNDED — a giant (or /dev/zero-like) report
+  //   materialized the whole file into a string. Bound it by the stat we already took; a report
+  //   above the ceiling is a NAMED failure, never an OOM.
+  const MAX_REPORT_BYTES = 64 * 1024 * 1024;
+  if (stat.size > MAX_REPORT_BYTES) {
+    throw new Error(`REPORT_PARSE_FAILED: report too large (${stat.size}B > ${MAX_REPORT_BYTES}B) — refusing to materialize`);
+  }
   const raw = fs.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0) throw new Error("REPORT_PARSE_FAILED: empty file");
   const { candidates, summary } = parseFindingsMarkdown(raw);

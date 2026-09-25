@@ -62,7 +62,11 @@ function readAuthFile(): Record<string, { key?: string }> {
     cachedAuth = raw;
     return raw;
   } catch {
-    cachedAuth = null;
+    // ★ R20-HIGH FIX (2026-09-25): the failure was CACHED PERMANENTLY — `cachedAuth = null` made the
+    //   guard at the top return `{}` forever, so a TRANSIENT read failure (the auth file not yet
+    //   written, a momentary EACCES) became a permanent "no key" for the process lifetime. Leave the
+    //   cache UNSET on failure so the next call retries (a successful read still caches).
+    cachedAuth = undefined;
     return {};
   }
 }

@@ -381,7 +381,17 @@ export function loadGateState(storePath: string, sessionId: string): GraphGateSe
       if (typeof r.tool !== "string" || typeof r.target !== "string") throw new Error("GI_GATE_STATE_SHAPE: bad query.tool/target");
       return { timestamp: r.timestamp, tool: r.tool, target: r.target, resolved: r.resolved === true };
     });
-    if (typeof row.drift !== "number" || !Number.isFinite(row.drift)) throw new Error("GI_GATE_STATE_SHAPE: bad drift");
+    // ★ R20-HIGH FIX (2026-09-25): drift was validated for TYPE+FINITE only — a tampered row with
+    //   drift = -1e9 (or 1e9) poisoned the gate's escalation arithmetic. A drift is a non-negative
+    //   accumulated weight; anything outside [0, a sane ceiling] fails CLOSED (the catch → null).
+    if (typeof row.drift !== "number" || !Number.isFinite(row.drift) || row.drift < 0 || row.drift > 1e6)
+      throw new Error(`GI_GATE_STATE_SHAPE: bad drift=${String(row.drift)} (must be a finite number in [0, 1e6])`);
+    // ★ R20-HIGH FIX (2026-09-25): editLog/graphQueries were shape-checked but UNCAPPED — a tampered
+    //   row with 10M entries would materialize unbounded on load. Cap to the same ceiling the live
+    //   gate uses (the last N events matter; older ones have decayed anyway).
+    const MAX_LOG = 10_000;
+    if (rawEdits.length > MAX_LOG || rawQueries.length > MAX_LOG)
+      throw new Error(`GI_GATE_STATE_SHAPE: log too large (edits=${rawEdits.length} queries=${rawQueries.length} > ${MAX_LOG})`);
     if (!STATES.has(row.state)) throw new Error(`GI_GATE_STATE_SHAPE: bad gateState=${JSON.stringify(row.state)}`);
     return { editLog, graphQueries, gateState: row.state, drift: row.drift };
   } catch (e) {

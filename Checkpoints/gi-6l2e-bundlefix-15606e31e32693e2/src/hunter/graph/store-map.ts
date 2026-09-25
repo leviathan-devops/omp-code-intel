@@ -116,6 +116,14 @@ export function edgeEvidence(edge: GraphEdge, nodesById: Map<string, GraphNode>)
   ) {
     try {
       let lines = edgeEvidenceLineCache.get(file);
+      if (lines) {
+        // ★ R20-HIGH FIX (2026-09-25): the cache claimed LRU but the eviction was FIFO — a HIT did
+        //   not refresh recency, so a hot file used once early was evicted before a cold one. A true
+        //   LRU re-inserts the entry on hit (Map preserves insertion order → the front is least-
+        //   recently-used). The comment and the behavior now agree.
+        edgeEvidenceLineCache.delete(file);
+        edgeEvidenceLineCache.set(file, lines);
+      }
       if (!lines) {
         // ★ R15 FIX: the unbounded whole-file read blocked the loop, OOM'd on large
         //   files, and followed any absolute path the adapter supplied with a stale

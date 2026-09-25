@@ -4303,7 +4303,12 @@ function openStore(dbPath) {
       }
     }
   } catch (e) {
-    console.error(`[gi-omp] DDL MIGRATION SKIPPED for graph_edges (handle cannot introspect): ${e instanceof Error ? e.message : String(e)}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/no such table/i.test(msg)) {
+      console.error(`[gi-omp] DDL MIGRATION: graph_edges absent (fresh store) \u2014 created by the DDL below`);
+    } else {
+      throw new Error(`GI_DDL_MIGRATION_FAILED: graph_edges migration faulted on an existing store \u2014 ${msg}`);
+    }
   }
   handle.exec(TYPED_GRAPH_DDL);
   return new SharedDb(dbPath, handle);
@@ -9862,6 +9867,10 @@ async function readFindingsReport(reportPath, schema) {
     stat = fs31.statSync(reportPath);
   } catch {
     throw new Error("HUNTER_NO_REPORT: " + reportPath);
+  }
+  const MAX_REPORT_BYTES = 64 * 1024 * 1024;
+  if (stat.size > MAX_REPORT_BYTES) {
+    throw new Error(`REPORT_PARSE_FAILED: report too large (${stat.size}B > ${MAX_REPORT_BYTES}B) \u2014 refusing to materialize`);
   }
   const raw = fs31.readFileSync(reportPath, "utf-8");
   if (raw.trim().length === 0)
@@ -18844,13 +18853,18 @@ function tsgKey(env = process.env) {
       return v.trim();
   }
   try {
-    const st = fs25.lstatSync(KEY_FILE);
-    if (st.isSymbolicLink())
-      return null;
-    if ((st.mode & 63) !== 0)
-      return null;
-    const v = fs25.readFileSync(KEY_FILE, "utf8").trim();
-    return v.length > 0 ? v : null;
+    const fd = fs25.openSync(KEY_FILE, fs25.constants.O_RDONLY | fs25.constants.O_NOFOLLOW);
+    try {
+      const st = fs25.fstatSync(fd);
+      if (!st.isFile())
+        return null;
+      if ((st.mode & 63) !== 0)
+        return null;
+      const v = fs25.readFileSync(fd, "utf8").trim();
+      return v.length > 0 ? v : null;
+    } finally {
+      fs25.closeSync(fd);
+    }
   } catch {
     return null;
   }

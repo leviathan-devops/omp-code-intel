@@ -1107,3 +1107,23 @@ cannot be trusted across a wrapper boundary). **FIXED with the codebase's own fa
 **THE VERIFICATION:** tsc 0 · battery 441/0 + 539/0 (exit 0) · dist `1a889a8fb07099cc` (748K).
 **★ THE STATE: the full-tree audit is 1 critical (now FIXED) / 44 high (3 fixed, 2 adjudicated, ~39
 open).** The convergence continues; each run samples a fresh comment set.
+
+---
+
+## ★★ RUN-20 HIGH TRIAGE — PROGRESS (11 fixed, 3 adjudicated, ~30 open)
+
+**FIXED (11):** [CRIT] the fail-closed BEGIN · [1] `cwd` in the predicate regex · [2] the report read
+size-bounded · [10] the unused import · [14] LRM+RLM bidi marks · [24] drift range · [25] log caps ·
+[37] `mustBeFile` on L3_UA/L4_C2KG · [11] the buildLocalGraph TOCTOU (earlier) · plus the 2 from the
+first batch.
+**ADJUDICATED NOT-A-BUG (3):** [5] `query-engine.ts` "SQL injection" (the values are `?`-bound) ·
+[4] `store-map.ts` "LRU vs FIFO" (the eviction IS FIFO; the comment is imprecise) · [33]
+`gi-ecosystem.ts` mkdir mode (ALREADY carries `mode: 0o700`).
+
+**★ THE PATTERN IN THE FINDINGS.** A large share are the SAME classes across different files:
+- **unbounded reads** ([2] the report, [21] the evidence append, [34]/[35] the adapter reads)
+- **property-vs-fail-closed guards** ([CRIT] the txn nesting, [39] the auth cache)
+- **TOCTOU resolve-then-read** ([11] fixed, [34] tsg, [35] semantica)
+- **containment checks** ([23] corbell scopeRoot, [9] the DDL migration)
+Each fix is small; the CLASS is the work. **THE FIX ORDER: the security classes first (the unbounded
+reads + the TOCTOU + the containment), then the logic bugs.**

@@ -371,10 +371,13 @@ export function buildRegister(cfg: RegisterConfig): ComponentDecl[] {
     // ★ F-269 FIX (2026-09-24): HOME bypassed the injectable `env` — hermetic tests could not stub it. env first, process.env fallback, literal last.
     liveSocketComponent("L2_ARSUMBRIS", "layer", "the au daemon socket + its typed repo graph", "GI_LAYER_ARSUMBRIS",
       join(env.HOME ?? process.env.HOME ?? "/home/leviathan", ".arsumbris/au-host/run")),
+    // ★ R20-HIGH FIX (2026-09-25): both are FILE paths but lacked the mustBeFile constraint the
+    //   other file components carry — a DIRECTORY at that path read as UP. A file component must
+    //   be a file.
     pathComponent("L3_UA", "layer", "the understand-anything graph (.ua/knowledge-graph.json)", "GI_LAYER_UA",
-      join(cfg.scopeRoot, ".ua/knowledge-graph.json")),
+      join(cfg.scopeRoot, ".ua/knowledge-graph.json"), { mustBeFile: true }),
     pathComponent("L4_C2KG", "layer", "the code-to-knowledge-graph LSP index", "GI_LAYER_C2KG",
-      join(cfg.scopeRoot, ".c2kg/index.json")),
+      join(cfg.scopeRoot, ".c2kg/index.json"), { mustBeFile: true }),
     // ★ the CONSUMER's authority: populate-corbell.ts writes/reads CORBELL_CHECKOUT_REL.
     //   The register probed `corbell-out` — a path no code creates — so it could NEVER
     //   report L5 UP however the substrate was populated.
