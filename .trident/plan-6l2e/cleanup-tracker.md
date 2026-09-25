@@ -923,3 +923,14 @@ The checkpoint `gi-6l2e-redteam-closed-e13d0f5939e3707b` predates the container 
 (`.abide/events.jsonl` is 64.7 MB, fresh, and ABIDE consumes 1002 facts for `CLAIM_SLOP`). **A seal
 whose gap list names a resolved blocker is a stale seal; P7 re-seals with the current dist + the
 corrected gaps.**
+
+**★ P6 ITEM — THE CANON DOCS' DIST SHA IS INCONSISTENT (measured this turn).**
+```
+  current dist:                    574dc94c008133d2
+  context_management refs:         04840c57105a7837 × 54  ·  e13d0f5939e3707b × 6
+```
+The canon references TWO stale SHAs, not one — so the DOC CONTRACT's *"the 5 read-first docs agree on
+the dist SHA"* is violated in BOTH directions (stale AND self-inconsistent). **The update runs ONCE,
+after run 20 finalizes the dist** (a fix now would be overwritten if the audit lands a defect): the
+STATE docs move to the current SHA, the LOGS keep their historical SHAs (an append-only record is not
+retroactively rewritten).
