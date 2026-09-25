@@ -200,13 +200,15 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     // ── M-GRAPH-2 · HAS-READER ─────────────────────────────────────────────────
     if (input.intent === "declare") {
       // ★ A DECLARED FIELD WITH NO READER IS THE D-6 CLASS: config promising consumption.
-      // ★ F-1207 FIX (2026-09-25): the FIRE condition was `outD === 0 && inD.n === 0` — but a
-      //   READER is an incoming edge (inD); out-edges are what the symbol itself references,
-      //   irrelevant to whether anyone reads it. A declared field with outD > 0 and inD == 0
-      //   (nothing reads it) fell into IGNORE with the reason "is referenced" — contradicted by
-      //   its own evidence (in-degree 0). Fire on inD.n === 0. The FIRE reason keeps the
-      //   battery-pinned "declared, never consumed" token; the evidence now names both degrees.
-      verdicts.push(inD.n === 0
+      // ★ F-1207 REVERTED (2026-09-25): the reviewer claimed a declared symbol with outD>0 and
+      //   inD==0 should FIRE. THE PINNED CORPUS REFUTES IT: the NEG-2 fixture
+      //   (`referencedField`, intent=declare, WITH an outgoing `references` edge) is
+      //   battery-pinned to **IGNORE** with the reason "a declared symbol WITH references" —
+      //   the store's semantics treat an OUTGOING usage as evidence the declaration is LIVE
+      //   (a field that references other things is wired by its own use). F-1207's `inD === 0`
+      //   fired on NEG-2 and broke st-gi-6l2e (27/1). A pin is a CONTRACT: the reviewer read the
+      //   edge direction, not the corpus. Condition restored.
+      verdicts.push(outD === 0 && inD.n === 0
         ? { rule: "M-GRAPH-2", settles: true, action: "FIRE",
             reason: `the declared symbol "${input.target}" has ZERO incoming edges — declared, never consumed`,
             evidence: `in-degree 0 · out-degree ${outD}` }
