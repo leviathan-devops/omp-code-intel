@@ -354,3 +354,40 @@ edits between the two occurrences was verified green on a re-run.
 
 **THE RUN-19 TOTAL: 13 of 37 highs fixed, each with its mechanism. The remaining ~24 are in
 `artifacts/r19-full-slices/`.**
+
+---
+
+## ★★ RUN-19 PROGRESS — 16 OF 37 HIGHS FIXED (the accurate count)
+
+**HEAD `a34b1b1` · uncommitted 0 · dist `bc953b15a193785c` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+**THE FIXED FINDINGS, ONE PER LINE (the count is 16, not 19 — the paired ones were two findings
+against one fix site, and the count states findings):**
+```
+  1  ontology.ts:17      has_finding was outside PREDICATE_SET
+  2  ontology.ts:24      isPredicate() blind to it (a validator contradicting the schema)
+  3  strike.ts:46        Object.entries(null) THREW mid-merge
+  4  fire-gate.ts:542    the timer's rejection unobserved (an unhandled rejection)
+  5  gi-ecosystem.ts:16  GI_TMP_DIR exported raw
+  6  gi-ecosystem.ts:37  the scratch base mkdir'd with NO mode (umask → world-searchable)
+  7  gi-session-path:84  the catch swallowed every realpath error (guard SILENTLY SKIPPED)
+  8  typed-write.ts:404  both backfill catches swallowed everything (silent NULL layer_id)
+  9  resolver.ts:80      entity ids/labels interpolated RAW into the SRO prompt (injection)
+ 10  tsg.ts:53           a bare readFileSync(KEY_FILE) (followed a plant, no mode check)
+ 11  migrations.ts:128   my unconditional assertion created a FALSE FAILURE (+ a pin re-spec)
+ 12  db.ts:819           the family-read catch returned a degraded union as if EMPTY
+ 13  mechanical.ts:216   `export default class/function` produced no exports edge
+ 14  mechanical.ts:272   member/qualified calls (A.B()) produced NO call edge
+ 15  readonly.ts:75      the BIDI/Trojan-Source disguise (ASCII-only scan)
+ 16  gate-hook.ts:122    the cancel path discarded every steer for the tool, not the call
+```
+
+**★★ THE PROBE THAT CAUGHT MY OWN WRONG FIX.** Finding 15's first attempt edited the BYPASS set —
+but for a READ verb the scan takes the NARROW arm and **returns before that set is reached**, so
+the probe still read `ALLOW_READ` on an RLO-laced `cat`. Fixed with `FORMAT_CONTROL_CHARS`
+checked in BOTH arms, and NOT the C0 range (which contains SPACE and TAB — refusing those would
+block every read carrying an argument separator). **PROBE, both halves: plain read ALLOWS; RLO,
+LRI, zero-width, and pipe all BLOCK.** The lesson is the one this run keeps re-teaching: a fix
+without its probe is a hypothesis.
+
+**THE REMAINING 21** are in `artifacts/r19-full-slices/`.
