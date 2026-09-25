@@ -590,8 +590,11 @@ export class CalibrationGate {
       'INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)',
     );
     const runId = `calibration-${fixtureVersion}`;
-    db.exec('BEGIN IMMEDIATE');
     try {
+      // ★ R20-HIGH FIX (2026-09-25): BEGIN IMMEDIATE was OUTSIDE the try, so a throw there (a bad
+      //   connection, or a prior transaction still open on this handle) escaped with the prepared
+      //   statement live and NO ROLLBACK. Inside the try, the catch's ROLLBACK path covers it.
+      db.exec('BEGIN IMMEDIATE');
       for (const r of records) {
         ins.run(r.predicateId, 'FIRE', r.fire.fixtureAnchor, r.fire.fired ? 'FIRED' : 'MISS', r.fire.evidence, runId, this.calibratedAt);
         ins.run(r.predicateId, 'SILENT', r.silent.goldenFixture, r.silent.findings === 0 ? 'SILENT' : 'FALSE-FIRE', r.silent.evidence, runId, this.calibratedAt);

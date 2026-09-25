@@ -154,6 +154,11 @@ export async function scan(
       //   is now a LOUD named error: the scan refuses instead of reporting on a
       //   battery it never validated.
       const msg = calErr instanceof Error ? calErr.message : String(calErr);
+      // ★ R20-HIGH FIX (2026-09-25): HUNT_NO_COVERAGE is a COVERAGE VERDICT, not a calibration FAULT —
+      //   but it was thrown INSIDE this try, so the broad catch re-wrapped it as
+      //   SCAN_CALIBRATION_FAILED and the caller lost the distinction (a healthy gate that flagged
+      //   everything looked identical to a broken gate). A verdict token passes through verbatim.
+      if (msg.startsWith('HUNT_NO_COVERAGE:')) throw calErr;
       console.warn(`[scan] D17 calibration gate failed: ${msg}`);
       throw new Error(`SCAN_CALIBRATION_FAILED: the D17 gate faulted (${msg.slice(0, 200)}) — the battery is unvalidated, refusing the run`);
     }

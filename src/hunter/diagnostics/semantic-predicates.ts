@@ -88,8 +88,11 @@ export const P1: PredicateTemplate = {
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if ((lines[i] ?? '').includes('process.cwd()')) {
         const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 12)).join('\n');
+        // ★ R20-HIGH FIX (2026-09-25): the symbol list must MATCH P1_SPEC.callSymbols (line 74) — RM/EXISTS
+        //   were in the spec but omitted from BOTH alternatives, so an .trident rm/exists window was a
+        //   false negative (the F-840 class: one list, two spellings, drift between them).
         // ★ F-840 FIX (2026-09-24): second alternative mirrored the first — it missed appendFile(Sync)?, createWriteStream, resolve, so `.trident`+appendFile/resolve windows were false negatives while the forward direction fired.
-        if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve)/.test(win)) {
+        if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve)/.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.process-cwd-persistence', sev);
           findings.push({ ruleId: 'semantic.process-cwd-persistence', severity: sev, file, line: i + 1, evidence: evEdge('semantic.process-cwd-persistence', file, i + 1, lines[i]!.trim(), 'HT-BUG-3b/15', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }

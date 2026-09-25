@@ -660,9 +660,19 @@ export function buildLocalGraph(root: string): { nodes: GraphNode[]; edges: Grap
     //   while import-edge targetIds use path.posix — normalize once (no-op on POSIX)
     //   so `keptIds` matches and the edge is not silently dropped.
     const rel = path.relative(root, abs).split(path.sep).join('/');
+    // ★ R20-HIGH FIX (2026-09-25): the read used `abs` (the walked spelling) with NO containment —
+    //   the same TOCTOU class F-441/F-550 closed elsewhere: a symlink swapped between the walk and
+    //   the read opens an inode outside the tree. Resolve + contain, then read the RESOLVED path.
+    let fileReal = abs;
+    try { fileReal = fs.realpathSync(abs); } catch { /* the read below reports it loud */ }
+    // the root containment for THIS function (violationFrequencies has its own closed-over copy)
+    const rootReal = fs.realpathSync(root);
+    const rootPrefix = rootReal + path.sep;
+    const insideRoot = fileReal === rootReal || fileReal.startsWith(rootPrefix);
+    if (!insideRoot) throw sourceReadFailed(abs, `symlink escapes project root (file=${fileReal})`);
     let text: string;
     try {
-      text = fs.readFileSync(abs, 'utf8');
+      text = fs.readFileSync(fileReal, 'utf8');
     } catch (e: unknown) {
       // ★ F-43 FIX (2026-09-24): fail-closed per this file's law — an unreadable
       // ★ source is SOURCE_READ_FAILED, never a skipped file behind console.error.

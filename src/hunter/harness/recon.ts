@@ -118,9 +118,20 @@ export function recon(profilePath: string): IntendedBehavior {
   //   spelling in root must not redirect the store write). Never fires past the
   //   loader's root check; defense-in-depth against a hand-edited root.
   const projectRootResolved = path.resolve(profile.project.root);
-  const dbPath = path.resolve(projectRootResolved, '.trident', 'knowledge-graph', 'shared.db');
-  if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path.sep)) {
-    throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath})`);
+  // ★ R20-HIGH FIX (2026-09-25): the containment check was STRING-based — `path.resolve` collapses
+  //   `..` but follows NO symlink, so a symlinked project root (or a symlink in `.trident/`) could
+  //   redirect the store write while the string prefix still matched. realpath the root first (the
+  //   SAME shape as assertInsideProject), then contain against the REAL prefix. A missing root is a
+  //   named failure, never a silent pass.
+  let projectRootReal: string;
+  try {
+    projectRootReal = fs.realpathSync(projectRootResolved);
+  } catch (e) {
+    throw new Error(`recon actor: project root does not resolve (${projectRootResolved}) — ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const dbPath = path.resolve(projectRootReal, '.trident', 'knowledge-graph', 'shared.db');
+  if (dbPath !== projectRootReal && !dbPath.startsWith(projectRootReal + path.sep)) {
+    throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath} not under ${projectRootReal})`);
   }
   const runId = openAndNextRunId(projectToken(profile.project.name), dbPath);
 

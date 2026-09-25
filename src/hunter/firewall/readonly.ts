@@ -174,7 +174,7 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
     //   (the `+` terminator is not one — only the `;` variant was caught), so the
     //   old path returned null and ALLOW_READ blessed an execution primitive.
     //   The `-exec...{} +` form executes; only the bare listing form is a read.
-    if (firstToken === 'find' && /\s(-exec|-execdir|-delete|-fls|-fprint|-fprint0|-ok|-okdir)\b/.test(command)) return 'E';
+    if (firstToken === 'find' && /\s(-exec|-execdir|-delete|-fls|-fprint|-fprint0|-ok|-okdir)(?![\w-])/.test(command)) return 'E';
     for (const ch of command) {
       if (NARROW_SPLITTERS.has(ch)) return ch;
       if (FORMAT_CONTROL_CHARS.has(ch)) return ch;
