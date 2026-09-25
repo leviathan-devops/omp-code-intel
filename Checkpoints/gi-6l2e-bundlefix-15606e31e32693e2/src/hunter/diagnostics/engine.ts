@@ -600,6 +600,15 @@ function collectLocalTsFiles(root: string): string[] {
         }
         if (st.isDirectory()) {
           if (LOCAL_BUILD_SKIPS.has(e.name)) continue;
+          // ★ R20-HIGH FIX (2026-09-25): the symlink-to-DIRECTORY branch walked `abs` with NO
+          //   containment — a symlink `<root>/link -> /etc` recursed into `/etc`. (The symlink-to-
+          //   FILE branch below already required containment.) Refuse a directory link that leaves
+          //   the root, LOUD.
+          const rootPrefixDir = rootReal + path.sep;
+          if (real !== rootReal && !real.startsWith(rootPrefixDir)) {
+            console.error(`[engine:local-build] symlink-to-dir escapes root skipped LOUD: ${abs} -> ${real}`);
+            continue;
+          }
           if (visitedRealDirs.has(real)) {
             console.error(`[engine:local-build] symlink cycle skipped LOUD: ${abs} -> ${real}`);
             continue;

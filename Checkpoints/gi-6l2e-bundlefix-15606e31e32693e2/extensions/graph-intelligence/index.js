@@ -18246,6 +18246,7 @@ function wouldBreak2(input, db) {
       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
       JOIN typed_nodes src ON e.src_canonical = src.canonical_id
       WHERE e.predicate = 'calls' AND e.superseded_run IS NULL AND src.file IS NOT NULL
+      LIMIT 5000
     `).all(symbol), "would-break callers");
   const breaking = callers.map((c) => ({
     importer: `${c.src_label} (${c.src_file}:${c.src_line})`,
