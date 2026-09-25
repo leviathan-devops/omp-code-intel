@@ -18848,13 +18848,18 @@ function tsgKey(env = process.env) {
       return v.trim();
   }
   try {
-    const st = fs25.lstatSync(KEY_FILE);
-    if (st.isSymbolicLink())
-      return null;
-    if ((st.mode & 63) !== 0)
-      return null;
-    const v = fs25.readFileSync(KEY_FILE, "utf8").trim();
-    return v.length > 0 ? v : null;
+    const fd = fs25.openSync(KEY_FILE, fs25.constants.O_RDONLY | fs25.constants.O_NOFOLLOW);
+    try {
+      const st = fs25.fstatSync(fd);
+      if (!st.isFile())
+        return null;
+      if ((st.mode & 63) !== 0)
+        return null;
+      const v = fs25.readFileSync(fd, "utf8").trim();
+      return v.length > 0 ? v : null;
+    } finally {
+      fs25.closeSync(fd);
+    }
   } catch {
     return null;
   }

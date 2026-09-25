@@ -56,11 +56,20 @@ export function tsgKey(env: NodeJS.ProcessEnv = process.env): string | null {
     //   mode discipline. A planted link at KEY_FILE (or a world-readable copy) handed this
     //   adapter a key the register would have refused. Same discipline here: lstat first
     //   (never follows), refuse a symlink, refuse a file that is readable by group/other.
-    const st = fs.lstatSync(KEY_FILE);
-    if (st.isSymbolicLink()) return null;              // a link is a plant, not a key
-    if ((st.mode & 0o077) !== 0) return null;          // group/other bits set ⇒ not a private key file
-    const v = fs.readFileSync(KEY_FILE, "utf8").trim();
-    return v.length > 0 ? v : null;
+    // ★ R20-HIGH FIX (2026-09-25): the R19 fix added lstat+mode checks but then read by PATH — a
+    //   TOCTOU: the file could be swapped between the lstat and the read (the check validates one
+    //   inode, the read opens another). Open with O_NOFOLLOW, fstat the FD, validate the FD's own
+    //   mode, and read FROM THE FD — the check and the read are the same inode by construction.
+    const fd = fs.openSync(KEY_FILE, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+      const st = fs.fstatSync(fd);
+      if (!st.isFile()) return null;                   // a link (O_NOFOLLOW refused) or a device
+      if ((st.mode & 0o077) !== 0) return null;        // group/other bits set ⇒ not a private key file
+      const v = fs.readFileSync(fd, "utf8").trim();
+      return v.length > 0 ? v : null;
+    } finally {
+      fs.closeSync(fd);
+    }
   } catch {
     return null;
   }
