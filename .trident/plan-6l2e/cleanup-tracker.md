@@ -193,3 +193,36 @@ states are distinct: **instrument-dead** (the EMPTY_RESULT marker only) · **CLE
 
 **THE W3 FIX WAVE (4 agents, 12 highs + the critical, disjoint files):** dispatching.
 **P6 GATE CHECKED:** the 5 read-first canon docs ALL read `1c73723445f65973` (the live dist).
+
+---
+
+## ★ RUN 17 CLOSED · RUN 18 IN FLIGHT (2026-09-25)
+
+**RUN 17 — THE FIRST WHOLE-TREE AUDIT (113/113 files, set-proven A∪B = the tree):**
+```
+  parts 113/113 · comments 351
+  ★ instrument: 0 dead · 19 CLEAN REVIEWS · 4 out-of-scope
+  critical 1 · high 33 · medium 166 · low 151      ← measured DURING the fix wave
+  ★ THE GATE: CRITICAL=1 HIGH=33 → FAIL
+```
+
+**THE FIXES THAT ANSWERED IT (all committed, all battery-verified):**
+| what | the fix | the evidence |
+|---|---|---|
+| ★ THE CRITICAL — F-123 the line-eating edit | `ensureTypedGraphSchema` began+committed a tx and executed NO DDL (the R15H5 restructure consumed `db.exec(TYPED_GRAPH_DDL)`); the DDL restored + the schema assertion made UNCONDITIONAL | probe 0→4 tables; the negative control reproduces BOTH the defect AND the guard; `tests/st-migration-ddl.test.ts` 3/0 |
+| the instrument's false-positive gate | `empty = comments.length === 0` counted a CLEAN REVIEW as an instrument failure — the gate would fire on the BEST outcome | three states now distinct: instrument-dead · CLEAN REVIEWS · out-of-scope |
+| W3FixA (4 REAL) | recon.ts symlink containment (realpath BOTH sides) · recon.ts's adjacent LIKE-anchor mismatch (a seq-1 COLLISION on hunt 2+) · map.ts traversal · bug-hunt.ts null-scope (containment DISABLED) → fail-loud | probes per finding; st-hunter-port 3/0 |
+| W3FixB/C/D | lsp-injector · micro-loop · query-registration · hunt-lock · compiler (single-read) · rule-card (`cardsFromText`) · resolver · compiled-store · calibration · arsumbris | probes: cards async=5 text=5 IDENTICAL; resolver 3 probes; compiled-store 5 probes |
+
+**★ THE SUBSTRATE REBUILD (a src edit makes the graph stores STALE):** the battery went 434/7 —
+every failure in the register's own suite (`GI_LAYER_STALE:explicit` on L5/L6) because editing src
+invalidated the corbell/graphify stores. Rebuilt BOTH with the F-96 scope fix: corbell **17.2 s**
+(nodes=1116 edges=4731) · graphify **32.5 s** (nodes=1745 edges=3860). Register recovered to 7/8;
+the predicate 5/5; the battery 441/0 + 539/0.
+
+**★ THE W17 WAVE WAS CANCELLED AFTER ~1.5h WITH ZERO DISK OUTPUT** — 5 agents whose verification
+never reached a verdict. **The measurement replaced it: RUN 18 (a fresh whole-tree audit on the
+current tree) is the instrument.** 22 of run 17's 33 highs sat in files the waves had already
+touched, so the fresh audit is the honest way to see what actually remains.
+
+**RUN 18 — LAUNCHED BOTH LANES (57 + 56 = 113), both pre-flight-probed HTTP 200.**
