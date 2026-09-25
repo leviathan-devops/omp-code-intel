@@ -2723,3 +2723,36 @@ store treats an outgoing usage as evidence the declaration is LIVE). The fix was
 
 **THE VERDICT:** the corpus passes with ZERO confirmed defects against the current tree. The
 adversarial half is clean.
+
+---
+
+## ★ RUN 17 — THE WHOLE-TREE AUDIT: THE COVERAGE PROOF (2026-09-25)
+
+**The claim that must be true at face value:** "a fresh audit over ALL 113 source files."
+
+**THE MECHANICAL PROOF (set algebra over the actual file lists):**
+```
+  the tree (find src -name '*.ts' | sort) ....... 113
+  lane A (the go lane, 8 workers) ...............  50   ← 50/50 parts, 0 EMPTY
+  lane B (the go lane, 8 workers) ...............  63   ← in flight
+  ────────────────────────────────────────────────────────────────
+  A ∪ B ......................................... 113   = THE TREE
+  the tree − (A ∪ B) ............................   0   ← nothing uncovered
+  (A ∪ B) − the tree ............................   0   ← no stale entries
+  A ∩ B .........................................   0   ← DISJOINT (no double work by partition)
+```
+
+**WHY TWO LANES.** The first attempt ran 113 files on one lane and moved at ~0.76 files/min
+(a 3-key go pool, ~7-min scans) — a ~2.5 h wall time. The tree was split into two disjoint halves
+run concurrently. The split is a PARTITION, not a sample: the union is the whole tree.
+
+**THE PRE-FLIGHT PROBE ran on BOTH lanes** (`✓ lane probe: muse-go-mimo (openai) → HTTP 200`) —
+the guard added after run 15 launched 113 parts onto an exhausted lane and returned 109
+`EMPTY_RESULT` markers.
+
+**THE INSTRUMENT GATE'S FALSE-POSITIVE CLASS — FIXED BEFORE QUOTING ANY NUMBER.** The aggregator's
+`empty = comments.length === 0` counted a **CLEAN REVIEW** (`status:"success"`,
+`"No comments generated. Looks good to me."`, `files_reviewed:1`, tokens spent) as an instrument
+failure, and would have flagged a mostly-clean tree VOID by construction. Lane A's parts decompose
+honestly as: **0 instrument-dead · 10 CLEAN REVIEWS · 4 out-of-scope skips** (the ocr CLI scopes to
+git-changed paths).
