@@ -14017,7 +14017,15 @@ function supersedeThenInsert(db, runTag, nodeRows, edgeRows, meta) {
   }
   if (db.inTransaction)
     throw new Error("GI_TXN_NESTED: supersedeThenInsert entered with an open transaction (caller owns it) \u2014 refusing to double-commit");
-  db.exec("BEGIN IMMEDIATE;");
+  try {
+    db.exec("BEGIN IMMEDIATE;");
+  } catch (beginErr) {
+    const bmsg = beginErr instanceof Error ? beginErr.message : String(beginErr);
+    if (/within a transaction/i.test(bmsg)) {
+      throw new Error(`GI_TXN_NESTED: supersedeThenInsert entered with an open transaction (caller owns it) \u2014 refusing to double-commit (${bmsg})`);
+    }
+    throw beginErr;
+  }
   try {
     if (nodeRows.length > 0) {
       db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
@@ -15486,7 +15494,7 @@ var P1 = {
         if ((lines[i] ?? "").includes("process.cwd()")) {
           const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 12)).join(`
 `);
-          if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve)/.test(win)) {
+          if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve|cwd).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve|cwd)/.test(win)) {
             const triad = makeTriad(file, i + 1, "semantic.process-cwd-persistence", sev);
             findings.push({ ruleId: "semantic.process-cwd-persistence", severity: sev, file, line: i + 1, evidence: evEdge("semantic.process-cwd-persistence", file, i + 1, lines[i].trim(), "HT-BUG-3b/15", anchor), verdict: "VIOLATION", triad });
           }

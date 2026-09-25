@@ -523,8 +523,24 @@ export function supersedeThenInsert(
   if (nodeRows.length === 0 && edgeRows.length === 0) {
     throw new Error("GRAPHIFY_WRITE_FAILED: refusing supersede-then-insert with zero rows (would wipe live data)");
   }
+  // ★ R20-CRITICAL FIX (2026-09-25): the property guard alone was NOT fail-closed. MEASURED: bun's
+  //   raw `Database` DOES expose `inTransaction` (false/true/false around BEGIN/COMMIT), so the check
+  //   bites for a raw handle — but the signature accepts `Database & { inTransaction?: boolean }`, and
+  //   a WRAPPER (a DbClient) that does not forward the property makes `db.inTransaction` undefined →
+  //   the guard SILENTLY PASSES and a nested BEGIN corrupts the transaction state. The fix is the
+  //   codebase's own fail-closed pattern (findings-store.ts): catch the BEGIN and convert SQLite's
+  //   nesting error into GI_TXN_NESTED, so the refusal holds REGARDLESS of driver properties.
   if (db.inTransaction) throw new Error("GI_TXN_NESTED: supersedeThenInsert entered with an open transaction (caller owns it) — refusing to double-commit");
-  db.exec("BEGIN IMMEDIATE;");
+  try {
+    db.exec("BEGIN IMMEDIATE;");
+  } catch (beginErr) {
+    const bmsg = beginErr instanceof Error ? beginErr.message : String(beginErr);
+    // SQLite: "cannot start a transaction within a transaction" — the driver-agnostic nesting signal.
+    if (/within a transaction/i.test(bmsg)) {
+      throw new Error(`GI_TXN_NESTED: supersedeThenInsert entered with an open transaction (caller owns it) — refusing to double-commit (${bmsg})`);
+    }
+    throw beginErr;
+  }
   try {
     // Per-table guard: only supersede a table we are about to re-populate.
     if (nodeRows.length > 0) {

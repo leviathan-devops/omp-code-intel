@@ -26,7 +26,7 @@
 // (line 1016) — this file exports the 5 W4 families; CONFORMANCE is W9's.
 
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { } from 'node:fs';
 import { z } from 'zod';
 import { SEVERITIES, type Severity, type FindingVerdict } from '../shared/db-canon.ts';
 import type { AwaitEdge, CallSite, ChainStep, GraphAdapter, GraphNode, ImportEdge } from '../graph/interface.ts';
