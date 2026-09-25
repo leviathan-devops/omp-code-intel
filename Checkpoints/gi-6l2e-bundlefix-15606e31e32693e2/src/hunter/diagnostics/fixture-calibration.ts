@@ -271,6 +271,12 @@ export function loadCalibrationFixtures(fixtureProfileDir: string): CalibrationF
   };
   const fire = withManifest(fireDir).map((d) => loadFireFixture(d));
   const golden = withManifest(goldenDir).map((d) => loadGoldenFixture(d));
+  // ★ R20-HIGH FIX (2026-09-25): an EMPTY fixture set was silently legal — the dirs exist with the
+  //   right shape but carry no manifest-bearing subdirs, so `loadCalibrationFixtures` returned
+  //   { fire: [], golden: [] } and calibration ran against NOTHING while reporting success. A
+  //   missing side is a LOUD named failure, never a vacuous pass (the loud-fail-or-clear-pass law).
+  if (fire.length === 0) throw new Error(`GI_FIXTURES_ABSENT: no fire fixture under ${fireDir} (each needs a manifest.json)`);
+  if (golden.length === 0) throw new Error(`GI_FIXTURES_ABSENT: no golden fixture under ${goldenDir} (each needs a manifest.json)`);
   return { fire, golden };
 }
 

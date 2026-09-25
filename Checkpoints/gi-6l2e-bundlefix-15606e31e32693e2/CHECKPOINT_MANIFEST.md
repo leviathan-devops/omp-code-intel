@@ -207,3 +207,13 @@ files at the lane's per-key rate.
 7. The audit lane is `muse-go-mimo` (`mimo-v2.5`, paid, 200); the go pool is 5-of-8 usable.
 
 <!-- DOC-COMPLETE -->
+
+---
+
+## ★ SEAL REFRESH (2026-09-25, MODE B — a mutable working snapshot)
+
+The dist advanced from `15606e31e32693e2` to **`bf94ce1ec725ca81`** when the 10 run-20 highs were fixed and
+the bundle rebuilt. This seal's `src/`, `extensions/`, `context_management/`, the ship docs, the
+build/audit scripts, and the board were REFRESHED to that state. **MODE B is a working snapshot by
+design — the manifest records each advance.** The bundle remains **748 KB** (the `--external typescript`
+fix is intact).

@@ -15486,7 +15486,7 @@ var P1 = {
         if ((lines[i] ?? "").includes("process.cwd()")) {
           const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 12)).join(`
 `);
-          if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve)/.test(win)) {
+          if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve)/.test(win)) {
             const triad = makeTriad(file, i + 1, "semantic.process-cwd-persistence", sev);
             findings.push({ ruleId: "semantic.process-cwd-persistence", severity: sev, file, line: i + 1, evidence: evEdge("semantic.process-cwd-persistence", file, i + 1, lines[i].trim(), "HT-BUG-3b/15", anchor), verdict: "VIOLATION", triad });
           }
@@ -16037,9 +16037,15 @@ function recon(profilePath) {
     assertInsideProject(profile.project.root, abs);
   }
   const projectRootResolved = path17.resolve(profile.project.root);
-  const dbPath = path17.resolve(projectRootResolved, ".trident", "knowledge-graph", "shared.db");
-  if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path17.sep)) {
-    throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath})`);
+  let projectRootReal;
+  try {
+    projectRootReal = fs16.realpathSync(projectRootResolved);
+  } catch (e) {
+    throw new Error(`recon actor: project root does not resolve (${projectRootResolved}) \u2014 ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const dbPath = path17.resolve(projectRootReal, ".trident", "knowledge-graph", "shared.db");
+  if (dbPath !== projectRootReal && !dbPath.startsWith(projectRootReal + path17.sep)) {
+    throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath} not under ${projectRootReal})`);
   }
   const runId = openAndNextRunId(projectToken(profile.project.name), dbPath);
   return {
@@ -16738,8 +16744,8 @@ ${p.family}`).join(`
   writeCalibrationRows(db, records, fixtureVersion) {
     const ins = db.prepare("INSERT INTO calibrations (predicate_id,test,fixture,result,evidence,run_id,created_at) VALUES (?,?,?,?,?,?,?)");
     const runId = `calibration-${fixtureVersion}`;
-    db.exec("BEGIN IMMEDIATE");
     try {
+      db.exec("BEGIN IMMEDIATE");
       for (const r of records) {
         ins.run(r.predicateId, "FIRE", r.fire.fixtureAnchor, r.fire.fired ? "FIRED" : "MISS", r.fire.evidence, runId, this.calibratedAt);
         ins.run(r.predicateId, "SILENT", r.silent.goldenFixture, r.silent.findings === 0 ? "SILENT" : "FALSE-FIRE", r.silent.evidence, runId, this.calibratedAt);
@@ -16907,6 +16913,8 @@ async function scan(profile, adapter, runId, db) {
       }
     } catch (calErr) {
       const msg = calErr instanceof Error ? calErr.message : String(calErr);
+      if (msg.startsWith("HUNT_NO_COVERAGE:"))
+        throw calErr;
       console.warn(`[scan] D17 calibration gate failed: ${msg}`);
       throw new Error(`SCAN_CALIBRATION_FAILED: the D17 gate faulted (${msg.slice(0, 200)}) \u2014 the battery is unvalidated, refusing the run`);
     }

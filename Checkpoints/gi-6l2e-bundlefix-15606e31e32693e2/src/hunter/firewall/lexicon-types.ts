@@ -96,7 +96,18 @@ export interface LexiconDecision {
 export function makeLexiconDecision(
   base: Pick<LexiconDecision, 'verdict' | 'pattern' | 'token' | 'message' | 'mPSE'> & { resolvedDir?: string },
 ): LexiconDecision {
-  return Object.freeze({ ...base, state: base.verdict, triplet: Object.freeze({ ...base.mPSE }) });
+  // ★ R20-HIGH FIX (2026-09-25): the freeze was SHALLOW — the outer object froze but `mPSE` was
+  //   copied into a new object whose OWN nested fields stayed mutable (a shared nested object could
+  //   still be written through a second reference, desyncing a decision after construction). Deep-
+  //   freeze the nested containers so a constructed decision is immutable at every level.
+  const deepFreeze = <T>(o: T): T => {
+    if (o !== null && typeof o === 'object' && !Object.isFrozen(o)) {
+      for (const v of Object.values(o as Record<string, unknown>)) deepFreeze(v);
+      Object.freeze(o);
+    }
+    return o;
+  };
+  return deepFreeze({ ...base, state: base.verdict, triplet: deepFreeze({ ...base.mPSE }) });
 }
 /** THE LOUD MISMATCH GUARD — value-compares the aliases against their sources (clone-safe:
  *  JSON round-trips break reference identity, so Pattern/State/Evidence compare by value).

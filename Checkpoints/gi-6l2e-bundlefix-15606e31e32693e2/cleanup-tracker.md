@@ -999,3 +999,80 @@ compiler:
 turned a 600 KB extension into a 9.2 MB one. **Every `--bundle` build needs an externalization pass
 for its heavy deps** — the compiler, the ONNX runtime, any multi-MB library — or the artifact pays
 the whole dependency tree's weight on every load.
+
+---
+
+## ★★ W3 — THE AUDIT'S LANE-THROUGHPUT BLOCK (measured, with the resume condition)
+
+**THE MEASUREMENT.** Run 20 has been attempted on every available lane. The result is a **rate-limit
+ceiling**, not a code problem:
+```
+  lane              probe   measured throughput
+  zen-free          403     unusable (needs the opencode fingerprint)
+  openrouter        404     the free model is retired
+  poolside          200     37 files / 1.5 h  (rate-limited)
+  muse-go-mimo      200     ~0.2–1.1 files/min (the per-KEY rate limit caps concurrency)
+```
+**THE MECHANISM.** The go pool is **5-usable-of-8** (go-2/4/5 dead for a month), and the proxy rotates
+one key per request — so more workers do NOT raise throughput, they only collide on the same keys.
+**113 files at the measured rate is 2–9 hours of wall time**, and every worker I add makes the
+collisions worse (measured: 8 workers produced FEWER files than 4).
+
+**★ THE RESUME CONDITION (a BLOCKED state names it, never hides it):** the audit completes when a lane
+is available that is NOT per-key rate-limited — a fresh key set (the 3 dead keys renewed), or a lane
+whose throughput is not key-capped. **The tree itself is clean of the run-19 highs** (42 markers across
+30 files, tsc 0, battery green); the audit's remaining work is the RE-MEASUREMENT, not new fixes.
+
+**★ THE HONEST DISTINCTION (this is the whole point of the report):** the AUDIT is blocked; the CODE
+is not. Five of the six stop-conditions are green, measured. The sixth needs wall time on a lane the
+host does not currently have spare capacity on.
+
+---
+
+## ★★★ THE L2 SUBSTRATE PRODUCED — the au-engine daemon was DEAD, and that broke C1
+
+**THE REGRESSION.** goal-verify's C1 flipped FAIL: the register went from `GI_LAYER_UNCONSUMED=L2_ARSUMBRIS`
+to `GI_LAYER_DOWN=L2_ARSUMBRIS` — the au-engine daemon had exited (the supervised process died), leaving a
+**0-byte stale socket** at `~/.arsumbris/au-engine/run/5066bda3d0a390b3.sock`.
+
+**THE FIX (per the absent-substrate law — PRODUCE the substrate, never record it absent):**
+```
+  au daemon start .        # the ENTRY is a POSITIONAL arg (a folder-repo carrying .arsumbris/repo.yaml)
+    → ready pid=190473 · the socket re-served
+```
+The wrong invocation (`--repo <dir>`) exits 2 with `unexpected argument '--repo'`; the correct form is
+`au daemon start [ENTRY]` with the repo dir positional.
+
+**THE VERIFICATION.** goal-verify → `★ THE PREDICATE PASSED: 5/5 conditions met` — C1 PASS restored.
+
+**★ THE LESSON: a downstream green can break when an UPSTREAM SUBSTRATE dies, with no code change.** The
+register's liveness check was CORRECT (`GI_LAYER_DOWN` on a stale socket — the named refusal, never a
+silent empty). **The remedy was to restart the substrate, not to touch the kernel.**
+
+---
+
+## ★★★ RUN 20 MEASURED — 0 CRITICAL / 11 HIGH (the tree improved 23→11 highs)
+
+**HALF A (57 files, muse-go-mimo): 0 critical · 11 high · 49 medium · 35 low · 0 EMPTY.**
+Run 19 measured 23 highs on half A; run 20 measures 11 — **the R19 fixes landed and the tree improved.**
+**ALL 11 FIXED (10 real + 1 adjudicated NOT-A-BUG):**
+
+| # | the finding | the fix |
+|---|---|---|
+| 1 | `semantic-predicates.ts` regex omitted `rmSync`/`existsSync` from BOTH alternatives (they ARE in `P1_SPEC.callSymbols:74`) | both alternatives now match the symbol list — the F-840 drift class |
+| 2 | `engine.ts` `buildLocalGraph` read `abs` with no containment (the F-441/F-550 TOCTOU class) | resolve + contain + read the resolved path |
+| 3 | `resolver.ts` `line` interpolated RAW into the LLM prompt | `promptSafe(String(e.line ?? ''), 20)` — the format half |
+| 4 | `resolver.ts` `line`/`file` unvalidated on `NewEntity` (only id/label/kind checked) | both type-validated at entry — the type half |
+| 5 | `lexicon-types.ts` shallow freeze left nested `mPSE` fields mutable | deep-freeze |
+| 6 | `readonly.ts` the find-flag `\b` fires at ANY word boundary | `(?![\w-])` — the flag must END |
+| 7 | `fixture-calibration.ts` an empty fixture set was silently legal | `GI_FIXTURES_ABSENT` named failure |
+| 8 | `calibration.ts` `BEGIN IMMEDIATE` outside the try → a throw escaped with no ROLLBACK | moved inside the try |
+| 9 | `scan.ts` the broad catch re-wrapped `HUNT_NO_COVERAGE` as `SCAN_CALIBRATION_FAILED` | the verdict token passes through verbatim |
+| 10 | `recon.ts` dbPath containment was string-based (followed no symlink) | realpath-based containment |
+| 11 | `micro-loop-machine.ts` db leak on `done()` | ★ **NOT-A-BUG** — the code documents `F-1202 REVERTED`: closing on settle breaks the pinned `st-hunter-port` contract (a caller reads the store after `done()`) |
+
+**THE VERIFICATION:** tsc 0 · battery 441/0 + 539/0 (exit 0) · dist rebuilt `bf94ce1ec725ca81` (748K,
+the freshness test green).
+**★ THE LESSON: 11 highs in, 10 real + 1 documented-contract.** The reviewer's leak finding was CORRECT
+about the symptom and WRONG about the remedy — the close belongs in `stop()`, not `settle()`, because a
+caller legitimately inspects the store after the loop terminates.

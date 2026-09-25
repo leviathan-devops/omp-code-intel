@@ -90,8 +90,12 @@ function promptSafe(v: string, max = 200): string {
     .slice(0, max);
 }
 
+// ★ R20-HIGH FIX (2026-09-25): `e.line` was interpolated RAW into the prompt (every other field
+//   went through promptSafe) — a string `line` could forge prompt rows or inject instructions. Now
+//   sanitized + bounded like its siblings. The type validation at the resolveNewEntities entry is
+//   the other half; this is the FORMAT half.
 function buildPrompt2Batch(newEntities: NewEntity[], existing: ExistingCanonical[]): string {
-  const newLines = newEntities.map((e) => `- alias="${promptSafe(e.id)}" label="${promptSafe(e.label)}" kind=${promptSafe(e.kind, 40)} file=${promptSafe(e.file ?? '', 300)}:${e.line ?? ''}`).join('\n');
+  const newLines = newEntities.map((e) => `- alias="${promptSafe(e.id)}" label="${promptSafe(e.label)}" kind=${promptSafe(e.kind, 40)} file=${promptSafe(e.file ?? '', 300)}:${promptSafe(String(e.line ?? ''), 20)}`).join('\n');
   const existingLines = existing.length > 0 ? existing.map((c) => `- canonical="${promptSafe(c.canonical_id)}" label="${promptSafe(c.label)}" kind=${promptSafe(c.kind, 40)}`).join('\n') : '- (no existing canonicals — all new)';
   return `# SRO PROMPT 2 — RESOLUTION (B2b, batch, PRE-INSERTION)
 
@@ -262,6 +266,14 @@ export async function resolveEntities(
     if (typeof e.id !== 'string' || e.id.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: newEntity.id must be non-empty string, got ${JSON.stringify(e.id)}`);
     if (typeof e.label !== 'string' || e.label.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: newEntity.label must be non-empty string, got ${JSON.stringify(e.label)}`);
     if (typeof e.kind !== 'string' || e.kind.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: newEntity.kind must be non-empty string, got ${JSON.stringify(e.kind)}`);
+    // ★ R20-HIGH FIX (2026-09-25): `line` and `file` reached the prompt string + the graph write
+    //   with NO type check (the loop validated id/label/kind only). A non-string `line` (an object
+    //   or array) interpolated into the prompt as `[object Object]` / a comma-joined list, and a
+    //   non-string `file` could carry an object into downstream path logic. Validate both here.
+    if (e.line !== undefined && typeof e.line !== 'string' && typeof e.line !== 'number')
+      throw new ResolverError(`RESOLVER_FAILED: newEntity.line must be a string or number, got ${typeof e.line}`);
+    if (e.file !== undefined && typeof e.file !== 'string')
+      throw new ResolverError(`RESOLVER_FAILED: newEntity.file must be a string, got ${typeof e.file}`);
   }
   for (const c of existing) {
     if (!c || typeof c !== 'object') throw new ResolverError(`RESOLVER_FAILED: existing entry must be object, got ${typeof c}`);
