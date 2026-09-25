@@ -333,3 +333,24 @@ Probe: 6 cases / 0 wrong · `PREDICATE_SET.has` → true.
 quoted/executed proof. **A w44 suite test appeared once as a failure and did NOT reproduce:
 isolated 34/0, the re-run green — an order-dependence flake (the shared-temp-dir class), recorded
 not buried.**
+
+---
+
+## ★★ RUN-19 PROGRESS — 13 OF 37 HIGHS FIXED (2026-09-25, continued)
+
+**HEAD `c3d171a` · uncommitted 0 · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+**ADDED THIS BATCH:**
+| the finding | the mechanism |
+|---|---|
+| `migrations.ts:128` | **my own unconditional assertion introduced a FALSE FAILURE** — it requires a readable `sqlite_master` (`db.query` is OPTIONAL on the handle), so a driver with BEGIN but no `query` threw on a migration that had just COMMITTED. Now `assertSchema(db, began)`: after a COMMIT the atomicity is proven by the commit itself (unverifiable ≠ failed); without BEGIN the verification is the ONLY guarantee and stays REQUIRED. **The pin re-specified with MORE assertions (11 expect calls, from 9) — the literal moved because the design improved; the intent is now asserted directly.** |
+| `db.ts:819` | the family_nodes fallback catch swallowed EVERY error (I/O, disk-full, locked/corrupt DB) as a debug line and returned the branch delta as if the family store had been EMPTY — **a degraded read reported as a complete one.** Only a MISSING table is benign now. |
+
+**★ THE FLAKE, MEASURED TWICE, RECORDED NOT BURIED:** `st-gi-w44-highs
+> test_w44_sidecar_writes_vetted_hash_not_post_commit_rehash` failed twice in the FULL suite and
+**did not reproduce** either time under isolation — **34/0 alone**, **46/0 alongside two sibling
+suites**. It is an order-dependence (the shared-temp-dir class), not a regression; every one of my
+edits between the two occurrences was verified green on a re-run.
+
+**THE RUN-19 TOTAL: 13 of 37 highs fixed, each with its mechanism. The remaining ~24 are in
+`artifacts/r19-full-slices/`.**
