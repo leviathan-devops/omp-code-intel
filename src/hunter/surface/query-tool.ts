@@ -557,6 +557,8 @@ function wouldBreak(input: QueryInput, db: DbClient): QueryRow[] {
       proposedCount = inside.split(',').map((s) => s.trim()).filter((s) => s.length > 0).length;
     }
   }
+  // ★ R20-HIGH FIX (2026-09-25): the callers query had NO LIMIT — a ubiquitous symbol
+  //   materialized its whole caller set into JS. Bounded at 5000 like whoCalls (R18-HIGH).
   // THE SUBSTRATE FIX: the typed 'calls' edges into the symbol — the callers
   // the graph gate's CHECK 1 would cite. The typed substrate carries NO
   // per-call signature metadata (the argCount/argTypes live in the corbell
@@ -570,6 +572,7 @@ function wouldBreak(input: QueryInput, db: DbClient): QueryRow[] {
       JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
       JOIN typed_nodes src ON e.src_canonical = src.canonical_id
       WHERE e.predicate = 'calls' AND e.superseded_run IS NULL AND src.file IS NOT NULL
+      LIMIT 5000
     `).all(symbol),
     'would-break callers',
   );
