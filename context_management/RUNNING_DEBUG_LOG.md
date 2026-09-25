@@ -776,3 +776,42 @@ completion call before launching and REFUSES on a non-200 (proven live: it refus
 `~/.omp/agent/bin/zen-free-adapter.mjs` (a Bun SSE-decoding bridge on 4098, now a supervised
 systemd service), fixing the Responses-API tool shape (flat `tools[].name`, not the nested
 chat-completions form).
+
+## RD · 2026-09-25 · THE CONTAINER ROUND — WHAT L3 FOUND THAT THREE AUDITS COULD NOT
+
+**THE CLAIM THIS ROUND SET OUT TO TEST:** the checkpoint could not say "this dist was
+container-verified". It can now.
+
+**★ DEFECT 1 — THE DIST DEFECT (found only by CALLING it).**
+```
+  parseTargetRoots(null)            → TypeError: null is not an object (evaluating 'raw.split')
+  parseTargetRoots({})              → TypeError: raw.split is not a function
+  ledgerDirConfined("", undefined)  → TypeError [ERR_INVALID_ARG_TYPE]
+```
+Three **EXPORTED** surface functions (the bundle re-exports them) threw **bare TypeErrors** on a
+malformed argument instead of the codebase's named `GI_<AREA>_INVALID` refusals. **A crash is not a
+refusal** — the caller cannot tell "you passed garbage" from "the filesystem broke". **THREE
+WHOLE-TREE LLM AUDITS MISSED IT.** The reason is structural, not unlucky: **a reviewer READS the
+source; the container CALLS it.**
+**THE FIX:** named guards (two throw; `settlementLedgerConfined` RETURNS a named refusal, preserving
+its own never-throws contract). **RE-PROBED IN THE CONTAINER after the redeploy** — every malformed
+input now yields a named refusal, zero bare TypeErrors.
+
+**★ DEFECT 2 — THE RIG DEFECT (not the dist).**
+`omp-ct:master` bakes its default role as `opencode-go/muse-spark-1.3-contributor` → **the lane whose
+subscription has LAPSED.** Every fresh rig boots dead, falls through to a retired OpenRouter free
+model, and dies on `404 No endpoints found for arcee-ai/trinity-large-preview:free`. Remedy applied
+live; **the image should be rebuilt with an allowed credentialed default.** Also measured: the free
+tier needs the **opencode fingerprint**, which an omp TUI does not carry (`403 OpenCode's free tier
+can only be used from within OpenCode`).
+
+**★ DEFECT 3 — THE PROBE'S OWN BLINDNESS (found on the way to unblocking the audit).**
+The pre-flight lane probe resolved the **GO pool's key for EVERY provider speaking the openai
+protocol** — so the live **poolside** lane probed with a GO key, read `403 please check the api-key`,
+and was reported DEAD. **The guard was rejecting a healthy lane.** Fixed to resolve each provider's
+OWN credential (`api_key_cmd` → `api_key` → the GO pool as the last resort). **This unblocked run 20**,
+which is now sweeping on poolside.
+
+**THE LESSON (the ninth method note): A PROBE THAT HARDCODES ONE LANE'S CREDENTIAL TESTS THE
+CREDENTIAL, NOT THE LANE.** When a guard is introduced for one route, the OTHER routes must be
+re-measured through it before it is trusted.
