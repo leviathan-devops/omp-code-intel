@@ -1,0 +1,538 @@
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:265-267 (bug)
+  `loadCalibrationFixtures` can return `{ fire: [], golden: [] }` when the fixture directories exist but contain no subdirectories with `manifest.json`. The closed-loop check in `runFixtureCalibration` (line 299-305) passes vacuously over an empty `fixtures.fire` array, and `runCalibration` is called with zero fixtures — likely producing a meaningless pass verdict that proves nothing. Guard against empty fixture arrays after loading (e.g., throw `CALIBRATION_FIXTURE_INVALID: fire fixture directory is empty — at least one fixture is required`).
+  ```existing
+  const fire = withManifest(fireDir).map((d) => loadFireFixture(d));
+  const golden = withManifest(goldenDir).map((d) => loadGoldenFixture(d));
+  return { fire, golden };
+  ```
+
+[HIGH] src/hunter/firewall/artifact-scope.ts:198-202 (bug)
+  TOCTOU vulnerability / logic bug in the target-existence check: `fs.lstat` already confirms the file exists at `targetNorm` (otherwise it throws ENOENT and is caught below). If it is not a symlink, the subsequent `fs.stat` is 100% redundant — it will always succeed and the code will always return BLOCKED. Worse, the `stat` call creates a TOCTOU window: between `lstat` and `stat`, an attacker (or concurrent process) could replace the regular file with a dangling symlink. `fs.stat` follows the symlink, the dangling target yields ENOENT, the catch block treats ENOENT as "does not exist" and falls through to `return allowed(...)`. The write then follows the dangling symlink, creating a file at a
+  ```existing
+  const lt = await fs.lstat(targetNorm);
+    if (lt.isSymbolicLink()) return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    await fs.stat(targetNorm);
+    // The target EXISTS -> the explicit overwrite is BLOCKED (the N-versioning: v1 exists -> v2 allowed).
+    return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+  ```
+  ```suggested
+  const lt = await fs.lstat(targetNorm);
+    if (lt.isSymbolicLink()) return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    // lstat succeeded and the entry is not a symlink → the file exists.
+    // No redundant fs.stat: it would always succeed here and adds a TOCTOU window
+    // (dangling-symlink replacement between lstat and stat would yield ENOENT,
+    // causing an incorrect fallthro
+  ```
+
+[HIGH] src/hunter/graph/merge.ts:132-165 (bug)
+  When `mechExact` exists (a semantic triple matches a mechanical triple exactly) but `mergedByKey.get(k)` returns `undefined`, this branch pushes a **new** semantic-only row with `source: 'semantic'`. However, the mechanical triple was already emitted by the mechanical loop above with `source: 'mechanical'` (line 73-83). This creates two output rows for the same `tripleKey`: one mechanical, one semantic — a duplicate that should instead have been merged into a single `source: 'both'` row.
+
+The `mergedByKey.get(k)` can be `undefined` only if the mechanical loop deduplicated the key away (`seenMechanicalKeys`), which means there's exactly one mechanical row in `merged` with that key. The fix is
+  ```existing
+  // ★ R15H5 FIX (2026-09-25): the old form pushed a SECOND row with the same
+      //   tripleKey as the mechanical row already emitted (and indexed in
+      //   mergedByKey) — identical triples were doubled and counts skewed
+      //   downstream. Upgrade the emitted row in place: source='both', the
+      //   semantic evidence/confidence, the mechanical file:line anchor.
+      const existing = m
+  ```
+  ```suggested
+  const existing = mergedByKey.get(k);
+      if (existing) {
+        existing.source = 'both';
+        existing.evidence = s.evidence.trim().slice(0, 500);
+        existing.confidence = s.confidence;
+        existing.file = anchor.file || s.file;
+        existing.line = anchor.line || s.line;
+        existing.subjectKind = s.subjectKind ?? anchor.subjectKind;
+        existing.objectKind = s.objectKi
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:142-152 (bug)
+  In `acquireHuntLock`, the `fs.unlinkSync(lockPath)` call after the stale-recovery re-validation block (line ~112) is NOT wrapped in a try-catch for unexpected OS errors. If unlink fails with EACCES, EMFILE, ENOSPC, or another non-ENOENT error, the exception propagates out of the function unhandled — the caller receives an opaque OS error instead of `HUNT_ALREADY_RUNNING`. Contrast with `releaseHuntLock` which wraps unlink in try-catch and re-throws after warning. This is inconsistent and leaves a gap: the stale lock file persists, and every subsequent `acquireHuntLock` call will keep trying and failing (or worse, the caller may not distinguish an unlink failure from a legitimate lock-hold). 
+  ```existing
+  try {
+        fs.unlinkSync(lockPath);
+      } catch (err: unknown) {
+        const unlinkCode = err !== undefined && err !== null && typeof err === 'object' && 'code' in err
+          ? (err as { code: unknown }).code
+          : undefined;
+        if (unlinkCode === 'ENOENT') {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the 
+  ```
+  ```suggested
+  try {
+        fs.unlinkSync(lockPath);
+      } catch (err: unknown) {
+        const unlinkCode = err !== undefined && err !== null && typeof err === 'object' && 'code' in err
+          ? (err as { code: unknown }).code
+          : undefined;
+        if (unlinkCode === 'ENOENT') {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the 
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:429-432 (bug)
+  `stop()` is not idempotent: the very first operation `sub.unsubscribe()` is unprotected by try/catch. If `stop()` is called twice (or if unsubscribe throws for any reason), the function aborts immediately — the DB close, the disposable drain, and `actor.stop()` on lines 444–445 are all skipped. Every other operation in `stop()` is individually guarded, but this one is not. Wrap it to match the defensive pattern used for the rest of the method.
+  ```existing
+  stop(): void {
+      sub.unsubscribe();
+      // ★ F-408: resolve any pending done() promise BEFORE teardown
+      if (pendingSettle !== null) { pendingSettle(); pendingSettle = null; }
+  ```
+  ```suggested
+  stop(): void {
+      try { sub.unsubscribe(); } catch (e) { console.error('[micro-loop] subscription unsubscribe failed:', e instanceof Error ? e.message : String(e)); }
+      // ★ F-408: resolve any pending done() promise BEFORE teardown
+      if (pendingSettle !== null) { pendingSettle(); pendingSettle = null; }
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:510-513 (bug)
+  DbClient resource leak when `done()` is used without `stop()`. The `done()` promise resolves when the actor reaches a final state, but it does NOT close the SQLite DbClient, stop the actor, or unsubscribe the `sub` subscription. The F-1202 revert intentionally keeps `close()` out of `settle()` (to support post-done store reads), but the public API contract provides no guard or documentation that `stop()` MUST be called. A consumer that does `await loop.done()` without `loop.stop()` leaks the SQLite file descriptor and the actor. Consider either (a) adding a `finally`-style guarantee in `done()` that calls `stop()` when the post-done pin is no longer needed, or (b) adding a `Symbol.asyncDispo
+  ```existing
+  return pendingDone;
+    },
+    get state(): { value: string } {
+      return { value: snapshotState(actor.getSnapshot()) };
+  ```
+  ```suggested
+  return pendingDone;
+    },
+    async [Symbol.asyncDispose](): Promise<void> {
+      await this.done();
+      this.stop();
+    },
+    get state(): { value: string } {
+      return { value: snapshotState(actor.getSnapshot()) };
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:122-126 (bug)
+  `targetPath` is stored in context but never forwarded to any actor input. Every actor reads the target directory through `profile.project.root` (set by recon), never through `context.targetPath`. In the no-override path, the caller's `targetPath` could differ from the loaded profile's `project.root` — the machine would silently scan the profile's root, not the caller's intended target. The override path has an explicit agreement check (lines 215–218), but the no-override path has no equivalent guard. At minimum, recon (or a post-recon action) should verify `context.targetPath === loadedProfile.project.root` and throw a named error on mismatch.
+  ```existing
+  if (options.profile) {
+    if (options.profile.project.root !== targetPath) {
+      throw new Error(`[micro-loop] targetPath=${targetPath} disagrees with profile.project.root=${options.profile.project.root} — pass one root (the hunt target IS the profile root)`);
+    }
+  }
+  ```
+  ```suggested
+  // Validate targetPath against profile root for BOTH paths.
+  // In the no-override path the profile is loaded by the recon actor;
+  // add a post-recon guard in the onDone action:
+  //   onDone: {
+  //     target: 'map',
+  //     actions: [
+  //       assign({ profile: ..., intendedBehavior: ..., runId: ... }),
+  //       guard(({ context }) => {
+  //         if (context.profile!.project.root !==
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:65-65 (performance)
+  The `failedEvents` array grows without bound. If subscribers repeatedly throw, every failed event is pushed and never evicted — even after `retryFailed` is called, failed retries are re-pushed. Over a long-running session this is a memory leak. Consider adding a maximum size (e.g., 1000) with oldest-first eviction, or at minimum document the expected bound.
+  ```existing
+  private readonly failedEvents: Array<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number; failedIndex: number }> = [];
+  ```
+
+[HIGH] src/hunter/keys/go-key-pool.ts:243-247 (security)
+  In the `db()` function, after the main file handle is inserted into `poolDbByPath` (line 264), the sidecar hardening loop (lines 235-249) may throw on a symlink-planted sidecar. The ELOOP catch deletes the plant and re-throws. This propagates out of `db()` and the caller (e.g., `markGoKeyDead`) catches the error in its outer try/catch. However, the `fresh` handle is already in `poolDbByPath` (set on line 264). A subsequent call to `db()` returns this handle (it passes the `SELECT 1` health check), but the sidecar symlink may still be planted (the `fs.unlinkSync` inside the ELOOP catch may have raced with another process recreating it, or the `-shm` plant may still exist). SQLite WAL operatio
+  ```existing
+  const code = (e as NodeJS.ErrnoException)?.code;
+      if (code === 'ELOOP') {
+        try { fs.unlinkSync(side); } catch { /* already gone */ }
+        throw new Error(`GO_POOL_SYMLINK: ${side} is a symlink plant — refusing (removed; retry the open)`);
+      }
+  ```
+  ```suggested
+  const code = (e as NodeJS.ErrnoException)?.code;
+      if (code === 'ELOOP') {
+        try { fs.unlinkSync(side); } catch { /* already gone */ }
+        // Remove the main handle from the cache so the caller gets a fresh
+        // connection on retry (the next db() open will re-check sidecars).
+        poolDbByPath.delete(want);
+        throw new Error(`GO_POOL_SYMLINK: ${side} is a symlink plant
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:87-101 (bug)
+  The sync `batteryVersion` function reads each corpus file once in its `.map()` for the hash, then calls `batteryName(profile)` which internally calls `extractRuleCards(profile.rules.corpus)` → `readLinesOrThrow(file)` → `fs.readFileSync()` — reading each file a SECOND time. If a corpus file changes between the two reads, the battery name is derived from different bytes than the hash fingerprint, producing an inconsistent version string. This is the exact class of TOCTOU/double-read bug that the W16-HIGH FIX resolved for the async path in `batteryVersionWithCardsAsync`, but the sync twin was never patched. The fix should follow the same pattern: extract cards once, derive both the name and th
+  ```existing
+  export function batteryVersion(profile: ProjectProfile): string {
+  const corpusText = profile.rules.corpus
+    .map((p) => {
+      let text: string;
+      try {
+        text = fs.readFileSync(p, 'utf8');
+      } catch (e: unknown) {
+        throw corpusUnreadable(p, String(e));
+      }
+      return `${p}\n${text}`;
+    })
+    .join('\n');
+  const hash = sha256(`${corpusText}\n${JSON.stringify(pro
+  ```
+
+[HIGH] src/hunter/lexicon/rule-card.ts:0-0 (bug)
+  readDeclaredMeta scans ahead for metadata lines but cardsFromLines does not advance the loop index i past them. When subsequent lines match isRuleShaped or isQuotedPassage, spurious cards are created from metadata lines, violating determinism. The fix is to return the number of lines consumed from readDeclaredMeta and advance i accordingly.
+  ```existing
+  function readDeclaredMeta(lines: string[], start: number): { classification?: Classification; severity?: Severity } {
+  const meta: { classification?: Classification; severity?: Severity } = {};
+  for (let i = start; i < lines.length && i < start + META_SCAN_WINDOW; i++) {
+    const line = lines[i];
+    if (line.trim() === '') break;                       // the blank line ends the metadata block
+
+  ```
+  ```suggested
+  function readDeclaredMeta(lines: string[], start: number): { classification?: Classification; severity?: Severity; consumed: number } {
+  const meta: { classification?: Classification; severity?: Severity } = {};
+  let consumed = 0;
+  for (let i = start; i < lines.length && i < start + META_SCAN_WINDOW; i++) {
+    const line = lines[i];
+    if (line.trim() === '') break;
+    const cm = line.match(
+  ```
+
+[HIGH] src/hunter/log.ts:7-7 (bug)
+  The parameter `p` is typed as `string`, yet the code explicitly handles `null`/`undefined` inputs. This means callers are passing values that don't match the declared type, and TypeScript is not catching it. The type annotation should reflect the actual contract of the function to prevent silent misuse at call sites.
+  ```existing
+  export function shortFile(p: string, n = 46): string {
+  ```
+  ```suggested
+  export function shortFile(p: string | null | undefined, n = 46): string {
+  ```
+
+[HIGH] src/hunter/shared/db.ts:583-609 (bug)
+  mirrorToMasterContext reads graph_nodes, graph_edges, findings, and events via four separate SELECT statements without wrapping them in a source-level read transaction. Under concurrent WAL writes (the two-agent concurrency model), the source DB state can change between the first SELECT (graph_nodes) and the last (events). This can produce a mirror with orphaned edges referencing nodes that no longer exist in the source, or findings referencing run_ids whose events are partially copied. The mirror is supposed to be a faithful SUMMARY snapshot (D27), but this can yield an internally inconsistent copy. Wrap all four source reads inside `this.handle.transaction(...)` (a read-only transaction) t
+  ```existing
+  try {
+      const rebuild = openMirror.transaction((): void => {
+        openMirror.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;');
+        openMirror.exec(MIRROR_SCHEMA_SQL);
+        // the graph (the nodes + the edges)
+        const nodeIns = openMirror.prepare('INSERT OR REPLACE INTO graph_nodes VALUES (?,?
+  ```
+  ```suggested
+  try {
+      // Wrap source reads in a read-only transaction for consistent snapshot
+      const snapshot = this.handle.transaction((): {
+        nodes: Record<string, SQLQueryBindings>[];
+        edges: Record<string, SQLQueryBindings>[];
+        findings: Record<string, SQLQueryBindings>[];
+        events: Record<string, SQLQueryBindings>[];
+      } => ({
+        nodes: this.handle.prepare('SELEC
+  ```
+
+[HIGH] src/hunter/shared/db.ts:819-819 (bug)
+  The catch-all in the family_nodes fallback read swallows ALL non-FAMILY_NODE_CORRUPT errors (I/O errors, disk-full, schema drift, connection failure) by debug-logging and continuing with an empty `out`. This means the caller gets a partial result (delta nodes only, family nodes silently missing) with no indication anything went wrong — directly contradicting the file's stated fail-closed contract. A corrupt DB, unmounted disk, or schema mismatch would produce a silently incomplete union. Re-throw non-FAMILY_NODE_CORRUPT errors so the caller sees the real failure.
+  ```existing
+  } catch (famErr) { if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr; console.debug('[kg-store] family_nodes fallback read failed:', famErr instanceof Error ? famErr.message : String(famErr)); }
+  ```
+  ```suggested
+  } catch (famErr) {
+      if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr;
+      throw new Error(`FAMILY_READ_FAILED: fallback read of family_nodes failed (${famErr instanceof Error ? famErr.message : String(famErr)})`);
+    }
+  ```
+
+[HIGH] src/hunter/shared/migrations.ts:24-24 (maintainability)
+  Hardcoded `'has_finding'` string literal is not derived from a shared constant (e.g., from `ontology.ts`). If the predicate string in `report.ts` changes, this CHECK constraint silently becomes stale — writes using the new predicate will be rejected, or worse, if the CHECK is on a pre-existing table (as documented), new predicates will pass through unchecked with no runtime detection.
+  ```existing
+  const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
+  ```
+  ```suggested
+  // Import the predicate from its canonical source to keep DDL in sync.
+// e.g. import { HAS_FINDING } from './ontology.ts';
+const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'${HAS_FINDING}'`;
+  ```
+
+[HIGH] src/hunter/shared/query-engine.ts:194-208 (maintainability)
+  **Row mapper duplication violates ISE discipline**: The exact same edge row-mapper (shape validation + default fallback) is copy-pasted in `buildPathEdges` (~lines 155-170) and `temporal()` (~lines 253-272). If a new field is added to `TypedEdgeRow`, or a default changes, both copies must be updated in lock-step — a miss silently breaks the other, defeating the stated ISE discipline. Extract a private `mapEdgeRow(r)` method to make the mapping single-source-of-truth.
+  ```existing
+  edges = rows.map((r) => {
+          if (typeof r.id !== 'number' || typeof r.src_canonical !== 'string' || typeof r.dst_canonical !== 'string' || typeof r.predicate !== 'string') {
+            throw new Error(`EDGE_ROW_SHAPE: the typed_edges row ${JSON.stringify(r).slice(0, 120)} is missing id/src_canonical/dst_canonical/predicate`);
+          }
+          return {
+            id: r.id,
+           
+  ```
+
+[HIGH] src/hunter/shared/query-engine.ts:246-248 (performance)
+  **`community()` has no node-count cap — OOM risk with disconnected singletons**: The 500K-edge guard (line ~188) is necessary but not sufficient. A graph with 499K edges but millions of disconnected singleton nodes (each a live `typed_nodes` row with no edges) passes the edge guard, yet the `nodes` query (line ~192) loads all of them into the adjacency map, potentially exhausting memory. Add a node-count guard analogous to the edge-count guard.
+  ```existing
+  if (edgeCount > 500000) throw new Error(`COMMUNITY_TOO_LARGE: edges=${edgeCount} exceeds the 500000 in-memory BFS cap (page by predicate or raise the cap deliberately)`);
+      const edges = this.db.prepare('SELECT src_canonical, dst_canonical FROM typed_edges WHERE superseded_run IS NULL').all() as Array<{ src_canonical: string; dst_canonical: string }>;
+      const nodes = this.db.prepare('SELEC
+  ```
+
+[HIGH] src/hunter/surface/query-tool.ts:183-197 (performance)
+  `whoCalls` returns ALL matching callers with no LIMIT clause, unlike the `violations` verb which caps at MAX_QUERY_ROWS_FULL (2000). On a hub-scale graph a widely-called symbol (e.g. a utility function) could return tens of thousands of rows, consuming unbounded memory and tokens in the caller's context window. Consider clamping the result to `MAX_QUERY_ROWS_FULL` (or accepting `input.limit` / `input.offset`) for consistency with the other verbs.
+  ```existing
+  const edges = rowsAs<{ src_label: string; src_file: string; src_line: number }>(
+    db.prepare(`
+      SELECT DISTINCT src.label AS src_label, src.file AS src_file, src.line AS src_line
+      FROM typed_edges e
+      JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id AND dst.label = ?
+      JOIN typed_nodes src ON e.src_canonical = src.canonical_id
+      WHERE e.predicate IN ('calls', 'im
+  ```
+
+[HIGH] src/hunter/tools/report-writer-local.ts:103-103 (bug)
+  The comment at line 109 promises 'stable tie-break by original index' but the comparator at lines 112-113 only compares severity ranks. When two findings share the same severity, their relative order depends on the engine's sort stability — the code silently violates its own documented contract. Although modern V8 sorts stably, the contract should be made explicit in the comparator to guard against non-V8 runtimes (e.g., Deno/alternative JS engines) and future refactors that might re-introduce instability.
+  ```existing
+  const ranked = [...findings].sort((a, b) => (severityRank[a.severity] ?? 99) - (severityRank[b.severity] ?? 99));
+  ```
+  ```suggested
+  const ranked = [...findings].map((f, i) => ({ f, i })).sort((a, b) => {
+      const sa = severityRank[a.f.severity] ?? 99;
+      const sb = severityRank[b.f.severity] ?? 99;
+      return sa !== sb ? sa - sb : a.i - b.i; // stable tie-break by original index
+    }).map(({ f }) => f);
+  ```
+
+[HIGH] src/kernel/graph-pre-flight.ts:59-59 (bug)
+  The docstring contract states: '≥50 → domain-level (architectural review BEFORE coding)'. However, the commit strategy also escalates to 'domain-level' when `directInbound >= 20`, which has no corresponding warning. If `imp.reaches` is e.g. 10 but `directInbound` is 25, the result is `commitStrategy: 'domain-level'` without the 'WIDE BLAST RADIUS: … architectural review required' warning. This means callers relying on the warnings to gate architectural review will miss it. Either add a matching warning for the `directInbound` path, or update the docstring to document the dual-trigger contract.
+  ```existing
+  if (imp.reaches >= 50) warnings.push(`WIDE BLAST RADIUS: ${imp.reaches} nodes reached — architectural review required before coding`);
+  ```
+
+[HIGH] src/kernel/graph-pre-flight.ts:43-52 (bug)
+  The `srcIds` query has no LIMIT clause and feeds into a dynamically constructed SQL `IN (...)` clause. If the target label maps to a large number of live canonical IDs (the upstream `impactInDb` caps at 500, but this query does not), the generated SQL could contain hundreds or thousands of `?` placeholders, approaching SQLite's SQLITE_MAX_VARIABLE_NUMBER (default 999) and causing a runtime error. Consider adding a cap (e.g., `.slice(0, 500)`) to `srcIds` before building the IN clause, consistent with the 500-cap used in `impactInDb`.
+  ```existing
+  const srcIds = (db.query(
+      "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL",
+    ).all(target) as Array<{ canonical_id: string }>).map((r) => r.canonical_id);
+    let uses = 0;
+    if (srcIds.length > 0) {
+      const ph = Array.from({ length: srcIds.length }, () => "?").join(", ");
+      const rows = db.query(
+        `SELECT COUNT(*) AS n FROM typed_edges e
+
+  ```
+
+[HIGH] src/omp/adapters/tsg.ts:131-131 (security)
+  The redaction function preserves the first 4 characters of the API key in error messages via `key.slice(0, 4) + '...[redacted]'`. This leaks a key prefix that can identify the key type, narrow the key space for brute-force attacks, or correlate with other leaked data. For keys between 8–15 characters (which skip the 8-gram pass entirely), only this partial redaction applies, making the leak proportionally larger. Replace with a fully opaque placeholder.
+  ```existing
+  let out: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
+  ```
+  ```suggested
+  let out: string = s.split(key).join('[REDACTED]');
+  ```
+
+[HIGH] src/omp/calibration.ts:113-114 (bug)
+  Health check uses a different half-width threshold (0.15) than the `sufficient` field (0.10) in `precisionFromCounts`. A rule with halfWidth in (0.10, 0.15] has `sufficient=false` (meaning the evidence isn't strong enough to set a threshold from) but is NOT flagged by the health check as 'n too small'. Conversely, `derivePolicy` uses a completely different criterion (`minFiresForAct` count) rather than checking either `est.sufficient` or halfWidth. This means the 'is evidence sufficient?' question has three inconsistent answers within the same file, making the system's behavior unpredictable: a rule can pass `derivePolicy`'s sufficiency gate, fail `precisionFromCounts.sufficient`, and not be
+  ```existing
+  sufficient: Math.max(centre - low, high - centre) <= 0.10,
+    starved: false,
+  ```
+  ```suggested
+  sufficient: Math.max(centre - low, high - centre) <= 0.10,
+    starved: false,
+// In derivePolicy, also gate on est.sufficient before using the measured lower bound:
+//   if (!est.sufficient) { /* treat as uncalibrated */ }
+// In checkCalibrationHealth, use the same threshold as sufficient:
+//   if (!est.starved && !est.sufficient) findings.push(...);
+// Or extract a shared constant: const SUFFICI
+  ```
+
+[HIGH] src/omp/calibration.ts:203-208 (bug)
+  The `checkCalibrationHealth` regression detector does not verify the `flag <= act` invariant — the most critical structural property for the decision kernel (flag > act empties the ESCALATE band and inverts escalation). Specifically, when `act` falls in approximately [0.05, 0.10], `calFlag` equals `act` (the `Math.max(0.05, ...)` floor pushes flag up to act, and `Math.min(act, ...)` caps it at act), creating an empty ESCALATE band (`p >= flag && p < act` is unsatisfiable when flag === act). The previous F-836 fix corrected `derivePolicy` to enforce this invariant, but the health check only catches `act < 0.05` as 'degenerate' and misses this adjacent case where the escalation zone has zero w
+  ```existing
+  for (const p of policies) {
+    const counts = ledgersByRule[p.ruleId];
+    if (counts === undefined) { findings.push(`${p.ruleId}: NO LEDGER — threshold is uncalibrated (${p.basis})`); continue; }
+    const est = precisionFromCounts(counts);
+    // TRAP: starvation — paying for judgments and using none.
+    if (est.starved) findings.push(`${p.ruleId}: STARVED — the act band has never fired (0 res
+  ```
+  ```suggested
+  for (const p of policies) {
+    const counts = ledgersByRule[p.ruleId];
+    if (counts === undefined) { findings.push(`${p.ruleId}: NO LEDGER — threshold is uncalibrated (${p.basis})`); continue; }
+    // INVARIANT: flag must never exceed act — the ESCALATE band is [flag, act).
+    if (p.flag > p.act) findings.push(`${p.ruleId}: INVARIANT VIOLATION — flag=${p.flag.toFixed(3)} > act=${p.act.toFixed
+  ```
+
+[HIGH] src/omp/enforcement.ts:104-112 (bug)
+  Abandoned promise causes unhandled rejection risk. When the timer wins the `Promise.race`, the original `call` promise continues executing in the background. If it eventually rejects, that rejection is never observed — in Node.js this triggers an unhandled promise rejection warning (or process termination with `--unhandled-rejections=throw`). Any side-effects in the engine (state mutation, resource leaks) also continue silently after timeout.
+
+This is the most common pitfall of `Promise.race` with a cancellation timer.
+  ```existing
+  async function withEngineTimeout<T>(engine: string, ms: number, call: Promise<T>): Promise<T> {
+  const timer = Promise.withResolvers<never>();
+  const handle = setTimeout(() => timer.reject(new EngineTimeout(ms, engine)), ms);
+  try {
+    return await Promise.race([call, timer.promise]);
+  } finally {
+    clearTimeout(handle);
+  }
+}
+  ```
+  ```suggested
+  async function withEngineTimeout<T>(engine: string, ms: number, call: Promise<T>): Promise<T> {
+  const timer = Promise.withResolvers<never>();
+  const handle = setTimeout(() => timer.reject(new EngineTimeout(ms, engine)), ms);
+  try {
+    return await Promise.race([call, timer.promise]);
+  } finally {
+    clearTimeout(handle);
+    // Prevent unhandled rejection if the abandoned promise eventually
+  ```
+
+[HIGH] src/omp/evidence-producer.ts:237-240 (bug)
+  `persistRecords` appends NDJSON via `appendFileSync` with no file locking. The F-1006 comment in `resolveFromSession` acknowledges that concurrent sessions must use distinct `recordsPaths`, but the underlying persistence function has no guard. If two processes share a path, interleaved partial writes produce corrupt lines in the reproducibility ledger, violating Law 1. At minimum, `persistRecords` should atomically write (e.g., write to a temp file + rename) or acquire an exclusive lock (`fs.openSync` with `wx`/lock) so the ledger—the single source for re-derivation—cannot be silently corrupted.
+  ```existing
+  fs.mkdirSync(path.dirname(recordsPath), { recursive: true });
+  const lines = records.map((r) => JSON.stringify({ fireStateHash, ...r })).join("\n");
+  if (lines === "") return 0;
+  fs.appendFileSync(recordsPath, `${lines}\n`, "utf8");
+  ```
+  ```suggested
+  fs.mkdirSync(path.dirname(recordsPath), { recursive: true });
+  const lines = records.map((r) => JSON.stringify({ fireStateHash, ...r })).join("\n");
+  if (lines === "") return 0;
+  // Atomic append: write to a temp file, then concatenate under a lock to avoid
+  // interleaved partial writes from concurrent sessions.
+  const tmpPath = `${recordsPath}.tmp.${process.pid}.${Date.now()}`;
+  fs.writeFi
+  ```
+
+[HIGH] src/omp/evidence-producer.ts:202-206 (bug)
+  `laterEditFromGraph` uses `LIKE '%target%'` — a plain substring match — while `touches()` in the event path uses boundary-aware `containsAtBoundary()`. This semantic mismatch means the graph source can emit false-positive edit records. For example, subject target `app` would match `application.ts` and `append.txt` in the database via LIKE, but `touches()` would reject those as mid-token matches. Since `produceAndPersist` falls back to the graph source when no event-derived edits exist, a false-positive graph match can fabricate evidence for an unrelated file. The SQL should replicate the boundary-aware logic, or at least tighten the LIKE pattern (e.g., `%/{target}` or `%.{target}`) to reduce
+  ```existing
+  const rows = db
+      .query(`SELECT file, created_run, superseded_run FROM typed_nodes
+              WHERE layer_id = 'structural' AND (file LIKE ?1 ESCAPE '\\' OR label LIKE ?2 ESCAPE '\\')
+              ORDER BY id DESC LIMIT 50`)
+      .all(`%${escapeLike(subject.target)}%`, `%${escapeLike(subject.target)}%`) as { file: string; created_run: string; superseded_run: string | null }[];
+  ```
+  ```suggested
+  // Tighten the LIKE pattern to reduce false-positive substring matches.
+    // At minimum, require a path separator or dot before the target.
+    const pattern = `%/${escapeLike(subject.target)}%`;
+    const labelPattern = `%/${escapeLike(subject.target)}%`;
+    const rows = db
+      .query(`SELECT file, created_run, superseded_run FROM typed_nodes
+              WHERE layer_id = 'structural' AND (
+  ```
+
+[HIGH] src/omp/fire-ledger.ts:609-615 (bug)
+  **[Concurrency] TOCTOU race in `drain()` — concurrent async `judgeWithPersist` calls can double-write rows.**
+
+Between checking `!seen.has(row)` and the eventual `seen.add(row)` (after `appendManyDetailed` returns), another concurrent `drain()` call can observe the same row as unseen, create its own `fresh` array containing it, and both calls persist the same row. This is the exact watermark-integrity bug the module exists to prevent (§8.1: "a fire is persisted exactly once").
+
+The fix is to snapshot unseen rows and mark them seen **before** committing, then remove marks only on failure. Alternatively, use an atomic set-then-add pattern (e.g., pre-add a sentinel to prevent re-draining while 
+  ```existing
+  const fresh: DecisionRow[] = [];
+  let poison = poisoned.get(key);
+  if (poison === undefined) { poison = new Set<string>(); poisoned.set(key, poison); }
+  for (const row of gate.rows()) {
+    if (!seen.has(row) && !poison.has(poisonSignature(row))) fresh.push(row);
+  }
+  if (fresh.length === 0) return 0;
+  ```
+
+[HIGH] src/omp/gate-hook.ts:224-226 (bug)
+  The drift-layer `tool_call` handler in `registerGraphGate` does NOT check `event.isAgentOrigin`, unlike the inner `attachGiGraphGate` handler which explicitly filters with `if (event.isAgentOrigin === false) return undefined;`. This means non-agent-origin edits (e.g., programmatic/external writes) still advance drift counters and trigger T2/T3 gate blocks, which is likely unintended. An edit that didn't come from the agent shouldn't count toward the agent's drift budget.
+  ```existing
+  pi.on("tool_call", (event: Record<string, unknown>) => {
+    const name = String(event.toolName ?? "").toLowerCase();
+    const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
+  ```
+  ```suggested
+  pi.on("tool_call", (event: Record<string, unknown>) => {
+    const name = String(event.toolName ?? "").toLowerCase();
+    if (event.isAgentOrigin === false) return undefined;
+    const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
+  ```
+
+[HIGH] src/omp/gate-middleware.ts:20-22 (bug)
+  EXPORT_PARSE_RE's `function\*?` does NOT match `export function * foo()` (with space before `*`), because the `\*?` requires the asterisk to be immediately adjacent to `function`. Only EXPORT_GEN_RE (which uses `function\s*\*`) catches this spaced form. This means GEN is not merely "defense in depth" — it is the sole regex that handles `export function * foo()` and `export async function * foo()`. If a future maintainer sees the comment "defense in depth" and removes GEN thinking PARSE fully covers generators, these forms would silently be missed, allowing export removals to evade the gate.
+
+Suggestion: either (a) fix PARSE to also handle the spaced form (`function\s*\*?`) so each regex is s
+  ```existing
+  const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+// ★ F-41 FIX (2026-09-24): `export function*` (the `*` between function and name) and `export const {a}/[a]` never matched — stripped exports evaded the gate. Generator + destructured forms covered in both fns below.
+const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g
+  ```
+  ```suggested
+  const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\s*\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+// GEN still kept as defense-in-depth, but PARSE now independently covers the spaced form.
+const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
+  ```
+
+[HIGH] src/omp/populate-corbell.ts:129-129 (bug)
+  **Unused parameter `storePath`**: The `storePath` parameter is never referenced in the function body. The function always derives the warm store path via `corbellCheckoutPath(root)` and uses that for both the freshness probe and the SQLite open. This is likely a bug — the caller's `storePath` may differ from `corbellCheckoutPath(root)`, meaning the function always reads from the hardcoded warm checkout path regardless of what the caller intends. If `storePath` was intended for the *destination* store (the session store written by `openTypedStore`), it's being shadowed by the local variable assignment. Review and either use `storePath` where appropriate or remove it from the signature to avoi
+  ```existing
+  export function populateFromCorbellCheckout(storePath: string, root: string, runTag: string): CorbellPopulateResult {
+  ```
+  ```suggested
+  // If storePath is the warm checkout path, use it directly instead of deriving:
+// const warmPath = storePath;
+// If storePath is the destination session store, rename the parameter for clarity
+// and pass it to openTypedStore(storePath) below.
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:156-159 (maintainability)
+  The hardcoded skip-directory list is duplicated verbatim between the freshness probe walk (line 156) and the hash tree walk (line 297). If a directory name is added or removed from one site and not the other, the freshness probe and content hash will disagree — the probe may report 'fresh' while the hash reports 'stale' (or vice versa). Extract to a module-level `const SKIPPED_DIRS: readonly string[]` and reference it from both walks.
+  ```existing
+  if (["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"].includes(entry.name)) continue;
+        if (excludes.includes(entry.name)) continue;
+        // dirs walk free: do not count directories toward budget
+        walk(path.join(dir, entry.name));
+  ```
+  ```suggested
+  const SKIPPED_DIRS = Object.freeze(["node_modules", ".git", "dist", "build", "coverage", "__pycache__", "graphify-out", ".omp"]) as readonly string[];
+
+// ... in the freshness probe walk:
+        if (SKIPPED_DIRS.includes(entry.name)) continue;
+        if (excludes.includes(entry.name)) continue;
+        // dirs walk free: do not count directories toward budget
+        walk(path.join(dir, entry.na
+  ```
+
+[HIGH] src/omp/populate.ts:0-0 (bug)
+  If `db.exec("BEGIN IMMEDIATE;")` itself throws (e.g., database locked, disk full), the exception bypasses the inner try/catch entirely and goes straight to the finally block. The db handle is closed but no ROLLBACK is attempted. While technically no transaction is active (BEGIN never completed), the caller has no way to distinguish this failure from a COMMIT failure — the `metaDegraded` flag remains `false` and the success result is returned with stale/missing meta. The outer try should catch this and set metaDegraded = true.
+  ```existing
+  const db = openTypedStore(storePath);
+    let metaDegraded = false;
+    try {
+      db.exec("BEGIN IMMEDIATE;");
+  ```
+  ```suggested
+  const db = openTypedStore(storePath);
+    let metaDegraded = false;
+    try {
+      db.exec("BEGIN IMMEDIATE;");
+      db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
+      db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbe
+  ```
+
+[HIGH] src/omp/rsi.ts:525-527 (security)
+  `forgeForTest()` and `forceSupersedeForTest()` are test-only helpers that bypass all HMAC signing and verified-retirement invariants, yet they are `public` methods on `RsiStore`. Any production code that holds a reference to the store can call them, inserting arbitrary forged rows or force-retiring live rows without a verifying successor. If the test helper cannot be moved to a subclass or test-only module, at minimum consider gating these behind a flag or moving them to a separate test-utility export so they are not accessible through the normal API surface.
+  ```existing
+  /** A FORGED WRITE — the attack shape, used by the tests to prove the reader
+   *  rejects it. Never called by the kernel path. */
+  forgeForTest(row: Partial<ReflexRow> & { canonicalId: string; createdRun: string }, sig: string): void {
+  ```
+  ```suggested
+  // Move to a test-only module or subclass, e.g.:
+  //   export class RsiStoreForTest extends RsiStore { forgeForTest(...) { ... } }
+  // Or gate behind a debug flag:
+  //   if (!this.debugMode) throw new Error('forgeForTest is test-only');
+  ```
+
+[HIGH] src/omp/rsi.ts:417-419 (bug)
+  `recount()` is a public method but performs per-row HMAC verification across the entire evidence ledger for a given `canonical_id`. When called externally (outside a `BEGIN IMMEDIATE` transaction), concurrent `appendFiring`/`appendOutcome` calls can commit mid-recount, producing a stale or internally-inconsistent count. Consider either (a) making `recount()` private and only callable from within transaction-holding methods, or (b) having it acquire its own `BEGIN IMMEDIATE` transaction if not already in one, or (c) at least documenting that callers MUST hold an IMMEDIATE transaction.
+  ```existing
+  /** RECOMPUTE from the ledger — the SC-4 self-reference kill. Counts the
+   *  outcome rows; NEVER reads or increments a counter on the row. */
+  recount(canonicalId: string): { confirmed: number; refuted: number; unresolved: number } {
+  ```
+  ```suggested
+  // Option A: make private, only called from supersede()
+  private recount(canonicalId: string): { confirmed: number; refuted: number; unresolved: number } {
+  // Option B: self-acquire transaction if not already in one
+  recount(canonicalId: string): { confirmed: number; refuted: number; unresolved: number } {
+    const inTx = this.db.query('SELECT * FROM pragma_database_list').all().length > 0; /
+  ```
+
+# total: 35

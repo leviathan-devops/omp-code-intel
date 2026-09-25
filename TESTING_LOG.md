@@ -2791,3 +2791,34 @@ construction — the gate would fire on the BEST outcome. The three states are n
 | 16 (valid parts only) | 56 files | 3 | 99 |
 | 17 (lane A) | 50 files | 1 | 13 |
 | **17 (the whole tree)** | **113 files** | **1** | **33** |
+
+---
+
+## ★★★ RUN 18 — ZERO CRITICALS ON THE WHOLE TREE (2026-09-25)
+
+```
+  parts .................. 113 / 113   ← the WHOLE TREE (A 57 + B 56, both lanes pre-flight-probed)
+  comments ............... 328
+  ★ THE INSTRUMENT ....... 0 instrument-dead · 20 CLEAN REVIEWS · 4 out-of-scope
+  ── the severity breakdown ──
+     ★ CRITICAL 0 ★ · high 35 · medium 179 · low 114
+  ★ THE GATE: CRITICAL=0 HIGH=35 → FAIL (on the highs; the criticals are CLEARED)
+```
+
+**THE CRITICAL IS ELIMINATED.** Run 17 carried 1 critical (F-123, the migration whose
+`db.exec(TYPED_GRAPH_DDL)` a structural edit ate). It is FIXED, PINNED
+(`tests/st-migration-ddl.test.ts` 3/0), and the negative control reproduces both the defect and
+the now-unconditional guard. Run 18 finds **zero**.
+
+**THE TRAJECTORY (the reviewer converging as real defects die):**
+| run | the coverage | critical | high |
+|---|---|---|---|
+| 16 (source-import) | 56 files | 3 | 99 |
+| 17 | **113 files (whole tree)** | 1 | 33 |
+| **18** | **113 files (whole tree)** | **0** | **35** |
+
+**THE HONEST READING OF THE HIGH COLUMN.** It does not fall monotonically across FULL-TREE runs
+(33 → 35) because each run samples a FRESH set of comments from the reviewer — the operator's
+ruling governs: *"all findings are legit; if your code is perfect the llm will say so."* The
+remedy is to FIX EVERY FINDING, repeatedly, until the column reads 0. The run-18 findings are
+dispatched as slices (`artifacts/r18-full-slices/`), each adjudicated FIXED / NOT-A-BUG-with-proof.
