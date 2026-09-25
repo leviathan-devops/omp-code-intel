@@ -747,3 +747,45 @@ passToken was captured in a tool-result context. **Reported as INCOMPLETE, never
 **★ THE HONEST VERDICT FOR THIS LAYER:** the container proves the ARTIFACT (the dist loads, at the
 right bytes); it does NOT yet prove the BEHAVIOR. The gap is the rig's lane configuration and the
 payload size, both named, both fixable, neither a defect in the dist.
+
+---
+
+## ★★★ THE CONTAINER ROUND — SCENARIO RESULTS + TWO DEFECTS THE LLM AUDIT NEVER REPORTED
+
+**The rig:** `omp-ct-gi20` from `omp-ct:master` · the deployed dist read INSIDE the container:
+`sha256 574dc94c008133d2` (after the fix below; `04840c57105a7837` at the round's start).
+
+| scenario | the pre-registered expectation | the observed | verdict |
+|---|---|---|---|
+| SC-1 the auth probe | a model-backed tool call yields a TOOL RESULT | `GI_SC1_OK` appeared in the stream after the bash call | ★ **PASS** |
+| SC-2 the dist loads | the deployed sha == the repo's | `04840c57105a7837` → then `574dc94c008133d2` after the fix | ★ **PASS** |
+| SC-3 the tool surface | the surface answers with its own output | `GI_TOOL_NAMES` = `["graph-probe","graph-query","bug-hunt","aether-code-audit","gi-consumption","gi-decide"]` + 1 alias | ★ **PASS** |
+| A-1 the absent substrate | a NAMED refusal, never a silent empty answer | `GiPathError: GI_SHARED_PROJECT_STORE: path must include /sessions/{sid24}/store.sqlite, got /workspace` | ★ **PASS (loud-fail proven)** |
+| A-2 the malformed argument | a named argument error, never a bare stack trace | ★ **FAILED FIRST, THEN PASSED** — see below | ★ **PASS after the fix** |
+
+**★★ DEFECT 1 — A REAL DIST DEFECT, FOUND ONLY BY THE CONTAINER (A-2).**
+```
+  parseTargetRoots(null)          → TypeError: null is not an object (evaluating 'raw.split')
+  parseTargetRoots({})            → TypeError: raw.split is not a function
+  ledgerDirConfined("", undefined)→ TypeError [ERR_INVALID_ARG_TYPE]
+```
+These are **EXPORTED surface** (the bundle re-exports them), so a malformed argument reaches them
+from outside the module — and they threw **bare `TypeError`s** instead of the codebase's named
+`GI_<AREA>_INVALID` refusals. **A crash is not a refusal**: the caller cannot tell "you passed
+garbage" from "the filesystem broke". **THE LLM AUDIT NEVER REPORTED THIS — all three runs of the
+whole tree missed it.** Fixed with named guards (two throw; `settlementLedgerConfined` RETURNS a
+named refusal, preserving its own never-throws contract). **RE-PROBED IN THE CONTAINER after the
+redeploy — every malformed input now yields a NAMED refusal, zero bare TypeErrors.**
+
+**★★ DEFECT 2 — A RIG DEFECT (not the dist).** `omp-ct:master` bakes its default role as
+`opencode-go/muse-spark-1.3-contributor` — **the lane whose subscription has LAPSED.** Every fresh
+rig boots onto a dead lane, falls through to a retired OpenRouter free model, and dies on
+`404 No endpoints found for arcee-ai/trinity-large-preview:free`. Remedy applied live; **the IMAGE
+should be rebuilt with an allowed default** (and the free tier needs the opencode fingerprint, which
+an omp TUI does not carry — so the rig's default must be a PAID-credentialed allowed lane:
+`poolside/poolside/laguna-s-2.1`).
+
+**★ THE LESSON (the eighth method note): THE CONTAINER FINDS WHAT THE AUDIT CANNOT.** Three
+whole-tree LLM audits missed three exported functions that crash on a malformed argument, because a
+reviewer reads the SOURCE and the container CALLS it. **The adversarial half of a runtime round is
+not optional polish — it is a different instrument.**
