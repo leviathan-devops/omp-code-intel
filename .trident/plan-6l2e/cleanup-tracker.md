@@ -444,3 +444,23 @@ until the gate reads `CRITICAL=0 HIGH=0`; after ANY src edit rebuild the corbell
 `lines` array into a function) — the array literal closes BEFORE the later `lines.push()` calls, so
 it broke `tsc`. The surgical fix (regenerate line 0 per attempt) is both smaller and correct.
 `tsc` caught it in the same step, which is why every edit here runs the compiler before the claim.
+
+---
+
+## ★★ RUN-19 PROGRESS — 24 OF 37 HIGHS FIXED
+
+**HEAD `9baac8f` · uncommitted 0 · dist `b7f27f700573c7fa` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 24  map.ts:115 + interface.ts:70 + db.ts:125   GraphEdge declared id/sourceId/targetId/kind/
+        lineage/file/line — NOT source_location or metadata. The adapters CARRY both and the line
+        resolver READS them, so every consumer reached them through
+        `e as unknown as Record<string, unknown>`. A double-cast is the type system told to look
+        away: it erases the shape AND kills the compiler's ability to catch a renamed field.
+        Declared on both interfaces; the cast retires; the read is compiler-checked.
+```
+**Plus a hygiene item the status line surfaced:** SQLite `*.db-shm` / `*.db-wal` sidecars are
+runtime artifacts (they appear on every store read, vanish on checkpoint) — now gitignored, since a
+half-written sidecar committed beside a clean db is worse than no sidecar.
+
+**THE REMAINING 13** are in `artifacts/r19-full-slices/`.
