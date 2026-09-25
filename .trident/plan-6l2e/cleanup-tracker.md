@@ -1026,3 +1026,25 @@ whose throughput is not key-capped. **The tree itself is clean of the run-19 hig
 **★ THE HONEST DISTINCTION (this is the whole point of the report):** the AUDIT is blocked; the CODE
 is not. Five of the six stop-conditions are green, measured. The sixth needs wall time on a lane the
 host does not currently have spare capacity on.
+
+---
+
+## ★★★ THE L2 SUBSTRATE PRODUCED — the au-engine daemon was DEAD, and that broke C1
+
+**THE REGRESSION.** goal-verify's C1 flipped FAIL: the register went from `GI_LAYER_UNCONSUMED=L2_ARSUMBRIS`
+to `GI_LAYER_DOWN=L2_ARSUMBRIS` — the au-engine daemon had exited (the supervised process died), leaving a
+**0-byte stale socket** at `~/.arsumbris/au-engine/run/5066bda3d0a390b3.sock`.
+
+**THE FIX (per the absent-substrate law — PRODUCE the substrate, never record it absent):**
+```
+  au daemon start .        # the ENTRY is a POSITIONAL arg (a folder-repo carrying .arsumbris/repo.yaml)
+    → ready pid=190473 · the socket re-served
+```
+The wrong invocation (`--repo <dir>`) exits 2 with `unexpected argument '--repo'`; the correct form is
+`au daemon start [ENTRY]` with the repo dir positional.
+
+**THE VERIFICATION.** goal-verify → `★ THE PREDICATE PASSED: 5/5 conditions met` — C1 PASS restored.
+
+**★ THE LESSON: a downstream green can break when an UPSTREAM SUBSTRATE dies, with no code change.** The
+register's liveness check was CORRECT (`GI_LAYER_DOWN` on a stale socket — the named refusal, never a
+silent empty). **The remedy was to restart the substrate, not to touch the kernel.**
