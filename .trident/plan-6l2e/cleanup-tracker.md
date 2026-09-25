@@ -999,3 +999,30 @@ compiler:
 turned a 600 KB extension into a 9.2 MB one. **Every `--bundle` build needs an externalization pass
 for its heavy deps** — the compiler, the ONNX runtime, any multi-MB library — or the artifact pays
 the whole dependency tree's weight on every load.
+
+---
+
+## ★★ W3 — THE AUDIT'S LANE-THROUGHPUT BLOCK (measured, with the resume condition)
+
+**THE MEASUREMENT.** Run 20 has been attempted on every available lane. The result is a **rate-limit
+ceiling**, not a code problem:
+```
+  lane              probe   measured throughput
+  zen-free          403     unusable (needs the opencode fingerprint)
+  openrouter        404     the free model is retired
+  poolside          200     37 files / 1.5 h  (rate-limited)
+  muse-go-mimo      200     ~0.2–1.1 files/min (the per-KEY rate limit caps concurrency)
+```
+**THE MECHANISM.** The go pool is **5-usable-of-8** (go-2/4/5 dead for a month), and the proxy rotates
+one key per request — so more workers do NOT raise throughput, they only collide on the same keys.
+**113 files at the measured rate is 2–9 hours of wall time**, and every worker I add makes the
+collisions worse (measured: 8 workers produced FEWER files than 4).
+
+**★ THE RESUME CONDITION (a BLOCKED state names it, never hides it):** the audit completes when a lane
+is available that is NOT per-key rate-limited — a fresh key set (the 3 dead keys renewed), or a lane
+whose throughput is not key-capped. **The tree itself is clean of the run-19 highs** (42 markers across
+30 files, tsc 0, battery green); the audit's remaining work is the RE-MEASUREMENT, not new fixes.
+
+**★ THE HONEST DISTINCTION (this is the whole point of the report):** the AUDIT is blocked; the CODE
+is not. Five of the six stop-conditions are green, measured. The sixth needs wall time on a lane the
+host does not currently have spare capacity on.
