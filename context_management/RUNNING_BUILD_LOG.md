@@ -876,3 +876,30 @@ receipt names it; **C5 PASSES**.
 **429 burst window**. The pre-flight probe REFUSED both launches, so run 20 produced ZERO parts and
 ZERO findings. A retry launcher is armed (probing every 4 min). **A BLOCKED state is never a stop; it
 names its resume condition.**
+
+---
+
+## RBL · 2026-09-25 · ★★★ THE 9 MB BUNDLE DEFECT — FIXED (the operator's boot complaint)
+
+**THE DEFECT (measured).** The deployed extension bundle was **9,560,681 B (9.2 MB)**, vs the
+**613,000 B** pre-mount bundle — **15.6× bloat**. At byte 152,440 the bundle carried:
+`// node_modules/typescript/lib/typescript.js` — **the WHOLE TypeScript compiler**, inlined by
+`bun build --bundle` because `src/hunter/diagnostics/engine.ts:44` and
+`src/hunter/graph/mechanical.ts:2` import it for the AST walk.
+
+**THE FIX.** `scripts/build-extension.sh` (committed) builds with `--external typescript
+--external '@huggingface/transformers'`; `typescript` stays a runtime `require` and resolves at
+`/home/leviathan/node_modules/typescript/lib/typescript.js`.
+
+**THE MEASUREMENT (before → after):**
+```
+  bundle      9,336K → 746K   (92% smaller · 15.6× → 1.0×)
+  import        139 ms → 41 ms
+  tool surface  7 tools + 4 hooks → IDENTICAL
+  tsc           0 errors
+  battery       441/0 + 539/0 (exit 0)
+  external ts   v5.9.3 · AST walk verified
+  dist sha      15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021   ← THE DEPLOYED SHA
+```
+**★ THE LESSON: a bundler's default is maximal inlining.** Two `import ts` lines turned a 600 KB
+extension into 9.2 MB. Every `--bundle` build needs an externalization pass for its heavy deps.
