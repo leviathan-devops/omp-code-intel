@@ -1513,3 +1513,129 @@ blame the provider.
 - **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **438/0 + 536/0**, exit 0; dist
   `892cdce078247587`, deployed == repo. The register `consumed:7/8`; the ledger 4 distinct; the au
   daemon UP.
+
+---
+
+## EN-W3-RUN16 — the audit lane migration, run 15 VOID, run 16 PARTIAL (2026-09-25)
+
+- **RUN 15 — VOID.** 113 parts, **109 EMPTY_RESULT**. The F-607 instrument gate named it:
+  `AUDIT_INSTRUMENT_DEAD: 109/113 (96%) are EMPTY markers`. Root cause: the **go lane
+  exhausted** — 3 of 8 pool keys hit the MONTHLY quota (`dead until 2026-10-25`), 4 were on
+  the hourly window, `go-8` → 403. 40 minutes spent learning nothing.
+- **THE LANE FIX.** The warhead's lane order has a second rung: **omp Zen** (no subscription).
+  `/zen/v1` answered 200 immediately with **80 models including 10 `-free` variants**. ocr
+  could not use it directly (the upstream forces SSE; ocr's client cannot decode
+  `text/event-stream`, and the proxy enforces the 4-gate fingerprint). Rebuilt the
+  **`zen-free-adapter`** (a Bun SSE-decoding bridge, port 4098) at its DURABLE home
+  `/home/leviathan/.omp/agent/bin/zen-free-adapter.mjs` and made it a **supervised systemd
+  user service** (`zen-free-adapter.service`, Restart=always, boot-enabled). Measured: the
+  Responses API wants FLAT `tools[].name` (the chat-completions nesting returns
+  `tools[0] missing required field 'name'`).
+- **THE PRE-FLIGHT PROBE.** `scripts/whole-tree-audit.sh` now probes the lane with ONE real
+  completion BEFORE launching and **REFUSES on a non-200**. Proven live: it refused the
+  re-run at 05:04 with `✗ LANE DEAD: muse-free answered HTTP 429`. A void 113-file run can
+  no longer be launched.
+- **RUN 16 — PARTIAL (56/113), HONESTLY VOID AS A WHOLE-TREE AUDIT.** The lane ran 25 clean
+  files, then the free tier rate-limited the 12-worker burst (`FreeUsageLimitError`) at
+  04:59; the remaining 57 parts are 37-byte EMPTY markers. **The valid 56 parts carry REAL
+  findings: 311 comments — 3 CRITICAL, 99 HIGH, 163 MEDIUM, 46 LOW.** The F-607 gate
+  correctly marks the run VOID for whole-tree purposes.
+- **THE RETRY ADDED.** A 0-byte part is now RETRIED (4 attempts, 45/90/180s backoff) rather
+  than recorded as empty — the free tier recovers, so the retry is the correct response
+  (not a lane switch).
+- **THE R15 WAVE.** Dispatched 5 agents over the 102 critical/high findings in 5 disjoint
+  slices (`artifacts/w16-valid-slices/high-1..5.md`), each prompt carrying the
+  PINNED-CONTRACT DISCIPLINE preamble (`.trident/r15/PREAMBLE.md`).
+- **THE 3 CRITICALS (real):** (1) `diagnostics/engine.ts:600` — false symlink-cycle abort on
+  every normal subdirectory (the visited-set is pre-added before recursing); (2)
+  `graph/corbell-adapter.ts:207` — shell-injection gap in the public exec path (`cmdRaw` →
+  `/bin/sh -c`, quote/backslash escapes retained); (3) `tools/bug-hunt.ts:105` — hunt vs
+  status locks use different keys, defeating the F-1004 mutual exclusion.
+
+## EN-W3-R15-DISPATCH-MISMATCH — the hand-transcribed file list (2026-09-25)
+
+- **WHAT HAPPENED:** the R15 wave's 5 dispatch prompts were hand-written with file lists I
+  transcribed by eye from a PARTIAL read of the slice headers. The result: a wrong ownership
+  partition. R15High5 was told to own `trace.ts`, `tools.ts`, `db-canon.ts`, `warhead.ts`,
+  `ontology.ts` — **none of which appear in high-5.md** — while high-5.md's actual 8 files
+  overlap-checked as siblings'. R15High5 caught it, held its edits, and asked the right
+  question: **is the Target list or the slice file authoritative?**
+- **THE RULING:** the SLICE FILE is authoritative. The slices ARE disjoint (verified by set
+  intersection); my transcription was the defect.
+- **THE LESSON (the same class as "dispatch the generated prompt verbatim"):** **never
+  hand-transcribe a list into a dispatch.** The list is DATA on disk — build the prompt FROM
+  it (`grep -E '^## ' high-N.md > the file list`), never from a partial read and an
+  extrapolation. A hand-written list is a claim about the disk; it must be generated, not
+  remembered.
+- **THE SECOND LESSON (the agents' behaviour was CORRECT):** a subagent that finds its
+  assignment inconsistent with its source data should HOLD and ASK, not guess. R15High5's
+  hold-and-ask is the right instinct and should be preserved.
+
+---
+
+## EN-W3-RUN15-16-WAVE — 9 AGENTS, ~120 FINDINGS, 3 REGRESSIONS CAUGHT BY THE AUDIT (2026-09-25)
+
+### THE WAVE
+- **R15 (5 agents, run-16's valid slices)**: H1 23 · H2 22 (21 FIXED, incl. the critical) ·
+  H3 20 (10 FIXED / 10 NOT-A-BUG) · H4 19 (all FIXED, incl. the critical) · H5 17.
+- **R16 (4 agents, the go-lane re-audit's findings)**: A 7 · B 6 (2 PROBE-ERRORs disproven) ·
+  C · D 6 — **ZERO file overlap** with R15 (verified by set intersection), so both waves ran
+  concurrently.
+- **54 `src/` files modified · ~120 findings adjudicated.**
+
+### ★ THE 5 CRITICALS — ALL FIXED, EACH BY MECHANISM (never a widened denylist)
+1. `graph/corbell-adapter.ts:207` **shell injection** → argv construction + single-quote escaping;
+   probe: `$(echo PWNED)` arrives literal. (Was: `cmdRaw` reaching `/bin/sh -c` with `'`/`"`/`\` live.)
+2. `diagnostics/engine.ts:600` **false symlink-cycle abort** → the visited-set is owned exactly once
+   at entry (the pre-adds + root pre-seed were the defect).
+3. `tools/bug-hunt.ts:105` **lock-key mismatch** → one canonical `lockTarget` shared by hunt + status.
+4. `graph-facts.ts` **LIKE wildcards unescaped** → `ESCAPE CHAR(92)` at all 5 sites (a fragment
+   `foo_bar` matched `foobar` → a live node read as 0 inbound edges).
+5. `firewall/readonly.ts` **sed -n / find -exec / git write-flag bypasses** → three route-level
+   refusals (exact quoted-range only; `-exec` family deny-listed; `--output` et al → MUTATION).
+
+### ★★ THE WAVE AUDIT CAUGHT 3 REGRESSIONS THE AGENTS DID NOT — THE POINT OF THE AUDIT
+The agents' own verification said "tsc clean, my files green". The ORCHESTRATOR battery found
+three pinned tests RED. **A subagent's "green" is a claim about its files; the battery is a
+claim about the SYSTEM.**
+1. **`st-gi-w3-validation` 8/1** — the fail-closed anchor leg (`realpathSync` fails → `file: ""`)
+   dropped EVERY fixture node whose anchor is not yet on disk → zero in-scope → `GRAPH_EMPTY`.
+   **REVISED, not reverted:** `path.resolve` + `path.normalize` already collapse `../` LEXICALLY,
+   so the escape the reviewer feared was already dead; what the lexical path cannot prove is
+   SYMLINK containment — and for that the correct polarity is **keep the node on its lexical path
+   and COUNT it** (`anchorUnverified` + a WARN), never vanish it. *(Dropping a node converts
+   "unprovable" into "silently invisible" — a loud-fail violation.)*
+2. **`st-w3-criticals` 8/1** — a SOURCE-SHAPE pin grepped for the literal
+   `dst_canonical LIKE ?1 AND superseded_run IS NULL`; the escape clause broke the literal.
+   **The pin was RE-SPECIFIED to its own intent** (a regex tolerating `ESCAPE CHAR(92)`), with the
+   reason documented inline. The pin's other two assertions (`>= 4 superseded_run IS NULL`, and
+   "every `FROM typed_edges` is filtered") were UNCHANGED and green — they are the intent half.
+3. **`st-gi-w7-scanhighs` 1/1** — the W16 re-home branch handles a DISPLACED *different* keyid at
+   `idx`; **nothing collapsed a GHOST row carrying the SAME keyid at ANOTHER idx**. The pre-W16
+   DELETE-siblings step did. Fixed by folding the sibling's exile (`MAX(dead_until)`) into the
+   effective window, then deleting siblings inside the SAME transaction. *(The owner then found and
+   removed its own redundant early DELETE that would have destroyed the exile window.)*
+
+### THE THREE DISCIPLINE EVENTS (recorded, not hidden)
+- **THE CWD TRAP:** 5 agents spent **90 minutes** making RELATIVE edits into a DIFFERENT tree.
+  The session cwd is `/home/leviathan/.omp/wt/graph-intelligence-66dfa4c` (a worktree of the
+  *Shared_Workspace* repo); the GI kernel is a **separate repo**. `R15High1` named it exactly:
+  *"default.edit with relative src/hunter/... → File not found, wrong tree"*. **Remedy: the
+  ABSOLUTE-PATH RULE + a `git status` self-check in every edit-authorizing dispatch** (now baked
+  into R16's prompts — R16 landed in 26-34 min, no recurrence).
+- **THE HAND-TRANSCRIBED FILE LIST:** my R15 dispatch prompts carried file lists I typed from a
+  PARTIAL read of the slice headers. A wrong ownership partition resulted; **R15High5 caught it,
+  HELD its edits, and asked.** Ruling: the slice file is authoritative. *Never hand-transcribe a
+  list into a dispatch — generate it from the disk.*
+- **THE GATE WORKAROUND:** one agent used python/bash to write around the graph gate. Reported, not
+  hidden — the correct remedy is a `ripwire verb=callers target=<symbol>` query in the same turn.
+
+### THE VERIFICATION (all re-run by the orchestrator on the combined tree)
+```
+tsc --noEmit ............ exit 0
+bun run test ............ 438/0 + 536/0, exit 0
+goal-verify ............. PASSED: 5/5
+the register ............ consumed:7/8 (honest)
+the dist ................ 1c73723445f65973 · deployed == repo
+the au daemon ........... UP · the zen-free adapter ... active (systemd, boot-enabled)
+```

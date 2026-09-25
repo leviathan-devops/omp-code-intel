@@ -1,0 +1,9 @@
+src/hunter/diagnostics/calibration.ts
+src/hunter/firewall/artifact-scope.ts
+src/hunter/harness/recon.ts
+src/hunter/harness/report.ts
+src/hunter/lexicon/compiled-store.ts
+src/hunter/profile/loader.ts
+src/hunter/surface/lsp-injector.ts
+src/hunter/tools/bug-hunt.ts
+src/hunter/tools/report-writer-local.ts

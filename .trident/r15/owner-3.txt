@@ -1,0 +1,9 @@
+src/hunter/diagnostics/engine.ts
+src/hunter/diagnostics/semantic-predicates.ts
+src/hunter/firewall/lexicon-types.ts
+src/hunter/harness/scan.ts
+src/hunter/hooks/bus-hook.ts
+src/hunter/profile/schema.ts
+src/hunter/shared/kind-for-layer.ts
+src/hunter/tools/query-registration.ts
+src/hunter/triad.ts

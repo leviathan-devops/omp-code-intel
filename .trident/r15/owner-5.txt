@@ -1,0 +1,8 @@
+src/hunter/diagnostics/findings-store.ts
+src/hunter/graph/mechanical.ts
+src/hunter/graph/merge.ts
+src/hunter/harness/hunt-lock.ts
+src/hunter/harness/map.ts
+src/hunter/lexicon/rule-card.ts
+src/hunter/shared/migrations.ts
+src/hunter/surface/query-tool.ts

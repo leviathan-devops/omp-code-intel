@@ -1,0 +1,457 @@
+[HIGH] src/hydra/auditor.ts:189-192 (security)
+  The grep tool (both `rg` and `grep -r` fallback) follows symlinks by default when traversing directories inside `targetRoot`. Unlike the `read` tool (which uses `isWithinRoot` + `O_NOFOLLOW`) and the `write_findings` tool (which validates the pinned path against `ledgerDir` + `O_NOFOLLOW`), the grep tool has NO symlink containment. A symlink inside targetRoot pointing to `/etc/shadow` or any external directory would yield matches (and printed file paths) from outside the containment boundary. This is the only tool in the belt that leaks data through symlinks.
+
+Suggestion: After grep returns, filter output lines to only include those whose file path resolves inside targetRoot (a post-hoc cont
+  ```existing
+  let out = await run("rg", ["-n", "--max-count", String(maxResults), "--", pattern, targetRoot]);
+      if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
+        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+      }
+  ```
+
+[CRITICAL] src/hydra/client-reader.ts:99-102 (bug)
+  Unhandled promise rejections from timeout promises can crash the process.
+
+When the main operation wins `Promise.race` (e.g., `t.listTools()` resolves), the losing timeout promise remains alive. After 5000ms it calls `rej(new Error(...))`, but no one handles that rejection. In Node.js 15+ (which is the default runtime), unhandled rejections throw and crash the process — this means a **successful** `listTools()` or `callTool()` can still crash the process 5 seconds later when the abandoned timeout fires.
+
+The same pattern exists in `attach()` and `disconnect()` timeout promises.
+
+Fix: clear the timer in a `finally` block so the timeout promise never rejects after the operation completes:
+
+```
+  ```existing
+  return await Promise.race([
+        t.listTools(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000).unref?.()),
+      ]);
+  ```
+  ```suggested
+  let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000);
+        timer?.unref?.();
+      });
+      try {
+        return await Promise.race([t.listTools(), timeout]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+  ```
+
+[HIGH] src/hydra/pipeline.ts:121-125 (bug)
+  Pre-gate failure skips the try/catch block that publishes evidence and PIPELINE_FAILED. When a pre-gate fails, `failLoud` throws at line ~101, which is *before* the try block at line 115. The catch block that calls `this.publishRun(seq, evidence)` is never reached, so `this.evidence` is never updated with the failed run's trail. This is inconsistent with the post-gate failure path (which does publish) and means concurrent readers see a stale or empty snapshot after a pre-gate rejection. The pre-gate failure path should also call `publishRun`.
+  ```existing
+  for (const gate of this.config.gates.pre) {
+      this.log("GATE_CHECK", { gate: gate.name, phase: "pre" }, evidence);
+      const result = await gate.check(input);
+      if (!result.passed) this.failLoud(gate, result.reason ?? "pre-gate failed");
+    }
+  ```
+  ```suggested
+  for (const gate of this.config.gates.pre) {
+      this.log("GATE_CHECK", { gate: gate.name, phase: "pre" }, evidence);
+      const result = await gate.check(input);
+      if (!result.passed) {
+        this.log("PIPELINE_FAILED", { name: this.config.name, error: `pre-gate ${gate.name}: ${result.reason ?? "pre-gate failed"}` }, evidence);
+        this.publishRun(seq, evidence);
+        this.failLoud
+  ```
+
+[HIGH] src/hydra/templates/sro.ts:78-79 (bug)
+  sroCyclesTemplate's filterTags (line 78) are byte-for-byte identical to sroGraphTemplate's (line 44): `["violates", "triggers", "shouldBe", "declares", "evaluates_to", "contradicts_oracle", "flagged_by", "caused"]`. This appears to be a copy-paste artifact. The cycles template hunts circular dependencies and likely needs different filter tags — e.g., `"implements"`, `"wraps"`, `"derived_from"` (used by sroPathTemplate and sroDeadCodeTemplate for import/call relationships) are more relevant for cycle detection than `"triggers"` and `"caused"`, which relate to graph-structure anomalies (orphans, god-nodes). Please verify the intended tag set against the fork source (`sro-cycles.ts`) and correc
+  ```existing
+  ["violates", "triggers", "shouldBe", "declares", "evaluates_to", "contradicts_oracle", "flagged_by", "caused"],
+  "hunt circular dependencies (import cycles length>=2 verified by reading import statements, SCCs size>=2).",
+  ```
+  ```suggested
+  // TODO: verify against fork — cycles likely needs import-relationship tags
+  ["violates", "shouldBe", "implements", "wraps", "evaluates_to", "derived_from", "flagged_by"],
+  "hunt circular dependencies (import cycles length>=2 verified by reading import statements, SCCs size>=2)."
+  ```
+
+[HIGH] src/kernel/graph-pre-flight.ts:38-41 (bug)
+  **`impactInDb` truncation silently ignored**: `impactInDb` caps its ledger at 5000 rows and sets `truncated: true` when the cap is hit (see `typed-write.ts:1119-1146`). `preFlight` never checks `imp.truncated`, so when a large graph is encountered, `imp.reaches` is under-reported (it equals `ledger.length`, not actual reachability). This silently produces an incorrect `commitStrategy` — e.g., a graph with 100 real reachable nodes but only 49 ledgered would get `"split"` instead of `"domain-level"`. A warning should be emitted when `imp.truncated` is true, mirroring the existing `NO CONSUMERS` and `WIDE BLAST RADIUS` patterns.
+  ```existing
+  const imp = impactInDb(db, target, 8);
+
+    const byDepth: Record<number, number> = {};
+    for (const row of imp.ledger) byDepth[row.depth] = (byDepth[row.depth] ?? 0) + 1;
+  ```
+  ```suggested
+  const imp = impactInDb(db, target, 8);
+    if (imp.truncated) warnings.push(`IMPACT TRUNCATED: blast-radius ledger capped at 5000 rows — reachability UNDER-REPORTED for ${target}; commit strategy may be too lenient`);
+
+    const byDepth: Record<number, number> = {};
+    for (const row of imp.ledger) byDepth[row.depth] = (byDepth[row.depth] ?? 0) + 1;
+  ```
+
+[HIGH] src/omp/adapters/kev.ts:119-120 (bug)
+  The `out.split("\n").reverse().find(...)` heuristic to extract JSON from CLI stdout is fragile and error-prone. If the CLI emits debug lines, warnings, or progress indicators to stdout (e.g., `{"debug": true}` or a truncated `{"partial...`), this picks up the wrong line. The try/catch around `JSON.parse` prevents a crash, but the wrong object could silently pass all downstream checks (ok, distribution, uniform) and produce a fabricated verdict. A safer approach is to use a structured protocol: scan only lines that begin with `{` AND contain `"ok"`, or better yet, capture stderr for diagnostics and treat stdout as exclusively JSON.
+  ```existing
+  const line = out.split("\n").reverse().find((l) => l.trim().startsWith("{"));
+      if (line === undefined) throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON — output: ${out.slice(0, 200)}`);
+  ```
+  ```suggested
+  // Prefer a JSON object that looks like a real KEV answer (has "ok" field)
+      const candidates = out.split("\n").filter((l) => l.trim().startsWith("{") && l.includes('"ok"'));
+      const line = candidates[candidates.length - 1];
+      if (line === undefined) throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON — output: ${out.slice(0, 200)}`);
+  ```
+
+[HIGH] src/omp/adapters/kev.ts:107-112 (performance)
+  The synchronous `execFileSync` with a 120-second timeout blocks the calling thread entirely. In any concurrent or server-based probe runner, a slow or hung CLI process will block the event loop for up to two minutes, creating a denial-of-service risk for other probes. The F-1206 NOTE acknowledges this as deferred, but it remains a live issue. The recommended mitigation is to migrate `facts()` to an async signature and use `execFile` (callback/promise-based), or offload to a worker thread.
+  ```existing
+  out = execFileSync(process.execPath, [cli, "--json", JSON.stringify({ state: buildState(scopeRoot, subject), questions: [MEANING_QUESTION] })], {
+          encoding: "utf8",
+          timeout: 120_000,
+          maxBuffer: 8 * 1024 * 1024,
+          cwd: scopeRoot,
+        });
+  ```
+
+[HIGH] src/omp/calibration.ts:80-82 (bug)
+  NaN counts bypass the negative-count guard silently. The check `c.confirmed < 0` evaluates to `false` when `c.confirmed` is `NaN` (all relational comparisons with NaN return false). This causes all downstream Wilson calculations to propagate NaN — `p` becomes NaN, `centre` becomes NaN, `low`/`high` become NaN, and `sufficient`/`starved` flags are incorrect. Since these counts come from external ledger reads, a corrupted or uninitialized ledger entry could inject NaN. Add an explicit guard: `Number.isFinite(c.confirmed) && Number.isFinite(c.refuted) && Number.isFinite(c.unresolved)` before the existing negative check. The same issue applies to `firesNeededForGap` where `p` or `gap` could be N
+  ```existing
+  if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
+  ```
+  ```suggested
+  if (!Number.isFinite(c.confirmed) || !Number.isFinite(c.refuted) || !Number.isFinite(c.unresolved)) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be finite numbers (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
+  if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (con
+  ```
+
+[HIGH] src/omp/gate-middleware.ts:112-112 (bug)
+  `runGraphGate` reads `process.env.GI_ALLOW_NO_STORE` directly (line ~101) instead of accepting a configurable `env` parameter like `resolveDial` does. This inconsistency means: (1) the bypass decision cannot be unit-tested without mutating the global `process.env`, (2) concurrent test runs can interfere with each other, and (3) the gate's security-relevant behavior (fail-closed vs bypass) is harder to verify in isolation. Consider threading the same `env` parameter through `GateInput` or as a second argument, consistent with `resolveDial`'s pattern.
+  ```existing
+  if ((process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+  ```
+  ```suggested
+  // Add env to GateInput or pass as parameter:
+    if ((input.env?.GI_ALLOW_NO_STORE ?? process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+  ```
+
+[HIGH] src/omp/graph-facts.ts:109-119 (bug)
+  **Bug: `freshnessGate` violates the file's own 'UNOBSERVED, never PASS' principle.**
+
+The freshness gate returns `settles: true, action: 'IGNORE'` when the store is stale, which tells downstream callers (MPSE, cache, Jev) that the graph has *settled* the question with a clean answer. But a stale store means the graph *cannot know* — it is not evidence of absence. The file's own documented pin states: 'a generic gate preempting a specific one is UNOBSERVED, never PASS.' A stale-data gate is exactly that: a generic gate.
+
+The consequence is severe: the caller at line 142 returns immediately (`return [stale]`), so M-GRAPH-1 through M-GRAPH-5 are never evaluated, and the `settles: true` flag tel
+  ```existing
+  function freshnessGate(db: Database, input: GraphFactInput): GraphFactVerdict | null {
+  const f = layerFreshness(db, { derivation: input.derivation ?? "explicit", now: input.now });
+  if (!f.stale) return null;
+  return {
+    rule: "M-GRAPH-3",
+    settles: true,
+    action: "IGNORE",          // a stale-store refusal is NOT evidence of a violation
+    reason: "the graph store is STALE — no fact 
+  ```
+
+[HIGH] src/omp/graph-facts.ts:102-103 (bug)
+  **Bug: `LIKE` helper strips `_` and `%` from the target instead of escaping them, causing incorrect SQL LIKE matching.**
+
+The helper `const LIKE = (target) => `%${target.replace(/[%_]/g, '')}%`` removes `_` and `%` from the search term. In SQL LIKE, `_` is a single-character wildcard and `%` is a multi-character wildcard — stripping them changes the semantics of the search.
+
+Concrete failure case: if `target = "foo_bar"` and a canonical_id in the store is `my_foo_bar_handler`, the query becomes `LIKE '%foobar%'`. The string `my_foo_bar_handler` does NOT contain the literal substring `foobar`, so the lookup returns zero rows — the node is treated as absent. Every subsequent rule sees `known =
+  ```existing
+  /** The canonical-id prefix the indexer writes; fragments match within it. */
+const LIKE = (target: string) => `%${target.replace(/[%_]/g, "")}%`;
+  ```
+
+[HIGH] src/omp/graph-gate.ts:184-185 (bug)
+  `computeDrift` silently mutates the caller's `state` in three ways: (1) it splices `state.editLog` and `state.graphQueries` via `filter` reassignment (lines 203–204), destroying entries the caller may still reference; (2) it writes `state.drift = drift` as a side-effect of what reads like a pure computation; (3) `gateDecision` also mutates `state.gateState` without documenting the mutation contract. These hidden side-effects are dangerous if any caller expects a read-only drift check (e.g., previewing a gate decision without committing the pruning). The mutation of editLog/graphQueries is irreversible — once entries are pruned, `saveGateState` persists the shortened arrays, permanently losin
+  ```existing
+  state.editLog = state.editLog.filter((e) => now - e.timestamp < DRIFT_WINDOW_MS);
+  state.graphQueries = state.graphQueries.filter((q) => now - q.timestamp < DRIFT_WINDOW_MS);
+  ```
+  ```suggested
+  // Option A: make computeDrift pure — compute on local copies, return result without mutating state.
+  const activeEdits = state.editLog.filter((e) => now - e.timestamp < DRIFT_WINDOW_MS);
+  const activeQueries = state.graphQueries.filter((q) => now - q.timestamp < DRIFT_WINDOW_MS);
+  // ... compute on activeEdits / activeQueries ...
+  // Return drift without writing to state; let the caller decid
+  ```
+
+[HIGH] src/omp/graph-gate.ts:389-390 (bug)
+  `loadGateState` returns `null` when the persisted row is corrupt, tampered, or fails shape validation. Most callers interpret `null` as 'no prior state' and create a fresh gate via `createEmptyState()`, which silently erases the entire accumulated drift history for that session. The error is logged to console but the gate itself has no signal that history was lost — a session that was at T2 WARNING can silently reset to IDLE. This is a data-loss path that should either throw (forcing callers to handle corruption explicitly) or return a degraded state that preserves the non-corrupt fields.
+  ```existing
+  console.error(`GI_GATE_STATE_LOAD_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  ```
+  ```suggested
+  console.error(`GI_GATE_STATE_LOAD_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);
+    // Throw instead of returning null so callers cannot silently discard history.
+    throw new Error(`GI_GATE_STATE_CORRUPT: ${storePath} session=${sessionId}`);
+  ```
+
+[HIGH] src/omp/hard-deps.ts:242-247 (bug)
+  The variable is named `listeningPaths` but the Set is populated from ALL entries in `/proc/net/unix` without filtering by socket state. The `/proc/net/unix` file lists every Unix domain socket on the system — listening, established, connecting, etc. A socket in state ESTABLISHED or CONNECTING would also match, producing a false UP for a daemon that is no longer accepting connections.
+
+In `/proc/net/unix`, the state field is at column index 3 (0-indexed); `0A` (hex) means LISTENING. The probe should filter on that state, or at minimum acknowledge the gap. Given the stated design goal ('existence is not liveness' / 'a socket FILE with no entry is a stale corpse'), the check is incomplete — hav
+  ```existing
+  const listeningPaths = new Set(
+        table.split("\n").map((line) => {
+          const parts = line.trim().split(/\s+/);
+          return parts[parts.length - 1] ?? "";
+        }),
+      );
+  ```
+  ```suggested
+  // In /proc/net/unix, column 3 (0-indexed) is the socket state; "0A" = LISTENING.
+      const listeningPaths = new Set(
+        table.split("\n")
+          .filter((line) => {
+            const parts = line.trim().split(/\s+/);
+            // skip the header line ("sk  RefCount ...") and lines with fewer fields
+            return parts.length >= 7 && parts[3] === "0A";
+          })
+          .map(
+  ```
+
+[HIGH] src/omp/jev.ts:54-56 (bug)
+  Resource-exhaustion errors from `openSync` (e.g. `EMFILE`, `ENFILE` — too many open file descriptors) silently fall through to the `GI_JEV_NO_KEY` throw at line 87. This misidentifies a system resource condition as a missing key, which will cause callers to show a misleading 'no key' message instead of flagging the real problem. These errno codes should be re-thrown as a distinct JevError (or at least NOT mapped to `GI_JEV_NO_KEY`).
+  ```existing
+  // ENOENT and friends: fall through to the NO_KEY throw below (the old readFile path did the same).
+    }
+    if (fd !== null) {
+  ```
+  ```suggested
+  // ENOENT, ENOTDIR etc. — genuinely absent, fall through below.
+      // EMFILE/ENFILE — resource exhaustion, not a missing key; surface it.
+      if (c?.code === 'EMFILE' || c?.code === 'ENFILE') {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} could not be opened: ${c.code} (system out of file descriptors — not a missing key)`,
+        );
+      }
+    }
+
+  ```
+
+[HIGH] src/omp/kernel-v2.ts:561-561 (bug)
+  Unsafe type assertion: `d.action as GateAdjudication["action"]` silently accepts any string returned by `gate.judge()`. If the gate returns an unexpected action value (e.g. "ALLOW"), this cast would mask the invalid value and downstream code would treat it as FIRE/ESCALATE/IGNORE without any runtime validation. Add a guard to reject unknown action values.
+  ```existing
+  action: d.action as GateAdjudication["action"],
+  ```
+  ```suggested
+  action: validateAction(d.action),
+
+// ... add helper:
+const VALID_ACTIONS = new Set<GateAdjudication["action"]>(["FIRE", "ESCALATE", "IGNORE"]);
+function validateAction(action: string): GateAdjudication["action"] {
+  if (!VALID_ACTIONS.has(action as GateAdjudication["action"])) {
+    throw new Error(`unexpected gate action: ${action}`);
+  }
+  return action as GateAdjudication["action"];
+}
+  ```
+
+[HIGH] src/omp/populate-corbell.ts:110-112 (bug)
+  In `isCorbellCheckoutFreshFor`, when `fs.statSync` throws on an individual source file (line 128 catch block), `walkFailed` is not set — the file is silently skipped. If the most recently modified source file is unreadable (e.g., permission denied, broken symlink), `newest` stays artificially low and the function reports `fresh`. This is a false-fresh bug: a changed-but-unreadable source doesn't trigger staleness. Since unreadable directories already set `walkFailed`, files with matched extensions should follow the same fail-closed discipline.
+  ```existing
+  const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
+          if (m > newest) newest = m;
+        } catch { /* unreadable file — skip */ }
+  ```
+  ```suggested
+  const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
+          if (m > newest) newest = m;
+        } catch {
+          // Unreadable source file: fail-closed (same as unreadable dir).
+          // If the newest file can't be stat'd, we cannot confirm freshness.
+          walkFailed = true;
+          return;
+        }
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:174-195 (bug)
+  **`walkFailed` check at line 174 is dead code — walk failures are silently ignored.**
+
+The check `if (walkFailed) return { fresh: false, reason: "stale-read-failed" }` is placed at line 174, AFTER the `walk` function definition but BEFORE the `for` loop at line 175 that actually calls `walk()`. Since `walkFailed` is only set to `true` inside `walk()` (line 144), and `walk()` is only invoked from line 190 inside the scope loop, `walkFailed` is always `false` when checked at line 174.
+
+After `walk()` sets `walkFailed = true` during the scope loop, the flag is never checked again. The probe continues and may reach the mtime comparison (line 205) based on partial data, potentially reporting "fre
+  ```existing
+  if (walkFailed) return { fresh: false, reason: "stale-read-failed" };
+  for (const rel of scope) {
+    const target = containedScopeTarget(root, rel);
+    if (target === null) continue;
+    // V21 cleanup fix-now: a scope entry may be a FILE — stat it directly
+    // (walk() on a file throws ENOTDIR and silently counted nothing).
+    let stTarget: fs.Stats | null = null;
+    try { stTarget = fs.st
+  ```
+  ```suggested
+  for (const rel of scope) {
+    const target = containedScopeTarget(root, rel);
+    if (target === null) continue;
+    let stTarget: fs.Stats | null = null;
+    try { stTarget = fs.statSync(target); } catch { stTarget = null; }
+    if (stTarget?.isFile()) {
+      const base = path.basename(target);
+      if (excludes.includes(base)) continue;
+      if (stTarget.mtimeMs > newest) newest = stTarget.m
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:296-307 (bug)
+  **`hashSourceTree` walk does NOT skip files matching `excludes` — inconsistency with `isGraphifyCheckoutFreshFor`.**
+
+In `isGraphifyCheckoutFreshFor` (line 164), the file branch checks `if (excludes.includes(entry.name)) continue;` before counting the file toward the budget and mtime. But in `hashSourceTree` (lines 296-307), the file branch has NO such check — all matching extension files are hashed regardless of `excludes`.
+
+This means a user-configured `excludes` entry for a file (e.g. `"debug-helper.ts"`) will:
+1. Be skipped by the freshness probe's mtime walk (not triggering staleness via mtime)
+2. Still be included in the content hash (triggering `stale-content` if it changes)
+
+The net 
+  ```existing
+  } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        budget.n--;
+        try {
+          const stat = fs.statSync(path.join(dir, entry.name));
+          hashFile(path.join(dir, entry.name), `${prefix}${entry.name}`, stat.size);
+        } catch {
+          // frozen-scan HIGH: an unreadable file is NOT silently omitted
+  ```
+  ```suggested
+  } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        if (excludes.includes(entry.name)) {
+          hash.update(`skip-excluded:${prefix}${entry.name}\n`);
+          continue;
+        }
+        budget.n--;
+        try {
+          const stat = fs.statSync(path.join(dir, entry.name));
+          hashFile(path.join(dir, en
+  ```
+
+[HIGH] src/omp/populate.ts:82-84 (bug)
+  `db.close()` is not guarded by try/catch in the corbell path. If `close()` throws (e.g., I/O error on flush, corrupted DB handle), the exception propagates out of the finally block and masks the return value — including the `metaDegraded` flag. The graphify path already wraps close correctly (`try { db.close(); } catch { ... }`). Apply the same pattern here.
+  ```existing
+  } finally {
+      db.close();
+    }
+  ```
+  ```suggested
+  } finally {
+      try { db.close(); } catch { /* close best-effort */ }
+    }
+  ```
+
+[HIGH] src/omp/ripwire-bridge.ts:73-78 (bug)
+  **`spawnSync` ignores `maxBuffer` — buffer limit is non-functional, truncation detection is dead code**
+
+`spawnSync` (Node.js) does **not** support the `maxBuffer` option — only `execSync` and `execFileSync` do. Passing it to `spawnSync` is silently ignored (no error, no limit). This means:
+
+1. **No output is ever capped**: ripwire can produce >32 MB of stdout/stderr without any enforcement.
+2. **Truncation detection is dead code**: Lines 79–93 (the ENOBUFS / ERR_CHILD_PROCESS_STDIO_MAXBUFFER / stdout-length heuristic) can never trigger because `spawnSync` never sets these error codes for buffer overflow — it doesn't enforce a buffer limit at all.
+3. **The stdout-length heuristic is also unr
+  ```existing
+  const res = spawnSync(bin, [root, ...args], {
+    encoding: "utf8",
+    timeout: timeoutMs ?? RIPWIRE_TIMEOUT_MS,
+    maxBuffer: RIPWIRE_MAX_BUFFER,
+    env: e,
+  });
+  ```
+  ```suggested
+  // Option A: use execFileSync which supports maxBuffer
+  // const res = execFileSync(bin, [root, ...args], {
+  //   encoding: "utf8",
+  //   timeout: timeoutMs ?? RIPWIRE_TIMEOUT_MS,
+  //   maxBuffer: RIPWIRE_MAX_BUFFER,
+  //   env: e,
+  //   stdio: ["pipe", "pipe", "pipe"],
+  // });
+
+  // Option B: keep spawnSync but enforce limit manually after the call
+  const res = spawnSync(bin, [root, ...arg
+  ```
+
+[CRITICAL] src/omp/store-open.ts:100-105 (bug)
+  Missing orphan cleanup in post-upsert race verify — same bug class as F-1210.
+
+Scenario:
+1. Opener A wins `wx` (created = true), opener B gets EEXIST (created = false)
+2. Both read `current` → null (no registry row yet)
+3. A upserts ownerKey A, B upserts ownerKey B (overwrites A's row)
+4. A's verify finds written.session_id = B ≠ A → throws GI_SCOPE_REFUSED
+5. **But A does NOT unlink the store file it created** → orphan on disk
+
+Future openers hit EEXIST on `wx` with no matching registry row, unable to recover.
+
+The fix mirrors the earlier F-1210 check (lines 78-79): before throwing, unlink the file if `created` is true. The pattern already exists 12 lines above.
+  ```existing
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    throw new GiScopeError(
+      `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`,
+    );
+  }
+  ```
+  ```suggested
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    if (created) {
+      try { fs.unlinkSync(storePath); } catch (e) { console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`); }
+    }
+    throw new GiScopeError(
+      `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_i
+  ```
+
+[HIGH] src/scoping/scope-binding.ts:158-160 (security)
+  `statePath` performs no path-traversal sanitization. If a caller passes `..` segments in `parts` (or even `scopeRoot`), `path.join` resolves them and can escape the intended `stateDir` boundary. For example, `statePath('/project', '..', 'etc', 'passwd')` would resolve to `/etc/passwd`. Since this method is part of the public `ScopeBinding` interface and deals with on-disk state, callers that pass untrusted input (e.g., user-supplied wave names) could write outside the sandbox.
+  ```existing
+  statePath(scopeRoot: string, ...parts: string[]): string {
+    return path.join(scopeRoot, this.stateDir, ...parts);
+  }
+  ```
+  ```suggested
+  statePath(scopeRoot: string, ...parts: string[]): string {
+    const resolved = path.resolve(scopeRoot, this.stateDir, ...parts);
+    const base = path.resolve(scopeRoot, this.stateDir);
+    if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+      throw new Error(
+        `[${this.label} SCOPE] statePath: resolved path "${resolved}" escapes the state directory "${base}". ` +
+       
+  ```
+
+[HIGH] src/scoping/session-state.ts:75-77 (bug)
+  `writeSessionState` accepts a full state map and overwrites it, but the caller may have read that state *before* acquiring the lock. Classic read-then-write TOCTOU: if another process runs `tickSessionBudget` between the caller's read and this write, the other process's update is silently clobbered. Consider changing the API to accept a mutation function `(current: SessionStateMap) => SessionStateMap` so the read and write happen atomically inside the lock, similar to `tickSessionBudget`.
+  ```existing
+  export function writeSessionState(statePath: string, state: SessionStateMap): void {
+  withStateLock(statePath, () => { writeSessionStateRaw(statePath, state); });
+}
+  ```
+  ```suggested
+  export function writeSessionState(statePath: string, mutator: (current: SessionStateMap) => SessionStateMap): void {
+  withStateLock(statePath, () => {
+    const state = readSessionState(statePath);
+    writeSessionStateRaw(statePath, mutator(state));
+  });
+}
+  ```
+
+[HIGH] src/scoping/session-state.ts:88-91 (bug)
+  The `for (;;)` lock-acquisition loop has no upper bound. If the lock holder crashes and the stale-reclaim path consistently fails (e.g., `statSync` or `unlinkSync` throws due to permissions or filesystem errors), this spins forever, deadlocking the process. Add a maximum iteration count or wall-clock deadline after which the function throws a descriptive error.
+  ```existing
+  for (;;) {
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+  ```
+  ```suggested
+  const MAX_LOCK_ATTEMPTS = 300; // ~3s at 10ms spin per attempt
+  for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      // ... existing stat/unlink/spin logic ...
+    }
+  }
+  throw new Error(`[session-state] failed to acquire lock a
+  ```
+
+# total: 25

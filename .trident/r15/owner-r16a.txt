@@ -1,0 +1,5 @@
+src/omp/adapters/kev.ts
+src/scoping/session-state.ts
+src/hydra/templates/sro.ts
+src/omp/hard-deps.ts
+src/omp/populate.ts

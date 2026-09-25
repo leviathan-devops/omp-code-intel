@@ -1,0 +1,9 @@
+src/hunter/diagnostics/fixture-calibration.ts
+src/hunter/graph/resolver.ts
+src/hunter/graph/store-map.ts
+src/hunter/harness/micro-loop-machine.ts
+src/hunter/harness/strike.ts
+src/hunter/lexicon/templates.ts
+src/hunter/shared/db.ts
+src/hunter/shared/query-engine.ts
+src/hunter/testing/inconclusive.ts

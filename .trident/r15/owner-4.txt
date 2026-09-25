@@ -1,0 +1,8 @@
+src/hunter/firewall/readonly.ts
+src/hunter/graph/corbell-adapter.ts
+src/hunter/graph/graphify-adapter.ts
+src/hunter/graph/interface.ts
+src/hunter/keys/go-key-pool.ts
+src/hunter/lexicon/compiler.ts
+src/hunter/shared/containment.ts
+src/hunter/shared/line-resolve.ts
