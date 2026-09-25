@@ -163,6 +163,12 @@ export class RsiStore {
     }
     this.key = fs.readFileSync(cfg.keyPath);
     this.db = new Database(cfg.storePath);
+    // ★ R19-HIGH FIX (2026-09-25): WAL without a busy_timeout means EVERY contended write
+    //   fails INSTANTLY with SQLITE_BUSY — the RSI ledger writes under BEGIN IMMEDIATE, and a
+    //   second process holding the lock turns an ordinary concurrent write into a hard error
+    //   instead of a short wait. SQLite's own default is 0 (no wait). The timeout makes the
+    //   lock a QUEUE rather than a coin flip.
+    this.db.exec("PRAGMA busy_timeout=5000;");
     this.db.exec("PRAGMA journal_mode=WAL;");
     this.db.exec(this.schema());
   }

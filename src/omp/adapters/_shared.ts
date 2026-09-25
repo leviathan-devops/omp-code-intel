@@ -230,6 +230,13 @@ export function storeFacts(
   subject: string,
   limit = 50,
 ): LayerFact[] {
+  // ★ R19-HIGH FIX (2026-09-25): the freshness check lived OUTSIDE this function — the corbell
+  //   and graphify adapters each remembered to call `assertStoreFresh` first. That is a rule the
+  //   caller must follow, not a bound the path enforces: a NEW consumer that forgets it serves
+  //   stale facts with no signal, which is the exact claim-vs-artifact failure this whole system
+  //   exists to prevent. The bound now rides the PATH — every read through here is freshness-
+  //   checked, and the adapters' own calls become redundant (harmless) rather than load-bearing.
+  assertStoreFresh(storePath);
   const db = openReadOnly(storePath);
   if (db === null) {
     throw new Error(`GI_STORE_UNREADABLE: ${storePath} could not be opened read-only (the substrate fault must not read as "no facts")`);

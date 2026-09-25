@@ -187204,6 +187204,7 @@ function assertStoreFresh(storePath) {
   }
 }
 function storeFacts(consumer, rung, storePath, subject, limit = 50) {
+  assertStoreFresh(storePath);
   const db = openReadOnly(storePath);
   if (db === null) {
     throw new Error(`GI_STORE_UNREADABLE: ${storePath} could not be opened read-only (the substrate fault must not read as "no facts")`);
