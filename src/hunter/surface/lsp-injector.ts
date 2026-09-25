@@ -163,12 +163,21 @@ export class DiagnosticsServer {
     try {
       // THE D25 CLEAR FIRST: the latest AUDIT_DONE with conformanceZero:true
       // empties the highlight (the auditor's verified zero = the file is clean).
-      const auditRow = rowAs<{ payload?: string }>(
+      // ★ W17 FIX (RUN 17 HIGH — non-transactional reads): the two latest-event
+      //   pointers were two separate SELECTs — a HUNT_DONE landing between them
+      //   admitted a torn read. Probed benign (findings are run_id-scoped
+      //   append-only: the old runId still selects only old-run rows — stale, never
+      //   mixed), but both pointers now ride ONE statement, so the window is gone.
+      //   The row is always present (scalar subqueries yield NULL on empty tables).
+      const pointers = rowAs<{ auditPayload?: string | null; huntPayload?: string | null }>(
         this.db!.prepare(
-          "SELECT payload FROM events WHERE kind = 'AUDIT_DONE' ORDER BY id DESC LIMIT 1",
+          "SELECT (SELECT payload FROM events WHERE kind = 'AUDIT_DONE' ORDER BY id DESC LIMIT 1) AS auditPayload, " +
+          "(SELECT payload FROM events WHERE kind = 'HUNT_DONE' ORDER BY id DESC LIMIT 1) AS huntPayload",
         ).get(),
-        'AUDIT_DONE row',
+        'latest event pointers',
       );
+      const auditPayload: unknown = pointers?.auditPayload;
+      const auditRow = typeof auditPayload === 'string' ? { payload: auditPayload } : null;
       if (auditRow && typeof auditRow.payload === 'string') {
         try {
           const audit = JSON.parse(auditRow.payload) as { conformanceZero?: boolean };
@@ -176,12 +185,8 @@ export class DiagnosticsServer {
         } catch (e: unknown) { console.warn(`[lsp-injector] AUDIT_DONE payload parse failed (the read falls through): ${e instanceof Error ? e.message : String(e)}`); }
       }
       // THE LATEST RUN'S VIOLATIONS for the file.
-      const runRow = rowAs<{ payload?: string }>(
-        this.db!.prepare(
-          "SELECT payload FROM events WHERE kind = 'HUNT_DONE' ORDER BY id DESC LIMIT 1",
-        ).get(),
-        'HUNT_DONE row',
-      );
+      const huntPayload: unknown = pointers?.huntPayload;
+      const runRow = typeof huntPayload === 'string' ? { payload: huntPayload } : null;
       let runId = '';
       if (runRow && typeof runRow.payload === 'string') {
         try { runId = (JSON.parse(runRow.payload) as { runId?: string }).runId ?? ''; } catch (e: unknown) { console.warn(`[lsp-injector] HUNT_DONE payload parse failed: ${e instanceof Error ? e.message : String(e)}`); }

@@ -498,6 +498,12 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
           //   stop() — the documented teardown — and `context.db` remains a live handle until
           //   then. (The reviewer's leak concern is real but its remedy is a contract change,
           //   not a one-line close.)
+          // ★ W17 FIX (RUN 17 HIGH — pendingDone never reset): recycle the slot on
+          //   settle — a post-settle done() builds a fresh promise (the actor is
+          //   terminal, so it resolves immediately) instead of returning the stale
+          //   one. context.db stays OPEN here (the st-hunter-port pin reads it after
+          //   done()); stop() owns the teardown.
+          pendingDone = null;
           resolve();
         }
       });

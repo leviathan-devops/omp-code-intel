@@ -81,11 +81,17 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
     //   and returned 844 INSTANCES of typed repo knowledge on the first call. A fact is a
     //   typed instance the daemon holds; its anchor is the socket + the claim.
     facts: (subject: string): LayerFact[] => {
-      const res = auEngineRead(scopeRoot, "instances", subject) as {
+      // ★ W17D FIX (2026-09-25, run-17 HIGH): auEngineRead returns JSON.parse output as unknown — null, a primitive, or an array are all legal JSON. The old `as`-cast + immediate res.reply turned those into a raw TypeError past the registry loop. Non-object output is now the named GI_LAYER_ARSUMBRIS refusal; a non-array instances field degrades to [] (zero facts, never a crash).
+      const raw: unknown = auEngineRead(scopeRoot, "instances", subject);
+      if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error(`GI_LAYER_ARSUMBRIS: the daemon returned non-object JSON (${raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw}) — refusing`);
+      }
+      const res = raw as {
         socket?: string;
         reply?: { result?: { count?: number; instances?: Array<Record<string, unknown>> } };
       };
-      const instances = res.reply?.result?.instances ?? [];
+      const rawInstances = res.reply?.result?.instances;
+      const instances = Array.isArray(rawInstances) ? rawInstances : [];
       const hits = subject.length === 0
         ? instances
         : instances.filter((i) => {

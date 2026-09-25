@@ -411,14 +411,22 @@ export class CalibrationGate {
         this.writeCalibrationRecord(recordPath, { version, records, excluded, coverageNote });
       } catch (e: unknown) {
         // ★ F-900 FIX (2026-09-24): DB-then-file left half-evidence (committed rows, no record) on a file failure. Compensate: delete this session's rows (run_id + session calibratedAt) and throw loud CALIBRATION_PERSIST_SPLIT — never a silent split.
+        // ★ W17D FIX (2026-09-25, run-17 HIGH): the compensation DELETE's own failure was swallowed — the throw below then claimed "rows were compensated (deleted)" while the half-evidence still stood. The DELETE outcome is now captured; a failed compensation is NAMED in the error (with the re-delete remedy) instead of asserted-away.
+        let compensated = false;
+        let deleteDetail = 'no-db-write';
         if (write.db) {
           try {
             write.db.prepare('DELETE FROM calibrations WHERE run_id = ? AND created_at = ?').run(`calibration-${fixtureVersion}`, this.calibratedAt);
-          } catch { /* best-effort compensation; the persist error below stands */ }
+            compensated = true;
+          } catch (delErr: unknown) {
+            deleteDetail = delErr instanceof Error ? delErr.message : String(delErr);
+          }
         }
         throw new CalibrationError(
           'CALIBRATION_PERSIST_SPLIT',
-          `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) — this session's rows were compensated (deleted) so no half-evidence stands`,
+          compensated
+            ? `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) — this session's rows were compensated (deleted) so no half-evidence stands`
+            : `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) — compensation DELETE FAILED (${deleteDetail}): this session's rows may still stand — re-run calibration or delete WHERE run_id='calibration-${fixtureVersion}' AND created_at=${this.calibratedAt}`,
         );
       }
     }
