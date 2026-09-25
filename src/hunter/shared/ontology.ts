@@ -17,10 +17,17 @@ export type Predicate = (typeof PREDICATES)[keyof typeof PREDICATES][number];
 export const HAS_FINDING_PREDICATE = 'has_finding' as const;
 export const ALL_PREDICATES: readonly Predicate[] = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring] as const;
 export const NODE_TYPES_SET: ReadonlySet<string> = new Set(NODE_TYPES as readonly string[]);
-export const PREDICATE_SET: ReadonlySet<string> = new Set(ALL_PREDICATES as readonly string[]);
+// ★ R19-HIGH FIX (2026-09-25): the constant above was added WITHOUT adding it here — so
+//   `isPredicate('has_finding')` returned FALSE while the graph_facts CHECK accepts it and
+//   report.ts writes it. Any validation path routed through `isPredicate` (a DB-sourced or
+//   user-supplied predicate string) would REJECT a legitimate, live predicate — a validator
+//   that contradicts the schema it validates. The one predicate outside the canon is now IN
+//   the lookup set; the `Predicate` TYPE union stays canon-only (the type describes the
+//   declared canon; this set describes what the store can legally hold).
+export const PREDICATE_SET: ReadonlySet<string> = new Set([...(ALL_PREDICATES as readonly string[]), HAS_FINDING_PREDICATE]);
 export function isNodeType(v: unknown): v is NodeType {
   return typeof v === 'string' && (NODE_TYPES_SET as Set<string>).has(v);
 }
-export function isPredicate(v: unknown): v is Predicate {
+export function isPredicate(v: unknown): v is Predicate | typeof HAS_FINDING_PREDICATE {
   return typeof v === 'string' && (PREDICATE_SET as Set<string>).has(v);
 }

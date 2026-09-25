@@ -43,7 +43,13 @@ export function strike(
     const existing = traceByFinding.get(t.findingId);
     if (!existing) { traceByFinding.set(t.findingId, { ...t, relevance: { ...t.relevance } }); continue; }
     const merged = { ...existing.relevance } as Record<string, number>;
-    for (const [k, v] of Object.entries(t.relevance)) merged[k] = (merged[k] ?? 0) + (typeof v === "number" ? v : 0);
+    // ★ R19-HIGH FIX (2026-09-25): `Object.entries(null)` and `Object.entries(undefined)`
+    //   THROW TypeError — the merge loop assumed every trace row carries an object. A row
+    //   with `relevance: null` (a producer that had nothing to score) aborts the whole merge
+    //   and takes the report down with it. The spread on the line above is tolerant
+    //   (`{...null}` is `{}`), which HID the asymmetry: one arm of the same loop tolerates
+    //   what the other throws on. Both arms now tolerate it.
+    for (const [k, v] of Object.entries(t.relevance ?? {})) merged[k] = (merged[k] ?? 0) + (typeof v === "number" ? v : 0);
     traceByFinding.set(t.findingId, { ...existing, relevance: merged as TraceRow["relevance"] });
   }
 

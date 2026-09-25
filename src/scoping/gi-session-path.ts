@@ -82,7 +82,23 @@ export function assertSessionStorePath(p: string, optScopeRoot?: string): void {
   //   real path whose `/sessions/<sid>/` segment is a DIFFERENT id (or absent), so it fails.
   const parent = path.dirname(resolved);
   let parentReal: string | null = null;
-  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  try {
+    parentReal = fs.realpathSync(parent);
+  } catch (e: unknown) {
+    // ★ R19-HIGH FIX (2026-09-25): the catch swallowed EVERY error, so a real failure
+    //   (EACCES on a parent we cannot traverse, ELOOP on a link cycle, EIO) SKIPPED the
+    //   containment guard entirely — the guard silently disappears exactly when the
+    //   filesystem is doing something unusual. The stated intent is "a not-yet-created store
+    //   has nothing to follow yet", which is ENOENT and ONLY ENOENT. Anything else is loud.
+    const code = e !== null && typeof e === 'object' && 'code' in e ? (e as { code: unknown }).code : undefined;
+    if (code !== 'ENOENT') {
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: cannot resolve the session parent ${parent} to run the symlink guard (code=${String(code)}) — refusing rather than skipping containment`,
+      );
+    }
+    parentReal = null;
+  }
   if (parentReal !== null) {
     const parentNorm = parentReal.replace(/\\/g, "/");
     const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);

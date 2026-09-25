@@ -546,6 +546,13 @@ export class FireGate {
       sharedCall = call.shared;
       thisCall = call.answers;
       try {
+        // ★ R19-HIGH FIX (2026-09-25): when the JUDGE wins the race, the timer's promise is
+        //   still pending and is later REJECTED by the setTimeout callback — with no handler.
+        //   `Promise.race` observes only the winner; the loser's rejection becomes an
+        //   UNHANDLED rejection (process-fatal under Node defaults). Same class as the
+        //   enforcement.ts fix: the loser must be explicitly observed. The catch is a no-op
+        //   because the judge's answer is the surfaced outcome.
+        timer.promise.catch(() => { /* the judge's answer is the outcome; this only stops an unhandled rejection */ });
         answers = await Promise.race([call.answers, timer.promise]);
       } finally {
         clearTimeout(handle);

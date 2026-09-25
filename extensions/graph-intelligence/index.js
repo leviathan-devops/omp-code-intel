@@ -4040,7 +4040,7 @@ var init_ontology = __esm(() => {
   };
   ALL_PREDICATES = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring];
   NODE_TYPES_SET = new Set(NODE_TYPES);
-  PREDICATE_SET = new Set(ALL_PREDICATES);
+  PREDICATE_SET = new Set([...ALL_PREDICATES, HAS_FINDING_PREDICATE]);
 });
 
 // src/hunter/shared/migrations.ts
@@ -179387,7 +179387,11 @@ function assertSessionStorePath(p, optScopeRoot) {
   let parentReal = null;
   try {
     parentReal = fs2.realpathSync(parent);
-  } catch {
+  } catch (e) {
+    const code = e !== null && typeof e === "object" && "code" in e ? e.code : undefined;
+    if (code !== "ENOENT") {
+      throw new GiPathError("GI_SHARED_PROJECT_STORE", `GI_SHARED_PROJECT_STORE: cannot resolve the session parent ${parent} to run the symlink guard (code=${String(code)}) \u2014 refusing rather than skipping containment`);
+    }
     parentReal = null;
   }
   if (parentReal !== null) {
@@ -179719,11 +179723,21 @@ function migrateLayerColumns(db) {
        WHERE layer_id IS NULL AND instr(canonical_id, ':') > 0`);
     const chg = db.query("SELECT changes() AS n").get();
     backfilled += chg?.n ?? 0;
-  } catch {}
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such column|no such table|has no column/i.test(msg)) {
+      throw new Error(`GI_LAYER_BACKFILL_FAILED: nodes layer_id backfill failed (${msg})`);
+    }
+  }
   try {
     db.run(`UPDATE typed_edges SET layer_id = substr(src_canonical, 1, instr(src_canonical, ':') - 1)
        WHERE layer_id IS NULL AND instr(src_canonical, ':') > 0`);
-  } catch {}
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such column|no such table|has no column/i.test(msg)) {
+      throw new Error(`GI_LAYER_BACKFILL_FAILED: edges layer_id backfill failed (${msg})`);
+    }
+  }
   return { added, backfilled };
 }
 var LAYER_TTL_MS = {
@@ -185673,7 +185687,7 @@ function strike(findings, profile, traces = []) {
       continue;
     }
     const merged = { ...existing.relevance };
-    for (const [k, v] of Object.entries(t.relevance))
+    for (const [k, v] of Object.entries(t.relevance ?? {}))
       merged[k] = (merged[k] ?? 0) + (typeof v === "number" ? v : 0);
     traceByFinding.set(t.findingId, { ...existing, relevance: merged });
   }

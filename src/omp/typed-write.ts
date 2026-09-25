@@ -401,13 +401,30 @@ export function migrateLayerColumns(db: Database): { added: string[]; backfilled
     );
     const chg = db.query("SELECT changes() AS n").get() as { n: number } | null;
     backfilled += chg?.n ?? 0;
-  } catch { /* no rows to backfill on a fresh store */ }
+  } catch (e: unknown) {
+    // ★ R19-HIGH FIX (2026-09-25): this catch swallowed EVERY error under a comment about
+    //   "a fresh store". A fresh store fails with a MISSING COLUMN — that is the only benign
+    //   shape here. EACCES (read-only DB), SQLITE_CORRUPT, or SQLITE_FULL would have been
+    //   swallowed too, leaving layer_id silently NULL for every row while the caller sees a
+    //   clean return. Tolerate the schema-shape error; refuse everything else LOUD.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such column|no such table|has no column/i.test(msg)) {
+      throw new Error(`GI_LAYER_BACKFILL_FAILED: nodes layer_id backfill failed (${msg})`);
+    }
+  }
   try {
     db.run(
       `UPDATE typed_edges SET layer_id = substr(src_canonical, 1, instr(src_canonical, ':') - 1)
        WHERE layer_id IS NULL AND instr(src_canonical, ':') > 0`,
     );
-  } catch { /* fresh store */ }
+  } catch (e: unknown) {
+    // ★ R19-HIGH FIX (2026-09-25): same swallow as the nodes arm above — only the
+    //   schema-shape error is benign; anything else is a real failure and must be LOUD.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such column|no such table|has no column/i.test(msg)) {
+      throw new Error(`GI_LAYER_BACKFILL_FAILED: edges layer_id backfill failed (${msg})`);
+    }
+  }
   return { added, backfilled };
 }
 

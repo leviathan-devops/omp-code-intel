@@ -34,7 +34,12 @@ export function makeGiTmpDir(prefix = "gi-"): string {
   if (pre && pre.isSymbolicLink()) {
     throw new Error(`GI_TMP_PLANT: scratch base ${GI_TMP_DIR} is a symlink plant — refusing`);
   }
-  mkdirSync(GI_TMP_DIR, { recursive: true });
+  // ★ R19-HIGH FIX (2026-09-25): no `mode` was set — the base inherited the process umask
+  //   (commonly 022 → 0o755, WORLD-READABLE). Every mint under it is 0700, so payloads were
+  //   never directly readable, but a world-searchable/cross-user-writable base is itself the
+  //   plant surface this function defends against (a foreign writer needs+w to swap the
+  //   entry). The base is now 0700 explicitly, matching the mint's own discipline.
+  mkdirSync(GI_TMP_DIR, { recursive: true, mode: 0o700 });
   // * F-1008: re-check after mkdir - a plant swapped in during/after mkdir is caught here.
   let mid: { isSymbolicLink(): boolean } | null = null;
   try { mid = lstatSync(GI_TMP_DIR); } catch { mid = null; }
