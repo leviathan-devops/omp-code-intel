@@ -1076,3 +1076,34 @@ the freshness test green).
 **★ THE LESSON: 11 highs in, 10 real + 1 documented-contract.** The reviewer's leak finding was CORRECT
 about the symptom and WRONG about the remedy — the close belongs in `stop()`, not `settle()`, because a
 caller legitimately inspects the store after the loop terminates.
+
+---
+
+## ★★★ RUN 20 FULL TREE MEASURED — 1 CRITICAL / 44 HIGH (the current tree)
+
+**HALF A (57 files) + HALF B (56 files) = the full 113-file tree:**
+```
+  373 findings · medium=189 · low=139 · high=44 · critical=1 · EMPTY=0
+```
+**THE CRITICAL — adjudicated and fixed:** `populate-graphify.ts` `supersedeThenInsert`'s
+transaction-nesting guard was **property-only** (`db.inTransaction`) and therefore **not fail-closed**:
+a WRAPPER that does not forward `inTransaction` makes the guard silently pass. **MEASURED:** bun's raw
+`Database` DOES expose `inTransaction` (false/true/false around BEGIN/COMMIT) — so the finding's
+PREMISE (that the property does not exist) is **refuted**, but its REMEDY is correct (a property guard
+cannot be trusted across a wrapper boundary). **FIXED with the codebase's own fail-closed pattern**
+(`findings-store.ts`): catch `BEGIN IMMEDIATE` and convert SQLite's "within a transaction" error into
+`GI_TXN_NESTED` — the refusal holds regardless of driver properties.
+
+**THE HIGHS — 3 fixed, 2 adjudicated:**
+- [1] `semantic-predicates.ts`: `cwd` added to the detection regex (it IS in `P1_SPEC.callSymbols`)
+- [10] `lexicon/templates.ts`: the unused `readFileSync` import removed
+- [5] `query-engine.ts` "SQL injection via predicateFilter": ★ **NOT-A-BUG** — the predicate values are
+  bound as `?` parameters (`pred.params = [node, ...predList]`); the reviewer mistook the `?`-placeholder
+  generator for interpolation
+- [11] `engine.ts` buildLocalGraph TOCTOU: already fixed earlier this turn
+- [4] `store-map.ts` "LRU vs FIFO": ★ **NOT-A-BUG** — the eviction IS insertion-order (FIFO); the comment
+  is imprecise, not the code
+
+**THE VERIFICATION:** tsc 0 · battery 441/0 + 539/0 (exit 0) · dist `1a889a8fb07099cc` (748K).
+**★ THE STATE: the full-tree audit is 1 critical (now FIXED) / 44 high (3 fixed, 2 adjudicated, ~39
+open).** The convergence continues; each run samples a fresh comment set.

@@ -217,3 +217,27 @@ the bundle rebuilt. This seal's `src/`, `extensions/`, `context_management/`, th
 build/audit scripts, and the board were REFRESHED to that state. **MODE B is a working snapshot by
 design — the manifest records each advance.** The bundle remains **748 KB** (the `--external typescript`
 fix is intact).
+
+---
+
+## ★ FINAL STATE (2026-09-25, post-run-20)
+
+**dist sha:** `1a889a8fb07099cc` · **748 KB** (the `--external typescript` fix intact)
+
+**THE SIX STOP-CONDITIONS:**
+| # | condition | state |
+|---|---|---|
+| 1 | tsc exit 0 | ✓ |
+| 2 | bun run test 0 fail | ✓ 441/0 + 539/0 |
+| 3 | goal-verify 5/5 | ✓ |
+| 4 | the register honest | ✓ consumed:7/8 |
+| 5 | ledger distinct >= 4 | ✓ |
+| 6 | ★ whole-tree audit 0 crit/0 high | ✗ **1 crit (FIXED) / 44 high (3 fixed, 2 adjudicated, ~39 open)** |
+| 7 | the seal + receipt | ✓ |
+
+**RUN 20 (the full 113-file tree): 1 critical / 44 high / 189 medium / 139 low / 0 EMPTY.**
+The critical (a property-only transaction-nesting guard) is FIXED fail-closed. The highs are the
+remaining work — each run samples a fresh comment set, so the count does not reach zero on its own.
+
+**THE OPERATOR'S COMPLAINT — RESOLVED:** the 9.2 MB bundle is now 748 KB (92% smaller); the import
+dropped 139 ms → 41 ms.

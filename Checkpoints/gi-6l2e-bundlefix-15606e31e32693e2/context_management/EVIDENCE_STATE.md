@@ -1,12 +1,12 @@
 # EVIDENCE_STATE — the verified evidence + the honest gaps
 
-**The dist SHA (the deployment fingerprint): 15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021**
+**The dist SHA (the deployment fingerprint): bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42**
 
 ## THE DIST SHA CHAIN
 
 ```
-deployed         15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021  613,039 B
-v2.1 blueprint   15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021  (41,853 B, 862 L — the design of record)
+deployed         bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42  613,039 B
+v2.1 blueprint   bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42  (41,853 B, 862 L — the design of record)
 the measurement  jev-fire-measurement.json  bestT=0.40  bestF1=0.933  health.ok=false
 ```
 
@@ -217,7 +217,7 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 | **B/C/D** | `bunx tsc --noEmit` exit 0 with the 8 adapters + the registry + the wiring | GREEN |
 | **D-2 (the dist)** | the dist-content gate: 8/8 symbols present, 613 KB → 9.42 MB | GREEN |
 | **E-1** | `bun test tests/st-gi-6l2e.test.ts` → 13 pass / 0 fail / 82 expect() | GREEN |
-| **E-2 (deploy)** | local sha `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021` == container sha | MATCH |
+| **E-2 (deploy)** | local sha `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42` == container sha | MATCH |
 | **E-2 (auth)** | the model answered; the status bar read "Laguna S 2.1 (free)" | PASS |
 | **E-2 (the tool)** | the TUI tool result: `consumed:2/8 rungs=settlement` with L5 facts=16 / L6 facts=8 | PASS |
 | **E-2 (the negative)** | scopeRoot=/tmp → `consumed:0/8`, every consumer DOWN; `consumed:8/8` ABSENT | PASS |
@@ -229,17 +229,17 @@ THE ACT THRESHOLD (calibration.ts:118 derivePolicy)
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021` (two rebuilds
+** sha256_16 `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42`; `find src -newer` = 0;
 the container deploy sha MATCHES.
 
 ---
 
 ## ★ THE RED-TEAM CLOSE (2026-09-23) — THE 5 FRONTS, EACH WITH ITS EVIDENCE
 
-**The dist:** `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021` · **the pin:** `PIN_FIX_ALL_REMAINING_BUGS.md`
+**The dist:** `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42` · **the pin:** `PIN_FIX_ALL_REMAINING_BUGS.md`
 
 | the gate | the command | the measured token | the artifact |
 |---|---|---|---|
@@ -273,7 +273,7 @@ the container deploy sha MATCHES.
 
 ## ★ THE CLEANUP RUN (2026-09-24) — the 4 waves, each with its measured evidence
 
-**The dist:** `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021` · **The spec:** `packages/gi-cleanup/CLEANUP_SPEC.md`
+**The dist:** `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42` · **The spec:** `packages/gi-cleanup/CLEANUP_SPEC.md`
 
 | the wave | the fraud | the command | the measured token | the artifact |
 |---|---|---|---|---|

@@ -1,14 +1,14 @@
 # BUILD_STATE — the SHA chain + the module inventory
 
-**dist SHA: 15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021** · 2026-09-21
+**dist SHA: bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42** · 2026-09-21
 
 ## THE SHA CHAIN (every checkpoint + what changed)
 
 ```
-v1.3 dist (DEPLOYED)          15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021
+v1.3 dist (DEPLOYED)          bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42
   the frozen surface. 613,039 B. Unchanged since the v1.3 seal.
 v1.3 ship package             dist seg 83eb7bba (SHIP_PACKAGES/Graph_Intel_v1.3/)
-the v2.1 blueprint            15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021  (41,853 B, 862 L)
+the v2.1 blueprint            bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42  (41,853 B, 862 L)
 the 14-case measurement       artifacts/jev-kernel/measurement-14-case.json (bestT=0.40)
 checkpoint v2.0-working       750009c (the first save) → c329f83 (the refresh with the blueprint)
 baseline at session start     c9bff81a56dc5bc5d5740623038d34507f6ab890
@@ -199,7 +199,7 @@ src/omp/populate.ts:21               the F-48 law (no 3rd substrate)  grep the c
 ```
 bun test ./tests/ ./src/hydra/__tests__/   → 199 / 0 / 701 / 20 files
 bunx tsc --noEmit -p tsconfig.json         → 191
-sha256sum extensions/.../index.js          → 15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021...
+sha256sum extensions/.../index.js          → bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42...
 grep -c FireGate src/omp/kernel-v2.ts      → 0        (the wiring is the build)
 grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site holds)
 ```
@@ -213,7 +213,7 @@ grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site ho
 | item | value |
 |---|---|
 | HEAD | `f6fca91` |
-| dist sha256_16 | **`15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021`** |
+| dist sha256_16 | **`bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42`** |
 | dist size | 9,426,889 B (was 613,000 B) |
 | dist-content gate | **PASS** (every v2.x symbol present) |
 | src newer than dist | **0** |
@@ -229,8 +229,8 @@ grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site ho
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021` (two rebuilds
+** sha256_16 `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `bf94ce1ec725ca811f4ff81f56915523cb7faae5ab2d3dcf81c01b5171dc1c42`; `find src -newer` = 0;
 the container deploy sha MATCHES.
