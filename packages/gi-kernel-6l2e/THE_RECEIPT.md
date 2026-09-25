@@ -540,3 +540,22 @@ source symbols — that would need the au ecosystem's own code ingestion (a desi
 layer, outside this repo). **The layer is CONSUMED for its domain; it is silent about
 `evidence` — correctly.** No test was weakened: the predicate was CORRECTED to the condition's
 real meaning, with both directions measured.
+
+---
+
+## ★ THE LATEST SEAL (2026-09-25) — the cleanup run, run 19 exhausted
+
+```
+  Checkpoints/gi-cleanup-run19-exhausted-04840c57105a7837/    34 M · the seal mode: MODE B (NO LOCK)
+  its dist: 04840c57105a7837… — byte-identical to the repo bundle AND the deployed bundle (cmp)
+  113 src .ts · the 11 canon docs · the 6 ship docs · the manifest (284 L) with the HONEST GAPS
+```
+
+**THE VERIFICATION AT THE SEAL:** `tsc --noEmit` exit 0 · `bun run test` 441/0 + 539/0 exit 0 ·
+`goal-verify` PASSED: 5/5 with no contradicting line · `consumption-audit` `consumed:7/8` at face
+value · `COUNT(DISTINCT rule_id||band||action)` = 4 · `src -newer` the bundle → 0.
+
+**THE AUDIT GATE AT THE SEAL:** `0 CRITICAL / 37 HIGH` (run 19) with **36 of 37 addressed** (33
+fixed + 3 refuted; the 37th held open by the `st-hunter-port` pin). **RUN 20 IS BLOCKED ON A LANE**
+— the Go subscription lapsed (403) and the free lane is rate-limited (429); a retry launcher is
+armed. **A BLOCKED state is never a PASS**, and this receipt does not claim one.
