@@ -4029,7 +4029,7 @@ function isNodeType(v) {
 function isPredicate(v) {
   return typeof v === "string" && PREDICATE_SET.has(v);
 }
-var NODE_TYPES, PREDICATES, ALL_PREDICATES, NODE_TYPES_SET, PREDICATE_SET;
+var NODE_TYPES, PREDICATES, HAS_FINDING_PREDICATE = "has_finding", ALL_PREDICATES, NODE_TYPES_SET, PREDICATE_SET;
 var init_ontology = __esm(() => {
   NODE_TYPES = ["File", "Class", "Function", "Interface", "Module", "Machine", "Actor", "Engine", "Adapter", "Container", "Lexicon", "Contract", "Threshold", "Gate", "EvidenceFile", "SpecClause", "Graph", "Path"];
   PREDICATES = {
@@ -4052,7 +4052,7 @@ var init_migrations = __esm(() => {
   init_ontology();
   NODE_KINDS_SQL = sqlList(NODE_TYPES);
   PREDICATES_SQL = sqlList(ALL_PREDICATES);
-  GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
+  GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'${HAS_FINDING_PREDICATE}'`;
   TYPED_GRAPH_DDL = `
 CREATE TABLE IF NOT EXISTS typed_nodes (
   id INTEGER PRIMARY KEY,
@@ -185700,6 +185700,7 @@ function strike(findings, profile, traces = []) {
 }
 
 // src/hunter/harness/report.ts
+init_ontology();
 init_db();
 import fs19 from "fs";
 import path22 from "path";
@@ -185908,7 +185909,7 @@ async function report(input) {
       const insertFact = input.db.prepare("INSERT INTO graph_facts (subject, predicate, object, evidence, confidence, created_at) VALUES (?,?,?,?,?,?)");
       for (const f of input.findings) {
         if (f.verdict === "VIOLATION") {
-          insertFact.run(f.file, "has_finding", f.ruleId, String(f.evidence).slice(0, 500), 0.8, Date.now());
+          insertFact.run(f.file, HAS_FINDING_PREDICATE, f.ruleId, String(f.evidence).slice(0, 500), 0.8, Date.now());
         }
       }
     } catch (memErr) {

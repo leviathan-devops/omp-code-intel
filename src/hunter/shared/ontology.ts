@@ -9,6 +9,12 @@ export const PREDICATES = {
   wiring: ['calls','imports','awaits','exports','unwired'] as const,
 } as const;
 export type Predicate = (typeof PREDICATES)[keyof typeof PREDICATES][number];
+// ★ R18-HIGH FIX (2026-09-25): `has_finding` is the ONE predicate NOT in the canon — it is
+//   written by a single live producer (report.ts) and appears verbatim in the graph_facts
+//   CHECK constraint (migrations.ts). It was a bare string literal in BOTH places: if either
+//   side is edited the constraint goes stale SILENTLY (a committed write becomes a violation,
+//   or a new predicate is refused at runtime). One exported constant, both consumers.
+export const HAS_FINDING_PREDICATE = 'has_finding' as const;
 export const ALL_PREDICATES: readonly Predicate[] = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring] as const;
 export const NODE_TYPES_SET: ReadonlySet<string> = new Set(NODE_TYPES as readonly string[]);
 export const PREDICATE_SET: ReadonlySet<string> = new Set(ALL_PREDICATES as readonly string[]);

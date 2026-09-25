@@ -1,6 +1,6 @@
 // PORTED FROM fork-v143 live-tree/graph-intelligence/shared/knowledge-graph/migrations.ts (~75L) — TYPED_GRAPH_DDL (CHECK-closed kinds/predicates, idx_tn_file GG-BUG-5) + ensureTypedGraphSchema
 // Ported 2026-09-14 (port wave W3-P2). Verbatim bytes; import ./ontology.ts is the ported sibling.
-import { NODE_TYPES, ALL_PREDICATES } from './ontology.ts';
+import { NODE_TYPES, ALL_PREDICATES, HAS_FINDING_PREDICATE } from './ontology.ts';
 
 // ★ F-331 FIX (2026-09-24): SQL single-quote DOUBLING. The old body emitted `'${v}'`
 //   verbatim — a node type carrying an apostrophe would terminate the literal and
@@ -21,7 +21,7 @@ const PREDICATES_SQL = sqlList(ALL_PREDICATES);
 //   committed write into a constraint violation). Evidence rides the same length(evidence) > 0 law.
 //   SCOPE: CREATE TABLE IF NOT EXISTS only constrains FRESH stores; pre-existing graph_facts tables
 //   keep their old shape (SQLite cannot ALTER in a CHECK) — a rebuild is the remedy there.
-const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'has_finding'`;
+const GRAPH_FACT_PREDICATES_SQL = `${PREDICATES_SQL},'${HAS_FINDING_PREDICATE}'`;
 
 export const TYPED_GRAPH_DDL = `
 CREATE TABLE IF NOT EXISTS typed_nodes (

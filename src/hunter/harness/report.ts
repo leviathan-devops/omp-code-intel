@@ -14,6 +14,7 @@
 // The side-effects-precede-claims law is preserved: report file + HUNT_DONE
 // commit BEFORE the return.
 import fs from 'node:fs';
+import { HAS_FINDING_PREDICATE } from '../shared/ontology.ts';
 import path from 'node:path';
 import type { ProjectProfile } from '../profile/schema.ts';
 import type { DbClient, ReportSectionInput } from '../shared/db.ts';
@@ -329,7 +330,7 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
       );
       for (const f of input.findings) {
         if (f.verdict === 'VIOLATION') {
-          insertFact.run(f.file, 'has_finding', f.ruleId, String(f.evidence).slice(0, 500), 0.8, Date.now());
+          insertFact.run(f.file, HAS_FINDING_PREDICATE, f.ruleId, String(f.evidence).slice(0, 500), 0.8, Date.now());
         }
       }
     } catch (memErr: unknown) {
