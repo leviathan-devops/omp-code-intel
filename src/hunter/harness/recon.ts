@@ -99,6 +99,10 @@ export function recon(profilePath: string): IntendedBehavior {
     if (!fs.existsSync(abs)) {
       throw awarenessDocMissing(doc);
     }
+    // ★ W3-RUN17 FIX: containment (was existsSync-only — a symlink here
+    //   bypassed every guard). Same helper as countQuotedRules; the
+    //   listed-but-missing contract above is unchanged (CORPUS_MISSING).
+    assertInsideProject(profile.project.root, abs);
   }
 
   // THE MATERIALIZATION + THE NAMED RUN ID (the rehydration build — the
@@ -110,7 +114,14 @@ export function recon(profilePath: string): IntendedBehavior {
   // the two-agent contention). The same open counts the prior HUNT_DONE runs
   // for the runId's per-day sequence (the operator's naming ruling — the
   // project token, never an anonymous 'hunt-<ts>').
-  const dbPath = path.join(profile.project.root, '.trident', 'knowledge-graph', 'shared.db');
+  // ★ W3-RUN17 FIX: resolve + contain (identical shape to map.ts — a `..`
+  //   spelling in root must not redirect the store write). Never fires past the
+  //   loader's root check; defense-in-depth against a hand-edited root.
+  const projectRootResolved = path.resolve(profile.project.root);
+  const dbPath = path.resolve(projectRootResolved, '.trident', 'knowledge-graph', 'shared.db');
+  if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path.sep)) {
+    throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath})`);
+  }
   const runId = openAndNextRunId(projectToken(profile.project.name), dbPath);
 
   return {
@@ -149,7 +160,11 @@ function openAndNextRunId(token: string, dbPath: string): string {
     // every HUNT_DONE payload on each recon (O(N) unbounded), LIKE narrows to the row(s)
     // that could actually advance the sequence counter. Buffer/BLOB payloads from bun:sqlite
     // are decoded via toString('utf8') before JSON.parse, preventing silent cast corruption.
-    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?").all(`${prefix}%`)) {
+    // ★ W3-RUN17 FIX (adjacent REAL, probe-proven): the anchor was `${prefix}%` — but
+    //   payloads are JSON envelopes (`{"runId":"<prefix>N",...`), so the anchor matched ZERO
+    //   rows and seq never advanced (every hunt re-minted seq 1 = runId collision on hunt 2+).
+    //   The `%prefix%` containment shape matches the value mid-string (probe: 0 vs 1 rows).
+    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?").all(`%${prefix}%`)) {
       let payload: { runId?: unknown } = {};
       let rawText = '';
       try {
@@ -168,11 +183,9 @@ function openAndNextRunId(token: string, dbPath: string): string {
         // ★ row's sequence number — a corrupt row carrying a HIGH seq let the next runId
         // ★ collide with it. Salvage: the raw text often still carries `<prefix><digits>`
         // ★ even when the JSON envelope is corrupt — extract it before skipping.
-        const idx = rawText.indexOf(prefix);
-        if (idx !== -1) {
-          const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
-          if (dm) seq = Math.max(seq, Number(dm[0]!));
-        }
+        const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const salvage = new RegExp(`"runId"\\s*:\\s*"${esc}(\\d+)"`).exec(rawText);
+        if (salvage?.[1] !== undefined) seq = Math.max(seq, Number(salvage[1]));
         console.warn(`[recon] HUNT_DONE payload parse failed — skipped: ${e instanceof Error ? e.message : String(e)}; raw=${rawText.slice(0, 120)}`);
         continue;
       }

@@ -81,7 +81,10 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
     try {
       scopeReal = fsDyn.realpathSync(absTarget);
     } catch {
-      scopeReal = null;
+      // ★ W3-RUN17 FIX: fail CLOSED — the null fell through to inScope()=true
+      //   for EVERY path (containment silently disabled), contradicting the R15 comment
+      //   below. Matches the scopeRoot-provided branch above (fail-closed INCONCLUSIVE).
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (realpath failed — chmod/fix permissions or remove broken symlinks)`);
     }
   }
   // ★ F-870 FIX (2026-09-24, run-12 CRITICAL): `scopeReal === path.sep ? path.sep : …` made the

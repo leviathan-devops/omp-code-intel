@@ -74,7 +74,13 @@ export async function map(profile: ProjectProfile, adapterOverride?: GraphAdapte
 // ★ F-244 NOTE (2026-09-24): NOT-A-BUG — the LINELESS guard (line above) runs
 //   BEFORE the open (line below), so a guard throw leaves no handle behind. The
 //   error-path close covers only post-open failures (writeGraph/mirror).
-  const dbPath = path.join(profile.project.root, '.trident', 'knowledge-graph', 'shared.db');
+  // ★ W3-RUN17 FIX: resolve + contain — a `..`-spelling root redirected the
+  //   store write outside the project. Fail LOUD, never a silent redirect.
+  const projectRootResolved = path.resolve(profile.project.root);
+  const dbPath = path.resolve(projectRootResolved, '.trident', 'knowledge-graph', 'shared.db');
+  if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path.sep)) {
+    throw new Error(`map actor: resolved dbPath escapes project root (${dbPath})`);
+  }
   const db: DbClient = openStore(dbPath);
 
   try {
