@@ -34,9 +34,22 @@ if [ -n "$PROBE_URL" ]; then
   if [ "$PROBE_PROTO" = "openai-responses" ]; then
     PBODY="{\"model\":\"$MODEL\",\"input\":\"reply READY\"}"; PURL="$PROBE_URL/responses"
   else
-    GOK="$(timeout 30 bun /home/leviathan/.omp/agent/bin/go-pool-ctl.ts pick 2>/dev/null)"
+    # ★ R20 FIX: the probe hardcoded the GO key for EVERY openai-protocol provider, so a
+    #   perfectly live non-GO lane (poolside, openrouter) probed with a GO key and read 403 —
+    #   the probe was refusing a healthy lane. Resolve the provider's OWN credential:
+    #   api_key_cmd first (the key script), then api_key, then the GO pool as the last resort.
+    PKEY="$(python3 -c "
+import json,subprocess
+c=json.load(open('$CFG'))['custom_providers'].get('$PROV',{})
+cmd=c.get('api_key_cmd')
+if cmd:
+    print(subprocess.run(cmd,shell=True,capture_output=True,text=True).stdout.strip())
+else:
+    print(c.get('api_key',''))
+" 2>/dev/null)"
+    if [ -z "$PKEY" ]; then PKEY="$(timeout 30 bun /home/leviathan/.omp/agent/bin/go-pool-ctl.ts pick 2>/dev/null)"; fi
     PBODY="{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"reply READY\"}],\"max_tokens\":10}"; PURL="$PROBE_URL/chat/completions"
-    AUTH="Authorization: Bearer $GOK"
+    AUTH="Authorization: Bearer $PKEY"
   fi
   CODE=$(timeout 90 curl -s -o /tmp/lane-probe.json -w '%{http_code}' -X POST "$PURL" \
     -H 'Content-Type: application/json' -H 'User-Agent: opencode/1.18.31' \
