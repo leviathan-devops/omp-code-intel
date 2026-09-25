@@ -126,6 +126,10 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
   return { fresh: true, reason: "fresh" };
 }
 
+// ★ R18-HIGH PROBE-ERROR (2026-09-25): the finding claimed `storePath` "is never referenced in
+//   the function body". FALSE — it is read at :258 (the session-store write). The reviewer read
+//   a TRUNCATED body. Proven by tsc: the rename below produced `Cannot find name 'storePath'`
+//   at :258, which IS the parameter's real use. The rename is REVERTED; no defect exists here.
 export function populateFromCorbellCheckout(storePath: string, root: string, runTag: string): CorbellPopulateResult {
   const warmPath = corbellCheckoutPath(root);
   // ★ F-37 FIX (2026-09-24): the TOCTOU baseline was captured AFTER the freshness probe — a swap between the probe's stat and the baseline went undetected. Baseline first: any change across the whole read refuses below.

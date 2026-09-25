@@ -100,7 +100,14 @@ export async function generateLocalReport(input: ReportWriterInput): Promise<Rep
     // ★ R15: severity rank before truncation — the header promises 'RANKED ACTIONABLE CORE'
     // but the old code kept input order. CRIT>HIGH>MED>WARN, stable tie-break by original index.
     const severityRank: Record<string, number> = { CRIT: 0, HIGH: 1, MED: 2, WARN: 3 };
-    const ranked = [...findings].sort((a, b) => (severityRank[a.severity] ?? 99) - (severityRank[b.severity] ?? 99));
+    // ★ R18-HIGH FIX (2026-09-25): the comment above promised "stable tie-break by original
+    //   index" and the comparator did NOT implement it. The MAX_REPORT_FINDINGS cut is by
+    //   POSITION, so with same-severity findings the survivors would depend on the sort
+    //   engine's stability. The index is captured at map time and compared explicitly.
+    const ranked = findings
+      .map((f, idx) => [f, idx] as const)
+      .sort((a, b) => ((severityRank[a[0].severity] ?? 99) - (severityRank[b[0].severity] ?? 99)) || (a[1] - b[1]))
+      .map(([f]) => f);
     const keep = new Set(ranked.slice(0, MAX_REPORT_FINDINGS).map((f) => f.id));
     sections = sections.filter((s) => keep.has(s.finding_id));
     findings = ranked.slice(0, MAX_REPORT_FINDINGS);

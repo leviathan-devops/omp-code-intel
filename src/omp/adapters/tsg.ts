@@ -128,7 +128,11 @@ export function tsgProbe(scopeRoot: string, tsgRoot?: string): ConsumerProbe {
           // ★ sliding 8-gram is scrubbed (split/join — metachar-safe, never a raw
           // ★ regex of the key) after the exact full-key pass. Deduped via Set.
           // ★ Over-redaction of an 8-char coincidence is fail-closed (accepted).
-          let out: string = s.split(key).join(key.slice(0, 4) + '...[redacted]');
+          // ★ R18-HIGH FIX (2026-09-25): the replacement kept `key.slice(0, 4)` — a 4-character
+          //   PREFIX of the live API key in every redacted message (it can identify the key
+          //   family and narrows the search space). No key material reaches a log — a prefix IS
+          //   key material. Redacted is REDACTED.
+          let out: string = s.split(key).join('[redacted]');
           if (key.length >= 16) {
             const seen = new Set<string>();
             for (let i = 0; i + 8 <= key.length; i++) {

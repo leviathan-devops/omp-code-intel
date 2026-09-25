@@ -4,9 +4,17 @@
 export function tridentLog(level: string, ns: string, msg: string): void {
   console.error(`[${level} ${ns}] ${msg}`)
 }
-export function shortFile(p: string, n = 46): string {
+// ★ R18-HIGH FIX (2026-09-25): the parameter was typed `string` while the body explicitly
+//   handles null/undefined (the F-912 guard below). A type that contradicts the body means
+//   TypeScript CANNOT catch a caller passing null — the guard is doing type-level work the
+//   signature denies. The type now states what the function accepts.
+export function shortFile(p: string | null | undefined, n = 46): string {
   // ★ F-912 FIX (2026-09-24): null/undefined input threw TypeError on p.length — fail-closed to ''.
-  if ((p as unknown) == null) return '';
+  // ★ R18-HIGH FIX (2026-09-25): `(p as unknown) == null` DEFEATED narrowing — the cast
+  //   erased the check's effect, so TypeScript still saw `p` as its declared type on every
+  //   line below (and could not catch a null caller). With the signature now honest, the
+  //   plain check narrows: below this line `p` is `string`, provably.
+  if (p == null) return '';
   // ★ F-242 FIX (2026-09-24): small-n correctness — slice(-(n-1)) with n=1 is
   //   slice(0), the WHOLE string, so '…'+p came out longer than p. n<=1 returns a
   //   truncated ellipsis; n>=2 behavior is unchanged.

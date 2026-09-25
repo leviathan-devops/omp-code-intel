@@ -17,7 +17,7 @@ export type GiDial = "OFF" | "STEER" | "FULL";
 // ★ `(?:async\s+)?`; extended the range-star to a named star so PARSE no longer silently
 // ★ depends on GEN running too (defense in depth — eachExportName runs both, but each regex
 // ★ must be correct on its own).
-const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+const EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\s*\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
 // ★ F-41 FIX (2026-09-24): `export function*` (the `*` between function and name) and `export const {a}/[a]` never matched — stripped exports evaded the gate. Generator + destructured forms covered in both fns below.
 const EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
 const EXPORT_DESTRUCT_RE = /export\s+(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])/g;

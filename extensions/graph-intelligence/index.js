@@ -180298,7 +180298,7 @@ import * as fs6 from "fs";
 
 // src/omp/gate-middleware.ts
 import * as fs5 from "fs";
-var EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
+var EXPORT_PARSE_RE = /export\s+(?:async\s+)?(?:function\s*\*?|const|class|let|var|type|interface|enum)\s+(\w+)/g;
 var EXPORT_GEN_RE = /export\s+(?:async\s+)?function\s*\*\s*(\w+)/g;
 var EXPORT_DESTRUCT_RE = /export\s+(?:const|let|var)\s*(\{[^}]*\}|\[[^\]]*\])/g;
 function eachDestructuredName(list, cb) {
@@ -186639,6 +186639,12 @@ function whoCalls2(input, db) {
       JOIN typed_nodes src ON e.src_canonical = src.canonical_id
       WHERE e.predicate IN ('calls', 'imports') AND e.superseded_run IS NULL
         AND src.file IS NOT NULL
+        -- \u2605 R18-HIGH FIX (2026-09-25): whoCalls had NO LIMIT while the violations verb caps at
+        --   MAX_QUERY_ROWS_FULL. A ubiquitous symbol (a util called everywhere) returned EVERY
+        --   caller \u2014 an unbounded read that materializes the whole edge set in JS. Same cap as
+        --   the other full-format verbs; the answer stays bounded.
+        --   (NOTE: no backticks in this comment \u2014 one would terminate the JS template literal.)
+        LIMIT ${MAX_QUERY_ROWS_FULL}
     `).all(symbol), "who-calls edges");
   const rows = edges.map((e) => ({
     caller: e.src_label,
@@ -187548,7 +187554,7 @@ function tsgProbe(scopeRoot, tsgRoot) {
         const redact = (s) => {
           if (key === null || key.length === 0)
             return s;
-          let out = s.split(key).join(key.slice(0, 4) + "...[redacted]");
+          let out = s.split(key).join("[redacted]");
           if (key.length >= 16) {
             const seen = new Set;
             for (let i = 0;i + 8 <= key.length; i++) {

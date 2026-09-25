@@ -188,6 +188,12 @@ function whoCalls(input: QueryInput, db: DbClient): QueryRow[] {
       JOIN typed_nodes src ON e.src_canonical = src.canonical_id
       WHERE e.predicate IN ('calls', 'imports') AND e.superseded_run IS NULL
         AND src.file IS NOT NULL
+        -- ★ R18-HIGH FIX (2026-09-25): whoCalls had NO LIMIT while the violations verb caps at
+        --   MAX_QUERY_ROWS_FULL. A ubiquitous symbol (a util called everywhere) returned EVERY
+        --   caller — an unbounded read that materializes the whole edge set in JS. Same cap as
+        --   the other full-format verbs; the answer stays bounded.
+        --   (NOTE: no backticks in this comment — one would terminate the JS template literal.)
+        LIMIT ${MAX_QUERY_ROWS_FULL}
     `).all(symbol),
     'who-calls edges',
   );
