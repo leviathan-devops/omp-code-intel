@@ -4303,7 +4303,12 @@ function openStore(dbPath) {
       }
     }
   } catch (e) {
-    console.error(`[gi-omp] DDL MIGRATION SKIPPED for graph_edges (handle cannot introspect): ${e instanceof Error ? e.message : String(e)}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/no such table/i.test(msg)) {
+      console.error(`[gi-omp] DDL MIGRATION: graph_edges absent (fresh store) \u2014 created by the DDL below`);
+    } else {
+      throw new Error(`GI_DDL_MIGRATION_FAILED: graph_edges migration faulted on an existing store \u2014 ${msg}`);
+    }
   }
   handle.exec(TYPED_GRAPH_DDL);
   return new SharedDb(dbPath, handle);

@@ -1003,7 +1003,16 @@ export function openStore(dbPath: string): DbClient {
       }
     }
   } catch (e) {
-    console.error(`[gi-omp] DDL MIGRATION SKIPPED for graph_edges (handle cannot introspect): ${e instanceof Error ? e.message : String(e)}`);
+    // ★ R20-HIGH FIX (2026-09-25): the catch swallowed EVERY error — a real introspection/ALTER
+    //   failure on an EXISTING store left it silently unmigrated. The ONLY benign case is a FRESH
+    //   store: graph_edges does not exist yet, so the ALTER throws "no such table", and
+    //   TYPED_GRAPH_DDL below creates it. Anything else is a LOUD named failure.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/no such table/i.test(msg)) {
+      console.error(`[gi-omp] DDL MIGRATION: graph_edges absent (fresh store) — created by the DDL below`);
+    } else {
+      throw new Error(`GI_DDL_MIGRATION_FAILED: graph_edges migration faulted on an existing store — ${msg}`);
+    }
   }
   // GI-PORT DEV-3: the aether_verdicts + event_ledger migrations dropped (§B seams)
   handle.exec(TYPED_GRAPH_DDL);
