@@ -2756,3 +2756,38 @@ the guard added after run 15 launched 113 parts onto an exhausted lane and retur
 failure, and would have flagged a mostly-clean tree VOID by construction. Lane A's parts decompose
 honestly as: **0 instrument-dead · 10 CLEAN REVIEWS · 4 out-of-scope skips** (the ocr CLI scopes to
 git-changed paths).
+
+---
+
+## ★★ RUN 17 — THE FIRST WHOLE-TREE AUDIT OF ALL 113 FILES (2026-09-25)
+
+**THE COMPLETED MEASUREMENT (both lanes drained):**
+```
+  parts .................. 113 / 113   ← THE WHOLE TREE (A∪B = the tree, disjoint, set-proven)
+  comments ............... 351
+  ★ THE INSTRUMENT ....... 0 instrument-dead · 19 CLEAN REVIEWS · 4 out-of-scope (skipped)
+  ── the severity breakdown ──
+     critical 1 · high 33 · medium 166 · low 151
+  ★ THE GATE: CRITICAL=1 HIGH=33 → FAIL
+```
+**THE HONEST FRAMING:** the audit ran WHILE a fix wave was landing, so this reading is of the tree
+AS SCANNED (a mix). The 1 critical (F-123, the migration's missing DDL) and 13 of the highs were
+FIXED in the same period (commits `95aca86`, `ff6d726`). **The number that must reach 0/0 is the
+NEXT run's** — an audit is a measurement, and the fix is the work that moves it.
+
+**★ THE INSTRUMENT GATE'S FALSE-POSITIVE CLASS — FOUND AND FIXED THIS RUN.** The aggregator's
+`empty = comments.length === 0` counted a **CLEAN REVIEW** as an instrument failure. Since the
+operator's stop is "0 critical / 0 high", a mostly-clean tree would have been flagged VOID by
+construction — the gate would fire on the BEST outcome. The three states are now distinct:
+```
+  instrument-dead  the EMPTY_RESULT marker / a 0-byte part   ← the ONLY state that voids a run
+  CLEAN REVIEW     status:"success", "No comments generated. Looks good to me.", files_reviewed:1
+  out-of-scope     status:"skipped", "No supported files changed." (the CLI scopes to git-changed)
+```
+
+**THE TREND (the reviewer converging as real defects get fixed):**
+| run | the coverage | critical | high |
+|---|---|---|---|
+| 16 (valid parts only) | 56 files | 3 | 99 |
+| 17 (lane A) | 50 files | 1 | 13 |
+| **17 (the whole tree)** | **113 files** | **1** | **33** |
