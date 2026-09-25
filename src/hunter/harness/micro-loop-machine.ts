@@ -464,12 +464,15 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
           for (let i = handleDisposables.length - 1; i >= 0; i--) {
             if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3) handleDisposables.splice(i, 1);
           }
-          // ★ F-1202 FIX (2026-09-25): the DbClient opened in MAP lived in context.db and was
-          //   closed only in stop() — a caller awaiting done() without stop() (the happy path)
-          //   leaked the SQLite WAL fd until GC. Settle is the terminal path shared by done()
-          //   and stop(); close here. Close is idempotent (SharedDb guards), LOUD on failure,
-          //   never throwing past the resolver; stop() keeps its own close as the second arm.
-          try { snapshot.db?.close(); } catch (e) { console.error('[micro-loop] db close failed:', e instanceof Error ? e.message : String(e)); }
+          // ★ F-1202 REVERTED (2026-09-25): closing the DbClient on SETTLE breaks a PINNED
+          //   contract — st-hunter-port reads the store's rows AFTER `await loop.done()`
+          //   (`loop.context.db.prepare("SELECT … FROM graph_nodes").all()`) as its per-phase
+          //   artifact evidence. The close-on-settle made that read throw
+          //   `RangeError: Cannot use a closed database` (st-hunter-port 2/1). **A caller may
+          //   legitimately inspect the store after the loop terminates.** The fd is owned by
+          //   stop() — the documented teardown — and `context.db` remains a live handle until
+          //   then. (The reviewer's leak concern is real but its remedy is a contract change,
+          //   not a one-line close.)
           resolve();
         }
       });
