@@ -27,7 +27,7 @@ import {
   TEMPLATE_LIBRARY, compileTemplate, LexiconError, sha256,
   type CompiledPredicate, type PredicateTemplate,
 } from './templates.ts';
-import { extractRuleCards, extractRuleCardsAsync, cardsFromText, corpusUnreadable, type RuleCard } from './rule-card.ts';
+import { extractRuleCards, extractRuleCardsAsync, cardsFromText, corpusUnreadable, type RuleCard, corpusEmpty } from './rule-card.ts';
 import { writeBattery, writeRuleCards, writeCompiledCache, loadBattery } from './compiled-store.ts';
 
 // ---------------------------------------------------------------------------
@@ -90,6 +90,12 @@ export function batteryVersion(profile: ProjectProfile): string {
   //   re-reads the same paths. Two reads of one file is a TOCTOU window AND 2x the I/O; the
   //   async sibling was already fixed to a single read. Same discipline here: ONE read per path
   //   into `reads`; the hash text AND the cards are both derived from those same bytes.
+  // ★ R19-HIGH FIX (2026-09-25): THE EMPTY-CORPUS PARITY. The async sibling REFUSES an empty
+  //   corpus with the NAMED corpusEmpty() error ("never a silent empty battery" — the module's own
+  //   comment), while this SYNC path fell through and produced a perfectly valid-looking version
+  //   string over zero rules. One path refused the degenerate input and the other manufactured a
+  //   battery identity for it. Same input, same refusal.
+  if (profile.rules.corpus.length === 0) throw corpusEmpty();
   const reads: Array<{ path: string; text: string }> = [];
   for (const p of profile.rules.corpus) {
     let text: string;
@@ -269,6 +275,18 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
   //   compiled bytes the fingerprint never described.
   const { version, cards: versionCards } = await batteryVersionWithCardsAsync(profile);
   if (db) {
+    // ★ R19 NOT-A-BUG ADJUDICATION (2026-09-25) — the finding: "the COUNT and the subsequent
+    //   writeCompiledCache are not wrapped in a single transaction; two concurrent compiles can
+    //   double-write." They can — AND THE DOUBLE-WRITE IS BENIGN BY CONSTRUCTION, so a
+    //   transaction would buy nothing:
+    //     · the write is VERSION-SCOPED and IDEMPOTENT — writeCompiledCache DELETEs the incoming
+    //       battery_version first, then INSERT OR REPLACE by id (compiled-store.ts:73-93);
+    //     · the version IS the corpus hash, and the rows are a PURE FUNCTION of (cards, profile,
+    //       version) — two writers racing on the same version write the SAME rows, so the loser's
+    //       write is a no-op in content;
+    //     · two writers on DIFFERENT versions touch different rows (the version-scoped delete).
+    //   There is no interleaving whose outcome differs from the serial one, which is the test a
+    //   transaction has to pass to be worth its lock.
     const row = db.prepare('SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?').get(version);
     if (Number(row?.['c'] ?? 0) > 0) {
       return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
