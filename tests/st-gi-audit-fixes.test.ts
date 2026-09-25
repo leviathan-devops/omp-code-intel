@@ -158,8 +158,12 @@ describe("st-gi-audit-fixes: ★ THE PREDICATE LAW — consumed:N/8 must FAIL wh
   }, 300_000);
 
   test("test_consumption_predicate: --gate FAILS below the bar (exit 1, a NAMED error)", () => {
-    // a subject no consumer knows ⇒ every consumer is UNCONSUMED ⇒ consumed < 8 ⇒ EXIT 1
-    expect(run([REPO, "ThisSubjectHasNoFactsAtAll", "--gate"])).toBe(1);
+    // ★ CORRECTED (2026-09-25): the negative is a SCOPE WITH NO SUBSTRATE, not a bad SUBJECT.
+      //   `--gate` is per-domain (each consumer asked about ITS OWN subjects), so the passed
+      //   subject never decides pass/fail. The old negative "worked" only because ABIDE was
+      //   structurally un-consumnable (the dead-map bug) — the gate failed for EVERY subject.
+      //   MEASURED: an empty scope ⇒ exit 1 + GI_CONSUMPTION_BELOW_EXPECTED.
+    expect(run(["/tmp/gi-consumption-empty-scope", "--gate"])).toBe(1);
   }, 300_000);
 
   test("test_consumption_predicate: --expect is explicit (the RAW count for the subject)", () => {
@@ -196,8 +200,10 @@ describe("st-gi-audit-fixes: ★★ THE GOAL PREDICATE — the five DONE conditi
   }, 600_000);
 
   test("test_goal_predicate: a VIOLATED condition exits 1 with the named failure", () => {
-    // a subject no consumer knows ⇒ C1 fails ⇒ the whole gate FAILS
-    const r = run([REPO, "ThisSubjectHasNoFactsAtAll"]);
+    // ★ CORRECTED (2026-09-25): same correction as the consumption gate — C1 is per-domain, so a
+    //   bad SUBJECT never violates it. The real violation is a SCOPE with no substrate.
+    //   MEASURED: exit 1 + GI_GOAL_NOT_MET + C1 FAIL.
+    const r = run(["/tmp/gi-goal-verify-empty-scope", "evidence"]);
     expect(r.out).toContain("GI_GOAL_NOT_MET");
     expect(r.out).toContain("C1 FAIL");
     expect(r.code).toBe(1);
