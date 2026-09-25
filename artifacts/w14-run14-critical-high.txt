@@ -937,6 +937,15 @@ The fix is to split the try/catch
       try { fs.unlin
   ```
 
+[HIGH] src/scoping/gi-session-path.ts:83-86 (security)
+  TOCTOU race in symlink guard: The guard only executes when the parent directory already exists (`parentReal !== null`). Between this check and the actual SQLite open, an attacker can: (1) `assertSessionStorePath` passes (parent doesn't exist yet, so guard is skipped), (2) `mkdirSync` in `openTypedStore` creates the parent, (3) attacker creates a symlink at the session directory before SQLite is opened. The `lstat` symlink check in `openTypedStore` (typed-write.ts:182) catches symlinked *files*, but not symlinked *intermediate directories* (`sessions/<sid>/` → `/tmp/...`). Consider tightening: after `mkdirSync`, re-run the full assertion before the open.
+  ```existing
+  const parent = path.dirname(resolved);
+  let parentReal: string | null = null;
+  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  if (parentReal !== null) {
+  ```
+
 [HIGH] src/scoping/scope-binding.ts:80-82 (bug)
   Stale prefix map entry on re-registration with a different prefix. The early `return existing` on line 79 means the duplicate prefix guard (lines 82–85) is **unreachable** when the same ecosystem re-registers. If a bug or misconfiguration causes the same ecosystem to be registered with a different `wavePrefix`, the old prefix remains in `this.prefixes` pointing to the stale binding, while the new prefix is added on line 88. This causes: (1) `ownerOf` can now match the stale prefix for waves that should belong to the new prefix; (2) `isForeignWave` on the owning binding returns incorrect results; (3) the mutual-exclusivity contract silently breaks. The duplicate prefix check should execute **
   ```existing
@@ -955,4 +964,43 @@ The fix is to split the try/catch
       
   ```
 
-# total: 53
+[HIGH] src/scoping/scoped-store.ts:63-68 (bug)
+  Both PRAGMA statements are in the same try block. If `PRAGMA journal_mode = WAL;` throws, `PRAGMA busy_timeout = 5000;` is never executed, leaving the default busy_timeout of 0. This means any subsequent busy/locked SQLite operation will fail immediately instead of waiting 5 seconds, undermining the entire retry mechanism. Each pragma should have its own try-catch so busy_timeout is always set.
+  ```existing
+  try {
+    fresh.exec('PRAGMA journal_mode = WAL;');
+    fresh.exec('PRAGMA busy_timeout = 5000;');
+  } catch (walErr) {
+    console.error(`[scoped-store${opts?.id ? ' ' + opts.id : ''}] WAL mode FAILED — falling back to rollback journal (race-condition protection DEGRADED):`, walErr instanceof Error ? walErr.message : String(walErr));
+  }
+  ```
+  ```suggested
+  try {
+    fresh.exec('PRAGMA journal_mode = WAL;');
+  } catch (walErr) {
+    console.error(`[scoped-store${opts?.id ? ' ' + opts.id : ''}] WAL mode FAILED — falling back to rollback journal (race-condition protection DEGRADED):`, walErr instanceof Error ? walErr.message : String(walErr));
+  }
+  try {
+    fresh.exec('PRAGMA busy_timeout = 5000;');
+  } catch (btErr) {
+    console.error(`[scoped-stor
+  ```
+
+[HIGH] src/scoping/session-state.ts:54-58 (bug)
+  **No `fsync` before rename — data durability risk**
+
+`writeSessionStateRaw` calls `writeFileSync` then `renameSync`, but `writeFileSync` does not guarantee the data is flushed to persistent storage — it may only reside in the OS page cache. On a system crash or power loss, the rename could complete with only a partial or empty tmp file on disk, silently losing the entire session state.
+
+Use `fs.writeFileSync` followed by `fsyncSync` (via `fs.openSync` + `fs.fsyncSync`) before the rename to ensure the data is durable. Alternatively, document that this level of durability is acceptable for the tool's use case.
+
+```typescript
+function writeSessionStateRaw(statePath: string, state: SessionStateM
+  ```existing
+  function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
+  const tmp = statePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
+}
+  ```
+
+# total: 56

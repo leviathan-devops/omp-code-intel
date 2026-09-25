@@ -1485,3 +1485,31 @@ blame the provider.
   shape: a correct guard described as a bypass).
 - **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **438/0 + 536/0**, exit 0; dist
   `bab7511719217495`, deployed == repo.
+
+---
+
+## EN-W3-RUN14-WAVE — the R14 wave (~45 REAL) + TWO PINNED-CONTRACT REVERTS (2026-09-25)
+
+- **THE WAVE:** R14High1 11 REAL + 1 NOT-A-BUG · R14High2 11 REAL · R14High3 9 REAL + 1
+  truth-table-deferred · R14High4 6 REAL + 3 NOT-A-BUG (quote-proven) + 1 patch · R14High5 8 REAL
+  + 1 probe-disproven NOT-A-BUG.
+- **★ THE DISCIPLINE WORKED (the run-14 lesson applied): SIX findings were adjudicated NOT-A-BUG by
+  PROBE or TRUTH TABLE, and two of the agents' OWN proposed fixes were reverted because they broke
+  a PINNED CONTRACT:**
+  1. **F-1207 REVERTED** (`omp/graph-facts.ts`) — the reviewer claimed a declared symbol with
+     `outD > 0, inD == 0` should FIRE. **The pinned corpus refutes it:** the `NEG-2` fixture
+     (`referencedField`, declare, WITH an outgoing `references` edge) is battery-pinned to
+     **IGNORE** — an OUTGOING usage is the store's evidence that a declaration is LIVE. The change
+     fired on NEG-2 and broke `st-gi-6l2e` (27/1).
+  2. **F-1202 REVERTED** (`harness/micro-loop-machine.ts`) — closing the DbClient on `settle()`
+     (to plug an fd leak) broke a **pinned post-`done()` read**: `st-hunter-port` reads
+     `loop.context.db.prepare("SELECT … FROM graph_nodes").all()` as its per-phase artifact
+     evidence, and the close made it throw `RangeError: Cannot use a closed database`. **A caller
+     may legitimately inspect the store after the loop terminates**; the fd stays owned by `stop()`.
+- **★ THE LESSON (the wave's whole point):** a reviewer's finding and an agent's fix are BOTH claims.
+  **The PIN is the contract.** When a proposed fix breaks a pinned fixture, the fix is wrong until
+  the pin is deliberately re-specified — and re-specifying a pin is an operator decision, never a
+  drive-by edit.
+- **THE VERIFICATION:** `tsc exit 0`; `bun run test` → **438/0 + 536/0**, exit 0; dist
+  `892cdce078247587`, deployed == repo. The register `consumed:7/8`; the ledger 4 distinct; the au
+  daemon UP.

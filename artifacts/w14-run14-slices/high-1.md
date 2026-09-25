@@ -1,221 +1,221 @@
-# HIGH slice 1 — 11 findings across 9 files
+# HIGH slice 1 — 12 findings across 10 files
 
-## src/hunter/diagnostics/calibration.ts
-- **src/hunter/diagnostics/calibration.ts:557-563** (bug)
-  **Bug: ROLLBACK failure discards the original batch error.**
-
-When the batch INSERT fails and the subsequent ROLLBACK also fails, the code throws `CALIBRATION_ROLLBACK_FAILED` — but the original batch error (`e`) is embedded only inside the message string. The `throw e` on line 325 (after the inner catch block) is dead code because the inner catch already threw. The caller receives a `CalibrationError` with code `CALIBRATION_ROLLBACK_FAILED` but loses the original batch error as a distinct object (its type, stack trace, and any structured properties beyond `.message`).
-
-Additionally, after this throw, the db handle may still hold an open transaction (as the comment warns), but nothing prevents the caller from reusing it.
-
-Suggestion: attach the original error as a cause (or include both error codes in the message more explicitly) and consider marking the handle as unusable.
+## src/hunter/diagnostics/engine.ts
+- **src/hunter/diagnostics/engine.ts:544-551** (bug)
+  BUG: `visitedDirs` and `visitedRealDirs` are two separate sets tracking the same concept (visited real directory paths), causing inconsistent cycle detection. In the symlink branch (lines 584-588), `visitedRealDirs.has(real)` is checked, but the new directory is only added to `visitedRealDirs` — NOT to `visitedDirs`. This means a real directory entered via a symlink path can later be re-entered through a non-symlink path because `visitedDirs` (checked at line 548) was never updated for it. The root cause is that the F-813 fix added the symlink branch using `visitedRealDirs` (declared at line 610) while the original cycle guard at the top of `walk` uses `visitedDirs` (declared at line 544). Both sets should be merged into one to ensure uniform cycle detection.
   ```existing
-  try { db.exec('ROLLBACK'); } catch (rb: unknown) {
-        throw new CalibrationError(
-          'CALIBRATION_ROLLBACK_FAILED',
-          `CALIBRATION_ROLLBACK_FAILED: batch error=${e instanceof Error ? e.message : String(e)} rollback error=${rb instanceof Error ? rb.message : String(rb)} (the transaction may still be open — do not reuse this handle for writes)`,
-        );
-      }
-      throw e;
-  ```
-  ```suggested
-  try { db.exec('ROLLBACK'); } catch (rb: unknown) {
-        const batchErr = e instanceof Error ? e : new Error(String(e));
-        const rollbackErr = rb instanceof Error ? rb : new Error(String(rb));
-        const combined = new CalibrationError(
-          'CALIBRATION_ROLLBACK_FAILED',
-          `CALIBRATION_ROLLBACK_FAILED: batch error=${batchErr.message} rollback error=${rollbackErr.message} (
-  ```
-- **src/hunter/diagnostics/calibration.ts:389-393** (bug)
-  **Risk: Compensating delete uses `Date.now()` as a composite key — cross-session row deletion possible.**
-
-The `DELETE FROM calibrations WHERE run_id = ? AND created_at = ?` uses `this.calibratedAt` (set via `Date.now()` in the constructor). If two `CalibrationGate` sessions are constructed within the same millisecond and share the same `fixtureVersion`, their compensating deletes will target each other's rows. The inner `catch` silently swallows delete failures (`/* best-effort compensation; the persist error below stands */`), so a failed cross-session delete goes unobserved.
-
-Suggestion: use a session-specific UUID (e.g., `crypto.randomUUID()`) as the `run_id` instead of `calibration-${fixtureVersion}`, which would scope the delete precisely to the session's own rows.
-  ```existing
-  if (write.db) {
-          try {
-            write.db.prepare('DELETE FROM calibrations WHERE run_id = ? AND created_at = ?').run(`calibration-${fixtureVersion}`, this.calibratedAt);
-          } catch { /* best-effort compensation; the persist error below stands */ }
-        }
-  ```
-  ```suggested
-  if (write.db) {
-          const sessionId = `calibration-${fixtureVersion}-${this.calibratedAt}`;
-          try {
-            write.db.prepare('DELETE FROM calibrations WHERE run_id = ?').run(sessionId);
-          } catch { /* best-effort compensation; the persist error below stands */ }
-        }
-  ```
-
-## src/hunter/graph/merge.ts
-- **src/hunter/graph/merge.ts:191-194** (bug)
-  **Inconsistent `subjectKind`/`objectKind` inheritance in contradiction path.**
-
-In the exact-match path (mechExact), semantic values inherit from anchor when undefined:
-```
-subjectKind: s.subjectKind ?? anchor.subjectKind,
-objectKind: s.objectKind ?? anchor.objectKind,
-```
-But in the contradiction semantic-row push (lines ~153-154), the fallback is missing:
-```
-subjectKind: s.subjectKind,
-objectKind: s.objectKind,
-```
-If the semantic triple lacks `subjectKind` or `objectKind`, this row will have `undefined` in those fields, while the exact-match path would have used the anchor's values. This is likely a bug introduced when the contradiction path was added/modified.
-
-Suggestion: apply the same `?? anchor.subjectKind` / `?? anchor.objectKind` fallback pattern used in the exact-match branch.
-  ```existing
-  subjectKind: s.subjectKind,
-        objectKind: s.objectKind,
-        source: 'semantic',
-        conflict: true,
-  ```
-  ```suggested
-  subjectKind: s.subjectKind ?? anchor.subjectKind,
-        objectKind: s.objectKind ?? anchor.objectKind,
-        source: 'semantic',
-        conflict: true,
-  ```
-
-## src/hunter/harness/scan.ts
-- **src/hunter/harness/scan.ts:49-51** (security)
-  `requireContained` (imported from `containment.ts`) returns the resolved `real` path but its `contained` check does NOT verify the `resolved` flag. When `resolved` is false (the path couldn't be followed through symlinks), the returned path is the unresolved spelling — which passed `insideRoot` on string prefix alone, the exact vulnerability class F-440 was written to fix.
-
-The `checkContained` function (containment.ts:106) explicitly tracks `resolved` for this reason (see F-602 fix comment at containment.ts:91-97). `requireContained` at containment.ts:137 discards it by only destructuring `contained`. This means a corpus entry like `<root>/link -> /etc/passwd` where `link` doesn't exist yet (so `realNearest` can't follow the symlink) would return the unresolved `<root>/link` spelling, which passes the prefix test while the eventual file read follows the symlink out of the tree.
-
-Since this file's `resolveCorpusPaths` is the primary call site that was patched for symlink-awareness (F-440), the fix is incomplete without also checking the `resolved` flag. Consider adding `&&` the resolved check in the onViolation callback, or using `checkContained` directly instead of `requireContained` so you can inspect `resolved`.
-  ```existing
-  return requireContained(abs, root, (ev) => {
-      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${ev.rootReal} real=${ev.real}) — corpus entries must stay under the root.`);
-    });
-  ```
-  ```suggested
-  const { real, rootReal, contained, resolved } = checkContained(abs, root);
-    if (!contained) {
-      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} resolves outside the project root (root=${rootReal} real=${real}) — corpus entries must stay under the root.`);
+  const visitedDirs = new Set<string>();
+  const walk = (dir: string): void => {
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { realDir = dir; }
+    if (visitedDirs.has(realDir)) {
+      throw sourceReadFailed(dir, `symlink cycle: ${dir} resolves to ${realDir}, already visited — refusing to recurse forever`);
     }
-    if (!resolved) {
-      console.warn(`[scan] HUNT_INVALID_CORPUS WARNING: entry=${entry} could not be resolved through syml
+    visitedDirs.add(realDir);
+  ```
+  ```suggested
+  const visitedDirs = new Set<string>();
+  const walk = (dir: string): void => {
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { realDir = dir; }
+    if (visitedDirs.has(realDir)) {
+      throw sourceReadFailed(dir, `symlink cycle: ${dir} resolves to ${realDir}, already visited — refusing to recurse forever`);
+    }
+    visitedDirs.add(realDir);
+  ```
+- **src/hunter/diagnostics/engine.ts:636-637** (bug)
+  BUG: On Windows, `path.relative(root, abs)` returns backslash-separated paths (e.g. `src\lib\file.ts`). The node ID `file:${rel}` (line 636) uses this backslash form, while the import-edge `targetId` (line 683) is computed via `path.posix` operations which produce forward-slash IDs. This creates a path-separator mismatch: the source side of an import edge uses `file:src\lib\file.ts` (backslash) while the target side resolves to `file:src/lib/file.ts` (forward slash), causing `keptIds` (line 716) to miss the match and the edge to be silently dropped. The F-4 path escape fix on the POSIX join side is correct, but the `rel` variable needs the same normalization.
+  ```existing
+  for (const abs of collectLocalTsFiles(root)) {
+    const rel = path.relative(root, abs);
+  ```
+  ```suggested
+  for (const abs of collectLocalTsFiles(root)) {
+    const rel = path.relative(root, abs).split(path.sep).join('/');
   ```
 
-## src/hunter/lexicon/templates.ts
-- **src/hunter/lexicon/templates.ts:239-245** (bug)
-  `bindRange` performs `Array.isArray` but does NOT verify that the array has exactly 2 elements nor that both elements are numbers before casting to `[number, number]`. A bindings object with `range: ["a", "b"]` or `range: [1, 2, 3]` passes this guard. Downstream in `provenance.quoted-not-synthesized`, the range is passed directly to `ctx.source.read(file, range)` — non-numeric values or a 3-element tuple would propagate silently, potentially causing runtime errors or silent misreads at the source-read boundary. Add element-type and length validation mirroring `bindStages` / `bindStringArray` patterns.
+## src/hunter/graph/resolver.ts
+- **src/hunter/graph/resolver.ts:205-207** (maintainability)
+  `mergePartialHarness` mutates the caller's `decisions` array in-place via `decisions.length = 0; decisions.push(...uniqDecisions)` (lines 166-168). While the current callers use local arrays so this is contained, the side-effecting contract is fragile — any future caller passing a shared or reusable array will be surprised. Consider creating and returning a new array instead of mutating the input, which also simplifies the caller's reasoning about the returned value.
   ```existing
-  function bindRange(bindings: Record<string, unknown>): [number, number] | undefined {
-  const v = bindings['range'];
-  if (Array.isArray(v)) {
-    return v as [number, number];
+  decisions.length = 0;
+  decisions.push(...uniqDecisions);
+  const resolvedEntityIds = new Set(decisions.map((d) => d.newEntity.id));
+  ```
+  ```suggested
+  const seenIds = new Set<string>();
+  const uniqDecisions: ResolutionDecision[] = [];
+  for (const d of decisions) {
+    if (seenIds.has(d.newEntity.id)) continue;
+    seenIds.add(d.newEntity.id);
+    uniqDecisions.push(d);
   }
-  return undefined;
-}
+  const resolvedEntityIds = new Set(uniqDecisions.map((d) => d.newEntity.id));
+  ```
+
+## src/hunter/harness/trace.ts
+- **src/hunter/harness/trace.ts:81-81** (bug)
+  **Bug — `mechanism` is computed but never used; long evidence is no longer truncated.**
+
+The variable `mechanism` (line 72) applies the intended 120-character truncation with ellipsis, but the return statement (line 75) uses `first` instead of `mechanism`. The F-1032b fix correctly fixed the `mechanism`→`first` naming error in the return, but should have returned `mechanism` (the truncated form) rather than `first` (the raw form). As a result, the root-cause string can now contain arbitrarily long evidence text, and the `mechanism` variable is dead code. Fix: return `mechanism` in the template literal.
+  ```existing
+  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${first}`;
   ```
   ```suggested
-  function bindRange(bindings: Record<string, unknown>): [number, number] | undefined {
-  const v = bindings['range'];
-  if (
-    Array.isArray(v) && v.length === 2 &&
-    typeof v[0] === 'number' && typeof v[1] === 'number'
-  ) {
-    return [v[0], v[1]];
+  const mechanism = first.length > 120 ? `${first.slice(0, 120)}\u2026` : first;
+  const depth = evidenceLen > 3 ? 'a multi-step edge chain' : 'single-edge mechanism';
+  return `the ${f.ruleId} violation at ${anchor} (${depth}): ${mechanism}`;
+  ```
+
+## src/hunter/shared/containment.ts
+- **src/hunter/shared/containment.ts:137-139** (security)
+  `requireContained` returns `real` without checking or exposing the `resolved` flag. When `resolved` is false, the returned path is just the caller's absolute spelling (e.g. after maxClimb exhaustion), not the actual filesystem path. A caller using this return value for file I/O could operate on a path that, when accessed, follows a different symlink chain than the containment check evaluated. This is the same class of issue F-602 was created to prevent for callers of `checkContained`, but `requireContained` bypasses it.
+  ```existing
+  const { real, rootReal, contained } = checkContained(target, root);
+  if (!contained) onViolation({ real, rootReal, target, root });
+  return real;
+  ```
+  ```suggested
+  const { real, rootReal, contained, resolved } = checkContained(target, root);
+  if (!contained || !resolved) onViolation({ real, rootReal, target, root });
+  return real;
+  ```
+
+## src/hydra/map-reader.ts
+- **src/hydra/map-reader.ts:195-204** (security)
+  TOCTOU race between stat and readFile: the file size is validated via `fs.promises.stat`, then the file content is fetched in a separate `fs.promises.readFile` call. Between these two calls the file could grow beyond the 128MB `GRAPH_LOAD_BUDGET_BYTES` budget, allowing an OOM via `JSON.parse` on a much larger payload than the stat guard authorized. This defeats the core EN-38 OOM protection.
+  ```existing
+  const gSize = Number.isFinite(stat.size) && stat.size > 0 ? stat.size : Number.MAX_SAFE_INTEGER;
+  if (gSize > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${gSize} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower graph cardinality.`);
   }
-  return undefined;
+  if (gSize > GRAPH_PARSE_YIELD_BYTES) {
+    await new Promise<void>((res) => setIm
+  ```
+  ```suggested
+  if (stat.size > GRAPH_LOAD_BUDGET_BYTES) {
+    throw new Error(`GRAPHIFY_GRAPH_TOO_LARGE: graph.json is ${stat.size} bytes (> ${GRAPH_LOAD_BUDGET_BYTES} budget). Fix: scope/extract a subtree or lower graph cardinality.`);
+  }
+  if (stat.size > GRAPH_PARSE_YIELD_BYTES) {
+    await new Promise<void>((res) => setImmediate(() => res()));
+  }
+  let raw: Record<string, unknown>;
+  try {
+    const conten
+  ```
+
+## src/omp/adapters/abide.ts
+- **src/omp/adapters/abide.ts:123-128** (performance)
+  When `st` is null (stat failed), the 32 MiB safety guard is bypassed entirely. The condition `if (st && st.size > MAX_SAFE_FULL_READ)` evaluates to `false` when `st` is null, so the subsequent `readFileSync` proceeds without any size bound. If the file exists but `statSync` fails (e.g., a platform-specific permission issue or a race with file removal/recreation), a multi-gigabyte ledger would be fully materialized into memory. The F-842 fix correctly handles read *errors*, but does not protect against a successful read of an oversized file when stat is unavailable.
+  ```existing
+  const MAX_SAFE_FULL_READ = 32 * 1024 * 1024; // 32 MiB
+  if (st && st.size > MAX_SAFE_FULL_READ) {
+    throw new Error(
+      `GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${st.size}B) and full read exceeds ${MAX_SAFE_FULL_READ}B — refusing to materialize the ledger`,
+    );
+  }
+  ```
+  ```suggested
+  const MAX_SAFE_FULL_READ = 32 * 1024 * 1024; // 32 MiB
+  if (st !== null && st.size > MAX_SAFE_FULL_READ) {
+    throw new Error(
+      `GI_ENFORCE_ABIDE: bounded tail failed for ${eventsPath} (${st.size}B) and full read exceeds ${MAX_SAFE_FULL_READ}B — refusing to materialize the ledger`,
+    );
+  }
+  // When st is null (stat failed), attempt to stat again after read failure —
+  // but refuse an u
+  ```
+
+## src/omp/gate-hook.ts
+- **src/omp/gate-hook.ts:143-145** (bug)
+  FIFO matching by tool name only — if the same tool (e.g., `edit` or `graph-query`) is called twice concurrently, `findIndex((e) => e.tool === name)` always returns the FIRST pending entry regardless of which call the result belongs to. This misattribution affects both the steer-note path and the query-resolution path: the wrong steer note can be attached to a tool result, or drift coverage can be granted to the wrong edit, defeating the gate's purpose. A unique correlation ID (or at minimum the file path / input fingerprint) should be carried from tool_call through to tool_result to guarantee correct pairing.
+  ```existing
+  const qi = queue.findIndex((e) => e.tool === name);
+    if (qi === -1) return undefined;
+    const note = queue.splice(qi, 1)[0]!.note;
+  ```
+
+## src/omp/graph-gate.ts
+- **src/omp/graph-gate.ts:321-327** (bug)
+  saveGateState opens a brand-new SQLite connection on every call, executes CREATE IF NOT EXISTS + an INSERT/UPDATE, then closes. For concurrent sessions writing to the same storePath this has three problems: (1) no WAL mode and no busy timeout means a second writer can immediately get SQLITE_BUSY and throw; (2) even with sequential access, the CREATE TABLE DDL re-executes on every save, which is wasteful; (3) the finally block's close() swallows errors, masking close failures.
+
+Suggestion: open the Database once (or use a connection pool), set journal_mode=WAL and a busy_timeout (e.g. 5000 ms), and remove the redundant GATE_DDL execution after initial creation. This applies equally to loadGateState.
+  ```existing
+  function openSessionDb(storePath: string): Database {
+  const dir = path.dirname(storePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const db = new Database(storePath);
+  db.exec(GATE_DDL);
+  return db;
 }
   ```
-
-## src/hydra/client-reader.ts
-- **src/hydra/client-reader.ts:99-102** (bug)
-  The `Promise.race` timeout pattern in `listTools()`, `callTool()`, `attach()`, and `disconnect()` produces unhandled promise rejections. When the actual transport operation (e.g., `t.listTools()`, `t.callTool()`, `old.close()`, `this.transport.close()`) settles **before** the 5000ms timeout, the timeout promise later rejects with a `*_TIMEOUT` error. Since no `.catch()` handler is attached to the losing side of the race, this becomes an **unhandled rejection**. In Node.js 15+ (where unhandled rejections crash the process by default), this can bring down the entire process even though the original operation succeeded.
-
-Suggested fix: add `.catch(() => {})` to the timeout promise to suppress the rejection once the race is already won, or track and await the losing promise in a non-blocking way.
-  ```existing
-  return await Promise.race([
-        t.listTools(),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000).unref?.()),
-      ]);
-  ```
   ```suggested
-  const timeout = new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000).unref?.(),
-      );
-      return await Promise.race([t.listTools(), timeout]).finally(() => {
-        // Suppress the unhandled rejection from the losing side of the race.
-        timeout.catch(() => {});
-      });
-  ```
-
-## src/kernel/scan-chain.ts
-- **src/kernel/scan-chain.ts:51-69** (performance)
-  The same auth file `~/.local/share/opencode/auth.json` is read synchronously in both `getOpenRouterKey()` (line 48) and `getNvidiaKey()` (line 58). In `runScanChain`, these are called sequentially during the retry loop, so the file is read twice (and up to 12 times total with 5 retries × 2 providers). Beyond the duplicate I/O, both use `readFileSync` which **blocks the Node.js event loop**. Under backoff pressure with sequential chain traversal, this can stall the entire process. Consider: (1) caching the parsed auth object at module scope or at chain-build time; (2) using async `fs.promises.readFile` instead.
-  ```existing
-  function getOpenRouterKey(): string {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const auth = JSON.parse(require('fs').readFileSync(
-      require('os').homedir() + '/.local/share/opencode/auth.json', 'utf8'
-    ));
-    return auth.openrouter?.key ?? '';
-  } catch { return ''; }
+  function openSessionDb(storePath: string): Database {
+  const dir = path.dirname(storePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const db = new Database(storePath);
+  db.exec("PRAGMA journal_mode=WAL");
+  db.exec("PRAGMA busy_timeout=5000");
+  db.exec(GATE_DDL); // only needed on first open, could be guarded
+  return db;
 }
+  ```
+- **src/omp/graph-gate.ts:185-187** (performance)
+  editLog and graphQueries arrays grow without bound — there is no eviction of entries older than DRIFT_WINDOW_MS. Over a long-running session the arrays accumulate indefinitely, causing: (1) O(n) linear scans on every computeDrift call; (2) O(n²) total work across the session; (3) unbounded JSON blob size on every saveGateState call, eventually hitting SQLite's blob limits or blowing up memory.
 
-function getNvidiaKey(): string {
+Suggestion: evict expired entries periodically, e.g. in computeDrift or a dedicated prune function:
+  state.editLog = state.editLog.filter(e => now - e.timestamp < DRIFT_WINDOW_MS);
+  state.graphQueries = state.graphQueries.filter(q => now - q.timestamp < DRIFT_WINDOW_MS);
+  ```existing
+  for (const edit of state.editLog) {
+    const age = Math.max(0, now - edit.timestamp);
+    if (age >= DRIFT_WINDOW_MS) continue;
+  ```
+  ```suggested
+  // Add at the start of computeDrift:
+state.editLog = state.editLog.filter(e => now - e.timestamp < DRIFT_WINDOW_MS);
+state.graphQueries = state.graphQueries.filter(q => now - q.timestamp < DRIFT_WINDOW_MS);
+  ```
+
+## src/omp/rsi.ts
+- **src/omp/rsi.ts:389-400** (security)
+  appendOutcome signs `${prevHash}|{c, o}` but NOT `fired_at` or `outcome_evidence`. An attacker with direct DB write access could forge the timestamp (e.g., backdate outcomes to change temporal analysis) or modify the evidence text without invalidating the HMAC. Since the goal of the append-only ledger is to provide trustworthy evidence, both `fired_at` and `outcome_evidence` should be included in the signed body. Note: `appendOutcome` generates `fired_at` itself (`new Date().toISOString()`), so signing it is straightforward. verifyEvidenceRow would also need corresponding updates to the verification forms.
+  ```existing
+  appendOutcome(canonicalId: string, outcome: Outcome, evidence: string): void {
+    // ★ F-272 FIX (2026-09-24): tip-read+INSERT autocommit pair, same fork class as write() — one IMMEDIATE txn.
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const prev = this.db
+        .query(`SELECT sig FROM ${this.evidenceTable} ORDER BY id DESC LIMIT 1`)
+        .get() as { sig: string } | null;
+      con
+  ```
+
+## src/scoping/session-state.ts
+- **src/scoping/session-state.ts:54-58** (bug)
+  **No `fsync` before rename — data durability risk**
+
+`writeSessionStateRaw` calls `writeFileSync` then `renameSync`, but `writeFileSync` does not guarantee the data is flushed to persistent storage — it may only reside in the OS page cache. On a system crash or power loss, the rename could complete with only a partial or empty tmp file on disk, silently losing the entire session state.
+
+Use `fs.writeFileSync` followed by `fsyncSync` (via `fs.openSync` + `fs.fsyncSync`) before the rename to ensure the data is durable. Alternatively, document that this level of durability is acceptable for the tool's use case.
+
+```typescript
+function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
+  const tmp = statePath + '.tmp';
+  const fd = fs.openSync(tmp, 'w');
   try {
-    // eslint-disable-next-line @typesc
-  ```
-
-## src/omp/extension.ts
-- **src/omp/extension.ts:213-214** (bug)
-  **TOCTOU: `confineTargetPath` returns stale `real` instead of verified `realAfter`**. The function re-resolves `normalized` into `realAfter` (line 202-203) and verifies it is stable and still a directory (lines 204-211). But line 213 returns `{ ok: true, real }` — the FIRST resolution — not `realAfter`. If the path was swapped between the first `realpathSync` and the re-check, the stability check catches the change and denies it. However, if a swap happens between the stability check (line 204) and the caller's subsequent file open (which happens AFTER the function returns), the caller still receives the first-resolved `real`, not the freshly-verified `realAfter`. Since `realAfter` was confirmed stable at the check moment, it is the safer handle to return. Returning `real` means the caller operates on a path that was verified N syscalls ago rather than the path verified at the final check.
-
-Additionally, `realAfter` is `string | null` but `realAfter.slice()` is called on line 211 without a null check — this will throw a runtime TypeError if the second `realpathSync` fails (though `realAfter` is checked for null in the conditional, `realAfter.slice` in the template literal would throw before the function returns the error string if `stAfter` check passes but `realAfter` was somehow null — this path is actually safe because if `realAfter` is null the function returns the deny on line 204, but the type annotation is misleading).
+    fs.writeSync(fd, JSON.stringify(state, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp, statePath);
+}
+```
   ```existing
-  return { ok: true, real };
-};
-  ```
-  ```suggested
-  return { ok: true, real: realAfter ?? real };
-  ```
-
-## src/omp/fire-ledger.ts
-- **src/omp/fire-ledger.ts:340-341** (bug)
-  BUG: Duplicated error-normalization logic causes double `GI_LEDGER_` prefix on persisted failure codes in multiple locations (e.g., `appendManyDetailed`'s fallback and `withLedger`'s catch block). This results in `lastPersist.code` having `GI_LEDGER_GI_LEDGER_...` pattern. The fix is to extract a shared normalization helper that converts errors to a normalized `{ code, message }` record, ensuring the prefix is applied exactly once.
-  ```existing
-  const bare45 = err.code.startsWith("GI_LEDGER_") ? err.code.slice("GI_LEDGER_".length) : err.code;
-          this.notePersistFailure(`GI_LEDGER_${bare45}`, err.message);
-  ```
-  ```suggested
-  // Note: err.code already carries the GI_LEDGER_ prefix from LedgerError.
-          // notePersistFailure stores the code as-is; consumers see the same code
-          // the LedgerError carried — no double-wrapping.
-          this.notePersistFailure(err.code, err.message);
-  ```
-- **src/omp/fire-ledger.ts:579-580** (bug)
-  BUG: `path.resolve(ledger.path)` depends on `process.cwd()` at call time, not at ledger-open time. If the CWD changes between drain calls (e.g. the gate opens a ledger with a relative path `./data/decisions.db`, a drain runs, then a `chdir()` occurs, then another drain runs), `path.resolve` produces a different absolute key. The module-level `drained` WeakSet and `poisoned` Set would have two entries for the same physical file. The second drain would not find any rows in the 'new' WeakSet, re-read all gate rows, and write them all again — silently breaking the exactly-once guarantee. The fix: resolve the path in the constructor and store it as an instance field, then use that resolved path as the key in both maps.
-  ```existing
-  export function drain(gate: FireGate, ledger: FireLedger): number {
-  const key = path.resolve(ledger.path);
-  ```
-  ```suggested
-  export function drain(gate: FireGate, ledger: FireLedger): number {
-  // Use the ledger's own resolved path, set at construction time,
-  // so CWD changes between drain calls do not create duplicate keys.
-  const key = path.resolve(ledger.path);
-  // (Alternatively, store the resolved path in the FireLedger constructor
-  // and expose it as `ledger.resolvedPath`.)
-  ```
-
-## src/omp/populate.ts
-- **src/omp/populate.ts:118-120** (bug)
-  **Scope default contradicts H05 comment**: The comment says 'the probe walks the CALLER's scope when provided — never a blind ["src"] default', but `populateSessionStore` (the sole public caller that selects the graphify path) never passes `scope` to `populateGraphifySessionStore`. Therefore the freshness check ALWAYS probes `["src"]` regardless of actual project layout. Either: (a) thread the real scope through from the caller, or (b) update the comment to honestly state that the session bridge path uses the `["src"]` default. As-is the comment is misleading and the behavior silently assumes all projects index from `src/`.
-  ```existing
-  // H05 (qwen 33d64eca): the probe walks the CALLER's scope when provided
-  // (session bridge path) — never a blind ["src"] default.
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, scope ?? ["src"]);
-  ```
-  ```suggested
-  // NOTE: session bridge caller never passes scope — the freshness check
-  // currently defaults to ["src"]. If a non-src project layout needs coverage,
-  // scope must be threaded through from populateSessionStore's opts.
-  const freshness = isGraphifyCheckoutFreshFor(resolvedRoot, graphPath, scope ?? ["src"]);
+  function writeSessionStateRaw(statePath: string, state: SessionStateMap): void {
+  const tmp = statePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, statePath); // the atomic swap — a concurrent reader never sees torn JSON
+}
   ```
