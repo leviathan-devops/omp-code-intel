@@ -550,3 +550,26 @@ count the `await`s between the check and the effect. **A concurrency finding aga
 run-to-completion block is refuted by the absence of a suspension point, not by an argument.**
 
 **THE REMAINING 8** are in `artifacts/r19-full-slices/`.
+
+---
+
+## ★★ RUN-19 PROGRESS — 30 OF 37 ADDRESSED (28 fixed + 2 refuted)
+
+**HEAD `091d0a1` · uncommitted 0 · dist `69e7d4ae7eb7da13` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 29  engine.ts:343   THE READ TOCTOU CLASS — CLOSED, not narrowed. F-441 removed the first gap
+                     (the read used `abs` while the check resolved `fileReal`) but `fileReal` is
+                     STILL A PATH: the read re-traverses it, so swapping the RESOLVED path
+                     between the resolve and the open re-opened the class one layer down. The
+                     complete form binds the read to the INODE the check saw — open with
+                     O_NOFOLLOW and read from the DESCRIPTOR; no path is traversed after the
+                     open, so there is no second resolution to race.
+                     PROBE: normal read OK · symlink-inside-root-pointing-out REFUSED · ranged OK.
+```
+
+**THE INHERITED-FIX PATTERN (a third method note):** F-441's fix and this one differ by ONE LAYER of
+the same class. **When a fix narrows a race rather than removing the resolution point, look one
+layer down** — the same defect usually survives as "the new path is also a path".
+
+**THE REMAINING 7** are in `artifacts/r19-full-slices/`.
