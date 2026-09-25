@@ -789,3 +789,32 @@ an omp TUI does not carry — so the rig's default must be a PAID-credentialed a
 whole-tree LLM audits missed three exported functions that crash on a malformed argument, because a
 reviewer reads the SOURCE and the container CALLS it. **The adversarial half of a runtime round is
 not optional polish — it is a different instrument.**
+
+---
+
+## ★★★ RUN 20 UNBLOCKED — THE LANE WAS THE PROBE'S BUG, AND THE CONTAINER ROUND FOUND IT
+
+**THE CHAIN (each step measurable):**
+```
+  1 · the go lane        → 403 "an active OpenCode Go subscription is required"  (SUBSCRIPTION LAPSED)
+  2 · the zen-free lane   → 429 FreeUsageLimitError (a burst window)
+                            ★ AND, measured inside the container: 403 "OpenCode's free tier can only be
+                            used from within OpenCode" — the free tier needs the OPENCODE FINGERPRINT,
+                            which an omp TUI does not carry. The lane is unusable from this harness
+                            without a fingerprint-injecting proxy (which the HOST has on :4097).
+  3 · ★ THE POOLSIDE LANE → HTTP 200 (the host's own sky_pl… key, 45 chars)
+```
+**★ AND THE PRE-FLIGHT PROBE WAS REFUSING THE HEALTHY LANE.** My probe resolved the **GO pool's key**
+for EVERY provider speaking the openai protocol — so poolside probed with a GO key, read `403
+{"error":"please check the api-key you provided"}`, and was reported DEAD. **The guard was rejecting
+a live lane.** The probe now resolves the provider's OWN credential from its config: `api_key_cmd`
+(the key script) first, then `api_key`, then the GO pool as the last resort.
+
+**RUN 20 IS LIVE ON POOLSIDE** — both halves probed `✓ lane probe: poolside-laguna-s (openai) → HTTP
+200` and are producing parts with **0 EMPTY**. **This is the first whole-tree audit since the go lane
+died, and it exists because the container round independently proved the poolside credential works.**
+
+**★ THE LESSON (the ninth method note): A PROBE THAT HARDCODES ONE LANE'S CREDENTIAL TESTS THE
+CREDENTIAL, NOT THE LANE.** The pre-flight guard did its job for the GO lane and lied for every other
+one; a second lane in the allowed set was invisible to it. **When a guard is introduced for one
+route, the OTHER routes must be re-measured through it before it is trusted.**
