@@ -547,8 +547,16 @@ export async function runKernelV2Gated(
     //   assertion looked for BUDGET in the code and found only prose.
     //   ★ The classification keys on the THROWING LAYER'S OWN named token, which is a
     //   contract (`GI_FIREGATE_BUDGET`), not a reason string.
-    const code = message.includes("GI_FIREGATE_BUDGET") ? "GI_GATE_BUDGET_EXHAUSTED"
-      : message.includes("GI_FIREGATE_JUDGE_TIMEOUT") ? "GI_GATE_TIMEOUT"
+    // ★ R19-HIGH FIX (2026-09-25): `includes` matched the token ANYWHERE in the message — so a
+    //   wrapper that formats an unrelated failure INTO its own text (a rethrow that quotes its
+    //   cause, an aggregate that concatenates messages) would be read as a budget exhaustion
+    //   because the token happened to appear in the quoted cause. The contract is stronger than
+    //   the check used: BOTH tokens are thrown as the message's LEADING token
+    //   (`new Error(\`GI_FIREGATE_BUDGET: …\`)`, `super(\`GI_FIREGATE_JUDGE_TIMEOUT: …\`)`), so the
+    //   classification anchors at the START where the contract puts it. Same code, same tokens —
+    //   the check now matches what the throwers actually guarantee.
+    const code = message.startsWith("GI_FIREGATE_BUDGET") ? "GI_GATE_BUDGET_EXHAUSTED"
+      : message.startsWith("GI_FIREGATE_JUDGE_TIMEOUT") ? "GI_GATE_TIMEOUT"
       : "GI_GATE_UNAVAILABLE";
     return stands({ code, message });
   }
