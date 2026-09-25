@@ -36,7 +36,9 @@ describe("st-migration-ddl: ★ the standalone migration MUST execute its DDL", 
   test("test_migration_creates_all_four_tables", () => {
     const db = freshDb();
     expect(tables(db)).toEqual([]); // the control: a fresh db has none of them
-    ensureTypedGraphSchema(db);
+    // the probe passes the raw bun:sqlite handle; the function's contract is a
+    // structurally-compatible handle (exec + optional query) — the cast names that.
+    ensureTypedGraphSchema(db as unknown as Parameters<typeof ensureTypedGraphSchema>[0]);
     expect(tables(db)).toEqual(EXPECTED);
   });
 
