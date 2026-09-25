@@ -213,7 +213,12 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         pushTriple(fileCanon, 'imports', targetCanon, impEvidence, relPosix, impLine);
       }
       // ★ F-821 FIX (2026-09-24): handle ExportAssignment (`export default expr`).
-      if (ts.isExportAssignment(stmt)) {
+      // ★ R19-HIGH FIX (2026-09-25): `isExportAssignment` is `export default <EXPR>` ONLY.
+      //   `export default class Foo {}` and `export default function bar() {}` are DECLARATIONS
+      //   carrying the `default` modifier — they never reach this branch, so a module whose
+      //   DEFAULT export is a class/function produced no `exports default:<module>` edge at all.
+      //   The named-export edge and the default-export edge are now both emitted for them.
+      if (ts.isExportAssignment(stmt) || (ts.canHaveModifiers(stmt) && (ts.getModifiers(stmt) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword))) {
         const expLine = lineOf(sf, stmt);
         const expEvidence = evidenceQuoteForNode(sf, stmt);
         pushTriple(fileCanon, 'exports', `default:${moduleCanon}`, expEvidence, relPosix, expLine);
@@ -269,8 +274,18 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
         // the self-hunt's own 384/393 false positives): `new X()` is an inbound
         // call edge for X exactly like `X()` — the same fn: target keeps the
         // name join (engine whoCalls resolves fn:symbol) intact.
-        if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && ts.isIdentifier(node.expression)) {
-          const callee = node.expression.text;
+        // ★ R19-HIGH FIX (2026-09-25): only a BARE identifier produced a call edge, so every
+        //   member/qualified invocation — `A.B()`, `obj.method()`, `this.helper()`, `ns.fn()` —
+        //   was SILENTLY DROPPED. On a codebase that calls through namespaces/objects (this one
+        //   does), whoCalls under-reports systematically, and an under-reported fan-in is the
+        //   failure that makes a "safe to change" verdict wrong. The triple's target is
+        //   `fn:<symbol>` (the name join the engine resolves), so the PROPERTY name is the right
+        //   callee for a member call — `A.B()` names B, resolved by name like a bare `B()`.
+        if (
+          (ts.isCallExpression(node) || ts.isNewExpression(node)) &&
+          (ts.isIdentifier(node.expression) || ts.isPropertyAccessExpression(node.expression))
+        ) {
+          const callee = ts.isIdentifier(node.expression) ? node.expression.text : node.expression.name.text;
           const inAwait = parent !== undefined && ts.isAwaitExpression(parent);
           const callerId = currentFnId ?? fileCanon;
           const pred: Predicate = inAwait ? 'awaits' : 'calls';
