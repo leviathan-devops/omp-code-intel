@@ -184713,8 +184713,13 @@ function recon(profilePath) {
     if (!fs16.existsSync(abs)) {
       throw awarenessDocMissing(doc);
     }
+    assertInsideProject(profile.project.root, abs);
   }
-  const dbPath = path17.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
+  const projectRootResolved = path17.resolve(profile.project.root);
+  const dbPath = path17.resolve(projectRootResolved, ".trident", "knowledge-graph", "shared.db");
+  if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path17.sep)) {
+    throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath})`);
+  }
   const runId = openAndNextRunId(projectToken(profile.project.name), dbPath);
   return {
     stages: profile.pipeline.stages.length,
@@ -184734,7 +184739,7 @@ function openAndNextRunId(token, dbPath) {
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const prefix = `${token}-hunt-${day}-`;
     let seq = 0;
-    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?").all(`${prefix}%`)) {
+    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?").all(`%${prefix}%`)) {
       let payload = {};
       let rawText = "";
       try {
@@ -184756,12 +184761,10 @@ function openAndNextRunId(token, dbPath) {
           continue;
         }
       } catch (e) {
-        const idx = rawText.indexOf(prefix);
-        if (idx !== -1) {
-          const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
-          if (dm)
-            seq = Math.max(seq, Number(dm[0]));
-        }
+        const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const salvage = new RegExp(`"runId"\\s*:\\s*"${esc}(\\d+)"`).exec(rawText);
+        if (salvage?.[1] !== undefined)
+          seq = Math.max(seq, Number(salvage[1]));
         console.warn(`[recon] HUNT_DONE payload parse failed \u2014 skipped: ${e instanceof Error ? e.message : String(e)}; raw=${rawText.slice(0, 120)}`);
         continue;
       }
@@ -184831,7 +184834,11 @@ async function map(profile, adapterOverride) {
   if (buildResult.nodes.length === 0) {
     throw graphEmpty("map actor: adapter build produced zero nodes");
   }
-  const dbPath = path18.join(profile.project.root, ".trident", "knowledge-graph", "shared.db");
+  const projectRootResolved = path18.resolve(profile.project.root);
+  const dbPath = path18.resolve(projectRootResolved, ".trident", "knowledge-graph", "shared.db");
+  if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path18.sep)) {
+    throw new Error(`map actor: resolved dbPath escapes project root (${dbPath})`);
+  }
   const db = openStore(dbPath);
   try {
     writeGraph(db, buildResult.nodes, buildResult.edges);
@@ -185284,12 +185291,17 @@ ${p.family}`).join(`
       try {
         this.writeCalibrationRecord(recordPath, { version, records, excluded, coverageNote });
       } catch (e) {
+        let compensated = false;
+        let deleteDetail = "no-db-write";
         if (write.db) {
           try {
             write.db.prepare("DELETE FROM calibrations WHERE run_id = ? AND created_at = ?").run(`calibration-${fixtureVersion}`, this.calibratedAt);
-          } catch {}
+            compensated = true;
+          } catch (delErr) {
+            deleteDetail = delErr instanceof Error ? delErr.message : String(delErr);
+          }
         }
-        throw new CalibrationError("CALIBRATION_PERSIST_SPLIT", `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) \u2014 this session's rows were compensated (deleted) so no half-evidence stands`);
+        throw new CalibrationError("CALIBRATION_PERSIST_SPLIT", compensated ? `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) \u2014 this session's rows were compensated (deleted) so no half-evidence stands` : `CALIBRATION_PERSIST_SPLIT: the file record failed after the DB rows committed (${e instanceof Error ? e.message : String(e)}) \u2014 compensation DELETE FAILED (${deleteDetail}): this session's rows may still stand \u2014 re-run calibration or delete WHERE run_id='calibration-${fixtureVersion}' AND created_at=${this.calibratedAt}`);
       }
     }
     return { records, liveBattery, excluded, batteryVersion: version, coverageNote, dryRun: this.dryRun };
@@ -186239,6 +186251,7 @@ function createMicroLoop(options) {
             if (handleDisposables[i] === sub2)
               handleDisposables.splice(i, 1);
           }
+          pendingDone = null;
           resolve();
         }
       });
@@ -186339,7 +186352,7 @@ async function spawnBugHunterLoop(args) {
     try {
       scopeReal = fsDyn.realpathSync(absTarget);
     } catch {
-      scopeReal = null;
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
     }
   }
   if (scopeReal === path24.sep) {
@@ -187350,8 +187363,13 @@ function arsumbrisProbe(scopeRoot, home = process.env.HOME ?? os6.homedir()) {
     errorCode: "GI_LAYER_ARSUMBRIS",
     up: () => probeSocketConnect(runDir),
     facts: (subject) => {
-      const res = auEngineRead(scopeRoot, "instances", subject);
-      const instances = res.reply?.result?.instances ?? [];
+      const raw = auEngineRead(scopeRoot, "instances", subject);
+      if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error(`GI_LAYER_ARSUMBRIS: the daemon returned non-object JSON (${raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw}) \u2014 refusing`);
+      }
+      const res = raw;
+      const rawInstances = res.reply?.result?.instances;
+      const instances = Array.isArray(rawInstances) ? rawInstances : [];
       const hits = subject.length === 0 ? instances : instances.filter((i) => {
         const values = [];
         const seen = new WeakSet;
