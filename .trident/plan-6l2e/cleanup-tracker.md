@@ -1285,3 +1285,23 @@ be true. It hid because the R19 fix CLOSED THE CATCH (a real improvement) while 
 guarded was already dead. **A guard you believe is running and that never runs is worse than no guard.**
 
 **THE MEASURED STATE:** tsc 0 · battery 441/0 + 539/0 · dist 789a2a0bb8c22197 (752 KB) · HEAD 161dc3d.
+
+## ★★ RUN 21 TRIAGE — 3 CRITICALS (ALL FIXED) + 2 HIGHS FIXED · ~33 HIGHS OPEN
+
+**THE PROGRESSION (the honest measure):**
+```
+  run 19: 0 crit / 37 high   (all 37 → R19-HIGH FIX markers)
+  run 20: 1 crit / 44 high   (28 fixed, 12 adjudicated → ALL addressed)
+  run 21: 3 crit / 35 high   (all 3 criticals FIXED, 2 highs fixed)
+```
+**The highs DROPPED 44 → 35 across the fix waves; the criticals are a FRESH SAMPLE each run** (the
+reviewer re-samples — some findings recur, some are new). **★ [C3] was the most severe finding of the
+session: a containment guard (F-434b) whose condition could NEVER be true — dead code that LOOKED
+armed.**
+
+**★ THE SELF-CORRECTION (a law learned live):** my FIRST `[34]` forge-seam gate omitted the test
+marker and BROKE 3 pinned RSI tests. I did not revert the finding — I **measured the real test signal**
+(`NODE_ENV=test` under `bun test`) and corrected the gate. **A fix that breaks a pinned test is a fix
+that has not yet understood its own context.**
+
+**THE STATE:** tsc 0 · battery 441/0 + 539/0 · dist 789a2a0bb8c22197 (752 KB) · HEAD a315f00.

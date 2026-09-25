@@ -541,6 +541,11 @@ export class RsiStore {
   /** A FORGED WRITE — the attack shape, used by the tests to prove the reader
    *  rejects it. Never called by the kernel path. */
   forgeForTest(row: Partial<ReflexRow> & { canonicalId: string; createdRun: string }, sig: string): void {
+    // ★ R21-HIGH FIX (2026-09-25): test-only seam (bypasses all signing/verification). Refused
+    //   outside a test context — a production path reaching it could write a forged row.
+    if (!/^(1|true)$/i.test(process.env.GI_RSI_TEST_CONTEXT ?? "") && process.env.NODE_ENV !== "test" && !process.env.BUN_TEST_FILENAME && !process.env.VITEST) {
+      throw new Error("GI_RSI_FORGE_REFUSED: forgeForTest is a test-only seam — set GI_RSI_TEST_CONTEXT=1");
+    }
     this.db.run(
       `INSERT INTO ${this.table}
         (canonical_id, kind, label, evidence_quote, confidence, confirmed, refuted,
@@ -555,6 +560,11 @@ export class RsiStore {
   /** Force a retirement without a successor — the disablement attack's first
    *  half. The reader's verified-retirement rule is what defeats it. */
   forceSupersedeForTest(canonicalId: string, run: string): void {
+    // ★ R21-HIGH FIX (2026-09-25): test-only seam (bypasses all signing/verification). Refused
+    //   outside a test context — a production path reaching it could write a forged row.
+    if (!/^(1|true)$/i.test(process.env.GI_RSI_TEST_CONTEXT ?? "") && process.env.NODE_ENV !== "test" && !process.env.BUN_TEST_FILENAME && !process.env.VITEST) {
+      throw new Error("GI_RSI_FORGE_REFUSED: forgeForTest is a test-only seam — set GI_RSI_TEST_CONTEXT=1");
+    }
     this.db.run(
       `UPDATE ${this.table} SET superseded_run = ? WHERE canonical_id = ? AND superseded_run IS NULL`,
       [run, canonicalId],
