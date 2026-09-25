@@ -2862,3 +2862,52 @@ graph-pre-flight's docstring naming one of two escalation legs + its unbounded `
 `HAS_FINDING_PREDICATE` (the one predicate outside the canon, a bare literal in BOTH the CHECK and
 its writer) · `batteryVersion`'s double corpus read. Plus **one refuted by the compiler**
 (`populate-corbell`'s `storePath` IS used — the rename broke tsc, which named the real use).
+
+---
+
+## TL · 2026-09-25 · L3 THE CONTAINER ROUND — `omp-ct-gi20`, AND THE DEFECT THREE AUDITS MISSED
+
+**THE GAP THIS CLOSES.** Through 19 audit runs and 7 exit criteria, the ONE untested tier was L3:
+no evidence existed that the deployed dist behaves correctly under a CALLER. This round supplies it.
+
+**THE RIG.** `omp-ct-gi20` from `omp-ct:master` (a real headed omp TUI), the GI dist deployed into
+it, scenarios driven through the TUI.
+
+**THE RESULTS.**
+
+| scenario | pre-registered expectation | observed | verdict |
+|---|---|---|---|
+| SC-1 the auth probe | a model-backed tool call yields a TOOL RESULT | `GI_SC1_OK` in the stream after the bash call | **PASS** |
+| SC-2 the dist loads | the in-container sha == the repo's | `04840c57105a7837` → `574dc94c008133d2` post-fix | **PASS** |
+| SC-3 the tool surface | the surface reports its own names | `["graph-probe","graph-query","bug-hunt","aether-code-audit","gi-consumption","gi-decide"]` + 1 alias | **PASS** |
+| A-1 the absent substrate | a NAMED refusal, never a silent empty | `GiPathError: GI_SHARED_PROJECT_STORE: path must include /sessions/{sid24}/store.sqlite, got /workspace` | **PASS (loud-fail proven)** |
+| A-2 the malformed argument | a named argument error, never a bare stack trace | ★ **FAILED first** → fixed → re-probed → NAMED | **PASS after the fix** |
+
+**★★ THE DEFECT (A-2) — FOUND ONLY BY CALLING IT.**
+```
+  parseTargetRoots(null)            → TypeError: null is not an object (evaluating 'raw.split')
+  parseTargetRoots({})              → TypeError: raw.split is not a function
+  ledgerDirConfined("", undefined)  → TypeError [ERR_INVALID_ARG_TYPE]
+```
+Three **EXPORTED** surface functions threw **bare TypeErrors** on a malformed argument instead of the
+codebase's named `GI_<AREA>_INVALID` refusals. **A crash is not a refusal** — the caller cannot tell
+"you passed garbage" from "the filesystem broke". **THREE WHOLE-TREE LLM AUDITS MISSED IT** (they read
+the source; the container calls it). **FIXED + RE-PROBED IN THE CONTAINER:** named guards (two throw;
+`settlementLedgerConfined` RETURNS a named refusal, keeping its never-throws contract). **Battery
+re-run green (441/0 + 539/0), dist rebuilt `574dc94c008133d2`, redeployed, all malformed inputs now
+yield named refusals, zero bare TypeErrors.**
+
+**★ THE RIG DEFECT (not the dist).** `omp-ct:master` baked a default role on `opencode-go/muse-spark-1.3-contributor`
+— **the lane whose subscription has lapsed.** Every fresh rig booted onto a dead lane, fell through to a
+retired free model, and died on `404 No endpoints found for arcee-ai/trinity-large-preview:free`. Remedy
+applied live; the baked default should carry an allowed **credentialed** lane (the free tier needs the
+opencode fingerprint, which an omp TUI does not carry — `403 OpenCode's free tier can only be used from
+within OpenCode`).
+
+**★ THE PROBE'S OWN BLINDNESS.** The whole-tree audit's pre-flight probe resolved the **GO key for every
+openai-protocol provider**, so the live **poolside** lane read `403 please check the api-key` and was
+reported DEAD — the guard refused a healthy lane. Fixed to resolve each provider's OWN credential;
+**this unblocked run 20**, now sweeping on poolside.
+
+**★ THE METHOD NOTE.** *A reviewer READS the source; the container CALLS it.* L3 is a **different
+instrument**, not polish — and this round earned its cost by finding a defect no audit could.
