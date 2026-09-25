@@ -145,6 +145,9 @@ export interface DerivedPolicy {
   basis: string;
   /** true when the threshold came from measured counts, not the cost matrix alone. */
   calibrated: boolean;
+  /** ★ R20-HIGH FIX (2026-09-25): whether the measured interval is NARROW enough (<= 0.10) to trust
+   *  the bar — surfaced so a WIDE interval is visible, never hidden behind calibrated:true. */
+  sufficient?: boolean;
   estimate: PrecisionEstimate | null;
 }
 
@@ -181,8 +184,13 @@ export function derivePolicy(profile: RuleProfile, counts: ResolvedCounts | null
     policyName: `${profile.cls}-calibrated`,
     act,
     flag: calFlag,
-    basis: `cost t=${costCut.toFixed(3)} vs measured precision ${est.precision.toFixed(3)} [${est.low.toFixed(3)}, ${est.high.toFixed(3)}] over ${est.resolved} resolved → act=${act.toFixed(3)}`,
+    basis: `cost t=${costCut.toFixed(3)} vs measured precision ${est.precision.toFixed(3)} [${est.low.toFixed(3)}, ${est.high.toFixed(3)}] over ${est.resolved} resolved → act=${act.toFixed(3)}${est.sufficient ? "" : " (INSUFFICIENT: the confidence interval is wider than 0.10 — a WIDE bar, surfaced not hidden)"}`,
+    // ★ R20-HIGH FIX (2026-09-25): `sufficient` was computed and NEVER surfaced on the policy. NOTE
+    //   (the pinned-test reconciliation): `calibrated` means "derived from MEASURED counts" (vs a
+    //   cost-only seed) — a DIFFERENT axis from the interval width, and two pinned tests encode that
+    //   contract. So the honest fix SURFACES the flag (below) rather than redefining `calibrated`.
     calibrated: true,
+    sufficient: est.sufficient,
     estimate: est,
   };
 }

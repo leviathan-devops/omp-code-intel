@@ -184,6 +184,14 @@ export class JevJudge implements Judge {
       if (typeof a.noul === "number") out.push({ id: q.id, probability: a.noul });
       else if (typeof a.confidence === "number") out.push({ id: q.id, probability: a.confidence });
     }
+    // ★ R20-HIGH FIX (2026-09-25): a question the upstream did NOT answer was silently DROPPED —
+    //   the caller received fewer answers than it asked and could not tell a missing judgment from a
+    //   negative one. A short answer set is UNCERTIFIABLE: fail LOUD with the missing ids named.
+    if (out.length !== questions.length) {
+      const got = new Set(out.map((a) => a.id));
+      const missing = questions.filter((q) => !got.has(q.id)).map((q) => q.id);
+      throw new JevError("GI_JEV_INCOMPLETE", `the upstream answered ${out.length}/${questions.length} questions — missing: ${missing.join(", ")}`, res.status);
+    }
     return out;
   }
 }
