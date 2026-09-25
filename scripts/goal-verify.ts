@@ -40,7 +40,10 @@ const checks: Check[] = [
     //   printed `C1 detail: ... the register reads consumed:7/8`. THE PASS TEXT
     //   CONTRADICTED ITS OWN DETAIL. The condition now states what the predicate
     //   ACTUALLY checks (the per-domain union), so the PASS line and the detail line AGREE.
-    condition: "all 8 consumers are CONSUMED for their own domains (the per-domain union)",
+    // ★ FR-1, FINISHED (2026-09-25): the spec demands "NO number appears that another line
+    //   contradicts" AND "the honest number at face value". The condition now carries the honest
+    //   reading IN THE PASS LINE ITSELF — a reader can no longer see "8" and infer 8/8.
+    condition: "all 8 consumers are CONSUMED for their own domains (the per-domain union; 7/8 for 'evidence' — L2_ARSUMBRIS answers REPO names, never code symbols)",
     run: () => {
       // ★ THE CORRECT READING (measured 2026-09-24, the red-team close). The 8 consumers answer
       //   about DIFFERENT DOMAINS: the graph layers + TSG + ABIDE know CODE SYMBOLS, while
