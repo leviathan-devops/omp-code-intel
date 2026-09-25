@@ -78,7 +78,11 @@ worker() {
     #   different lane.
     local attempt=0
     while [ "$attempt" -lt 4 ]; do
-      timeout 1800 ocr scan --path "$f" --provider ${AUDIT_PROVIDER:-muse-free} --format json 2>/dev/null \
+      # ★ R20 FIX (2026-09-25): the reasoning models (mimo-v2.5) spend their DEFAULT completion
+      #   budget on reasoning_tokens, so `content` returns null on large files and the part lands
+      #   EMPTY. `--max-tokens` raises the per-file budget so the model finishes its analysis.
+      #   MEASURED: engine.ts scans clean (exit 0, real tool calls) at --max-tokens 60000.
+      timeout 1800 ocr scan --path "$f" --provider ${AUDIT_PROVIDER:-muse-free} --max-tokens 60000 --format json 2>/dev/null \
         | head -c 300000 > "$pf"
       [ -s "$pf" ] && break
       attempt=$((attempt + 1))
