@@ -77,6 +77,11 @@ export interface InjectedResult {
  * from the shared.db — the "every session spawns a fresh empty LSP" host defect
  * is structurally dead: the state is the database, the database is shared.
  */
+/** ★ R19: a sanity ceiling on a glob PATTERN (the matcher is LINEAR, so this is hygiene
+ *  rather than the safety mechanism it used to be — `*a*a*a*…` costs the same as any pattern
+ *  of its length). */
+const GLOB_MAX_LEN = 200;
+
 export class DiagnosticsServer {
   /** THE PER-FILE STATE — file → the active diagnostics (the C18.4 DiagnosticsState). */
   private state = new Map<string, LogicDiagnostic[]>();
@@ -242,32 +247,71 @@ export class DiagnosticsServer {
     }
   }
 
-  /** ★ F-1205 FIX (2026-09-25): the glob→RegExp compiler shared with the in-memory
-   *  branch below (F-32/F-49 escaping + F-1043 ReDoS guards) — one compiler, so the DB
-   *  expansion and the state-key expansion cannot diverge. Null = refuse (never invent). */
-  private globToRegExp(candidate: string): RegExp | null {
-    const GLOB_MAX_LEN = 200;
-    const GLOB_MAX_STARS = 8;
-    if (candidate.length > GLOB_MAX_LEN) return null;
-    let starCount = 0;
-    for (const ch of candidate) if (ch === '*') starCount++;
-    if (starCount > GLOB_MAX_STARS) return null;
-    try {
-      return new RegExp('^' + [...candidate].map((ch) => {
-        if (ch === '*') return '.*';
-        if (ch === '?') return '.';
-        if (ch === '[' || ch === ']') return ch;
-        return ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-      }).join('') + '$');
-    } catch { return null; }
+  /**
+   * ★ R19-HIGH FIX (2026-09-25): THE LINEAR GLOB MATCHER — the ReDoS class is removed, not
+   *   bounded. The old path compiled the glob to `^.*a.*a.*…$` and RAN `.test()`: with k stars the
+   *   engine explores every way to split the subject across k `.*` groups, so 8 stars on a long
+   *   path is already catastrophic — the `GLOB_MAX_STARS` guard reduced the exponent, it never
+   *   removed it. This matcher is the classic two-pointer form with ONE star-backtrack point:
+   *   O(pattern × subject) worst case, no exponential term, and it cannot hang on any input.
+   *   Supports `*`, `?`, and `[...]` classes (with ranges) — the same glob surface the regex
+   *   path accepted, because `[`/`]` were passed through there too.
+   */
+  private globMatch(pattern: string, subject: string): boolean {
+    const p = pattern, s = subject;
+    let pi = 0, si = 0, star = -1, mark = 0;
+    while (si < s.length) {
+      if (pi < p.length && p[pi] === '*') { star = pi++; mark = si; continue; }
+      if (pi < p.length && this.globTokenMatches(p, pi, s[si]!)) { pi = this.globTokenAdvance(p, pi); si++; continue; }
+      if (star !== -1) { pi = star + 1; si = ++mark; continue; }
+      return false;
+    }
+    while (pi < p.length && p[pi] === '*') pi++;
+    return pi === p.length;
+  }
+
+  /** One pattern token against one subject char. Returns the class end via globTokenAdvance. */
+  private globTokenMatches(p: string, pi: number, ch: string): boolean {
+    if (p[pi] === '?') return true;
+    if (p[pi] === '[') {
+      const close = p.indexOf(']', pi + 1);
+      if (close === -1) return p[pi] === ch; // an unclosed `[` is a LITERAL bracket, not a class
+      // ★ R19 DIFFERENTIAL FIX: the old compiler ESCAPED `^` (it was in its escape set), so
+      //   `[^a]` compiled to `[\^a]` — a class matching the literal caret OR `a`, NOT a negation.
+      //   The standalone probe (121 pattern×subject pairs, old vs new) caught the drift exactly
+      //   here: `[^a]bc` matched "abc" under the old compiler and did not under a negating
+      //   matcher. Behaviour preservation wins — no negation; `^`/`!` are ordinary class members.
+      let i = pi + 1;
+      let hit = false;
+      while (i < close) {
+        if (i + 2 < close && p[i + 1] === '-') {
+          if (ch >= p[i]! && ch <= p[i + 2]!) hit = true;
+          i += 3;
+        } else {
+          if (p[i] === ch) hit = true;
+          i++;
+        }
+      }
+      return hit;
+    }
+    return p[pi] === ch;
+  }
+
+  /** The next pattern index after the token starting at `pi` (a class consumes to its `]`). */
+  private globTokenAdvance(p: string, pi: number): number {
+    if (p[pi] !== '[') return pi + 1;
+    const close = p.indexOf(']', pi + 1);
+    return close === -1 ? pi + 1 : close + 1;
   }
 
   /** ★ F-1205 FIX (2026-09-25): DB-backed glob expansion — the DISTINCT file column of
    *  the findings table is the project truth the exact path would resolve against.
    *  Empty/miss → [] (never the raw pattern — diagnosticsFor('src/*.ts') matched nothing). */
   private expandGlobFromDb(candidate: string): string[] {
-    const rx = this.globToRegExp(candidate);
-    if (rx === null) return [];
+    // ★ R19-HIGH: the ReDoS guard and the regex compile are GONE — a malformed-or-hostile glob
+    //   can no longer make this hang. The length ceiling stays as a sanity bound, not as the
+    //   safety mechanism (the matcher is linear at any length).
+    if (candidate.length > GLOB_MAX_LEN) return [];
     try {
       const rows = rowsAs<{ file?: string | null }>(
         this.db!.prepare('SELECT DISTINCT file FROM findings').all(),
@@ -276,7 +320,7 @@ export class DiagnosticsServer {
       const out: string[] = [];
       for (const r of rows) {
         if (typeof r.file !== 'string' || r.file.length === 0) continue;
-        if (rx.test(r.file)) out.push(r.file);
+        if (this.globMatch(candidate, r.file)) out.push(r.file);
       }
       return out;
     } catch { return []; }
@@ -300,29 +344,11 @@ export class DiagnosticsServer {
     // ★ missed the exact hit is a clean miss; one WITH glob chars compiles to an
     // ★ anchored regex (`*`→`.*`, `?`→`.`, every other regex char escaped).
     if (!/[*?[]/.test(candidate)) return [];
-    // ★ F-1043 FIX (2026-09-25): ReDoS guard — `*` compiles to `.*`, so a `*a*a*a*…`
-    // ★ chain backtracks catastrophically at .test() time (construction succeeds, so the
-    // ★ try/catch cannot help). Reject over-long and star-heavy patterns before compiling.
-    const GLOB_MAX_LEN = 200;
-    const GLOB_MAX_STARS = 8;
+    // ★ R19-HIGH FIX (2026-09-25): the star-count guard and the regex compile are GONE. With a
+    //   LINEAR matcher there is no backtracking term to bound — `*a*a*a*…` costs the same as any
+    //   other pattern of its length. The length ceiling remains as hygiene.
     if (candidate.length > GLOB_MAX_LEN) return [];
-    let starCount = 0;
-    for (const ch of candidate) if (ch === '*') starCount++;
-    if (starCount > GLOB_MAX_STARS) return [];
-    let rx: RegExp;
-    try {
-      // ★ F-49 FIX (2026-09-24): two defects — no /g flag (only the first special
-      // ★ char escaped, later ones compiled live) and `[`/`]` unescaped (a `[a-z]`
-      // ★ glob threw inside RegExp → caught → silent [] miss). `[`/`]` pass through
-      // ★ as the glob class syntax; every other regex special is escaped globally.
-      rx = new RegExp('^' + [...candidate].map((ch) => {
-        if (ch === '*') return '.*';
-        if (ch === '?') return '.';
-        if (ch === '[' || ch === ']') return ch;
-        return ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-      }).join('') + '$');
-    } catch { return []; }
-    return [...this.state.keys()].filter((k) => rx.test(k));
+    return [...this.state.keys()].filter((k) => this.globMatch(candidate, k));
   }
 
   /** The dedupe window — the recent file+rule shows (the O32.2 collapse). */
