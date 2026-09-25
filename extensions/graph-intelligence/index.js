@@ -18566,7 +18566,10 @@ function escapeLike(s) {
 
 // src/omp/adapters/corbell.ts
 function corbellProbe(scopeRoot) {
-  const storePath = path25.join(scopeRoot, CORBELL_CHECKOUT_REL);
+  if (!path25.isAbsolute(scopeRoot))
+    throw new Error(`GI_LAYER_CORBELL: scopeRoot must be absolute, got '${scopeRoot.slice(0, 120)}'`);
+  const normalizedRoot = path25.resolve(scopeRoot);
+  const storePath = path25.join(normalizedRoot, CORBELL_CHECKOUT_REL);
   return {
     id: "L5_CORBELL",
     rung: "settlement",

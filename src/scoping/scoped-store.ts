@@ -227,7 +227,12 @@ export async function withImmediateTx<T>(fn: (db: Database) => T, attempts = 3, 
           // ★ F-538 FIX (2026-09-24): a failed ROLLBACK left the connection broken but cached — every later op failed mysteriously while the caller only saw the original error. The dead handle is now closed + evicted (LOUD warn), so the next op reopens fresh.
           console.error(`[scoped-store${id ? ' ' + id : ''}] ROLLBACK failed — evicting the dead handle:`, _r instanceof Error ? _r.message : String(_r));
           try { db.close(); } catch { /* best effort */ }
-          if (storeDb === db) storeDb = null;
+          // ★ R20-HIGH FIX (2026-09-25): this path closed the handle + nulled storeDb but did NOT
+          //   clear storeOpenInFlightByPath — a concurrent getStoreDbAsync could reuse the resolved
+          //   gate and receive the CLOSED handle (the exact F-537 class closeStoreDb already handles).
+          //   Route through closeStoreDb() so the two eviction paths are identical.
+          if (storeDb === db) closeStoreDb();
+          else storeDb = null;
         }
         throw e;
       }
