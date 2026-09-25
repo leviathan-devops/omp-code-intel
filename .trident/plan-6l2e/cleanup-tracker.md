@@ -710,3 +710,40 @@ A refused launch is the guard working, not a failure of the run.
 **★ A BLOCKED STATE IS NEVER A STOP.** The gate cannot move until a lane is live; everything else
 the run owes is already green (tsc 0 · battery 441/0 + 539/0 · goal-verify 5/5 · register 7/8 ·
 ledger 4 distinct · the whole tree audited through run 19).
+
+---
+
+## ★★ RUN-20 CONTAINER VERIFICATION (L3) — PARTIAL, AND IT FOUND A RIG DEFECT
+
+**The rig:** `omp-ct-gi20` from `omp-ct:master`, plan accepted (3,635 chars), provisioned.
+
+**WHAT PASSED — SC-2, the artifact claim:**
+```
+  the container's deployed bundle, read INSIDE the container:
+    /root/.omp/agent/extensions/graph-intelligence/index.js
+    sha256 04840c57105a7837…   ← EQUALS the repo's dist and the deployed host bundle
+    9,560,079 bytes · mtime 2026-09-25 07:38Z
+```
+★ **This is the claim the checkpoint could not make**: the CURRENT dist loads in a container at the
+right sha. Before deploying it explicitly, the container carried a **BAKED** bundle at
+`34b9d7df93f9429d` — the image ships its own copy, so `distPath` at setup did NOT overwrite it; the
+explicit cp did.
+
+**★ THE DEFECT THE RUN FOUND (a rig defect, not a dist defect):** `omp-ct:master`'s baked config
+points its default role at **`opencode-go/muse-spark-1.3-contributor`** — **the lane whose
+subscription has LAPSED.** Every fresh rig therefore boots onto a dead lane, falls through to an
+OpenRouter free model, and hits `404 No endpoints found for arcee-ai/trinity-large-preview:free`
+(a RETIRED free model). The container's own status bar carried the proof: `✘ 404 No endpoints found`.
+**The rig's lane table and the allowed-model law have diverged.** Remedy applied live: the default
+was moved to `opencode-zen-free/muse-spark-1.3-contributor-free` (confirmed by the status bar:
+`Muse Spark 1.3 Contributor Free / opencode-zen-free`). **The IMAGE should be rebuilt with that
+default — a fresh rig inheriting a dead lane wastes a full verification round.**
+
+**WHAT DID NOT COMPLETE — the behavioral scenarios (SC-1/SC-3/A-1/A-2):** the container's first turn
+carries a **262K-token** payload (the extension's full tool surface + skills), so each turn on the
+poolside lane was minutes long, and the rig's tmux session reset before the result was readable. No
+passToken was captured in a tool-result context. **Reported as INCOMPLETE, never as PASS.**
+
+**★ THE HONEST VERDICT FOR THIS LAYER:** the container proves the ARTIFACT (the dist loads, at the
+right bytes); it does NOT yet prove the BEHAVIOR. The gap is the rig's lane configuration and the
+payload size, both named, both fixable, neither a defect in the dist.
