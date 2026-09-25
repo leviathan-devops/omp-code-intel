@@ -1639,3 +1639,59 @@ the register ............ consumed:7/8 (honest)
 the dist ................ 1c73723445f65973 · deployed == repo
 the au daemon ........... UP · the zen-free adapter ... active (systemd, boot-enabled)
 ```
+
+---
+
+## EN-W3-CRITICAL — THE LINE-EATING EDIT: a silent no-op migration (2026-09-25)
+
+**THE FINDING (run 17's ONLY critical, out of 113 files):**
+`src/hunter/shared/migrations.ts:85` — `ensureTypedGraphSchema` began a transaction, committed it,
+and **executed NO DDL**. A silent no-op migration.
+
+**THE MECHANISM (anchored, git-proven):**
+```
+  git show HEAD~15:src/hunter/shared/migrations.ts | grep -c 'exec(TYPED_GRAPH_DDL)'  →  1
+  git show HEAD:src/hunter/shared/migrations.ts    | grep -c 'exec(TYPED_GRAPH_DDL)'  →  0
+  the commit that removed it: dff6aa2 — the R15+R16 wave, whose agent R15High5 owned
+  migrations.ts and whose verdict read "migrations (contention rethrow)".
+```
+The R15H5 fix moved `BEGIN IMMEDIATE` into a nested `try` and `COMMIT` into a second nested `try`
+(to stop the catch-all conflating lock contention with no-BEGIN support). The
+`db.exec(TYPED_GRAPH_DDL)` statement that sat **between** those two trys was consumed by the edit.
+**The fix was correct; the edit ate a neighbouring line.**
+
+**WHY NOTHING CAUGHT IT (the compounding two):**
+1. `new SharedDb` (`src/hunter/shared/db.ts:965`) execs `TYPED_GRAPH_DDL` directly on the NORMAL
+   open path — so every real store still got its tables and every integration test stayed green.
+   Only the STANDALONE migration call was a no-op.
+2. The function's own verification was gated `if (!began) assertNonTransactionalSchema(db);` —
+   i.e. verification ran ONLY on the non-transactional fallback. **The transactional path — the
+   one that just no-op'd — had NO verification at all.** The inversion is the second half of the bug.
+
+**THE FIX (two arms):**
+1. `db.exec(TYPED_GRAPH_DDL);` **restored** between BEGIN and COMMIT.
+2. The schema assertion made **UNCONDITIONAL** — it is now the guard that catches a future
+   line-eating edit instead of skipping exactly where the DDL runs.
+
+**THE EVIDENCE (probes, both directions):**
+```
+  PROBE (after the fix):   before: []  →  after: ["graph_facts","resolutions","typed_edges","typed_nodes"]   ✓
+  NEGATIVE CONTROL:        a copy of the file with the single `db.exec(TYPED_GRAPH_DDL);` line deleted
+                           → 0 tables, and the now-unconditional assertion THROWS
+                             `TYPED_MIGRATION_FAILED: non-transactional fallback left a partial schema —
+                              missing typed_nodes,typed_edges,resolutions,graph_facts`
+                           (the PRE-fix code returned SILENTLY on that path — the control proves both
+                            the defect and the guard)
+  THE PIN:                 tests/st-migration-ddl.test.ts — 3 pass / 0 fail
+```
+
+**THE HONEST BLAST RADIUS:** `ensureTypedGraphSchema` currently has **zero production consumers in
+this tree** (the tables come from `db.ts:965`). The function is a PORTED API whose consumer exists
+in the fork — `fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/graph/verify-update.test.ts:11`
+calls it. So the defect was latent here and live there; the fix makes the ported surface true.
+
+**THE LESSON (the asserting-scripted-edits class, now twice-witnessed):** an anchor assertion
+proves a pattern matched ONCE and says **nothing about what else the match consumed**. After any
+structural edit, re-read the WHOLE block and confirm the neighbours survived. The R14 wave hit the
+same class (a fix that broke a pinned contract); this one hit it harder — a fix that silently
+deleted a statement.

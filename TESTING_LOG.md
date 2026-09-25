@@ -2688,3 +2688,38 @@ to zero by fixing sites — the top files recur across runs (`engine.ts`, `templ
 `query-tool.ts`, `extension.ts`, `gate-hook.ts`), which is a DESIGN signal, not 55 independent
 defects. The wave that addresses them is dispatched; the honest statement is that the count
 oscillates in the 50s as each wave ADDS the code the next run audits.
+
+---
+
+## ★ P5 · THE ADVERSARIAL CORPUS RE-RUN (2026-09-25) — 79 tests, ZERO confirmed defects
+
+**THE CONTRACT (spec §4.1):** adversarial first — the attack/incident cases run BEFORE the happy
+path. The corpus is re-run against the CURRENT tree (`2ec8cc3` + the R15/R16 wave), every suite
+re-executed by the orchestrator, not read from a prior log.
+
+```
+  tests/st-gi-6l2e.test.ts ......... 28 pass / 0 fail   (the 7-CLASS DERAILMENT CORPUS)
+  tests/st-gi-v21-redteam.test.ts .. 27 pass / 0 fail
+  tests/st-redteam-kernel.test.ts .. 15 pass / 0 fail
+  tests/st-gi-v2-kernel.test.ts ..... 9 pass / 0 fail
+  ────────────────────────────────────────────────────
+  THE ADVERSARIAL TOTAL ............ 79 pass / 0 fail
+```
+
+**The 7-class derailment corpus (st-gi-6l2e §SC-5) — each class pinned to its SPECIFIC rule +
+verdict, never a generic gate:**
+```
+  D-2  a consumed type with ZERO incoming edges (nothing constructs it) → M-GRAPH-1 FIRE
+  D-6  a declared field with ZERO edges (declared, never consumed)     → M-GRAPH-2 FIRE
+  D-5  a mutation with TWO call sites (the honest split: escalate)     → M-GRAPH-4 settles:false
+  D-7  a field on BOTH ends of an edge (a self-referential measure)    → M-GRAPH-5 FIRE
+  D-4  ★ THE 7TH CLASS: an UNWIRED MODULE in the store with NO edges   → M-GRAPH-1 FIRE
+  NEG-1 a consumed symbol WITH producers (the rule must stay silent)   → M-GRAPH-1 IGNORE
+  NEG-2 a declared symbol WITH references (the pinned silent path)     → M-GRAPH-2 IGNORE
+```
+★ **NEG-2 is the pin that REVERTED a wave fix**: a reviewer claimed `inD === 0` should FIRE for a
+declared symbol; the corpus pins IGNORE for a declaration carrying an OUTGOING reference (the
+store treats an outgoing usage as evidence the declaration is LIVE). The fix was reverted.
+
+**THE VERDICT:** the corpus passes with ZERO confirmed defects against the current tree. The
+adversarial half is clean.

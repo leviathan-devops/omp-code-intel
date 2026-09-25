@@ -1828,3 +1828,22 @@ INSTRUMENT, not the tree.
 
 **THE RULE THIS ESTABLISHES:** before quoting ANY audit number, prove the instrument ran —
 `non-empty parts / total parts`, and the lane's own `status: success` + `files_reviewed`.
+
+---
+
+### F-123 — THE SILENT NO-OP MIGRATION (2026-09-25)
+
+- **What happened:** `ensureTypedGraphSchema` began a transaction, committed it, and executed no
+  DDL. `git show HEAD~15:…` carries `db.exec(TYPED_GRAPH_DDL)`; HEAD does not. The line was eaten
+  by the R15H5 BEGIN/COMMIT restructure (commit `dff6aa2`).
+- **Found:** run 17's whole-tree audit — the ONLY critical across 113 files.
+- **Root cause:** a structural edit moved two statements into nested trys and consumed the
+  statement between them. Two compounding blind spots hid it: `db.ts:965` execs the DDL on the
+  normal path (so real stores worked), and the function's own verification was gated `if (!began)`
+  — skipping exactly the transactional path where the DDL runs.
+- **Impact:** the standalone migration was a no-op; the ported API was broken for any consumer.
+  Latent in this tree (zero production callers), LIVE in the fork (`verify-update.test.ts:11`).
+- **Disposition:** **FIXED** — the DDL restored + the assertion made unconditional;
+  `tests/st-migration-ddl.test.ts` 3/0; negative control reproduces the defect AND the guard.
+- **The lesson:** ★ **AN ANCHOR ASSERTION PROVES THE MATCH, NEVER THE NEIGHBOURS. Re-read the whole
+  block after any structural edit — and never gate a verification to SKIP the path the work runs on.**
