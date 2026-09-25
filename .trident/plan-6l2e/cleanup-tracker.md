@@ -912,3 +912,14 @@ on the next attempt** — so an EMPTY_RESULT marker is a transient, not a final 
 is watched. **The measurement: 10 parts / 10 min, 0 EMPTY, 4 workers on `muse-go-mimo`.** At that
 rate the 113-file tree completes in ~2 h. **★ A count read at the wrong moment reports a lane dead
 that is merely between retries — read the SIZE, not the count.**
+
+**★ P7 ITEM — THE SEAL IS STALE (measured this turn).**
+```
+  sealed dist sha:  e13d0f5939e3707b
+  current dist sha: 574dc94c008133d2   ← the A-2 fix (the exported-surface named guards)
+```
+The checkpoint `gi-6l2e-redteam-closed-e13d0f5939e3707b` predates the container round's fix. **Its
+"honest gaps" #1 reads: *"ABIDE's substrate is ABSENT ON THE HOST"* — DISPROVEN this session**
+(`.abide/events.jsonl` is 64.7 MB, fresh, and ABIDE consumes 1002 facts for `CLAIM_SLOP`). **A seal
+whose gap list names a resolved blocker is a stale seal; P7 re-seals with the current dist + the
+corrected gaps.**
