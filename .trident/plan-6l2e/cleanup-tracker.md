@@ -269,3 +269,37 @@ touched, so the fresh audit is the honest way to see what actually remains.
 NOT-A-BUG with quoted/executed proof. The loop is: fix → re-audit → the gate moves. **A BLOCKED
 state names its resume condition; this one's is: clear the run-18 highs, then re-run the
 whole-tree audit until the gate reads 0/0.**
+
+---
+
+## ★★ THE FINAL RESUME POINT (run 19) — THE STOP IS NOT MET
+
+**HEAD `3d79c73` · uncommitted 0 · dist `2685321fcd8e9d6c` (deployed == repo) · src newer 0 · tsc 0**
+
+```
+  ★ THE §6 SNAPSHOT, MEASURED THIS TURN
+  tsc --noEmit ............ exit 0
+  bun run test ............ 441 pass / 0 fail + 539 pass / 0 fail, exit 0
+  goal-verify ............. PASSED: 5/5 (C1's PASS line carries the honest 7/8 qualifier)
+  consumption-audit ....... consumed:7/8 (L2_ARSUMBRIS — the honest repo-name domain)
+  fire_decisions .......... 4 DISTINCT (rule_id,band,action)
+  ★ the whole-tree audit ... RUN 19: 113/113 parts · 0 instrument-dead · 20 CLEAN REVIEWS
+  ★ THE GATE .............. CRITICAL=0 HIGH=37 → FAIL
+```
+
+**THE THREE-RUN RECORD (the honest convergence shape):**
+| run | files | critical | high |
+|---|---|---|---|
+| 17 | 113 | 1 | 33 |
+| 18 | 113 | **0** | 35 |
+| 19 | 113 | **0** | 37 |
+**The CRITICAL column converged (1 → 0 → 0) and holds. The HIGH column does NOT fall monotonically:
+each run samples a fresh reviewer comment set, so the count measures the reviewer's draw as much
+as the tree. Per the operator's ruling, every finding is legit and the remedy is to keep fixing.**
+
+**THE RESUME CONDITION:** clear run 19's 37 highs (`artifacts/r19-full-slices/` — the aggregator
+wrote the 5 slices), then re-run the whole-tree audit (`scripts/whole-tree-audit.sh`, TWO lanes,
+`AUDIT_PROVIDER=muse-go-mimo`) until the gate reads `CRITICAL=0 HIGH=0`. Every fix must carry
+`tsc` 0 and the full battery (441/0 + 539/0); a src edit makes the corbell/graphify stores stale —
+rebuild with `bun scripts/corbell-build.ts --target . --rebuild` (17 s) and
+`bun scripts/graphify-build.ts --target . --extract` (32 s) BEFORE believing a register failure.
