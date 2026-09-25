@@ -114,8 +114,9 @@ const LINELESS_EXEMPT_KIND: Record<string, true> = {
 export function assertMappableLines(buildResult: BuildResult): void {
   const edgeLocByTarget: Record<string, { source_location?: unknown; metadata?: unknown }> = {};
   for (const e of buildResult.edges) {
-    const rec = e as unknown as Record<string, unknown>;
-    const cand = { source_location: rec['source_location'], metadata: rec['metadata'] };
+    // ★ R19-HIGH FIX (2026-09-25): the double-cast is gone — GraphEdge now DECLARES both fields,
+    //   so this is an ordinary read the compiler can check.
+    const cand = { source_location: e.source_location, metadata: e.metadata };
     const prev = edgeLocByTarget[e.targetId];
     if (prev === undefined) {
       edgeLocByTarget[e.targetId] = cand;

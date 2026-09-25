@@ -75,6 +75,14 @@ export interface GraphEdge {
   lineage: Lineage;              // CODE_DERIVED for the code edges; HYBRID for the comparison edges (R5.2)
   file?: string | null;          // the evidence anchor
   line?: number | null;
+  // ★ R19-HIGH FIX (2026-09-25): the graphify/corbell adapters CARRY these two — the line
+  //   resolver reads them — but the interface never declared them, so every consumer reached
+  //   them through `as unknown as Record<string, unknown>`. A double-cast is the type system
+  //   being told to look away: it erases the shape AND removes the compiler's ability to catch a
+  //   renamed field. Declared here (unknown — the adapters' own schemas own the inner shape),
+  //   the reader needs no cast and a rename becomes a compile error.
+  source_location?: unknown;     // the adapter's raw locator (the line resolver's fallback)
+  metadata?: unknown;            // the adapter's raw metadata bag
 }
 
 /** A call site: where symbol is invoked. */

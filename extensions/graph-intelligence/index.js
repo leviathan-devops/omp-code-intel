@@ -184876,8 +184876,7 @@ var LINELESS_EXEMPT_KIND = {
 function assertMappableLines(buildResult) {
   const edgeLocByTarget = {};
   for (const e of buildResult.edges) {
-    const rec = e;
-    const cand = { source_location: rec["source_location"], metadata: rec["metadata"] };
+    const cand = { source_location: e.source_location, metadata: e.metadata };
     const prev = edgeLocByTarget[e.targetId];
     if (prev === undefined) {
       edgeLocByTarget[e.targetId] = cand;

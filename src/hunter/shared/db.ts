@@ -127,6 +127,10 @@ export interface GraphEdge {
   targetId: string;
   kind: string;                  // imports | calls | awaits | wires | traces-to | constrains | implements | declares
   lineage: NodeLineage;          // the HYBRID edges live here (the comparison layer)
+  // ★ R19-HIGH FIX (2026-09-25): same gap as the graph-side interface — the adapters carry these
+  //   and consumers double-cast to reach them. Declared, so no cast is needed.
+  source_location?: unknown;
+  metadata?: unknown;
 }
 
 /** The MPSE-triplet finding: {Pattern=ruleId, State=verdict+runId, Evidence=evidence}. */
