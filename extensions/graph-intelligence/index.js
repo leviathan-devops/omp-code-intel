@@ -11615,6 +11615,16 @@ function openSessionStore(input) {
     }
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`);
   }
+  if (!written) {
+    if (created) {
+      try {
+        fs4.unlinkSync(storePath);
+      } catch (e) {
+        console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} was not persisted to the registry (upsert wrote no row for ${ownerKey})`);
+  }
   return { storePath, ownerKey, created };
 }
 

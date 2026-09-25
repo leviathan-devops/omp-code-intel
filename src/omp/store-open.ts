@@ -111,5 +111,15 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
       `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`,
     );
   }
+  // ★ R20-HIGH FIX (2026-09-25): if the upsert did not PERSIST, `findGiSessionByStorePath` returns
+  //   null and the old code fell straight through to a `created: true` success — a store file with
+  //   NO registry row (the caller believes it owns a session the registry has never heard of).
+  //   Verify-after-write must FAIL LOUD on a missing row, not report success.
+  if (!written) {
+    if (created) {
+      try { fs.unlinkSync(storePath); } catch (e) { console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`); }
+    }
+    throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} was not persisted to the registry (upsert wrote no row for ${ownerKey})`);
+  }
   return { storePath, ownerKey, created };
 }
