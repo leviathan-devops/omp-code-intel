@@ -863,3 +863,33 @@ the single source of truth.
 carried the correct abstraction and bypassed it; the gate's failure was invisible until the
 `--gate` predicate was run and the one offender read. **When a control structure declares its own
 parameters and then hardcodes them, the declaration is decoration — and the gate lies quietly.**
+
+---
+
+## ★★★ RUN 20 — THE LANE MATRIX, RE-MEASURED (the go lane was NOT dead)
+
+**THE FALSE VERDICT.** The earlier runs concluded "the go lane is dead (403, subscription lapsed)".
+**THE MEASUREMENT (this turn):**
+```
+  :4097/zen/go/v1  model=muse-spark-1.3-contributor  → 403 (THAT model's subscription lapsed)
+  :4097/zen/go/v1  model=mimo-v2.5                    → ★ 200  (a PAID GO model, an ACTIVE key)
+```
+**THE WHOLE LANE WAS NEVER DEAD — ONE MODEL'S SUBSCRIPTION HAD LAPSED.** The `muse-go-mimo` provider
+(`http://127.0.0.1:4097/zen/go/v1`, model `mimo-v2.5`, openai protocol) answers **200** and is the
+goal's own approved lane ("mimo-v2.5-GO, never verboo"). **A per-model 403 was read as a per-lane
+403 — the same class as the probe's hardcoded credential: a single route's failure generalized into
+a lane's death.**
+
+**RUN 20, MEASURED ACROSS THREE LANES:**
+```
+  zen-free      → 403 (needs the opencode fingerprint; an omp TUI does not carry it)
+  openrouter    → 404 (the free model is retired)
+  poolside      → 200 but RATE-LIMITED: 37 files in 1.5 h, and files whose retries exhausted
+                  landed as `{"comments":[],"note":"EMPTY_RESULT"}` — the rate limit was silently
+                  producing UNCOVERED files (the dead-audit-lane false-green in a new dress)
+  muse-go-mimo  → ★ 200, PAID, no rate limit — RUN 20 RELAUNCHED HERE (8 workers/half)
+```
+**★ THE METHOD NOTE (the eleventh): A 403 NAMES A SUBSCRIPTION, NOT A LANE.** The error body named
+one model; the conclusion named the whole lane. **When a lane reports dead, probe EACH model on it
+before retiring the lane** — and when a rate-limited lane writes EMPTY parts, the audit's coverage is
+a lie the count hides (37/113 "parts" can be 37 minus the empties).
