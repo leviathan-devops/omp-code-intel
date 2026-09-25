@@ -61,10 +61,20 @@ const checks: Check[] = [
         L5_CORBELL: [subject, "arsumbris"],
         L6_GRAPHIFY: [subject, "arsumbris"],
         TSG: [subject, "arsumbris"],
-        ABIDE: [subject, "arsumbris"],
+        // ★ ABIDE's domain is AGENT PROSE (measured 2026-09-25): the code subjects appear in ZERO
+        //   flag rows of its ledger, so it can never consume for them. These are its OWN domain
+        //   subjects (CLAIM_SLOP = its lexicon verdict token; Live-proven = a real flagged span).
+        //   WITHOUT this, C1 could only pass on the COINCIDENCE that the subject `evidence` occurs
+        //   inside ABIDE's verdict TEMPLATE ("the evidence machine scores the subject UNEVIDENCED").
+        ABIDE: [subject, "arsumbris", "CLAIM_SLOP", "Live-proven"],
       };
       const everConsumed = new Map<string, boolean>();
-      for (const s of [subject, "arsumbris", "au-mcp-sdk", "au-engine"]) {
+      // ★ FIX (2026-09-25): this loop hardcoded its subject list and NEVER READ `DOMAINS` — the map
+      //   declared as the per-consumer domain table was DEAD, so ABIDE (whose subjects are agent
+      //   prose, not code symbols) could only consume by coincidence. The loop now iterates the
+      //   UNION of every consumer's own domain subjects: the map is the single source of truth.
+      const domainSuite = [...new Set(Object.values(DOMAINS).flat().concat([subject]))];
+      for (const s of domainSuite) {
         const a = consumptionAudit(scopeRoot, s);
         for (const r of a.reports) if (r.consumed) everConsumed.set(r.consumer, true);
       }

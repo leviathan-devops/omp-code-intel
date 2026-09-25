@@ -58,12 +58,24 @@ const DOMAIN_SUBJECTS: Record<string, string[]> = {
   L5_CORBELL: [subject, "arsumbris"],
   L6_GRAPHIFY: [subject, "arsumbris"],
   TSG: [subject, "arsumbris"],
-  ABIDE: [subject, "arsumbris"],
+  // ★ ABIDE's domain is AGENT PROSE, not code symbols (2026-09-25, MEASURED). Its ledger's
+  //   `matched_span`/`verdict`/`rule` fields carry rubric flags over agent text; the code subjects
+  //   (populateSessionStore/arsumbris/au-mcp-sdk/au-engine) appear in ZERO flag rows — so ABIDE
+  //   could never consume for them, and the old entry asked it in the WRONG domain. These are
+  //   ABIDE's OWN domain subjects: `CLAIM_SLOP` (its lexicon's verdict token, 925 facts) and
+  //   `Live-proven` (a real flagged span, 8 facts).
+  ABIDE: [subject, "arsumbris", "CLAIM_SLOP", "Live-proven"],
 };
 
 if (gate) {
   const everConsumed = new Set<string>();
-  for (const s of [subject, "arsumbris", "au-mcp-sdk", "au-engine"]) {
+  // ★ 2026-09-25 FIX: the old loop hardcoded `[subject, "arsumbris", "au-mcp-sdk", "au-engine"]`
+  //   and NEVER READ `DOMAIN_SUBJECTS` — the map meant to be the authoritative per-consumer domain
+  //   table was DEAD, so a consumer whose domain subjects were not in the hardcoded list (ABIDE's
+  //   prose subjects) could never consume. The loop now iterates the UNION of every consumer's own
+  //   domain subjects — the map is the single source of truth.
+  const domainSuite = [...new Set(Object.values(DOMAIN_SUBJECTS).flat().concat([subject]))];
+  for (const s of domainSuite) {
     for (const r of consumptionAudit(scopeRoot, s).reports) if (r.consumed) everConsumed.add(r.consumer);
   }
   const never = Object.keys(DOMAIN_SUBJECTS).filter((c) => !everConsumed.has(c));
