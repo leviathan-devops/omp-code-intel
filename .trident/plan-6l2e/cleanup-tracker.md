@@ -904,3 +904,11 @@ dead key refuses the launch. **`pick` returned good keys 6/6 when measured**, so
 and the 403 was a transient bad pick. **The audit's retry-on-refuse (5 attempts per half) absorbs it.**
 **★ A pool whose dead entries persist for a month is a pool at 62% — the maintenance defect is the
 dead keys, not the lane.**
+
+**★ THE 0-BYTE PARTS WERE TRANSIENT AND SELF-HEALED.** The r20-seq run's first parts (13:24) were
+0 bytes; within 10 minutes the SAME files held real findings (`findings-store.ts` 8130B,
+`engine.ts` 9227B, `fixture-calibration.ts` 13300B). **The script's retry OVERWRITES the empty part
+on the next attempt** — so an EMPTY_RESULT marker is a transient, not a final state, PROVIDED the run
+is watched. **The measurement: 10 parts / 10 min, 0 EMPTY, 4 workers on `muse-go-mimo`.** At that
+rate the 113-file tree completes in ~2 h. **★ A count read at the wrong moment reports a lane dead
+that is merely between retries — read the SIZE, not the count.**
