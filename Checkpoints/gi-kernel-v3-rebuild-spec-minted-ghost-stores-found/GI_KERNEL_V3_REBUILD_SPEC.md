@@ -1,8 +1,9 @@
-# GI KERNEL V3 — THE REBUILD SPEC (self-populating · scoped · GPU-judged)
+# GI KERNEL V3 — THE REBUILD SPEC (self-populating · root-asserting · GPU-judged)
 
 **Series:** GI-Kernel-V3 (the rebuild after the operator's 2026-09-25 rejection)
 **Date:** 2026-09-25 · **Baseline:** HEAD 75d2586 · dist 3595ff900bf6581b (752 KB)
 **Authority:** this spec + `GI_KERNEL_V3_MASTER_BLUEPRINT.md`
+**class:** system (the GI kernel's V3 rebuild — an infra spine, not a library)
 **Mission:** make the 6L+2E kernel build its graph FROM ANY TARGET, keep it correctly scoped, judge
 with JevK5 on the GPU, and BLOCK hallucinated completion — so the operator can deploy it immediately.
 
@@ -649,3 +650,62 @@ applied), the judge (the target's semantics), the firewall (the claim against th
 (a `crates/*/src` layout). The mechanism says: discovery finds `crates/*/src` (rule 5), the store
 asserts that root, the register reads on that scope. **The design covers an instance this spec never
 mentioned** — which is the test a reduction must pass and a list cannot.
+
+---
+
+## §14 SUCCESS CRITERIA (the mechanical done-when — every line a command)
+
+**Each criterion names a PROCESS ARTIFACT (a running process, a port, a served wire) and its
+NON-STUB evidence (an exit code, a status field, a heartbeat, a tool result, an artifact on disk).**
+
+| # | the criterion | the process artifact | the non-stub evidence |
+|---|---|---|---|
+| C-1 | the populate process RUNS and the build daemon completes | `gi-populate` (the process) | exit code 0 + the per-layer node/edge table printed |
+| C-2 | the store SERVER serves the graph on the scope | the store-open path (serves reads) | the read returns rows > 0 via the adapter |
+| C-3 | the JevK5 SERVER on the GPU serves the meaning gate | `:8090` / `:8008` (the live server) | the TSG evidence line names jevk5 + the port; a heartbeat on `/health` |
+| C-4 | the claim-firewall LISTENS on the tool-result wire | the hook listener | a fabricated claim → the REJECTED status in a tool result |
+| C-5 | the abide-live-judge RUNS on a live diff | the judge process (per-edit) | a verdict observed in a tool result (not a ledger row) |
+| C-6 | the graph is a FUNCTION of the target, RUN against a real session | a live session on a real codebase | the `consumed:8/8` status observed in a tool result, exit code 0 |
+| C-7 | a fresh project POPULATES and the register reads | the populate process + the register | exit code 0 + the register's consumed:N/8 (the self-populating + source-root-discovery + content-scoping waves proven together) |
+| C-8 | the container rig RUNS the kernel on a real project | the container (a live runtime) | the deployed dist sha + the register reading, captured as an artifact — the three-tier-testing tier-2 proof |
+
+**GS-5 NOTE (the battery is not a criterion):** `bun run test` (441/0 + 539/0) is a REGRESSION GUARD
+and appears here only ALONGSIDE the process criteria above — never as the sole evidence of a
+capability.
+
+---
+
+## §15 SCOPE (the mission nouns — every one a work item)
+
+The mission's nouns, each a first-class scope item in §3's waves:
+
+| the noun | the wave | the scope item |
+|---|---|---|
+| **self-populating** | W4 | `gi-populate` builds the stores from any target into the target's own scope |
+| **source-root-discovery** | W2 | `discoverSourceRoots` finds the target's sources from its own config |
+| **content-scoping** | W3 | every store asserts `build_root`; a cross-scope read refuses |
+| **jevk5** | W5a | the meaning gate uses JevK5-4b on the GPU (:8090 / :8008) |
+| **claim-firewall** | W5c | L2 — the fail-CLOSED completion gate (the missing blocking half) |
+| **abide-live-judge** | W5b | ABIDE judges the current diff live, not a ledger of past verdicts |
+| **three-tier-testing** | W6 | SCRIPT · CONTAINER · HOST — a capability claim requires the container tier |
+
+---
+
+## §16 COMPLETION CHECKLIST (every row names the PROCESS it RUNS, live)
+
+| # | the check | the process it proves | the artifact |
+|---|---|---|---|
+| 1 | `gi-populate --target <fresh>` exits 0 | the populate process RUNS | the store + the node table |
+| 2 | the store's `gi_meta.build_root` == `realpath(target)` | the scope assertion RUNS on read | the gi_meta row |
+| 3 | a cross-scope read → `GI_STORE_SCOPE_MISMATCH` | the guard RUNS (observed firing) | the refusal string |
+| 4 | a source-less target → `GI_NO_SOURCE_ROOT` | the refusal path RUNS | the refusal string |
+| 5 | the TSG probe names jevk5 + the port | the GPU server SERVES | the evidence line |
+| 6 | a fabricated claim → REJECTED | the firewall LISTENS on the tool-result wire | the tool-result status |
+| 7 | a rule-violating diff → a live judge verdict | the ABIDE judge RUNS per-edit | the tool-result verdict |
+| 8 | the register on a real project → 8/8 or named reasons | the kernel RUNS on a real session | the register output |
+| 9 | `rm -rf` the stores + repopulate → the reading reproduces | the capability is REAL, not carried | the before/after register |
+| 10 | the container rig captures the reading | the runtime RUNS in the deployed container | the results artifact JSON |
+
+**THE LIVENESS ROW (the process proof):** every row above names a PROCESS that RUNS (the populate
+process, the scope guard, the refusal path, the GPU server, the firewall listener, the judge, the
+kernel session, the container runtime) — no row is satisfied by a file's existence.
