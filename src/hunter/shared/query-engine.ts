@@ -95,6 +95,62 @@ function dbHandle(db: Database | DbClient): Database {
   throw new Error('QUERY_ENGINE_BAD_HANDLE: expected Database or DbClient');
 }
 
+/**
+ * ★ R19-HIGH FIX (2026-09-25): THE EDGE ROW MAPPER — ONE definition, two callers.
+ *   The EDGE_ROW_SHAPE validation and the row→TypedEdgeRow mapping were copy-pasted VERBATIM in
+ *   buildPathEdges and temporal() (the reviewer flagged both). Duplicated validation is the defect
+ *   class itself, not a style issue: two copies of a shape check drift, and the day one gains a
+ *   field or tightens a predicate the other silently keeps the old contract — so two read paths
+ *   into the SAME table disagree about what a well-formed row is. Extracted here; both callers
+ *   reference it, so the contract has exactly one home.
+ */
+function mapEdgeRow(r: Record<string, unknown>): TypedEdgeRow {
+  if (typeof r.id !== 'number' || typeof r.src_canonical !== 'string' || typeof r.dst_canonical !== 'string' || typeof r.predicate !== 'string') {
+    throw new Error(`EDGE_ROW_SHAPE: the typed_edges row ${JSON.stringify(r).slice(0, 120)} is missing id/src_canonical/dst_canonical/predicate`);
+  }
+  return {
+    id: r.id,
+    src_canonical: r.src_canonical,
+    dst_canonical: r.dst_canonical,
+    predicate: r.predicate,
+    evidence_quote: typeof r.evidence_quote === 'string' ? r.evidence_quote : null,
+    confidence: typeof r.confidence === 'number' ? r.confidence : 1,
+    created_run: typeof r.created_run === 'string' ? r.created_run : '',
+    superseded_run: typeof r.superseded_run === 'string' ? r.superseded_run : null,
+  } as TypedEdgeRow;
+}
+
+/**
+ * ★ R19-HIGH FIX (2026-09-25): THE TEMPORAL FILTER BUILDER — ONE definition for both legs.
+ *   The createdRun / liveOnly / supersededRun clause construction was duplicated for typed_nodes
+ *   and typed_edges, and THE DRIFT WAS ALREADY THERE: the node leg VALIDATED createdRun (a
+ *   non-empty string, else TEMPORAL_INVALID) while the edge leg reached it through
+ *   `filter.createdRun!` — a NON-NULL ASSERTION standing where a check belongs. One leg refused
+ *   the malformed input and the other trusted it, on the same request. The builder owns the
+ *   validation and both legs consume it, so the two read paths cannot disagree about what a
+ *   well-formed temporal filter is. The WHERE fragments are column-named identically in both
+ *   tables, which is why one builder serves both.
+ */
+function buildTemporalFilter(filter: { createdRun?: string; liveOnly?: boolean; supersededRun?: string | null }): { clauses: string; params: unknown[] } {
+  let clauses = '';
+  const params: unknown[] = [];
+  if (filter.createdRun !== undefined) {
+    if (typeof filter.createdRun !== 'string' || filter.createdRun.trim().length === 0) throw new Error('TEMPORAL_INVALID: createdRun must be non-empty string');
+    clauses += ' AND created_run = ?';
+    params.push(filter.createdRun.trim());
+  }
+  if (filter.liveOnly) clauses += ' AND superseded_run IS NULL';
+  else if (filter.supersededRun !== undefined) {
+    if (filter.supersededRun === null) clauses += ' AND superseded_run IS NULL';
+    else {
+      if (typeof filter.supersededRun !== 'string') throw new Error('TEMPORAL_INVALID: supersededRun must be string or null');
+      clauses += ' AND superseded_run = ?';
+      params.push(filter.supersededRun);
+    }
+  }
+  return { clauses, params };
+}
+
 export class QueryEngine {
   private readonly db: Database;
   private readonly vectorProvider: VectorProvider | null;
@@ -191,21 +247,7 @@ export class QueryEngine {
         // blind cast): each SQL row is validated for the typed-edge required
         // fields before the typed shape is built. A malformed row yields a
         // LOUD ROW_SHAPE error, never a silent undefined-field propagation.
-        edges = rows.map((r) => {
-          if (typeof r.id !== 'number' || typeof r.src_canonical !== 'string' || typeof r.dst_canonical !== 'string' || typeof r.predicate !== 'string') {
-            throw new Error(`EDGE_ROW_SHAPE: the typed_edges row ${JSON.stringify(r).slice(0, 120)} is missing id/src_canonical/dst_canonical/predicate`);
-          }
-          return {
-            id: r.id,
-            src_canonical: r.src_canonical,
-            dst_canonical: r.dst_canonical,
-            predicate: r.predicate,
-            evidence_quote: typeof r.evidence_quote === 'string' ? r.evidence_quote : null,
-            confidence: typeof r.confidence === 'number' ? r.confidence : 1,
-            created_run: typeof r.created_run === 'string' ? r.created_run : '',
-            superseded_run: typeof r.superseded_run === 'string' ? r.superseded_run : null,
-          } as TypedEdgeRow;
-        });
+        edges = rows.map(mapEdgeRow);
       } catch (e: unknown) {
         throw new Error(`PATH_QUERY_FAILED: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -292,20 +334,9 @@ export class QueryEngine {
     try {
       let nodeSql = 'SELECT id, canonical_id, kind, label, file, line, created_run, superseded_run FROM typed_nodes WHERE 1=1';
       const nodeParams: unknown[] = [];
-      if (filter.createdRun !== undefined) {
-        if (typeof filter.createdRun !== 'string' || filter.createdRun.trim().length === 0) throw new Error('TEMPORAL_INVALID: createdRun must be non-empty string');
-        nodeSql += ' AND created_run = ?';
-        nodeParams.push(filter.createdRun.trim());
-      }
-      if (filter.liveOnly) nodeSql += ' AND superseded_run IS NULL';
-      else if (filter.supersededRun !== undefined) {
-        if (filter.supersededRun === null) nodeSql += ' AND superseded_run IS NULL';
-        else {
-          if (typeof filter.supersededRun !== 'string') throw new Error('TEMPORAL_INVALID: supersededRun must be string or null');
-          nodeSql += ' AND superseded_run = ?';
-          nodeParams.push(filter.supersededRun);
-        }
-      }
+      const nodeFilter = buildTemporalFilter(filter);
+      nodeSql += nodeFilter.clauses;
+      nodeParams.push(...nodeFilter.params);
       const nodeRows = this.db.prepare(nodeSql).all(...(nodeParams as SQLQueryBindings[])) as Record<string, unknown>[];
       // THE NODE ROW MAPPER (the ISE discipline — a runtime shape check, not a
       // blind cast): each typed_nodes row is validated for the required fields.
@@ -326,36 +357,16 @@ export class QueryEngine {
       });
       let edgeSql = 'SELECT id, src_canonical, dst_canonical, predicate, evidence_quote, confidence, created_run, superseded_run FROM typed_edges WHERE 1=1';
       const edgeParams: unknown[] = [];
-      if (filter.createdRun !== undefined) {
-        edgeSql += ' AND created_run = ?';
-        edgeParams.push(filter.createdRun!.trim());
-      }
-      if (filter.liveOnly) edgeSql += ' AND superseded_run IS NULL';
-      else if (filter.supersededRun !== undefined) {
-        if (filter.supersededRun === null) edgeSql += ' AND superseded_run IS NULL';
-        else {
-          edgeSql += ' AND superseded_run = ?';
-          edgeParams.push(filter.supersededRun);
-        }
-      }
+      // ★ R19-HIGH: the EDGE leg now consumes the SAME builder — the drift it carried (a `!`
+      //   assertion where the node leg had a check, and NO string validation on supersededRun)
+      //   is not possible through one definition. A malformed filter refuses on BOTH legs.
+      const edgeFilter = buildTemporalFilter(filter);
+      edgeSql += edgeFilter.clauses;
+      edgeParams.push(...edgeFilter.params);
       const edgeRows = this.db.prepare(edgeSql).all(...(edgeParams as SQLQueryBindings[])) as Record<string, unknown>[];
       // THE EDGE ROW MAPPER (the ISE discipline — a runtime shape check, not a
       // blind cast): each typed_edges row is validated for the required fields.
-      const edges = edgeRows.map((r) => {
-        if (typeof r.id !== 'number' || typeof r.src_canonical !== 'string' || typeof r.dst_canonical !== 'string' || typeof r.predicate !== 'string') {
-          throw new Error(`EDGE_ROW_SHAPE: the typed_edges row ${JSON.stringify(r).slice(0, 120)} is missing id/src_canonical/dst_canonical/predicate`);
-        }
-        return {
-          id: r.id,
-          src_canonical: r.src_canonical,
-          dst_canonical: r.dst_canonical,
-          predicate: r.predicate,
-          evidence_quote: typeof r.evidence_quote === 'string' ? r.evidence_quote : null,
-          confidence: typeof r.confidence === 'number' ? r.confidence : 1,
-          created_run: typeof r.created_run === 'string' ? r.created_run : '',
-          superseded_run: typeof r.superseded_run === 'string' ? r.superseded_run : null,
-        } as TypedEdgeRow;
-      });
+      const edges = edgeRows.map(mapEdgeRow);
       return { nodes, edges };
     } catch (e: unknown) {
       if (e instanceof Error && e.message.startsWith('TEMPORAL_')) throw e;
