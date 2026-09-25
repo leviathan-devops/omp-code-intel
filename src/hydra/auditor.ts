@@ -197,7 +197,9 @@ function makeCappedGrepTool(targetRoot: string): MissionTool {
       const rootReal = realResolve(path.resolve(targetRoot));
       let out = await run("rg", ["-n", "--no-follow", "--max-count", String(maxResults), "--", pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-p", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+        // ★ R20-HIGH FIX (2026-09-25): `-p` is a GNU extension (BSD/macOS grep rejects or ignores it).
+        //   `-I` (skip binary files) is the portable flag that expresses the same intent.
+        out = await run("grep", ["-rn", "-I", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
       }
       if (!out.startsWith("SEARCH_FAILED")) {
         const kept: string[] = [];

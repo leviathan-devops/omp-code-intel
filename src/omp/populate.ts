@@ -65,9 +65,20 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
     // ★ F-310 FIX (2026-09-24): three setMeta() calls each opened+closed the store (3 handles
     // ★ per populate, 3x the open/verify/open-close overhead + 3 non-atomic commits). One handle,
     // ★ one transaction: all three meta rows land atomically or none do.
-    const db = openTypedStore(storePath);
-    // ★ F-854 FIX (2026-09-24): the degradation flag — set in the catch below, read in the return.
+    // ★ R20-HIGH FIX (2026-09-25): openTypedStore THREW past the PopulateResult-typed contract —
+    //   the corbell data is already committed, but the caller received an uncaught exception
+    //   instead of a result naming the meta degradation. A failure to OPEN for the meta write is
+    //   the same class as a failure to WRITE it: degrade LOUD, return honest success for the data.
+    let db: ReturnType<typeof openTypedStore> | null = null;
     let metaDegraded = false;
+    try {
+      db = openTypedStore(storePath);
+    } catch (openErr) {
+      metaDegraded = true;
+      console.error(`[gi-omp] GI_META_WRITE_FAILED: could not open ${storePath} for the meta write (${openErr instanceof Error ? openErr.message : String(openErr)}) — data populated, meta degraded`);
+    }
+    // ★ F-854 FIX (2026-09-24): the degradation flag — set in the catch below, read in the return.
+    if (db !== null) {
     try {
       db.exec("BEGIN IMMEDIATE;");
       try {
@@ -90,6 +101,7 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
       // ★ R16A FIX (2026-09-25, group-a:82): close best-effort — a close() throw must not
       //   mask the return (incl. metaDegraded). Same pattern as the graphify path (F-46).
       try { db.close(); } catch { /* close best-effort */ }
+    }
     }
     console.error(`[gi-omp] populate substrate=corbell checkout=${corbell.checkoutPath} nodes=${corbell.nodes} edges=${corbell.edges}`);
     return {
