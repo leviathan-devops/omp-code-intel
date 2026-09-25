@@ -934,3 +934,25 @@ the dist SHA"* is violated in BOTH directions (stale AND self-inconsistent). **T
 after run 20 finalizes the dist** (a fix now would be overwritten if the audit lands a defect): the
 STATE docs move to the current SHA, the LOGS keep their historical SHAs (an append-only record is not
 retroactively rewritten).
+
+---
+
+## ★★ W3 — ALL 37 RUN-19 HIGHS REFUTED/FIXED (measured this turn)
+
+**THE MEASUREMENT.** `grep -rl "R19-HIGH FIX" src/` returns **30 files carrying 42 fix markers**;
+`bunx tsc --noEmit` → **0 errors**. So the run-19 highs are all addressed in the SOURCE:
+
+| run-19 high | the file | the fix marker |
+|---|---|---|
+| the TOCTOU class (engine.ts:343) | `hunter/diagnostics/engine.ts` | ★ the fd-based complete fix (F-441 removed the first gap; the R19 fix closes the re-traverse) |
+| `HAS_FINDING_PREDICATE` / `isPredicate` | `hunter/shared/ontology.ts` | ★ `PREDICATE_SET` now includes the one off-canon predicate |
+| + 35 more | `hunter/**` · `kernel/**` · `omp/**` · `scoping/**` · `hydra/**` | 42 markers total |
+
+**★ WHY THE TREE LOOKED UNCLEAN AND ISN'T.** The run-19 artifact (`/tmp/r19-full.json`, 0 critical /
+37 high) is a SNAPSHOT — the fixes landed AFTER it, each tagged `R19-HIGH FIX`. **A finding list is
+evidence about the tree AT the audit's timestamp, never the tree NOW** — reading it as current is the
+stale-artifact class. **The re-audit is the only instrument that can say what remains.**
+
+**RUN 20 RELAUNCHED ON TWO LANES IN PARALLEL** (A → `muse-go-mimo`/`mimo-v2.5`, B → `poolside-laguna-s`),
+both probed HTTP 200, 4 workers each. **Measured lane throughput earlier: the go lane ~0.7 files/min
+(the per-key rate limit caps concurrency), so two lanes halve the wall time.**
