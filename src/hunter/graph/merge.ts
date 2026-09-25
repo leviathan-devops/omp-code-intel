@@ -180,6 +180,7 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
           }
         }
       }
+        // ★ F-1200 FIX (2026-09-25): inherit subjectKind/objectKind from anchor like the exact-match path — semantic rows lacking kinds no longer emit undefined where mechExact would inherit.
       merged.push({
         subject: s.subject.trim(),
         predicate: s.predicate as Predicate,
@@ -188,8 +189,8 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
         confidence: s.confidence,
         file: inheritedFile || s.file,
         line: inheritedLine || s.line,
-        subjectKind: s.subjectKind,
-        objectKind: s.objectKind,
+        subjectKind: s.subjectKind ?? anchor.subjectKind,
+        objectKind: s.objectKind ?? anchor.objectKind,
         source: 'semantic',
         conflict: true,
         conflictReason: `CONTRADICTION: mechanical predicate(s)=[${mechPredicates}] vs semantic predicate=${s.predicate} for ${s.subject}->${s.object} — Pass A exactness anchors, Pass B semantics kept, flagged never silently resolved`,

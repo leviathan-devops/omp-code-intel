@@ -145,13 +145,13 @@ export class HydraBus {
     }
       return clean;
     } catch (e: unknown) {
-      // ★ F-1023 FIX (2026-09-25, cont.): the cursor advanced row-by-row above, so
-      // ★ an escaping throw (DB failure, subscriber bookkeeping fault) would strand
-      // ★ it past rows never delivered — the next poll skips them (silent loss).
-      // ★ Restore the entry cursor; the next poll re-selects the batch. Normal
-      // ★ poison skips return cleanly and keep their advance (no stall).
+      // ★ F-1202 FIX (2026-09-25): the restore below re-selects rows already dispatched
+      // ★ in the clean loop — AT-LEAST-ONCE on this path, never at-most-once. Reachable only
+      // ★ when a throwing path escapes the per-subscriber/parse guards (today all are caught);
+      // ★ a future throwing line must add its own guard or accept redelivery. Kept + documented.
       this.cursor = cursorBefore;
       throw e;
+    }
     } finally {
       this.polling = false;
     }
@@ -208,8 +208,15 @@ export class HydraBus {
    *  the last-processed event id at boot so a restart resumes instead of replaying.
    *  No auto-read here: the bus never invents delivered state it did not observe. */
   restoreCursor(lastDeliveredId: number): void {
+    // ★ F-1203 FIX (2026-09-25): the cursor is MONOTONIC — a stale/lower id (misconfigured
+    // ★ boot restore, a race with a prior poll) must never regress it, or delivered events
+    // ★ re-select and re-deliver. Advance only. (RIPWIRE_MISSING: path-denied outside worktree;
+    // ★ grep -rn shows zero code callers — doc-only tightening, no consumer to break.)
     if (typeof lastDeliveredId === 'number' && Number.isFinite(lastDeliveredId) && lastDeliveredId >= 0) {
-      this.cursor = Math.floor(lastDeliveredId);
+      const id = Math.floor(lastDeliveredId);
+      if (id > this.cursor) {
+        this.cursor = id;
+      }
     }
   }
 }

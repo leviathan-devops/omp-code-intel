@@ -17,7 +17,7 @@ import path from 'node:path';
 import type { ProjectProfile } from '../profile/schema.ts';
 import type { DbClient } from '../shared/db.ts';
 import { openStore, writeGraph, mirrorToMasterContext } from '../shared/db.ts';
-import { selectAdapter, type GraphAdapter, type BuildResult } from '../graph/interface.ts';
+import { selectAdapter, graphEmpty, type GraphAdapter, type BuildResult } from '../graph/interface.ts';
 import { resolveLine, tryResolveLine } from '../shared/line-resolve.ts';
 
 /** The MAP actor's output — the built graph surface the scan state consumes. */
@@ -60,6 +60,12 @@ export async function map(profile: ProjectProfile, adapterOverride?: GraphAdapte
   // kind. SPEC_DERIVED stage/rule nodes carry a corpus anchor — exempt by
   // lineage (the interface.ts contract).
   assertMappableLines(buildResult);
+  // ★ F-1201 FIX (2026-09-25): the JSDoc promises GRAPH_EMPTY on an empty build, but no
+  // ★ check existed — an adapter returning zero nodes sailed through the LINELESS guard
+  // ★ (a vacuous pass) into an empty store. Refuse LOUD here; adapters keep their own guards.
+  if (buildResult.nodes.length === 0) {
+    throw graphEmpty('map actor: adapter build produced zero nodes');
+  }
   // ★ F-949 NOTE (2026-09-24): NOT-A-BUG — the run-12 claim inverts the order: the guard call
   //   above runs BEFORE the `openStore(dbPath)` call below (only the F-244 note between), so a guard
   //   throw leaves no handle behind. PROOF: `grep -n "assertMappableLines(buildResult)\|openStore(dbPath)"`

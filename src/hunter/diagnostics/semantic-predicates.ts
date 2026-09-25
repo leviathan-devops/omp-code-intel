@@ -148,23 +148,36 @@ export const P3: PredicateTemplate = {
     //   comes from whoCalls, and the evidence cites the traversed edge via evEdge.
     const anchor = anchored(ctx, P3_SPEC);
     if (anchor === null) return findings;
+    // ★ F-1200 FIX (2026-09-25): whoCalls(name) is name-keyed — two nodes sharing a
+    // ★ name (e.g. `enforce` in files A+B) resolve to the same target, so B's zero-caller
+    // ★ verdict read A's callers (false negative via name collision). Prefer the adapter's
+    // ★ node-ID-keyed unwired() set; whoCalls stays only as the fallback when unwired() throws.
+    let deadIds: Set<string> | null = null;
+    try {
+      deadIds = new Set(ctx.graph.unwired().map((d) => d.id));
+    } catch { deadIds = null; }
     for (const node of ctx.graph.nodes()) {
       if (node.kind !== 'function' && node.kind !== 'method' && node.kind !== 'class') continue;
       if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name)) continue;
       const file = node.file ?? ''; if (!file) continue;
       if (!anchor.files.has(file)) continue;
-      let callers: { file: string; line: number; caller: string }[];
-      try {
-        callers = ctx.graph.whoCalls(node.name);
-      } catch (e: unknown) {
-        console.error(`[semantic-predicates] P3 whoCalls failed for ${node.name}: ${String(e)}`);
-        continue;
+      const nid = (node as unknown as { id?: string }).id;
+      if (deadIds !== null) {
+        if (nid === undefined || !deadIds.has(nid)) continue;
+      } else {
+        let callers: { file: string; line: number; caller: string }[];
+        try {
+          callers = ctx.graph.whoCalls(node.name);
+        } catch (e: unknown) {
+          console.error(`[semantic-predicates] P3 whoCalls failed for ${node.name}: ${String(e)}`);
+          continue;
+        }
+        if (callers.length !== 0) continue;
       }
-      if (callers.length !== 0) continue;
       const text = windowText(ctx, file); if (text === undefined) continue;
       if (!/(enforcer|gate|firewall)/i.test(file) && !/(enforcer|gate)/i.test(text.slice(0, 2000))) continue;
       const triad = makeTriad(file, node.line ?? 1, 'semantic.unwired-enforcement', sev);
-      const evidence = evEdge('semantic.unwired-enforcement', file, node.line ?? 1, `${node.name} — whoCalls("${node.name}")=[] over the calls edges (no inbound caller in the edge store)`, 'wired-dead', anchor);
+      const evidence = evEdge('semantic.unwired-enforcement', file, node.line ?? 1, `${node.name} — ${deadIds !== null ? `unwired() lists id ${nid ?? node.name}` : `whoCalls("${node.name}")=[]`} over the calls edges (no inbound caller in the edge store)`, 'wired-dead', anchor);
       findings.push({ ruleId: 'semantic.unwired-enforcement', severity: sev, file, line: node.line ?? 1, evidence, verdict: 'VIOLATION', triad } as TriadFinding);
     }
     return findings;
