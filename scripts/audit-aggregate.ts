@@ -19,10 +19,29 @@ type Part = { part?: string; result?: { comments?: Comment[]; summary?: { files_
 
 const raw = await Bun.file(auditPath).json() as Part[];
 const all: Comment[] = [];
-let empty = 0;
+// ★★★ THE INSTRUMENT GATE'S FALSE-POSITIVE CLASS — FIXED (2026-09-25). The original
+//   `empty = comments.length === 0` conflated THREE DISTINCT STATES and so fired on the
+//   BEST possible outcome:
+//     1. INSTRUMENT DEAD — the part is the EMPTY_RESULT marker (or 0 bytes): the lane
+//        produced NOTHING. This is the ONLY state that may void a run.
+//     2. CLEAN REVIEW — `status:"success"` with 0 comments (`"No comments generated.
+//        Looks good to me."`, files_reviewed:1, tokens spent). The reviewer READ the file
+//        and found nothing. Under the operator's stop ("0 critical / 0 high") this is the
+//        GOAL STATE — flagging it VOID makes a clean tree unreachable by construction.
+//     3. OUT OF SCOPE — `status:"skipped"` (`"No supported files changed."`): the ocr CLI
+//        scopes to git-CHANGED paths, so a committed-clean tree answers "skipped". Scope,
+//        not breakage.
+//   Only state 1 counts toward the empty ratio.
+let empty = 0;   // the instrument-dead count (the only one the gate may act on)
+let clean = 0;   // reviewed, zero findings
+let skipped = 0; // out of the CLI's scope, never scanned
 for (const row of raw) {
-  const cs = row.result?.comments ?? [];
-  if (cs.length === 0) empty += 1;
+  const r = row.result as { comments?: Comment[]; status?: string; note?: string } | undefined;
+  const cs = r?.comments ?? [];
+  const isMarker = r?.note === "EMPTY_RESULT" || (cs.length === 0 && (r?.status === undefined && r?.note === undefined));
+  if (isMarker) empty += 1;
+  else if (cs.length === 0 && r?.status === "skipped") skipped += 1;
+  else if (cs.length === 0) clean += 1;
   all.push(...cs);
 }
 
@@ -32,7 +51,8 @@ for (const c of all) {
   sev[k] = (sev[k] ?? 0) + 1;
 }
 
-console.log(`  parts: ${raw.length} · comments: ${all.length} · empty-file parts: ${empty}`);
+console.log(`  parts: ${raw.length} · comments: ${all.length}`);
+console.log(`  ★ THE INSTRUMENT: ${empty} instrument-dead · ${clean} CLEAN REVIEWS (read, zero findings) · ${skipped} out-of-scope (skipped)`);
 // ★ F-607 (2026-09-24): THE INSTRUMENT GATE. A run whose parts are mostly the EMPTY_RESULT
 //   marker measured a DEAD LANE, not a clean tree — run 9 reported "1 critical / 2 high" with
 //   108 of 113 parts empty (a lapsed Go subscription returned 0 bytes on every scan). A low

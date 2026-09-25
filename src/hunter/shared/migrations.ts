@@ -106,12 +106,26 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
       if (/no such|syntax|not supported|cannot start a transaction/i.test(msg)) began = false; /* no explicit-BEGIN support (or nested join): bare exec below */
       else throw new Error(`TYPED_MIGRATION_FAILED: BEGIN IMMEDIATE failed: ${msg}`);
     }
+    // ★★★ THE DDL EXEC — RESTORED (2026-09-25, the whole-tree audit's CRITICAL). An earlier
+    //   wave's BEGIN/COMMIT restructure (the R15H5 "contention rethrow" fix, commit dff6aa2)
+    //   moved BEGIN and COMMIT into nested trys and the `db.exec(TYPED_GRAPH_DDL)` that sat
+    //   BETWEEN them was consumed by the edit: the function began a transaction, committed it,
+    //   and executed NO DDL — a silent no-op migration. `git show HEAD~15:…migrations.ts` carries
+    //   the line; HEAD did not. It hid because `new SharedDb` (db.ts:965) execs the DDL on the
+    //   NORMAL open path, so only the standalone migration was a no-op — and nothing tested it.
+    //   THE LESSON (the asserting-scripted-edits class): an anchor assertion proves the pattern
+    //   matched once and says NOTHING about what else the match consumed.
+    db.exec(TYPED_GRAPH_DDL);
     try { db.exec('COMMIT'); } catch (commitErr: unknown) { if (began) throw commitErr; /* else: nothing to commit */ }
     // ★ F-833 FIX (2026-09-24): without BEGIN each DDL statement auto-committed — a
     //   mid-sequence failure leaves a half-migrated schema the caller cannot detect. Verify all
     //   four tables exist; a partial (or unverifiable) schema is a loud TYPED_MIGRATION_FAILED
     //   via the catch below, never silent success.
-    if (!began) assertNonTransactionalSchema(db);
+    // ★ 2026-09-25: made UNCONDITIONAL. The `if (!began)` guard meant the transactional path —
+    //   the one that just silently no-op'd for an unknown number of commits — was the ONLY path
+    //   with no verification. The assertion is the guard that CATCHES a future line-eating edit;
+    //   skipping it exactly where the DDL runs is backwards.
+    assertNonTransactionalSchema(db);
   } catch (e: unknown) {
     if (began) { try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is the truth */ } }
     throw new Error(`TYPED_MIGRATION_FAILED: ${e instanceof Error ? e.message : String(e)}`);
