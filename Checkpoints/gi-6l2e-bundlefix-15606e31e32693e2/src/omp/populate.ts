@@ -80,8 +80,18 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
     // ★ F-854 FIX (2026-09-24): the degradation flag — set in the catch below, read in the return.
     if (db !== null) {
     try {
-      db.exec("BEGIN IMMEDIATE;");
+      // ★ R21-HIGH FIX (2026-09-25): the BEGIN sat OUTSIDE the inner try — a throw (a busy handle, a
+      //   prior open transaction) escaped the meta block with no ROLLBACK. Moved INSIDE, so the
+      //   catch's ROLLBACK covers it (the same discipline the calibration write uses). NOTE: the
+      //   [20] fix above narrowed this block; this restores the BEGIN-inside-try guarantee there too.
       try {
+        db.exec("BEGIN IMMEDIATE;");
+      } catch (beginErr) {
+        // a throw here (busy handle, a prior open txn) must DEGRADE, not escape the contract.
+        metaDegraded = true;
+        console.error(`[gi-omp] GI_META_WRITE_FAILED: BEGIN for the meta write failed at ${storePath} (${beginErr instanceof Error ? beginErr.message : String(beginErr)}) — data populated, meta degraded`);
+      }
+      if (!metaDegraded) try {
         db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
         db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
         db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);

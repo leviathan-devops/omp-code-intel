@@ -14286,19 +14286,25 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
     }
     if (db !== null) {
       try {
-        db.exec("BEGIN IMMEDIATE;");
         try {
-          db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
-          db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
-          db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
-          db.exec("COMMIT;");
-        } catch (e) {
-          try {
-            db.exec("ROLLBACK;");
-          } catch {}
+          db.exec("BEGIN IMMEDIATE;");
+        } catch (beginErr) {
           metaDegraded = true;
-          console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
+          console.error(`[gi-omp] GI_META_WRITE_FAILED: BEGIN for the meta write failed at ${storePath} (${beginErr instanceof Error ? beginErr.message : String(beginErr)}) \u2014 data populated, meta degraded`);
         }
+        if (!metaDegraded)
+          try {
+            db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["substrate", "corbell"]);
+            db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["corbell_checkout", corbell.checkoutPath]);
+            db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
+            db.exec("COMMIT;");
+          } catch (e) {
+            try {
+              db.exec("ROLLBACK;");
+            } catch {}
+            metaDegraded = true;
+            console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
+          }
       } finally {
         try {
           db.close();
