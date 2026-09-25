@@ -286,6 +286,15 @@ export class QueryEngine {
         throw new Error(`COMMUNITY_UNMEASURABLE: the typed_edges count read back as ${JSON.stringify(edgeCount)} (not a finite number) — refusing to run an unbounded in-memory BFS`);
       }
       if (edgeCount > 500000) throw new Error(`COMMUNITY_TOO_LARGE: edges=${edgeCount} exceeds the 500000 in-memory BFS cap (page by predicate or raise the cap deliberately)`);
+      // ★ R20-HIGH FIX (2026-09-25): the cap checked EDGES only — a store with few edges but
+      //   millions of NODES still built an O(V) adjacency map + a full visited set, so the memory
+      //   guard was one-sided. Cap nodes too, with the same fail-loud discipline.
+      const nodeCountRow = this.db.prepare('SELECT COUNT(*) AS c FROM typed_nodes WHERE superseded_run IS NULL').get() as Record<string, unknown> | null | undefined;
+      const nodeCount = nodeCountRow?.['c'];
+      if (typeof nodeCount !== 'number' || !Number.isFinite(nodeCount)) {
+        throw new Error(`COMMUNITY_UNMEASURABLE: the typed_nodes count read back as ${JSON.stringify(nodeCount)} (not a finite number) — refusing to run an unbounded in-memory BFS`);
+      }
+      if (nodeCount > 500000) throw new Error(`COMMUNITY_TOO_LARGE: nodes=${nodeCount} exceeds the 500000 in-memory BFS cap (page by predicate or raise the cap deliberately)`);
       const edges = this.db.prepare('SELECT src_canonical, dst_canonical FROM typed_edges WHERE superseded_run IS NULL').all() as Array<{ src_canonical: string; dst_canonical: string }>;
       const nodes = this.db.prepare('SELECT canonical_id FROM typed_nodes WHERE superseded_run IS NULL').all() as Array<{ canonical_id: string }>;
       const adj = new Map<string, Set<string>>();
