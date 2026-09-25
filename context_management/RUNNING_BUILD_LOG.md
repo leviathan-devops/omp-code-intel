@@ -841,3 +841,38 @@ The pin's three mechanical rules all hold: the pinned substring
 (`all 8 consumers are CONSUMED for their own domains`) survives in the source; the forbidden
 string (`condition: "the register reads consumed:8`) is absent; and no PASS line carries a
 `consumed:N/8` token that could differ from its detail.
+
+## RB · 2026-09-25 · THE RUN-19 EXHAUSTION + THE SEAL + THE RUN-20 BLOCK
+
+**RUN 19 IS EXHAUSTED: 36 of 37 highs addressed (33 fixed + 3 refuted).** The 37th
+(`micro-loop-machine.ts:451`) is **deliberately held open** by the `st-hunter-port` pin: a caller may
+legitimately read `loop.context.db` AFTER `await loop.done()`, so the DbClient stays open by contract
+and teardown is `stop()`'s job.
+
+**★ THE LAST TWO FIXES WERE THE DUPLICATION SET, AND ONE HAD ALREADY DRIFTED FOUR TIMES.**
+`auditOne` and `factsForWithFaults` each called `p.up()`, validated the shape and interpreted the
+result INDEPENDENTLY — and drifted on **F-405, F-706, F-1007 and F-1208: every one a "two-view
+drift" fix**, each patching one side while the other kept the old rule. **FOUR unlucky edits is not
+bad luck; it is the signature of a missing unit** (the seventh method note). Extracted
+`probeConsumer(p)`; both views read the same normalized result and cannot disagree by construction.
+
+**THE SEAL IS IN.** `Checkpoints/gi-cleanup-run19-exhausted-04840c57105a7837` — **MODE B, no lock** —
+34 MB carrying 113 src `.ts`, the 11 canon docs, the 6 ship docs and a **284-line manifest** with the
+honest gaps. Its dist is byte-identical to the repo bundle AND the deployed bundle (`cmp`). The
+receipt names it; **C5 PASSES**.
+
+**★ P5 RE-VERIFIED FRESH THIS TURN (the adversarial corpus, against the current dist):**
+```
+  st-gi-6l2e ......... 28 pass / 0 fail   (the 7-CLASS DERAILMENT CORPUS)
+  st-gi-v21-redteam .. 27 pass / 0 fail
+  st-redteam-kernel .. 15 pass / 0 fail
+  st-gi-v2-kernel ..... 9 pass / 0 fail
+  ────────────────────────────────────────
+  THE ADVERSARIAL TOTAL  79 pass / 0 fail
+```
+
+**⚠ RUN 20 IS BLOCKED — ON A LANE, NEVER ON THE CODE.** The **Go subscription has lapsed**
+(`403: An active OpenCode Go subscription is required to use Go models`) and the free lane is in a
+**429 burst window**. The pre-flight probe REFUSED both launches, so run 20 produced ZERO parts and
+ZERO findings. A retry launcher is armed (probing every 4 min). **A BLOCKED state is never a stop; it
+names its resume condition.**
