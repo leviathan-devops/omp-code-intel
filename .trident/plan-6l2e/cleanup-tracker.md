@@ -633,3 +633,31 @@ the map discards it. **Trace the value end to end; the bug is the link you did n
 **THE REMAINING 5** are in `artifacts/r19-full-slices/`: kernel-v2.ts:550 (prose-keyed
 classification) · the duplication set (query-engine ×2, fixture-calibration, layer-registry) ·
 micro-loop-machine.ts:451 (the DbClient residual, pinned open by st-hunter-port).
+
+---
+
+## ★★ THE PRECISE COUNT — A CORRECTION (the running count was an OVERCOUNT)
+
+**A count carried forward in prose drifted above the measured number.** Re-derived from the artifact
+(37 high findings in `artifacts/r19-full.json`, minus the five verified still-open sites):
+
+```
+  ★ ADDRESSED: 32 of 37   (30 fixed + 2 refuted)
+  ★ OPEN:       5
+      src/hunter/lexicon/compiler.ts:127           the empty-corpus asymmetry (sync vs async)
+      src/hunter/lexicon/compiler.ts:271           the cache-hit COUNT + write without a transaction
+      src/hunter/diagnostics/fixture-calibration.ts:194   duplicated containment logic
+      src/omp/layer-registry.ts:0                  duplicated probe-shape validation
+      src/hunter/harness/micro-loop-machine.ts:451 the DbClient residual — HELD OPEN by the
+                                                   st-hunter-port pin (a caller may read
+                                                   loop.context.db after done())
+```
+
+**★ THE LESSON (a sixth method note): A RUNNING COUNT IN PROSE DRIFTS; THE ARTIFACT DOES NOT.**
+Every "N of M" in this file must be re-derived from `artifacts/r19-full.json` (the set of findings)
+minus the open set — never carried forward by increment. The same discipline the rest of this run
+applies to code applies to the report's own arithmetic.
+
+*(The fixes themselves are unaffected and each is committed with tsc + the battery. One fix —
+evidence-producer — also uncovered a bug NOT in the reviewer's list: containsAtBoundary returned
+false on an exact match.)*
