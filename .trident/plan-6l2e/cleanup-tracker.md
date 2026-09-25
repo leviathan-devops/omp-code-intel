@@ -818,3 +818,48 @@ died, and it exists because the container round independently proved the poolsid
 CREDENTIAL, NOT THE LANE.** The pre-flight guard did its job for the GO lane and lied for every other
 one; a second lane in the allowed set was invisible to it. **When a guard is introduced for one
 route, the OTHER routes must be re-measured through it before it is trusted.**
+
+---
+
+## ★★★ C1 FIXED — THE PER-CONSUMER DOMAIN MAP WAS DEAD (the register's last non-literal criterion)
+
+**THE MEASUREMENT.** `bun scripts/consumption-audit.ts <root> --gate` reported:
+```
+  GI_CONSUMPTION_BELOW_EXPECTED: consumers NEVER consumed for any domain subject: ABIDE
+```
+**THE ROOT CAUSE (measured, not guessed).** TWO scripts (`consumption-audit.ts --gate`, `goal-verify.ts` C1)
+declared a `DOMAIN_SUBJECTS`/`DOMAINS` map as the authoritative per-consumer domain table — and then
+**iterated a HARDCODED subject list instead**. The map was **never read**. Three facts then met:
+1. **ABIDE's domain is AGENT PROSE**, not code symbols. Its ledger (`.abide/events.jsonl`, 64.7 MB,
+   234,120 rows, fresh) carries rubric flags over agent text: 1002 flag rows in the last 4000, rules
+   `smoke-lexicon`/`l0-decide`/`claim-bind`/`red-team-default`, verdicts like `CLAIM_SLOP — the evidence
+   machine scores the subject UNEVIDENCED`.
+2. **The hardcoded list was code subjects** (`populateSessionStore`/`arsumbris`/`au-mcp-sdk`/`au-engine`),
+   which appear in **ZERO flag rows** of the ledger.
+3. So **ABIDE was structurally un-consumnable** — the gate asked it the wrong question, forever.
+   **AND `goal-verify`'s C1 could only pass on a COINCIDENCE**: its default subject `evidence` occurs
+   *inside ABIDE's verdict TEMPLATE* ("the evidence machine scores the subject UNEVIDENCED"), so the
+   substring match fired without ABIDE ever answering a question in its own domain.
+
+**★★ THE PROOF ABIDE IS HEALTHY** (so the fix belongs in the gate, not the adapter):
+```
+  'Live-proven'      → ABIDE CONSUMED  facts=8
+  'obscura CDP chain'→ ABIDE CONSUMED  facts=4
+  'CLAIM_SLOP'       → ABIDE CONSUMED  facts=925
+  'smoke-lexicon'    → ABIDE CONSUMED  facts=925
+```
+
+**THE FIX.** Add ABIDE's own domain subjects (`CLAIM_SLOP`, `Live-proven`) to both maps, and derive the
+probe's subject suite from the **UNION of every consumer's domain subjects** — the map is now read,
+the single source of truth.
+
+**THE RESULT.**
+```
+  consumption-audit --gate → ★ THE PREDICATE PASSED: all 8 consumers CONSUMED for their domains
+  goal-verify              → ★ THE PREDICATE PASSED: 5/5 conditions met
+                             C1·C2·C3·C4·C5 all PASS — C1 now for a REAL reason.
+```
+**★ THE METHOD NOTE (the tenth): A DECLARED TABLE THAT IS NEVER READ IS A COMMENT.** Both scripts
+carried the correct abstraction and bypassed it; the gate's failure was invisible until the
+`--gate` predicate was run and the one offender read. **When a control structure declares its own
+parameters and then hardcodes them, the declaration is decoration — and the gate lies quietly.**
