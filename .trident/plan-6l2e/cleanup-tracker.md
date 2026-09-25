@@ -160,3 +160,36 @@ sqlite3 fire_decisions: 168 rows · 4 DISTINCT (rule_id,band,action):
 **W3's position:** the board's last read was `FAIL (6 critical, 82 high)` across 105 files — from
 the OLD audit. Since then the R14/R15/R16 waves fixed ~120 findings (~54 src files changed,
 battery 438/0 + 536/0 exit 0, tsc 0). **A FRESH whole-tree audit (RUN 17) is now the gate.**
+
+---
+
+## ★ RUN 17 — THE FRESH WHOLE-TREE AUDIT (2026-09-25, the W3 gate)
+
+**THE MEASUREMENT (two lanes, disjoint halves, both pre-flight-probed):**
+```
+  lane A  the go lane      50 files · 8 workers · 50/50 parts · 0 EMPTY
+  lane B  the go lane      63 files · 8 workers · in flight
+  ────────────────────────────────────────────────────────────────────────
+  lane A: 141 comments · {critical: 1, high: 13, medium: 67, low: 60}
+  ★ down from run 16's {critical: 3, high: 99} on comparable coverage
+```
+
+**THE ONLY CRITICAL — F-123, the line-eating edit (FIXED + PINNED).**
+`src/hunter/shared/migrations.ts:85` — `ensureTypedGraphSchema` began a transaction, committed it,
+and executed NO DDL. `git show HEAD~15` carries `db.exec(TYPED_GRAPH_DDL)`; HEAD did not. The
+R15H5 BEGIN/COMMIT restructure (commit `dff6aa2`) consumed the statement between the two nested
+trys. Two blind spots hid it: `db.ts:965` execs the DDL on the normal open path, and the
+function's own verification was gated `if (!began)` — skipping exactly the path the DDL runs on.
+**FIXED** (the exec restored + the assertion made unconditional) with a negative control that
+reproduces both the defect AND the guard; `tests/st-migration-ddl.test.ts` 3/0.
+
+**THE INSTRUMENT DEFECT FOUND AND FIXED (it would have blocked the gate forever).**
+The audit aggregator's `empty = comments.length === 0` conflated three states and so fired on the
+BEST outcome: a **CLEAN REVIEW** (`status:"success"`, `"No comments generated. Looks good to me."`,
+files_reviewed:1, tokens spent) counted as an instrument failure. Under the operator's stop
+("0 critical / 0 high") a mostly-clean tree would be flagged VOID by construction. Now the three
+states are distinct: **instrument-dead** (the EMPTY_RESULT marker only) · **CLEAN REVIEWS** ·
+**out-of-scope skips** (the ocr CLI scopes to git-changed paths).
+
+**THE W3 FIX WAVE (4 agents, 12 highs + the critical, disjoint files):** dispatching.
+**P6 GATE CHECKED:** the 5 read-first canon docs ALL read `1c73723445f65973` (the live dist).
