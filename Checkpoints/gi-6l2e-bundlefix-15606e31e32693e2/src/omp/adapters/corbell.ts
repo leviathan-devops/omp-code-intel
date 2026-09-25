@@ -24,7 +24,20 @@ export function corbellProbe(scopeRoot: string): ConsumerProbe {
     rung: "settlement",
     dependency: "the corbell parse-grade checkout (PRIMARY)",
     errorCode: "GI_LAYER_CORBELL",
-    up: () => probePath(storePath, true),
+    up: () => {
+      // ★ R20-HIGH FIX (2026-09-25): `up` checked only EXISTENCE — a STALE store read as UP, and a
+      //   caller that gates on up() alone would then hit the facts() throw. A stale store is not a
+      //   USABLE substrate for this run, so up() now enforces freshness too (a stale store is UP:
+      //   false with the reason), keeping the liveness signal honest.
+      const probe = probePath(storePath, true);
+      if (!probe.up) return probe;
+      try {
+        assertStoreFresh(storePath);
+        return probe;
+      } catch (e) {
+        return { up: false, evidence: `${storePath} (${e instanceof Error ? e.message : String(e)})` };
+      }
+    },
     facts: (subject: string): LayerFact[] => {
       // ★ DPL1 §7 A3: refuse a verdict from a STALE store.
       assertStoreFresh(storePath);

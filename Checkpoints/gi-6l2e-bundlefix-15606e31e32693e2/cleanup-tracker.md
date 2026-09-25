@@ -1211,3 +1211,23 @@ sha-matched.
 
 **★ THE MEASURE.** Run 19 half A = 23 highs → run 20 half A = 11 highs. **The fixes landed and the code
 measurably improved.** The audit gate remains the ONE open stop-condition; the goal STAYS ACTIVE.
+
+---
+
+## ★★★ RUN-20 TRIAGE — 27 FIXED · 10 ADJUDICATED · ~7 OPEN
+
+**THE MEASURED STATE:** tsc 0 · battery 441/0 + 539/0 (exit 0) · goal-verify 5/5 · the register
+consumed:7/8 · the ledger distinct=4 · the seal sha-matched · dist 752 KB.
+
+**THE 27 FIXED (each a small, verified fix — see the per-batch commits):** the critical fail-closed
+BEGIN · `cwd`/`rmSync`/`existsSync` in the predicate regex · the report read bound · the unused import ·
+LRM+RLM bidi marks · drift range · log caps · `mustBeFile` · the buildLocalGraph TOCTOU · the auth
+failure-cache · the tsg fd-based read · the DDL catch · the true-LRU fix · the community node cap ·
+`sufficient` surfaced · the jev short-answer guard · the wouldBreak LIMIT · the walk() dir-symlink
+containment · the q.truncated surface · the grep -p portability · the populate open contract · the
+in-flight-map eviction · the scopeRoot normalization · the unguarded degreeOf fallback · the
+unpersisted registry row · the cached-path sidecar ELOOP.
+
+**★ THE PROGRESS MEASURE:** run 19 half A = 23 highs → run 20 half A = 11 highs. **The code measurably
+improved.** The audit gate (0 crit/0 high) remains the ONE open stop-condition; **the goal stays
+ACTIVE.**
