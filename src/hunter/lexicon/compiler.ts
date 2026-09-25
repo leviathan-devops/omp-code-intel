@@ -85,19 +85,25 @@ function batteryNameFromCards(cards: RuleCard[]): string {
  *  '<project>-<battery-name>-battery-v<N> (fingerprint: <hash12>)' — the
  *  example 'plutus-p6-price-anchor-battery-v1 (fingerprint: 5577e7ba)'. */
 export function batteryVersion(profile: ProjectProfile): string {
-  const corpusText = profile.rules.corpus
-    .map((p) => {
-      let text: string;
-      try {
-        text = fs.readFileSync(p, 'utf8');
-      } catch (e: unknown) {
-        throw corpusUnreadable(p, String(e));
-      }
-      return `${p}\n${text}`;
-    })
-    .join('\n');
+  // ★ R18-HIGH FIX (2026-09-25): this SYNC path read every corpus file TWICE — once here for the
+  //   hash input and again inside `batteryName(profile)`, which re-enters the extractor and
+  //   re-reads the same paths. Two reads of one file is a TOCTOU window AND 2x the I/O; the
+  //   async sibling was already fixed to a single read. Same discipline here: ONE read per path
+  //   into `reads`; the hash text AND the cards are both derived from those same bytes.
+  const reads: Array<{ path: string; text: string }> = [];
+  for (const p of profile.rules.corpus) {
+    let text: string;
+    try {
+      text = fs.readFileSync(p, "utf8");
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    reads.push({ path: p, text });
+  }
+  const corpusText = reads.map((r) => `${r.path}\n${r.text}`).join("\n");
+  const cards = reads.flatMap((r) => cardsFromText(r.path, r.text));
   const hash = sha256(`${corpusText}\n${JSON.stringify(profile.rules.bindings)}`);
-  return `${projectTokenSlug(profile.project.name)}-${batteryName(profile)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+  return `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
 }
 
 /** The async twin's single-extraction core: the corpus texts + the ONCE-extracted
