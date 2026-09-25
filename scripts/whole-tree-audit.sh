@@ -23,20 +23,31 @@ fi
 # ★ THE PRE-FLIGHT LANE PROBE (the F-607 lesson, 2026-09-25): run 15 launched 113 parts onto
 #   an exhausted go lane and returned 109 EMPTY_RESULT markers — 40 minutes to learn nothing.
 #   Probe the lane with ONE real completion BEFORE the wave; refuse to start on a dead lane.
+#   ★ PROTOCOL-AWARE: the go providers speak chat/completions; the zen-free adapter speaks
+#   /responses. Both are probed with the SHAPE their protocol requires.
 PROV="${AUDIT_PROVIDER:-muse-free}"
-PROBE_URL="$(python3 -c "import json;d=json.load(open('/home/leviathan/.opencodereview/config.json'));print(d['custom_providers'].get('$PROV',{}).get('url',''))" 2>/dev/null)"
+CFG=/home/leviathan/.opencodereview/config.json
+PROBE_URL="$(python3 -c "import json;print(json.load(open('$CFG'))['custom_providers'].get('$PROV',{}).get('url',''))" 2>/dev/null)"
+PROBE_PROTO="$(python3 -c "import json;print(json.load(open('$CFG'))['custom_providers'].get('$PROV',{}).get('protocol','openai'))" 2>/dev/null)"
 if [ -n "$PROBE_URL" ]; then
-  MODEL="$(python3 -c "import json;d=json.load(open('/home/leviathan/.opencodereview/config.json'));print(d['custom_providers'].get('$PROV',{}).get('model',''))" 2>/dev/null)"
-  CODE=$(timeout 90 curl -s -o /tmp/lane-probe.json -w '%{http_code}' -X POST "$PROBE_URL/responses" \
+  MODEL="$(python3 -c "import json;print(json.load(open('$CFG'))['custom_providers'].get('$PROV',{}).get('model',''))" 2>/dev/null)"
+  if [ "$PROBE_PROTO" = "openai-responses" ]; then
+    PBODY="{\"model\":\"$MODEL\",\"input\":\"reply READY\"}"; PURL="$PROBE_URL/responses"
+  else
+    GOK="$(timeout 30 bun /home/leviathan/.omp/agent/bin/go-pool-ctl.ts pick 2>/dev/null)"
+    PBODY="{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"reply READY\"}],\"max_tokens\":10}"; PURL="$PROBE_URL/chat/completions"
+    AUTH="Authorization: Bearer $GOK"
+  fi
+  CODE=$(timeout 90 curl -s -o /tmp/lane-probe.json -w '%{http_code}' -X POST "$PURL" \
     -H 'Content-Type: application/json' -H 'User-Agent: opencode/1.18.31' \
-    -d "{\"model\":\"$MODEL\",\"input\":\"reply with the single word READY\"}" 2>/dev/null)
+    ${AUTH:+-H "$AUTH"} -d "$PBODY" 2>/dev/null)
   if [ "$CODE" != "200" ]; then
-    echo "[whole-tree] ✗ LANE DEAD: $PROV ($PROBE_URL) answered HTTP $CODE."
+    echo "[whole-tree] ✗ LANE DEAD: $PROV ($PURL) answered HTTP $CODE."
     echo "[whole-tree]   $(head -c 200 /tmp/lane-probe.json 2>/dev/null)"
-    echo "[whole-tree]   REFUSING TO LAUNCH — a dead lane yields 113 EMPTY_RESULT markers, not findings."
+    echo "[whole-tree]   REFUSING TO LAUNCH — a dead lane yields EMPTY_RESULT markers, not findings."
     exit 3
   fi
-  echo "[whole-tree] ✓ lane probe: $PROV → HTTP 200 ($(head -c 60 /tmp/lane-probe.json | tr -d '\n'))"
+  echo "[whole-tree] ✓ lane probe: $PROV ($PROBE_PROTO) → HTTP 200"
 fi
 N=$(wc -l < "$QLIST")
 echo "[whole-tree] $N files · $W parallel workers · parts=$PARTS"
