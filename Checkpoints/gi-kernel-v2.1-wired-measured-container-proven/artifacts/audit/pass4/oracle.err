@@ -1,9 +1,0 @@
-[ocr] full-scan: 1 file(s) discovered, reviewing 1 in /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence
-[ocr] estimated cost: ~1 file(s), est. 60K input + 7K output ≈ 68K total tokens (rough; actual reported after run)
-[ocr] scan dispatch: 1 batch(es) by by-language strategy
-[ocr]   ▶ code_search file_patterns=[src/omp/*] search_text=recordTruth
-[ocr]   ✔ code_search (3ms)
-[ocr]   ▶ file_read file_path=src/omp/fire-ledger.ts start_line=335 end_line=390
-[ocr]   ✔ file_read (0s)
-[ocr]   ▶ code_comment
-[ocr]   ✔ code_comment (0s)
