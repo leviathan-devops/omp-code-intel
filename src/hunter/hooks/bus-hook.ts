@@ -63,6 +63,13 @@ export class HydraBus {
   //   row stays consumed (the cursor advances, at-most-once delivery is kept) but the
   //   failure is inspectable and replayable via getFailedEvents/retryFailed.
   private readonly failedEvents: Array<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number; failedIndex: number }> = [];
+  // ★ R18-HIGH FIX (2026-09-25): the array was UNBOUNDED — a subscriber that throws on
+  //   every event grew it without limit (a leak that ends in OOM, and the failure that
+  //   CAUSED it is the one that matters least by then). The cap keeps the most RECENT
+  //   failures: recent ones are the diagnosable ones. Bounded, and the trim is loud-once
+  //   via the counter below so a full log is never silent.
+  private static readonly MAX_FAILED_EVENTS = 500;
+  private failuresDropped = 0;
 
   subscribe(fn: BusSubscriber): void {
     this.subscribers.push(fn);
@@ -144,6 +151,7 @@ export class HydraBus {
             //   ONLY to the thrower, never rebroadcasts to the subscribers that landed.
             console.error(`[hydra-bus] subscriber #${si} for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
             this.failedEvents.push({ row, payload, error: e, attempt: 1, failedIndex: si });
+            this.trimFailedEvents();
           }
         }
       }
@@ -171,6 +179,15 @@ export class HydraBus {
    *  delivered. */
   getFailedEvents(): ReadonlyArray<{ row: EventRow; payload: Record<string, unknown>; error: unknown; attempt: number }> {
     return this.failedEvents;
+  }
+
+  /** ★ R18-HIGH: keep the failure log bounded, counting what it drops (never a silent cap). */
+  private trimFailedEvents(): void {
+    const over = this.failedEvents.length - HydraBus.MAX_FAILED_EVENTS;
+    if (over > 0) {
+      this.failedEvents.splice(0, over);
+      this.failuresDropped += over;
+    }
   }
   /** ★ F-349 FIX (2026-09-24): replay every recorded failure through the CURRENT
    *  subscribers. A replay that still throws stays queued with attempt + 1; a replay
@@ -204,6 +221,7 @@ export class HydraBus {
       } catch (e: unknown) {
         console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscriber #${idx} threw: ${e instanceof Error ? e.message : String(e)}`);
         this.failedEvents.push({ ...f, error: e, attempt: f.attempt + 1 });
+        this.trimFailedEvents();
       }
     }
     return this.failedEvents.length;

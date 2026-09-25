@@ -105,6 +105,13 @@ async function withEngineTimeout<T>(engine: string, ms: number, call: Promise<T>
   const timer = Promise.withResolvers<never>();
   const handle = setTimeout(() => timer.reject(new EngineTimeout(ms, engine)), ms);
   try {
+    // ★ R18-HIGH FIX (2026-09-25): when the TIMER wins, `call` keeps running with NO
+    //   handler attached — if it later rejects, that rejection is UNHANDLED and (under
+    //   Node's default) terminates the process. Racing does not consume the loser's
+    //   rejection; the loser must be explicitly observed. The catch is a no-op because
+    //   the timeout is already the surfaced outcome — its ONLY job is to keep a late
+    //   rejection from becoming an unhandled-rejection crash.
+    call.catch(() => { /* the timeout is the surfaced outcome; this only stops an unhandled rejection */ });
     return await Promise.race([call, timer.promise]);
   } finally {
     clearTimeout(handle);
