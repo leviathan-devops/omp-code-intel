@@ -101,7 +101,12 @@ export function assertSessionStorePath(p: string, optScopeRoot?: string): void {
   }
   if (parentReal !== null) {
     const parentNorm = parentReal.replace(/\\/g, "/");
-    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);
+    // ★ R21-CRITICAL FIX (2026-09-25): the regex was tested against `norm` — the FILE path, which
+    //   ALWAYS ends `/store.sqlite`, so `\/sessions\/<sid>\/?$` NEVER matched and the F-434b
+    //   symlink guard was DEAD CODE (the `want !== null` condition was always false). Apply it to
+    //   the PARENT dir (whose last segment IS the session id) so the guard actually runs.
+    const normParent = path.dirname(norm);
+    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(normParent);
     const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
     if (want !== null && (got === null || got[1] !== want[1])) {
       throw new GiPathError(

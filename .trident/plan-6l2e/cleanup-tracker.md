@@ -1264,3 +1264,24 @@ the code measurably improved.
 comment set each run, so the count is not a convergence target — it is a re-measurement. **THE GOAL
 STAYS ACTIVE**; the next audit run measures the CLEANED tree (28 fewer real defects), and its fresh
 findings get the same triage.
+
+---
+
+## ★★★ RUN 21 (the CLEANED tree) — 3 CRITICAL / 34 HIGH, ALL 3 CRITICALS FIXED
+
+**THE MEASUREMENT:** run 20 = **1 crit / 44 high** → run 21 = **3 crit / 34 high** on the tree carrying
+the 28 run-20 fixes. **The highs dropped 44 → 34; the criticals are a fresh sample** (the reviewer
+re-samples each run — some findings recur, some are new).
+
+**★ THE THREE CRITICALS (each was REAL, each now FIXED):**
+| # | file | the defect | the fix |
+|---|---|---|---|
+| [C3] | `scoping/gi-session-path.ts:102` | ★ **THE F-434b SYMLINK GUARD WAS DEAD CODE** — the regex `/sessions/<sid>/?$` was tested against the FILE path (`norm`), which ALWAYS ends `/store.sqlite`, so it NEVER matched and the containment guard NEVER ran | apply the regex to the PARENT dir |
+| [C2] | `hunter/diagnostics/calibration.ts:418` | the compensation DELETE set `compensated=true` whenever it did not THROW — even at ZERO affected rows — so the error claimed "rows were compensated" while they still stood | check the affected-row count |
+| [C1] | `hunter/harness/report.ts` | the retry loop's `document` was built INSIDE the loop and read AFTER it (out of scope), and a fall-through would have returned a success-shape for a file never written | bind outside + an explicit phantom-report guard |
+
+**★ [C3] IS THE MOST SEVERE FINDING OF THE SESSION:** a containment guard whose condition could never
+be true. It hid because the R19 fix CLOSED THE CATCH (a real improvement) while the REGEX the catch
+guarded was already dead. **A guard you believe is running and that never runs is worse than no guard.**
+
+**THE MEASURED STATE:** tsc 0 · battery 441/0 + 539/0 · dist 789a2a0bb8c22197 (752 KB) · HEAD 161dc3d.

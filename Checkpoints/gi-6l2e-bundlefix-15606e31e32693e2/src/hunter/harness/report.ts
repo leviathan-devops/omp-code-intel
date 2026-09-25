@@ -191,12 +191,20 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
     }
     lines.push('');
   }
-  const document = lines.join('\n');
+  // ★ R21-CRITICAL FIX (2026-09-25): `document` must be `let` (the loop rebinds it per attempt).
+  let document = lines.join('\n');
   // ★ F-37 FIX (2026-09-24): exclusive create — a concurrent report that already
   //   landed this version no longer gets silently overwritten; the collision is a
   //   loud named error (hunts ride the hunt-lock, so this is pathological-only).
   // ★ R15: bounded retry — two concurrent hunts probing the same max version both attempt
   // v(N+1); the loser retries instead of failing with REPORT_VERSION_COLLISION.
+  // ★ R21-CRITICAL FIX (2026-09-25): a `document` built inside the loop was referenced AFTER it
+  //   (line ~225 `Buffer.byteLength(document)`) — out of scope, and, had the loop EVER fallen
+  //   through without the break, the function would have returned a success-shape referencing a
+  //   file never written (the phantom-report class). Bind `document` OUTSIDE the loop and add an
+  //   EXPLICIT post-loop guard: reaching the end without a success is a LOUD failure, never a
+  //   success-shaped return.
+  let wrote = false;
   for (let attempt = 0; attempt < 5; attempt++) {
     const retryVersion = nextReportVersion(masterContextDir);
     const retryPath = path.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);
@@ -206,16 +214,22 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
       //   v(N+1) while the document's own header still said v(N): a report whose name
       //   and content disagree about which report it is. Only line 0 embeds the version,
       //   so regenerate it from the version THIS attempt writes.
-      const document = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\n');
+      document = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\n');
       fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });
       version = retryVersion;
       reportPath = retryPath;
+      wrote = true;
       break;
     } catch (e: unknown) {
       const code = (e !== null && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : '';
       if (code === 'EEXIST' && attempt < 4) continue;
       throw new Error(`REPORT_WRITE_FAILED: path=${retryPath} detail=${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+  // ★ R21-CRITICAL FIX (2026-09-25): the phantom-report guard — the loop exiting without a write
+  //   is a LOUD failure, never a success-shaped return referencing a file that was never written.
+  if (!wrote) {
+    throw new Error(`REPORT_WRITE_FAILED: the retry loop exhausted without writing ${masterContextDir} — refusing to return a phantom reportPath`);
   }
   const bytes = Buffer.byteLength(document, 'utf-8');
   return {
