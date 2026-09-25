@@ -391,3 +391,29 @@ LRI, zero-width, and pipe all BLOCK.** The lesson is the one this run keeps re-t
 without its probe is a hypothesis.
 
 **THE REMAINING 21** are in `artifacts/r19-full-slices/`.
+
+---
+
+## ★★ RUN-19 PROGRESS — 20 OF 37 HIGHS FIXED
+
+**HEAD `43f1943` · uncommitted 0 · dist `2cff6b7d9b42c2d5` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+**ADDED SINCE THE LAST ENTRY:**
+```
+ 17  scan-chain.ts:188   `streamComplete = !dead` ran AFTER the loop, so a timer callback queued
+                         in the microtask gap flipped a COMPLETE stream to STALL and discarded
+                         the buffered body — the F-705 comment above it said the OPPOSITE.
+                         Completion is now recorded WHEN OBSERVED.
+ 18  recon.ts:198        a raw db.close() in `finally` REPLACED any in-flight exception: the
+                         original cause was lost and the caller chased the wrong fault.
+ 19  _shared.ts:226      storeFacts served facts with the freshness check OUTSIDE it (the
+                         adapters remembered to call it). A NEW consumer that forgets serves
+                         stale facts with no signal. The bound now rides the PATH.
+ 20  rsi.ts:165          WAL with no busy_timeout (SQLite default 0) — every contended write
+                         failed INSTANTLY with SQLITE_BUSY. PRAGMA busy_timeout=5000.
+```
+
+**THE REMAINING 17** are in `artifacts/r19-full-slices/`. **THE RESUME CONDITION** is unchanged:
+fix or prove each, then re-run the whole-tree audit (two lanes, `AUDIT_PROVIDER=muse-go-mimo`)
+until the gate reads `CRITICAL=0 HIGH=0`; after ANY src edit rebuild the corbell/graphify stores
+(17 s / 32 s) before believing a register failure.
