@@ -750,7 +750,7 @@ export function buildLocalGraph(root: string): { nodes: GraphNode[]; edges: Grap
 interface StoredNodeRow { id: string; kind: string; name: string; file: string | null; line: number | null; lineage: string; source: string; data: string | null; }
 
 /** A stored graph_edges row (the shared.db schema — db.ts:229-236). */
-interface StoredEdgeRow { source_id: string; target_id: string; kind: string; lineage: string; }
+interface StoredEdgeRow { source_id: string; target_id: string; kind: string; lineage: string; file: string | null; line: number | null; }
 
 /** Read the persisted graph rows into adapter rows (the REUSE path). */
 function readStoredGraph(dbPath: string): { nodes: GraphNode[]; edges: GraphEdge[] } | null {
@@ -766,7 +766,10 @@ function readStoredGraph(dbPath: string): { nodes: GraphNode[]; edges: GraphEdge
   try {
     const nrows = db.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as unknown as StoredNodeRow[];
     if (nrows.length === 0) return null;
-    const erows = db.prepare('SELECT source_id,target_id,kind,lineage FROM graph_edges').all() as unknown as StoredEdgeRow[];
+    // ★ R19-HIGH FIX (2026-09-25): the anchor is READ now — the table persists it (the db.ts
+    //   migration + write change), so the reuse path recovers what the build had instead of
+    //   silently dropping every edge's file:line.
+    const erows = db.prepare('SELECT source_id,target_id,kind,lineage,file,line FROM graph_edges').all() as unknown as StoredEdgeRow[];
     // ★ F-4 FIX (2026-09-24): a single malformed `r.data` JSON must not poison the
     // ★ whole read — JSON.parse inside the row map throws into the outer catch,
     // ★ which returns null and triggers a full DB overwrite (data loss). Guard
@@ -792,7 +795,11 @@ function readStoredGraph(dbPath: string): { nodes: GraphNode[]; edges: GraphEdge
           data,
         };
       }),
-      edges: erows.map((r) => ({ sourceId: r.source_id, targetId: r.target_id, kind: r.kind as GraphEdge['kind'], lineage: r.lineage as GraphEdge['lineage'] })),
+      // ★ R19-HIGH FIX (2026-09-25): the mapping dropped the anchor even after the SELECT read
+      //   it — the third and last link of the chain (table -> write -> read -> MAP). Building the
+      //   edge without file/line is what made the reuse path's metadata loss INVISIBLE: the value
+      //   arrived and was discarded in the same expression.
+      edges: erows.map((r) => ({ sourceId: r.source_id, targetId: r.target_id, kind: r.kind as GraphEdge['kind'], lineage: r.lineage as GraphEdge['lineage'], file: r.file, line: r.line })),
     };
   } catch (e: unknown) {
     // ★ F-560b FIX (2026-09-24): same data-loss class — a query failure (locked

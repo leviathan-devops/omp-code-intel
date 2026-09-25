@@ -4200,9 +4200,9 @@ class SharedDb {
       for (const n of nodes) {
         nodeStmt.run(n.id, n.kind, n.name, n.file ?? null, n.line ?? null, n.lineage, n.source, JSON.stringify(n.data ?? {}));
       }
-      const edgeStmt = this.handle.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)");
+      const edgeStmt = this.handle.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage,file,line) VALUES (?,?,?,?,?,?)");
       for (const e of edges) {
-        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
+        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage, e.file ?? null, e.line ?? null);
       }
     });
     tx();
@@ -4295,6 +4295,17 @@ function openStore(dbPath) {
   const handle = new Database5(dbPath);
   applyPragmas(handle);
   handle.exec(CREATE_TABLES_SQL);
+  try {
+    const cols = new Set(handle.prepare("PRAGMA table_info(graph_edges)").all().map((c) => c.name));
+    for (const [name, decl] of [["file", "TEXT"], ["line", "INTEGER"]]) {
+      if (!cols.has(name)) {
+        handle.exec(`ALTER TABLE graph_edges ADD COLUMN ${name} ${decl}`);
+        console.error(`[gi-omp] DDL MIGRATION: added graph_edges.${name} (pre-R19 store upgraded)`);
+      }
+    }
+  } catch (e) {
+    console.error(`[gi-omp] DDL MIGRATION SKIPPED for graph_edges (handle cannot introspect): ${e instanceof Error ? e.message : String(e)}`);
+  }
   handle.exec(TYPED_GRAPH_DDL);
   return new SharedDb(dbPath, handle);
 }
@@ -4327,7 +4338,13 @@ CREATE TABLE IF NOT EXISTS graph_edges (
   target_id  TEXT NOT NULL REFERENCES graph_nodes(id),
   kind       TEXT NOT NULL,
   lineage    TEXT NOT NULL,
-  created_at INTEGER
+  created_at INTEGER,
+  -- \u2605 R19-HIGH FIX (2026-09-25): the EDGE'S OWN ANCHOR. The table carried only endpoints +
+  --   kind + lineage, so an edge's file:line was NEVER PERSISTED \u2014 the reuse path could not
+  --   recover what the write path never stored, and every reader of a reused graph saw edges
+  --   with no location while the in-memory build had them. The anchor is part of the edge.
+  file       TEXT,
+  line       INTEGER
 );
 CREATE TABLE IF NOT EXISTS findings (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

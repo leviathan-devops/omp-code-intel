@@ -131,6 +131,10 @@ export interface GraphEdge {
   //   and consumers double-cast to reach them. Declared, so no cast is needed.
   source_location?: unknown;
   metadata?: unknown;
+  // ★ R19-HIGH (cont.): the EDGE'S ANCHOR. graph_edges now persists it, so the store side of the
+  //   type must declare it too — otherwise the write is a cast and the read is a guess.
+  file?: string | null;
+  line?: number | null;
 }
 
 /** The MPSE-triplet finding: {Pattern=ruleId, State=verdict+runId, Evidence=evidence}. */
@@ -246,7 +250,13 @@ CREATE TABLE IF NOT EXISTS graph_edges (
   target_id  TEXT NOT NULL REFERENCES graph_nodes(id),
   kind       TEXT NOT NULL,
   lineage    TEXT NOT NULL,
-  created_at INTEGER
+  created_at INTEGER,
+  -- ★ R19-HIGH FIX (2026-09-25): the EDGE'S OWN ANCHOR. The table carried only endpoints +
+  --   kind + lineage, so an edge's file:line was NEVER PERSISTED — the reuse path could not
+  --   recover what the write path never stored, and every reader of a reused graph saw edges
+  --   with no location while the in-memory build had them. The anchor is part of the edge.
+  file       TEXT,
+  line       INTEGER
 );
 CREATE TABLE IF NOT EXISTS findings (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -488,10 +498,12 @@ export class SharedDb implements DbClient {
         nodeStmt.run(n.id, n.kind, n.name, n.file ?? null, n.line ?? null, n.lineage, n.source, JSON.stringify(n.data ?? {}));
       }
       const edgeStmt = this.handle.prepare(
-        'INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)',
+        'INSERT INTO graph_edges (source_id,target_id,kind,lineage,file,line) VALUES (?,?,?,?,?,?)',
       );
       for (const e of edges) {
-        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
+        // ★ R19-HIGH: the anchor rides the row now — the GraphEdge interface already declares
+        //   both fields (the R19 interface fix), so this is an ordinary compiler-checked read.
+        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage, e.file ?? null, e.line ?? null);
       }
     });
     tx();
@@ -977,6 +989,22 @@ export function openStore(dbPath: string): DbClient {
   const handle = new Database(dbPath);
   applyPragmas(handle);
   handle.exec(CREATE_TABLES_SQL);
+  // ★ R19-HIGH: `CREATE TABLE IF NOT EXISTS` cannot ALTER a table that already exists, so a
+  //   store built before this change keeps the old graph_edges shape and the insert below would
+  //   fail on the new columns. The migration is a column-existence probe + an ADD COLUMN (the
+  //   F-1209 idiom this codebase already uses); it is idempotent and safe on a fresh store
+  //   (where CREATE_TABLES_SQL already added them).
+  try {
+    const cols = new Set((handle.prepare('PRAGMA table_info(graph_edges)').all() as Array<{ name: string }>).map((c) => c.name));
+    for (const [name, decl] of [['file', 'TEXT'], ['line', 'INTEGER']] as const) {
+      if (!cols.has(name)) {
+        handle.exec(`ALTER TABLE graph_edges ADD COLUMN ${name} ${decl}`);
+        console.error(`[gi-omp] DDL MIGRATION: added graph_edges.${name} (pre-R19 store upgraded)`);
+      }
+    }
+  } catch (e) {
+    console.error(`[gi-omp] DDL MIGRATION SKIPPED for graph_edges (handle cannot introspect): ${e instanceof Error ? e.message : String(e)}`);
+  }
   // GI-PORT DEV-3: the aether_verdicts + event_ledger migrations dropped (§B seams)
   handle.exec(TYPED_GRAPH_DDL);
   return new SharedDb(dbPath, handle);
