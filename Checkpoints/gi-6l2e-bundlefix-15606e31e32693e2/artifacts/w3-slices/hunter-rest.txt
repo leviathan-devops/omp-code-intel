@@ -1,0 +1,75 @@
+[HIGH] src/hunter/graph/corbell-adapter.ts
+    This `execSync('sleep ...')` blocks the Node.js event loop for up to 16 seconds per retry attempt (8 attempts × up to 16s each = potentially 128s of total event-loop freeze). This directly contradicts the file's own comm
+
+[HIGH] src/hunter/graph/corbell-adapter.ts
+    The `safe()` shell-metacharacter validation is applied to paths resolved from `profile.graph.binaryPath` and `CORBELL_BIN`, but is **skipped** for `VENV_SITES` candidates and `PATH`-walk candidates (lines 89-96). A binar
+
+[HIGH] src/hunter/graph/merge.ts
+    Underutilized mechanical indices causing unnecessary linear scans: `buildMechanicalIndex` builds `bySubject` (and populates `subjects`/`objects` sets), but multiple code paths ignore these indices and linearly scan the r
+
+[HIGH] src/hunter/graph/resolver.ts
+    DB writes lack transaction support. The sequential INSERT OR REPLACE operations are not wrapped in a transaction. If any write fails midway through the loop, earlier writes are already committed while later ones are not,
+
+[HIGH] src/hunter/harness/map.ts
+    When the `map` function succeeds, the opened `DbClient` is returned inside `MapResult` but there is no documented contract for the caller to close it. The error path properly calls `db.close()`, but on the success path t
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts
+    **`snapshotState` type lie on fallback path**: The function signature promises `string` but the fallback returns `undefined as unknown as string`. If XState ever produces an unexpected value shape (e.g., an empty object,
+
+[HIGH] src/hunter/harness/recon.ts
+    Concurrency hazard: `openAndNextRunId` reads all HUNT_DONE events, computes the next sequence number in JavaScript, and returns it — but this read-compute cycle is not atomic. Two concurrent `recon()` calls can read the 
+
+[HIGH] src/hunter/harness/report.ts
+    Race condition in N-versioning: `nextReportVersion` reads the directory and picks `max + 1`, but between the read and the subsequent `writeFileSync`, another concurrent process/hunt could write a file with the same versi
+
+[HIGH] src/hunter/harness/scan.ts
+    The function returns the ORIGINAL `battery` (pre-calibration), but the `run` was produced using `liveBattery` (post-calibration, with FLAGGED predicates excluded). This creates an inconsistency: the caller receives a `Sc
+
+[HIGH] src/hunter/harness/trace.ts
+    Dead code: `footprint` is computed via `graph.whoCalls()` and then explicitly voided with `void footprint`, never being used in any relevance calculation. This means the graph-based call-site analysis has zero effect on 
+
+[HIGH] src/hunter/hooks/bus-hook.ts
+    Race condition: if `poll()` is called concurrently (e.g., multiple event hooks firing simultaneously), both invocations will query the same cursor value before either updates it. This leads to duplicate delivery of the s
+
+[HIGH] src/hunter/hooks/bus-hook.ts
+    The in-memory cursor resets to 0 on every instantiation, so after a process restart the bus replays every historical event from the beginning of the `events` table. This causes duplicate dispatches and repeated side effe
+
+[HIGH] src/hunter/keys/go-key-pool.ts
+    The `server` class regex matches plain phrases like "service unavailable" and "gateway timeout" without word boundaries. If a 429 quota error body contains the phrase "service unavailable" (e.g., a provider returning "ra
+
+[HIGH] src/hunter/lexicon/compiled-store.ts
+    `writeBattery` lacks transaction wrapping, unlike `writeRuleCards` which explicitly uses BEGIN/COMMIT/ROLLBACK. If an error occurs mid-loop, some rows will have been committed while others haven't, resulting in partial w
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    **Race condition: non-atomic check-then-write.** Two concurrent calls to `compileBattery` with the same profile can both see `COUNT(*) = 0`, both proceed to compile, and both write to the database. While `writeBattery` u
+
+[HIGH] src/hunter/shared/db.ts
+    **SQL injection via unescaped path interpolation in ATTACH DATABASE statements.** `familyPath` is interpolated directly into SQL strings using template literals in multiple locations (e.g., in `writeBranchView` and anoth
+
+[HIGH] src/hunter/shared/db.ts
+    **getBranchUnion fallback queries non-existent columns and parses wrong field — every family node returns empty object.** The `family_nodes` table schema has columns `id, content_hash, node_json, registered_by, promoted_
+
+[HIGH] src/hunter/shared/kind-for-layer.ts
+    Missing null/undefined guard: If layerId is null or undefined, layerId.toLowerCase() will throw a TypeError at runtime. Consider adding a defensive check at the top of the function to handle invalid input gracefully (e.g
+
+[HIGH] src/hunter/shared/migrations.ts
+    `db.exec(TYPED_GRAPH_DDL)` executes multiple DDL statements in a single call. Depending on the SQLite driver, these statements may NOT run inside a single implicit transaction. If a later statement (e.g., creating an ind
+
+[HIGH] src/hunter/shared/query-engine.ts
+    **Redundant dead code in `path()`: CTE result is fully executed then discarded.** The method runs a recursive CTE that correctly finds the shortest path via `ORDER BY depth ASC LIMIT 1`, assigns it to `pathStr`, then imm
+
+[HIGH] src/hunter/shared/query-engine.ts
+    **Correctness: `buildPathEdges()` BFS does not find shortest paths.** The BFS marks nodes as visited on first encounter and never re-enqueues them (lines 172, 211–213). In a graph with diamond-shaped paths (e.g., A→B→D a
+
+[HIGH] src/hunter/surface/lsp-injector.ts
+    The `recent` Map (deduplication window) grows without bound — entries are added via `recordShow()` but never evicted. In a long-running session with many files/rules, this will leak memory indefinitely. Consider adding a
+
+[HIGH] src/hunter/surface/lsp-injector.ts
+    Unhandled Promise Rejection: `triggerReparse` calls `void this.reparseChanged(files).then(...)` without a `.catch()`. If `reparseChanged` or `rerunBattery` throws, the rejection will be unhandled and may crash the proces
+
+[HIGH] src/hunter/surface/query-tool.ts
+    HIGH: The `violations` pagination logic is semantically broken. Line 337 caps `rows` to `effectiveCap` (200 or 2000), but then offset/limit are applied to the *capped* subset while `total` (line 336) reflects the full un
+
+[HIGH] src/hunter/surface/query-tool.ts
+    HIGH: A metadata/pagination object is pushed into the same `QueryRow[]` array as actual data rows (line 342). The `as unknown as QueryRow` cast hides the type mismatch. Any downstream consumer iterating the result — `map
+

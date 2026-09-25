@@ -1,0 +1,273 @@
+[HIGH] src/hunter/graph/resolver.ts:366-375 (bug)
+  The outer `catch` block re-throws `e` as-is, but `db.exec('BEGIN')` (line 340) and `db.exec('COMMIT')` (line 365) are not wrapped in inner try/catch blocks that convert errors to `ResolverError`. If either throws a raw database driver error (e.g., I/O failure, lock contention, disk full), the caller receives an unwrapped error, breaking the `ResolverError` contract that all other failure paths in this function honor. Wrap `db.exec('BEGIN')` and `db.exec('COMMIT')` in their own try/catch, or wrap the final `throw e` to ensure consistency.
+  ```existing
+  } catch (e: unknown) {
+      // ★ F-255 FIX (2026-09-24): a failed ROLLBACK leaves the DB partially committed — the old warn-only rethrew just the write error, hiding the suspect store. The rollback failure is folded into the thrown error (warn kept for the log trail).
+      try { db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        const rbMsg = rbErr instanceof Error ? rbErr.message : String(
+  ```
+  ```suggested
+  } catch (e: unknown) {
+      try { db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        const rbMsg = rbErr instanceof Error ? rbErr.message : String(rbErr);
+        const origMsg = e instanceof Error ? e.message : String(e);
+        console.warn(`[resolver] ROLLBACK failed after resolutions write error: ${rbMsg} (original: ${origMsg})`);
+        throw new ResolverError(`RESOLVER_FAILED: resolu
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:0-0 (bug)
+  Bug / Race condition: When `existing` is null and `reread` is also null, stale-lock unlink proceeds without ownership verification.
+
+Trace: `existing = readPayload(lockPath)` returns null → `stale` starts as false → mtime check sets `stale = true` → `reread = readPayload(lockPath)` returns null (still corrupted) → neither `if (existing)` (line 109) nor `else if (reread)` (line 116) matches → both are skipped → execution falls directly to `unlinkSync` on line 120.
+
+In this path, the lock file is deleted purely based on mtime age, with zero ownership verification. A legitimate but temporarily corrupted lock (e.g., from a crash during JSON serialization of a still-live process) could be deleted
+  ```existing
+  if (stale) {
+      const reread = readPayload(lockPath);
+      if (existing) {
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt || reread.hostname !== existing.hostname) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
+      } else if (reread) 
+  ```
+  ```suggested
+  if (stale) {
+      const reread = readPayload(lockPath);
+      if (existing) {
+        if (!reread || reread.pid !== existing.pid || reread.acquiredAt !== existing.acquiredAt || reread.hostname !== existing.hostname) {
+          throw new Error(`HUNT_ALREADY_RUNNING: the lock at ${lockPath} changed during stale-recovery (a peer won the race) — retry the hunt.`);
+        }
+      } else if (reread) 
+  ```
+
+[HIGH] src/hunter/harness/map.ts:77-77 (security)
+  Path traversal risk: `profile.project.root` is used directly in `path.join` to construct the database path without any sanitization. If `root` contains `..` segments (e.g., `/some/path/../../etc`), the resulting `dbPath` could point outside the expected `.trident/knowledge-graph/` directory, potentially overwriting arbitrary files. Consider normalizing and validating that the resolved path stays within an expected parent directory.
+  ```existing
+  const dbPath = path.join(profile.project.root, '.trident', 'knowledge-graph', 'shared.db');
+  ```
+  ```suggested
+  const resolved = path.resolve(profile.project.root, '.trident', 'knowledge-graph', 'shared.db');
+  // Guard: ensure the resolved path doesn't escape the project root
+  const projectRoot = path.resolve(profile.project.root);
+  if (!resolved.startsWith(projectRoot + path.sep) && resolved !== projectRoot) {
+    throw new Error(`map actor: resolved dbPath escapes project root (${resolved})`);
+  }
+  co
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:480-484 (bug)
+  **Bug (high): `pendingDone` is never reset after resolution.**
+
+After `done()` resolves, `pendingDone` remains assigned to the resolved promise forever. A subsequent call to `done()` (e.g., by code that awaits one phase, inspects context, then awaits again) silently returns the stale resolved promise. If the caller has called `stop()` in between, the snapshot will be from the stopped/stale actor, not a fresh one. More critically, this means the done() promise can never be recycled for a new machine lifecycle.
+
+**Fix:** Reset `pendingDone = null` inside `settle()` after calling `resolve()`.
+  ```existing
+  function settle(): void {
+          if (settled) return;
+          settled = true;
+          pendingSettle = null;
+          sub2.unsubscribe();
+  ```
+  ```suggested
+  function settle(): void {
+          if (settled) return;
+          settled = true;
+          pendingSettle = null;
+          sub2.unsubscribe();
+          for (let i = handleDisposables.length - 1; i >= 0; i--) {
+            if (handleDisposables[i] === sub2) handleDisposables.splice(i, 1);
+          }
+          // Reset so a subsequent done() call re-subscribes rather than returning
+          // 
+  ```
+
+[HIGH] src/hunter/harness/recon.ts:42-43 (security)
+  Symlink-based path escape and inconsistent containment guards: The containment guard in `countQuotedRules` resolves paths with `path.resolve` but does not call `fs.realpathSync` (or equivalent) to resolve symlinks. A symlink inside `profile.project.root` pointing to `/etc/passwd` (or any file outside the project) would pass the `abs.startsWith(root + sep)` check, allowing reading of arbitrary filesystem files. The same issue applies to the awareness-doc loop in `recon()` (line 67). Additionally, the two code paths differ in their containment patterns, increasing the risk of them drifting apart.
+
+Consider extracting a shared `assertInsideProject(root: string, absPath: string)` helper that res
+  ```existing
+  if (!abs.startsWith(profile.project.root + path.sep) && abs !== profile.project.root) {
+      throw new Error(`CORPUS_UNREADABLE: path=${abs} escapes project root ${profile.project.root} — resolve corpus paths inside the project`);
+  ```
+  ```suggested
+  const real = fs.realpathSync(abs);
+    if (!real.startsWith(profile.project.root + path.sep) && real !== profile.project.root) {
+      throw new Error(`CORPUS_UNREADABLE: path=${abs} (real: ${real}) escapes project root ${profile.project.root} — resolve corpus paths inside the project`);
+  ```
+
+[HIGH] src/hunter/harness/recon.ts:143-147 (bug)
+  Corrupt-payload salvage logic may adopt a spurious sequence number. The salvage (lines 113-116) searches for the `prefix` string anywhere in the raw text (`indexOf`), then extracts digits immediately following it. If the prefix token coincidentally appears in non-runId text within a corrupt payload (e.g., in a stack trace, log snippet, or nested JSON string), the extracted digits would be a stale or unrelated number, inflating `seq` and risking a runId collision. Consider salvaging only when the prefix appears at the start of the raw text (or after a known JSON key boundary like `"runId":"`), or at minimum limit the salvage regex to match the full payload structure more strictly.
+  ```existing
+  const idx = rawText.indexOf(prefix);
+        if (idx !== -1) {
+          const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
+          if (dm) seq = Math.max(seq, Number(dm[0]!));
+        }
+  ```
+  ```suggested
+  // Salvage only when prefix appears as a JSON string value for "runId"
+        const keyPattern = `"runId"\s*:\s*"${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\$&')}`;
+        const idx = rawText.indexOf(keyPattern);
+        if (idx !== -1) {
+          const start = idx + keyPattern.length;
+          const dm = /^\d+/.exec(rawText.slice(start));
+          if (dm) seq = Math.max(seq, Number(dm[0]!));
+ 
+  ```
+
+[HIGH] src/hunter/lexicon/compiled-store.ts:111-115 (bug)
+  **Standalone `writeBattery` lacks F-1204 eviction — orphaned stale rows.**
+
+When `writeBattery` is called standalone (not via `writeCompiledCache`), it performs `INSERT OR REPLACE` keyed by `id` but never deletes pre-existing rows for the same `battery_version`. If a recompile changes the set of predicate ids (some added, some removed), the dropped ids remain as orphans in the table. `loadBattery` reads by `battery_version`, so these stale rows are served back to callers.
+
+`writeCompiledCache` has the fix (the `DELETE FROM compiled_predicates WHERE battery_version = ?` block), but the standalone `writeBattery` path does not. Consider adding the same pre-insertion eviction, or documenting tha
+  ```existing
+  export function writeBattery(db: DbClient, battery: CompiledPredicate[]): void {
+  if (battery.length === 0) return;
+  // ★ F-6 FIX (2026-09-24): atomic battery commit — BEGIN/COMMIT/ROLLBACK like
+  // writeRuleCards below; a mid-loop failure rolls back instead of half-writing.
+  db.exec('BEGIN');
+  ```
+  ```suggested
+  export function writeBattery(db: DbClient, battery: CompiledPredicate[], batteryVersion: string): void {
+  if (battery.length === 0) return;
+  db.exec('BEGIN');
+  let committed = false;
+  try {
+    // F-1204: evict stale rows for this version before inserting, same as writeCompiledCache.
+    const del = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');
+    try {
+      del.ru
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:115-126 (bug)
+  The W16-HIGH fix was designed to prevent a TOCTOU race between fingerprinting and card extraction. However, this async implementation reintroduces a similar race: `Promise.all` reads each corpus file TWICE in parallel — once via `readFile` (for the hash) and once via `extractRuleCardsAsync` (for the cards). If a corpus file changes between the two reads, the hash is computed from the old content while the cards are extracted from the new content (or vice versa). The sync `batteryVersion` avoids this because `readFileSync` and `extractRuleCards` run sequentially on the same event, making interleaving impossible. For the async path, the two independent read streams open a window for concurrent
+  ```existing
+  const [texts, cards] = await Promise.all([
+    Promise.all(profile.rules.corpus.map(async (p) => {
+      let text: string;
+      try {
+        text = await readFile(p, 'utf8');
+      } catch (e: unknown) {
+        throw corpusUnreadable(p, String(e));
+      }
+      return `${p}\n${text}`;
+    })),
+    extractRuleCardsAsync(profile.rules.corpus),
+  ]);
+  ```
+  ```suggested
+  // Read each corpus file once, then derive both the hash input and the cards
+  // from the SAME text — no TOCTOU, one file read per path.
+  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text: string;
+    try {
+      text = await readFile(p, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return `${p}\n${text}`;
+  }));
+  //
+  ```
+
+[CRITICAL] src/hunter/shared/migrations.ts:104-109 (bug)
+  Critical bug: `ensureTypedGraphSchema` never executes the DDL. The function begins a transaction (`BEGIN IMMEDIATE`), then immediately issues `COMMIT` without ever calling `db.exec(TYPED_GRAPH_DDL)` in between. The entire migration is a no-op — calling `ensureTypedGraphSchema(db)` always succeeds but creates no tables, no indexes, and no CHECK constraints. On the non-transactional fallback path, `assertNonTransactionalSchema` will throw because no tables were created, but on the transactional path the empty commit succeeds silently.
+
+Suggested fix: insert `db.exec(TYPED_GRAPH_DDL);` between the BEGIN and COMMIT calls.
+  ```existing
+  try { db.exec('BEGIN IMMEDIATE'); began = true; } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/no such|syntax|not supported|cannot start a transaction/i.test(msg)) began = false; /* no explicit-BEGIN support (or nested join): bare exec below */
+      else throw new Error(`TYPED_MIGRATION_FAILED: BEGIN IMMEDIATE failed: ${msg}`);
+    }
+    try { db.e
+  ```
+  ```suggested
+  try { db.exec('BEGIN IMMEDIATE'); began = true; } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/no such|syntax|not supported|cannot start a transaction/i.test(msg)) began = false; /* no explicit-BEGIN support (or nested join): bare exec below */
+      else throw new Error(`TYPED_MIGRATION_FAILED: BEGIN IMMEDIATE failed: ${msg}`);
+    }
+    db.exec(TY
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:166-171 (bug)
+  Non-transactional DB reads in `diagnosticsFromDb`: Three separate SQL queries (AUDIT_DONE lookup, HUNT_DONE lookup, then findings + graph_facts) execute outside any transaction. A concurrent write (e.g., a new HUNT_DONE event arriving between the second and third queries) can produce an inconsistent snapshot — the runId from the old HUNT_DONE is used to query findings, but new findings for a new run are already present. Consider wrapping these reads in a single transaction or using a single correlated subquery.
+  ```existing
+  const auditRow = rowAs<{ payload?: string }>(
+        this.db!.prepare(
+          "SELECT payload FROM events WHERE kind = 'AUDIT_DONE' ORDER BY id DESC LIMIT 1",
+        ).get(),
+        'AUDIT_DONE row',
+      );
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:0-0 (bug)
+  Race condition in `acquireWriteLock`: `this.pausedByWriteLock = !this.pausedFlag` reads `pausedFlag` and then `pause()` sets it to `true`, but there is no atomicity guarantee. If an external caller calls `pause()` between the flag read and the `this.pause()` call inside `acquireWriteLock`, `pausedByWriteLock` will be `true` (because the external pause was not yet visible), and a subsequent `releaseWriteLock` will call `resume()`, undoing the external pause. This is an inherent single-threaded-event-loop race in microtask interleaving.
+  ```existing
+  acquireWriteLock(): void {
+    if (this.writeLock) throw new EngineError(GRAPH_UPDATE_CONFLICT, `${GRAPH_UPDATE_CONFLICT}: a write is already in progress — the watcher is paused`);
+    this.writeLock = true;
+    this.pausedByWriteLock = !this.pausedFlag;
+    this.pause();
+  }
+  ```
+
+[HIGH] src/hunter/tools/bug-hunt.ts:80-86 (security)
+  When no `scopeRoot` is provided and `realpathSync(absTarget)` fails, `scopeReal` is silently set to `null`, which causes `inScope()` to return `true` for ALL paths. This completely disables scope containment for both the target (the `if (scopeReal !== null)` guard at line 104 is skipped) and the profile (guard at line 139 skipped). The profile could then point to any path on the filesystem (e.g. `/etc/passwd`).
+
+Compare with the `scopeRoot`-provided path (line 77-79), which correctly returns INCONCLUSIVE on `realpathSync` failure — a fail-closed behavior. The `else` branch is inconsistent with this contract.
+
+The practical scenario is narrow (`statSync` succeeds but `realpathSync` fails, pos
+  ```existing
+  } else {
+    try {
+      scopeReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      scopeReal = null;
+    }
+  }
+  ```
+  ```suggested
+  } else {
+    try {
+      scopeReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (realpath failed — the validated absolute target is its own containment root, and without a realpath the boundary cannot be enforced)`);
+    }
+  }
+  ```
+
+[HIGH] src/hunter/tools/query-registration.ts:58-58 (bug)
+  `openSessionStore` is called with `callerSessionId: args.sessionId`, making `callerSessionId` always equal to `sessionId`. If the scope-checking logic in `openSessionStore` is supposed to verify that the *calling* session is authorized to access the *target* session's store, passing the same value defeats the purpose — an attacker-controlled `args.sessionId` will always pass the check against itself. Verify that `openSessionStore` expects the actual caller identity from a trusted source (e.g., a request context or process identity) rather than a user-supplied field.
+  ```existing
+  const opened = openSessionStore({ sessionId: args.sessionId, scopeRoot: args.scopeRoot, callerSessionId: args.sessionId });
+  ```
+  ```suggested
+  // callerSessionId should come from a trusted source, not from user-supplied args:
+const callerId = getCallerSessionId(); // or however the trusted identity is obtained
+const opened = openSessionStore({ sessionId: args.sessionId, scopeRoot: args.scopeRoot, callerSessionId: callerId });
+  ```
+
+[HIGH] src/hydra/client-reader.ts:74-77 (bug)
+  The `.unref?.()` call on the timeout promise (not the timer) in `attach()` and `disconnect()` is a no-op: `Promise` objects do not have an `unref` method — only `Timeout` objects from `setTimeout` do. The code `setTimeout(...).unref?.()` works because `setTimeout` returns a `Timeout` with `.unref()`. But the expression `new Promise(...).unref?.()` in the `attach()`/`disconnect()` race patterns is dead code — it silently does nothing. This is harmless but misleading. In `listTools` and `callTimer` paths the `.unref?.()` is correctly placed on the timer. In `attach`/`disconnect` the `.unref?.()` is placed on the Promise, not the timer, so the timer is never unref'd and stays referenced until i
+  ```existing
+  await Promise.race([
+            old.close(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')), 5000).unref?.()),
+          ]);
+  ```
+  ```suggested
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([
+              old.close(),
+              new Promise<void>((_, rej) => {
+                closeTimer = setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')), 5000);
+                closeTimer?.unref?.();
+              }),
+        
+  ```
+
+# total: 14

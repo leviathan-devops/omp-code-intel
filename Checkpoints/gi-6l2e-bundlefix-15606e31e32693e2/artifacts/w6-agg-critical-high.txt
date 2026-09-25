@@ -1,0 +1,1181 @@
+[HIGH] src/hunter/diagnostics/calibration.ts:256-267 (bug)
+  graph.nodes() return ordering is not enforced to be deterministic, yet the result is fed directly into JSON.stringify for fixturesHash computation. If the adapter returns nodes in a non-deterministic order (e.g., from a Set or Map with insertion-order iteration), the same logical fixture set produces different batteryVersion hashes across runs, silently invalidating valid calibrations. The callers are sorted but the nodes themselves are not.
+  ```existing
+  const graphOf = (graph: GraphAdapter): unknown => ({
+      nodes: graph.nodes().map((n) => ({
+        id: n.id, kind: n.kind, name: n.name,
+        file: n.file ?? null, line: n.line ?? null, lineage: n.lineage, source: n.source,
+        data: n.data ?? null,
+      })),
+      edges: graph.nodes().map((n) => {
+        try {
+          return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${
+  ```
+  ```suggested
+  const graphOf = (graph: GraphAdapter): unknown => {
+      const nodes = graph.nodes().map((n) => ({
+        id: n.id, kind: n.kind, name: n.name,
+        file: n.file ?? null, line: n.line ?? null, lineage: n.lineage, source: n.source,
+        data: n.data ?? null,
+      }));
+      nodes.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      return {
+        nodes,
+        edges: graph.no
+  ```
+
+[HIGH] src/hunter/diagnostics/calibration.ts:263-265 (bug)
+  When whoCalls() throws, the catch silently coerces the callers to an empty array, masking a real data-integrity or adapter-error condition. This means a topology-breaking change that causes whoCalls to throw escapes the fixturesHash, producing a stale batteryVersion and allowing a potentially invalid calibration to be reused. The error should be logged or the serialization should fail loudly rather than silently degrading.
+  ```existing
+  try {
+          return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
+        } catch { return { to: n.id, callers: [] }; }
+  ```
+  ```suggested
+  try {
+          return { to: n.id, callers: graph.whoCalls(n.name).map((c) => `${c.caller}@${c.file}:${c.line}`).sort() };
+        } catch (e) {
+          console.warn(`[calibration] whoCalls threw for node ${n.name}: ${e instanceof Error ? e.message : String(e)} — including empty callers in version hash`);
+          return { to: n.id, callers: [] };
+        }
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:753-759 (bug)
+  TOCTOU race in stale-lock recovery: after `fs.unlinkSync(lockPath)` (line 756) and before the `writeFileSync` with `wx` flag (line 757), another process can successfully acquire the lock. Both processes then proceed to build and persist concurrently, with no mutual exclusion. The `wx` flag only prevents creation-race; the window between unlink+recreate is the gap. Consider replacing the unlink+recreate with a compare-and-swap pattern (e.g., read the lock file PID, check if it's still alive via `kill(pid, 0)`, then only replace if dead), or use a file-locking library with proper advisory locking.
+  ```existing
+  if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // take over rather than deadlock on its stale lock.
+      try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      haveLock = true;
+    }
+  ```
+  ```suggested
+  if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // take over rather than deadlock on its stale lock — but verify the
+      // holder is actually dead before unlinking to avoid the TOCTOU gap.
+      let stalePid: number | null = null;
+      try {
+        const content = fs.readFileSync(lockPath, 'utf8').trim();
+        stalePi
+  ```
+
+[CRITICAL] src/hunter/diagnostics/engine.ts:307-310 (security)
+  Path-traversal containment bypass via symlinks: the containment gate resolves and checks the **parent directory** (`fs.realpathSync(path.dirname(abs))`), not the target file itself. This pattern appears in both `lockdownReadSource` and `violationFrequencies`. If a symlink exists at e.g. `<root>/link.ts` → `/etc/passwd`, then `path.dirname(abs)` resolves to `<root>` (contained), but the file actually read is `/etc/passwd` (outside root). The attacker vector: plant a symlink `project/.trident/history/log.txt` → `/etc/passwd`, declare it in the profile's `failureLogs`, and the engine reads arbitrary files. Fix by additionally resolving the file itself: `const fileReal = fs.realpathSync(abs); if
+  ```existing
+  const abs = path.resolve(profile.project.root, file);
+      const parentReal = fs.realpathSync(path.dirname(abs));
+      const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path.sep);
+      if (!contained) throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+  ```
+  ```suggested
+  const abs = path.resolve(profile.project.root, file);
+      const parentReal = fs.realpathSync(path.dirname(abs));
+      const contained = parentReal === rootReal || parentReal.startsWith(rootReal + path.sep);
+      if (!contained) throw sourceReadFailed(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+      // Also resolve the file itself to catch symlinks pointing outsi
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:590-594 (bug)
+  On Windows, `rel` (line 547) uses native separators (e.g., `src\subdir\file.ts`), so the file node ID is `file:src\subdir\file.ts`. But the import edge `targetId` on line 592-594 is constructed using `path.posix` operations, yielding `file:src/subdir/../lib/other.ts` with forward slashes. These two ID formats will never match in the `internal` edge filter (line 627: `keptIds.has(e.sourceId)`), causing all import edges on Windows to be silently dropped as "dangling". Use `path.normalize` instead of `path.posix.*` for the import target ID construction, or normalize both sides.
+  ```existing
+  if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
+        const target = stmt.moduleSpecifier.text;
+        const targetId = target.startsWith('.')
+          ? `file:${path.posix.normalize(path.posix.join(path.posix.dirname(rel.split(path.sep).join('/')), target))}`
+          : `file:${target}`;
+  ```
+  ```suggested
+  if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
+        const target = stmt.moduleSpecifier.text;
+        const targetId = target.startsWith('.')
+          ? `file:${path.normalize(path.join(path.dirname(rel), target))}`
+          : `file:${target}`;
+  ```
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:301-306 (bug)
+  `runFixtureCalibration` destructures `{ profile, fixtures }` from `loadFixtureProfileFixtures` but discards `profileFromDisk`. The `CalibrationResult` type (defined in `calibration.ts`) has no field to carry this flag. The extensive comments in this file repeatedly emphasize that 'the coordination gap is REPORTED, never masked' and 'the coordination fact rides the loader's FixtureLoadResult; the caller reports it, never hides it' — but the function silently drops it. This contradicts the stated design invariant and means callers of `runFixtureCalibration` have no way to distinguish 'profile.yaml landed from battery-p6' from 'spec-shaped fallback profile was constructed'.
+  ```existing
+  export async function runFixtureCalibration(
+  fixtureProfileDir: string,
+  opts: { recordPath?: string; dryRun?: boolean; battery?: CompiledPredicate[] } = {},
+): Promise<CalibrationResult> {
+  try {
+    const { profile, fixtures } = loadFixtureProfileFixtures(fixtureProfileDir);
+  ```
+  ```suggested
+  export async function runFixtureCalibration(
+  fixtureProfileDir: string,
+  opts: { recordPath?: string; dryRun?: boolean; battery?: CompiledPredicate[] } = {},
+): Promise<CalibrationResult & { profileFromDisk: boolean }> {
+  try {
+    const { profile, fixtures, profileFromDisk } = loadFixtureProfileFixtures(fixtureProfileDir);
+    const battery = opts.battery ?? (await compileFixtureBattery(profi
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:0-0 (bug)
+  P3 uses `ctx.graph.nodes()` directly to iterate candidates, bypassing the edge-anchored traversal pattern that every other predicate in this file enforces. The file's architecture preamble explicitly states the rule: 'THE ANCHOR — candidate files resolve through the graph edges (resolveEdgeAnchor …), never nodes() as a file list' and 'an empty anchor set returns ZERO findings (no anchor = no scan).' P3 violates this invariant by scanning every function/method/class node in the graph and then independently querying `whoCalls()` for each. This means P3 will scan files outside the project's edge-scoped working set, produce findings for nodes that no edge traversal would ever reach, and emit evi
+  ```existing
+  check(ctx) {
+    const findings: Finding[] = []; const sev = bindSeverity(ctx.bindings);
+    for (const node of ctx.graph.nodes()) {
+      if (node.kind !== 'function' && node.kind !== 'method' && node.kind !== 'class') continue;
+      if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name)) continue;
+      let callers: { file: string; line: number; caller: string }[];
+      try {
+        callers 
+  ```
+
+[HIGH] src/hunter/firewall/artifact-scope.ts:122-128 (bug)
+  On the CREATE path (masterReal is null), the check validates `parentReal` is inside `projectRootReal`. However, if the target's immediate parent directory doesn't exist yet, `fs.realpath(path.dirname(targetNorm))` will fail with ENOENT and the function will return BLOCKED (F-9 fix). This means the CREATE path for the very first report requires the `MASTER_CONTEXT` directory to already exist on disk — but the code's own comments describe this as 'the CREATE path'. If the directory doesn't exist, the first report can never be written. Verify this is the intended behavior or add logic to create the directory before the ALLOW verdict is returned.
+  ```existing
+  let parentReal: string;
+  try {
+    parentReal = await fs.realpath(path.dirname(targetNorm));
+  } catch (e: unknown) {
+    console.warn(`[artifact-scope] parent realpath failed (fail-closed): ${e instanceof Error ? e.message : String(e)}`);
+    return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+  }
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:118-123 (bug)
+  **Process not killed on timeout, leaks after rejection.** When `timeoutMs` fires, the timer calls `proc.kill('SIGTERM')` inside a try/catch, but if SIGTERM doesn't terminate the process (e.g., the process traps SIGTERM), the child continues running indefinitely. The `settled` guard prevents the close/error handlers from calling `reject` again — but `proc` is never explicitly unref'd or escalated to SIGKILL. Additionally, stdout/stderr accumulate unbounded during the leaked process lifetime. Fix: add SIGKILL escalation after a short grace period (e.g., 5s), and consider unrefing the timer so it doesn't keep the event loop alive after rejection.
+  ```existing
+  timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { proc.kill('SIGTERM'); } catch { /* already exited */ }
+        reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child SIGTERMed, no partial graph accepted`));
+      }, timeoutMs);
+  ```
+  ```suggested
+  timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { proc.kill('SIGTERM'); } catch { /* already exited */ }
+        // Escalate to SIGKILL after 5 s grace if the child survives SIGTERM.
+        const killTimer = setTimeout(() => {
+          try { proc.kill('SIGKILL'); } catch { /* already exited */ }
+        }, 5_000);
+        killTimer.unref();
+        rej
+  ```
+
+[HIGH] src/hunter/graph/graphify-adapter.ts:646-657 (bug)
+  Null line guard leak: when both `e.line` and `src?.line` are `null` (not `undefined`), the `??` chain short-circuits and `tryResolveGraphifyLine` is never called. The `line` variable remains `null`, which passes the `=== undefined` drop guard and flows into `graphifyEvidence()` as `line: null`, producing evidence strings like `explicit: wraps in source X->Y @ file.ts:null`. This violates the documented contract that lineless edges are dropped. The root cause is that `GraphEdge.line` is typed `number | null | undefined` — null and undefined both mean 'lineless', but `??` only coalesces `undefined`.
+  ```existing
+  const line = e.line
+      ?? src?.line
+      ?? tryResolveGraphifyLine(
+        { data: src?.data ?? {}, source_location: rawSourceLocation(src) },
+        e as unknown as { source_location?: unknown },
+      );
+    // W9 CONTRACT RESOLUTION (pipeline contradiction): projectGraphifyGraph
+    // DELIBERATELY keeps lineless edges (danglingNoLine count) — the map
+    // branch now SKIPS + counts them
+  ```
+  ```suggested
+  const line = (e.line ?? src?.line) != null
+      ? (e.line ?? src?.line)
+      : tryResolveGraphifyLine(
+          { data: src?.data ?? {}, source_location: rawSourceLocation(src) },
+          e as unknown as { source_location?: unknown },
+        );
+    // null OR undefined both mean lineless — the drop guard must catch both.
+    if (line == null) { linelessEdgesDropped++; return []; }
+  ```
+
+[HIGH] src/hunter/graph/merge.ts:150-154 (bug)
+  **Bug: `conflictReason` silently overwritten on repeated contradictions.** When multiple semantic triples share the same subject/object pair as a mechanical triple, the inner `for (const mech of mechPairGroup)` loop overwrites `existing.conflictReason` each time, discarding earlier contradiction details. For example, if semantic triples S1 and S2 both have the same pair as mechanical triple M1, S2's iteration replaces S1's `conflictReason` on M1, losing S1's predicate information. This is a data-integrity loss — the mechanical row ends up recording only the last semantic predicate it conflicted with.
+
+**Suggestion:** Accumulate conflict reasons (e.g., append to an array or concatenate) rathe
+  ```existing
+  const existing = mergedByKey.get(tripleKey(mech));
+        if (existing && !existing.conflict) {
+          existing.conflict = true;
+          existing.conflictReason = `CONTRADICTION: mechanical predicate=${mech.predicate} vs semantic predicate=${s.predicate} for ${s.subject}->${s.object} (both preserved, flagged as L8 contradiction)`;
+        }
+  ```
+  ```suggested
+  const existing = mergedByKey.get(tripleKey(mech));
+        if (existing && !existing.conflict) {
+          existing.conflict = true;
+          existing.conflictReason = `CONTRADICTION: mechanical predicate=${mech.predicate} vs semantic predicate=${s.predicate} for ${s.subject}->${s.object} (both preserved, flagged as L8 contradiction)`;
+        } else if (existing?.conflict) {
+          // Accumul
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:226-227 (bug)
+  Inconsistent alias matching between decide() and run() harness paths: The `decide` path matches aliases via `n.id === alias || n.label === alias` (line ~108), but the `run` path only checks `n.id === alias` (line ~132). This means the `run` path silently drops valid harness decisions that use labels as aliases, causing those entities to fall through to full heuristic resolution — an inconsistency that could produce different resolution outcomes depending on which harness path is used.
+  ```existing
+  const newEnt = newEntities.find((n) => n.id === alias);
+              if (!newEnt) continue;
+  ```
+  ```suggested
+  const newEnt = newEntities.find((n) => n.id === alias || n.label === alias);
+if (!newEnt) continue;
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:204-204 (bug)
+  Harness partial-match silently discards all valid decisions: When the harness returns decisions for only a subset of entities (e.g., some filtered by hallucination checks or dangling canonical fallbacks), the `decisions.length === newEntities.length` check discards the entire harness result and falls back to full heuristic resolution. This means correct harness decisions for the subset that were processed are silently lost. Consider merging harness decisions with heuristic fallback for the remaining entities instead of discarding everything.
+  ```existing
+  if (decisions.length === newEntities.length) harnessDecisions = decisions;
+  ```
+  ```suggested
+  if (decisions.length > 0) {
+  // Merge: use harness decisions for resolved entities, heuristic for the rest
+  const resolvedAliases = new Set(decisions.map(d => d.alias));
+  for (const ne of newEntities) {
+    if (!resolvedAliases.has(ne.id)) {
+      const h = heuristicDecide(ne, existing);
+      decisions.push({ alias: ne.id, canonicalId: h.canonical ? h.canonical.canonical_id : ne.id, verdict: h
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:10-14 (bug)
+  The `hostname` field in `HuntLockPayload` is always written during `acquireHuntLock` but is never read or validated anywhere in the codebase — not during stale detection, not during release, not during the race-condition re-read. This means two machines sharing a filesystem could hold the same lock if their PIDs and timestamps happen to collide. Consider validating `hostname` in `isStale` (e.g., stale if hostname differs from the current host) or documenting that single-host is a hard prerequisite.
+  ```existing
+  export interface HuntLockPayload {
+  pid: number;
+  acquiredAt: string;
+  hostname: string;
+}
+  ```
+
+[HIGH] src/hunter/harness/map.ts:99-104 (bug)
+  `edgeLocByTarget` only retains the **first** edge per `targetId` (the `=== undefined` guard). If multiple edges target the same node and the first edge lacks `source_location`/`metadata` while a later edge carries valid line information, the line resolution will miss it and may produce a spurious LINELESS_NODE refusal. Consider aggregating all edge locations per target (or at minimum, falling through to later edges when earlier ones yield no line data).
+  ```existing
+  for (const e of buildResult.edges) {
+    if (edgeLocByTarget[e.targetId] === undefined) {
+      const rec = e as unknown as Record<string, unknown>;
+      edgeLocByTarget[e.targetId] = { source_location: rec['source_location'], metadata: rec['metadata'] };
+    }
+  }
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:0-0 (bug)
+  The `done()` method creates two new actor subscriptions (`sub2`, `sub3`) every time it is called, even if a previous invocation is still pending resolution. The `settled` flag only prevents duplicate *resolution* — it does not prevent duplicate *subscription creation*. If `done()` is called twice before the actor terminates, four subscriptions are created, and `handleDisposables` accumulates stale entries. Each call should either reuse an existing pending promise or guard against re-subscription.
+  ```existing
+  done(): Promise<void> {
+      return new Promise<void>((resolve): void => {
+        if (actor.getSnapshot().status === 'done') { resolve(); return; }
+        const snapStatus: unknown = (actor.getSnapshot() as { status?: unknown }).status;
+        if (snapStatus === 'stopped' || snapStatus === 'error') { resolve(); return; }
+        let settled = false;
+        const sub2 = actor.subscribe((s): vo
+  ```
+  ```suggested
+  private _pendingDone: Promise<void> | null = null;
+    done(): Promise<void> {
+      if (this._pendingDone) return this._pendingDone;
+      this._pendingDone = new Promise<void>((resolve): void => {
+        if (actor.getSnapshot().status === 'done') { resolve(); return; }
+        const snapStatus: unknown = (actor.getSnapshot() as { status?: unknown }).status;
+        if (snapStatus === 'stopped' 
+  ```
+
+[HIGH] src/hunter/harness/report.ts:288-288 (bug)
+  `COMMIT` is called **outside** the try-catch block that wraps the transaction body. If `COMMIT` itself throws (e.g. disk-full, I/O error, database locked), the error propagates uncaught through the outer try, gets logged and re-thrown — but **no rollback is attempted**, leaving the transaction in an indeterminate state. The caller receives an error but the report file has already been written to disk, creating an inconsistency between the durable file and the database. Move `COMMIT` inside the try block (just before the closing `}`) and handle its failure with a rollback, or at minimum wrap it in its own try-catch with rollback.
+  ```existing
+  input.db.exec('COMMIT');
+  ```
+  ```suggested
+  input.db.exec('COMMIT');
+    } catch (dbErr: unknown) {
+      try { input.db.exec('ROLLBACK'); } catch (rbErr: unknown) {
+        throw new Error(`REPORT_COMMIT_FAILED: commit error=${dbErr instanceof Error ? dbErr.message : String(dbErr)} rollback error=${rbErr instanceof Error ? rbErr.message : String(rbErr)} (the transaction may still be open — do not reuse this handle for writes)`);
+      }
+  
+  ```
+
+[HIGH] src/hunter/harness/scan.ts:111-113 (bug)
+  The catch block silently swallows ALL exceptions from the calibration gate — including genuine bugs (e.g., a corrupted fixture causing data issues, a logic error in `runCalibration`, or a runtime error in the fixture extraction code above). The run then proceeds with an unvalidated battery, which could produce false results. Consider either: (a) only catching a narrow set of expected errors (e.g., missing/invalid fixture shape), or (b) re-throwing after logging when the error is not a known calibration-absent case, or (c) recording the failure in the ScanResult so callers can inspect it.
+  ```existing
+  } catch (calErr: unknown) {
+      console.warn(`[scan] D17 calibration gate failed (non-fatal, battery unchanged): ${calErr instanceof Error ? calErr.message : String(calErr)}`);
+    }
+  ```
+  ```suggested
+  } catch (calErr: unknown) {
+      // Distinguish expected 'no fixtures' / 'empty calibration' from genuine runtime errors.
+      const msg = calErr instanceof Error ? calErr.message : String(calErr);
+      if (msg.includes('no fixtures') || msg.includes('empty') || msg.includes('ENOENT')) {
+        console.warn(`[scan] D17 calibration gate skipped (non-fatal): ${msg}`);
+      } else {
+        // U
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:80-84 (bug)
+  **Non-numeric id rows cause an infinite poll loop**: When `row.id` is not a number, the cursor is never advanced (`this.cursor = row.id` is guarded by `typeof row.id === 'number'`), so the next `poll()` call re-selects the same row via `WHERE id > ?`. The F-247 note acknowledges this scenario but the defensive code path has a bug — it stalls the bus instead of skipping. Either advance the cursor unconditionally (use the last known-good cursor as a fallback), or break out of the loop to prevent re-selection.
+  ```existing
+  if (typeof row.id !== 'number' || typeof row.kind !== 'string') {
+        console.error(`[hydra-bus] skipping malformed events row: ${JSON.stringify(row).slice(0, 160)}`);
+        if (typeof row.id === 'number') this.cursor = row.id;
+        continue;
+      }
+  ```
+  ```suggested
+  if (typeof row.id !== 'number' || typeof row.kind !== 'string') {
+        console.error(`[hydra-bus] skipping malformed events row: ${JSON.stringify(row).slice(0, 160)}`);
+        // Advance cursor past this row so the bus never stalls on a poison row.
+        // If id is non-numeric we use the previous cursor as the advance point;
+        // the next poll will still pick up any later valid rows.
+
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:101-108 (bug)
+  **Subscriber failure permanently loses the event with no retry or dead-letter path**: When a subscriber throws, the error is logged but the cursor still advances past the row. For critical dispatch directives (e.g., `HUNT_DONE` → main agent dispatch), this means the event is permanently undelivered. Consider maintaining a failed-events list or re-queuing mechanism so that transient subscriber failures do not cause silent data loss.
+  ```existing
+  try {
+            fn(eventKind(row.kind), payload);
+          } catch (e: unknown) {
+            // a subscriber failure must not kill the poll loop — the row is
+            // still consumed (the cursor advances), the failure is logged by
+            // the platform's error handler.
+            console.error(`[hydra-bus] subscriber for ${row.kind} threw: ${e instanceof Error ? e.message : String(
+  ```
+  ```suggested
+  try {
+            fn(eventKind(row.kind), payload);
+          } catch (e: unknown) {
+            console.error(`[hydra-bus] subscriber for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
+            // Record the failure so the caller can inspect/retry later.
+            this.failedEvents.push({ row, error: e, attempt: 1 });
+          }
+  ```
+
+[HIGH] src/hunter/lexicon/compiled-store.ts:46-49 (bug)
+  Missing `finalize()` calls for prepared statements. The `StatementLike` interface (db.ts:177-182) exposes a `finalize()` method, and bun:sqlite requires it to release the native handle. In `writeBattery`, the INSERT statement is not finalized if the loop or COMMIT throws, leaking the native handle. In `writeRuleCards`, neither the DELETE statement nor the INSERT statement (`ins`) are finalized — same resource-leak issue. Both statements should be finalized in a `finally` block or after the loop completes.
+  ```existing
+  const stmt = db.prepare(
+    `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+  );
+  for (const p of battery) {
+  ```
+  ```suggested
+  const stmt = db.prepare(
+    `INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+  );
+  try {
+    for (const p of battery) {
+      const checkCode = JSON.stringify({ template: p.template, bindings: p.bindings });
+      stmt.run(
+        p.id, p.family, p.template, JSON.stringify(p.bindings),
+        p.verbatimQuote, p.anchor, p.severity, chec
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:97-110 (performance)
+  `batteryVersionAsync` and `batteryVersion` both call `batteryName(profile)`, which internally calls `extractRuleCards(profile.rules.corpus)`. `extractRuleCards` (rule-card.ts:252) reads every corpus file via synchronous `fs.readFileSync` (rule-card.ts:278). This means: (1) the async path in `batteryVersionAsync` is undermined — the sync reads in `batteryName` defeat the purpose of the async version; (2) every corpus file is read and parsed TWICE for the same version string — once for the hash computation and again inside `batteryName` via `extractRuleCards`. This is wasteful and creates a subtle consistency window: if a file changes between the two reads, the hash and the battery name are de
+  ```existing
+  export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
+  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text: string;
+    try {
+      text = await readFile(p, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return `${p}\n${text}`;
+  }));
+  const corpusText = texts.join('\n');
+  const hash = sh
+  ```
+  ```suggested
+  export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
+  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text: string;
+    try {
+      text = await readFile(p, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return `${p}\n${text}`;
+  }));
+  const corpusText = texts.join('\n');
+  const hash = sh
+  ```
+
+[HIGH] src/hunter/profile/loader.ts:0-0 (bug)
+  **Dead/unreachable tab detection — `raw.trim()` strips leading tabs, so the regex `/^\t/` on `trimmed` can never match.**
+
+`raw.trim()` removes all leading whitespace including tabs. The resulting `trimmed` string will never start with a `\t` character, making the `/^\t/.test(trimmed)` check always `false`. This means tab-indented YAML is silently accepted instead of rejected — a direct violation of the stated fail-closed contract (the file header explicitly says "tabs are not allowed in indentation").
+
+Fix: test against the raw line or the leading whitespace portion, e.g.:
+```
+const leadingWhitespace = raw.slice(0, raw.length - raw.trimStart().length);
+if (/	/.test(leadingWhitespace)) yamlE
+  ```existing
+  const trimmed = raw.trim();
+    if (trimmed === '') continue;
+    if (/^	/.test(trimmed)) yamlErr([], trimmed, i + 1, 'tabs are not allowed in indentation (the subset is space-indented)');
+  ```
+  ```suggested
+  const trimmed = raw.trim();
+    if (trimmed === '') continue;
+    const leadingWhitespace = raw.slice(0, raw.length - raw.trimStart().length);
+    if (/	/.test(leadingWhitespace)) yamlErr([], raw.trim(), i + 1, 'tabs are not allowed in indentation (the subset is space-indented)');
+  ```
+
+[HIGH] src/hunter/shared/db.ts:719-730 (bug)
+  **Bug: `branch_union_view` is dropped but never recreated in `writeBranchView`**
+
+After the `DELETE FROM graph_edges/graph_nodes` + re-inserts in the transaction, `writeBranchView` drops `branch_union_view` and then creates `branch_union_attached` (inside a try-catch). However, `getBranchUnion()` queries `branch_union_view` — NOT `branch_union_attached`. This means after the first `writeBranchView` call, the primary view path in `getBranchUnion` will always fail (the view no longer exists), forcing every subsequent call through the fallback manual union. The `branch_union_attached` view is created but never queried anywhere, making it dead code.
+
+This defeats the purpose of the view-based op
+  ```existing
+  try {
+      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_view");
+      this.branchDb.exec("CREATE VIEW branch_union_view AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes");
+    } catch (idemErr) { /* idempotent guard */ console.debug("[kg-s
+  ```
+  ```suggested
+  try {
+      this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
+      this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, "''")}' AS family_attached`);
+      this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, kind, name, file, line, lineage, source, data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line,
+  ```
+
+[CRITICAL] src/hunter/shared/query-engine.ts:82-91 (bug)
+  The `dbHandle` function's duck-typing fallthrough (line 70-71) accepts any object with `prepare`/`exec` methods and casts it to `Database`. However, the `DbClient` interface (from `./db.ts`) also declares both methods but its `prepare()` returns `StatementLike`, not bun:sqlite's prepared statement. When a `DbClient` is passed, this cast causes every `this.db.prepare(sql).get(...)` / `.all(...)` call to fail at runtime because `StatementLike` lacks the bun:sqlite statement's method signatures. The `SharedDb.handle` (the real `Database`) is private and unreachable via duck-typing. Either `DbClient` should expose an accessor for its underlying `Database` handle, or `QueryEngine` should accept `
+  ```existing
+  function dbHandle(db: Database | DbClient): Database {
+  if (db instanceof Database) return db;
+  const maybe = db as unknown as { handle?: Database };
+  if (maybe.handle instanceof Database) return maybe.handle;
+  const anyDb = db as unknown as { prepare: (sql: string) => unknown; exec: (sql: string) => unknown };
+  if (typeof anyDb.prepare === 'function' && typeof anyDb.exec === 'function') {
+  
+  ```
+  ```suggested
+  // Option A: Add a Database accessor to DbClient and check for it:
+function dbHandle(db: Database | DbClient): Database {
+  if (db instanceof Database) return db;
+  const maybe = db as unknown as { handle?: Database };
+  if (maybe.handle instanceof Database) return maybe.handle;
+  // If DbClient exposes the raw Database:
+  const withDb = db as unknown as { db?: Database };
+  if (withDb.db instance
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:139-142 (bug)
+  When `conformanceZero` is true, `onAuditDone` clears `this.state` but does NOT clear `this.recent` (the dedup window). The dedup map retains stale file+rule counters from prior findings. On the next `diagnosticsFor` + `inject` cycle, the stale `recent` entries cause already-cleared diagnostics to display as 'N repeated' instead of being omitted. The `recent` map should be cleared alongside `state`.
+  ```existing
+  onAuditDone({ conformanceZero }: { conformanceZero: boolean }): void {
+    this.conformanceZero = conformanceZero;
+    if (conformanceZero) this.state.clear();
+  }
+  ```
+  ```suggested
+  onAuditDone({ conformanceZero }: { conformanceZero: boolean }): void {
+    this.conformanceZero = conformanceZero;
+    if (conformanceZero) {
+      this.state.clear();
+      this.recent.clear();
+    }
+  }
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:352-358 (bug)
+  `enforceBacklog` deduplicates the queue by `path.basename(f)`, keeping only the last occurrence per basename. Under rapid file churn in a monorepo, this silently drops events for files with the same basename in different directories (e.g. `src/utils/index.ts` vs `lib/utils/index.ts` — both basenames 'index.ts', only the last path survives). The dropped files will never be reparsed, causing stale diagnostics. Consider deduplicating by full path, or at least warning which files were dropped.
+  ```existing
+  private enforceBacklog(): void {
+    if (this.queue.length > WATCHER_BACKLOG_CAP) {
+      console.warn(WATCHER_STALLED);
+      const folded = new Map<string, string>();
+      for (const f of this.queue) folded.set(path.basename(f), f);
+      this.queue = [...folded.values()];
+    }
+  ```
+  ```suggested
+  private enforceBacklog(): void {
+    if (this.queue.length > WATCHER_BACKLOG_CAP) {
+      console.warn(WATCHER_STALLED);
+      // Keep only the most recent entry per full path to avoid cross-directory basename collisions.
+      const folded = new Map<string, string>();
+      for (const f of this.queue) folded.set(f, f);
+      this.queue = [...folded.values()];
+    }
+  ```
+
+[HIGH] src/hunter/surface/query-tool.ts:529-529 (bug)
+  The `r.step` property is never set by the `chain()` verb, so `r.step ?? 1` always evaluates to `1`. Every chain step record in LLM format is mislabeled as step=1. The step number should be derived from the position in the path (e.g., `step` should be set in `chain()` on each step object, or derived here from the record's position/index).
+
+Suggested fix: in `chain()`, add `step: cur.steps.length + 1` to each step object:
+```typescript
+const step: QueryRow = {
+  step: cur.steps.length + 1,
+  from: cur.id, to: e.dst_label, kind: e.predicate,
+  file: e.dst_file ?? '', line: e.dst_line ?? 0,
+};
+```
+  ```existing
+  return { record: `chain step=${r.step ?? 1} from=${String(r.from)} to=${String(r.to)} kind=${String(r.kind)}` };
+  ```
+  ```suggested
+  return { record: `chain step=${r.step ?? 1} from=${String(r.from)} to=${String(r.to)} kind=${String(r.kind)}` };
+  ```
+
+[CRITICAL] src/hunter/tools/bug-hunt.ts:61-66 (security)
+  Critical path traversal vulnerability: `path.resolve(args.targetPath)` canonicalizes the path but there is **no scope containment check**. An attacker can pass an absolute path like `/etc` or `/var` (or any existing directory) and it will pass the `isDirectory()` check. The same applies to `profilePath` — any existing file anywhere on the filesystem is accepted. The error message says 'must be a real directory inside the scope' but no scope boundary is enforced. You need to verify that the resolved paths are within an allowed root (e.g., the `scopeRoot` from the caller context) by checking that the resolved path starts with the scope root.
+  ```existing
+  const absTarget: string = path.resolve(args.targetPath);
+  let targetOk = false;
+  try { targetOk = fsDyn.statSync(absTarget).isDirectory(); } catch { targetOk = false; }
+  if (!targetOk) {
+    throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} — the hunt target must be a real directory inside the scope)`);
+  }
+  ```
+  ```suggested
+  const absTarget: string = path.resolve(args.targetPath);
+  const absProfile: string | undefined = typeof args.profilePath === 'string' && args.profilePath.length > 0 ? path.resolve(args.profilePath) : undefined;
+
+  // Scope containment: both paths must resolve inside the caller's scope root
+  const scopeRoot = path.resolve(opts.cwdOf?.() ?? process.cwd());
+  if (!absTarget.startsWith(scopeRoot + p
+  ```
+
+[HIGH] src/hydra/auditor.ts:1113-1113 (bug)
+  REPORT_MTIME_SLACK_MS = 100 is too tight for common filesystem timestamp resolutions. ext4 defaults to 1-second mtime granularity (unless created with `metadata_csum`), and Windows NTFS has variable granularity. The report is written via fd-pinned write, then stat'd immediately after — but the mtime can lag up to 1 second behind the actual write on ext4. This causes the freshness gate to reject legitimately fresh reports as `HUNTER_STALE_REPORT`. The previous value of 2000ms was noted as too loose (accepting pre-run reports), but 100ms is too tight. A value of 1500–2000ms is correct for 1-second-resolution filesystems, or the check should use the write tool's returned byte count as a positiv
+  ```existing
+  const REPORT_MTIME_SLACK_MS = 100;
+  ```
+  ```suggested
+  const REPORT_MTIME_SLACK_MS = 1500;
+  ```
+
+[HIGH] src/hydra/map-reader.ts:228-240 (performance)
+  The BFS uses `Array.shift()` which is O(n) per dequeue, combined with `[...cur, nb]` which copies the entire path array on each expansion. For large graphs (potentially up to the 128MB budget), this results in O(V×E×L) time complexity where L is path length. Use an index-based approach or a real queue data structure, and store paths via parent pointers instead of copying arrays.
+  ```existing
+  const queue: string[][] = [[fromId]];
+    const visited = new Set<string>([fromId]);
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const last = cur[cur.length - 1]!;
+      if (last === toId) return { from, to, hops: cur, length: cur.length - 1 };
+      for (const nb of adj.get(last) ?? []) {
+        if (!visited.has(nb)) {
+          visited.add(nb);
+          queue.push([.
+  ```
+
+[HIGH] src/hydra/map-reader.ts:136-141 (performance)
+  readGraphJson is declared `async` but uses `fs.statSync` and `fs.readFileSync`, which are synchronous blocking calls that stall the event loop. This contradicts the async contract and can block all concurrent I/O in the process. Use `fs.promises.stat` and `fs.promises.readFile` (or `fs.promises.access` for the stat check) instead.
+  ```existing
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(resolved);
+  } catch {
+    throw new Error(`GRAPHIFY_NOT_WARM: graph.json not found at ${resolved} — remedy: run the explicit graphify build for this target, then re-run the audit`);
+  }
+  ```
+
+[HIGH] src/hydra/pipeline.ts:179-183 (bug)
+  The splice fix still has a race condition. Two concurrent `execute()` calls each build their own local `evidence` array, then both perform `this.evidence.splice(0, this.evidence.length, ...evidence)`. The second caller's splice overwrites the first caller's snapshot entirely. Since JavaScript is single-threaded, the splice itself is atomic, but the window between two awaits in different execute() calls means one run's snapshot is silently replaced. If the public `this.evidence` field is read between runs (as documented for 'sequential readers'), it will contain data from the wrong run. Consider using a generation counter, a lock, or simply removing the shared mutable snapshot in favor of ret
+  ```existing
+  // ★ F-212 FIX (2026-09-24): single-call snapshot — the length=0+push pair
+    //   exposed an empty array to any reader between the two statements.
+    //   splice() publishes the run in one synchronous call (same reference,
+    //   sequential readers keep working; no intermediate empty is observable).
+    this.evidence.splice(0, this.evidence.length, ...evidence);
+  ```
+
+[HIGH] src/kernel/graph-diff.ts:41-44 (security)
+  SQL injection / correctness risk: predicate values are interpolated directly into the SQL string via template-literal concatenation. If any predicate in `PREDICATES` ever contains a single-quote character, the query will break or become exploitable. Use parameterized queries instead:
+```ts
+const placeholders = PREDICATES.map(() => '?').join(', ');
+const edges = db.query(
+  `SELECT src_canonical, dst_canonical, predicate FROM typed_edges
+   WHERE superseded_run IS NULL AND predicate IN (${placeholders})`,
+  [...PREDICATES],
+).all() as Array<...>;
+```
+  ```existing
+  const edges = db.query(
+      `SELECT src_canonical, dst_canonical, predicate FROM typed_edges
+       WHERE superseded_run IS NULL AND predicate IN (${[...PREDICATES].map((p) => `'${p}'`).join(", ")})`,
+    ).all() as Array<{ src_canonical: string; dst_canonical: string; predicate: string }>;
+  ```
+  ```suggested
+  const placeholders = PREDICATES.map(() => '?').join(', ');
+    const edges = db.query(
+      `SELECT src_canonical, dst_canonical, predicate FROM typed_edges
+       WHERE superseded_run IS NULL AND predicate IN (${placeholders})`,
+      [...PREDICATES],
+    ).all() as Array<{ src_canonical: string; dst_canonical: string; predicate: string }>;
+  ```
+
+[HIGH] src/kernel/graph-pre-flight.ts:15-19 (maintainability)
+  **Misleading field name**: `riskProfile.testCoverage` is set to `testTargets.length` (a count of suggested test targets), but the name `testCoverage` strongly implies a percentage or ratio (e.g., 0.0–1.0 or 0–100). Any caller inspecting this field to gauge risk will draw incorrect conclusions — e.g., a value of 3 does not mean 3% coverage. Rename to `suggestedTestTargetCount` or `potentialTestTargets` to match actual semantics.
+  ```existing
+  riskProfile: {
+    callers: number;
+    uses: number;
+    testCoverage: number;
+  };
+  ```
+  ```suggested
+  riskProfile: {
+    callers: number;
+    uses: number;
+    /** Number of suggested test targets returned by the graph query, NOT a coverage ratio. */
+    suggestedTestTargetCount: number;
+  };
+  ```
+
+[HIGH] src/kernel/graph-test-target.ts:0-0 (performance)
+  N+1 query performance issue: For each of the N callers, `whoCallsInDb(db, label)` is called, which internally runs `resolveLiveIds` (a DB query) plus the main edges query. With caching, unique callers still each trigger a full DB round-trip. For functions with many callers, this is a significant bottleneck. Consider adding a batch query (e.g., a single `whoCallsInDb` call per caller or a bulk degree calculation), or at least documenting the O(N) DB query cost and the caller-count upper bound.
+  ```existing
+  const degreeOf = (label: string): number => {
+      const hit = degreeCache.get(label);
+      if (hit !== undefined) return hit;
+      const d = whoCallsInDb(db, label).rows;
+      degreeCache.set(label, d);
+      return d;
+    }
+  ```
+  ```suggested
+  // Batch approach: collect all unique caller labels first, then compute
+    // degrees in a single pass or a dedicated batch function.
+    const degreeOf = (label: string): number => {
+      const hit = degreeCache.get(label);
+      if (hit !== undefined) return hit;
+      const d = whoCallsInDb(db, label).rows;
+      degreeCache.set(label, d);
+      return d;
+    }
+  ```
+
+[HIGH] src/omp/adapters/abide.ts:107-108 (security)
+  `scopeRoot` is accepted but never referenced inside `abideProbe`. Every other adapter (c2kg, corbell, graphify, kev, semantica, tsg, ua) uses `scopeRoot` to scope file access to the workspace. Here the events path is resolved from the separate `abideRoot` param (or a hardcoded absolute default), completely bypassing the scope boundary that `scopeRoot` is meant to enforce. This means any caller that passes a confined `scopeRoot` gets no isolation — the adapter reads from an absolute path regardless. Either `scopeRoot` should be used to derive `abideRoot` (e.g., `path.join(scopeRoot, ABIDE_EVENTS_REL)`), or the parameter should be removed to make the omission explicit.
+  ```existing
+  export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe {
+  const eventsPath = abideEventsPath(abideRoot);
+  ```
+  ```suggested
+  export function abideProbe(scopeRoot: string, abideRoot?: string): ConsumerProbe {
+  const eventsPath = abideEventsPath(abideRoot ?? scopeRoot);
+  ```
+
+[HIGH] src/omp/adapters/abide.ts:38-40 (maintainability)
+  Hardcoded absolute workspace path `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace` as the default. This is a user-specific, environment-specific path baked into production code. If the deployment environment changes or another user runs this, it silently resolves to a non-existent directory (or worse, a different agent's ledger). The default should come from an environment variable or be derived from `scopeRoot`.
+  ```existing
+  export function abideEventsPath(abideRoot?: string): string {
+  return path.join(abideRoot ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace", ABIDE_EVENTS_REL);
+}
+  ```
+  ```suggested
+  export function abideEventsPath(abideRoot?: string): string {
+  const root = abideRoot ?? process.env.JARVIS_WORKSPACE ?? "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace";
+  return path.join(root, ABIDE_EVENTS_REL);
+}
+  ```
+
+[HIGH] src/omp/adapters/arsumbris.ts:91-97 (bug)
+  The `walk` function recursively traverses all object values without a visited-set to guard against circular references. If the daemon output contains circular references (e.g., a prototype chain or malformed JSON), this will cause infinite recursion and a stack overflow, crashing the Node.js process.
+  ```existing
+  const values: string[] = [];
+            const walk = (v: unknown): void => {
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) for (const x of v) walk(x);
+              else if (v && typeof v === "object") for (const x of Object.values(v as Record<string, unknown>)) walk(x);
+            };
+            walk(i);
+  ```
+  ```suggested
+  const values: string[] = [];
+            const seen = new WeakSet<object>();
+            const walk = (v: unknown): void => {
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) for (const x of v) walk(x);
+              else if (v && typeof v === "object") {
+                if (seen.has(v as object)) return;
+                seen.add(v as object);
+     
+  ```
+
+[HIGH] src/omp/adapters/c2kg.ts:32-38 (bug)
+  After `JSON.parse`, the `as C2kgIndex` cast is a compile-time-only assertion — it does not validate the runtime structure. If `idx.symbols` exists but is not an array (e.g., a string, number, or object), the subsequent `.filter()` call will throw an uncaught `TypeError` ("idx.symbols.filter is not a function"). This TypeError will bubble up with a raw JS error message instead of the intended `GI_LAYER_C2KG`-prefixed error, bypassing the design contract. The `.filter()` and `.map()` chain should either be wrapped in the existing try/catch, or `idx.symbols` should be validated with `Array.isArray()` before use.
+  ```existing
+  let idx: C2kgIndex;
+      try {
+        idx = JSON.parse(fs.readFileSync(indexPath, "utf8")) as C2kgIndex;
+      } catch (e) {
+        throw new Error(`GI_LAYER_C2KG: the index is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+      }
+      const hits = (idx.symbols ?? []).filter((s) => (s.name ?? "").includes(subject));
+  ```
+  ```suggested
+  let idx: C2kgIndex;
+      try {
+        idx = JSON.parse(fs.readFileSync(indexPath, "utf8")) as C2kgIndex;
+      } catch (e) {
+        throw new Error(`GI_LAYER_C2KG: the index is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+      }
+      const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
+      const hits = symbols.filter((s) => (s.name ?? "").includes(s
+  ```
+
+[HIGH] src/omp/adapters/semantica.ts:18-19 (security)
+  The `..` segment check prevents directory traversal via literal `..` but does not defend against symlink-based escapes. If any ancestor directory within `scopeRoot` is a symlink pointing outside the intended tree, `path.join(scopeRoot, '.omp/…')` resolves through it silently. Use `fs.realpathSync(scopeRoot)` to canonicalize before joining and compare the resolved path against an allow-list root, or at minimum assert that `realpathSync(kgPath).startsWith(allowedRoot)`.
+  ```existing
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(path.sep).includes("..")) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
+  const kgPath = path.join(path.resolve(scopeRoot), ".omp/graph-intelligence/layers/semantica/kg.json");
+  ```
+  ```suggested
+  if (!path.isAbsolute(scopeRoot) || scopeRoot.split(path.sep).includes("..")) throw new Error(`GI_LAYER_SEMANTICA: scopeRoot must be a canonical absolute path, got ${JSON.stringify(scopeRoot)}`);
+  // Canonicalize through the real filesystem to collapse symlinks and prevent symlink-based escapes.
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = fs.realpathSync(scopeRoot);
+  } catch (e) {
+    
+  ```
+
+[HIGH] src/omp/calibration.ts:76-77 (bug)
+  Input validation is missing for negative count values. If `confirmed`, `refuted`, or `unresolved` are negative, the function silently produces mathematically invalid results — negative denominators in Wilson formulas, imprecision values below 0, and potentially misleading `sufficient`/`starved` flags. The resolved count on line 81 could become negative, causing the Wilson denominator to flip sign. Add validation at the top of `precisionFromCounts` to reject negative values.
+  ```existing
+  export function precisionFromCounts(c: ResolvedCounts, z = 1.96): PrecisionEstimate {
+  const resolved = c.confirmed + c.refuted;
+  ```
+  ```suggested
+  export function precisionFromCounts(c: ResolvedCounts, z = 1.96): PrecisionEstimate {
+  if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
+  const resolved = c.confirmed + c.refuted;
+  ```
+
+[HIGH] src/omp/evidence-producer.ts:353-356 (performance)
+  **Performance: N-times full-file re-read in `resolveFromSession`** — `readRecords` is called once per unresolved fire (line 355), and each call reads + parses the entire NDJSON file, splits it into lines, JSON-parses every line, and filters by `fireStateHash`. For N unresolved fires and a file of size S, this is O(N × S). As sessions accumulate evidence across many fires, this degrades linearly. A single read + group-by-`fireStateHash` pass would be O(S) and eliminate N−1 redundant file reads.
+
+Suggested fix: read the file once, partition into a `Map<fireStateHash, OutcomeRecord[]>`, and look up per fire.
+  ```existing
+  const perFire = new Map<string, OutcomeRecord[]>();
+  for (const p of pairs) {
+    perFire.set(p.row.stateHash, readRecords(opts.recordsPath, p.row.stateHash));
+  }
+  ```
+  ```suggested
+  // Read the file ONCE and partition by fireStateHash — O(S) instead of O(N × S).
+  const allRecords = readRecordsAll(opts.recordsPath);
+  const perFire = new Map<string, OutcomeRecord[]>();
+  for (const r of allRecords) {
+    const key = (r as OutcomeRecord & { fireStateHash: string }).fireStateHash;
+    let bucket = perFire.get(key);
+    if (bucket === undefined) { bucket = []; perFire.set(key, b
+  ```
+
+[HIGH] src/omp/extension.ts:136-170 (security)
+  **TOCTOU gap: statSync on stale `real` before the re-resolve guard** — The `statSync` at line ~133 checks that `real` is a directory using the first-resolved path. However, the TOCTOU re-validation at lines 166-170 only re-resolves `normalized` via `realpathSync` and compares path *identity* (`realAfter !== real`) — it does NOT re-check the directory type. An attacker who swaps a symlink target from a directory to a file between the `statSync` and the final `realpathSync` can pass the type check with the stale `real` while the re-resolve still matches (same symlink, different target). The re-resolve should also re-stat to confirm the target remains a directory.
+
+Suggested fix: after line 168
+  ```existing
+  if (!st || !st.isDirectory()) {
+    return { ok: false, error: `GI_PATH_DENIED: targetPath is not a directory: '${real.slice(0, 120)}'` };
+  }
+  // W44 (supersedes the V21 ':' note): the split lives in parseTargetRoots
+  // ('|' only — never ':').
+  const allowRoots = parseTargetRoots(process.env.GI_TARGET_ROOTS ?? "");
+  const roots = allowRoots.length > 0 ? allowRoots : [callerCwd, "/tmp"];
+  co
+  ```
+
+[HIGH] src/omp/extension.ts:563-573 (security)
+  **Security: `fs.mkdirSync(auditRoot, { recursive: true })` runs BEFORE the symlink-plant check** — Line 565 creates the audit directory before the `realpathSync` + `path.relative` confinement check at lines 569-571. If an attacker pre-creates a symlink at the `auditRoot` path (`.omp/graph-intelligence/audit`) pointing to an external directory, `mkdirSync` with `recursive: true` will follow the symlink and create the directory tree at the attacker's target location. The subsequent symlink check detects the escape and returns an error, but the directory has already been created outside the confinement boundary.
+
+The W12/W15 comments describe the fix as checking *before* `mkdtemp`, but `mkdirSy
+  ```existing
+  const targetReal = resolve(targetRoot);
+      const auditRoot = join(targetReal, ".omp", "graph-intelligence", "audit");
+      fs.mkdirSync(auditRoot, { recursive: true });
+      // W15/W16 (frozen-scan HIGH): component containment on the AUDIT ROOT —
+      // refuse a pre-planted symlink BEFORE mkdtemp (path.relative verdict,
+      // never a string prefix).
+      const auditRootReal = fs.realpat
+  ```
+
+[CRITICAL] src/omp/fire-gate.ts:661-662 (bug)
+  Race condition: after `abandonInFlight` removes the entry (on timeout), a NEW call may arrive and `judgeOnce` inserts its own promise. When the OLD promise later settles (it was never cancelled, only abandoned), its `evict` handler fires and deletes the NEW entry — orphaning the live call. Subsequent same-state fires will re-enter the model, and the evicted creator's `cache.set` never happens.
+
+The settle-handler must use compare-and-delete, the same pattern documented in PASS-7 for `abandonInFlight` and already applied to the budget check. The fix is identical: only delete if the current entry is still this promise.
+  ```existing
+  const evict = () => { if (this.inFlight.get(cacheKey) === answers) this.inFlight.delete(cacheKey); };
+    void answers.then(evict, evict);
+  ```
+  ```suggested
+  const evict = () => { if (this.inFlight.get(cacheKey) === answers) this.inFlight.delete(cacheKey); };
+    void answers.then(evict, evict);
+  ```
+
+[HIGH] src/omp/fire-ledger.ts:617-617 (bug)
+  Persistent malformed rows cause an unbounded retry loop. When `drain()` is called (from `judgeWithPersist`), it collects ALL unseen rows from `gate.rows()` and passes them to `appendManyDetailed`. If one row is persistently malformed (e.g., bad domain, bad probability), it fails in the per-row fallback, is never added to the `seen` WeakSet, and is retried on EVERY subsequent `judge()` call. This floods `persistFailureCount` and overwrites `lastPersistError` indefinitely. Each retry also re-attempts all previously failed rows, not just the latest one.
+
+Suggested fix: in `judgeWithPersist`, instead of calling `drain(original, ledger)` which re-attempts all stale failures, only persist the spec
+  ```existing
+  drain(original, ledger);
+  ```
+  ```suggested
+  try {
+      drain(original, ledger);
+    } catch (e) {
+      const bare45 = e instanceof LedgerError ? (e.code.startsWith("GI_LEDGER_") ? e.code.slice("GI_LEDGER_".length) : e.code) : "PERSIST_FAILED";
+      const code = `GI_LEDGER_${bare45}`;
+      const message = e instanceof Error ? e.message : String(e);
+      ledger.notePersistFailure(code, message);
+      // NOTE: a persistently malformed ro
+  ```
+
+[HIGH] src/omp/gate-hook.ts:186-187 (bug)
+  The `classifyEdit` call at line 145 receives `{ file: rec.file, oldString: rec.oldText, newString: rec.newText }`. For the `write`/`write_file` tool path in `reconstruct`, `rec.oldText` is the current file content and `rec.newText` is the new content. But `classifyEdit` in graph-gate.ts expects `oldString` and `newString` as the *diff components* (old patch vs new patch), not full file contents. This means `classifyEdit` will extract export symbols from the entire old and new file contents rather than just the changed parts, potentially marking the edit as `HIGH` severity when only a comment was changed in a large file with many exports.
+
+Suggestion: pass the actual diff components (the stri
+  ```existing
+  const rec = reconstruct(name, eventInput(event));
+    const c = classifyEdit(name, { file: rec.file, oldString: rec.oldText, newString: rec.newText });
+  ```
+
+[HIGH] src/omp/gate-middleware.ts:28-66 (maintainability)
+  `parseExports` and `parseExportSites` contain near-identical regex iteration and name-extraction logic (same five regexes, same destructuring parser, same braces/default handling). This duplication means any fix to export-parsing semantics (like the F-41 fix for generators) must be applied in two places. Extract the shared iteration into a single internal helper (e.g., `iterExportNames(src, cb)`) and have both public functions delegate to it — `parseExports` collects names into a Set, `parseExportSites` captures name-to-offset via the callback.
+  ```existing
+  export function parseExports(src: string): string[] {
+  const out = new Set<string>();
+  let m: RegExpExecArray | null;
+  EXPORT_PARSE_RE.lastIndex = 0;
+  while ((m = EXPORT_PARSE_RE.exec(src))) out.add(m[1]);
+  EXPORT_GEN_RE.lastIndex = 0;
+  while ((m = EXPORT_GEN_RE.exec(src))) out.add(m[1]);
+  EXPORT_DESTRUCT_RE.lastIndex = 0;
+  while ((m = EXPORT_DESTRUCT_RE.exec(src))) eachDestructuredName(m[
+  ```
+
+[HIGH] src/omp/gi-registry.ts:13-21 (performance)
+  Missing index on `store_path` column. `findGiSessionByStorePath` performs a WHERE filter on `store_path`, but the schema only defines a PRIMARY KEY on `session_id`. As the number of sessions grows, every lookup via this function becomes a full table scan. Add an explicit index in the schema (e.g., `CREATE INDEX IF NOT EXISTS idx_gi_sessions_store_path ON gi_sessions(store_path)`) to make this query O(log n).
+  ```existing
+  export const GI_REGISTRY_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS gi_sessions (
+    session_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL DEFAULT '{}',
+    scope_root TEXT NOT NULL,
+    store_path TEXT NOT NULL,
+    opened_at TEXT NOT NULL
+  )`,
+];
+  ```
+  ```suggested
+  export const GI_REGISTRY_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS gi_sessions (
+    session_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL DEFAULT '{}',
+    scope_root TEXT NOT NULL,
+    store_path TEXT NOT NULL,
+    opened_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_gi_sessions_store_path ON gi_sessions(store_path)`,
+];
+  ```
+
+[HIGH] src/omp/graph-facts.ts:103-103 (bug)
+  The `LIKE` helper wraps every target in `%target%` (line 100), causing ALL queries (`known` check, `inDegree`, `outD`, self-edge) to perform **substring matching** on `canonical_id`. This means unrelated symbols that merely *contain* the target as a substring will be conflated — producing false positives or false negatives across all five rules.
+
+For example, `target = "User"` will match `UserProfile`, `UserService`, `AdminUser`, etc. The `known` node-count check (line 167) will think multiple unrelated nodes are 'the target', and `inDegree` (line 130) will aggregate edges belonging to different symbols.
+
+The self-edge query (line 240) is especially sensitive, as it requires both `src_canoni
+  ```existing
+  const LIKE = (target: string) => `%${target.replace(/[%_]/g, "")}%`;
+  ```
+  ```suggested
+  const LIKE = (target: string) => `${target.replace(/[%_]/g, "")}%`;
+  ```
+
+[HIGH] src/omp/graph-gate.ts:100-101 (bug)
+  In `classifyEdit`, `extractExportSymbols` is called on `args.oldString ?? args.content` and `args.newString ?? args.content`. When both `oldString` and `newString` are undefined but `content` is provided, both calls parse the same `content` string, producing duplicate symbol lists. More critically, when `oldString` is defined and `newString` is undefined, the second call falls back to `args.content` (the full file), not an empty string — so `newSyms` would contain every exported symbol from the entire file, not just those introduced by the edit. This inflates `touchedSymbols` and can cause false-positive coverage (edits appear to touch symbols they don't) or false-positive HIGH severity (str
+  ```existing
+  const oldSyms = extractExportSymbols(args.oldString ?? args.content ?? "");
+  const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
+  ```
+  ```suggested
+  const oldSyms = extractExportSymbols(args.oldString ?? "");
+  const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
+  ```
+
+[HIGH] src/omp/graph-gate.ts:317-322 (security)
+  `loadGateState` calls `JSON.parse` on data retrieved from SQLite (`row.edits_json`, `row.queries_json`). While the outer catch returns `null`, the `JSON.parse` of `queries_json` could produce objects where `resolved` is not a boolean — a corrupted or tampered DB row could set `resolved` to a truthy non-boolean value (e.g., the string "true"), which would pass `q.resolved === true` correctly (strict equality rejects it), but `typeof q.rows === "number" && q.rows > 0` could still match. More importantly, the deserialized `GateEditRecord` objects have no schema validation — a maliciously crafted `severity` string (e.g., "CRITICAL") would not match any `SEV_WEIGHT` key, producing `NaN` weight an
+  ```existing
+  return {
+      editLog: JSON.parse(row.edits_json) as GateEditRecord[],
+      graphQueries: JSON.parse(row.queries_json) as GateQueryRecord[],
+      gateState: row.state,
+      drift: row.drift,
+    };
+  ```
+
+[HIGH] src/omp/jev.ts:17-17 (bug)
+  The `KEY_FILE` path uses `${process.env.HOME ?? "/home/leviathan"}` as a fallback. This is evaluated at module load time as a top-level `const`. If `process.env.HOME` is undefined, the hardcoded fallback `/home/leviathan` is a user-specific path that will be wrong on virtually every other machine. This means on systems without `HOME` set, the key file lookup silently targets a non-existent path rather than a conventional location. Consider using `os.homedir()` which handles this correctly, or throw if HOME is missing.
+  ```existing
+  export const KEY_FILE = `${process.env.HOME ?? "/home/leviathan"}/.config/typesafe/key`;
+  ```
+  ```suggested
+  import * as os from "node:os";
+// ...
+export const KEY_FILE = `${os.homedir()}/.config/typesafe/key`;
+  ```
+
+[HIGH] src/omp/kernel-v2.ts:357-357 (bug)
+  Inconsistency between tie-breaking in `worstOutcome` and the verdict computation in stage 5. `worstOutcome` uses class priority (destructive > theatrical > dumb) as a tiebreaker and may select, say, `theatricalDetector` when it ties with `dumbDetector` on VIOLATION. But stage 5's verdict ternary checks `worst.detector.class === "destructive"` to decide REFUSE vs STEER — if the tiebreaker selected theatrical, this check is false, so a theatrical VIOLATION at tier T1 gets STEER. However, if `destructiveDetector` also returned VIOLATION at the same tier, `worstOutcome` would have selected it (higher class priority), and stage 5 would emit REFUSE. The same logical severity level produces differe
+  ```existing
+  verdict = TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] || worst.detector.class === "destructive" ? "REFUSE" : "STEER";
+  ```
+  ```suggested
+  // Escalate to REFUSE for T2+ violations or destructive class violations
+    if (
+      TIER_ORDER[worst.outcome.tier] >= TIER_ORDER["T2"] ||
+      worst.detector.class === "destructive"
+    ) {
+      verdict = "REFUSE";
+    } else {
+      verdict = "STEER";
+    }
+  ```
+
+[HIGH] src/omp/layer-registry.ts:205-205 (bug)
+  `factsFor` doesn't filter null/non-object elements from `facts()` before passing to `isAnchored`. If a consumer's `facts()` returns `[null, {…}, …]`, then `isAnchored(null)` throws a TypeError. The outer try-catch catches this, but the consequence is that ALL remaining facts from that consumer are silently dropped — not just the null ones. Compare with `auditOne` (line 148), which explicitly filters out nulls/non-objects BEFORE calling `isAnchored`. This inconsistency means `auditOne` correctly discards only bad facts while `factsFor` loses an entire consumer's contribution on the first null.
+  ```existing
+  for (const f of p.facts(subject)) if (isAnchored(f)) out.push(f);
+  ```
+  ```suggested
+  const got = p.facts(subject);
+if (Array.isArray(got)) {
+  for (const f of got) {
+    if (f !== null && typeof f === "object" && isAnchored(f as LayerFact)) out.push(f as LayerFact);
+  }
+}
+  ```
+
+[HIGH] src/omp/oracle.ts:445-464 (bug)
+  **Partial write on `gather` throw violates O4 pre-validate invariant.**
+
+The `gather` call at line 295 is OUTSIDE the try/catch that wraps `recordTruth` (lines 307-311). `gather` can throw `GI_ORACLE_NO_SUBJECT` when a pair has neither `row.target` nor a caller-supplied `subject`. If this throws after earlier rows have already been committed via `recordTruth`, the function exits with an unhandled exception — no report is returned, and the caller receives a raw error while the ledger contains a partial write.
+
+This directly violates the O4 principle stated at line 259: "PRE-VALIDATE THE WHOLE BATCH BEFORE THE FIRST WRITE … refusing the WHOLE batch so no partial write can occur." The `notAfter
+  ```existing
+  const c = classify(gather(row, subject, records, opts));
+    if (c.truth === "unresolved") { report.leftUnresolved += 1; continue; }
+
+    // the stamp was validated for the WHOLE batch above (O4) — one `now()` for the
+    // batch also means every row in it carries the SAME resolution time.
+    // ★ PASS-3 HIGH, RE-APPLIED (EN-064): THE RETURN VALUE IS READ, and the two
+    //   counters are now W
+  ```
+  ```suggested
+  // Pre-validate subject: every unresolved pair must be resolvable.
+    for (const { row, subject: subj } of unresolved) {
+      const fromRow = row.target !== undefined && row.target !== '';
+      if (!fromRow && subj === undefined) {
+        throw new Error(
+          `GI_ORACLE_NO_SUBJECT: pair for state ${row.stateHash} has no row.target and no caller-supplied subject — ` +
+          `refusing 
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:525-532 (bug)
+  Indentation mismatch in `writeGraphifyCheckout` suggests a misplaced `try` block around COMMIT. The `db.exec("COMMIT;")` and its catch/rollback are indented inside an extra level, implying they sit inside a nested `try` that does NOT have a corresponding outer `catch`/`finally` for the ROLLBACK path. If the COMMIT is indeed nested inside two `try` blocks, the inner catch's ROLLBACK fires, but the outer catch also fires and issues a SECOND ROLLBACK — a double-rollback. More critically, the intent of the F-127 fix was to keep the COMMIT inside the same `try` that runs the inserts, but the current indentation places COMMIT and its catch in a scope that could mask commit failures from the outer 
+  ```existing
+  db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
+      try {
+    db.exec("COMMIT;");
+  } catch (commitErr) {
+    try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+    throw commitErr;
+  }
+    } catch (e) {
+  ```
+  ```suggested
+  db.run("INSERT INTO gi_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ["populated_at", new Date().toISOString()]);
+      try {
+        db.exec("COMMIT;");
+      } catch (commitErr) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        throw commitErr;
+      }
+    } catch (e) {
+  ```
+
+[HIGH] src/omp/rsi.ts:0-0 (bug)
+  The `recount()` and `liveIncludingForgedRetirement()` calls in `supersede()` execute OUTSIDE the IMMEDIATE transaction. This creates a TOCTOU race: a concurrent `appendFiring` or `appendOutcome` can alter the evidence ledger between the recount and the `BEGIN IMMEDIATE`, causing the new row to be inserted with stale confirmed/refuted/unresolved counts and a potentially incorrect derived tier. The entire derivation — recount + live-read + tier derivation — should be performed INSIDE the transaction (after `BEGIN IMMEDIATE`) to guarantee a consistent snapshot. Note: `recount` and `liveIncludingForgedRetirement` do their own reads outside your transaction, so wrapping only the write portion is 
+  ```existing
+  supersede(canonicalId: string, run: string): ReflexRow | null {
+    const counts = this.recount(canonicalId);
+    const d = deriveTier(counts.confirmed, counts.refuted, counts.unresolved);
+    const current = this.liveIncludingForgedRetirement(canonicalId);
+    if (current !== null && current.kind === d.tier) return null; // no change
+    // ATOMIC retire-then-insert...
+  ```
+
+[HIGH] src/omp/store-open.ts:0-0 (security)
+  The scopeRoot validation rejects `..` segments and NUL bytes, but does **not** resolve or check for symlinks. A malicious or compromised process can place a symlink at, e.g., `scopeRoot/link` → `/etc`, and subsequent `fs.mkdirSync` / `fs.writeFileSync` calls will follow it, escaping the intended directory tree entirely. To harden: resolve `scopeRoot` via `fs.realpathSync` (which rejects dangling / symlinked components) **after** the `isAbsolute` + `..` + NUL checks, and verify the resolved path still starts with the intended root prefix.
+  ```existing
+  if (!path.isAbsolute(input.scopeRoot) || input.scopeRoot.split(/[\/]/).includes("..") || input.scopeRoot.includes("\0")) {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
+  }
+  ```
+  ```suggested
+  if (!path.isAbsolute(input.scopeRoot) || input.scopeRoot.split(/[\/]/).includes("..") || input.scopeRoot.includes("\0")) {
+    throw new GiScopeError(`GI_SCOPE_REFUSED: scopeRoot must be a canonical absolute path, got ${JSON.stringify(input.scopeRoot)}`);
+  }
+  let resolvedScopeRoot: string;
+  try {
+    resolvedScopeRoot = fs.realpathSync(input.scopeRoot);
+  } catch {
+    throw new GiScopeError(`G
+  ```
+
+[HIGH] src/scoping/db-path.ts:60-60 (bug)
+  When neither `HOME` nor `USERPROFILE` is set (e.g., in some containerized or CI environments), the fallback to `'.'` silently resolves the DB path relative to the current working directory. This is dangerous: the production DB would be written to an unpredictable location that varies between invocations. Given that this entire module exists to **prevent silent DB pollution**, this silent fallback contradicts the module's core guarantee. Consider throwing an error instead, similar to the `GI_TEST_ISOLATION_BROKEN` pattern above.
+  ```existing
+  dir = path.join(process.env.HOME ?? process.env.USERPROFILE ?? '.', dir.slice(2));
+  ```
+  ```suggested
+  const home = process.env.HOME ?? process.env.USERPROFILE;
+      if (!home) {
+        throw new Error(
+          `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
+          `(fileName="${spec.fileName}") — cannot resolve defaultDir`,
+        );
+      }
+      dir = path.join(home, dir.slice(2));
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:41-55 (security)
+  `assertSessionStorePath` only validates the path *tail* via `SESSION_STORE_RE` but does not verify the `GI_STATE_DIR` (`.omp/graph-intelligence`) prefix. A crafted path like `/tmp/sessions/abcdefgh/store.sqlite` would pass this guard but is not under the expected state directory. This weakens the anti-leak defense. Consider verifying that the path contains `GI_STATE_DIR` as a segment before the `/sessions/` portion.
+  ```existing
+  export function assertSessionStorePath(p: string): void {
+  const norm = p.replace(/\\/g, "/");
+  if (isGlobalHomeGraph(norm)) {
+    throw new GiPathError(
+      "GI_GLOBAL_HOME_GRAPH",
+      `GI_GLOBAL_HOME_GRAPH: session store must not be ${norm}`,
+    );
+  }
+  if (!SESSION_STORE_RE.test(norm)) {
+    throw new GiPathError(
+      "GI_SHARED_PROJECT_STORE",
+      `GI_SHARED_PROJECT_STORE: path mus
+  ```
+  ```suggested
+  const GI_STATE_SEG = GI_STATE_DIR.replace(/\\/g, "/");
+
+export function assertSessionStorePath(p: string): void {
+  const norm = p.replace(/\\/g, "/");
+  if (isGlobalHomeGraph(norm)) {
+    throw new GiPathError(
+      "GI_GLOBAL_HOME_GRAPH",
+      `GI_GLOBAL_HOME_GRAPH: session store must not be ${norm}`,
+    );
+  }
+  if (!norm.includes(`/${GI_STATE_SEG}/`)) {
+    throw new GiPathError(
+      "GI_
+  ```
+
+[HIGH] src/scoping/scope-binding.ts:171-187 (security)
+  assertOwnSession silently permits an action when the session belongs to no known ecosystem (neither this one nor any sibling). An unbound, stale, or typo'd session id bypasses the mutual-exclusivity contract without any warning. Consider logging a warning or throwing when the session is unbound and the caller expects it to be bound — at minimum, the operator should be told that the session is unknown.
+  ```existing
+  assertOwnSession(sessionId: string, action: string): void {
+    const own = this.spec.registry.findWaveBySession(sessionId);
+    if (own) return; // the session belongs to THIS ecosystem — proceed.
+    // The READ-ONLY sibling check (auto-wired by the manager): is the session
+    // a FOREIGN wave's agent? Refuse with the remedy. If no registry knows
+    // it, the session is unbound — proceed; th
+  ```
+  ```suggested
+  assertOwnSession(sessionId: string, action: string): void {
+    const own = this.spec.registry.findWaveBySession(sessionId);
+    if (own) return; // the session belongs to THIS ecosystem — proceed.
+    for (const [eco, surface] of Object.entries(this.siblingsFn ? this.siblingsFn() : {})) {
+      const hit = surface.findWaveBySession(sessionId);
+      if (hit) {
+        throw new Error(
+          `
+  ```
+
+[HIGH] src/scoping/scoped-store.ts:128-132 (performance)
+  The synchronous busy-wait `while (Date.now() < until)` blocks the event loop for up to 50+100+150 = 300ms across retries. This starves all other async work in the process. The sibling function `withImmediateTx` correctly uses `await setTimeout`, but `runWithRetry` is synchronous and cannot. Consider making this function `async` and using `await new Promise(r => setTimeout(r, wait))` to yield the event loop, consistent with `withImmediateTx`'s pattern. If sync is truly required, document the event-loop-blocking trade-off explicitly.
+  ```existing
+  closeStoreDb();
+      const wait = 50 * (attempt + 1);
+      const until = Date.now() + wait;
+      while (Date.now() < until) { /* the bounded busy-wait */ }
+      void until;
+  ```
+  ```suggested
+  closeStoreDb();
+      const wait = 50 * (attempt + 1);
+      // NOTE: this blocks the event loop for `wait` ms — acceptable for the
+      // retry-ladder's short durations but should be migrated to async if
+      // the wait budget ever grows.
+      const until = Date.now() + wait;
+      while (Date.now() < until) { /* the bounded busy-wait */ }
+  ```
+
+[HIGH] src/scoping/scoped-store.ts:123-128 (bug)
+  Both `runWithRetry` and `withImmediateTx` call `closeStoreDb()` on failure, then re-enter `getStoreDb()` — but without `opts`, so no `schema` is passed. If the DB file was deleted or corrupted between close and reopen, SQLite silently creates an empty file with no tables. The next SQL call will fail with 'no such table'. The callers of `runWithRetry`/`withImmediateTx` typically don't re-supply schema. Consider: (a) having the retry functions accept and forward `ScopedStoreOptions` so schema is re-run on reopen, or (b) having `getStoreDb()` remember the last-used opts and replay schema automatically on fresh opens.
+  ```existing
+  try {
+      getStoreDb().run(sql, params as never);
+      return true;
+    } catch (e) {
+      lastErr = e;
+      closeStoreDb();
+  ```
+  ```suggested
+  try {
+      getStoreDb().run(sql, params as never);
+      return true;
+    } catch (e) {
+      lastErr = e;
+      closeStoreDb();
+      // Consider: store last opts so getStoreDb() can re-run schema on reopen
+  ```
+
+[HIGH] src/scoping/scope-resolver.ts:150-152 (bug)
+  The `scoreProjectRoots` function receives a weighted map (`Map<string, number>`) from the resolver, but completely ignores the weight values — only iterating over the keys (`for (const [p] of paths)`). The resolver carefully assigns ×2 weight to workdir anchors and ×1 to file/command paths, but this information is discarded. Either the weights should influence candidate selection (e.g., as a tiebreaker or boost), or the weight-assignment code in resolve() is dead logic that should be simplified.
+  ```existing
+  for (const [p] of paths) {
+    // THE PATH-AS-ROOT: test the candidate itself before ascending.
+    let d = isRoot(p) ? p : path.dirname(p);
+  ```
+  ```suggested
+  for (const [p, weight] of paths) {
+    // THE PATH-AS-ROOT: test the candidate itself before ascending.
+    let d = isRoot(p) ? p : path.dirname(p);
+  ```
+
+[HIGH] src/scoping/scope-resolver.ts:157-157 (bug)
+  Depth is computed using `d.split('/').length`, which is incorrect on Windows where paths use backslashes (`C:\Users\...`). This would yield depth=1 for any Windows absolute path. Use a platform-independent method to compute depth.
+  ```existing
+  candidates.push({ d, depth: d.split('/').length, hasState: has(d, stateDir) });
+  ```
+  ```suggested
+  candidates.push({ d, depth: d.split(path.sep).length, hasState: has(d, stateDir) });
+  ```
+
+[HIGH] src/scoping/session-state.ts:85-87 (bug)
+  TOCTOU race in lock release: Between `readFileSync(lockPath)` returning our token and the subsequent `unlinkSync(lockPath)`, a peer can reclaim the expired lock (creating a new lock file with its own token). Our unlink then destroys the peer's fresh lock, breaking mutual exclusion for the peer's critical section. The token check mitigates the simpler case where the peer's lock already exists when we read, but the non-atomic read-then-unlink window is a genuine race. Consider using an exclusive operation or at minimum catching and ignoring EEXIST/ENOENT scenarios more carefully. In practice the window is tiny (two syscalls), but under the very conditions that trigger reclaim (>5s hold), it co
+  ```existing
+  let holder = "";
+    try { holder = fs.readFileSync(lockPath, "utf8").trim(); } catch { /* gone */ }
+    if (holder === token) { try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
+  ```
+
+[HIGH] src/scoping/session-state.ts:83-88 (bug)
+  No heartbeat inside critical section: The lock file's mtime is set once at creation (`writeFileSync` with `flag: 'wx'`) and never updated. The 5s stale-reclaim threshold (line 90) compares against this creation mtime. If the wrapped `fn()` takes longer than 5s to complete, another process will consider the lock abandoned, reclaim it, and enter the critical section concurrently — silently breaking mutual exclusion with no error or log. This is especially dangerous because the caller has no way to know the lock was lost. Consider either (a) extending the reclaim threshold well beyond any realistic critical-section duration, (b) periodically touching the lock file's mtime during execution, or (
+  ```existing
+  try { return fn(); }
+  finally {
+    let holder = "";
+    try { holder = fs.readFileSync(lockPath, "utf8").trim(); } catch { /* gone */ }
+    if (holder === token) { try { fs.unlinkSync(lockPath); } catch { /* gone */ } }
+  }
+  ```
+
+# total: 69

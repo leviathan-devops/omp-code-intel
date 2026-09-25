@@ -1,0 +1,150 @@
+# THE RUN-3 HIGHS: 87 across 61 files
+
+## src/hunter/graph/graphify-adapter.ts (4)
+  - **Duplicated stat→read→guard→parse logic between `build()` and `loadGraphifyFileSync`.** The async `build()` method (lines ~600-630) reimplements the exact same stat-size check → readFileSync → byte-c
+  - **`scopeBuildToProfile` silently drops all rows when root canonicalization fails, masking the real error.** When `fs.realpathSync(root)` throws, the function returns `{ nodes: [], edges: [], dropped: 
+  - **Containment logic inconsistency between `normalizeGraphifyGraph` and `projectGraphifyGraph`.** In `normalizeGraphifyGraph` (line ~228), the containment check is `rel !== ".." && !rel.startsWith(`..$
+  - **`build()` never assigns its `profile` parameter to `this.profile`, causing stale state.** The `build(profile)` method receives a profile and uses it for root/scope/graphPath resolution, but never wr
+## src/hunter/shared/query-engine.ts (3)
+  - Dead code / duplication: The `path()` method contains two recursive CTE queries that execute an expensive recursive search, but the result is never used (`void pathStr`). The method delegates entirely
+  - The two positional `splice` calls construct the SQL parameter array in a fragile manner that depends on exact array indices. After the first splice inserts `predicateFilter` at index 1, the second spl
+  - The `community()` method loads ALL live edges and ALL live nodes into memory to build an adjacency map and run BFS. For large graphs (e.g., millions of edges), this could cause out-of-memory crashes. 
+## src/hunter/surface/lsp-injector.ts (3)
+  - **Bug: `DiagnosticsServer.watch` always passes an empty array to `onChange`**  The base class `watch` method unconditionally fires `onChange([])` on the debounce timer. This means any caller relying o
+  - **Race condition: `acquireWriteLock` has a non-atomic check-then-act pattern**  If two concurrent callers (e.g. two async operations in the same microtask batch or from a parallel scheduler) both eval
+  - **Bug: glob character stripping in `resolveTouchedFiles` is too aggressive — causes false-positive matches**  The regex `/[.*?]/g` strips only `.`, `*`, `?` but also strips path-separator-adjacent glo
+## src/hunter/diagnostics/engine.ts (2)
+  - Dead code in `assertNoBlindness`: This function is always called from `runBattery` with `graphNodesBefore === graphNodesAfter` (both are `graph.nodes().length` at the same point) and `changedNodeIds =
+  - Silent error swallowing violates the fail-closed law: `buildFileContentMap` catches source-read errors and silently drops files from the map (line `console.error(...)` then continues). Per the file's 
+## src/hunter/firewall/artifact-scope.ts (2)
+  - TOCTOU race condition: the stat check at line 137 determines whether the target file exists, and if ENOENT, the function returns ALLOW_REPORT. However, the actual file write happens later in the calle
+  - Symlink escape check is entirely skipped on the CREATE path (when master dir does not yet exist). When `masterReal` resolves to null (line 124-128), the realpath-vs-realpath containment gate (lines 12
+## src/hunter/graph/mechanical.ts (2)
+  - The `checker` variable is obtained from `program.getTypeChecker()` but immediately voided and never used. This is dead code that wastes computation (type checker instantiation is expensive). Remove bo
+  - Dead code: `void fs` is a no-op that serves no purpose. The condition block `if (triples.length === 0)` contains only this no-op, making the entire block dead code. This appears to be an incomplete im
+## src/hunter/graph/store-map.ts (2)
+  - `readFileSync` is called synchronously once per edge whose source has a valid file path and line number. For large graphs with thousands of edges this blocks the event loop. Consider caching file cont
+  - `countTypedNodes` and `countTypedEdges` open new connections to read the store AFTER `db.close()` in the `finally` block. In WAL mode, close may trigger a WAL checkpoint that is not guaranteed to be v
+## src/hunter/harness/recon.ts (2)
+  - **Bug: Silent undercount contradicts stated fail-closed intent.** The comment on line 38 says 'never a silent zero here', but the `continue` on line 46 means an unreadable corpus file is skipped and t
+  - **Concurrency hazard: race condition in runId generation.** Two concurrent `recon()` calls can read the same set of HUNT_DONE rows, compute the same `seq`, and return identical `runId` values (e.g., b
+## src/hunter/harness/report.ts (2)
+  - Partial failure leaves inconsistent state without rollback: If the writer call (step 2) succeeds but the `appendReportSection` loop (step 1) had already committed some rows to the DB, and then the `ap
+  - Race condition in `nextReportVersion`: `readdirSync` followed by version calculation is non-atomic. If multiple report processes run concurrently against the same MASTER_CONTEXT directory, they can re
+## src/hunter/hooks/bus-hook.ts (2)
+  - The `eventKind` function silently defaults to `'HUNT_DONE'` when the input is not a recognized bus kind. This masks potential bugs: if an unrecognized string somehow bypasses the `isBusKind` guard (e.
+  - The `rowsAs<T>` guard only checks `Array.isArray` but does not validate the structure of individual elements. If a row is missing the `id` property (e.g., DB schema mismatch or a malformed row), `row.
+## src/hunter/lexicon/compiler.ts (2)
+  - Synchronous `fs.readFileSync` inside `batteryVersion`, which is itself called from async functions (`compile`, `compileBattery`). This blocks the Node.js event loop during corpus file reads. For large
+  - `writeRuleCards` and `writeBattery` can throw (e.g., DB constraint violation, disk full, connection lost) but are not wrapped in try-catch. A failure in `writeBattery` after `writeRuleCards` succeeds 
+## src/hunter/lexicon/templates.ts (2)
+  - **`bindSeverity` accepts any string but `Severity` is a strict union of `'CRIT' | 'HIGH' | 'MED' | 'WARN'` (db.ts:97-98).** If an invalid severity string (e.g. `'HIGH '` with a trailing space, or `'CR
+  - **`contentAddress` uses `JSON.stringify(bindings)` which is sensitive to key insertion order.** If semantically identical bindings are constructed with different key orders (e.g., `{a: 1, b: 2}` vs `{
+## src/hydra/auditor.ts (2)
+  - The `sanitize` function strips CR/LF (`/[\n]+/g`) and `##` prefixes but does not handle Unicode line separators (`\u2028` LINE SEPARATOR, `\u2029` PARAGRAPH SEPARATOR, `\u000B` VERTICAL TAB). A markd
+  - Multiple variables are interpolated unsanitized into markdown output, creating grammar-injection vectors:  1. `layerId` (line 1000 in brief.md, line 1058 in summary) originates from external template 
+## src/hydra/templates/sro.ts (2)
+  - Unnecessary and unsafe double type cast (`as unknown as z.ZodSchema`). From types.ts, `SubagentOutputSchema` is a `z.ZodObject` which already extends `z.ZodSchema`, so it is directly assignable to `ou
+  - Unnecessary and unsafe double type cast (`as unknown as z.ZodSchema`). From types.ts, `SubagentOutputSchema` is a `z.ZodObject` which already extends `z.ZodSchema`, so it is directly assignable to `ou
+## src/kernel/graph-gate.ts (2)
+  - The `diff` parameter is accessed without a null/undefined check. If `null` or `undefined` is passed, this will throw a runtime TypeError on property access (e.g., `diff.edgesDelta`). Add a guard at th
+  - If `diff.blastRadiusChanges` is undefined (e.g., due to incomplete or malformed input), iterating over it with `for...of` will throw a TypeError. Add a guard or default to an empty array.
+## src/kernel/scan-chain.ts (2)
+  - The `stallTimer` interval is started before the fetch, but if `response.body?.getReader()` returns null (line 124), the function returns without calling `clearInterval(stallTimer)`. The leaked interva
+  - In the SSE fallback catch block, a `delta` value is extracted from the last valid SSE line (checking `chunk.choices?.[0]?.delta?.content`), but the function returns `full` — the entire raw accumulated
+## src/omp/adapters/abide.ts (2)
+  - Synchronous full-file read into memory is a significant performance issue. For a 22.8 MB append-only ledger, `readFileSync` loads the entire file into memory, then splits all lines, then slices the la
+  - Every call to `facts()` re-reads and re-parses up to 4000 events from disk with no caching. If `facts()` is called frequently (e.g., in a hot decision path), this creates repeated synchronous I/O and 
+## src/omp/adapters/arsumbris.ts (2)
+  - Using `JSON.stringify(i).includes(subject)` is fragile and semantically incorrect as a filtering mechanism. The subject could appear in any part of the serialized JSON (keys, unrelated values, nested 
+  - The parameters used to construct and invoke the child process (`repoRoot`, `read`, `subject`) are not validated. `repoRoot` is used directly to construct a script path and could allow execution of an 
+## src/omp/adapters/semantica.ts (2)
+  - TOCTOU (time-of-check-time-of-use) race condition: `fs.existsSync` on L30 and `fs.readFileSync` on L35 are two separate syscalls. The file can be deleted or renamed between the existence check and the
+  - Path traversal risk: `scopeRoot` is joined into filesystem paths without any validation. If `scopeRoot` is derived from external or user-controlled input, an attacker could supply a value like `../../
+## src/omp/rsi.ts (2)
+  - **TOCTOU race condition in `retire()` — SELECT then UPDATE is not atomic.**  The method SELECTs to verify the successor row exists and verifies its signature, then UPDATEs to retire the victim row. Be
+  - **`retire()` returns `honored: true` even when the UPDATE affected zero rows.**  After the SELECT confirms the successor is live and verified, the UPDATE may still affect zero rows if another concurre
+## src/omp/store-open.ts (2)
+  - **Path traversal via `scopeRoot`**: `scopeRoot` is passed directly to `sessionStorePath` without validation. `path.join` normalizes `..` segments, so a `scopeRoot` like `/allowed/../../etc` resolves t
+  - **Race condition / unconditional `upsertGiSession` can overwrite another session's ownership.** `findGiSessionByStorePath` checks the in-memory/database registry, then `writeFileSync('wx')` creates th
+## src/scoping/scope-resolver.ts (2)
+  - **Bug: Sticky cache re-derivation contradicts documented guarantee.** The header comment (lines 11-17) and inline comment (line 89) both state the sticky cache provides a 'flush-proof guarantee' and '
+  - **Bug: Regex over-matches non-path fragments from commands, corrupting scoring.** The regex `/\/[^\s;]+/g` (line 107) matches ANY token containing a slash, including URLs (`https://example.com/file`),
+## src/hunter/diagnostics/calibration.ts (1)
+  - `writeCalibrationRows` executes multiple INSERT statements in a loop without a transaction. If any INSERT fails mid-loop (e.g., constraint violation, disk full), partial calibration rows are left in t
+## src/hunter/diagnostics/findings-store.ts (1)
+  - **appendFindings partial-write semantics are misleading**: The function's contract implies atomicity — the error message says `landed=N remaining=0` when all succeed, and includes landed/remaining on 
+## src/hunter/diagnostics/fixture-calibration.ts (1)
+  - The `as T` assertion bypasses all TypeScript shape validation — any JSON object that is non-null passes even if it's missing every expected property. This is the only barrier between raw disk data and
+## src/hunter/diagnostics/semantic-predicates.ts (1)
+  - `buildSemanticBattery` passes **identical** objects as both `rawBindings` (arg 2) and `card` (arg 3) to `compileTemplate`. The `rawBindings` object (line 277) is zod-parsed against the template's `par
+## src/hunter/firewall/lexicon-types.ts (1)
+  - The `remediationHook` is defined on `PatternFamily` but a codebase search finds zero invocations in the current source tree (`src/`). This means the hook is never executed — every `PatternFamily` inst
+## src/hunter/graph/corbell-adapter.ts (1)
+  - The `var` keyword is strictly prohibited by project rules. `var` has function scope and can lead to hoisting bugs. Use `let` for a mutable block-scoped binding.
+## src/hunter/graph/interface.ts (1)
+  - The `detail` parameter in the constructor is accepted but never stored as a class property, making it inaccessible to callers who catch this error. All other error classes in this module (e.g., `Adapt
+## src/hunter/graph/merge.ts (1)
+  - The `Predicate` type is a closed union of string literals (e.g. 'declares', 'calls', etc.). The validation loop at lines 76-79 only checks `typeof t.predicate !== 'string'`, so an arbitrary string pas
+## src/hunter/graph/resolver.ts (1)
+  - The `catch` block during `ROLLBACK` silently swallows the error. If the rollback itself fails, the database may be left in an inconsistent state, and the caller will only see the original write error 
+## src/hunter/harness/hunt-lock.ts (1)
+  - Bug: When `readPayload` returns null (e.g., corrupted lock file or transient read failure), the guard condition `existing && existing.pid !== process.pid` evaluates to `false`, causing the lock file t
+## src/hunter/keys/go-key-pool.ts (1)
+  - Key substring replacement in redactKeyMaterial can leak longer keys when a shorter key is a substring of a longer key. The `split(k).join(...)` loop replaces ALL occurrences of the shorter key within 
+## src/hunter/log.ts (1)
+  - Nested ternary expressions are prohibited by project coding standards. This chain of ternaries reduces readability for critical business logic. Refactor to use if/else-if or a lookup structure.
+## src/hunter/shared/db.ts (1)
+  - The mirror rebuild in `mirrorToMasterContext` is not wrapped in a transaction. The method drops tables, recreates schema, then copies data row-by-row using separate prepared statements. A crash mid-co
+## src/hunter/shared/line-resolve.ts (1)
+  - The regex `/L?\s*(\d+)/` is unanchored, so `.exec()` will match the first embedded digit sequence anywhere in the input string. For example, a `source_location` value like `"node42component"` or `"fil
+## src/hunter/surface/query-tool.ts (1)
+  - The `chain` BFS function copies the full `steps` array via spread (`[...cur.steps, step]`) for **every** edge expansion. With MAX_DEPTH=64 and high fan-out nodes, the queue can accumulate an exponenti
+## src/hunter/tools/bug-hunt.ts (1)
+  - **Bug: `"code" in err` throws TypeError for primitive error values.**  The `in` operator requires its right-hand operand to be an object. The `catch (e)` block catches ALL thrown values — including st
+## src/hunter/tools/report-writer-local.ts (1)
+  - The call to `writeReportDirect` is awaited but not wrapped in try-catch. If it throws (e.g., disk full, permission denied, file not found), the error propagates as an unhandled rejection with no local
+## src/hydra/client-reader.ts (1)
+  - **Bug: `disconnect()` is not serialized through `attachLock` and can destroy a newly-attached transport.**  `attach()` is serialized via the promise chain, but `disconnect()` is not. Consider this int
+## src/hydra/map-reader.ts (1)
+  - In the `query` method's MCP path, the raw MCP response is discarded (`void String(raw)`), and the local token-scan logic is duplicated inline instead of reusing the existing `tokenScan` function. This
+## src/hydra/pipeline.ts (1)
+  - The `evidence` array is an instance-level field that is never cleared. If a single `HydraPipeline` instance is reused across multiple `execute()` calls, evidence entries from prior runs accumulate ind
+## src/kernel/graph-pre-flight.ts (1)
+  - No error handling around database operations. If `whoCallsInDb`, `impactInDb`, or any `db.query()` call throws, the function will propagate an unhandled exception. The `finally` block only closes the 
+## src/omp/adapters/kev.ts (1)
+  - **Bug: `best` index from CLI output is not bounds-checked against `dist` and `labels` lengths.**  `ans.best?.[0] ?? 0` yields an index that is used directly to access `labels[best]` and `dist[best]`. 
+## src/omp/adapters/ua.ts (1)
+  - `scopeRoot` is used to construct a file path without any validation. If `scopeRoot` can be influenced by external input, a path traversal attack (e.g., containing `../`) could cause reading files outs
+## src/omp/calibration.ts (1)
+  - When `p` is 0 or 1, `hw = z * sqrt(0) = 0`, so the function returns `Math.ceil(0)` = 0. This means 'zero fires are needed' — the exact opposite of the truth. When the proportion is at the boundary, yo
+## src/omp/enforcement.ts (1)
+  - Non-null assertion `!` on `deps.register.find(...)` can throw a TypeError (e.g., 'Cannot read property of undefined') if `find` returns `undefined`, *before* the code enters the try-catch. The non-nul
+## src/omp/evidence-producer.ts (1)
+  - The `subject.target` value is interpolated directly into SQL LIKE patterns (`%${subject.target}%`) without escaping LIKE metacharacters (`%` and `_`). If `subject.target` contains `_` (matches any sin
+## src/omp/fire-gate.ts (1)
+  - BUG: The `DESTRUCTIVE_HINT` regex matches substring occurrences of command names without word boundaries, causing false classification of non-destructive intents. For example, a tool named `grep` with
+## src/omp/fire-ledger.ts (1)
+  - **Double-prefixed error code in `notePersistFailure` when called from `withLedger`**  In the `withLedger` catch block (line 432), the code constructs `code = 'GI_LEDGER_' + err.code` and passes it to 
+## src/omp/gate-hook.ts (1)
+  - The F-PS1 fix is incomplete: `pendingSteer` is keyed by tool name (e.g. 'write'), not by a unique call identifier. When two write/edit calls interleave — call-A then call-B — call-B's tool_call overwr
+## src/omp/gate-middleware.ts (1)
+  - EXPORT_PARSE_RE misses generator functions and destructured exports. `export function* foo()` will not match because the `*` sits between `function` and the name, and `export const { foo } = ...` / `e
+## src/omp/graph-facts.ts (1)
+  - The second `try` block (line 152) has a `finally` but **no `catch`**. If any SQLite query throws (corrupt database, schema mismatch, unexpected null from a query result, or `layerFreshness` throwing),
+## src/omp/graph-gate.ts (1)
+  - Critical logic inconsistency: `consecutiveUnverified` treats symbol-less edits (e.g. comment-only) as unverified (`unverified = true`), but `computeDrift` explicitly gives them zero weight and skips t
+## src/omp/jev.ts (1)
+  - The `res.json()` call is not wrapped in a try-catch. If the upstream API returns malformed or non-JSON content (e.g., an HTML error page from a CDN/proxy), this will throw a raw `SyntaxError` that byp
+## src/omp/populate-corbell.ts (1)
+  - TOCTOU race condition in warm store change detection: `stBefore` is captured AFTER the initial `isCorbellCheckoutFreshFor` call completes (which itself stats the file). If the warm store is replaced b
+## src/omp/populate-graphify.ts (1)
+  - TOCTOU race between freshness probe and GraphifyAdapter.build(). `isGraphifyCheckoutFreshFor` reads the graph file metadata (sidecar hash or mtime), then `new GraphifyAdapter(pinned).build(pinned)` re
+## src/omp/populate.ts (1)
+  - DB resource leak risk: `db` is not closed in a `finally` block. Currently, if `supersedeThenInsert` throws, the `catch` block does a best-effort close and re-throws. But `db.close()` at line 115 is ou
+## src/scoping/gi-session-path.ts (1)
+  - **Bug**: `resolveSessionId` can produce a session ID shorter than 8 characters, which will then fail `assertSessionStorePath`'s regex validation downstream. When `scopeRoot` resolves to a path compose
+## src/scoping/scoped-store.ts (1)
+  - The synchronous busy-wait loop (`while (Date.now() < until)`) blocks the event loop entirely. Since Bun/Node.js is single-threaded for JS execution, this freezes all other I/O and timers for up to 150
+## src/scoping/session-state.ts (1)
+  - The stale-lock reclaim mechanism relies on `mtimeMs` of the lock file. On some file systems (e.g., FAT32, HFS+), file timestamps have coarse granularity (1-second or even 2-second resolution). A lock 

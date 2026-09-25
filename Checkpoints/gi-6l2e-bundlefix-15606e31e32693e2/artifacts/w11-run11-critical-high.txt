@@ -1,0 +1,940 @@
+[HIGH] src/hunter/diagnostics/calibration.ts:266-271 (bug)
+  When `graph.nodes()` throws, the error is swallowed with a `console.warn` and an empty graph is recorded in the version hash. This contradicts the file's own stated principle: 'an ill-shaped fixture is the loud named CALIBRATION_FIXTURE_INVALID — never a coerced default.' A broken adapter means the fixture's version hash is silently incorrect, which can cause a stale calibration to be reused or a valid one to be invalidated — both wrong outcomes that fail to surface the real problem. Consider throwing `calibrationFixtureInvalid` instead, or at minimum including the error detail in the hash so it is not silently equivalent to an empty graph.
+  ```existing
+  try {
+        rawNodes = graph.nodes();
+      } catch (e: unknown) {
+        console.warn(`[calibration] graph.nodes() threw: ${e instanceof Error ? e.message : String(e)} - recording empty graph in version hash`);
+        rawNodes = [];
+      }
+  ```
+  ```suggested
+  try {
+        rawNodes = graph.nodes();
+      } catch (e: unknown) {
+        throw calibrationFixtureInvalid(
+          `graph.nodes() threw for fixture: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:785-791 (bug)
+  TOCTOU race in file-lock recovery: Lines 785-791 attempt to recover from a stale lock by unlinking it and re-acquiring, but this unlink+writeFileSync is non-atomic. Two concurrent processes can both observe `rows === null && !haveLock`, both unlink the stale lock, and both acquire `wx` locks in quick succession (or one acquires right after the other's unlink). Both then proceed to `buildLocalGraph` + `writeGraph`, corrupting the DB. The fix should use an atomic advisory lock (e.g., `fs.openSync(lockPath, 'wx' | 'w')` with an `flock`/`lockf`), or at minimum check the lock file's PID is stale AND use a timestamp-based staleness threshold rather than an immediate unlink+reacquire.
+  ```existing
+  if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // take over rather than deadlock on its stale lock.
+      try { fs.unlinkSync(lockPath); } catch { /* already gone */ }
+      fs.writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      haveLock = true;
+    }
+  ```
+  ```suggested
+  if (rows === null && !haveLock) {
+      // Lock holder vanished without persisting (crash between lock and write):
+      // take over rather than deadlock on its stale lock.
+      try {
+        const lockContent = fs.readFileSync(lockPath, 'utf8').trim();
+        const lockPid = Number(lockContent);
+        if (Number.isFinite(lockPid)) {
+          try { process.kill(lockPid, 0); } catch {
+       
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:0-0 (bug)
+  collectLocalTsFiles is vulnerable to symlink cycles: `e.isDirectory()` returns true for symlinks to directories. If a symlink creates a cycle (e.g., `<root>/link` → `<root>/`), the recursive `walk()` will recurse infinitely, causing a stack overflow. The function should resolve symlinks before recursing and track visited real paths to detect cycles.
+  ```existing
+  function collectLocalTsFiles(root: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (e: unknown) {
+      throw sourceReadFailed(dir, `local build readdir failed: ${String(e)}`);
+    }
+    for (const e of entries) {
+      if (e.name 
+  ```
+  ```suggested
+  function collectLocalTsFiles(root: string): string[] {
+  const out: string[] = [];
+  const visitedRealDirs = new Set<string>();
+  const walk = (dir: string): void => {
+    let realDir: string;
+    try {
+      realDir = fs.realpathSync(dir);
+    } catch (e: unknown) {
+      throw sourceReadFailed(dir, `local build realpath failed: ${String(e)}`);
+    }
+    if (visitedRealDirs.has(realDir)) return; 
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:754-761 (bug)
+  Dead code: `fallbackProfile` always throws, so the assignment `profile = fallbackProfile(...)` on line 760 can never complete. This means `profileFromDisk` remains `false` whenever the profile fails to load, and the variable `profile` is never assigned via the catch path — the exception propagates immediately. The catch block is dead code; the try/catch is unnecessary. If the intent is to allow callers to distinguish 'profile loaded from disk' vs 'profile not loaded', the catch should handle this differently (e.g., re-throw after logging, or return a partial summary).
+  ```existing
+  let profile: ProjectProfile;
+  let profileFromDisk = false;
+  try {
+    profile = loadProfile(args.profilePath);
+    profileFromDisk = true;
+  } catch (e: unknown) {
+    profile = fallbackProfile(root, e instanceof Error ? e.message.slice(0, 300) : String(e));
+  }
+  ```
+  ```suggested
+  let profile: ProjectProfile;
+  let profileFromDisk = false;
+  try {
+    profile = loadProfile(args.profilePath);
+    profileFromDisk = true;
+  } catch (e: unknown) {
+    // fallbackProfile always throws — propagate the load error directly.
+    throw new Error(
+      `PROFILE_INVALID: the disk profile failed to load for ${root} ` +
+      `(reason: ${e instanceof Error ? e.message.slice(0, 300) : St
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:90-90 (bug)
+  **Bug: P1 regex second alternative is asymmetric — misses valid detections.**
+
+The detection regex in P1 has two alternatives (OR-separated at the top level). The first alternative covers `.trident` appearing AFTER a file operation:
+```
+(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident
+```
+The second alternative covers `.trident` appearing BEFORE a file operation:
+```
+\.trident.*(writeFile(Sync)?|mkdir(Sync)?|(?:path\.)?join)
+```
+
+The second alternative is **missing** `appendFile(Sync)?`, `createWriteStream`, and `(?:path\.)?resolve` — so patterns like `.trident.appendFile(...)` or `.trident + resolve(...)` will not be detected 
+  ```existing
+  if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|mkdir(Sync)?|(?:path\.)?join)/.test(win)) {
+  ```
+  ```suggested
+  if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|createWriteStream|(?:path\.)?join|(?:path\.)?resolve)/.test(win)) {
+  ```
+
+[HIGH] src/hunter/firewall/lexicon-types.ts:81-85 (bug)
+  The `state` and `triplet` test aliases in `LexiconDecision` are plain properties with no enforced synchronization to their sources (`verdict` and `mPSE`). Any code constructing a `LexiconDecision` must manually keep these in sync — there is no compile-time or runtime guarantee. A safer design would be to derive `state` and `triplet` as getter-based properties, or to restructure the interface so these aliases are not independently assignable fields. As-is, a caller can set `verdict: 'BLOCKED'` but `state: 'ALLOW_READ'` without a type error (since both are the same union type), silently producing an inconsistent decision record.
+  ```existing
+  // THE TEST ALIASES (the spec's 6.2 pseudocode asserts these names — §6.2:2588-2594):
+  /** Alias of verdict — the pseudocode asserts d.state. */
+  state: LexiconDecision['verdict'];
+  /** Alias of mPSE — the pseudocode asserts d.triplet.Pattern. */
+  triplet: MPSE;
+  ```
+
+[HIGH] src/hunter/graph/graphify-adapter.ts:918-923 (bug)
+  buildSync() checks `this.buildInFlight` but never sets it, unlike build(). This breaks the mutual-exclusion guarantee: if an async build() is suspended at its setImmediate/yield point, a concurrent buildSync() call passes the guard and begins mutating shared caches (cachedNodes, cachedEdges, cachedRaw, etc.) concurrently. Any future refactor that adds an await or callback inside buildSync would silently corrupt shared state. Both paths must use the same reentrancy flag.
+  ```existing
+  buildSync(graphPath: string, profileOverride?: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[]; graph: GraphifyGraph } {
+    // ★ F-250 FIX (2026-09-24): buildSync is atomic alone but not against an in-flight async build() suspended at its parse-yield await — refuse LOUD; a refused/failed build leaves built=false (fail-closed).
+    if (this.buildInFlight) {
+      throw adapterFailed("gra
+  ```
+  ```suggested
+  buildSync(graphPath: string, profileOverride?: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[]; graph: GraphifyGraph } {
+    if (this.buildInFlight) {
+      throw adapterFailed("graphify buildSync", "ADAPTER_BUSY: an async build() is in flight on this adapter — serialize builds, one at a time");
+    }
+    this.buildInFlight = true;
+    this.built = false;
+    try {
+      // ... existing 
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:131-133 (bug)
+  Class member iteration only checks for `isMethodDeclaration`, `isPropertyDeclaration`, and `isConstructorDeclaration`. Getters (`isGetAccessorDeclaration`) and setters (`isSetAccessorDeclaration`) are silently skipped, meaning a class like `class Foo { get bar() { ... } set bar(v) { ... } }` will not produce a `method:Foo.bar` triple for those accessors. This creates incomplete class topology — downstream consumers looking for all members of a class will miss getter/setter accessors.
+  ```existing
+  for (const member of stmt.members) {
+          if ((ts.isMethodDeclaration(member) || ts.isPropertyDeclaration(member) || ts.isConstructorDeclaration(member)) && member.name && ts.isIdentifier(member.name)) {
+            const mName = member.name.text;
+  ```
+  ```suggested
+  for (const member of stmt.members) {
+          if ((ts.isMethodDeclaration(member) || ts.isPropertyDeclaration(member) || ts.isConstructorDeclaration(member) || ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) && member.name && ts.isIdentifier(member.name)) {
+            const mName = member.name.text;
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:186-188 (bug)
+  The code only handles `ExportDeclaration` (re-exports like `export { x }` and `export * from './mod'`). It does NOT handle:
+
+1. **`ExportAssignment`** (`export default <expression>`) — these produce no `exports` triple at all.
+2. **Inline exports** (`export class Foo`, `export function bar()`, `export const x = 1`) — the declaration triples are generated, but no `exports` triple links the declared entity back to the file as an exported symbol.
+
+This means the graph cannot distinguish between a locally-declared symbol and an exported one for most export patterns. Only re-export syntax generates `exports` triples.
+  ```existing
+  if (ts.isExportDeclaration(stmt)) {
+        const expLine = lineOf(sf, stmt);
+        const expEvidence = evidenceQuoteForNode(sf, stmt);
+  ```
+  ```suggested
+  // Handle export default expressions
+      if (ts.isExportAssignment(stmt)) {
+        const expLine = lineOf(sf, stmt);
+        const expEvidence = evidenceQuoteForNode(sf, stmt);
+        pushTriple(fileCanon, 'exports', `default:${relPosix}`, expEvidence, relPosix, expLine);
+      }
+      // Handle inline exports (export class/function/const)
+      const hasExportModifier = ts.canHaveModifiers(st
+  ```
+
+[HIGH] src/hunter/graph/merge.ts:166-167 (bug)
+  `conflictReason` deduplication uses `String.includes()` to check whether a contradiction has already been recorded. This produces **false positives** when an object name is a strict prefix of another object name. For example, if a prior addition appended `; ALSO vs semantic predicate=isA for node->container`, and a new semantic triple has object `contain`, the `add` string `; ALSO vs semantic predicate=isA for node->contain` is a prefix-substring of the existing entry and `includes()` returns `true` — silently skipping a real, distinct contradiction.
+
+Suggested fix: use a `Set<string>` to track which semantic triples have already been appended, keyed by a stable composite (e.g. `predicate + 
+  ```existing
+  const add = `; ALSO vs semantic predicate=${s.predicate} for ${s.subject}->${s.object}`;
+          if (existing.conflictReason !== null && !existing.conflictReason.includes(add)) existing.conflictReason = `${existing.conflictReason}${add}`;
+  ```
+  ```suggested
+  const dedupKey = `${s.predicate}|${s.subject}|${s.object}`;
+          if (!existing.seenContradictions.has(dedupKey)) {
+            existing.seenContradictions.add(dedupKey);
+            const add = `; ALSO vs semantic predicate=${s.predicate} for ${s.subject}->${s.object}`;
+            existing.conflictReason = `${existing.conflictReason}${add}`;
+          }
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:154-162 (bug)
+  TOCTOU race in `releaseHuntLock`: After reading the payload and verifying ownership (`existing.pid !== process.pid` / hostname check), but before `unlinkSync`, the lock file could have been deleted by the TTL-stale-recovery path in `acquireHuntLock` and replaced with a new lock held by a **different** owner. The subsequent `unlinkSync` would then delete the new owner's lock. The correct approach is to use an atomic compare-and-delete: either use a unique marker in the lock content and verify it before unlinking, or use `rename` + `unlink` (rename to a temp file, verify the rename succeeded, then unlink). At minimum, re-read the lock before unlink to confirm the ownership triple (pid + acquir
+  ```existing
+  if (existing.pid !== process.pid) return;
+    // ★ F-342 FIX (2026-09-24): never release a FOREIGN-HOST lock — the PID check
+    //   above is namespace-local, so a colliding PID on this host must not unlink
+    //   another host's lock. Fail closed: keep it, name the holder.
+    if (typeof existing.hostname === 'string' && existing.hostname !== os.hostname()) {
+      console.warn(`[hunt-lock] rel
+  ```
+  ```suggested
+  if (existing.pid !== process.pid) return;
+    if (typeof existing.hostname === 'string' && existing.hostname !== os.hostname()) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: held by host ${existing.hostname} (this host ${os.hostname()} — a colliding PID must not unlink a foreign lock)`);
+      return;
+    }
+    // Re-read to close the TOCTOU window — another process's stale-re
+  ```
+
+[HIGH] src/hunter/harness/map.ts:119-119 (bug)
+  The `n.line ?? undefined` nullish coalescing does NOT convert `0` to `undefined`. The comments reference an "old line-0 class" (line 50) as a legacy silent-drop behavior, suggesting `line: 0` was historically used to mean "no line". If a node has `n.line = 0`, it will be passed to `resolveLine` as `0` rather than `undefined`, and depending on how `resolveLine` handles the value `0`, this could allow a lineless node to bypass the guard (false negative) or be incorrectly resolved. Consider using `n.line || undefined` or an explicit `n.line && n.line > 0 ? n.line : undefined` guard to ensure `0` is treated as unresolved.
+  ```existing
+  { line: n.line ?? undefined, data, source_location: data['source_location'] },
+  ```
+  ```suggested
+  { line: n.line || undefined, data, source_location: data['source_location'] },
+  ```
+
+[HIGH] src/hunter/harness/scan.ts:104-112 (bug)
+  The calibration fixture extraction uses a deep double-cast chain (`as unknown as { rules?: ... }` then `as Record<string, unknown>`) with only runtime `typeof` checks. If the ProjectProfile schema evolves (e.g. `rules.bindings` is restructured or renamed), this extraction silently yields `undefined` → empty arrays → `hasFixtures = false`, causing the entire D17 calibration gate to no-op. This is a fail-open path that contradicts the fail-closed philosophy documented in the surrounding comments (F-347, F-64, etc.).
+
+Consider extracting the fixtures via a typed accessor or a dedicated validation function that throws when the bindings shape is unexpected but present — so schema drift produces a
+  ```existing
+  const bindingsAny = (normalized as unknown as { rules?: { bindings?: Record<string, unknown> } }).rules?.bindings ?? {};
+      const rawFixtures: unknown = (bindingsAny as Record<string, unknown>).calibrationFixtures;
+      const isRecord = typeof rawFixtures === 'object' && rawFixtures !== null;
+      const fireField: unknown = isRecord ? (rawFixtures as Record<string, unknown>).fire : undefined;
+  ```
+  ```suggested
+  // Extract with a typed guard that fails loudly on unexpected shape:
+function extractCalibrationFixtures(bindings: Record<string, unknown>): { fire: FireFixture[]; golden: GoldenFixture[] } | null {
+  const raw = bindings.calibrationFixtures;
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object') throw new Error('SCAN_INVALID_BINDINGS: calibrationFixtures must be an o
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:0-0 (bug)
+  In `retryFailed()`, if subscriber A succeeds but subscriber B throws, the event is re-queued. On the next `retryFailed()` call, subscriber A receives the event a second time, causing duplicate processing. The retry logic should track per-subscriber delivery status (e.g., a boolean flag per subscriber) so that only the failing subscribers are retried, or the event should be marked as delivered once ANY subscriber succeeds.
+  ```existing
+  retryFailed(): number {
+    const pending = this.failedEvents.splice(0, this.failedEvents.length);
+    for (const f of pending) {
+      let lastError: unknown = null;
+      for (const fn of this.subscribers) {
+        try {
+          fn(eventKind(f.row.kind), f.payload);
+        } catch (e: unknown) {
+          console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscribe
+  ```
+
+[HIGH] src/hunter/lexicon/compiled-store.ts:94-104 (bug)
+  `del` is prepared on line 96 BEFORE the try block. If `db.prepare(ins)` on line 100 throws, `del` is never finalized and leaks a native handle. The finally block (lines 112-115) only runs if the try block is entered, but the failure of `ins` preparation prevents entry into that try. This is the same class of native-handle leak that F-358/F-358b were designed to fix, but it was missed for `del`.
+  ```existing
+  export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: string): void {
+  db.exec('BEGIN');
+  const del = db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?');
+  // ★ F-358b FIX (2026-09-24): `ins` is declared BEFORE the try — the finally block
+  //   finalizes it, and a `const` inside the try is out of scope there (TS2304 on the
+  //   finally's `ins.finalize()`). Scope 
+  ```
+  ```suggested
+  export function writeRuleCards(db: DbClient, cards: RuleCard[], corpusHash: string): void {
+  db.exec('BEGIN');
+  let del: Statement | undefined;
+  let ins: Statement | undefined;
+  try {
+    del = db.prepare('DELETE FROM rule_cards WHERE corpus_hash = ?');
+    ins = db.prepare(
+      'INSERT INTO rule_cards (quote,anchor,classification,severity,proposed,corpus_hash) VALUES (?,?,?,?,?,?)',
+    );
+
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:97-110 (performance)
+  **`batteryName` performs synchronous file I/O via `extractRuleCards`, causing redundant corpus reads and defeating async improvements. In `batteryVersionAsync`, this blocks the event loop, and the corpus is read twice: once asynchronously for the hash and once synchronously in `batteryName`. Similarly, `batteryVersion` reads files twice synchronously. Consider passing pre-extracted cards to `batteryName` to eliminate the redundant I/O.**
+  ```existing
+  export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
+  const texts = await Promise.all(profile.rules.corpus.map(async (p) => {
+    let text: string;
+    try {
+      text = await readFile(p, 'utf8');
+    } catch (e: unknown) {
+      throw corpusUnreadable(p, String(e));
+    }
+    return `${p}\n${text}`;
+  }));
+  const corpusText = texts.join('\n');
+  const hash = sh
+  ```
+
+[HIGH] src/hunter/lexicon/templates.ts:396-397 (security)
+  **Prototype-safety bypass:** `node.data?.['interface']` directly indexes the object without going through the `readPath` helper that enforces own-property + blocklist checks (F-333/F-412). If `node.data` is constructed via `Object.create(nullPrototypeObj)` or the prototype is polluted, an inherited or crafted `interface` property could surface, violating the file's own A3 trust-boundary law.
+
+Similarly, `bindStringArray(node.data, 'members')` on line 335 also bypasses `readPath`'s prototype guards for the `members` key.
+
+Both reads should route through `readPath` for consistency with the other predicates' trust-boundary discipline.
+  ```existing
+  if (node.name !== declaredInterface && node.data?.['interface'] !== declaredInterface) continue;
+      const members = node.data !== undefined && node.data !== null ? bindStringArray(node.data, 'members') : [];
+  ```
+  ```suggested
+  const nodeInterface = readPath(node.data ?? {}, 'interface');
+      if (node.name !== declaredInterface && nodeInterface !== declaredInterface) continue;
+      const members = node.data !== undefined && node.data !== null
+        ? bindStringArray(node.data, 'members')  // bindStringArray reads own keys only via typeof
+        : [];
+  ```
+
+[HIGH] src/hunter/shared/containment.ts:101-104 (bug)
+  **Contradictory 'NEVER throws' contract**: The doc comment on `checkContained` (line 99) states 'NEVER throws', but `realNearest` rethrows non-ENOENT/ENOTDIR errors (lines 77-78), and `checkContained` itself calls `realpathSync(root)` which can throw EACCES/ELOOP before the `realNearest` fallback is reached. `requireContained` (line 128) also has no try-catch around `checkContained`, so any of these thrown errors propagate to the caller, violating the stated contract. Either the contract should be softened to document the specific error codes that CAN escape, or the throws should be wrapped and routed through `onViolation`.
+  ```existing
+  * THE CHECK — resolve both sides and answer containment. NEVER throws; the caller owns the
+ * error vocabulary (each subsystem has its own named code: HUNT_SCOPE_INVALID,
+ * SOURCE_READ_FAILED, GI_SHARED_PROJECT_STORE …). Returning the values lets the caller name
+ * BOTH paths in its message, which is what makes a refusal debuggable.
+  ```
+
+[HIGH] src/hunter/shared/migrations.ts:84-87 (security)
+  The transactional migration has an atomicity gap: when the driver doesn't support explicit BEGIN (began = false), each statement in TYPED_GRAPH_DDL auto-commits individually. If a mid-sequence statement fails, earlier statements remain committed, leaving a half-migrated schema that the caller cannot detect from the error alone. Consider adding a post-execution integrity check (e.g., querying sqlite_master for expected tables) or documenting this risk prominently for consumers that must guarantee all-or-nothing migration.
+  ```existing
+  let began = false;
+  try {
+    try { db.exec('BEGIN IMMEDIATE'); began = true; } catch { began = false; /* no explicit-BEGIN support: bare exec below */ }
+    db.exec(TYPED_GRAPH_DDL);
+  ```
+  ```suggested
+  // Verify schema integrity after non-transactional fallback
+if (!began) {
+  const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('typed_nodes','typed_edges','resolutions','graph_facts')");
+  // If fewer than 4 tables found, throw to signal partial migration
+}
+  ```
+
+[HIGH] src/hunter/shared/migrations.ts:45-50 (bug)
+  The graph_facts table lacks a CHECK constraint on its `predicate` column, unlike typed_edges which enforces `CHECK (predicate IN (...))`. This allows arbitrary garbage strings to be inserted as predicates into graph_facts, breaking consistency with the rest of the schema. Similarly, there is no length check on `evidence` (typed_edges enforces `CHECK (length(evidence_quote) > 0)`).
+  ```existing
+  CREATE TABLE IF NOT EXISTS graph_facts (
+  id INTEGER PRIMARY KEY,
+  subject TEXT NOT NULL,
+  predicate TEXT NOT NULL,
+  object TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  ```
+  ```suggested
+  CREATE TABLE IF NOT EXISTS graph_facts (
+  id INTEGER PRIMARY KEY,
+  subject TEXT NOT NULL,
+  predicate TEXT NOT NULL CHECK (predicate IN (${PREDICATES_SQL})),
+  object TEXT NOT NULL,
+  evidence TEXT NOT NULL CHECK (length(evidence) > 0),
+  ```
+
+[HIGH] src/hunter/tools/bug-hunt.ts:97-98 (bug)
+  **Bug: Lock release when `acquireHuntLock` throws corrupts lock state.** If `acquireHuntLock(absTarget)` throws (e.g., lock corruption, concurrent hold), the outer `finally` block (lines 153–156) still calls `releaseHuntLock(absTarget)` on a lock that was never acquired. This could corrupt the lock file, unlock another process's held lock, or mask the original acquisition error. The fix is to track whether acquisition succeeded with a boolean flag and guard the release.
+  ```existing
+  acquireHuntLock(absTarget);
+  try {
+  ```
+  ```suggested
+  let lockHeld = false;
+  acquireHuntLock(absTarget);
+  lockHeld = true;
+  try {
+  ```
+
+[HIGH] src/hydra/client-reader.ts:74-77 (bug)
+  When `old.close()` wins the race (resolves before 5000ms), the timeout timer is never cleared. Its `setTimeout` callback will still fire later, calling `rej()` on an already-resolved race — producing an unhandled promise rejection in Node.js. Conversely, when the timeout fires first, `old.close()` continues running in the background and its eventual resolution also becomes unhandled. In both cases the losing promise is abandoned without `.catch()`. Fix by clearing the timer on close success and adding `.catch()` to both branches:
+```ts
+let timer: ReturnType<typeof setTimeout> | undefined;
+const result = await Promise.race([
+  old.close(),
+  new Promise<never>((_, rej) => {
+    timer = setTim
+  ```existing
+  await Promise.race([
+            old.close(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')), 5000).unref?.()),
+          ]);
+  ```
+  ```suggested
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+          await Promise.race([
+            old.close().catch(() => {}),
+            new Promise<never>((_, rej) => {
+              closeTimer = setTimeout(
+                () => rej(new Error('TRANSPORT_CLOSE_TIMEOUT: close() exceeded 5000ms — releasing the reference anyway')),
+                5000,
+              );
+            }),
+       
+  ```
+
+[HIGH] src/hydra/map-reader.ts:243-244 (bug)
+  **MCP call result silently discarded — `query()` always returns local `tokenScan` regardless of MCP success.** Lines 243-244 fire `this.mcp.callTool('query_graph', ...)` but immediately discard the result with `void String(...)` and return `tokenScan(graph, question)`. On MCP success, the expensive remote call is wasted; on MCP failure, the catch block logs but falls through to the same local path. The `query()` method's MCP branch is effectively dead code — the MCP result is never used to influence the return value. Same pattern in `path()` (line 259) and `explain()` (line 306). If the intent is purely a connectivity probe, the MCP call should be skipped or its result used. As written, ever
+  ```existing
+  void String(await this.mcp.callTool("query_graph", { question }));
+        return tokenScan(graph, question);
+  ```
+  ```suggested
+  const mcpResult = await this.mcp.callTool("query_graph", { question });
+        // Use MCP result if available, fall back to local scan
+        return mcpResult ? parseMcpSubgraph(mcpResult, graph, question) : tokenScan(graph, question);
+  ```
+
+[HIGH] src/hydra/map-reader.ts:127-136 (bug)
+  **Empty node IDs silently collide, corrupting graph topology.** When a node object lacks both `id` and `label` fields, the expression `String(r["id"] ?? r["label"] ?? "")` produces `id: ""` (empty string). Multiple such nodes share the same key, causing: (1) degree counts to accumulate across phantom nodes, (2) godNodes selection to be skewed, (3) community membership to merge unrelated nodes. The F-403 validation on lines 113-120 checks for non-objects but not for missing `id`+`label` combinations. Add validation that `id` resolves to a non-empty string after normalization.
+  ```existing
+  const nodes: GraphifyNode[] = rawNodes.map((n) => {
+    const r = n as Record<string, unknown>;
+    return {
+      id: String(r["id"] ?? r["label"] ?? ""),
+      label: String(r["label"] ?? r["id"] ?? ""),
+      type: String(r["file_type"] ?? r["type"] ?? "unknown"),
+      file: String(r["source_file"] ?? r["file"] ?? ""),
+      data: r as Record<string, unknown>,
+    };
+  });
+  ```
+  ```suggested
+  const nodes: GraphifyNode[] = rawNodes.map((n, i) => {
+    const r = n as Record<string, unknown>;
+    const id = String(r["id"] ?? r["label"] ?? "").trim();
+    if (!id) {
+      throw new Error(`GRAPHIFY_PARSE_INVALID: nodes[${i}] has no id or label — cannot normalize to a unique key`);
+    }
+    return {
+      id,
+      label: String(r["label"] ?? r["id"] ?? ""),
+      type: String(r["file_type"
+  ```
+
+[HIGH] src/hydra/pipeline.ts:194-197 (bug)
+  The `splice(0, this.evidence.length, ...evidence)` spread may exceed the JavaScript engine's maximum call stack size (V8 limit ~65k arguments) if `evidence` is large. Replace with a bounded approach to avoid a potential stack overflow.
+  ```existing
+  if (seq >= this.publishedSeq) {
+      this.evidence.splice(0, this.evidence.length, ...evidence);
+      this.publishedSeq = seq;
+    }
+  ```
+  ```suggested
+  if (seq >= this.publishedSeq) {
+      this.evidence.length = 0;
+      for (const entry of evidence) {
+        this.evidence.push(entry);
+      }
+      this.publishedSeq = seq;
+    }
+  ```
+
+[HIGH] src/hydra/templates/types.ts:49-49 (bug)
+  `outputSchema` is typed as `z.ZodSchema` (equivalent to `z.ZodSchema<any, any, any>`), which accepts **any** Zod schema. This means a caller can assign a schema that does not produce `SubagentOutput` (or even a compatible shape), and TypeScript will not flag it. The mismatch would only surface at runtime when the auditor attempts to validate or parse output. Consider tightening this to a concrete generic type so misuse is caught at compile time.
+  ```existing
+  outputSchema: z.ZodSchema;
+  ```
+  ```suggested
+  outputSchema: z.ZodType<SubagentOutput>;
+  ```
+
+[HIGH] src/kernel/graph-pre-flight.ts:65-65 (bug)
+  **Double DB connection to the same store.** `getTestTargets(storePath, target, 5)` opens its own `openTypedStore(storePath)` (see graph-test-target.ts:24), meaning two independent handles are open concurrently on the same SQLite file. Depending on the driver's concurrency model this can cause 'database is locked' errors, stale reads, or WAL-mode anomalies. Either (a) refactor `getTestTargets` to accept an already-open `db` handle, or (b) ensure the driver explicitly supports concurrent handles with appropriate journaling mode.
+  ```existing
+  const testTargets = getTestTargets(storePath, target, 5);
+  ```
+  ```suggested
+  // Option A: refactor getTestTargets to accept a db handle
+const testTargets = getTestTargets(db, target, 5);
+  ```
+
+[HIGH] src/kernel/scan-chain.ts:257-259 (bug)
+  STALL errors from `callWithStallDetection` (reason starting with `STALL:`) do not match `RETRYABLE_RE` (`/429|rate.?limit|too many|quota|5\d\d/i`) and are not caught by the 401/404 early-exit either. This means a stall on rung 0 immediately falls through to the next rung without any retry on the same provider. A single transient stall (e.g., a cold start) on the primary GO pool rung would bypass it entirely. Consider whether STALL should be retryable once or twice before moving to the next rung, or document this as intentional.
+  ```existing
+  const rmsg = result.reason ?? "";
+      if (/SCAN_HTTP_(401|404)\b/.test(rmsg)) break; // fail-fast: auth/not-found never heals on retry
+      if (!RETRYABLE_RE.test(rmsg)) break; // fatal/non-transient → next rung, no backoff burn
+  ```
+  ```suggested
+  const rmsg = result.reason ?? "";
+      if (/SCAN_HTTP_(401|404)\b/.test(rmsg)) break; // fail-fast: auth/not-found never heals on retry
+      if (!RETRYABLE_RE.test(rmsg) && !/^STALL:/.test(rmsg)) break; // fatal/non-transient → next rung
+      // STALL and retryable errors → backoff and retry on same rung
+  ```
+
+[HIGH] src/kernel/scan-chain.ts:190-194 (bug)
+  The `full` string is built by concatenating raw decoded bytes from `reader.read()` chunks. SSE streams can split a single `data: {...}\n\n` event across multiple TCP chunks, meaning `full.split('\n')` on line 155 may split a JSON payload mid-line if a chunk boundary falls inside the JSON. This would cause `JSON.parse(line.slice(6))` to fail silently (caught by the inner catch), potentially dropping valid content. Use a proper SSE line-buffer that accumulates partial lines across chunks rather than splitting the raw concatenated bytes.
+  ```existing
+  const lines = full.split('\n').filter(l => l.startsWith('data: '));
+      // ★ F-206 FIX (2026-09-24): CONCATENATE every delta in stream order — the
+      //   old reverse()+first-match returned only the LAST chunk, truncating
+      //   every multi-event streaming response to its tail.
+      const parts: string[] = [];
+  ```
+  ```suggested
+  // SSE line-buffer: accumulate partial lines across chunks to avoid
+      // splitting JSON payloads at chunk boundaries.
+      const parts: string[] = [];
+      const sseLines = full.split('\n');
+      for (const line of sseLines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const chunk = JSON.parse(line.slice(6));
+          const delta = chunk.choices?.[0]?.delta?.
+  ```
+
+[HIGH] src/omp/adapters/abide.ts:130-130 (bug)
+  The fallback path in `tailEvents` re-reads the file with `readFileSync` after the bounded-tail loop fails. The earlier guard checks `st.size > MAX_SAFE_FULL_READ` and throws, but if `st` is null (stat failed), the code falls through to `readFileSync` with no size guard at all — a missing ledger's ENOENT will surface as an unhandled crash rather than the structured `GI_ENFORCE_ABIDE` error. Add a null-check on `st` before `readFileSync`.
+  ```existing
+  const raw = fs.readFileSync(eventsPath, "utf8");
+  ```
+
+[HIGH] src/omp/adapters/arsumbris.ts:94-106 (bug)
+  The recursive `walk` function in the filter callback has no depth limit. A deeply nested daemon payload (up to 32 MB) could blow the call stack. Consider adding a `maxDepth` parameter (e.g., 64) and bailing out when exceeded, consistent with the existing fail-closed philosophy elsewhere in this file.
+  ```existing
+  const walk = (v: unknown): void => {
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) {
+                if (seen.has(v)) return;
+                seen.add(v);
+                for (const x of v) walk(x);
+              } else if (v && typeof v === "object") {
+                if (seen.has(v as object)) return;
+                seen.add(v as object);
+    
+  ```
+  ```suggested
+  const walk = (v: unknown, depth = 0): void => {
+              if (depth > 64) return;
+              if (typeof v === "string") values.push(v);
+              else if (Array.isArray(v)) {
+                if (seen.has(v)) return;
+                seen.add(v);
+                for (const x of v) walk(x, depth + 1);
+              } else if (v && typeof v === "object") {
+                if (seen.has(v as 
+  ```
+
+[HIGH] src/omp/adapters/c2kg.ts:42-49 (bug)
+  Individual symbol objects from untrusted JSON are not type-validated. Properties such as `s.name`, `s.kind`, `s.file`, and `s.line` could be non-string or non-number types at runtime. The nullish coalescing operator `??` only guards against `null`/`undefined`, so for example, a numeric `s.name` like `42` would cause `42.includes(subject)` to throw a TypeError, crashing the entire `facts()` call and bypassing the error contract. Similarly, non-string values for `s.kind` and `s.file` could leak into the output `LayerFact`, and a non-number `s.line` would violate the typed contract of the `symbols` interface, leading to potential misbehavior in downstream consumers.
+  ```existing
+  const hits = symbols.filter((s) => (s.name ?? "").includes(subject));
+    return hits.map((s) => ({
+      consumer: "L4_C2KG" as const,
+      rung: "context" as const,
+      subject,
+      value: { kind: s.kind, file: s.file, line: s.line },
+      source: `${indexPath}#symbols(${s.file ?? "?"}:${s.line ?? "?"})`,
+    }));
+  ```
+  ```suggested
+  const hits = symbols.filter((s) => typeof s.name === "string" && s.name.includes(subject));
+    return hits.map((s) => ({
+      consumer: "L4_C2KG" as const,
+      rung: "context" as const,
+      subject,
+      value: {
+        kind: typeof s.kind === "string" ? s.kind : undefined,
+        file: typeof s.file === "string" ? s.file : undefined,
+        line: typeof s.line === "number" ? s.line : un
+  ```
+
+[HIGH] src/omp/adapters/semantica.ts:65-70 (bug)
+  JSON.parse is followed by a direct `as SemanticaKg` cast with no runtime validation. If `kg.json` is corrupted or adversarially shaped — e.g. `entities` is a string, number, object, or missing — the code will silently produce an empty result set from the `.filter()` call, or throw an unguarded TypeError if `entities` is not iterable. Add a runtime check after parsing to validate that `kg.entities` is actually an array (or absent/undefined). This gives callers a clear diagnostic instead of a silent wrong answer or an opaque crash.
+  ```existing
+  let kg: SemanticaKg;
+      try {
+        kg = JSON.parse(raw) as SemanticaKg;
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+      }
+  ```
+  ```suggested
+  let kg: SemanticaKg;
+      try {
+        kg = JSON.parse(raw) as SemanticaKg;
+      } catch (e) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
+      }
+      if (kg.entities !== undefined && !Array.isArray(kg.entities)) {
+        throw new Error(`GI_LAYER_SEMANTICA: the KG store has an invalid 'entities' fi
+  ```
+
+[HIGH] src/omp/calibration.ts:154-154 (bug)
+  Bug: `flag` can exceed `act` in both uncalibrated and calibrated branches due to the unconditional `Math.max(0.05, ...)` floor when `act` is small. This inverts the intended warning zone semantics where flag should be below act. Fix: cap flag so it never exceeds act.
+  ```existing
+  flag: Math.max(0.05, costCut / 2),
+  ```
+  ```suggested
+  flag: Math.min(costCut * 0.9, Math.max(0.05, costCut / 2)),
+  ```
+
+[HIGH] src/omp/decision.ts:0-0 (bug)
+  The `intent` parameter is not validated, unlike every other public input in this file. The file's own F-1 FIX (line 96-104) and the comment on line 131 explicitly document that an empty/undefined input silently propagates into downstream functions producing wrong results. `GraphFactInput.intent` is typed as `"consume" | "declare" | "mutate" | "measure"` but TypeScript does not prevent `undefined` at runtime. An undefined `intent` would silently reach `graphFacts`, skip the M-GRAPH-5 rule (which checks `input.intent === "measure"`), and yield a potentially wrong verdict set. This is the exact same defect class the file has already fixed twice (the F-1 FIX for `decideFromRegistry` act fields, 
+  ```existing
+  const target: string,
+  intent: GraphFactInput["intent"],
+): FireEvidence {
+  ```
+  ```suggested
+  const target: string,
+  intent: GraphFactInput["intent"],
+): FireEvidence {
+  // ★ AUDIT HIGH: validate `intent` — the same missing-input class as scopeRoot/target.
+  //   An undefined intent silently propagates into graphFacts, skipping rules.
+  const VALID_INTENTS: readonly string[] = ["consume", "declare", "mutate", "measure"];
+  if (!VALID_INTENTS.includes(intent as string)) {
+    throw new Er
+  ```
+
+[HIGH] src/omp/evidence-producer.ts:134-137 (bug)
+  The undefined-gate spread `{...(e.repair === undefined ? {} : { repair: e.repair })}` (and the identical pattern for `passed` on line 137) allows `null` through. If a caller passes `repair: null` or `passed: null` (not `undefined`), the record will contain `{ repair: null }` or `{ passed: null }` — which the downstream oracle (oracle.ts) will see as a *present* field rather than an *absent* one. The oracle treats absent `passed` as NO SIGNAL (a deliberate O1 fix), but `{ passed: null }` is a *present* field — the oracle may interpret it differently (e.g., `record.passed === true` is false, but `record.passed !== undefined` is true, potentially changing branching logic). Use `e.repair != null
+  ```existing
+  out.push({
+        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
+        ...(e.repair === undefined ? {} : { repair: e.repair }),
+      });
+  ```
+  ```suggested
+  out.push({
+        kind: "edit", at: e.at, target: e.target ?? subject.target, tool: e.tool,
+        ...(e.repair != null ? { repair: e.repair } : {}),
+      });
+  ```
+
+[HIGH] src/omp/extension.ts:461-462 (bug)
+  The graphify branch (substrate==='graphify') calls `populateSessionStore` inside `withPopulateLane` but has NO retry on failure: if populate throws, the error propagates to the calling tool, but the lane is resolved and the store remains empty/stale. A subsequent queued query that hits the DEFAULT branch will re-check `substrateNeedsPopulate` and may re-populate, but a subsequent graphify-branch query will NOT re-attempt populate. Consider recording the populate failure state in the lane and re-attempting on the next graphify-branch caller, or have the graphify branch fall back to the default substrate check on populate failure.
+  ```existing
+  const pop = await withPopulateLane(async () => populateSessionStore(opened.storePath, scopeRoot, "graphify-" + Date.now().toString(36), { substrate: "graphify" }));
+      if (pop.skipped || (pop.fallbackReason ?? "").length > 0) {
+  ```
+
+[HIGH] src/omp/extension.ts:345-352 (security)
+  Two concurrent `action=wipe` calls to graph-probe can both pass the `GI_OMP_ALLOW_CLEAR` env gate, both pass the audit confinement check, and both call `clearGiRegistry()` — resulting in a double wipe with only one audit trail entry. The first wipe clears the registry; the second operates on an already-cleared state. Add a concurrency guard (e.g., a promise-based lock or a module-level `wiping` flag) to serialize wipe operations.
+  ```existing
+  if (String(p.action ?? "").toLowerCase() === "wipe") {
+      // CRITICAL fix (frozen scan): defense-in-depth AT the tool layer — the
+      // description promises an env gate; the deep gate lives inside
+      // clearGiRegistry (GI_OMP_ALLOW_CLEAR, code GI_CLEAR_REFUSED). The tool
+      // now refuses with the SAME env + code before touching the registry.
+      if (process.env.GI_OMP_ALLOW_CLEAR !
+  ```
+
+[HIGH] src/omp/fire-ledger.ts:358-362 (bug)
+  **Bug: `all(limit)` and `byRule(limit)` return the WRONG rows when `limit` is specified.**
+
+When a `limit` is passed, the SQL queries fetch the N **most recent** rows (ORDER BY id DESC LIMIT N) and then reverse them in JavaScript. This means a caller passing `limit: 100` expecting the 100 oldest fires actually gets the 100 **newest** fires reversed. The method name `all()` and the parameter name `limit` unambiguously imply "first N" (oldest). This silently returns the wrong calibration data — the oldest rows, which are the most important for establishing a calibration baseline, are excluded.
+
+Additionally, the `.reverse()` allocates a new array and is wasted work for callers that only need a
+  ```existing
+  const raw = (limit === undefined
+        ? this.db.query(`SELECT * FROM fire_decisions ORDER BY id ASC`).all()
+        : this.db.query(`SELECT * FROM fire_decisions ORDER BY id DESC LIMIT ?1`).all(limit)) as Record<string, unknown>[];
+      const rows = raw.map(toPersisted);
+      return limit === undefined ? rows : rows.reverse();   // keep oldest-first
+  ```
+
+[HIGH] src/omp/fire-ledger.ts:377-381 (bug)
+  **Bug: `byRule(ruleId, limit)` has the same wrong-limit semantics as `all(limit)`.**
+
+Same issue as `all()` — when a `limit` is provided, the query fetches the N most recent rows for the rule and reverses them in memory, returning the wrong rows. A caller wanting "the oldest 50 fires for rule X" gets the newest 50 reversed instead.
+
+Suggested fix (same subquery pattern as `all()`):
+```sql
+SELECT * FROM (
+  SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id DESC LIMIT ?2
+) sub ORDER BY id ASC
+```
+  ```existing
+  const raw = (limit === undefined
+        ? this.db.query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id ASC`).all(ruleId)
+        : this.db.query(`SELECT * FROM fire_decisions WHERE rule_id = ?1 ORDER BY id DESC LIMIT ?2`).all(ruleId, limit)) as Record<string, unknown>[];
+      const rows = raw.map(toPersisted);
+      return limit === undefined ? rows : rows.reverse();
+  ```
+
+[HIGH] src/omp/gate-hook.ts:168-168 (bug)
+  **Orphaned `pendingQueries` entries never evicted** — If a `graph-query`/`ripwire` tool_call fires but the matching `tool_result` never arrives (agent abort, timeout, crash, or the `throw` from `attachGiGraphGate` cancelling the enclosing frame before the query executes), the entry in `pendingQueries` and the corresponding `states` entry persist indefinitely. The `Map` grows unbounded over the session lifetime with no TTL, max-size cap, or periodic sweep. In a long-running session, this is a memory leak. Recommend adding a TTL sweep (e.g. entries older than N seconds are pruned on each `tool_call`) or a max-queue cap with oldest-eviction.
+  ```existing
+  const pendingQueries = new Map<string, Array<{ target: string; tool: string }>>();
+  ```
+  ```suggested
+  // Add periodic eviction inside the tool_call handler:
+const QUERY_TTL_MS = 120_000;
+const now = Date.now();
+for (const [k, q] of pendingQueries) {
+  // (entries don't carry timestamps; add them if needed)
+  // Or simpler: cap per-session queue length and evict oldest
+  if (q.length > 10) {
+    const removed = q.splice(0, q.length - 10);
+    // optionally recordGraphQuery with resolved=false for r
+  ```
+
+[HIGH] src/omp/gate-hook.ts:241-242 (bug)
+  **Fragile regex heuristics for query resolution detection** — `hasRows` and `noRows` (lines 256–262) depend on opaque regex patterns matching against text content to determine whether a graph query actually returned data. If the tool output format changes (e.g. a new query verb, a different data schema, localization), `hasRows` may false-negative, causing a legitimately resolved query to not grant drift coverage. This directly triggers a T3 abort on the next structural edit — a hard block on the agent's ability to work. The detection should be more robust, ideally checking structured response fields rather than regex-scanning opaque text.
+  ```existing
+  const hasRows = /rows?\s*[:=]\s*[1-9]/.test(text) || /"count":\s*[1-9]/.test(text) || /(?:^|\n)\s*(?:src|lib|tests|packages)\/[^\s]+:\d+/.test(text);
+const noRows = /rows?\s*[:=]\s*0\b/.test(text) || /"count":\s*0\b/.test(text) || /NO NODE|not found|0 (?:rows|matches|results)/i.test(text);
+  ```
+  ```suggested
+  // Prefer checking structured fields on the event before falling back to regex:
+const detailsRows = typeof event.details === "object" && event.details !== null
+  ? (event.details as { rowCount?: number; rows?: number; count?: number })
+  : {};
+const hasRows = (typeof detailsRows.rowCount === "number" && detailsRows.rowCount > 0)
+  || (typeof detailsRows.rows === "number" && detailsRows.rows > 0)
+ 
+  ```
+
+[HIGH] src/omp/gi-registry.ts:144-146 (bug)
+  `closeGiRegistry()` calls `closeStoreDb()` which closes **all** tracked store DB handles. Any other caller that currently holds a handle from `getStoreDb` (e.g., an ongoing `openSessionStore`) will have its connection invalidated, potentially causing silent failures or `SQLITE_MISUSE` errors on subsequent operations. Document this side-effect prominently, or add a parameter to selectively close only the registry DB.
+  ```existing
+  export function closeGiRegistry(): void {
+  closeStoreDb();
+}
+  ```
+  ```suggested
+  // NOTE: closeStoreDb() closes ALL tracked DB handles, not just the registry.
+// Callers must ensure no other store DB is in active use, or this function
+// should be refactored to close only the registry connection.
+export function closeGiRegistry(): void {
+  closeStoreDb();
+}
+  ```
+
+[HIGH] src/omp/graph-facts.ts:0-0 (bug)
+  M-GRAPH-1 IGNORE branch evidence reports `inD.n` (total in-degree, no predicate filter) but the verdict decision was based on `producers.n` (calls-only in-degree). This produces an audit trail where the evidence string does not match the fact that was actually checked. Should be `producers.n` to match the decision criteria.
+  ```existing
+  : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
+            reason: `the consumed symbol "${input.target}" has producers`,
+            evidence: `in-degree ${inD.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
+  ```
+  ```suggested
+  : { rule: "M-GRAPH-1", settles: true, action: "IGNORE",
+            reason: `the consumed symbol "${input.target}" has producers`,
+            evidence: `in-degree (calls) ${producers.n} · sample: ${producers.sample.slice(0, 3).join(", ")}` });
+  ```
+
+[HIGH] src/omp/jev.ts:39-52 (security)
+  TOCTOU race condition: Between `statSync` (permission check) and `readFileSync`, the file can be replaced (e.g., symlink swap to a world-readable file or a different file entirely). This undermines the 0600 enforcement the code claims. Use `fs.openSync` with `O_NOFOLLOW` + `fs.fstatSync` + `fs.readFileSync` on the same fd to atomically check permissions and read. Alternatively, at minimum, read the file then check permissions on the opened fd before returning the value.
+  ```existing
+  try {
+        const mode = fs.statSync(KEY_FILE).mode;
+        if ((mode & 0o077) !== 0) {
+          throw new JevError(
+            "GI_JEV_KEY_PERMS",
+            `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
+          );
+        }
+      } catch (e) {
+        if (e instanceof JevError) throw e;
+        // stat failed (e.g. 
+  ```
+  ```suggested
+  // Open the file once, fstat the fd, then read from the same fd — no TOCTOU.
+    const fd = fs.openSync(KEY_FILE, 'r');
+    try {
+      const mode = fs.fstatSync(fd).mode;
+      if ((mode & 0o077) !== 0) {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} has insecure permissions ${(mode & 0o777).toString(8)} (expected 0600 — chmod 600 ${KEY_FILE})`,
+       
+  ```
+
+[HIGH] src/omp/populate-corbell.ts:174-174 (performance)
+  The freshness probe `isCorbellCheckoutFreshFor` is called twice: once at line 123 (before reads) and once at line 166 (after reads). Each call walks the entire workspace tree with up to `CORBELL_FRESHNESS_BUDGET` (50,000) `statSync` calls — that's potentially 100k stat syscalls per invocation of this function. The second call's primary purpose is to detect a rebuild that happened during the read, but the `warmStoreUnchanged` (mtime+size+ino snapshot) comparison at line 168 already covers that case. Consider removing the second `isCorbellCheckoutFreshFor` call and relying solely on the `warmStoreUnchanged` comparison, or caching the freshness walk result if both checks are deemed necessary.
+  ```existing
+  const freshnessAfter = isCorbellCheckoutFreshFor(root, warmPath);
+  ```
+  ```suggested
+  // Rely on the stat-snapshot comparison (stBefore vs stAfter) to detect
+  // mid-read swaps — avoids a second full filesystem walk (50k stat calls).
+  // If freshness semantics beyond stat-snapshot are needed, consider caching
+  // the walk result from the first probe above.
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:132-146 (bug)
+  **Stack overflow on circular symlinks (no cycle detection in directory walks)**.
+
+Both the freshness-probe `walk` and the `hashSourceTree` `walk` recurse into directories without a visited-set. A circular symlink in a scope entry (e.g., `src/self → src`) causes unbounded recursion → stack overflow. The budget counter only decrements for FILES, not directories, so it provides no protection. The `hashSourceTree` walk in `typed-write.ts` (chainCalls, etc.) correctly uses a `visited` Set, but these two walks do not.
+
+**Fix**: Add a `visited = new Set<string>()` that records `fs.realpathSync(dir)` (or the raw path with a best-effort try/catch) before recursing, and skip directories already in the
+  ```existing
+  const walk = (dir: string): void => {
+    if (budget.n <= 0) { exhausted = true; return; }
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (budget.n <= 0) { exhausted = true; return; }
+      if (entry.isDirectory()) {
+        if (["node_modules", ".git", "dist", "buil
+  ```
+  ```suggested
+  const visited = new Set<string>();
+  const walk = (dir: string): void => {
+    if (budget.n <= 0) { exhausted = true; return; }
+    // Cycle detection: a symlink loop would otherwise blow the stack.
+    let realDir: string;
+    try { realDir = fs.realpathSync(dir); } catch { return; }
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
+    let entries: fs.Dirent[];
+    try {
+      entr
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:0-0 (bug)
+  The `supersedeThenInsert` function incorrectly closes the caller-owned Database connection in its `finally` block, leading to a double-close when the caller also closes it. Additionally, the JSDoc and inline comments contradict this behavior by stating that the helper never closes a connection it did not open. Fix: Remove the `db.close()` call from `supersedeThenInsert`'s `finally` block to align with the caller-owns-close contract, and update the comments to reflect the correct ownership.
+  ```existing
+  } catch (e) {
+    try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back — close still runs */ }
+    throw e;
+  }
+  // Caller owns close (typed-write batch-writer contract) — the helper never
+  // closes a connection it did not open (re-run-V high: close+leak pair).
+}
+  ```
+  ```suggested
+  } catch (e) {
+    try { db.exec("ROLLBACK;"); } catch { /* already-rolled-back */ }
+    throw e;
+  }
+  // Caller owns close (typed-write batch-writer contract) — the helper never
+  // closes a connection it did not open (re-run-V high: close+leak pair).
+}
+  ```
+
+[HIGH] src/omp/populate.ts:52-59 (bug)
+  Corbell meta-write degradation is silent to the caller. When the meta INSERT fails (lines 68-75), the catch logs to stderr but the function returns `skipped: false` with `substrate: "corbell"` — the same shape as a fully successful populate. Callers have no programmatic way to detect the stale metadata. Because the data already committed and there is no retry loop, this inconsistency becomes permanent. Either (a) return a degradation flag in `PopulateResult` (e.g. `metaDegraded: true`) so callers can warn or retry, or (b) re-throw after logging so callers see the failure (preferred if metadata is contractually required).
+  ```existing
+  } catch (e) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        // ★ F-711 FIX (2026-09-24): the corbell data already committed - a meta-row failure must
+        // DEGRADE, not throw past a PopulateResult-typed function (no live caller catches
+        // GI_META_WRITE_FAILED; it escaped as an uncaught exception). LOUD on stderr, honest
+        // success for the da
+  ```
+  ```suggested
+  } catch (e) {
+        try { db.exec("ROLLBACK;"); } catch { /* already rolled back */ }
+        console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
+        // Return a degraded result so callers can detect and act on stale metadata
+        return {
+          filesIndexed: 0
+  ```
+
+[HIGH] src/scoping/db-path.ts:59-60 (bug)
+  Bare `~` (without trailing slash) is not expanded. If `defaultDir` is exactly `'~'`, `startsWith('~/')` is false and the value falls through to `path.join('~', spec.fileName)`, producing a literal relative path like `~/<fileName>`. This is the exact class of silent misresolution this module was built to prevent — the production DB silently ends up in an unintended location. The fix should handle both `'~'` and `'~/…'`.
+  ```existing
+  let dir = spec.defaultDir;
+    if (dir.startsWith('~/')) {
+  ```
+  ```suggested
+  let dir = spec.defaultDir;
+    if (dir === '~' || dir.startsWith('~/')) {
+  ```
+
+[HIGH] src/scoping/db-path.ts:55-57 (bug)
+  `testFile` values beginning with `~/…` are not home-dir-expanded. `path.isAbsolute('~/fixtures/test.db')` returns `false` on POSIX (tilde expansion is a shell feature, not an OS path feature), so the value is joined to `os.tmpdir()`, producing an unexpected path like `/tmp/~/fixtures/test.db`. Test isolation silently targets the wrong file.
+  ```existing
+  return path.isAbsolute(spec.testFile)
+        ? spec.testFile
+        : path.join(os.tmpdir(), spec.testFile);
+  ```
+  ```suggested
+  const testFile = spec.testFile as string;
+      if (path.isAbsolute(testFile)) return testFile;
+      if (testFile.startsWith('~/') || testFile === '~') {
+        const home = process.env.HOME ?? process.env.USERPROFILE;
+        if (!home) throw new Error(
+          `[db-path] HOME_NOT_SET: neither HOME nor USERPROFILE env var is set ` +
+          `(fileName="${spec.fileName}") — cannot resolve te
+  ```
+
+[HIGH] src/scoping/gi-ecosystem.ts:7-7 (bug)
+  Hardcoded temporary directory path `/tmp/gi-omp-tmp` is not cross-platform. On Windows, `/tmp` does not exist and this will fail at runtime. Use `os.tmpdir()` or a platform-appropriate alternative to construct this path dynamically.
+  ```existing
+  export const GI_TMP_DIR = "/tmp/gi-omp-tmp";
+  ```
+  ```suggested
+  import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+export const GI_TMP_DIR = join(tmpdir(), "gi-omp-tmp");
+  ```
+
+[HIGH] src/scoping/gi-ecosystem.ts:7-7 (security)
+  The fixed predictable path `/tmp/gi-omp-tmp` can be exploited via symlink attacks (TOCTOU race condition): a malicious user could pre-create a symlink at this path pointing to a sensitive location, and the application could follow it when writing files. Using a randomized or user-specific subdirectory under the system temp directory mitigates this risk.
+  ```existing
+  export const GI_TMP_DIR = "/tmp/gi-omp-tmp";
+  ```
+  ```suggested
+  import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+
+export const GI_TMP_DIR = join(tmpdir(), `gi-omp-tmp-${randomUUID()}`);
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:159-163 (bug)
+  **Bug: `forbiddenGlobalHomeGraph()` uses native `path.join` but `isGlobalHomeGraph()` uses `path.posix.join` — they will never agree on Windows.**
+
+`forbiddenGlobalHomeGraph()` (line 154) returns e.g. `C:\Users\x\.omp\graph-intelligence\store.sqlite` on Windows. `isGlobalHomeGraph()` (line 164) builds the banned string with `path.posix.join`, producing `C:/Users/x/.omp/graph-intelligence/store.sqlite`. Since the comparison is `norm === banned`, these differ by separators and the guard will **never reject** a global home graph store on Windows.
+
+The same applies to the test `tests/st-gi-omp-scope.ts:67-75` — it feeds `forbiddenGlobalHomeGraph()` into `assertSessionStorePath`, which would fail
+  ```existing
+  function isGlobalHomeGraph(norm: string): boolean {
+  const home = (process.env.HOME ?? os.homedir()).replace(/\\/g, "/");
+  const banned = path.posix.join(home, ".omp/graph-intelligence/store.sqlite");
+  return norm === banned;
+}
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:80-87 (security)
+  **Security (high): TOCTOU race in the F-434b symlink guard — the parent directory can be swapped for a symlink between the `try { fs.realpathSync(parent) }` call and the preceding logic.**
+
+The guard (line 78-84) resolves the parent's real path, then compares session IDs. An attacker who can create/delete files in the scope root could: (1) ensure the parent dir does not exist yet so `realpathSync` throws and the check is skipped, (2) create a symlink at the parent path pointing outside the scope, (3) the store file is then created through the symlink. The regex shape check (line 64) provides defense-in-depth — the logical path still must match the session pattern — but an attacker controllin
+  ```existing
+  const parent = path.dirname(resolved);
+  let parentReal: string | null = null;
+  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  if (parentReal !== null) {
+    const parentNorm = parentReal.replace(/\\/g, "/");
+    const want = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(norm);
+    const got = /\/sessions\/([A-Za-z0-9_-]{8,24})\/?$/.exec(parentNorm);
+    if (want !== 
+  ```
+
+# total: 55

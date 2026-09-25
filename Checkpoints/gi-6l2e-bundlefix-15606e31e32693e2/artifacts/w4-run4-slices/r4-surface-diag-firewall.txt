@@ -1,0 +1,30 @@
+[CRITICAL] src/hunter/surface/query-tool.ts
+    **Critical: `mustImplement` and `consistency` use legacy `graph_nodes` table instead of hunt-populated `typed_nodes`/`typed_edges`.**  Both verbs query `graph_nodes WHERE lineage = 'SPEC_DERIVED'` and `graph_nodes WHERE lineage = 'CODE_DERI
+
+[HIGH] src/hunter/diagnostics/calibration.ts
+    graph serialization (serializeFixtures) omits graph edges/topology. The O22.4 determinism guarantee states 'a fixture edit alters the version, so a stale calibration is invalidated.' If any predicates depend on edge relationships (common in
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    assertNoBlindness is entirely dead code in this call site. Both `changedNodeIds` and `rerunNodeIds` are constructed as `new Set(ranked.map(f => f.ruleId))` — identical input, so the set-equality check in assertNoBlindness always trivially p
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    buildLocalGraph silently swallows file-read and parse errors via console.error + continue. This violates the engine's own fail-closed law (documented in the file header and enforced by lockdownReadSource/buildFileContentMap): "an unreadable
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    runGraphLogicDiagnostics has a race condition: two concurrent runs targeting the same project will both observe `fs.existsSync(dbPath)` as false (or both see readStoredGraph return null), both call buildLocalGraph, and both call writeGraph.
+
+[HIGH] src/hunter/diagnostics/findings-store.ts
+    If ROLLBACK fails (e.g., connection lost, disk full, database locked), the transaction may remain open or be left in an inconsistent state. The original error is re-thrown, but the caller has no way to know the rollback itself failed. Consi
+
+[HIGH] src/hunter/diagnostics/findings-store.ts
+    Silently defaulting to a fallback value (`'MED'` for severity, `'PASS'` for verdict) on unrecognized input masks data corruption or storage bugs. If a bug causes an invalid severity or verdict to be persisted, every downstream consumer (ran
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts
+    The `/read/` substring check is far too broad and acts as an unintentional false-negative generator. It matches 'read', 'ready', 'readme', 'readline', 'breadth', etc. A file containing `PHASE_REQUIRED_TOOLS` alongside the word 'ready' would
+
+[HIGH] src/hunter/firewall/readonly.ts
+    Dead code: The echo/printf-specific metacharacter scan path (lines 111–116) is **unreachable**. Both `echo` (via `firstToken === ECHO_VERB`) and `printf` (via `EXECUTION_VERBS.has(firstToken)`) match the `blockVerbExemption` at line 104, wh
+
+[HIGH] src/hunter/surface/lsp-injector.ts
+    The regex escaping uses `ch.replace(/[.+^${}()|[\]\\]/, '\\$&')` but the character class itself is not properly escaped for JavaScript. In a regex literal `/[.+^${}()|[\]\\]/`, the `[` and `]` inside the character class can cause a syntax e
+

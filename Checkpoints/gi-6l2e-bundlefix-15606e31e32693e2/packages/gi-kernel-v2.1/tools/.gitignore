@@ -1,0 +1,4 @@
+# the campaign's ledger is EVIDENCE and is kept; the WAL sidecars are ephemeral —
+# committing them would ship a transient lock state as if it were an artifact.
+*.sqlite-shm
+*.sqlite-wal

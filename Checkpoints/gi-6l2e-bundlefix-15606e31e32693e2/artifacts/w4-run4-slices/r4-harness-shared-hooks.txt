@@ -1,0 +1,48 @@
+[HIGH] src/hunter/harness/hunt-lock.ts
+    Corrupted/unreadable lock file permanently blocks acquisition and release. In `acquireHuntLock`, when `readPayload` returns `null`, `existing` is falsy so the stale-recovery branch is skipped and an `HUNT_ALREADY_RUNNING` error is thrown. I
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts
+    Bug: If `openStore(dbPath)` throws (e.g., filesystem permission denied, invalid path), the `store` variable is never assigned. The `finally` block then throws `ReferenceError: store is not defined`, masking the original `openStore` error. W
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts
+    Bug: If `done()` is called before `start()` is invoked or after `stop()` has been called, the actor is not in a running state. The initial `status === 'done'` check may fail, and both subscriptions (sub2, sub3) will never fire because the a
+
+[HIGH] src/hunter/harness/report.ts
+    `howBroken` and `whyBroken` always resolve to the same value (`trace.rootCause`) when a trace is present, making these two semantically distinct fields identical. The different fallback strings ("the X violation at …" vs "the X predicate fi
+
+[HIGH] src/hunter/harness/scan.ts
+    Corpus path entries are resolved relative to `profile.project.root` without sanitization. A malicious or accidental entry like `../../etc/passwd` or `../../../sensitive/file` would resolve to a path outside the project root. Consider valida
+
+[HIGH] src/hunter/hooks/bus-hook.ts
+    If the row shape validation throws (line 60), the cursor is NOT advanced past that row. On the next `poll()` call, the same malformed row will be selected again, the same throw occurs, and the bus is permanently stuck in a retry loop. The `
+
+[HIGH] src/hunter/profile/loader.ts
+    **TOCTOU path traversal vulnerability in `contained()` (security)**: When `realpathSync` throws (e.g., entry doesn't exist yet), the function falls back to the lexically-resolved `abs` path. However, the caller on lines 519 and 527 then re-
+
+[HIGH] src/hunter/profile/loader.ts
+    **Recursive YAML parser lacks depth limit — stack overflow risk**: `parseMapping` (line 326) and `parseSequence` (line 356) call each other recursively with no depth bound. A crafted profile with deeply nested block mappings (e.g., 10,000+ 
+
+[HIGH] src/hunter/profile/schema.ts
+    `z.any()` for the `bindings` field completely bypasses type validation, meaning any arbitrary (potentially malicious or malformed) data structure can pass schema validation and reach downstream code. The comment explains the rationale (P1-P
+
+[HIGH] src/hunter/shared/db.ts
+    **Bug: `requestPromotion` mutates DB + in-memory state before unconditionally throwing.**  The method writes a `promotion_pending:<hash>` row to `family_metadata`, updates `promotion_state` to `PROMOTION_PENDING`, adds the hash to the `pend
+
+[HIGH] src/hunter/shared/migrations.ts
+    Bug: If `BEGIN IMMEDIATE` succeeds but `COMMIT` fails (e.g., I/O error, disk full), the commit error is silently swallowed and the function returns successfully. In this case the transaction is implicitly rolled back by SQLite, so the schem
+
+[HIGH] src/hunter/shared/query-engine.ts
+    **Duplicate graph traversal — SQL CTE result is discarded, then BFS re-runs the search.**  The `path()` method executes a full recursive CTE with `ORDER BY depth ASC LIMIT 1` (lines 109–126), which performs a complete BFS-like search in SQL
+
+[HIGH] src/hunter/shared/query-engine.ts
+    **BFS path copies can cause unbounded memory growth on dense graphs.**  In `buildPathEdges()`, each BFS queue entry stores a full copy of the path array (`[...cur.path, e]`). On a dense graph where many nodes connect to many others, each no
+
+[HIGH] src/hunter/tools/bug-hunt.ts
+    **Path traversal risk on the hunt path:** User-supplied `targetPath` and `profilePath` are passed directly to `spawnBugHunterLoop` without scope validation. The `openSessionStore` in the status path validates `scopeRoot` (canonical absolute
+
+[HIGH] src/hunter/tools/report-writer-local.ts
+    Synchronous `fs.readFileSync` and `fs.writeFileSync` are used inside the `async` function `generateLocalReport`. These block the Node.js event loop for the entire duration of the file read and write, negating the benefit of the async functi
+
+[HIGH] src/hunter/triad.ts
+    `familySeverity` is typed as the union `'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'` (the `Severity` type), but the runtime guard only checks `typeof pat.familySeverity !== 'string'`. Any arbitrary string (e.g. `'BOGUS'`) will pass validation, m
+

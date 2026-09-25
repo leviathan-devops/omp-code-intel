@@ -1,0 +1,36 @@
+[HIGH] src/hydra/pipeline.ts
+    Race condition on public evidence snapshot: `this.evidence.length = 0` followed by `this.evidence.push(...evidence)` is non-atomic. A concurrent reader observing `this.evidence` between these two statements will see an empty array. Addition
+
+[HIGH] src/hydra/pipeline.ts
+    String(undefined) yields the literal string 'undefined' and String(null) yields 'null' — both are non-empty and pass the subsequent `trim() === ""` check. If `targetRootFor` or `graphPathFor` returns null/undefined, the pipeline will procee
+
+[HIGH] src/hydra/templates/mpse.ts
+    Double-casting via `as unknown as z.ZodSchema` completely bypasses TypeScript's type system. If any output schema doesn't match the expected structure at runtime, this will silently pass compile-time checks and fail at runtime. This same do
+
+[HIGH] src/kernel/graph-diff.ts
+    SQL string interpolation for IN clause predicates. While PREDICATES is currently a compile-time constant derived from CORBELL_PREDICATES (verified: ["calls", "traces-to", "imports"]), this pattern is fragile and violates secure-coding conve
+
+[HIGH] src/kernel/scan-chain.ts
+    `RETRYABLE_RE` is defined and exported but **never used** in `runScanChain` to gate retries. Currently, every non-OK result (including fatal errors like 401 Unauthorized or 404 Not Found) burns through all 5 retry attempts with full backoff
+
+[HIGH] src/kernel/scan-chain.ts
+    HTTP status code is never checked. A 401, 403, 404, or 500 response will pass the `response.ok` check path (there is no such check) and be fed into the SSE/JSON parser, which will likely return `EMPTY` or `PARSE` errors — masking the real p
+
+[HIGH] src/scoping/gi-session-path.ts
+    `assertSessionStorePath` only normalizes backslashes (`p.replace(/\\/g, "/"`) but does NOT resolve `..` path segments. A crafted path like `/scope/../../sessions/xxxxxxxx/store.sqlite` would match the `SESSION_STORE_RE` regex (it ends with 
+
+[HIGH] src/scoping/scope-resolver.ts
+    The `depth` metric uses `d.split('/').length` with a hardcoded forward slash. On Windows, `path.dirname()` returns backslash-separated paths (e.g. `C:\Users\project`), so `split('/')` yields `['C:\Users\project']` — a depth of 1 for every c
+
+[HIGH] src/scoping/scoped-store.ts
+    **Race condition in singleton lifecycle**: `getStoreDb` performs a multi-step check-then-act sequence (health-check → close → mkdir → open → schema → assign) with no locking. Two concurrent async callers can both observe a sick/null handle,
+
+[HIGH] src/scoping/scoped-store.ts
+    **Synchronous busy-wait blocks the event loop**: The `while (Date.now() < until)` loop at line 131 is a CPU-spinning synchronous backoff (up to 50ms per attempt, 150ms total). This blocks the Node/Bun event loop entirely, starving I/O and o
+
+[HIGH] src/scoping/scoped-store.ts
+    **`runWithRetry` closes the global singleton on every error, not just busy/locked**: Unlike `withImmediateTx` (which checks `/busy|locked/i` before deciding to retry), `runWithRetry` unconditionally closes the shared singleton on ANY error 
+
+[HIGH] src/scoping/session-state.ts
+    `writeSessionState` is exported and usable without the lock. External callers can invoke `writeSessionState` directly, bypassing `withStateLock`, which breaks the read-modify-write serialization that `tickSessionBudget` relies on. A concurr
+

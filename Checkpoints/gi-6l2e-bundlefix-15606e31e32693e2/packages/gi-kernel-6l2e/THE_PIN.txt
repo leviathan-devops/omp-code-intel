@@ -1,0 +1,152 @@
+# /goal — GI KERNEL 6L+2E: WIRE ALL 6 GRAPH LAYERS + 2 JEV KERNELS AS DECISION INPUTS
+
+## GOAL
+Wire the 6 graph layers (L1 SEMANTICA · L2 ARSUMBRIS · L3 UA · L4 C2KG · L5 CORBELL · L6 GRAPHIFY)
+and the 2 Jev enforcement kernels (TSG · ABIDE) so EVERY ONE IS AN INPUT TO THE KERNEL'S DECISIONS.
+DONE only when the register reads `consumed:8` (not `up=11/11`), the 7-class derailment corpus settles
+at $0 with its SPECIFIC tokens, the container suite is 14/14 with tool-result-bound tokens, the
+host-live seat operated the live kernel with a non-empty bug ledger, and the seal + receipt exist.
+
+## BASELINE (re-measured THIS turn — inherited numbers are STALE)
+- repo /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence @ jarvis/gi-main fdf90b1
+- dist extensions/graph-intelligence/index.js sha256 83eb7bba9c5e76db… size 613039 B (Sep 20 07:11 — 30h STALE)
+- tree 99 .ts / 25,928 lines · tests 31 files · corbell INSTALLED at ~/.local/bin/corbell · graphify-out/graph.json 15,028,924 B
+- the register reads up=5/11 · the store is 851/1266 nodes of src/hunter (the PRE-V2 tree)
+- build package: packages/gi-kernel-6l2e/ (MASTER_PROMPT 184L · TESTING_SUITE 259L · FIREWALL 185L · ENFORCEMENT 189L) + packages/gi-kernel-v2.1/GI_KERNEL_6L2E_DPL1_SPEC.md (473L)
+FIRST REPLY must re-run these and post the diff before W1.
+
+## BUILD PACKAGE (exists before pinning — G2)
+- DPL1 spec: packages/gi-kernel-v2.1/GI_KERNEL_6L2E_DPL1_SPEC.md (the BINDING AUTHORITY)
+- wave-plan: .trident/plan-6l2e/wave-plan.md (`WAVES: 12`) · depth: packages/gi-kernel-6l2e/MASTER_PROMPT.md
+- the spec is the binding authority; the plan is its argument; conflicts resolve against the spec.
+
+## WAVES (PARALLEL — 8 layer-edges, DISJOINT adapters; interfaces land at T0)
+| wave | owner | DISJOINT files | deliverable (THE LAYER-EDGE) | gate | test ids |
+|---|---|---|---|---|---|
+| A-0 | desk-A | populate-graphify.ts, populate-corbell.ts | the STORE → THE LIVE TREE | oracle.ts has nodes; Checkpoints excluded | test_store_scope_live |
+| B-1 | desk-B1 | src/omp/adapters/corbell.ts, layer-registry.ts | L5 CORBELL → the settlement rung | a corbell fact flips a verdict | test_consume_corbell |
+| B-2 | desk-B2 | src/omp/adapters/graphify.ts | L6 GRAPHIFY → the settlement rung | a graphify edge flips a verdict | test_consume_graphify |
+| B-3 | desk-B3 | src/omp/adapters/c2kg.ts | L4 C2KG → the context rung | a c2kg fact OR GI_LAYER_UNCONSUMED | test_consume_c2kg |
+| B-4 | desk-B4 | src/omp/adapters/ua.ts | L3 UA → the context rung | a UA fact OR GI_LAYER_UNCONSUMED | test_consume_ua |
+| B-5 | desk-B5 | src/omp/adapters/arsumbris.ts | L2 ARSUMBRIS → the knowledge rung | a KG fact OR GI_LAYER_UNCONSUMED | test_consume_arsumbris |
+| B-6 | desk-B6 | src/omp/adapters/semantica.ts | L1 SEMANTICA → the decision rung | a precedent OR GI_LAYER_UNCONSUMED | test_consume_semantica |
+| C-1 | desk-C1 | src/omp/adapters/tsg.ts, enforcement.ts | TSG → the meaning gate | a meaning verdict | test_consume_tsg |
+| C-2 | desk-C2 | src/omp/adapters/abide.ts | ABIDE → the repair path | a repair, never a block | test_consume_abide |
+| D-1 | desk-D | hard-deps.ts, layer-consumption.ts | the REGISTER reports CONSUMPTION | 0 consumers → GI_LAYER_UNCONSUMED | test_register_reports_consumers |
+| D-2 | desk-D | fire-gate.ts, extension.ts | the DECISION consults the REGISTRY | the rung reads the registry | test_decision_consults_registry |
+| E-1 | desk-E | tests/st-gi-6l2e.ts | the 7-class corpus replay | 7/7 specific tokens, firesUsed unchanged | test_derailment_corpus |
+| E-2 | desk-E | .trident/plan-6l2e/phaseE.json | the CONTAINER proof | 14/14 + the negative suite | test_container_14of14 |
+| E-3 | desk-E | packages/gi-kernel-6l2e/ | the SEAL | PACKAGE_AUDIT PASS | test_package_audit |
+Run them as `bun test -t test_consume_corbell` selectors (and the ST-nn labels alongside for the docs).
+T0: A-0 lands the store + freezes the registry interface. T1: B-1..D-1 fire IN PARALLEL (9 waves).
+T2: D-2 integrates (the ONE serial point). T3: E-1..E-3. Boundary checks at every T-point: the
+predecessor's done-when gate + `bunx tsc --noEmit` on the COMBINED tree. NEVER dispatch a dependent
+on a CLAIMED-complete predecessor. The board is initialized BEFORE the first dispatch.
+
+## LAWS
+- RIPWIRE FIRST-CLASS: map structure (callers/impact/for) before EVERY coding edit; re-map after
+  structural edits. Blind or syntax-only patches are FORBIDDEN. Missing tool -> RIPWIRE_MISSING.
+- A LAYER IS UP IFF ITS FACT CHANGED A VERDICT. consumers.length>=1 AND decisionsInfluenced>=1, else
+  GI_LAYER_UNCONSUMED. `up=11/11` is a health check on FILES — `consumed:8` is the only green.
+- EVERY WAVE CARRIES ITS LAYER-EDGE. A wave naming only a FILE is REFUSED by the wave-plan gate.
+- BUILDER-UNDER-AUDIT: a subagent's return is a CLAIM. Re-run tsc/battery/casts YOURSELF on the
+  combined tree before any wave is marked complete. A phantom diff (zero disk change) is kicked back.
+- NO FALLBACKS: a missing substrate returns GI_LAYER_UNCONSUMED / GI_LAYER_STALE /
+  GI_STORE_SCOPE_MISMATCH — NEVER rows:0, NEVER ALLOW+warn.
+- VIOLATION IS AUTOMATIC FAILURE: theatrical slop, a fabricated PASS, a skipped gate, an unevidenced
+  claim, or a derailment FAILS THE WAVE ON SIGHT — no retry-as-erasure.
+
+## PROOF CONTRACT (four tiers — a claim without its tier artifact is VOID)
+| tier | what | artifact |
+|---|---|---|
+| L0 | bunx tsc --noEmit / build | exit codes |
+| L1 | unit — PURE functions only | the test run |
+| L2 | SCRIPT TEST — real modules + sandbox, observed effects | the PASS/FAIL table + exit 0 |
+| L3/L4 | the rig (container AND host-live) | the results JSON + the screenshot + the row query |
+Named tests (the G3 surface — selectable by name): test_consume_corbell · test_consume_graphify ·
+test_register_reports_consumers · test_scope_mismatch · test_stale_store_refuses · test_derailment_corpus.
+The L2 rows run via `bun test -t test_consume_corbell`; the L3/L4 rows via the container harness.
+EVERY enforcement is tested POSITIVE + NEGATIVE: each attack fires its SPECIFIC token; each legit
+operation passes with ZERO misfire. A GENERIC gate preempting a specific one = UNOBSERVED, never PASS.
+ADVERSARIAL FIRST: the black-hat corpus + the incident replay run BEFORE the happy path; the happy
+path is the LAST confirmation, never the first. Every token binds to a TOOL RESULT (verbatim output,
+an artifact path, `RC=0`, `exit 0`), never to agent prose. Independent re-verification: the
+orchestrator re-runs every prior gate's check on the combined tree and records the PASS/FAIL per
+token — a zero-trust claims table. NO ARTIFACT, NO CLAIM.
+
+## RUNTIME SEAT (mandatory — the author's seat is the default failure)
+Declare in writing before P4: "I am the driver of the GI kernel in this live session." Then:
+H1 start the REAL instance (the deployed bundle path + its mtime · the store path + row counts).
+H2 operate it FIRST PERSON, numbered, each op with a PRE-REGISTERED expectation + an evidence channel.
+H3 every break is the deliverable: op#, expected, actual VERBATIM, mechanism, fix, retest.
+H4 push it: 8 layers queried at once · kill mid-query · starve it (no substrate) · hostile input
+   (a symbol that does not exist) · the wrong-tree store.
+H5 fix IN the seat; the retest = the NEXT numbered op on the SAME battered instance.
+H6 the runtime ledger: what RUNNING taught that READING could not.
+H7 close only when nothing unexperienced remains AND the residual is NAMED.
+ZERO BUGS FOUND IS A RED FLAG. A silent wrong-answer / no-op / hang is CRITICAL.
+THE SECOND OPERATOR: a zero-context subagent, given ONLY the docs, must operate the kernel.
+
+## ADVERSARIAL LOOP (adversarial-first; the corpus-exhaustion contract)
+Map every exported decision function first; the surface map IS the probe plan. Corpus per layer =
+positive + negative + edge + the FULL evasion family. Probes run against the DEPLOYED runtime (live;
+source-import BANNED); every probe names its bundle SHA. The black-hat positive suite: the wrong-tree
+store, the stale store, a 0-consumer layer, a count-settled rule, a self-edge, a callee-fix-without-
+the-callsite, an unwired module, a prose passToken. The negative suite: every legit in-tree query
+answers with ZERO misfire. Adjudicate EVERY failure BOTH ways (my expectation wrong? / real defect?)
+BEFORE any fix. The loop terminates only when a FULL pass returns ZERO confirmed defects AND the docs
+sweep is clean AND the unswept frontier is explicitly named.
+
+## DOC CONTRACT
+- canon: context_management/ — 11 docs. The 2 logs update at the MOMENT of work, >= every other doc.
+  Gate: 200+ lines, >=3 file:line refs, the 5 read-first docs agree on the dist SHA.
+- ship: BUILD_REPORT (500+), DEBUG_LOG (500+), FAILURE_LOG, SPEC_VIOLATION_LOG, TESTING_LOG,
+  THEATRICALITY_LOG (the OPERATOR-CAUGHT count driven to zero). Gate: 50+ lines, evidence refs,
+  the newest SHA == the true dist.
+- AUDIT GATE: a code-audit artifact exists on disk AND the TESTING_LOG carries
+  `AUDIT GATE: PASS|FAIL|BLOCKED`. FAIL blocks every ship-ready claim; BLOCKED is never PASS.
+- A completed todo without its doc entry is an UNFINISHED todo.
+
+## CHECKPOINT CONTRACT
+Enter P3 with a ROUND-ZERO checkpoint. At P7 produce a checkpoint with: src (full tree, verified
+count) · the dist + its SHA · context_management (11) · all 6 ship docs · the spec + artifacts ·
+CHECKPOINT_MANIFEST (state + HONEST GAPS) · ONE seal mode (full-tree lock OR no-lock — NEVER
+manifest-only). Hyphens only in the name.
+
+## HARD STOPS
+- Secrets: keys live out-of-band; never in the repo, chat, logs, or doc rows.
+- Guarded paths: the round ENDS at the handoff (state the sha + path + the atomic mv + the restart),
+  then retest.
+- Rig down / provider quota exhausted -> BLOCKED with the retry condition. Never PASS.
+- Operator-owned actions: state them and continue on independent fronts; never stall the build.
+
+## STOP
+The run stops only when all 8 phase gates are green AND the seal is written AND the receipt (the
+baseline diff, the battery, the audit verdict, the runtime ledger, the checkpoint path) is posted —
+the LEGAL STOP. ANYTHING LESS IS OPEN. A BLOCKED state is never a stop: it names its resume
+condition. FIRST REPLY: re-measure the baseline, post the diff, fire A-0 the same turn.
+
+## ANTI-DERAIL (recognize these; do not re-live them — each FAILS THE WAVE ON SIGHT when it produces a claim)
+- THE CATEGORY ERROR: a layer treated as a precondition (up=5/11) instead of an input; a delivered
+  layer with 0 consumers FAILS THE WAVE.
+- THE FILE-ORGANIZED WAVE: a wave naming a FILE and no LAYER-EDGE — REFUSED.
+- THE STALE STORE: answering about src/hunter while the code is src/omp — GI_STORE_SCOPE_MISMATCH.
+- THE UNCOVERED RULE: settling IGNORE on a COUNT the extractor cannot see (the P4 lesson).
+- THE CALLEE-FIX-WITHOUT-THE-CALLSITE: a fix in the function, the caller unchanged (G-9).
+- THE UNWIRED KERNEL: a module tested, called by nothing (12 of 23 measured).
+- THE STALE DEPLOY: source newer than the dist.
+- THE SCOPE SHRINK under pressure: the scope is 8/8; a smaller promise sold as the build FAILS.
+
+## ANTI-STOP (these never close the run)
+- STATIONARITY ("no change in N turns") · a SUB-INNER pass as complete (one layer green, siblings
+  open) · MEMORY-COMPLETE ("I verified this" without a this-turn re-run) · THEATER-COMPLETE (prose,
+  typed-but-unrun commands, screenshots without artifacts) · BLOCKED-AS-DONE · a PARTIAL-SCOPE close
+  (5 of 8 wired is NOT the build) · "ZERO BUGS" as success · an EMPTY runtime ledger · a GREEN
+  BATTERY presented as capability.
+
+## RESUME POINTERS
+- DPL1 packages/gi-kernel-v2.1/GI_KERNEL_6L2E_DPL1_SPEC.md · wave-plan .trident/plan-6l2e/wave-plan.md
+- suite packages/gi-kernel-6l2e/THE_6L2E_TESTING_SUITE.md · firewall ANTI_THEATRICAL_FIREWALL.md
+- enforcement SUBAGENT_ENFORCEMENT.md · master packages/gi-kernel-6l2e/MASTER_PROMPT.md
+- wave audits .trident/wave-audit/ · canon context_management/ · ship docs (6) · Checkpoints/
+A fresh session resumes from DISK, never from this pin's frozen numbers.

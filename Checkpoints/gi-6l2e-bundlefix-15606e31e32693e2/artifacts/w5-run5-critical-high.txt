@@ -1,0 +1,201 @@
+  ★ 67 blocking (4 crit + 63 high) · 47 files
+   **Concurrent build state corruption (CRITICAL)**: `build()` and `buildSync()` both mutate `cachedNodes`, `cachedEdges`, `cachedRaw`, `lastGraphPath`, `built`, and call `reindex()` without any synchronization. If two calls overlap (e.g., two
+
+[CRITICAL] src/omp/adapters/abide.ts
+    `Math.max(st.size, 64 * 1024 * 1024)` is almost certainly wrong — it should be `Math.min`. With `Math.max`: for files smaller than 64 MiB the cap is 64 MiB (excessively large); for files *larger* than 64 MiB the cap equals `st.size`, meanin
+
+[CRITICAL] src/omp/graph-facts.ts
+    BUG: When `predicate` is `undefined`, the WHERE clause becomes `dst_canonical LIKE ?1 AND superseded_run IS NULL AND` — a trailing `AND` with no following condition, which is a SQL syntax error. This means `inDegree(db, target)` without a p
+
+[CRITICAL] src/omp/graph-gate.ts
+    **Critical: `registerGraphGate` is a no-op stub.** This is the only exported function that wires the gate into the tool-call lifecycle (`onBeforeToolCall`, `onAfterToolCall`, `onTurnEnd`), but it immediately discards the API object (`void a
+
+[HIGH] src/hunter/diagnostics/calibration.ts
+    The `fd` variable is scoped to each loop iteration via `let`. If `fs.openSync` succeeds but `fs.closeSync(fd)` throws, the original error propagates to the catch block where `fd !== null` is true, so it attempts a second close (best-effort)
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    `collectLocalTsFiles` silently swallows directory read failures via `console.error` and continues, violating the file's own fail-closed law (line 14: 'an unreadable source is a LOUD named fail, never an empty read'). When a subdirectory und
+
+[HIGH] src/hunter/diagnostics/engine.ts
+    Path containment check is ineffective when `rootReal` resolves to `/` (e.g. `profile.project.root` is `/` or a symlink that resolves to `/`). On POSIX, `rootReal + path.sep` evaluates to `//`. The `parentReal.startsWith('//')` branch fails 
+
+[HIGH] src/hunter/diagnostics/findings-store.ts
+    The deduplication key uses `|` as a separator between run_id, ruleId, file, and line. If any ruleId or file path contains a `|` character, distinct findings will collide and be incorrectly collapsed, silently dropping violations. Use a sepa
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts
+    The `asFixture` function performs only a runtime type-check for `typeof === 'object'` and `!Array.isArray`, then casts the result to the generic type `T`. This means any JSON object (e.g. `{"foo": "bar"}`) would pass validation, and subsequ
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts
+    `loadFixtureProfile` silently falls through to `buildFixtureProfile` whenever `loadProfile` throws — not only when the file doesn't exist. If `profile.yaml` exists but is malformed (malformed YAML, missing required fields, failed zod parse)
+
+[HIGH] src/hunter/graph/corbell-adapter.ts
+    `buildCorbellGraphAsync` is defined and exported but never called anywhere in the active `src/` tree (confirmed via codebase search). It is dead code. Additionally, it has two deficiencies compared to the sync path: (1) no timeout — a hung 
+
+[HIGH] src/hunter/graph/graphify-adapter.ts
+    **`resolveNodeId` silently returns phantom IDs**: When `symbol` is not found by name or suffix match, the fallback `return \`graphify:${symbol}\`` creates an ID that is almost certainly NOT in `byIdIdx`. Downstream callers (`whoCalls`, `cha
+
+[HIGH] src/hunter/graph/resolver.ts
+    Both the `decide` and `run` harness paths synthesize a fake entity `{ id: alias, label: alias, kind: 'Class' }` when an alias is not found in `newEntities`. Hardcoding `kind: 'Class'` is incorrect — if the harness returns an alias that does
+
+[HIGH] src/hunter/graph/resolver.ts
+    When the harness returns a `canonical_id` that does not match any entry in the `existing` array, `existCanon` becomes `null` and the decision is silently accepted. This means a `same` or `related` verdict can reference a non-existent canoni
+
+[HIGH] src/hunter/graph/resolver.ts
+    If ROLLBACK itself fails after a write error, the database may be left in a partially-committed state. The current code only `console.warn`s the rollback failure, which is insufficient for a data-integrity-critical path. The caller has no m
+
+[HIGH] src/hunter/graph/store-map.ts
+    `lastIndexOf("/")` returns -1 when `checkoutPath` contains no `/` character. `slice(0, -1)` then returns the entire string minus its last character, which is passed to `mkdirSync` as the parent directory. This silently creates a wrong direc
+
+[HIGH] src/hunter/harness/hunt-lock.ts
+    isPidAlive treats EPERM as 'alive', which is correct for processes owned by the current user, but is a false-positive when the OS recycles the PID to a process owned by a **different** user. In that scenario the original lock holder is dead
+
+[HIGH] src/hunter/harness/map.ts
+    Resource leak: `db` is opened on line before the `try` block, but if `assertMappableLines(buildResult)` throws (line-after the db open), the exception propagates out of `map()` and the `catch` block inside `try` is never reached, so `db.clo
+
+[HIGH] src/hunter/harness/report.ts
+    The entire report pipeline uses synchronous filesystem operations (`readdirSync`, `mkdirSync`, `writeFileSync`, `readFileSync`) inside async functions. These block the Node.js event loop, which degrades concurrency when multiple hunts or re
+
+[HIGH] src/hunter/harness/report.ts
+    The SQLite operations in the `report` actor (multiple `appendReportSection` calls, `appendEvent`, and the `graph_facts` INSERT loop) are not wrapped in an explicit transaction. A failure partway through (e.g., after some sections are append
+
+[HIGH] src/hunter/hooks/bus-hook.ts
+    When `row.id` is not a number (e.g., null, undefined, string), the inner guard `if (typeof row.id === 'number')` is false, so `this.cursor` is never advanced past this malformed row. The row is removed from `clean` but the cursor stays behi
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    When writeBattery fails, the inner catch block silently discards the cleanup error with an empty catch. If both the battery write AND the cleanup DELETE fail, the database is left in an inconsistent state (orphaned rule_cards) with no loggi
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    The default case silently maps any unrecognized classification to a known template instead of throwing. If card extraction introduces a new classification or produces a corrupted value, this masks the bug and silently produces a battery wit
+
+[HIGH] src/hunter/lexicon/compiler.ts
+    Both `compile()` and `compileBattery()` duplicate the identical extractRuleCards → compileCards → compileDeclared pipeline. A future fix applied to one path but not the other will silently break determinism. `compile()` should delegate to `
+
+[HIGH] src/hunter/lexicon/rule-card.ts
+    Bug: The `proposed` flag is not suppressed when the operator has explicitly declared metadata. When a corpus rule has a curated `classification` and/or `severity` declaration, the D13 curatorial override is in effect — the operator has deci
+
+[HIGH] src/hunter/log.ts
+    **Bug: `shortFile` produces incorrect output for small `n` values.**  When `n=1` and `p.length > 1`, the expression `p.slice(-(1-1))` evaluates to `p.slice(0)`, which returns the **entire** string. The result is `'…' + p` — a string *longer
+
+[HIGH] src/hunter/profile/loader.ts
+    TOCTOU race condition in the `contained()` helper: `existsSync(abs)` is called before `realpathSync(abs)`. Between these two syscalls an attacker with write access to the project root could replace the file at `abs` with a symlink pointing 
+
+[HIGH] src/hunter/shared/db.ts
+    The idempotent guards catch ALL exceptions (not just 'already exists' or 'already attached' errors), silently swallowing potential I/O failures, disk-full errors, schema mismatches, or corruption. Only `SQLITE_ERROR` / 'already exists' patt
+
+[HIGH] src/hunter/shared/db.ts
+    writeGraph deletes ALL graph_edges and graph_nodes without a WHERE clause inside a single transaction. While the per-run snapshot design is intentional, there is no locking mechanism or run_id-based scoping to prevent two concurrent callers
+
+[HIGH] src/hunter/surface/lsp-injector.ts
+    **Bug — `watch` return-type mismatch breaks polymorphic usage.** The base class `DiagnosticsServer.watch()` declares `void` return, but `LiveGraphWatcher` overrides it to return `WatcherHandle`. While TypeScript allows this (narrowing the r
+
+[HIGH] src/hunter/surface/query-tool.ts
+    **chain() BFS memory blowup — path array copied per edge**: Each queue entry copies the entire accumulated path via `[...cur.steps, step]`. With MAX_DEPTH=64 and moderate branching factor, this creates O(branching_factor^depth) copies of ar
+
+[HIGH] src/hunter/surface/query-tool.ts
+    **Recursive CTE CROSS JOIN causes exponential fan-out**: The blast CTE uses `CROSS JOIN typed_nodes dst ON dst.file = blast.file` and `CROSS JOIN typed_edges e ON ...`, which means every blast row at depth D fans out by (edges_for_file × no
+
+[HIGH] src/hunter/tools/bug-hunt.ts
+    The `createMicroLoop` call passes the original `args.targetPath` (potentially relative) instead of the already-resolved absolute path `absTarget`. The scope validation on lines 54-57 validates and locks on the absolute path, but the machine
+
+[HIGH] src/hunter/tools/bug-hunt.ts
+    While `targetPath` is rigorously validated (canonicalized, checked for existence as a directory), `profilePath` only gets a non-existence check — it is never canonicalized or verified to fall within the project scope. A traversal path like 
+
+[HIGH] src/hunter/tools/query-registration.ts
+    If `openStore(opened.storePath)` throws an exception, the assignment to `db` never completes, so `db` remains `undefined`. The `finally` block then calls `db.close()`, which throws a `TypeError: Cannot read properties of undefined (reading 
+
+[HIGH] src/hydra/pipeline.ts
+    Race condition on public evidence snapshot: `this.evidence.length = 0` followed by `this.evidence.push(...evidence)` is non-atomic. A concurrent reader observing `this.evidence` between these two statements will see an empty array. Addition
+
+[HIGH] src/hydra/pipeline.ts
+    String(undefined) yields the literal string 'undefined' and String(null) yields 'null' — both are non-empty and pass the subsequent `trim() === ""` check. If `targetRootFor` or `graphPathFor` returns null/undefined, the pipeline will procee
+
+[HIGH] src/hydra/templates/mpse.ts
+    Double-casting via `as unknown as z.ZodSchema` completely bypasses TypeScript's type system. If any output schema doesn't match the expected structure at runtime, this will silently pass compile-time checks and fail at runtime. This same do
+
+[HIGH] src/kernel/graph-diff.ts
+    SQL string interpolation for IN clause predicates. While PREDICATES is currently a compile-time constant derived from CORBELL_PREDICATES (verified: ["calls", "traces-to", "imports"]), this pattern is fragile and violates secure-coding conve
+
+[HIGH] src/kernel/scan-chain.ts
+    `RETRYABLE_RE` is defined and exported but **never used** in `runScanChain` to gate retries. Currently, every non-OK result (including fatal errors like 401 Unauthorized or 404 Not Found) burns through all 5 retry attempts with full backoff
+
+[HIGH] src/kernel/scan-chain.ts
+    HTTP status code is never checked. A 401, 403, 404, or 500 response will pass the `response.ok` check path (there is no such check) and be fed into the SSE/JSON parser, which will likely return `EMPTY` or `PARSE` errors — masking the real p
+
+[HIGH] src/omp/adapters//shared.ts
+    **Bug: Missing `curl` binary silently classified as socket "refused".**  If `curl` is not installed on the host, `execFileSync("curl", ...)` throws an `ENOENT` error (a system-level error, not a process exit). The catch block casts the erro
+
+[HIGH] src/omp/adapters/arsumbris.ts
+    **Security — `subject` parameter passes unsanitized to child process**: The F-24 fix explicitly gates `repoRoot` (must be absolute) and `read` (whitelist regex `^[A-Za-z0-9_-]+$`), but `subject` is forwarded raw to `execFileSync` with no va
+
+[HIGH] src/omp/adapters/ua.ts
+    Path traversal check is bypassable on Windows when the input uses forward slashes. `scopeRoot.split(path.sep)` splits by the OS-native separator (`\` on Windows), but Node.js accepts `/` as a path separator on all platforms. An input like `
+
+[HIGH] src/omp/evidence-producer.ts
+    The bidirectional `includes()` check can cause false-positive evidence emission. For example, a subject with target `"app"` will match any event whose target contains `"app"` anywhere (e.g., `"application.js"`, `"append.txt"`). Conversely, 
+
+[HIGH] src/omp/evidence-producer.ts
+    Malformed JSON lines are silently filtered out via the `catch { return null }` pattern. If a records file is partially corrupted, re-derivation yields fewer records than the original — directly violating Law 1 (REPRODUCIBLE). The corruption
+
+[HIGH] src/omp/fire-gate.ts
+    The MPSE negation check uses `.every()` to test whether ALL matched slots contain negation/discussion language. However, a single slot can mix discussion and affirmative action (e.g., `"discussed rm and then executed rm"`). Because the rege
+
+[HIGH] src/omp/gate-hook.ts
+    Regex injection vulnerability: Function names extracted from file content via regex are interpolated directly into `new RegExp()` without escaping. A function name containing regex metacharacters (e.g., `$`, `(`, `*`, `+`) would cause unexp
+
+[HIGH] src/omp/gate-middleware.ts
+    Major code duplication: `parseExports` and `parseExportSites` share nearly identical parsing logic across all five regex patterns. The only difference is that `parseExportSites` also tracks line numbers. This duplication is a maintenance ri
+
+[HIGH] src/omp/graph-facts.ts
+    LIKE substring matching is overly broad and will produce false-positive verdicts. The helper builds `%target%`, so a target string like `close` would match nodes with canonical IDs containing `closing`, `reopened`, `closed`, `enclosed`, etc
+
+[HIGH] src/omp/graph-gate.ts
+    **Logic inconsistency: `consecutiveUnverified` vs `computeDrift` disagree on partially-verified edits.** In `computeDrift` (line ~168), when `verifiedHere.length > 0` the edit is treated as fully verified (skips both unverified and total we
+
+[HIGH] src/omp/hard-deps.ts
+    The local `join` helper (`parts.filter(p => p.length > 0).join("/")`) does no slash normalization. If `cfg.scopeRoot` carries a trailing slash (e.g. `/home/user/project/`), every path it builds contains `//` (e.g. `.../project//.omp/...`). 
+
+[HIGH] src/omp/hard-deps.ts
+    L2_ARSUMBRIS reads `process.env.HOME` directly instead of using the injectable `env` parameter (or a `cfg.home` field) that every other key/probe respects. This makes it impossible to hermetically test the register in a sandboxed environmen
+
+[HIGH] src/omp/layer-consumption.ts
+    Probe construction calls (`corbellProbe(scopeRoot)`, `graphifyProbe(scopeRoot)`, etc.) and KEV resolution calls (`resolveKevCli`, `resolveKevRuntime`) are not wrapped in try-catch. If any of these throws (e.g., a probe constructor touches t
+
+[HIGH] src/omp/populate-graphify.ts
+    The `supersedeThenInsert` function checks `db.inTransaction` as a nested-transaction guard, but bun:sqlite's `Database` class does not expose a public `inTransaction` property in its TypeScript type definitions. The property access resolves
+
+[HIGH] src/omp/populate.ts
+    Bug: `setMeta` opens a new DB handle and closes it on every call (see typed-write.ts:134-141). These three separate `setMeta` calls each perform an independent open/write/close cycle — three separate transactions for metadata that should be
+
+[HIGH] src/omp/ripwire-bridge.ts
+    When `spawnSync` truncates stdout because output exceeds `maxBuffer` (32 MB), the code does not detect this condition. Truncated JSON will cause `jsonOf()` to return `null` silently, and truncated XML will cause `firstTag`/`childRows` to re
+
+[HIGH] src/omp/rsi.ts
+    The methods `write()`, `appendFiring()`, and `appendOutcome()` in src/omp/rsi.ts lack transaction protection for reading the chain tip and inserting new rows. This concurrency defect allows two concurrent calls to read the same `prevHash`, 
+
+[HIGH] src/omp/rsi.ts
+    `supersede()` computes `prevHash` via `head()` at line 411 BEFORE acquiring the `BEGIN IMMEDIATE` lock at line 426. If another concurrent `write()` or `supersede()` commits between these two lines, the `prevHash` will be stale — the new row
+
+[HIGH] src/omp/store-open.ts
+    Path traversal defense is bypassable on Windows. The `..` check splits `input.scopeRoot` on `path.sep` (which is `\` on Windows), so a scopeRoot using forward slashes like `/allowed/../../etc` won't split `..` into separate segments — it re
+
+[HIGH] src/omp/typed-write.ts
+    TOCTOU race between lstat and stat in openTypedStore: lines 142-147 perform `lstatSync` followed by `statSync` on the same path. A symlink could be planted between these two calls — lstat sees the symlink and throws, but if timing allows, s
+
+[HIGH] src/scoping/gi-session-path.ts
+    `assertSessionStorePath` only normalizes backslashes (`p.replace(/\\/g, "/"`) but does NOT resolve `..` path segments. A crafted path like `/scope/../../sessions/xxxxxxxx/store.sqlite` would match the `SESSION_STORE_RE` regex (it ends with 
+
+[HIGH] src/scoping/scope-resolver.ts
+    The `depth` metric uses `d.split('/').length` with a hardcoded forward slash. On Windows, `path.dirname()` returns backslash-separated paths (e.g. `C:\Users\project`), so `split('/')` yields `['C:\Users\project']` — a depth of 1 for every c
+
+[HIGH] src/scoping/scoped-store.ts
+    **Race condition in singleton lifecycle**: `getStoreDb` performs a multi-step check-then-act sequence (health-check → close → mkdir → open → schema → assign) with no locking. Two concurrent async callers can both observe a sick/null handle,
+
+[HIGH] src/scoping/scoped-store.ts
+    **Synchronous busy-wait blocks the event loop**: The `while (Date.now() < until)` loop at line 131 is a CPU-spinning synchronous backoff (up to 50ms per attempt, 150ms total). This blocks the Node/Bun event loop entirely, starving I/O and o
+
+[HIGH] src/scoping/scoped-store.ts
+    **`runWithRetry` closes the global singleton on every error, not just busy/locked**: Unlike `withImmediateTx` (which checks `/busy|locked/i` before deciding to retry), `runWithRetry` unconditionally closes the shared singleton on ANY error 
+
+[HIGH] src/scoping/session-state.ts
+    `writeSessionState` is exported and usable without the lock. External callers can invoke `writeSessionState` directly, bypassing `withStateLock`, which breaks the read-modify-write serialization that `tickSessionBudget` relies on. A concurr
+

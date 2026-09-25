@@ -1,0 +1,78 @@
+[CRITICAL] src/omp/adapters/abide.ts
+    The tail read implementation has issues: when no newline is found, it silently discards data and triggers a fallthrough to a full-file read, defeating the bounded-tail optimization. This can happen even without errors. Consider exponential 
+
+[HIGH] src/omp/adapters/arsumbris.ts
+    `subject` is passed as a CLI argument to `execFileSync` without any validation. While `execFileSync` with an array argument avoids shell injection, an unvalidated `subject` could still cause unexpected behavior in the downstream `scripts/au
+
+[HIGH] src/omp/adapters/kev.ts
+    When `ans.best` is undefined or `ans.best[0]` is undefined, `best` defaults to `0` via `?? 0`. Since index 0 always passes the subsequent range check (`0 >= dist.length` is only true for empty arrays, which are already rejected above), the 
+
+[HIGH] src/omp/calibration.ts
+    `precisionFromCounts` is called and its result stored in `estimate` even when counts are below `minFiresForAct` (i.e., when `calibrated` is false). This is misleading: downstream consumers see a non-null `estimate` alongside `calibrated: fa
+
+[HIGH] src/omp/calibration.ts
+    When `z = 0` (or any falsy value), the numerator `hw = 0 * sqrt(...)` becomes 0, so the function returns `Math.ceil(0) = 0` — meaning "zero fires needed", which is the opposite of truth. While `z` defaults to 1.96, the parameter is publicly
+
+[HIGH] src/omp/decision.ts
+    `new FireLedger(ledgerPath)`, `corbellCheckoutPath(scopeRoot)`, and `graphFacts(...)` can all throw (locked/corrupt DB, missing store directory, I/O errors, permission denial) with no try/catch wrapper. This creates an asymmetric error surf
+
+[HIGH] src/omp/enforcement.ts
+    The catch block at line 108 covers two separate `requireUp` calls (ABIDE and JEV), but its default error code fallback is hardcoded to `GI_ENFORCE_ABIDE`. If `requireUp(abideDecl)` succeeds and then `requireUp(jevDecl)` throws an error that
+
+[HIGH] src/omp/enforcement.ts
+    Neither `judge.evaluate()` (lines 115, 184) nor `loadUnit.retrieve()` (line 161) is wrapped with any timeout mechanism. A hung or deadlocked engine will block the caller indefinitely. The header comments state a ~300ms design target for the
+
+[HIGH] src/omp/enforcement.ts
+    The close layer checks TSG registration (line 154) before calling `loadUnit.retrieve`, but it does NOT check JEV registration before calling `deps.judge.evaluate` at line 184. If JEV were missing from the register, `judge.evaluate` would th
+
+[HIGH] src/omp/fire-gate.ts
+    The graph-facts fixed-point loop (lines 468-474) does not seed metaAfter[serializedBytes] before the loop, unlike buildState which seeds with 0. It relies on the stale value from buildState's measurement (M1) differing from the post-splice 
+
+[HIGH] src/omp/fire-gate.ts
+    hasDestructiveToken splits the probe on path/whitespace delimiters and matches all tokens against DESTRUCTIVE_COMMANDS. Path components in intent.target are split into individual tokens, so a target like /opt/kill/process.txt produces token
+
+[HIGH] src/omp/fire-ledger.ts
+    **Concurrency hazard: duplicate writes under concurrent `drain()` calls.**  The watermark check (`seen.has(row)`) and the watermark advance (`seen.add(row)`) are NOT atomic. If `drain()` is called concurrently from two async contexts (e.g.,
+
+[HIGH] src/omp/gate-hook.ts
+    Synchronous file I/O (`fs.existsSync` + `fs.readFileSync`) on the event-loop hot path. Every write/edit tool call triggers at least one synchronous stat + read, blocking the event loop and degrading throughput under concurrent tool calls. U
+
+[HIGH] src/omp/gate-hook.ts
+    File paths extracted directly from tool-call inputs are used in `fs.readFileSync` without any validation or sanitization. A malicious or misconfigured tool input could include paths like `../../etc/passwd` to read arbitrary files on the hos
+
+[HIGH] src/omp/gate-hook.ts
+    The `pendingSteer` Map, `pendingQueries` Map, and `states` Map grow indefinitely — there is no eviction, TTL, or session-end cleanup. In a long-running process (e.g., an IDE extension host) these maps will accumulate entries for every disti
+
+[HIGH] src/omp/graph-facts.ts
+    **Bug: `finally` block can swallow catch-block returns.** If `db.close()` throws (e.g., corrupted database, already-closed handle), the exception from `finally` replaces the return value from the `catch` block. The caller would receive an u
+
+[HIGH] src/omp/graph-gate.ts
+    `verifiedSymbols` in `DriftResult` includes targets from ALL graph queries, including unresolved ones (rows=0, errors, or queries where `resolved` was never reported). This contradicts the documented intent that only resolved queries consti
+
+[HIGH] src/omp/graph-gate.ts
+    `loadGateState` silently swallows ALL errors (JSON corruption, permission issues, disk errors) and returns `null`, which the caller treats as 'no prior session'. This means a corrupted database or filesystem error causes the gate to reset t
+
+[HIGH] src/omp/jev.ts
+    The API response JSON is cast to `ApiResponse` without any runtime validation. If the upstream returns a payload where `answers` is `null`, `undefined`, or missing entirely, the expression `json.answers[q.id]` on the later line will throw a
+
+[HIGH] src/omp/kernel-v2.ts
+    A VIOLATION from a `destructive` class detector at tier T0 or T1 yields STEER (which is advisory only). This may be too lenient for a destructive act — a blind file deletion (destructive, tier T1 via dumbDetector) would only be steered, not
+
+[HIGH] src/omp/layer-consumption.ts
+    The closed-set assertion (line 64-67) only checks for *missing* consumers but does not check for *extra* consumers registered in the registry. The comment explicitly states 'registering anything outside L2E_CONSUMERS is a wiring bug', yet a
+
+[HIGH] src/omp/populate-graphify.ts
+    Inconsistent indentation in nested try-catch for COMMIT creates misleading control flow. The inner `try { db.exec("COMMIT;") } catch (...)` block and the meta INSERT line have misaligned indentation that makes it appear the meta INSERT is o
+
+[HIGH] src/omp/populate.ts
+    Three `setMeta` calls each open and close the DB independently (confirmed: setMeta in typed-write.ts:134-141 calls `openTypedStore` + `db.close()` each time). However, `populateFromCorbellCheckout` already writes `substrate=corbell` and `co
+
+[HIGH] src/omp/ripwire-bridge.ts
+    The `maxBuffer` option is not supported by `spawnSync` — it only applies to `execSync` / `exec`. This means the option is silently ignored, and a ripwire invocation that produces very large stdout will not be buffer-limited as intended. Con
+
+[HIGH] src/omp/rsi.ts
+    Missing index on `evidenceTable.canonical_id`: The `recount()` method (line 393) queries `SELECT outcome FROM evidenceTable WHERE canonical_id = ?` and `liveIncludingForgedRetirement` (line 342) queries the main table by `canonical_id`. Whi
+
+[HIGH] src/omp/typed-write.ts
+    When the ledger cap (5000) is hit, `ledgerTruncated` is set to true on line 1117 but the code still pushes new ids to `next` on line 1119. This means BFS continues expanding — the `seen` set and frontier grow unboundedly on a large graph ev
+

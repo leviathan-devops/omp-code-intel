@@ -1,0 +1,60 @@
+{
+ "wave": "W4",
+ "title": "THE CONTAINER CEILING (FR-5)",
+ "date": "2026-09-24",
+ "container": {
+  "name": "gi-cleanup-ct",
+  "image": "omp-ct:master"
+ },
+ "deploy": {
+  "sha256": "e13d0f5939e3707b8d0fb1ff16a7faded33a228091ca20dea9157553bf998663",
+  "into": "/root/.omp/agent/extensions/graph-intelligence/index.js"
+ },
+ "payloads_shipped": [
+  "the 5 scope substrates (semantica kg, ua graph, c2kg index, corbell store, graphify store)",
+  "the ABIDE substrate (.abide/events.jsonl, 56 MB, at its HARDCODED absolute path)"
+ ],
+ "observed": "consumed:6/8 rungs=context,decision,repair,settlement GI_LAYER_DOWN=L2_ARSUMBRIS,TSG",
+ "the_flip": "\u2605 ABIDE went DOWN -> CONSUMED (987 facts) \u2014 the payload pattern PROVEN in this container",
+ "consumed": [
+  "L5_CORBELL facts=50",
+  "L6_GRAPHIFY facts=50",
+  "L4_C2KG facts=2",
+  "L3_UA facts=27",
+  "L1_SEMANTICA facts=12",
+  "ABIDE facts=987"
+ ],
+ "\u2605 THE 2 DOWN \u2014 NAMED, WITH RETRY CONDITIONS": {
+  "L2_ARSUMBRIS": {
+   "verdict": "BLOCKED",
+   "mechanism": "a DAEMON (a socket at ~/.arsumbris/au-engine/run/<hash>.sock) \u2014 it cannot be tarred",
+   "retry_condition": "install + START the au-engine daemon inside the rig, then re-probe"
+  },
+  "TSG": {
+   "verdict": "BLOCKED",
+   "mechanism": "the KEV runtime (transformers.js + the 0.6B ONNX weights + sharp + onnxruntime-node) is a ~600 MB payload NOT present in this FRESH container (gi-cleanup-ct); the prior gi-kev-ct carried it",
+   "retry_condition": "re-stage + ship the KEV payload (the /tmp tars were cleaned), then re-probe"
+  }
+ },
+ "honest_note": "\u2605 the pin's W4 gate named '>= 7/8 OR the named BLOCKED'. The MEASURED result is 6/8 with BOTH blockers NAMED and their retry conditions. \u2605 AND THE MECHANISM IS PROVEN: ABIDE flipped DOWN -> CONSUMED (987 facts) by shipping its substrate \u2014 the SAME pattern would flip TSG (re-stage the payload) and L2 (start the daemon).",
+ "scenarios": [
+  {
+   "id": "SC-C1",
+   "name": "the substrate probe",
+   "verdict": "PASS",
+   "observed": "-rw-rwx--- 1 node node 56781687 ... .abide/events.jsonl"
+  },
+  {
+   "id": "SC-C2",
+   "name": "the register in the container",
+   "verdict": "PARTIAL (6/8)",
+   "observed": "ABIDE CONSUMED facts=987 \u00b7 L2 + TSG the named DOWN"
+  },
+  {
+   "id": "SC-C4",
+   "name": "the honest ceiling",
+   "verdict": "PASS",
+   "observed": "the register prints 6/8 with both blockers named \u2014 never a claimed 8/8"
+  }
+ ]
+}

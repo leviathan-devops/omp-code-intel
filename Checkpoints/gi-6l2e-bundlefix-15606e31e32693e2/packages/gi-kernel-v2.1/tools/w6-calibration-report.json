@@ -1,0 +1,433 @@
+{
+  "at": "2026-09-21T09:53:03.560Z",
+  "honestyLabels": [
+    "THE COST MATRIX IS THE SEED (DEFAULT_PROFILES), NOT THE OPERATOR'S. Thresholds are seed-derived.",
+    "THE ORACLE'S TRUTH IS THE CORPUS LABELS, NOT ORGANIC DOWNSTREAM EVIDENCE. The loop is proven; the organic resolution RATE stays unmeasured."
+  ],
+  "corpus": {
+    "total": 48,
+    "perClass": 8,
+    "reals": 24,
+    "fps": 24
+  },
+  "fires": [
+    {
+      "id": "th-r0",
+      "label": "real",
+      "p": 0.46,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "th-f0",
+      "label": "false_positive",
+      "p": 0.52,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r0",
+      "label": "real",
+      "p": 0.52,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f0",
+      "label": "false_positive",
+      "p": 0.44,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r0",
+      "label": "real",
+      "p": 0.77,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f0",
+      "label": "false_positive",
+      "p": 0.17,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r1",
+      "label": "real",
+      "p": 0.38,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-f1",
+      "label": "false_positive",
+      "p": 0.48,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r1",
+      "label": "real",
+      "p": 0.53,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f1",
+      "label": "false_positive",
+      "p": 0.44,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r1",
+      "label": "real",
+      "p": 0.78,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f1",
+      "label": "false_positive",
+      "p": 0.15,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r2",
+      "label": "real",
+      "p": 0.42,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-f2",
+      "label": "false_positive",
+      "p": 0.4,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "du-r2",
+      "label": "real",
+      "p": 0.51,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f2",
+      "label": "false_positive",
+      "p": 0.42,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r2",
+      "label": "real",
+      "p": 0.77,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f2",
+      "label": "false_positive",
+      "p": 0.16,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r3",
+      "label": "real",
+      "p": 0.46,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "th-f3",
+      "label": "false_positive",
+      "p": 0.46,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r3",
+      "label": "real",
+      "p": 0.51,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f3",
+      "label": "false_positive",
+      "p": 0.45,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r3",
+      "label": "real",
+      "p": 0.78,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f3",
+      "label": "false_positive",
+      "p": 0.16,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r4",
+      "label": "real",
+      "p": 0.42,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-f4",
+      "label": "false_positive",
+      "p": 0.48,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r4",
+      "label": "real",
+      "p": 0.52,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f4",
+      "label": "false_positive",
+      "p": 0.44,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r4",
+      "label": "real",
+      "p": 0.77,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f4",
+      "label": "false_positive",
+      "p": 0.16,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r5",
+      "label": "real",
+      "p": 0.48,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "th-f5",
+      "label": "false_positive",
+      "p": 0.5,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r5",
+      "label": "real",
+      "p": 0.52,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f5",
+      "label": "false_positive",
+      "p": 0.44,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r5",
+      "label": "real",
+      "p": 0.78,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f5",
+      "label": "false_positive",
+      "p": 0.15,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r6",
+      "label": "real",
+      "p": 0.47,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "th-f6",
+      "label": "false_positive",
+      "p": 0.49,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r6",
+      "label": "real",
+      "p": 0.53,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f6",
+      "label": "false_positive",
+      "p": 0.43,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r6",
+      "label": "real",
+      "p": 0.78,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f6",
+      "label": "false_positive",
+      "p": 0.15,
+      "band": "ignore",
+      "action": "IGNORE"
+    },
+    {
+      "id": "th-r7",
+      "label": "real",
+      "p": 0.47,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "th-f7",
+      "label": "false_positive",
+      "p": 0.49,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-r7",
+      "label": "real",
+      "p": 0.53,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "du-f7",
+      "label": "false_positive",
+      "p": 0.42,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-r7",
+      "label": "real",
+      "p": 0.77,
+      "band": "escalate",
+      "action": "ESCALATE"
+    },
+    {
+      "id": "de-f7",
+      "label": "false_positive",
+      "p": 0.16,
+      "band": "ignore",
+      "action": "IGNORE"
+    }
+  ],
+  "counts": {
+    "*destructive": {
+      "confirmed": 8,
+      "refuted": 8,
+      "unresolved": 0
+    },
+    "*dumb": {
+      "confirmed": 8,
+      "refuted": 8,
+      "unresolved": 0
+    },
+    "*theatrical": {
+      "confirmed": 8,
+      "refuted": 8,
+      "unresolved": 0
+    }
+  },
+  "policies": [
+    {
+      "ruleId": "*destructive",
+      "calibrated": false,
+      "act": 0.8,
+      "flag": 0.4,
+      "basis": "cost matrix only (C_block=4, C_miss=1) → t=0.800; NO measured counts yet (needs 20 resolved)",
+      "estimate": {
+        "precision": 0.5,
+        "low": 0.2799923761135083,
+        "high": 0.7200076238864916,
+        "halfWidth": 0.22000762388649167,
+        "resolved": 16,
+        "unresolvedRatio": 0,
+        "sufficient": false,
+        "starved": false
+      }
+    },
+    {
+      "ruleId": "*dumb",
+      "calibrated": true,
+      "act": 0.3333333333333333,
+      "flag": 0.16666666666666666,
+      "basis": "cost t=0.333 vs measured precision 0.500 [0.280, 0.720] over 16 resolved → act=0.333",
+      "estimate": {
+        "precision": 0.5,
+        "low": 0.2799923761135083,
+        "high": 0.7200076238864916,
+        "halfWidth": 0.22000762388649167,
+        "resolved": 16,
+        "unresolvedRatio": 0,
+        "sufficient": false,
+        "starved": false
+      }
+    },
+    {
+      "ruleId": "*theatrical",
+      "calibrated": true,
+      "act": 0.6,
+      "flag": 0.3,
+      "basis": "cost t=0.600 vs measured precision 0.500 [0.280, 0.720] over 16 resolved → act=0.600",
+      "estimate": {
+        "precision": 0.5,
+        "low": 0.2799923761135083,
+        "high": 0.7200076238864916,
+        "halfWidth": 0.22000762388649167,
+        "resolved": 16,
+        "unresolvedRatio": 0,
+        "sufficient": false,
+        "starved": false
+      }
+    }
+  ],
+  "health": {
+    "ok": false,
+    "findings": [
+      "*destructive: interval half-width 0.220 > 0.15 — n=16 too small to set a bar",
+      "*dumb: interval half-width 0.220 > 0.15 — n=16 too small to set a bar",
+      "*theatrical: interval half-width 0.220 > 0.15 — n=16 too small to set a bar"
+    ]
+  },
+  "gate": {
+    "allCalibrated": false,
+    "healthOk": false
+  }
+}

@@ -1,0 +1,25 @@
+## src/hunter/harness/hunt-lock.ts
+  - Bug: When `readPayload` returns null (e.g., corrupted lock file or transient read failure), the guard condition `existing && existing.pid !== process.pid` evaluates to `false`, causing the lock file to be unconditionally
+## src/hunter/harness/recon.ts
+  - **Bug: Silent undercount contradicts stated fail-closed intent.** The comment on line 38 says 'never a silent zero here', but the `continue` on line 46 means an unreadable corpus file is skipped and treated as zero block
+  - **Concurrency hazard: race condition in runId generation.** Two concurrent `recon()` calls can read the same set of HUNT_DONE rows, compute the same `seq`, and return identical `runId` values (e.g., both produce `myproje
+## src/hunter/harness/report.ts
+  - Partial failure leaves inconsistent state without rollback: If the writer call (step 2) succeeds but the `appendReportSection` loop (step 1) had already committed some rows to the DB, and then the `appendEvent` call (ste
+  - Race condition in `nextReportVersion`: `readdirSync` followed by version calculation is non-atomic. If multiple report processes run concurrently against the same MASTER_CONTEXT directory, they can read the same max vers
+## src/hunter/hooks/bus-hook.ts
+  - The `eventKind` function silently defaults to `'HUNT_DONE'` when the input is not a recognized bus kind. This masks potential bugs: if an unrecognized string somehow bypasses the `isBusKind` guard (e.g., via future refac
+  - The `rowsAs<T>` guard only checks `Array.isArray` but does not validate the structure of individual elements. If a row is missing the `id` property (e.g., DB schema mismatch or a malformed row), `row.id` evaluates to `un
+## src/hunter/log.ts
+  - Nested ternary expressions are prohibited by project coding standards. This chain of ternaries reduces readability for critical business logic. Refactor to use if/else-if or a lookup structure.
+## src/hunter/shared/db.ts
+  - The mirror rebuild in `mirrorToMasterContext` is not wrapped in a transaction. The method drops tables, recreates schema, then copies data row-by-row using separate prepared statements. A crash mid-copy leaves a partial/
+## src/hunter/shared/line-resolve.ts
+  - The regex `/L?\s*(\d+)/` is unanchored, so `.exec()` will match the first embedded digit sequence anywhere in the input string. For example, a `source_location` value like `"node42component"` or `"file-v3-path"` would in
+## src/hunter/shared/query-engine.ts
+  - Dead code / duplication: The `path()` method contains two recursive CTE queries that execute an expensive recursive search, but the result is never used (`void pathStr`). The method delegates entirely to `buildPathEdges(
+  - The two positional `splice` calls construct the SQL parameter array in a fragile manner that depends on exact array indices. After the first splice inserts `predicateFilter` at index 1, the second splice inserts at index
+  - The `community()` method loads ALL live edges and ALL live nodes into memory to build an adjacency map and run BFS. For large graphs (e.g., millions of edges), this could cause out-of-memory crashes. Consider using an in
+## src/hunter/tools/bug-hunt.ts
+  - **Bug: `"code" in err` throws TypeError for primitive error values.**  The `in` operator requires its right-hand operand to be an object. The `catch (e)` block catches ALL thrown values — including strings, numbers, `nul
+## src/hunter/tools/report-writer-local.ts
+  - The call to `writeReportDirect` is awaited but not wrapped in try-catch. If it throws (e.g., disk full, permission denied, file not found), the error propagates as an unhandled rejection with no local context or cleanup.

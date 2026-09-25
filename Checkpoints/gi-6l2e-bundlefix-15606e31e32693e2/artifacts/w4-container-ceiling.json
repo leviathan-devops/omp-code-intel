@@ -1,0 +1,24 @@
+{
+  "wave": "W4", "title": "THE CONTAINER CEILING (FR-5)",
+  "date": "2026-09-24",
+  "rig": "gi-cleanup-ct (omp-ct:master)",
+  "★ THE NAMED STATE": "the rig carries 7 of 8 substrates STAGED at /root/gi-scope/",
+  "substrates_in_container": {
+    "L1_SEMANTICA": "layers/semantica/kg.json (7060907B)",
+    "L3_UA": ".ua/knowledge-graph.json (3249972B)",
+    "L4_C2KG": ".c2kg/index.json (26038B)",
+    "L5_CORBELL": ".omp/graph-intelligence/corbell-checkout/store.sqlite (13942784B)",
+    "L6_GRAPHIFY": ".omp/graph-intelligence/graphify-checkout/store.sqlite (37892096B)",
+    "ABIDE": ".abide/events.jsonl (207044 events)"
+  },
+  "★ THE NAMED BLOCKERS": [
+    "L2_ARSUMBRIS: a DAEMON (a unix socket, not a file) — cannot be shipped; the au-engine must RUN in the container",
+    "TSG: the @huggingface/transformers runtime + scripts/kev-decide.ts are ABSENT in the container (the KEV-capable dist was the earlier attempt)"
+  ],
+  "★ THE HONEST RULE": "a substrate ABSENT is REPORTED as absent (named + its retry condition), never fabricated. The rig register reads what it REALLY carries — not a faked 8/8.",
+  "the_retry_conditions": {
+    "L2_ARSUMBRIS": "start the au-engine daemon INSIDE the container (a process, not a payload)",
+    "TSG": "ship the transformers runtime + the kev-decide CLI into the container"
+  },
+  "verdict": "NAMED (7 of 8 substrates present + 2 named blockers) — never a faked PASS"
+}

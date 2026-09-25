@@ -1,0 +1,1857 @@
+[HIGH] src/hunter/diagnostics/calibration.ts:450-456 (bug)
+  Suffix file match causes false FIRED: `f.file.endsWith(fixture.file)` matches unrelated paths (`src/b.ts` vs `lib/b.ts`, or `ab.ts` vs `b.ts`). A coincidental suffix hit within ±2 lines wrongfully yields FIRED → CALIBRATED. Normalize both paths and require exact equality or a `/`-boundary suffix (e.g. `f.file === fixture.file || f.file.endsWith('/' + fixture.file)` after POSIX normalization).
+  ```existing
+  const hit = findings.some(
+        (f) => f.ruleId === p.id
+          && f.verdict === 'VIOLATION'
+          && f.file.endsWith(fixture.file)
+          && f.line >= fixture.line - 2
+          && f.line <= fixture.line + 2,
+      );
+  ```
+  ```suggested
+  const normFinding = f.file.replace(/\\/g, '/');
+      const normFixture = fixture.file.replace(/\\/g, '/');
+      const fileMatch = normFinding === normFixture || normFinding.endsWith('/' + normFixture);
+      const hit = findings.some(
+        (f) => f.ruleId === p.id
+          && f.verdict === 'VIOLATION'
+          && fileMatch
+          && f.line >= fixture.line - 2
+          && f.line <= fixtu
+  ```
+
+[HIGH] src/hunter/diagnostics/calibration.ts:231-233 (bug)
+  dryRun is metadata-only: `liveBattery()` returns the CALIBRATED subset and `run()` persists DB rows + CALIBRATION_vN.md regardless of `dryRun`. A dry-run caller can accidentally ship/consume uncurated predicates despite the header claiming the gate is 'born OFF'. Either gate `liveBattery()` (return [] + warn when dryRun) or gate persistence, or document explicitly that callers must check `result.dryRun` before consuming `liveBattery`.
+  ```existing
+  liveBattery(): CompiledPredicate[] {
+    return this.battery.filter((p) => this.verdictOf(p.id) === 'CALIBRATED');
+  }
+  ```
+  ```suggested
+  liveBattery(): CompiledPredicate[] {
+    if (this.dryRun) return [];
+    return this.battery.filter((p) => this.verdictOf(p.id) === 'CALIBRATED');
+  }
+  ```
+
+[HIGH] src/hunter/diagnostics/calibration.ts:540-540 (bug)
+  Ownership fallback re-mutates caller + id collision: `find(...) ?? p` writes `calibrated` onto the caller's object for ad-hoc predicates passed to fireTest/silentTest, undermining the F-1021 clone. Worse, `verdicts`/`fireByPred`/`silentByPred` are keyed by `p.id`, so duplicate ids in the battery share one verdict and `find` marks only the first row while `liveBattery()/excluded()` flip all rows with that id.
+  ```existing
+  const owned = this.battery.find((b) => b.id === p.id) ?? p;
+  ```
+  ```suggested
+  const owned = this.battery.find((b) => b.id === p.id);
+    if (!owned) return; // ad-hoc predicate: record verdict maps only, never touch caller object
+    // TODO: key verdict maps by object identity or index if duplicate ids must be supported
+  ```
+
+[HIGH] src/hunter/diagnostics/calibration.ts:246-247 (bug)
+  batteryVersion omits identity/behavior fields: corpus hash covers only `anchor+verbatimQuote` and bindings. An `id` rename, `severity`/threshold/check-logic change reuses the same version, so stale calibration is treated as valid — violating the O22.4 invalidation claim. Include `id`, `severity`, and any threshold/check identity in the hashed corpus.
+  ```existing
+  const corpusHash = sha256(this.battery.map((p) => `${p.anchor}\n${p.verbatimQuote}`).join('\n'));
+    const bindingsHash = sha256(this.battery.map((p) => JSON.stringify(p.bindings)).join('\n'));
+  ```
+  ```suggested
+  const corpusHash = sha256(this.battery.map((p) => `${p.id}\n${p.anchor}\n${p.verbatimQuote}\n${(p as { severity?: unknown }).severity}`).join('\n'));
+    const bindingsHash = sha256(this.battery.map((p) => JSON.stringify(p.bindings)).join('\n'));
+  ```
+
+[CRITICAL] src/hunter/diagnostics/engine.ts:600-605 (bug)
+  False symlink-cycle abort on every normal subdirectory (and on root itself). `walk()` owns the visited check+add at entry, but both directory branches pre-add `real` before recursing and the root is pre-seeded. The callee `walk(abs)` recomputes the same realpath, finds it in `visitedRealDirs`, and throws SOURCE_READ_FAILED. Result: `collectLocalTsFiles` cannot walk any project with a subdirectory; with the root seed it throws immediately. Fix: single ownership — remove pre-adds and root seed, let `walk()` add; keep loud cycle signal only for true revisits.
+  ```existing
+  if (e.isDirectory()) {
+        if (LOCAL_BUILD_SKIPS.has(e.name)) continue;
+        const real = (() => { try { return fs.realpathSync(abs); } catch { return abs; } })();
+        if (visitedRealDirs.has(real)) continue;
+        visitedRealDirs.add(real);
+        walk(abs);
+  ```
+  ```suggested
+  if (e.isDirectory()) {
+        if (LOCAL_BUILD_SKIPS.has(e.name)) continue;
+        // Do not pre-add: walk() owns the visited-realpath check+add.
+        walk(abs);
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:271-272 (bug)
+  Unguarded parent `realpathSync` breaks the named-error contract. If `path.dirname(abs)` is missing/unreadable (e.g. history log in non-existent dir), `fs.realpathSync` throws raw ENOENT, not HISTORY_LOG_UNREADABLE. Same hole exists in `lockdownReadSource` (raw throw instead of SOURCE_READ_FAILED) and for `rootReal`. Wrap in try/catch and rethrow the named error to preserve the fail-closed law.
+  ```existing
+  const parentReal = fs.realpathSync(path.dirname(abs));
+     if (!containedIn(parentReal)) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+  ```
+  ```suggested
+  let parentReal: string;
+     try { parentReal = fs.realpathSync(path.dirname(abs)); } catch (e: unknown) {
+       throw historyLogUnreadable(abs, `parent realpath failed: ${String(e)}`);
+     }
+     if (!containedIn(parentReal)) throw historyLogUnreadable(abs, `path escapes project root (root=${rootReal} parent=${parentReal})`);
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:715-715 (bug)
+  Bare-name `fn:<name>` synthesis with first-wins dedupe merges distinct symbols: same-named functions in different files share one id (loser file's definition dropped, callee nodes carry call-site file/line), creating false `calls`/`awaits` edges and false `whoCalls` hits. File-qualify ids (e.g. `fn:<rel>:<name>`) or keep definition nodes distinct from synthesized callee stubs.
+  ```existing
+  pushNode({ id: `fn:${callee}`, kind: 'function', name: callee, file: rel, line: callLine, lineage: 'CODE_DERIVED', source: `${rel}:${callLine}` });
+  ```
+  ```suggested
+  // TODO: file-qualify to avoid cross-file collision, e.g. `fn:${rel}:${callee}`
+        // with alias resolution for whoCalls(); do not reuse bare fn:<name> for distinct symbols.
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:595-597 (security)
+  Symlink-to-file outside the root is collected without containment: `out.push(abs)` keeps the link path, then `readFileSync(abs)` follows it out of tree, bypassing the lockdown model for the local build. Resolve `real = realpathSync(abs)` and require it inside `rootReal` (fail-closed SOURCE_READ_FAILED), consistent with the F-3/F-301 gates on the read path.
+  ```existing
+  } else if (e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) {
+          out.push(abs);
+        }
+  ```
+  ```suggested
+  } else if (e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) {
+          let real = abs;
+          try { real = fs.realpathSync(abs); } catch (err: unknown) {
+            throw sourceReadFailed(abs, `local build dangling symlink: ${String(err)}`);
+          }
+          // TODO: require real inside rootReal else throw sourceReadFailed (containment).
+          out.push(abs);
+        }
+  ```
+
+[HIGH] src/hunter/diagnostics/findings-store.ts:113-113 (bug)
+  BEGIN IMMEDIATE with no re-entrancy guard fails if caller already holds a transaction (SQLite: cannot start a transaction within a transaction). Also preventable validation (evidence emptiness) runs inside the tx, forcing a ROLLBACK for errors rejectable before BEGIN, and an empty batch still pays BEGIN/COMMIT.
+  ```existing
+  db.exec('BEGIN IMMEDIATE');
+  ```
+  ```suggested
+  // Pre-validate before opening tx; early-return on empty batch; guard nesting.
+    // if (findings.length === 0) return { runId, week: week ?? null, appended: 0 };
+    // for (let i = 0; i < findings.length; i++) { validate evidence -> throw FINDING_NO_TRIPLET }
+    // db.exec('SAVEPOINT findings_batch'); // or check inTransaction() if DbClient exposes it; document non-reentrant if not supported
+ 
+  ```
+
+[HIGH] src/hunter/diagnostics/findings-store.ts:164-164 (bug)
+  week:null is unqueryable: != null skips the clause for both undefined (no filter) and null (filter IS NULL), silently returning a multi-week superset. Even if pushed, `week = ?` with NULL never matches — needs `IS NULL`.
+  ```existing
+  if (opts.week != null) {
+  ```
+  ```suggested
+  if (opts.week !== undefined) {
+    if (opts.week === null) clauses.push('week IS NULL');
+    else { clauses.push('week = ?'); params.push(opts.week); }
+  }
+  ```
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:126-131 (bug)
+  Missing graph dereference guard: `asFixture` only validates `graph.nodes` when `graph` is present (`if (g !== undefined)`), but `loadFireFixture`/`loadGoldenFixture` unconditionally dereference `manifest.graph.nodes`. A manifest with no `graph` key passes the guard then dies with bare `TypeError: Cannot read properties of undefined`, not `CALIBRATION_FIXTURE_INVALID`. Make `graph` required in the guard (fail when missing/null/non-object/nodes-non-array).
+  ```existing
+  const g = (parsed as { graph?: unknown }).graph;
+      if (g !== undefined) {
+        if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {
+          throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);
+        }
+      }
+  ```
+  ```suggested
+  const g = (parsed as { graph?: unknown }).graph;
+if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {
+  throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);
+}
+  ```
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:177-180 (bug)
+  Unvalidated `sourceFile` before `path.resolve` (fire + golden): `manifest.sourceFile` is used with no typeof/non-empty check in both `loadFireFixture` and `loadGoldenFixture`. Missing/non-string throws bare `TypeError [ERR_INVALID_ARG_TYPE]` and `""` resolves to `dir` itself (later `EISDIR`), neither surfacing as `CALIBRATION_FIXTURE_INVALID`. Validate `typeof === 'string' && length > 0` immediately after `asFixture`, before any filesystem touch, in both loaders.
+  ```existing
+  const manifest = asFixture<FireFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'fire manifest');
+  // The manifest's own SPELLING is still checked lexically (a `..` that escapes is refused
+  // on the string form — the shape question, asked before any filesystem touch).
+  const spelled = path.resolve(dir, manifest.sourceFile);
+  ```
+  ```suggested
+  const manifest = asFixture<FireFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'fire manifest');
+if (typeof manifest.sourceFile !== 'string' || manifest.sourceFile.length === 0) {
+  throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} carries a missing/empty sourceFile`);
+}
+const spelled = path.resolve(dir, manifest.sourceFile);
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:119-119 (bug)
+  P2 self-match: `win` always contains the triggering `setAbortFlag` line, so `/abort/i` is trivially true ("setAbortFlag" contains "abort"). The check reduces to only the negative clause, flagging every `setAbortFlag` without `writeStateAtomic` in ±15 lines even when no separate abort path exists. Exclude the trigger line or require an independent abort signal (e.g. `abort(`, ` aborted`, `AbortController`) outside the trigger line.
+  ```existing
+  if (/abort/i.test(win) && !/writeStateAtomic|phase.*FAILED/.test(win)) {
+  ```
+  ```suggested
+  const winWithoutTrigger = lines.slice(Math.max(0, i - 15), i).join('\n') + '\n' + lines.slice(i + 1, Math.min(lines.length, i + 15)).join('\n');
+        if (/\babort\b/i.test(winWithoutTrigger) && !/writeStateAtomic|phase.*FAILED/i.test(win)) {
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:165-166 (bug)
+  P3 false negative: nodes without `id` are silently skipped when `deadIds` is available. If the graph adapter omits `id` for some kinds, a genuinely unwired gate is dropped instead of falling back to `whoCalls(name)`. Only skip when `nid` is defined and absent; otherwise use the `whoCalls` fallback per-node.
+  ```existing
+  if (deadIds !== null) {
+        if (nid === undefined || !deadIds.has(nid)) continue;
+  ```
+  ```suggested
+  if (deadIds !== null && nid !== undefined) {
+        if (!deadIds.has(nid)) continue;
+      } else if (deadIds === null) {
+        // whoCalls fallback only when unwired() unavailable; when nid is undefined
+        // fall through to whoCalls fallback as well instead of skipping.
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:37-38 (bug)
+  Mandatory-edge invariant violated: `evEdge` falls back to `'edge NONE (unanchored — never emitted)'` but every caller still pushes the finding. When `firstCite(anchor.cites, file)` misses for a file in `anchor.files`, an unanchored finding is emitted contrary to the header contract ("a finding without a traversed edge is theater" / "no anchor = no scan"). Skip the file (continue) when `cite` is undefined instead of emitting with an edge-NONE leg.
+  ```existing
+  const cite = firstCite(anchor.cites, file);
+  const edgeLeg = cite ? edgeEvidence(cite) : 'edge NONE (unanchored — never emitted)';
+  ```
+  ```suggested
+  const cite = firstCite(anchor.cites, file);
+  if (!cite) return undefined; // caller skips: no traversed edge for this file
+  const edgeLeg = edgeEvidence(cite);
+  ```
+
+[HIGH] src/hunter/diagnostics/semantic-predicates.ts:234-234 (bug)
+  P5 file-level exemption causes false negatives: `if (/DIAGNOSTIC_TOOLS/.test(text)) continue` skips the entire file when the token appears anywhere, even far from the `PHASE_REQUIRED_TOOLS` window where the per-window check (`!/DIAGNOSTIC_TOOLS|AUDIT_TOOLS|\bread\b/.test(win)`) is the correct scope. A file with an unrelated DIAGNOSTIC_TOOLS mention suppresses all jail findings. Remove the file-level early-continue and rely solely on the window-scoped test.
+  ```existing
+  if (/DIAGNOSTIC_TOOLS/i.test(text)) continue;
+  ```
+  ```suggested
+  // Removed file-level DIAGNOSTIC_TOOLS skip — exemption is window-scoped below.
+  ```
+
+[HIGH] src/hunter/firewall/artifact-scope.ts:127-127 (bug)
+  Relative targets resolve against process.cwd, not projectRoot. `path.resolve(input.target)` on a relative `MASTER_CONTEXT/bug_hunter_report_v1.md` yields a cwd-anchored path, so `targetParentNorm !== masterNorm` false-BLOCKs legitimate calls and makes the normalized-parent gate cwd-dependent. Resolve relative inputs against the project root (e.g. `path.resolve(projectRootReal, input.target)`) or reject non-absolute targets fail-closed.
+  ```existing
+  const targetNorm = path.normalize(path.resolve(input.target));
+  ```
+  ```suggested
+  if (typeof input.target !== 'string' || input.target.length === 0) return blocked('REPORT_SCOPE_BLOCKED', '', String(input.target));
+  const targetNorm = path.normalize(path.isAbsolute(input.target) ? path.resolve(input.target) : path.resolve(projectRootReal, input.target));
+  ```
+
+[HIGH] src/hunter/firewall/artifact-scope.ts:193-194 (security)
+  Target-level symlink escape bypasses the parent-only realpath check. Only `path.dirname(targetNorm)` is realpath-resolved; `fs.stat` follows symlinks, so a pre-planted `MASTER_CONTEXT/bug_hunter_report_v1.md -> /outside/secret` pointing at a non-existent file returns ENOENT and ALLOWs, and the subsequent write follows the link outside the master dir/project. `lstat` the target and BLOCK if it is a symlink (or realpath-resolve the full target and contain it), and `stat` `targetNorm` instead of raw `input.target` to avoid cwd divergence.
+  ```existing
+  try {
+    await fs.stat(input.target);
+  ```
+  ```suggested
+  try {
+    const lt = await fs.lstat(targetNorm);
+    if (lt.isSymbolicLink()) return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    await fs.stat(targetNorm);
+  ```
+
+[HIGH] src/hunter/firewall/lexicon-types.ts:99-99 (bug)
+  Alias freeze is compile-time only + shared reference defeats the guard. `readonly` does not prevent runtime mutation (`(d as any).state = ...` or `d.triplet.Pattern = ...` still succeeds), and `triplet: base.mPSE` aliases the same object reference. A single `d.mPSE.Evidence = 'x'` mutates `d.triplet` identically, so the value-equality check in `assertLexiconDecisionConsistent` still passes while evidence is corrupted. The comment claiming `readonly freezes post-construction drift` is misleading.
+  ```existing
+  return { ...base, state: base.verdict, triplet: base.mPSE };
+  ```
+  ```suggested
+  return Object.freeze({ ...base, state: base.verdict, triplet: Object.freeze({ ...base.mPSE }) }); // + Object.freeze mPSE copy; document that readonly is compile-time only
+  ```
+
+[HIGH] src/hunter/firewall/lexicon-types.ts:104-107 (bug)
+  Guard checks alias identity only, not MPSE semantics, and dereferences without null checks. It verifies `state===verdict` and `triplet===mPSE` by value but never that `mPSE.Pattern===pattern` or that `mPSE.State` encodes the verdict (e.g. BLOCKED verdict with `State='PARSED->ALLOW_READ'` passes). Also `d.triplet.Pattern` throws `TypeError` instead of `LEXICON_ALIAS_MISMATCH` if `d/triplet/mPSE` is null/undefined (missing null check per checklist).
+  ```existing
+  export function assertLexiconDecisionConsistent(d: LexiconDecision): void {
+  const tripletOk = d.triplet.Pattern === d.mPSE.Pattern
+    && d.triplet.State === d.mPSE.State
+    && d.triplet.Evidence === d.mPSE.Evidence;
+  ```
+  ```suggested
+  export function assertLexiconDecisionConsistent(d: LexiconDecision): void {
+  if (!d || !d.triplet || !d.mPSE) throw new Error(`LEXICON_ALIAS_MISMATCH: missing decision/triplet/mPSE`);
+  const tripletOk = d.triplet.Pattern === d.mPSE.Pattern && d.triplet.State === d.mPSE.State && d.triplet.Evidence === d.mPSE.Evidence;
+  const semanticsOk = d.mPSE.Pattern === d.pattern && d.mPSE.State.includes(d.v
+  ```
+
+[HIGH] src/hunter/firewall/readonly.ts:108-111 (security)
+  `sed -n` READ bypass via unquoted/flag-prefixed payloads: the carve-out only BLOCKs quoted non-range (`rest.startsWith('\''/"')`), so `sed -n s/foo/bar/p file` and `sed -n -e 's/x/y/'` miss both the range regex and the quote check, fall through to the `blockVerbExemption` narrow-splitter scan (which ignores `/` and quotes) returning null, then `routeSed()==READ` promotes to ALLOW_READ/BASH_READ. The promotion re-check `parsed.metacharacter===null` is vacuous (BYPASS already returned early) and does not prove the quoted-range was present. Only the exact quoted-range should be exempt; any other `sed -n` shape must stay BLOCKED as BASH_MUTATION/BYPASS.
+  ```existing
+  if (m) return null; // the whole command is the sanctioned range read — no other metachars possible
+    // The quoted NON-range (a substitution smuggled in the quotes — 's/x/y/') must BLOCK:
+    // the quote char is the detected metachar (the carve-out is EXACT — §7.2:3203-3211).
+    if (rest.startsWith('\'') || rest.startsWith('"')) return '\'';
+  ```
+  ```suggested
+  if (m) return null;
+    // Fail-closed: any other `sed -n` shape (unquoted script, -e/-E flags,
+    // quoted non-range) must BLOCK — do not fall through to the narrow scan.
+    return '\''; // or return 's' / dedicated sed sentinel so classify BLOCKs
+  ```
+
+[HIGH] src/hunter/firewall/readonly.ts:158-163 (security)
+  Narrow-splitter exemption lets `find -exec ... +` execute as ALLOW_READ: READ verbs (and block verbs) only scan for `| ; & > < \n $ \``. `find . -exec rm -rf / {} +` contains none of those (the `;` variant is caught, the `+` terminator is not) so it returns null and `READ_VERBS.has('find')` allows it. More generally backslash, glob (`* ? [ ]`), `#`, parens/braces are never scanned on these paths despite BYPASS_METACHARACTERS calling them load-bearing.
+  ```existing
+  if (READ_VERBS.has(firstToken)) {
+    for (const ch of command) {
+      if (NARROW_SPLITTERS.has(ch)) return ch;
+    }
+    return null;
+  }
+  ```
+  ```suggested
+  if (READ_VERBS.has(firstToken)) {
+    // Deny-list dangerous read-verb options before the splitter scan, e.g.:
+    // if (/\s(-exec|-execdir|-delete|-fls|-fprint|-ok)/.test(command)) return 'E';
+    for (const ch of command) {
+      if (NARROW_SPLITTERS.has(ch)) return ch;
+    }
+    return null;
+  }
+  ```
+
+[HIGH] src/hunter/firewall/readonly.ts:196-200 (security)
+  Git routing inspects only tokens[1], so `git <read-subverb> <write-payload>` is allowed: `git log --output=/tmp/out`, `git diff --output=file`, `git show --output=...` route as READ via `log/diff/show` and the narrow scan ignores `- = / .` so no splitter fires, then the READ branch allows a file-write primitive that bypasses the `>` guard. Flags before the subverb (`git --git-dir=... log`) fail closed, but trailing write flags do not.
+  ```existing
+  function routeGit(secondToken: string): 'READ' | 'MUTATION' | null {
+  if (GIT_READ_SUBVERBS.has(secondToken)) return 'READ';
+  if (GIT_MUTATION_SUBVERBS.has(secondToken)) return 'MUTATION';
+  return null; // 'git' alone or an unrecognized sub-verb — the fail-closed -> BLOCKED
+}
+  ```
+  ```suggested
+  function routeGit(secondToken: string, restTokens: string[]): 'READ' | 'MUTATION' | null {
+  // ... existing checks ...
+  // if READ candidate but rest contains --output/--upload-pack/--receive-pack/-o etc => return 'MUTATION'
+  return null;
+}
+  ```
+
+[CRITICAL] src/hunter/graph/corbell-adapter.ts:207-207 (security)
+  Shell-injection gap: defaultExec allowlists by denylist but misses quote/backslash escapes. `cmdRaw` is run via `/bin/sh -c` as `'exec '+cmdRaw`, so `'`, `"` and `\` retain shell meaning (quoting, line-continuation, `$( )` bypass via split). safe() rejects them for the binary path, but this public export re-allows them. Use spawn(argv) instead of sh -c, or apply the same allowlist as safe().
+  ```existing
+  if (/[;&|`$(){}!<>\n\r*~?#\[\]]/.test(cmdRaw)) {
+  ```
+  ```suggested
+  if (/[^A-Za-z0-9_@%+=:,./\\\-\s]/.test(cmdRaw) || /['"\\]/.test(cmdRaw)) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
+  }
+  // Prefer: spawn(bin, args, {shell:false}) over `exec ${cmdRaw}` via /bin/sh -c.
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:172-172 (bug)
+  Async timeout leaks/reaps incorrectly: forceKillTimer is created inside the timeout closure and never cleared by done() (only timer/killTimer are cleared), `proc.on('exit')` is registered late (misses already-emitted exit → promise never settles on some interleavings), unref'd timers may let the process exit without settling, and only the direct child is killed — python grandchildren survive as orphans. Kill the process group / use detached:true, track and clear all timers, and prefer close over exit.
+  ```existing
+  const forceKillTimer = setTimeout(() => {
+  ```
+  ```suggested
+  // Hoist: let forceKillTimer = null; clear it in done().
+        // Spawn with {detached:true} and kill(-pid) to reap grandchildren.
+        // Listen on 'close' (not late 'exit') and do not unref the timeout
+        // if it is the only pending handle guarding a hung build.
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:263-263 (performance)
+  Sync blocking retry starves the event loop: up to 8 attempts with Atomics.wait backoff (1s doubling capped at 16s ≈ up to ~2min blocked) plus clamped execSync timeouts. Async callers cannot interleave. Move retries to buildCorbellGraphAsync or document that defaultExec must never run on the serving loop.
+  ```existing
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
+  ```
+  ```suggested
+  // Async alternative: await new Promise(r => setTimeout(r, backoff));
+      // If sync contract must stay, cap total blocked time and note it in ExecFn docs.
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:751-751 (bug)
+  Numeric enrichment silently misses integer thresholds and risks stack overflow: regex /(\d+\.\d+)/ only matches floats, so thresholds like `100`/`5` never populate comparator (downstream domain check stays silent), and Math.max(...nums) spreads an unbounded array. Also reads whole files synchronously with no size cap.
+  ```existing
+  const nums = [...src.matchAll(/(\d+\.\d+)/g)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n));
+  ```
+  ```suggested
+  const nums: number[] = [];
+            for (const m of src.matchAll(/\b\d+(?:\.\d+)?\b/g)) { const n = Number(m[0]); if (Number.isFinite(n)) nums.push(n); }
+            // cap file size before read; compute max via reduce, not spread.
+  ```
+
+[HIGH] src/hunter/graph/corbell-adapter.ts:938-938 (bug)
+  Wrong-file fallback: whoCalls/chain/imports/awaits/unwired fall back to profile.project.root (a directory) when the node file is undefined (e.g. FOREIGN_PATH_UNRESOLVED degraded to undefined). Findings then attribute to the project dir instead of failing loud / marking unknown. Return undefined or throw rather than a directory.
+  ```existing
+  file: caller?.file ?? this.profile.project.root,
+  ```
+  ```suggested
+  file: caller?.file ?? caller?.file /* required; degrade to '' + log, never a directory */,
+  ```
+
+[HIGH] src/hunter/graph/graphify-adapter.ts:740-746 (bug)
+  Endpoint locator uses un-normalized `e.src` instead of resolved `srcId`: `srcId/dstId` are derived from `source/src` + `target/dst` fallback, but the `source_location` fallback does `nodeByRawId.get(e.src)`. For edges carrying only `source/target` (real graphify schema, EN-041) `e.src` is undefined at runtime so the node locator is missed and `danglingNoLine` is inflated. Resolve via `srcId` (the same value used for `byId` lookup).
+  ```existing
+  const line = parseLineValue(edgeLoc)
+      ?? srcNode?.line
+      ?? tryResolveGraphifyLine(
+        { data: (nodeByRawId.get(e.src)?.data ?? {}) as Record<string, unknown>,
+          source_location: rawSourceLocation(nodeByRawId.get(e.src)) },
+        rawEdge,
+      );
+  ```
+  ```suggested
+  const srcRaw = nodeByRawId.get(srcId);
+    const line = parseLineValue(edgeLoc)
+      ?? srcNode?.line
+      ?? tryResolveGraphifyLine(
+        { data: (srcRaw?.data ?? {}) as Record<string, unknown>,
+          source_location: rawSourceLocation(srcRaw) },
+        rawEdge,
+      );
+  ```
+
+[HIGH] src/hunter/graph/graphify-adapter.ts:321-324 (security)
+  Containment mixes real root with unresolved abs + fail-open on unresolvable root: base is `realpathSync` canonicalized but `abs` falls back to non-real `keep abs` when the file does not exist, so `relative()` compares different canonicalizations. Symlinked/nonexistent `../` escapes can be misjudged as contained, and the `rootReal===null` early-return keeps loader-written absolute anchors (fail-open) while `projectGraphifyGraph` drops them (fail-closed) — stages disagree.
+  ```existing
+  const abs = path.isAbsolute(f) ? f : path.resolve(rootReal, f);
+      let real = abs;
+      try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
+      const rel = path.relative(rootReal, real);
+  ```
+  ```suggested
+  const abs = path.isAbsolute(f) ? path.normalize(f) : path.resolve(rootReal, f);
+      // Fail-closed: without realpath proof containment cannot be proven for
+      // symlinked/missing paths — drop the anchor instead of trusting lexical abs.
+      let real: string | null = null;
+      try { real = fs.realpathSync(abs); } catch { real = null; }
+      if (real === null) continue; // or safeFile = ""
+  ```
+
+[HIGH] src/hunter/graph/interface.ts:233-235 (bug)
+  Null-profile guard crashes while building the ADAPTER_FAILED detail: the condition short-circuits on `!profile`, but the `throw adapterFailed(...)` argument dereferences `(profile as ...).graph` without `?.` after `profile`. `selectAdapter(null/undefined)` therefore throws a raw `TypeError: Cannot read properties of null (reading 'graph')` instead of the intended named `ADAPTER_FAILED`, defeating the F-903 loud-fail contract this guard was added for.
+  ```existing
+  if (!profile || typeof (profile as unknown as { graph?: { substrate?: unknown } }).graph?.substrate !== 'string') {
+      throw adapterFailed(
+        `substrate=${String((profile as unknown as { graph?: { substrate?: unknown } }).graph?.substrate)}`,
+  ```
+  ```suggested
+  if (!profile || typeof (profile as unknown as { graph?: { substrate?: unknown } } | null | undefined)?.graph?.substrate !== 'string') {
+      throw adapterFailed(
+        `substrate=${String((profile as unknown as { graph?: { substrate?: unknown } } | null | undefined)?.graph?.substrate)}`,
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:281-286 (bug)
+  Single-file depth overflow aborts whole program extraction: `MAX_DEPTH` throw inside `visit` propagates out of the per-file loop and fails `extractMechanical` entirely, discarding triples from all healthy files. Isolate per file (skip/log pathological file and continue).
+  ```existing
+  try {
+      visit(sf, undefined);
+    } catch (e: unknown) {
+      if (e instanceof MechanicalExtractionError) throw e;
+      throw new MechanicalExtractionError(`mechanical walk failed for ${relPosix} — ${e instanceof Error ? e.message : String(e)}`);
+    }
+  ```
+  ```suggested
+  try {
+      visit(sf, undefined);
+    } catch (e: unknown) {
+      // isolate pathological file instead of aborting whole program
+      if (e instanceof MechanicalExtractionError && e.message.includes('AST depth exceeds')) continue;
+      throw e instanceof MechanicalExtractionError ? e : new MechanicalExtractionError(`mechanical walk failed for ${relPosix} — ${e instanceof Error ? e.message : Str
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:182-188 (bug)
+  Inline variable exports mis-typed as `fn:`: `export const x = 5` / `export const obj = {...}` emits `exports fn:x` while `declares` only emits `fn:` for arrow/function initializers. This pollutes the `fn:` namespace and breaks declares↔exports joins. Gate on function-like initializer or use neutral symbol canonical.
+  ```existing
+  } else if (ts.isVariableStatement(stmt)) {
+          for (const decl of stmt.declarationList.declarations) {
+            if (ts.isIdentifier(decl.name)) {
+              pushTriple(fileCanon, 'exports', `fn:${decl.name.text}`, expEvidence, relPosix, expLine);
+            }
+          }
+        }
+  ```
+  ```suggested
+  } else if (ts.isVariableStatement(stmt)) {
+          for (const decl of stmt.declarationList.declarations) {
+            if (!ts.isIdentifier(decl.name)) continue;
+            const isFn = decl.initializer && (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer));
+            if (!isFn) continue;
+            pushTriple(fileCanon, 'exports', `fn:${decl.name.text}`, expE
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:202-202 (bug)
+  Module specifier canonicalization creates bogus nodes and misses index resolution in both import and re-export branches: bare specifiers (`lodash` / `export ... from 'lodash'`) become `file:lodash`, and `./dir` becomes `./dir.ts` with no `index.ts` / extension probing, so edges never join real files. Resolve bare specifiers to package nodes and probe directory index in both branches so import/export triples join.
+  ```existing
+  const targetCanon = `file:${targetRel}`;
+  ```
+  ```suggested
+  const targetCanon = target.startsWith('.') ? `file:${targetRel}` : `package:${target}`;
+  ```
+
+[HIGH] src/hunter/graph/merge.ts:130-134 (bug)
+  Exact-match pushes a duplicate row instead of upgrading. The mechanical key was already emitted (and indexed in `mergedByKey`), then `mechExact` pushes a second row with the same `tripleKey` as `source:'both'`. Identical triples are doubled and counts/skews downstream. Fix: look up `mergedByKey.get(k)` and upgrade that row in place (source='both', inherit file:line/kinds, update confidence/evidence) instead of `merged.push`.
+  ```existing
+  if (mechExact) {
+      const anchor = mechExact;
+      const inheritedFile = anchor.file;
+      const inheritedLine = anchor.line;
+      merged.push({
+  ```
+  ```suggested
+  if (mechExact) {
+      const anchor = mechExact;
+      const existing = mergedByKey.get(k);
+      if (existing) {
+        existing.source = 'both';
+        existing.evidence = s.evidence.trim().slice(0, 500);
+        existing.confidence = s.confidence;
+        existing.file = anchor.file ?? s.file;
+        existing.line = anchor.line ?? s.line;
+        existing.subjectKind = s.subjectKind ?? ancho
+  ```
+
+[HIGH] src/hunter/graph/merge.ts:11-14 (bug)
+  Internal dedup `Set` leaked on public `MergedTriple`. Exposing mutable `seenContradictions?: Set<string>` breaks `JSON.stringify` (serializes as `{}`), leaks internal bookkeeping to consumers, and allows external mutation to corrupt contradiction accumulation. Keep it in a module-private `WeakMap<MergedTriple, Set<string>>` (or `Map<string, Set<string>>` keyed by `tripleKey`) and strip it before return.
+  ```existing
+  /** ★ F-822b FIX (2026-09-24): the dedup Set the F-822 fix introduced was read off the type
+   *  before it was DECLARED — TS2339 at every site. It is part of the row's conflict
+   *  bookkeeping, so it belongs on the interface. */
+  seenContradictions?: Set<string>;
+  ```
+  ```suggested
+  // seenContradictions removed from public interface — track internally, e.g.:
+  // const seenContradictions = new WeakMap<MergedTriple, Set<string>>();
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:245-248 (bug)
+  Existing-canonical validation gap: only `canonical_id` is checked, but `heuristicDecide`/`shareSignificantToken` immediately call `normalizeLabel(c.label)`, `normalizeLabel(c.kind)`, `tokenize()` on them. A missing/non-string `label`/`kind` escapes validation and crashes with raw `TypeError: Cannot read properties of undefined (reading 'trim')` instead of `ResolverError`. Validate `label` and `kind` as non-empty strings like `newEntities`.
+  ```existing
+  for (const c of existing) {
+    if (!c || typeof c !== 'object') throw new ResolverError(`RESOLVER_FAILED: existing entry must be object, got ${typeof c}`);
+    if (typeof c.canonical_id !== 'string' || c.canonical_id.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: existing canonical_id must be non-empty`);
+  }
+  ```
+  ```suggested
+  for (const c of existing) {
+    if (!c || typeof c !== 'object') throw new ResolverError(`RESOLVER_FAILED: existing entry must be object, got ${typeof c}`);
+    if (typeof c.canonical_id !== 'string' || c.canonical_id.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: existing canonical_id must be non-empty`);
+    if (typeof c.label !== 'string' || c.label.trim().length === 0) throw ne
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:185-185 (bug)
+  Dangling `canonicalId` persisted for `unrelated`: F-254 fallback only triggers for `same`/`related`. An `unrelated` harness record with unknown `canonical_id` keeps the arbitrary string (`canonicalId || alias`) with `existingCanonical: null` and the `else` DB branch later writes that dangling id into `resolutions`, corrupting integrity. Unrelated should canonicalize to its own alias (`newEnt.id`), or fall back to heuristic like same/related.
+  ```existing
+  return { alias, canonicalId: canonicalId || alias, verdict, reasoning, destructive: Boolean(rec.destructive), newEntity: newEnt, existingCanonical: existCanon };
+  ```
+  ```suggested
+  if (!existCanon) {
+    // Unrelated (or any verdict) with dangling canonical must not persist the arbitrary string.
+    const h = heuristicDecide(newEnt, existing);
+    if (verdict === 'unrelated') return { alias, canonicalId: newEnt.id, verdict, reasoning, destructive: Boolean(rec.destructive), newEntity: newEnt, existingCanonical: null };
+  }
+  return { alias, canonicalId: canonicalId || alias, 
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:321-325 (bug)
+  `db.exec('BEGIN')` is outside the `try/ROLLBACK` scope, so a BEGIN failure (locked DB, nested transaction, I/O error) escapes as a raw driver error instead of `ResolverError`. Move BEGIN inside the try (or wrap it) so all transaction-lifecycle failures share the rollback/error contract.
+  ```existing
+  if (db) {
+    // ★ F-4 FIX (2026-09-24): atomic resolutions commit — one BEGIN/COMMIT
+    // around the loop; a mid-loop failure rolls back instead of half-writing.
+    db.exec('BEGIN');
+    try {
+  ```
+  ```suggested
+  if (db) {
+    try {
+      db.exec('BEGIN');
+  ```
+
+[HIGH] src/hunter/graph/store-map.ts:192-194 (bug)
+  Empty input wipes the store: the global `UPDATE ... WHERE superseded_run IS NULL` runs unconditionally before inserts, so `nodes=[]/edges=[]` tombstones every live row with no replacements. `GraphEmptyError` in `interface.ts` shows empty builds are meant to fail loud. Guard: return early / throw on `nodeRows.length===0` or skip supersede when there is nothing to insert.
+  ```existing
+  db.exec("BEGIN IMMEDIATE;");
+    try {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+  ```
+  ```suggested
+  if (nodeRows.length === 0 && edgeRows.length === 0) throw new Error("CORBELL_STORE_WRITE: refusing to supersede store with empty input");
+    db.exec("BEGIN IMMEDIATE;");
+    try {
+      db.run("UPDATE typed_nodes SET superseded_run = ? WHERE superseded_run IS NULL", [runTag]);
+  ```
+
+[HIGH] src/hunter/graph/store-map.ts:118-120 (performance)
+  Blocking arbitrary file reads with unbounded whole-file cache: `edgeEvidence` does `readFileSync(file)` on node-controlled `file` for every distinct file in the hot `edges.map` loop, caches the full split lines with only a 500-entry count cap (no byte-size cap, no mtime/TTL so stale lines in long-lived processes). This blocks the event loop, can OOM on large files, and reads any absolute path the adapter supplies. Cap file size/lines, use async/batched reads or pre-index only needed lines, normalize + restrict to workspace root, and invalidate on mtime.
+  ```existing
+  let lines = edgeEvidenceLineCache.get(file);
+      if (!lines) {
+        lines = fs.readFileSync(file, "utf8").split("\n");
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:55-57 (security)
+  Missing hostname validation bypasses cross-host guard. readPayload only checks pid/acquiredAt, so a lock with missing/non-string hostname is returned as valid. Both isStale (`typeof hostname === 'string' && ...`) and releaseHuntLock then skip the foreign-host fail-closed path and fall back to namespace-local isPidAlive / unlink, allowing a colliding local PID to free/delete another host's live lock on a shared filesystem. Require hostname (and ideally integer pid + parseable acquiredAt) here so legacy/corrupt locks take the null-payload TTL-gated path and release fail-closes.
+  ```existing
+  const parsed = JSON.parse(raw) as Partial<HuntLockPayload>;
+    if (typeof parsed.pid !== 'number' || typeof parsed.acquiredAt !== 'string') return null;
+    return parsed as HuntLockPayload;
+  ```
+  ```suggested
+  const parsed = JSON.parse(raw) as Partial<HuntLockPayload>;
+    if (typeof parsed.pid !== 'number' || !Number.isInteger(parsed.pid) || parsed.pid <= 0) return null;
+    if (typeof parsed.acquiredAt !== 'string' || Number.isNaN(Date.parse(parsed.acquiredAt))) return null;
+    if (typeof parsed.hostname !== 'string' || parsed.hostname.length === 0) return null;
+    return parsed as HuntLockPayload;
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:180-186 (bug)
+  Release unlink remains non-atomic despite double re-read. fresh/fresh2 narrow the window to µs but read-check-unlinkSync is still TOCTOU: a stale-recovery in acquireHuntLock can unlink + wx-create a fresh lock between fresh2 and unlinkSync, and this unlink deletes the stranger's lock (mutual-exclusion violation). Path locks cannot be made safe by re-reading; use an atomic primitive (lock-directory via mkdir O_EXCL, hard-link, or fd-based flock/fcntl) or at minimum document that release may delete a peer and require callers to tolerate it.
+  ```existing
+  const fresh2 = readPayload(lockPath);
+    if (!fresh2 || fresh2.pid !== existing.pid || fresh2.acquiredAt !== existing.acquiredAt || fresh2.hostname !== existing.hostname) {
+      console.warn(`[hunt-lock] release skipped for ${lockPath}: the lock changed just before unlink (a peer won the race) — keeping the current holder's lock`);
+      return;
+    }
+    try {
+      fs.unlinkSync(lockPath);
+  ```
+  ```suggested
+  // TODO: replace read-check-unlink with an atomic release (e.g. hold an fd/flock
+    // from acquire and use close+unlink under lock, or use a mkdir-based lock dir).
+    // Re-reads only narrow the race; they cannot close it.
+    const fresh2 = readPayload(lockPath);
+    if (!fresh2 || fresh2.pid !== existing.pid || fresh2.acquiredAt !== existing.acquiredAt || fresh2.hostname !== existing.hostname
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:34-35 (bug)
+  isPidAlive fail-open on unknown errors contradicts the EPERM-as-alive fail-closed rule. Any kill error other than ESRCH/EPERM (e.g. EINVAL, unexpected platform error) warns then returns false, which isStale treats as dead and immediately unlinks a same-host lock that may still be live. Default to true (assume alive, TTL bounds the hold) to err toward exclusion.
+  ```existing
+  console.warn(`[hunt-lock] isPidAlive unknown code for pid=${pid}: ${String(e)}`);
+    return false;
+  ```
+  ```suggested
+  console.warn(`[hunt-lock] isPidAlive unknown code for pid=${pid}: ${String(e)}`);
+    return true;
+  ```
+
+[HIGH] src/hunter/harness/hunt-lock.ts:154-154 (bug)
+  PID-only ownership in release allows a recycled-PID stranger to unlink. releaseHuntLock(targetPath) accepts no expected payload and unlinks any lock whose pid === process.pid, without comparing acquiredAt/hostname to what this process actually acquired. After PID reuse (or two hunts in one host sharing a PID namespace), a process that never acquired the lock can delete the live holder's lock. Pass the HuntLockPayload from acquireHuntLock into release and require full-triple equality before unlink.
+  ```existing
+  if (existing.pid !== process.pid) return;
+  ```
+  ```suggested
+  // Require caller to prove ownership: releaseHuntLock(targetPath, expected: HuntLockPayload)
+    // if (existing.pid !== expected.pid || existing.acquiredAt !== expected.acquiredAt || existing.hostname !== expected.hostname) return;
+    if (existing.pid !== process.pid) return;
+  ```
+
+[HIGH] src/hunter/harness/map.ts:127-127 (bug)
+  File-less code nodes bypass the LINELESS guard entirely, contradicting the header guarantee (every CODE method/function/class must carry a finite line, never silently dropped). A CODE_DERIVED node with file null/empty and no line anywhere continues here and reaches writeGraph, where downstream findings require file:line triplets and will fail silently - the exact failure mode the EN-002 fix was meant to refuse LOUD as LINELESS_NODE.
+  ```existing
+  if (typeof n.file !== 'string' || n.file.length === 0) continue;
+  ```
+  ```suggested
+  if (typeof n.file !== 'string' || n.file.length === 0) {
+      const data = (n.data ?? {}) as Record<string, unknown>;
+      resolveLine({ line: n.line ?? undefined, data, source_location: data['source_location'] }, edgeLocByTarget[n.id] ?? null, n.id);
+      continue;
+    }
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:109-109 (bug)
+  targetPath is accepted and stored in context but never forwarded to any invoke input (recon/map/scan/trace/strike/report). recon derives root from profile.project.root instead, so a caller passing targetPath != profile root gets silently ignored — wrong directory scanned with no error. Validate targetPath against profile.project.root (fail-closed) or thread it into map/scan inputs.
+  ```existing
+  const { targetPath, profilePath } = options;
+  ```
+  ```suggested
+  const { targetPath, profilePath } = options;
+  // Fail-closed: targetPath must match the profile root or be forwarded explicitly.
+  // e.g. assert options.profile?.project.root === targetPath when profileOverride is set.
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:417-417 (bug)
+  DbClient lifetime is owned only by stop(): awaiting done() without stop() leaks the SQLite WAL handle (SharedDb holds open fd + -wal/-shm). Conversely context.db stays exposed after stop() closes it, so the documented post-done() read (context.db.prepare(...).all()) throws use-after-close. Either document stop()-is-mandatory + invalidate context.db (null it after close), or transfer ownership to a finally that callers cannot forget.
+  ```existing
+  try { snapshot.db?.close(); } catch (e) { console.error('[micro-loop] db close failed:', e instanceof Error ? e.message : String(e)); }
+  ```
+  ```suggested
+  try { snapshot.db?.close(); } catch (e) { console.error('[micro-loop] db close failed:', e instanceof Error ? e.message : String(e)); }
+      // Consider: snapshot = { ...snapshot, db: null }; + document that context.db is only valid between scan and stop().
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:289-289 (bug)
+  Stub-profile recon path re-implements runId sequencing instead of reusing recon.ts openAndNextRunId, and is weaker: unbounded SELECT without day-prefix filter, silent `catch {}` on corrupt payloads (no F-1201 salvage), and openStore(dbPath) as a side effect creates <project>/.trident/shared.db on disk even in unit tests. A corrupt high-seq row is skipped so seq regresses -> duplicate runId on next hunt. Extract/share the helper and avoid disk creation in the stub seam.
+  ```existing
+  const store = openStore(dbPath);
+  ```
+  ```suggested
+  // Reuse recon's openAndNextRunId(token, dbPath) instead of duplicating the scan;
+          // stub seam should not openStore/create files — derive runId in-memory or inject it.
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:441-443 (bug)
+  done() subscribes twice where the first already covers both finals: XState actor snapshot status==='done' fires when the machine hits ANY final (done or inconclusive), so sub2 settles inconclusive too and sub3 (value==='inconclusive' check) is redundant. Combined with cached pendingDone that is never reset and pendingSettle/stop() interplay, concurrent done()+stop() ordering is fragile (stop() resolves without unsubscribing first in all paths). Keep a single subscription on status==='done' (or s.value) and reset/clear pendingDone+pendingSettle deterministically.
+  ```existing
+  const sub2 = actor.subscribe((s): void => {
+          if (s.status === 'done') { settle(); }
+        });
+  ```
+  ```suggested
+  // Single terminal subscription: actor status 'done' already covers done+inconclusive finals.
+        // const sub = actor.subscribe((s): void => { if (s.status === 'done') settle(); });
+  ```
+
+[HIGH] src/hunter/harness/recon.ts:124-124 (bug)
+  Buffer/BLOB payload misclassified as already-parsed object: typeof check is true for Buffer/Uint8Array (bun:sqlite returns BLOB as Buffer), so such rows are cast to runId object instead of decoded. A high seq is then silently missed and next runId collides. Also JSON.parse result is never validated to be an object: stored 123 or quoted string parses to number/string and payload.runId access throws or misbehaves. Fix by handling Buffer/Uint8Array via toString utf8 before parse, and validating parsed value is a non-array object.
+  ```existing
+  const raw: unknown = row['payload'];
+  ```
+
+[HIGH] src/hunter/harness/recon.ts:116-116 (performance)
+  Full-table scan loads and JSON-parses every HUNT_DONE payload on each recon: O(N) CPU and memory that grows unbounded as history accumulates. Push prefix filtering into SQL (LIKE on payload) or maintain a per-day counter, rather than fetching all rows.
+  ```existing
+  for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
+  ```
+
+[HIGH] src/hunter/harness/recon.ts:40-40 (security)
+  Corpus path resolution trusts profile entries with no containment check: path.resolve(root, entry) allows ../ escape outside project root to be read. Combined with unbounded synchronous readFileSync this blocks the event loop and can OOM on large files. Validate resolved path stays under project root and cap file size via statSync before read.
+  ```existing
+  const abs = path.isAbsolute(entry) ? entry : path.resolve(profile.project.root, entry);
+  ```
+
+[HIGH] src/hunter/harness/report.ts:192-196 (bug)
+  Concurrent version allocation has no retry: `nextReportVersion()` probes then `wx` throws REPORT_VERSION_COLLISION on race, but `report()` awaits `input.writer()` once with no retry. Two concurrent hunts probing the same max version will both attempt v(N+1); the loser fails outright instead of re-probing. Add a bounded retry (re-resolve version + rewrite, or loop inside `writeReportDirect`) rather than surfacing a pathological-only error to the caller.
+  ```existing
+  try {
+    fs.writeFileSync(reportPath, document, { encoding: 'utf-8', flag: 'wx' });
+  } catch (e: unknown) {
+    const code = (e !== null && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : '';
+    if (code === 'EEXIST') throw new Error(`REPORT_VERSION_COLLISION: path=${reportPath} (another report landed v${version} concurrently — re-run the report actor)`);
+  ```
+  ```suggested
+  for (let attempt = 0; attempt < 5; attempt++) {
+  const version = nextReportVersion(masterContextDir);
+  const reportPath = path.join(masterContextDir, `bug_hunter_report_v${version}.md`);
+  try {
+    fs.writeFileSync(reportPath, document, { encoding: 'utf-8', flag: 'wx' });
+    break;
+  } catch (e: unknown) {
+    const code = (e !== null && typeof e === 'object' && 'code' in e) ? String((e as { c
+  ```
+
+[HIGH] src/hunter/harness/report.ts:284-284 (bug)
+  `BEGIN IMMEDIATE` is issued outside the try/ROLLBACK scope, so if the caller already holds a transaction (or the DB is locked) the throw escapes without rollback handling and aborts before any section/event work. There is also no savepoint/nesting check. Wrap the BEGIN in the guarded region (or check `inTransaction` / use SAVEPOINT) so nested-callers get a clear error instead of an indeterminate handle state.
+  ```existing
+  input.db.exec('BEGIN IMMEDIATE');
+  ```
+  ```suggested
+  try {
+  input.db.exec('BEGIN IMMEDIATE');
+} catch (e: unknown) {
+  throw new Error(`REPORT_TX_BEGIN_FAILED: ${e instanceof Error ? e.message : String(e)} (caller may already hold a transaction — use a savepoint or serialize hunts)`);
+}
+try {
+  // ... appends + COMMIT ...
+} catch (dbErr: unknown) { /* rollback */ }
+  ```
+
+[HIGH] src/hunter/harness/scan.ts:54-57 (security)
+  Unresolved-symlink warn-through is fail-open: when `!ev.resolved`, `ev.real` is the unresolved spelling (nearest-ancestor miss / nothing on the chain resolved per `checkContained`/`realNearest`), yet the scan warns and returns it as trusted corpus input. An attacker-planted symlink or missing chain can pass the ancestor string-prefix while reads follow out of the tree. Corpus entries are read-paths (not the create-before-it-exists flow `requireContained` preserves), so fail-closed: throw HUNT_INVALID_CORPUS instead of warn+continue.
+  ```existing
+  if (!ev.resolved) {
+      console.warn(`[scan] HUNT_INVALID_CORPUS WARNING: entry=${entry} could not be resolved through symlinks (real=${ev.real}) — contained on the nearest ancestor, treating as inside but unverified`);
+    }
+    return ev.real;
+  ```
+  ```suggested
+  if (!ev.resolved) {
+      throw new Error(`HUNT_INVALID_CORPUS: entry=${entry} could not be resolved through symlinks (real=${ev.real}) — refusing unverified corpus input.`);
+    }
+    return ev.real;
+  ```
+
+[HIGH] src/hunter/harness/scan.ts:140-146 (bug)
+  D17 gate runs with `dryRun:true` yet applies `cal.liveBattery` exclusion. Per `calibration.ts` D28 the verdicts in dryRun are 'computed + surfaced, never applied' (`dryRun` is only recorded on the result; `gate.run()` always returns the filtered split). Either the scan must not consume `liveBattery` while dryRun, or it must pass `dryRun:false` as an explicit operator-curation act with justification. Current code makes `dryRun` meaningless.
+  ```existing
+  if (hasFixtures) {
+        const cal = await runCalibration(normalized, fixtures, { battery, dryRun: true });
+        if (cal.excluded.length > 0) {
+          liveBattery = cal.liveBattery;
+          console.warn(`[scan] D17 calibration: ${cal.excluded.length} FLAGGED → EXCLUDED; ${cal.coverageNote}`);
+        }
+      }
+  ```
+  ```suggested
+  if (hasFixtures) {
+        // Born-dryRun: do not apply exclusions without operator curation.
+        // If exclusion is intended, pass dryRun:false explicitly and document the curation.
+        const cal = await runCalibration(normalized, fixtures, { battery, dryRun: true });
+        if (cal.excluded.length > 0) {
+          console.warn(`[scan] D17 calibration (dryRun): ${cal.excluded.length} FLA
+  ```
+
+[HIGH] src/hunter/harness/scan.ts:140-146 (bug)
+  HUNT_NO_COVERAGE is only checked pre-calibration, so a fully-excluded `liveBattery` (all predicates FLAGGED) still dispatches `runBattery` and can report false-clean. Re-check emptiness after the D17 gate (and surface `coverageNote`) — an empty live battery is INCONCLUSIVE, never a clean pass.
+  ```existing
+  if (hasFixtures) {
+        const cal = await runCalibration(normalized, fixtures, { battery, dryRun: true });
+        if (cal.excluded.length > 0) {
+          liveBattery = cal.liveBattery;
+          console.warn(`[scan] D17 calibration: ${cal.excluded.length} FLAGGED → EXCLUDED; ${cal.coverageNote}`);
+        }
+      }
+  ```
+  ```suggested
+  if (hasFixtures) {
+        const cal = await runCalibration(normalized, fixtures, { battery, dryRun: true });
+        if (cal.excluded.length > 0) {
+          liveBattery = cal.liveBattery;
+          console.warn(`[scan] D17 calibration: ${cal.excluded.length} FLAGGED → EXCLUDED; ${cal.coverageNote}`);
+        }
+        if (liveBattery.length === 0) {
+          throw new Error(`HUNT_NO_COVERAGE: l
+  ```
+
+[HIGH] src/hunter/harness/strike.ts:50-54 (bug)
+  relevanceOf does not sanitize t.relevance while the merge above does: non-numeric values, NaN/Infinity, or missing relevance break the tie-break. `Object.values(...).reduce((s,v)=>s+v)` with a string value coerces to string concatenation (return type lies), NaN poisons the total so `rb - ra` is NaN (comparator returns NaN, treated as 0), and `Object.values(undefined/null)` throws TypeError instead of scoring 0. Apply the same `typeof v === 'number' && Number.isFinite(v)` guard used in the merge (and guard `t.relevance == null`).
+  ```existing
+  const relevanceOf = (f: NormalizedFinding): number => {
+    const t = traceByFinding.get(findingIdOf(f));
+    if (!t) return 0;
+    return Object.values(t.relevance).reduce((s, v) => s + v, 0);
+  };
+  ```
+  ```suggested
+  const relevanceOf = (f: NormalizedFinding): number => {
+    const t = traceByFinding.get(findingIdOf(f));
+    if (!t || t.relevance == null) return 0;
+    return Object.values(t.relevance).reduce((s, v) => s + (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0), 0);
+  };
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:119-126 (bug)
+  Payload shape is never validated: `JSON.parse` result is cast to `Record` without checking it is a non-null object, and parse failures fall back to `{raw}` which downstream treats as valid. `JSON.parse('null')` yields `null`, `JSON.parse('42')` yields a number — the former crashes `payload['conformanceZero']` in `createHydraBus` (TypeError on null), the latter silently evaluates `conformanceZero` as false (mis-reports AUDIT_DONE clear check). Validate object shape and reject/route invalid payloads explicitly instead of synthesizing `{raw}`.
+  ```existing
+  for (const row of clean) {
+      let payload: Record<string, unknown> = {};
+      try {
+        payload = JSON.parse(row.payload) as Record<string, unknown>;
+      } catch (e: unknown) {
+        console.warn(`[hydra-bus] event payload parse failed — the raw form is kept: ${e instanceof Error ? e.message : String(e)}`);
+        payload = { raw: row.payload };
+      }
+  ```
+  ```suggested
+  for (const row of clean) {
+      let payload: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(row.payload);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          console.error(`[hydra-bus] event id=${row.id} payload is not an object, skipped`);
+          this.cursor = row.id;
+          continue;
+        }
+        payload = p
+  ```
+
+[HIGH] src/hunter/hooks/bus-hook.ts:99-99 (bug)
+  At-most-once consumption with droppable dead-letter can permanently lose a directive: cursor advances even when all subscribers throw (`this.cursor = row.id` runs unconditionally), so delivery relies on someone polling `getFailedEvents()/retryFailed()`. But `retryFailed()` drops the entry if `subscribers[idx]` is gone. If the caller never retries or the wiring changes, HUNT_DONE→dispatch is consumed-but-never-delivered with only a console.error trace.
+  ```existing
+  this.cursor = row.id;
+  ```
+  ```suggested
+  // Make loss explicit: return delivery failures to the caller, or retain
+// failures across wiring changes (re-broadcast or keep queued) instead of drop.
+// At minimum surface count in poll() return value so callers cannot ignore it.
+  ```
+
+[HIGH] src/hunter/keys/go-key-pool.ts:236-243 (bug)
+  Cache is FIFO, not LRU, and delete-first does not fix mid-transaction close. A hit (`poolDbByPath.get(want)`) never refreshes recency (no delete+set), so the hottest path can be evicted as 'oldest'. Worse, `toClose` is still closed synchronously inline while another frame may hold that handle between `BEGIN IMMEDIATE` and `COMMIT` in `markGoKeyDead` — cross-path re-entrant `db()` evicts and closes the held handle, yielding 'database is closed' mid-transaction. Fix recency on hit and defer close (refcount or idle-close queue) instead of immediate `close()`.
+  ```existing
+  const toClose: Database[] = [];
+  while (poolDbByPath.size > POOL_DB_LRU_MAX) {
+    const oldest = poolDbByPath.keys().next();
+    if (oldest.done) break;
+    const evicted = poolDbByPath.get(oldest.value);
+    poolDbByPath.delete(oldest.value);
+    if (evicted && evicted !== fresh) toClose.push(evicted);
+  }
+  ```
+  ```suggested
+  // refresh recency on hit (in db() hit path):
+  // poolDbByPath.delete(want); poolDbByPath.set(want, hit);
+  // defer evicted close until no transaction holds it (refcount / idle queue)
+  // instead of immediate db.close() here.
+  ```
+
+[HIGH] src/hunter/keys/go-key-pool.ts:192-193 (security)
+  TOCTOU: `new Database(want)` follows symlinks. The O_EXCL pre-create refuses a plant at create time, but an attacker swapping file→symlink after the `EEXIST+hardenPoolFile` step and before SQLite opens it causes SQLite to open/create through the link; the post-open `lstat` refusal is too late (victim already touched). Sidecar hardening also swallows `ELOOP` (`catch {}`), so a `-wal`/`-shm` symlink plant is silently ignored while SQLite opens sidecars without `O_NOFOLLOW`. Consider opening via `O_NOFOLLOW` fd / refusing if `lstat` shows symlink immediately before open in a tight loop, and fail-closed (delete plant or throw) on sidecar `ELOOP` instead of best-effort swallow.
+  ```existing
+  const fresh = new Database(want, { create: true });
+  try { hardenPoolFile(want); } catch { /* fs may already restrict */ }
+  ```
+
+[HIGH] src/hunter/keys/go-key-pool.ts:400-401 (bug)
+  Re-home can hit PRIMARY KEY collision and lose the exile. On a swap reorder (idx0 holds keyid-B, idx1 holds keyid-A), marking idx0 finds `home=1` which is already occupied, so `UPDATE ... SET idx=?` violates `idx PRIMARY KEY` → transaction rolls back → `markGoKeyDead` returns 0 (no exile) and the still-limited key is hammered. Need collision handling (swap, DELETE occupant first, or keyid-primary-key schema) plus test for swap-reorder mark.
+  ```existing
+  if (home >= 0 && home !== idx) {
+          conn.run('UPDATE go_key_pool SET idx = ? WHERE keyid = ? AND idx = ?', [home, displaced.keyid, idx]);
+  ```
+  ```suggested
+  if (home >= 0 && home !== idx) {
+          // handle occupant at home first (move/delete) or use keyid as PK
+          conn.run('DELETE FROM go_key_pool WHERE idx = ?', [home]);
+          conn.run('UPDATE go_key_pool SET idx = ? WHERE keyid = ? AND idx = ?', [home, displaced.keyid, idx]);
+  ```
+
+[HIGH] src/hunter/lexicon/compiled-store.ts:78-82 (bug)
+  Stale battery on empty / heterogeneous versions: eviction is derived from `battery[0].batteryVersion` and skipped entirely when `battery` is empty. A recompile to empty therefore leaves the prior rows for `corpusHash` readable by `loadBattery`, and a battery with mixed `batteryVersion`s only evicts the first version. Since the header states `corpus_hash IS battery_version`, the authoritative key is the `corpusHash` param, not `battery[0]`. Also consider validating all rows share `corpusHash` and failing loud on mismatch.
+  ```existing
+  if (battery.length > 0 && battery[0] !== undefined) {
+      const delBat = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');
+      stmts.push(delBat);
+      delBat.run(battery[0].batteryVersion);
+    }
+  ```
+  ```suggested
+  const delBat = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');
+stmts.push(delBat);
+delBat.run(corpusHash);
+for (const p of battery) {
+  if (p.batteryVersion !== corpusHash) throw new LexiconError('VERSION_MISMATCH', `batteryVersion ${p.batteryVersion} != corpusHash ${corpusHash}`);
+}
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:236-246 (bug)
+  Version-vs-cards double-read skew (TOCTOU): `batteryVersionAsync` reads corpus bytes + extracts cards for the fingerprint, then `compileBattery` re-extracts via `extractRuleCardsAsync` for compilation. A concurrent corpus edit between the two passes makes the fingerprint describe different bytes than those compiled, violating K20.3 determinism and risking a mislabeled cached battery. Fix: single extraction — e.g. have version function return `{version, cards, corpusText}` or accept pre-read cards/texts, and reuse them for compile.
+  ```existing
+  const version = await batteryVersionAsync(profile);
+  if (db) {
+    const row = db.prepare('SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?').get(version);
+    if (Number(row?.['c'] ?? 0) > 0) {
+      return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
+    }
+  }
+  // ★ F-704 FIX (2026-09-24): the async extractor — the sync readFileSync pa
+  ```
+  ```suggested
+  const { version, cards } = await batteryVersionWithCardsAsync(profile);
+// ... cache lookup ...
+// const cards already available — do not re-extract
+const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:262-267 (bug)
+  Silent severity fallback violates fail-closed law: any missing/invalid `severity` (typo like 'HIGG', number, object) coerces to 'HIGH' instead of throwing a named error. Hides binding typos and diverges from D13/TEMPLATE_BINDING loud-error handling. Fix: default only on `undefined`/absent, throw `LexiconError('SEVERITY_UNKNOWN', ...)` on present-but-invalid.
+  ```existing
+  function severityFromBinding(v: unknown): Severity {
+  if (typeof v === 'string' && (SEVERITIES as readonly string[]).includes(v)) {
+    return v as Severity;
+  }
+  return 'HIGH';
+}
+  ```
+  ```suggested
+  function severityFromBinding(v: unknown, ctx: string): Severity {
+  if (v === undefined) return 'HIGH';
+  if (typeof v === 'string' && (SEVERITIES as readonly string[]).includes(v)) return v as Severity;
+  throw new LexiconError('SEVERITY_UNKNOWN', `SEVERITY_UNKNOWN: ${ctx} carries invalid severity '${String(v)}' (expected ${SEVERITIES.join('|')})`);
+}
+  ```
+
+[HIGH] src/hunter/lexicon/rule-card.ts:307-311 (bug)
+  Declared metadata lines are peeked but never consumed: cardsFromLines scans readDeclaredMeta(i+1) without advancing past it. A declaring line that is also rule-shaped (e.g. `severity: HIGH — MUST audit`) will be re-visited next iteration via isRuleShaped and emitted as a spurious extra card, duplicating/inflating the battery despite the F-1202 skip inside readDeclaredMeta.
+  ```existing
+  } else if (isQuotedPassage(line)) {
+      cards.push(makeCard(extractInlineQuote(line), anchor, line, readDeclaredMeta(lines, i + 1)));
+    } else if (isRuleShaped(line)) {
+      cards.push(makeCard(line.trim(), anchor, line, readDeclaredMeta(lines, i + 1)));
+    }
+  ```
+  ```suggested
+  function cardsFromLines(file: string, lines: string[]): RuleCard[] {
+  const cards: RuleCard[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    // ... anchor/line setup ...
+    if (isBlockquote(line)) {
+      const collected = collectBlockquote(lines, i);
+      const { meta, end } = consumeDeclaredMeta(lines, collected.end);
+      cards.push(makeCard(collected.text, anchor, line, meta));
+     
+  ```
+
+[HIGH] src/hunter/lexicon/rule-card.ts:244-245 (bug)
+  Fully-curated override forces proposed=0 even for an empty/unquotable quote. An empty verbatimQuote violates the D13 core (a rule that cannot be quoted must stay PROPOSED for operator curation). Curation should suppress the ambiguous-voice flag, never the empty-quote flag.
+  ```existing
+  const curated = declared?.classification !== undefined && declared?.severity !== undefined;
+  const proposed: 0 | 1 = curated ? 0 : (ambiguous || quote.trim().length === 0 || voiceAmbiguous(quote) ? 1 : 0);
+  ```
+  ```suggested
+  const curated = declared?.classification !== undefined && declared?.severity !== undefined;
+  if (quote.trim().length === 0) return { verbatimQuote: quote, anchor, classification: declared?.classification ?? voted, severity: declared?.severity ?? rate(quote), proposed: 1 };
+  const proposed: 0 | 1 = curated ? 0 : (ambiguous || voiceAmbiguous(quote) ? 1 : 0);
+  ```
+
+[HIGH] src/hunter/lexicon/templates.ts:220-226 (bug)
+  Silent `operator` fallback to `'gt'` is inconsistent with `bindSeverity` (loud `TEMPLATE_BINDING_INVALID`) and risks inverted threshold verdicts on loader-bypassing bindings. `compileTemplate` zod-validates, but `template.check()` can be invoked directly with raw `bindings` — an invalid/typo operator (`'gte '` / `'GT'`) silently becomes `gt`. Throw the named error instead.
+  ```existing
+  function bindOperator(bindings: Record<string, unknown>): 'lt' | 'lte' | 'gt' | 'gte' {
+  const v = bindings['operator'];
+  if (typeof v === 'string' && (v === 'lt' || v === 'lte' || v === 'gt' || v === 'gte')) {
+    return v;
+  }
+  return 'gt';
+}
+  ```
+  ```suggested
+  function bindOperator(bindings: Record<string, unknown>): 'lt' | 'lte' | 'gt' | 'gte' {
+  const v = bindings['operator'];
+  if (typeof v === 'string' && (v === 'lt' || v === 'lte' || v === 'gt' || v === 'gte')) {
+    return v;
+  }
+  throw templateBindingInvalid('domain.numeric-threshold', `the operator binding must be one of lt|lte|gt|gte, got ${JSON.stringify(v)}`);
+}
+  ```
+
+[HIGH] src/hunter/lexicon/templates.ts:715-715 (bug)
+  Stateful `RegExp.test` with a global (`g`/`y`) flag advances `lastIndex`, so `rx.test(n.name)` alternates true/false across nodes. A caller-supplied `defMatchers: [/foo/g]` nondeterministically admits candidates, violating the K20.3 determinism law stated at the top of this file. Reset `lastIndex` before each test (or clone without `g`/`y`).
+  ```existing
+  if (!spec.defMatchers.some((rx) => rx.test(n.name))) continue;
+  ```
+  ```suggested
+  if (!spec.defMatchers.some((rx) => { rx.lastIndex = 0; const hit = rx.test(n.name); rx.lastIndex = 0; return hit; })) continue;
+  ```
+
+[HIGH] src/hunter/profile/loader.ts:545-547 (bug)
+  TOCTOU stat race escapes named-error contract: `existsSync(...) || statSync(...).isDirectory()` performs two stats with no try/catch. If the root is deleted/replaced between `realpathSync` and here, `statSync` throws raw ENOENT/ENOTDIR instead of PROFILE_INVALID, violating the fail-closed contract. Use a single `statSync` in try/catch.
+  ```existing
+  if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+    throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
+  }
+  ```
+  ```suggested
+  let st: fs.Stats;
+  try { st = fs.statSync(resolvedRoot); } catch {
+    throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
+  }
+  if (!st.isDirectory()) {
+    throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
+  }
+  ```
+
+[HIGH] src/hunter/profile/loader.ts:203-207 (bug)
+  `splitTopLevel` drops the escaped character: on `\\` it does `i++` to skip quote-state tracking but then `cur += c` appends only the backslash, losing the escaped char (e.g. `"a\"b"` corrupts). Append both chars or restructure to preserve the token.
+  ```existing
+  } else {
+      if (c === '\\') i++;
+      else if (c === '"') q = null;
+    }
+    cur += c;
+  ```
+  ```suggested
+  } else {
+      if (c === '\\' && i + 1 < s.length) { cur += c + s[i + 1]; i++; continue; }
+      else if (c === '"') q = null;
+    }
+    cur += c;
+  ```
+
+[HIGH] src/hunter/profile/schema.ts:28-28 (bug)
+  Non-strict z.object strips unknown keys by default, so typoed/added fields silently pass. That directly defeats the D26 freeze intent stated in the header (drift should require spec amendment + profileVersion bump). Freeze at least the top-level (and ideally PipelineStageSchema) with .strict().
+  ```existing
+  export const ProjectProfileSchema = z.object({
+  ```
+  ```suggested
+  export const ProjectProfileSchema = z.strictObject({
+// ... same fields ...
+// or: z.object({ ... }).strict()
+  ```
+
+[HIGH] src/hunter/profile/schema.ts:61-61 (bug)
+  Comment on PipelineStageSchema claims `id` is unique per profile, but schema enforces only min(1) strings. Duplicate stage ids pass validation and can corrupt pipeline dispatch downstream. Add a uniqueness refine on stages.
+  ```existing
+  stages: z.array(PipelineStageSchema).min(1), // the declared stages (id/entry/contract)
+  ```
+  ```suggested
+  stages: z.array(PipelineStageSchema).min(1).refine((s) => new Set(s.map((x) => x.id)).size === s.length, { message: 'pipeline.stages[].id must be unique per profile' }),
+  ```
+
+[HIGH] src/hunter/shared/containment.ts:101-101 (bug)
+  checkContained documents NEVER throws but can throw on three paths, so callers relying on no-throw get an uncaught exception. realNearest rethrows non-ENOENT/ENOTDIR (EACCES/ELOOP), the root fallback `realNearest(root)` can throw the same way, and insideRoot/rootPrefixOf throws on empty root. Either the contract or the code is wrong.
+  ```existing
+  * THE CHECK — resolve both sides and answer containment. NEVER throws; the caller owns the
+  ```
+  ```suggested
+  // Either narrow the contract: `MAY throw EACCES/ELOOP/CONTAINMENT_BAD_ROOT`,
+// or make it total, e.g.:
+// try { real = realNearest(target); } catch { return { real: path.resolve(target), rootReal, contained: false, resolved: false }; }
+  ```
+
+[HIGH] src/hunter/shared/containment.ts:79-80 (security)
+  maxClimb truncation silently degrades to a string-prefix check. When the missing chain is deeper than maxClimb (default 12) the walk gives up and returns `path.resolve` spelling without following any symlinks; that spelling can then satisfy insideRoot while the real filesystem path escapes. Non-existing segments can't themselves be links, but the unreached existing ancestor can. A fixed depth bound should not decide a security check.
+  ```existing
+  // nothing on the chain resolved: return the resolved spelling (loudly wrong beats silently absent)
+  return abs;
+  ```
+  ```suggested
+  // Climb until filesystem root (parent===dir already bounds it), or fail closed:
+// for (;;) { ... } // no maxClimb
+// and/or on budget exhaustion: throw / return contained:false with resolved:false
+// so requireContained cannot return the unresolved spelling as safe.
+  ```
+
+[HIGH] src/hunter/shared/db.ts:551-555 (bug)
+  Mirror handle leaks when applyPragmas throws: `mirror = new Database(mirrorPath)` succeeds but `applyPragmas(mirror)` throws, the catch throws mirrorWriteFailed without closing the just-opened handle (WAL file + -shm/-wal descriptors leak). Close the handle in the open-failure path or open with try/finally.
+  ```existing
+  let mirror: Database;
+    try {
+      fs.mkdirSync(mirrorDir, { recursive: true });
+      mirror = new Database(mirrorPath);
+      applyPragmas(mirror);
+  ```
+  ```suggested
+  let mirror: Database | undefined;
+    try {
+      fs.mkdirSync(mirrorDir, { recursive: true });
+      mirror = new Database(mirrorPath);
+      applyPragmas(mirror);
+    } catch (e: unknown) {
+      try { mirror?.close(); } catch { /* best-effort */ }
+      throw mirrorWriteFailed(mirrorPath, `mirror open failed: ${String(e)}`);
+    }
+  ```
+
+[HIGH] src/hunter/shared/db.ts:498-498 (bug)
+  Evidence column mutated with '| TRIAD <json>' suffix breaks round-trip fidelity, LIKE/search on evidence, and downstream parsing (triad JSON itself may contain '|' and is not escaped; JSON.stringify can also throw raw on circular triad). Store triad in its own column/payload or keep evidence verbatim and expose triad separately.
+  ```existing
+  const persistedEvidence = (finding as FindingInput & { triad?: unknown }).triad ? `${finding.evidence} | TRIAD ${JSON.stringify((finding as FindingInput & { triad?: unknown }).triad)}` : finding.evidence;
+  ```
+  ```suggested
+  const triad = (finding as FindingInput & { triad?: unknown }).triad;
+    const persistedEvidence = finding.evidence;
+    // TODO: persist triad in a dedicated column instead of string-concat onto evidence.
+  ```
+
+[HIGH] src/hunter/shared/db.ts:787-787 (bug)
+  Silent JSON fallback hides corruption: node_json/data parse failures are debug-logged and replaced with {} or skipped rows, so corrupt graph data propagates as valid nodes. Fail-closed contract requires a named throw (or at minimum a corruption counter) rather than success-shaped empty objects.
+  ```existing
+  } catch (pe) { console.debug('[kg-store] family node_json parse failed — skipped:', pe instanceof Error ? pe.message : String(pe)); }
+  ```
+  ```suggested
+  } catch (pe) { throw new Error(`FAMILY_NODE_CORRUPT: id=${r['id']} cause=${pe instanceof Error ? pe.message : String(pe)}`); }
+  ```
+
+[HIGH] src/hunter/shared/db.ts:477-482 (bug)
+  FK violations surface as raw sqlite throws: writeGraph/writeBranchView validate lineage but never check edge endpoint existence. With foreign_keys=ON a dangling source_id/target_id throws raw SQLITE_CONSTRAINT_FOREIGNKEY instead of the file's named fail-closed error, and the transaction rollback reason is undiagnosable.
+  ```existing
+  const edgeStmt = this.handle.prepare(
+        'INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)',
+      );
+      for (const e of edges) {
+        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
+      }
+  ```
+  ```suggested
+  const nodeIds = new Set(nodes.map(n => n.id));
+      for (const e of edges) {
+        if (!nodeIds.has(e.sourceId) || !nodeIds.has(e.targetId)) throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
+      }
+      const edgeStmt = this.handle.prepare(
+        'INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)',
+      );
+      for (const e of edges) {
+        edgeStmt
+  ```
+
+[HIGH] src/hunter/shared/db.ts:680-680 (maintainability)
+  Swallowed DDL hides wrong-shape views: CREATE VIEW failure is debug-logged and execution continues, so a view with missing columns (the F-432 class) leaves a stale/missing view while the caller trusts success. Only ignore 'already exists' errors; re-throw anything else as a named BRANCH_VIEW_REBUILD_FAILED.
+  ```existing
+  try { this.branchDb.exec("CREATE VIEW IF NOT EXISTS branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as 
+  ```
+
+[HIGH] src/hunter/shared/db.ts:846-847 (maintainability)
+  Swallowed metadata writes hide lost operator-gate state: requestPromotion Map.set succeeds in memory but both family_metadata INSERTs are debug-only guards. On a sealed/readonly DB the promotion lives only in memory and is lost on restart while the call still threw PROMOTION_PENDING as if recorded. Propagate metadata failures loud.
+  ```existing
+  try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES (?,?)").run(`promotion_pending:${hash}`, detail); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #6:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES ('promotion_s
+  ```
+
+[HIGH] src/hunter/shared/kind-for-layer.ts:27-27 (bug)
+  Overbroad substring classification: generic `includes('graph'/'path'/'dead'/'cycle'/'engine'/etc.)` matches unrelated ids (e.g. `photography` contains `graph`, `deadline` contains `dead`, `empathy-path` false positives) and result silently depends on if-chain order (e.g. an id containing both `adapter` and `engine` always wins `Engine` vs `Adapter` by position). Use anchored/exact matching (allowlist map or word-boundary regex) and document precedence.
+  ```existing
+  if (low.includes('sro') || low.includes('graph') || low.includes('path') || low.includes('dead') || low.includes('cycle')) return 'Gate';
+  ```
+  ```suggested
+  // Example: explicit table with anchored match instead of bare includes()
+  // const GATE_PATTERNS = [/\bsro\b/, /\bgraph\b/, /\bpath\b/, /\bdead\b/, /\bcycle\b/];
+  // if (GATE_PATTERNS.some((re) => re.test(low))) return 'Gate';
+  ```
+
+[HIGH] src/hunter/shared/line-resolve.ts:26-30 (bug)
+  Missing null guard on `node` violates the `Never throws` contract. `node.data`/`node.line` throws `TypeError: Cannot read properties of null` when callers pass null/undefined, escaping as an unrouted exception instead of the named `LINELESS_NODE` refusal the micro-loop maps to INCONCLUSIVE.
+  ```existing
+  export function tryResolveLine(
+  node: { line?: unknown; data?: Record<string, unknown>; source_location?: unknown },
+  edge?: { source_location?: unknown; metadata?: unknown } | null,
+): number | undefined {
+  const data = node.data ?? {};
+  ```
+  ```suggested
+  export function tryResolveLine(
+  node: { line?: unknown; data?: Record<string, unknown>; source_location?: unknown } | null | undefined,
+  edge?: { source_location?: unknown; metadata?: unknown } | null,
+): number | undefined {
+  if (node == null || typeof node !== "object") {
+    // Null node: no node fields to walk, but still try edge-only candidates
+    // so the "Never throws" + LINELESS_NODE
+  ```
+
+[HIGH] src/hunter/shared/migrations.ts:27-27 (bug)
+  Stale pre-existing tables pass as success. CREATE TABLE IF NOT EXISTS never alters an existing typed_nodes/typed_edges/graph_facts, so a store created before CHECKs/indexes were added keeps the old shape. The transactional path (began===true) returns success with no shape verification — only the non-transactional fallback calls assertNonTransactionalSchema. Fix: verify schema shape on both paths (sqlite_master.sql contains expected CHECK/index, or PRAGMA table_info/index_list) and fail or rebuild/migrate when it diverges.
+  ```existing
+  CREATE TABLE IF NOT EXISTS typed_nodes (
+  ```
+  ```suggested
+  export function ensureTypedGraphSchema(db: TypedGraphDb): void {
+  // ... BEGIN + exec as today ...
+  assertSchemaShape(db); // run on BOTH began and !began paths: check sqlite_master.sql for CHECK(kind IN ...)/CHECK(predicate IN ...)/length(...)>0 and index_list for idx_tn_file etc.
+}
+  ```
+
+[HIGH] src/hunter/shared/migrations.ts:98-98 (bug)
+  BEGIN failure conflates lock contention with no-BEGIN support. Any exec('BEGIN IMMEDIATE') throw (SQLITE_BUSY/locked, timeout, I/O) sets began=false and falls through to bare auto-commit exec, turning a transient concurrency failure into an unverified multi-statement partial migration. Fix: only fall back on an unsupported-syntax error; rethrow BUSY/locked/timeout immediately.
+  ```existing
+  try { db.exec('BEGIN IMMEDIATE'); began = true; } catch { began = false; /* no explicit-BEGIN support: bare exec below */ }
+  ```
+  ```suggested
+  try { db.exec('BEGIN IMMEDIATE'); began = true; }
+catch (e: unknown) {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/no such|syntax|not supported/i.test(msg)) began = false;
+  else throw new Error(`TYPED_MIGRATION_FAILED: BEGIN IMMEDIATE failed: ${msg}`, { cause: e });
+}
+  ```
+
+[HIGH] src/hunter/shared/query-engine.ts:275-277 (bug)
+  Community fail-loud errors are double-wrapped. `COMMUNITY_TOO_LARGE` / `COMMUNITY_UNMEASURABLE` thrown inside the try are caught by the unconditional `COMMUNITY_QUERY_FAILED` wrapper, producing e.g. `COMMUNITY_QUERY_FAILED: COMMUNITY_TOO_LARGE: ...`. This obscures the guard and breaks callers matching on prefix. Preserve the prefix like `path()`/`temporal()` do: `if (e instanceof Error && e.message.startsWith('COMMUNITY_')) throw e;`.
+  ```existing
+  return components.sort((a, b) => a.componentId - b.componentId);
+    } catch (e: unknown) {
+      throw new Error(`COMMUNITY_QUERY_FAILED: ${e instanceof Error ? e.message : String(e)}`);
+  ```
+
+[HIGH] src/hunter/shared/query-engine.ts:16-25 (bug)
+  Mapper output lies about nullability: `TypedEdgeRow` declares `evidence_quote: string; confidence: number; created_run: string` (non-null) but the mapper emits `null`/`1`/`''` defaults and silences it with `as TypedEdgeRow`. Callers trusting `string` will hit `null` at runtime. Fix the interface to `evidence_quote: string | null` (and audit `confidence`/`created_run` defaults) or enforce non-null and throw ROW_SHAPE instead of defaulting.
+  ```existing
+  export interface TypedEdgeRow {
+  id: number;
+  src_canonical: string;
+  dst_canonical: string;
+  predicate: string;
+  evidence_quote: string;
+  confidence: number;
+  created_run: string;
+  superseded_run: string | null;
+}
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:369-369 (bug)
+  Watcher queue mixes path forms: paused/write-locked events push bare `filename` while active events push `path.resolve(absDir, filename)`. `enforceBacklog` dedupes by exact string so the same file in both forms is not folded, and downstream `scan(batch)` / `provider.forFile` (exact-key match) misses the bare form while `triggerReparse` sees mixed forms — same file can be double-processed or leave diagnostics stale after a pause.
+  ```existing
+  if (this.pausedFlag || this.writeLock) { this.queue.push(filename); this.enforceBacklog(); return; }
+  ```
+  ```suggested
+  if (this.pausedFlag || this.writeLock) { this.queue.push(path.resolve(absDir, filename)); this.enforceBacklog(); return; }
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:400-402 (bug)
+  resume() drains the queue and triggers reparse but never calls scan(batch) (nor onChange), unlike scheduleDrain which does onChange + triggerReparse + scan. Diagnostics accumulated during a pause/write-lock window therefore stay stale until the next live fs event.
+  ```existing
+  resume(): void {
+    this.pausedFlag = false;
+    if (this.queue.length > 0) { const pending = this.drainQueue(); this.triggerReparse(pending); }
+  ```
+  ```suggested
+  resume(): void {
+    this.pausedFlag = false;
+    if (this.queue.length > 0) { const pending = this.drainQueue(); this.triggerReparse(pending); this.scan(pending); }
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:662-664 (performance)
+  Glob fan-out defeats the O32.3 byte-cost budget: truncation is applied per-file block (500 chars) but inject() joins an unbounded number of blocks. A broad pattern (e.g. `src/*`) matching dozens of files injects tens of KB and pushes the real tool output out of context — the exact regression the budget prevents.
+  ```existing
+  if (blocks.length === 0) return { output: base };
+  const joined = blocks.join('\n\n');
+  return { output: base ? `${base}\n\n${joined}` : joined };
+  ```
+  ```suggested
+  if (blocks.length === 0) return { output: base };
+  const MAX_BLOCKS = 3;
+  const capped = blocks.slice(0, MAX_BLOCKS);
+  let joined = capped.join('\n\n');
+  if (blocks.length > MAX_BLOCKS) joined += `\n\n  (${blocks.length - MAX_BLOCKS} more files with diagnostics omitted)`;
+  if (joined.length > LOGIC_LSP_BYTE_COST * MAX_BLOCKS) joined = joined.slice(0, LOGIC_LSP_BYTE_COST * MAX_BLOCKS) + '\n  (
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:432-434 (bug)
+  enforceBacklog() does not enforce WATCHER_BACKLOG_CAP: on overflow it only dedupes by full path and reassigns the (still over-cap) array. If all entries are distinct the queue stays > cap forever — unbounded growth and repeated WATCHER_STALLED warns with no shedding.
+  ```existing
+  private enforceBacklog(): void {
+    if (this.queue.length > WATCHER_BACKLOG_CAP) {
+      console.warn(WATCHER_STALLED);
+  ```
+  ```suggested
+  private enforceBacklog(): void {
+    if (this.queue.length > WATCHER_BACKLOG_CAP) {
+      console.warn(WATCHER_STALLED);
+      // after dedupe below, drop oldest beyond cap:
+      // this.queue = this.queue.slice(this.queue.length - WATCHER_BACKLOG_CAP);
+  ```
+
+[HIGH] src/hunter/surface/query-tool.ts:255-257 (performance)
+  BFS N+1 prepares in `chain`: `db.prepare(... WHERE e.src_canonical = ? ...)` is constructed inside the `while (head < queue.length)` loop, so every dequeued node (up to depth 64 with hub fan-out) pays prepare+execute. Hoist the statement once outside the loop or replace the per-node walk with a set-based recursive CTE like `blastRadius`.
+  ```existing
+  const out = rowsAs<{ dst_id: string; dst_label: string; dst_file: string; dst_line: number; predicate: string }>(
+      db.prepare(`
+        SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
+  ```
+  ```suggested
+  const chainEdgesStmt = db.prepare(`
+        SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
+               dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
+        FROM typed_edges e
+        JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+        WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL`);
+    // in loop:
+    const o
+  ```
+
+[HIGH] src/hunter/testing/inconclusive.ts:5-7 (bug)
+  Fragile Error-message control flow: markInconclusive() throws an Error, but isInconclusiveResult() only accepts string. `catch(e){ isInconclusiveResult(e) }` will always be false, and any wrapping/re-throwing (e.g. `new Error('wrap: '+e.message)`, framework prefixing, JSON serialization of Error dropping message) silently loses the signal. Control flow should not depend on substring match of Error.message.
+  ```existing
+  export function isInconclusiveResult(v: unknown): boolean {
+  return typeof v === 'string' && v.includes(inconclusiveMarker);
+}
+  ```
+  ```suggested
+  export class InconclusiveError extends Error {
+  readonly testName: string;
+  readonly reason: string;
+  readonly evidenceLine: string;
+  constructor(testName: string, reason: string, evidenceLine: string) {
+    super(`${inconclusiveMarker}${reason}):: ${testName} — ${evidenceLine}`);
+    this.name = 'InconclusiveError';
+    this.testName = testName;
+    this.reason = reason;
+    this.evidenceLine
+  ```
+
+[CRITICAL] src/hunter/tools/bug-hunt.ts:105-105 (bug)
+  Hunt vs status locks use different keys so F-1004 mutual exclusion is defeated. `spawnBugHunterLoop` locks `absTarget` while status locks `scopeRoot`; `lockPathFor()` is `path.join(targetPath,'.trident/hunt.lock')` (per-path). A hunt on a nested target inside the scope uses a different lock file than the status read, so status never sees HUNT_BUSY and can still half-read. Fix: lock a single canonical scope-level key for both (e.g. always `scopeRoot ?? absTarget`), or acquire both locks / walk ancestors.
+  ```existing
+  acquireHuntLock(absTarget);
+  ```
+
+[HIGH] src/hunter/tools/bug-hunt.ts:76-77 (bug)
+  Validation throws violate the fail-closed RESULT contract. Header says INCONCLUSIVE is a RESULT never a throw, but all HUNT_SCOPE_INVALID paths throw (and `createMicroLoop` below is outside the inner try that maps throws to inconclusive). Direct callers of `spawnBugHunterLoop` must catch throws, and a `createMicroLoop` throw escapes as a throw. Fix: return `{state:'inconclusive',...}` for validation failures and move `createMicroLoop` inside the try that maps to the fail-closed RESULT.
+  ```existing
+  if (scopeReal === path.sep) {
+    throw new Error(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root — containment against '/' admits every path and is not a boundary`);
+  ```
+
+[HIGH] src/hunter/tools/bug-hunt.ts:80-80 (security)
+  Containment disabled when `scopeRoot` omitted re-admits /etc. `inScope` returns true for every path when `scopeReal===null`, so a direct call without `scopeRoot` passes any existing directory/file. F-303 intent was to bound the hunt. Fix: require `scopeRoot` (fail-closed HUNT_SCOPE_INVALID/inconclusive when missing) or default it to the validated absolute target's containment root instead of open.
+  ```existing
+  const inScope = (real: string): boolean => scopeReal === null || real === scopeReal || (scopePrefix !== null && real.startsWith(scopePrefix));
+  ```
+
+[HIGH] src/hunter/tools/query-registration.ts:58-58 (security)
+  Self-attested session identity: `callerSessionId: args.sessionId` makes the scope check tautological. `openSessionStore` compares `sessionKey(callerSessionId ?? sessionId)` vs `sessionKey(sessionId)` and only refuses on mismatch — passing the same caller-controlled value guarantees equality, so any caller that can supply an arbitrary `sessionId` can open any session's store. Scope isolation then depends on caller honesty.
+  ```existing
+  const opened = openSessionStore({ sessionId: args.sessionId, scopeRoot: args.scopeRoot, callerSessionId: args.sessionId });
+  ```
+  ```suggested
+  export async function runQueryTool(args: SessionQueryArgs, callerSessionId: string): Promise<string> {
+  const opened = openSessionStore({ sessionId: args.sessionId, scopeRoot: args.scopeRoot, callerSessionId });
+  // ... reject when args.sessionId !== callerSessionId unless an explicit privileged open is intended and audited
+  const db = openStore(opened.storePath);
+  ```
+
+[HIGH] src/hunter/tools/query-registration.ts:59-59 (bug)
+  Read-path mutation contradicts the READ-ONLY claim: `openStore(storePath)` opens a read-write handle and executes `CREATE_TABLES_SQL` + `TYPED_GRAPH_DDL` on every query (idempotent but still a write lock). Every query therefore takes a writer lock, risking WAL contention / SQLITE_BUSY under concurrent queries and mutating the store on the read path. Open read-only here and move schema-ensure to the write path only.
+  ```existing
+  const db = openStore(opened.storePath);
+  ```
+  ```suggested
+  // Query path must not run DDL: open read-only, e.g.
+// const db = openStoreReadOnly(opened.storePath);
+const db = openStore(opened.storePath); // TODO: replace with read-only open; ensure schema only on writers
+  ```
+
+[HIGH] src/hunter/tools/report-writer-local.ts:100-102 (bug)
+  Unranked 500-cap truncation: `findings.slice(0, MAX)` keeps input order with no severity/rank sort, despite the header/`MAX_REPORT_FINDINGS` comments promising the 'RANKED ACTIONABLE CORE' / 'top-N findings by rank'. If the caller passes unsorted store output an arbitrary subset is rendered and the loud REPORT_CAPPED log still claims a ranked core. Sort by severity (CRIT>HIGH>MED>WARN, then stable tie-break) before slicing, or document/assert a sorted-input precondition.
+  ```existing
+  const keep = new Set(findings.slice(0, MAX_REPORT_FINDINGS).map((f) => f.id));
+    sections = sections.filter((s) => keep.has(s.finding_id));
+    findings = findings.slice(0, MAX_REPORT_FINDINGS);
+  ```
+  ```suggested
+  const rank: Record<string, number> = { CRIT: 0, HIGH: 1, MED: 2, WARN: 3 };
+    const ranked = [...findings].sort((a, b) => (rank[a.severity] ?? 99) - (rank[b.severity] ?? 99));
+    const keep = new Set(ranked.slice(0, MAX_REPORT_FINDINGS).map((f) => f.id));
+    sections = sections.filter((s) => keep.has(s.finding_id));
+    findings = ranked.slice(0, MAX_REPORT_FINDINGS);
+  ```
+
+[HIGH] src/hunter/triad.ts:47-47 (bug)
+  Empty `from`/`to` accepted in StateRef: only `typeof === 'string'` is checked, so `''` or `'   '` passes validation. This lets a meaningless transition satisfy the mandatory triad and defeats Law 2 (no triplet = no finding). Require trimmed non-empty strings like `machineId`/`memberId`/`file`.
+  ```existing
+  if (typeof sta.from !== 'string' || typeof sta.to !== 'string') return false;
+  ```
+  ```suggested
+  if (typeof sta.from !== 'string' || sta.from.trim() === '') return false;
+  if (typeof sta.to !== 'string' || sta.to.trim() === '') return false;
+  ```
+
+[HIGH] src/hydra/auditor.ts:189-192 (security)
+  The grep tool (both `rg` and `grep -r` fallback) follows symlinks by default when traversing directories inside `targetRoot`. Unlike the `read` tool (which uses `isWithinRoot` + `O_NOFOLLOW`) and the `write_findings` tool (which validates the pinned path against `ledgerDir` + `O_NOFOLLOW`), the grep tool has NO symlink containment. A symlink inside targetRoot pointing to `/etc/shadow` or any external directory would yield matches (and printed file paths) from outside the containment boundary. This is the only tool in the belt that leaks data through symlinks.
+
+Suggestion: After grep returns, filter output lines to only include those whose file path resolves inside targetRoot (a post-hoc cont
+  ```existing
+  let out = await run("rg", ["-n", "--max-count", String(maxResults), "--", pattern, targetRoot]);
+      if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
+        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+      }
+  ```
+
+[CRITICAL] src/hydra/client-reader.ts:99-102 (bug)
+  Unhandled promise rejections from timeout promises can crash the process.
+
+When the main operation wins `Promise.race` (e.g., `t.listTools()` resolves), the losing timeout promise remains alive. After 5000ms it calls `rej(new Error(...))`, but no one handles that rejection. In Node.js 15+ (which is the default runtime), unhandled rejections throw and crash the process — this means a **successful** `listTools()` or `callTool()` can still crash the process 5 seconds later when the abandoned timeout fires.
+
+The same pattern exists in `attach()` and `disconnect()` timeout promises.
+
+Fix: clear the timer in a `finally` block so the timeout promise never rejects after the operation completes:
+
+```
+  ```existing
+  return await Promise.race([
+        t.listTools(),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000).unref?.()),
+      ]);
+  ```
+  ```suggested
+  let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000);
+        timer?.unref?.();
+      });
+      try {
+        return await Promise.race([t.listTools(), timeout]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+  ```
+
+[HIGH] src/hydra/pipeline.ts:121-125 (bug)
+  Pre-gate failure skips the try/catch block that publishes evidence and PIPELINE_FAILED. When a pre-gate fails, `failLoud` throws at line ~101, which is *before* the try block at line 115. The catch block that calls `this.publishRun(seq, evidence)` is never reached, so `this.evidence` is never updated with the failed run's trail. This is inconsistent with the post-gate failure path (which does publish) and means concurrent readers see a stale or empty snapshot after a pre-gate rejection. The pre-gate failure path should also call `publishRun`.
+  ```existing
+  for (const gate of this.config.gates.pre) {
+      this.log("GATE_CHECK", { gate: gate.name, phase: "pre" }, evidence);
+      const result = await gate.check(input);
+      if (!result.passed) this.failLoud(gate, result.reason ?? "pre-gate failed");
+    }
+  ```
+  ```suggested
+  for (const gate of this.config.gates.pre) {
+      this.log("GATE_CHECK", { gate: gate.name, phase: "pre" }, evidence);
+      const result = await gate.check(input);
+      if (!result.passed) {
+        this.log("PIPELINE_FAILED", { name: this.config.name, error: `pre-gate ${gate.name}: ${result.reason ?? "pre-gate failed"}` }, evidence);
+        this.publishRun(seq, evidence);
+        this.failLoud
+  ```
+
+[HIGH] src/hydra/templates/sro.ts:78-79 (bug)
+  sroCyclesTemplate's filterTags (line 78) are byte-for-byte identical to sroGraphTemplate's (line 44): `["violates", "triggers", "shouldBe", "declares", "evaluates_to", "contradicts_oracle", "flagged_by", "caused"]`. This appears to be a copy-paste artifact. The cycles template hunts circular dependencies and likely needs different filter tags — e.g., `"implements"`, `"wraps"`, `"derived_from"` (used by sroPathTemplate and sroDeadCodeTemplate for import/call relationships) are more relevant for cycle detection than `"triggers"` and `"caused"`, which relate to graph-structure anomalies (orphans, god-nodes). Please verify the intended tag set against the fork source (`sro-cycles.ts`) and correc
+  ```existing
+  ["violates", "triggers", "shouldBe", "declares", "evaluates_to", "contradicts_oracle", "flagged_by", "caused"],
+  "hunt circular dependencies (import cycles length>=2 verified by reading import statements, SCCs size>=2).",
+  ```
+  ```suggested
+  // TODO: verify against fork — cycles likely needs import-relationship tags
+  ["violates", "shouldBe", "implements", "wraps", "evaluates_to", "derived_from", "flagged_by"],
+  "hunt circular dependencies (import cycles length>=2 verified by reading import statements, SCCs size>=2)."
+  ```
+
+[HIGH] src/kernel/graph-pre-flight.ts:38-41 (bug)
+  **`impactInDb` truncation silently ignored**: `impactInDb` caps its ledger at 5000 rows and sets `truncated: true` when the cap is hit (see `typed-write.ts:1119-1146`). `preFlight` never checks `imp.truncated`, so when a large graph is encountered, `imp.reaches` is under-reported (it equals `ledger.length`, not actual reachability). This silently produces an incorrect `commitStrategy` — e.g., a graph with 100 real reachable nodes but only 49 ledgered would get `"split"` instead of `"domain-level"`. A warning should be emitted when `imp.truncated` is true, mirroring the existing `NO CONSUMERS` and `WIDE BLAST RADIUS` patterns.
+  ```existing
+  const imp = impactInDb(db, target, 8);
+
+    const byDepth: Record<number, number> = {};
+    for (const row of imp.ledger) byDepth[row.depth] = (byDepth[row.depth] ?? 0) + 1;
+  ```
+  ```suggested
+  const imp = impactInDb(db, target, 8);
+    if (imp.truncated) warnings.push(`IMPACT TRUNCATED: blast-radius ledger capped at 5000 rows — reachability UNDER-REPORTED for ${target}; commit strategy may be too lenient`);
+
+    const byDepth: Record<number, number> = {};
+    for (const row of imp.ledger) byDepth[row.depth] = (byDepth[row.depth] ?? 0) + 1;
+  ```
+
+[HIGH] src/omp/adapters/kev.ts:119-120 (bug)
+  The `out.split("\n").reverse().find(...)` heuristic to extract JSON from CLI stdout is fragile and error-prone. If the CLI emits debug lines, warnings, or progress indicators to stdout (e.g., `{"debug": true}` or a truncated `{"partial...`), this picks up the wrong line. The try/catch around `JSON.parse` prevents a crash, but the wrong object could silently pass all downstream checks (ok, distribution, uniform) and produce a fabricated verdict. A safer approach is to use a structured protocol: scan only lines that begin with `{` AND contain `"ok"`, or better yet, capture stderr for diagnostics and treat stdout as exclusively JSON.
+  ```existing
+  const line = out.split("\n").reverse().find((l) => l.trim().startsWith("{"));
+      if (line === undefined) throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON — output: ${out.slice(0, 200)}`);
+  ```
+  ```suggested
+  // Prefer a JSON object that looks like a real KEV answer (has "ok" field)
+      const candidates = out.split("\n").filter((l) => l.trim().startsWith("{") && l.includes('"ok"'));
+      const line = candidates[candidates.length - 1];
+      if (line === undefined) throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON — output: ${out.slice(0, 200)}`);
+  ```
+
+[HIGH] src/omp/adapters/kev.ts:107-112 (performance)
+  The synchronous `execFileSync` with a 120-second timeout blocks the calling thread entirely. In any concurrent or server-based probe runner, a slow or hung CLI process will block the event loop for up to two minutes, creating a denial-of-service risk for other probes. The F-1206 NOTE acknowledges this as deferred, but it remains a live issue. The recommended mitigation is to migrate `facts()` to an async signature and use `execFile` (callback/promise-based), or offload to a worker thread.
+  ```existing
+  out = execFileSync(process.execPath, [cli, "--json", JSON.stringify({ state: buildState(scopeRoot, subject), questions: [MEANING_QUESTION] })], {
+          encoding: "utf8",
+          timeout: 120_000,
+          maxBuffer: 8 * 1024 * 1024,
+          cwd: scopeRoot,
+        });
+  ```
+
+[HIGH] src/omp/calibration.ts:80-82 (bug)
+  NaN counts bypass the negative-count guard silently. The check `c.confirmed < 0` evaluates to `false` when `c.confirmed` is `NaN` (all relational comparisons with NaN return false). This causes all downstream Wilson calculations to propagate NaN — `p` becomes NaN, `centre` becomes NaN, `low`/`high` become NaN, and `sufficient`/`starved` flags are incorrect. Since these counts come from external ledger reads, a corrupted or uninitialized ledger entry could inject NaN. Add an explicit guard: `Number.isFinite(c.confirmed) && Number.isFinite(c.refuted) && Number.isFinite(c.unresolved)` before the existing negative check. The same issue applies to `firesNeededForGap` where `p` or `gap` could be N
+  ```existing
+  if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
+  ```
+  ```suggested
+  if (!Number.isFinite(c.confirmed) || !Number.isFinite(c.refuted) || !Number.isFinite(c.unresolved)) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be finite numbers (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
+  if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (con
+  ```
+
+[HIGH] src/omp/gate-middleware.ts:112-112 (bug)
+  `runGraphGate` reads `process.env.GI_ALLOW_NO_STORE` directly (line ~101) instead of accepting a configurable `env` parameter like `resolveDial` does. This inconsistency means: (1) the bypass decision cannot be unit-tested without mutating the global `process.env`, (2) concurrent test runs can interfere with each other, and (3) the gate's security-relevant behavior (fail-closed vs bypass) is harder to verify in isolation. Consider threading the same `env` parameter through `GateInput` or as a second argument, consistent with `resolveDial`'s pattern.
+  ```existing
+  if ((process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+  ```
+  ```suggested
+  // Add env to GateInput or pass as parameter:
+    if ((input.env?.GI_ALLOW_NO_STORE ?? process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+  ```
+
+[HIGH] src/omp/graph-facts.ts:109-119 (bug)
+  **Bug: `freshnessGate` violates the file's own 'UNOBSERVED, never PASS' principle.**
+
+The freshness gate returns `settles: true, action: 'IGNORE'` when the store is stale, which tells downstream callers (MPSE, cache, Jev) that the graph has *settled* the question with a clean answer. But a stale store means the graph *cannot know* — it is not evidence of absence. The file's own documented pin states: 'a generic gate preempting a specific one is UNOBSERVED, never PASS.' A stale-data gate is exactly that: a generic gate.
+
+The consequence is severe: the caller at line 142 returns immediately (`return [stale]`), so M-GRAPH-1 through M-GRAPH-5 are never evaluated, and the `settles: true` flag tel
+  ```existing
+  function freshnessGate(db: Database, input: GraphFactInput): GraphFactVerdict | null {
+  const f = layerFreshness(db, { derivation: input.derivation ?? "explicit", now: input.now });
+  if (!f.stale) return null;
+  return {
+    rule: "M-GRAPH-3",
+    settles: true,
+    action: "IGNORE",          // a stale-store refusal is NOT evidence of a violation
+    reason: "the graph store is STALE — no fact 
+  ```
+
+[HIGH] src/omp/graph-facts.ts:102-103 (bug)
+  **Bug: `LIKE` helper strips `_` and `%` from the target instead of escaping them, causing incorrect SQL LIKE matching.**
+
+The helper `const LIKE = (target) => `%${target.replace(/[%_]/g, '')}%`` removes `_` and `%` from the search term. In SQL LIKE, `_` is a single-character wildcard and `%` is a multi-character wildcard — stripping them changes the semantics of the search.
+
+Concrete failure case: if `target = "foo_bar"` and a canonical_id in the store is `my_foo_bar_handler`, the query becomes `LIKE '%foobar%'`. The string `my_foo_bar_handler` does NOT contain the literal substring `foobar`, so the lookup returns zero rows — the node is treated as absent. Every subsequent rule sees `known =
+  ```existing
+  /** The canonical-id prefix the indexer writes; fragments match within it. */
+const LIKE = (target: string) => `%${target.replace(/[%_]/g, "")}%`;
+  ```
+
+[HIGH] src/omp/graph-gate.ts:184-185 (bug)
+  `computeDrift` silently mutates the caller's `state` in three ways: (1) it splices `state.editLog` and `state.graphQueries` via `filter` reassignment (lines 203–204), destroying entries the caller may still reference; (2) it writes `state.drift = drift` as a side-effect of what reads like a pure computation; (3) `gateDecision` also mutates `state.gateState` without documenting the mutation contract. These hidden side-effects are dangerous if any caller expects a read-only drift check (e.g., previewing a gate decision without committing the pruning). The mutation of editLog/graphQueries is irreversible — once entries are pruned, `saveGateState` persists the shortened arrays, permanently losin
+  ```existing
+  state.editLog = state.editLog.filter((e) => now - e.timestamp < DRIFT_WINDOW_MS);
+  state.graphQueries = state.graphQueries.filter((q) => now - q.timestamp < DRIFT_WINDOW_MS);
+  ```
+  ```suggested
+  // Option A: make computeDrift pure — compute on local copies, return result without mutating state.
+  const activeEdits = state.editLog.filter((e) => now - e.timestamp < DRIFT_WINDOW_MS);
+  const activeQueries = state.graphQueries.filter((q) => now - q.timestamp < DRIFT_WINDOW_MS);
+  // ... compute on activeEdits / activeQueries ...
+  // Return drift without writing to state; let the caller decid
+  ```
+
+[HIGH] src/omp/graph-gate.ts:389-390 (bug)
+  `loadGateState` returns `null` when the persisted row is corrupt, tampered, or fails shape validation. Most callers interpret `null` as 'no prior state' and create a fresh gate via `createEmptyState()`, which silently erases the entire accumulated drift history for that session. The error is logged to console but the gate itself has no signal that history was lost — a session that was at T2 WARNING can silently reset to IDLE. This is a data-loss path that should either throw (forcing callers to handle corruption explicitly) or return a degraded state that preserves the non-corrupt fields.
+  ```existing
+  console.error(`GI_GATE_STATE_LOAD_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  ```
+  ```suggested
+  console.error(`GI_GATE_STATE_LOAD_FAILED: ${storePath} session=${sessionId} err=${e instanceof Error ? e.message : String(e)}`);
+    // Throw instead of returning null so callers cannot silently discard history.
+    throw new Error(`GI_GATE_STATE_CORRUPT: ${storePath} session=${sessionId}`);
+  ```
+
+[HIGH] src/omp/hard-deps.ts:242-247 (bug)
+  The variable is named `listeningPaths` but the Set is populated from ALL entries in `/proc/net/unix` without filtering by socket state. The `/proc/net/unix` file lists every Unix domain socket on the system — listening, established, connecting, etc. A socket in state ESTABLISHED or CONNECTING would also match, producing a false UP for a daemon that is no longer accepting connections.
+
+In `/proc/net/unix`, the state field is at column index 3 (0-indexed); `0A` (hex) means LISTENING. The probe should filter on that state, or at minimum acknowledge the gap. Given the stated design goal ('existence is not liveness' / 'a socket FILE with no entry is a stale corpse'), the check is incomplete — hav
+  ```existing
+  const listeningPaths = new Set(
+        table.split("\n").map((line) => {
+          const parts = line.trim().split(/\s+/);
+          return parts[parts.length - 1] ?? "";
+        }),
+      );
+  ```
+  ```suggested
+  // In /proc/net/unix, column 3 (0-indexed) is the socket state; "0A" = LISTENING.
+      const listeningPaths = new Set(
+        table.split("\n")
+          .filter((line) => {
+            const parts = line.trim().split(/\s+/);
+            // skip the header line ("sk  RefCount ...") and lines with fewer fields
+            return parts.length >= 7 && parts[3] === "0A";
+          })
+          .map(
+  ```
+
+[HIGH] src/omp/jev.ts:54-56 (bug)
+  Resource-exhaustion errors from `openSync` (e.g. `EMFILE`, `ENFILE` — too many open file descriptors) silently fall through to the `GI_JEV_NO_KEY` throw at line 87. This misidentifies a system resource condition as a missing key, which will cause callers to show a misleading 'no key' message instead of flagging the real problem. These errno codes should be re-thrown as a distinct JevError (or at least NOT mapped to `GI_JEV_NO_KEY`).
+  ```existing
+  // ENOENT and friends: fall through to the NO_KEY throw below (the old readFile path did the same).
+    }
+    if (fd !== null) {
+  ```
+  ```suggested
+  // ENOENT, ENOTDIR etc. — genuinely absent, fall through below.
+      // EMFILE/ENFILE — resource exhaustion, not a missing key; surface it.
+      if (c?.code === 'EMFILE' || c?.code === 'ENFILE') {
+        throw new JevError(
+          "GI_JEV_KEY_PERMS",
+          `key file ${KEY_FILE} could not be opened: ${c.code} (system out of file descriptors — not a missing key)`,
+        );
+      }
+    }
+
+  ```
+
+[HIGH] src/omp/kernel-v2.ts:561-561 (bug)
+  Unsafe type assertion: `d.action as GateAdjudication["action"]` silently accepts any string returned by `gate.judge()`. If the gate returns an unexpected action value (e.g. "ALLOW"), this cast would mask the invalid value and downstream code would treat it as FIRE/ESCALATE/IGNORE without any runtime validation. Add a guard to reject unknown action values.
+  ```existing
+  action: d.action as GateAdjudication["action"],
+  ```
+  ```suggested
+  action: validateAction(d.action),
+
+// ... add helper:
+const VALID_ACTIONS = new Set<GateAdjudication["action"]>(["FIRE", "ESCALATE", "IGNORE"]);
+function validateAction(action: string): GateAdjudication["action"] {
+  if (!VALID_ACTIONS.has(action as GateAdjudication["action"])) {
+    throw new Error(`unexpected gate action: ${action}`);
+  }
+  return action as GateAdjudication["action"];
+}
+  ```
+
+[HIGH] src/omp/populate-corbell.ts:110-112 (bug)
+  In `isCorbellCheckoutFreshFor`, when `fs.statSync` throws on an individual source file (line 128 catch block), `walkFailed` is not set — the file is silently skipped. If the most recently modified source file is unreadable (e.g., permission denied, broken symlink), `newest` stays artificially low and the function reports `fresh`. This is a false-fresh bug: a changed-but-unreadable source doesn't trigger staleness. Since unreadable directories already set `walkFailed`, files with matched extensions should follow the same fail-closed discipline.
+  ```existing
+  const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
+          if (m > newest) newest = m;
+        } catch { /* unreadable file — skip */ }
+  ```
+  ```suggested
+  const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
+          if (m > newest) newest = m;
+        } catch {
+          // Unreadable source file: fail-closed (same as unreadable dir).
+          // If the newest file can't be stat'd, we cannot confirm freshness.
+          walkFailed = true;
+          return;
+        }
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:174-195 (bug)
+  **`walkFailed` check at line 174 is dead code — walk failures are silently ignored.**
+
+The check `if (walkFailed) return { fresh: false, reason: "stale-read-failed" }` is placed at line 174, AFTER the `walk` function definition but BEFORE the `for` loop at line 175 that actually calls `walk()`. Since `walkFailed` is only set to `true` inside `walk()` (line 144), and `walk()` is only invoked from line 190 inside the scope loop, `walkFailed` is always `false` when checked at line 174.
+
+After `walk()` sets `walkFailed = true` during the scope loop, the flag is never checked again. The probe continues and may reach the mtime comparison (line 205) based on partial data, potentially reporting "fre
+  ```existing
+  if (walkFailed) return { fresh: false, reason: "stale-read-failed" };
+  for (const rel of scope) {
+    const target = containedScopeTarget(root, rel);
+    if (target === null) continue;
+    // V21 cleanup fix-now: a scope entry may be a FILE — stat it directly
+    // (walk() on a file throws ENOTDIR and silently counted nothing).
+    let stTarget: fs.Stats | null = null;
+    try { stTarget = fs.st
+  ```
+  ```suggested
+  for (const rel of scope) {
+    const target = containedScopeTarget(root, rel);
+    if (target === null) continue;
+    let stTarget: fs.Stats | null = null;
+    try { stTarget = fs.statSync(target); } catch { stTarget = null; }
+    if (stTarget?.isFile()) {
+      const base = path.basename(target);
+      if (excludes.includes(base)) continue;
+      if (stTarget.mtimeMs > newest) newest = stTarget.m
+  ```
+
+[HIGH] src/omp/populate-graphify.ts:296-307 (bug)
+  **`hashSourceTree` walk does NOT skip files matching `excludes` — inconsistency with `isGraphifyCheckoutFreshFor`.**
+
+In `isGraphifyCheckoutFreshFor` (line 164), the file branch checks `if (excludes.includes(entry.name)) continue;` before counting the file toward the budget and mtime. But in `hashSourceTree` (lines 296-307), the file branch has NO such check — all matching extension files are hashed regardless of `excludes`.
+
+This means a user-configured `excludes` entry for a file (e.g. `"debug-helper.ts"`) will:
+1. Be skipped by the freshness probe's mtime walk (not triggering staleness via mtime)
+2. Still be included in the content hash (triggering `stale-content` if it changes)
+
+The net 
+  ```existing
+  } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        budget.n--;
+        try {
+          const stat = fs.statSync(path.join(dir, entry.name));
+          hashFile(path.join(dir, entry.name), `${prefix}${entry.name}`, stat.size);
+        } catch {
+          // frozen-scan HIGH: an unreadable file is NOT silently omitted
+  ```
+  ```suggested
+  } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        if (excludes.includes(entry.name)) {
+          hash.update(`skip-excluded:${prefix}${entry.name}\n`);
+          continue;
+        }
+        budget.n--;
+        try {
+          const stat = fs.statSync(path.join(dir, entry.name));
+          hashFile(path.join(dir, en
+  ```
+
+[HIGH] src/omp/populate.ts:82-84 (bug)
+  `db.close()` is not guarded by try/catch in the corbell path. If `close()` throws (e.g., I/O error on flush, corrupted DB handle), the exception propagates out of the finally block and masks the return value — including the `metaDegraded` flag. The graphify path already wraps close correctly (`try { db.close(); } catch { ... }`). Apply the same pattern here.
+  ```existing
+  } finally {
+      db.close();
+    }
+  ```
+  ```suggested
+  } finally {
+      try { db.close(); } catch { /* close best-effort */ }
+    }
+  ```
+
+[HIGH] src/omp/ripwire-bridge.ts:73-78 (bug)
+  **`spawnSync` ignores `maxBuffer` — buffer limit is non-functional, truncation detection is dead code**
+
+`spawnSync` (Node.js) does **not** support the `maxBuffer` option — only `execSync` and `execFileSync` do. Passing it to `spawnSync` is silently ignored (no error, no limit). This means:
+
+1. **No output is ever capped**: ripwire can produce >32 MB of stdout/stderr without any enforcement.
+2. **Truncation detection is dead code**: Lines 79–93 (the ENOBUFS / ERR_CHILD_PROCESS_STDIO_MAXBUFFER / stdout-length heuristic) can never trigger because `spawnSync` never sets these error codes for buffer overflow — it doesn't enforce a buffer limit at all.
+3. **The stdout-length heuristic is also unr
+  ```existing
+  const res = spawnSync(bin, [root, ...args], {
+    encoding: "utf8",
+    timeout: timeoutMs ?? RIPWIRE_TIMEOUT_MS,
+    maxBuffer: RIPWIRE_MAX_BUFFER,
+    env: e,
+  });
+  ```
+  ```suggested
+  // Option A: use execFileSync which supports maxBuffer
+  // const res = execFileSync(bin, [root, ...args], {
+  //   encoding: "utf8",
+  //   timeout: timeoutMs ?? RIPWIRE_TIMEOUT_MS,
+  //   maxBuffer: RIPWIRE_MAX_BUFFER,
+  //   env: e,
+  //   stdio: ["pipe", "pipe", "pipe"],
+  // });
+
+  // Option B: keep spawnSync but enforce limit manually after the call
+  const res = spawnSync(bin, [root, ...arg
+  ```
+
+[CRITICAL] src/omp/store-open.ts:100-105 (bug)
+  Missing orphan cleanup in post-upsert race verify — same bug class as F-1210.
+
+Scenario:
+1. Opener A wins `wx` (created = true), opener B gets EEXIST (created = false)
+2. Both read `current` → null (no registry row yet)
+3. A upserts ownerKey A, B upserts ownerKey B (overwrites A's row)
+4. A's verify finds written.session_id = B ≠ A → throws GI_SCOPE_REFUSED
+5. **But A does NOT unlink the store file it created** → orphan on disk
+
+Future openers hit EEXIST on `wx` with no matching registry row, unable to recover.
+
+The fix mirrors the earlier F-1210 check (lines 78-79): before throwing, unlink the file if `created` is true. The pattern already exists 12 lines above.
+  ```existing
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    throw new GiScopeError(
+      `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_id}; caller ${callerKey} lost`,
+    );
+  }
+  ```
+  ```suggested
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    if (created) {
+      try { fs.unlinkSync(storePath); } catch (e) { console.warn(`[store-open] orphan cleanup failed for ${storePath}: ${e instanceof Error ? e.message : String(e)}`); }
+    }
+    throw new GiScopeError(
+      `GI_SCOPE_REFUSED: store ${storePath} raced to ${written.session_i
+  ```
+
+[HIGH] src/scoping/scope-binding.ts:158-160 (security)
+  `statePath` performs no path-traversal sanitization. If a caller passes `..` segments in `parts` (or even `scopeRoot`), `path.join` resolves them and can escape the intended `stateDir` boundary. For example, `statePath('/project', '..', 'etc', 'passwd')` would resolve to `/etc/passwd`. Since this method is part of the public `ScopeBinding` interface and deals with on-disk state, callers that pass untrusted input (e.g., user-supplied wave names) could write outside the sandbox.
+  ```existing
+  statePath(scopeRoot: string, ...parts: string[]): string {
+    return path.join(scopeRoot, this.stateDir, ...parts);
+  }
+  ```
+  ```suggested
+  statePath(scopeRoot: string, ...parts: string[]): string {
+    const resolved = path.resolve(scopeRoot, this.stateDir, ...parts);
+    const base = path.resolve(scopeRoot, this.stateDir);
+    if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+      throw new Error(
+        `[${this.label} SCOPE] statePath: resolved path "${resolved}" escapes the state directory "${base}". ` +
+       
+  ```
+
+[HIGH] src/scoping/session-state.ts:75-77 (bug)
+  `writeSessionState` accepts a full state map and overwrites it, but the caller may have read that state *before* acquiring the lock. Classic read-then-write TOCTOU: if another process runs `tickSessionBudget` between the caller's read and this write, the other process's update is silently clobbered. Consider changing the API to accept a mutation function `(current: SessionStateMap) => SessionStateMap` so the read and write happen atomically inside the lock, similar to `tickSessionBudget`.
+  ```existing
+  export function writeSessionState(statePath: string, state: SessionStateMap): void {
+  withStateLock(statePath, () => { writeSessionStateRaw(statePath, state); });
+}
+  ```
+  ```suggested
+  export function writeSessionState(statePath: string, mutator: (current: SessionStateMap) => SessionStateMap): void {
+  withStateLock(statePath, () => {
+    const state = readSessionState(statePath);
+    writeSessionStateRaw(statePath, mutator(state));
+  });
+}
+  ```
+
+[HIGH] src/scoping/session-state.ts:88-91 (bug)
+  The `for (;;)` lock-acquisition loop has no upper bound. If the lock holder crashes and the stale-reclaim path consistently fails (e.g., `statSync` or `unlinkSync` throws due to permissions or filesystem errors), this spins forever, deadlocking the process. Add a maximum iteration count or wall-clock deadline after which the function throws a descriptive error.
+  ```existing
+  for (;;) {
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+  ```
+  ```suggested
+  const MAX_LOCK_ATTEMPTS = 300; // ~3s at 10ms spin per attempt
+  for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
+    try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
+    catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      // ... existing stat/unlink/spin logic ...
+    }
+  }
+  throw new Error(`[session-state] failed to acquire lock a
+  ```
+
+# total: 127

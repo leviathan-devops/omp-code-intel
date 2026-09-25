@@ -1,0 +1,437 @@
+{
+  "files_scanned": 113,
+  "files_with_a_result": 113,
+  "empty_result_parts": 0,
+  "total_comments": 422,
+  "by_severity": {
+    "medium": 226,
+    "high": 57,
+    "low": 136,
+    "critical": 3
+  },
+  "\u2605 AUDIT GATE (the whole tree)": "FAIL (3 critical, 57 high)",
+  "the_blocking_findings": [
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "line": 374,
+      "severity": "high",
+      "category": "bug",
+      "content": "Partial persistence across DB and file targets: writeCalibrationRows (DB) commits a transaction, then writeCalibrationRecord (file) is called separately. If the DB commit succeeds but the file write f"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "line": 465,
+      "severity": "high",
+      "category": "bug",
+      "content": "Inconsistent fixture validation in both validateFireFixture and validateGoldenFixture: they check that `source` is a string but do NOT verify it is non-empty (unlike `ruleId`, `file`, `anchor` which c"
+    },
+    {
+      "path": "src/hunter/diagnostics/calibration.ts",
+      "line": 283,
+      "severity": "high",
+      "category": "security",
+      "content": "The whoCalls error is caught and coerced to empty callers with only a console.warn, then the empty data is folded into the fixturesHash. This means a broken graph adapter's topology errors silently co"
+    },
+    {
+      "path": "src/hunter/diagnostics/engine.ts",
+      "line": 406,
+      "severity": "critical",
+      "category": "bug",
+      "content": "**BUG: `assertNoBlindness` is entirely broken when called from `runBattery`.**\n\nTwo interrelated problems in the `assertNoBlindness` call within `runBattery` (line 407-413):\n\n1. **Incorrect `ENGINE_SK"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "line": 335,
+      "severity": "high",
+      "category": "bug",
+      "content": "Bug: `profileFromDisk` flag is silently dropped, contradicting the documented design intent. `loadFixtureProfile` returns `{ profile, profileFromDisk }` (line 313) and the JSDoc on lines 324\u2013325 expli"
+    },
+    {
+      "path": "src/hunter/diagnostics/fixture-calibration.ts",
+      "line": 170,
+      "severity": "high",
+      "category": "security",
+      "content": "Security: The path-traversal containment check uses `path.resolve` which normalizes the logical path but does **not** follow symlinks. A symlink placed inside the fixture directory (e.g., `fixtures/fi"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "line": 262,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Bug (Logic error):** The condition `!/Checkpoints/i.test(win) || !/\\.trident/i.test(win)` uses OR (`||`), meaning a finding is emitted if **either** 'Checkpoints' or '.trident' is missing from the w"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "line": 217,
+      "severity": "high",
+      "category": "performance",
+      "content": "`Atomics.wait()` blocks the calling thread entirely. In `defaultExec`, this is exported as a public `ExecFn` \u2014 if any production (non-test) caller invokes `defaultExec` with a timeout and hits a SQLIT"
+    },
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "line": 231,
+      "severity": "high",
+      "category": "bug",
+      "content": "No null/undefined guard on `profile.graph` before accessing `.substrate`. If a malformed or legacy `ProjectProfile` arrives with `graph` as `undefined`, this will throw an unhandled `TypeError: Cannot"
+    },
+    {
+      "path": "src/hunter/graph/mechanical.ts",
+      "line": 242,
+      "severity": "high",
+      "category": "bug",
+      "content": "The `visit` function recurses via `ts.forEachChild` with no depth guard. While typical TypeScript ASTs are not deeply nested, pathological inputs (deeply chained expressions like `a + b + c + ... + z`"
+    },
+    {
+      "path": "src/hunter/graph/resolver.ts",
+      "line": 196,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Bug \u2014 entity silently dropped from output.** `resolvedAliases` is built from each decision's `alias` field, which is the *harness-provided alias string* \u2014 it could match either a new entity's `id` o"
+    },
+    {
+      "path": "src/hunter/harness/map.ts",
+      "line": 63,
+      "severity": "high",
+      "category": "bug",
+      "content": "**F-244 comment is factually wrong \u2014 the LINELESS guard runs AFTER db open, not before.** The comment block claims \"the LINELESS guard (line above) runs BEFORE the open (line below), so a guard throw "
+    },
+    {
+      "path": "src/hunter/harness/micro-loop-machine.ts",
+      "line": 400,
+      "severity": "critical",
+      "category": "bug",
+      "content": "**Bug: `pendingSettle` is never assigned the `settle` function \u2014 F-408 fix is incomplete.**\n\nThe F-408 fix comment (line 398-399) states: \"expose settle at handle scope so stop() can resolve pendingDo"
+    },
+    {
+      "path": "src/hunter/harness/micro-loop-machine.ts",
+      "line": 445,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Resource leak: `done()` path does not close the SQLite DbClient.**\n\nThe F-501 fix (line 457) correctly closes `snapshot.db` inside `stop()`, but `done()` resolves without triggering db closure. If a"
+    },
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "line": 394,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Bug: `home === -1` branch UPDATE is silently overwritten by the subsequent UPSERT \u2014 displaced key's exile is always lost.**\n\nThe comment on lines 395-399 claims: \"the UPSERT below cannot clobber it "
+    },
+    {
+      "path": "src/hunter/lexicon/compiler.ts",
+      "line": 195,
+      "severity": "high",
+      "category": "bug",
+      "content": "The D13 verbatim-quote guard is bypassable for non-string truthy values in declared predicates. `String(binding['verbatimQuote'] ?? '')` coerces any truthy non-string (e.g. number `42` \u2192 `'42'`, boole"
+    },
+    {
+      "path": "src/hunter/log.ts",
+      "line": 7,
+      "severity": "high",
+      "category": "bug",
+      "content": "Null/undefined safety: If `p` is null or undefined, `p.length` will throw a TypeError at runtime. Since this is a utility function that may receive user-provided paths, add a guard clause to handle fa"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "line": 314,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Flow-value parser has no recursion-depth cap (stack overflow / denial-of-service).**\n\nThe block-level parser correctly caps recursion at depth 100 (F-67 fix), but `parseFlowValue` \u2192 `parseFlowMap`/`"
+    },
+    {
+      "path": "src/hunter/shared/containment.ts",
+      "line": 111,
+      "severity": "high",
+      "category": "bug",
+      "content": "The `resolved` flag (e.g., `rootResolved` in `checkContained`) is computed but not included in the `ContainmentResult` interface or returned to callers. This means functions like `requireContained` ca"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "line": 821,
+      "severity": "high",
+      "category": "bug",
+      "content": "Overly broad idempotent guards: the same catch-and-debug pattern is used for both idempotent DDL (`CREATE VIEW IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, `ATTACH`) and for real writes (`INSERT OR R"
+    },
+    {
+      "path": "src/hunter/shared/kind-for-layer.ts",
+      "line": 7,
+      "severity": "high",
+      "category": "bug",
+      "content": "Uses loose equality `==` for the null/undefined check, which violates the project's coding standard prohibiting `==` and `!=`. While `== null` is an intentional pattern to catch both `null` and `undef"
+    },
+    {
+      "path": "src/hunter/shared/query-engine.ts",
+      "line": 369,
+      "severity": "high",
+      "category": "bug",
+      "content": "SQL LIKE wildcard injection: User-supplied query is interpolated into `LIKE '%..%'` without escaping SQL wildcard characters (`%` and `_`). A query like `a_b` will match `axb`, `ayb`, etc., and `100%`"
+    },
+    {
+      "path": "src/hunter/surface/query-tool.ts",
+      "line": 259,
+      "severity": "high",
+      "category": "bug",
+      "content": "Bug: The `chain` BFS never assigns a `step` number to path rows. Each step object (line ~162) has `from`, `to`, `kind`, `file`, `line` \u2014 but no `step` property. Then `formatRows` (line ~375) reads `r."
+    },
+    {
+      "path": "src/hunter/surface/query-tool.ts",
+      "line": 0,
+      "severity": "high",
+      "category": "bug",
+      "content": "Bug: 7 of 12 verb implementations (`mustImplement`, `unwired`, `rule`, `violations`, `consistency`, `blastRadius`, `wouldBreak`) return raw rows without calling `formatRows`, so the `format` parameter"
+    },
+    {
+      "path": "src/hunter/tools/bug-hunt.ts",
+      "line": 70,
+      "severity": "critical",
+      "category": "security",
+      "content": "CRITICAL: Scope containment is completely bypassed when scopeRoot resolves to '/'. When `scopeReal === '/'`, `scopePrefix` is set to `'/'` (via the `path.sep` branch). Since `inScope` checks `real.sta"
+    },
+    {
+      "path": "src/hunter/tools/query-registration.ts",
+      "line": 85,
+      "severity": "high",
+      "category": "bug",
+      "content": "`db.close()` in the `finally` block may throw (e.g., SQLite I/O error during flush or a corrupt database). If it does, the thrown exception will mask the original error from the `try` block, making de"
+    },
+    {
+      "path": "src/hunter/tools/report-writer-local.ts",
+      "line": 53,
+      "severity": "high",
+      "category": "bug",
+      "content": "The regex `/^#{2,6} /m` does not exclude Markdown fenced code blocks (``` ... ```). If the report body contains a fenced code block with lines like `## Example` or `### ```json`, the `s.search(/^#{2,6"
+    },
+    {
+      "path": "src/hydra/client-reader.ts",
+      "line": 74,
+      "severity": "high",
+      "category": "bug",
+      "content": "Unhandled promise rejection risk: If `old.close()` resolves before the 5000ms timeout, the setTimeout callback will still fire and call `rej(new Error(...))` on an already-settled race. Since nobody i"
+    },
+    {
+      "path": "src/kernel/graph-diff.ts",
+      "line": 136,
+      "severity": "high",
+      "category": "bug",
+      "content": "The blast-radius comparison only checks nodes present in `after.topDegree` (top-5) against `before.topDegree`. A node that was NOT in the top-5 before (e.g., had 2 inbound edges) but now has a very hi"
+    },
+    {
+      "path": "src/kernel/graph-test-target.ts",
+      "line": 77,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Partial batch failure corrupts degree cache (Bug)**: If the second batch loop (`allIds` at lines ~78-85) throws mid-iteration, `degByDst` will contain partially-computed counts. The aggregation loop"
+    },
+    {
+      "path": "src/kernel/scan-chain.ts",
+      "line": 138,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Resource leak risk on non-ok HTTP responses**: When `response.ok` is false, `response.text()` is called to read the error body, but this is wrapped in a try/catch that silently ignores failures. If "
+    },
+    {
+      "path": "src/omp/adapters/abide.ts",
+      "line": 186,
+      "severity": "high",
+      "category": "bug",
+      "content": "Bug: When `subject` is an empty string, `hay.includes(subject)` always returns `true` because `String.prototype.includes('')` is always true in JavaScript. This means an empty subject would match ALL "
+    },
+    {
+      "path": "src/omp/adapters/semantica.ts",
+      "line": 0,
+      "severity": "high",
+      "category": "bug",
+      "content": "The F-825 type guard (line 74) validates that `kg.entities` is an array, but does not validate individual element shapes. If a corrupted or adversarial kg.json contains an entity where `name` is a num"
+    },
+    {
+      "path": "src/omp/adapters/semantica.ts",
+      "line": 0,
+      "severity": "high",
+      "category": "security",
+      "content": "The `..` segment check on line 18 uses `scopeRoot.split(path.sep)`, which is `\\` on Windows. A forward-slash path like `C:/foo/../etc` would not be split correctly \u2014 `path.sep` is `\\`, so the split yi"
+    },
+    {
+      "path": "src/omp/adapters/tsg.ts",
+      "line": 122,
+      "severity": "high",
+      "category": "security",
+      "content": "**Key redaction is fragile and may leak partial key material**: The `split(key).join(replacement)` approach only catches *exact, contiguous* occurrences of the key. It will miss:\n1. Partial key exposu"
+    },
+    {
+      "path": "src/omp/decision.ts",
+      "line": 122,
+      "severity": "high",
+      "category": "security",
+      "content": "**Path traversal via `scopeRoot` (both entry points).** `scopeRoot` is caller-supplied and used directly in `path.join` to derive `storePath`, `ledgerPath`, and `policyPath` without any canonicalizati"
+    },
+    {
+      "path": "src/omp/decision.ts",
+      "line": 257,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Unguarded `new FireLedger(ledgerPath)` breaks the return-type contract.** The `mkdirSync` call above is carefully wrapped in a try/catch that produces a named error \u2014 but the immediately following `"
+    },
+    {
+      "path": "src/omp/enforcement.ts",
+      "line": 128,
+      "severity": "high",
+      "category": "bug",
+      "content": "The design comments promise fail-OPEN handles timeouts (\"a timeout \u2026 SKIPS with a named reason\") and the evidence scan catch labels itself \"TSG_TIMEOUT\", but no timeout is enforced on either `deps.jud"
+    },
+    {
+      "path": "src/omp/gate-hook.ts",
+      "line": 71,
+      "severity": "high",
+      "category": "bug",
+      "content": "**`pendingSteer` memory leak \u2014 no TTL sweep or cap**: Unlike `pendingQueries` (which has `sweepStaleQueries` with a 120s TTL and a per-sid cap of 10), `pendingSteer` has no cleanup mechanism. If a `to"
+    },
+    {
+      "path": "src/omp/gate-hook.ts",
+      "line": 193,
+      "severity": "high",
+      "category": "bug",
+      "content": "**`states` map memory leak for edit-only sessions**: The `states` Map is only evicted inside the `tool_result` handler for graph queries (line 300: `if (!pendingQueries.has(sid)) states.delete(sid)`)."
+    },
+    {
+      "path": "src/omp/gi-registry.ts",
+      "line": 0,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Reliability: `GI_OMP_DB_DIR` completely bypasses test-vs-production isolation.** When `GI_OMP_DB_DIR` is set, the outer `if (!process.env.GI_OMP_DB_DIR)` short-circuits and the entire test-context d"
+    },
+    {
+      "path": "src/omp/graph-gate.ts",
+      "line": 197,
+      "severity": "high",
+      "category": "bug",
+      "content": "HIGH BUG: `computeDrift` drift is always exactly 0 or 1.0 \u2014 the tier cut thresholds (TIER_T1_CUT=0.4, TIER_T2_CUT=0.6, TIER_T3_CUT=0.8) are completely non-functional.\n\nRoot cause: `totalWeight` is onl"
+    },
+    {
+      "path": "src/omp/graph-gate.ts",
+      "line": 81,
+      "severity": "high",
+      "category": "bug",
+      "content": "MEDIUM: `extractExportSymbols` brace-export regex `([^}]{1,400})` silently fails to match any `export { ... }` statement whose content exceeds 400 characters. For barrel files or large re-export lists"
+    },
+    {
+      "path": "src/omp/hard-deps.ts",
+      "line": 330,
+      "severity": "high",
+      "category": "bug",
+      "content": "`join` filters out zero-length strings before joining. When `scopeRoot` is `\"\"`, every `join(cfg.scopeRoot, ...)` produces a bare relative path like `.omp/graph-intelligence/layers/semantica`. This re"
+    },
+    {
+      "path": "src/omp/jev.ts",
+      "line": 169,
+      "severity": "high",
+      "category": "bug",
+      "content": "Null answer values from the API cause an uncaught TypeError that escapes the JevError contract. The check `if (a === undefined) continue;` only guards against missing keys. If the upstream returns nul"
+    },
+    {
+      "path": "src/omp/layer-consumption.ts",
+      "line": 117,
+      "severity": "high",
+      "category": "bug",
+      "content": "`consumptionAudit` builds its own summary string (lines 117-121) but omits `GI_LAYER_ERROR` verdicts, which were added to `layer-registry.ts`'s `summary()` in the F-708 FIX. Consumers that threw mid-q"
+    },
+    {
+      "path": "src/omp/layer-registry.ts",
+      "line": 228,
+      "severity": "high",
+      "category": "bug",
+      "content": "`factsFor()` silently drops consumers that return non-array `facts()` via `console.error` + `continue`, but `auditOne()` returns a `GI_LAYER_ERROR` verdict. This is by design (documented as F-707), bu"
+    },
+    {
+      "path": "src/omp/populate-corbell.ts",
+      "line": 78,
+      "severity": "high",
+      "category": "bug",
+      "content": "Recursive walk has no depth limit \u2014 only a cycle guard (visited set) and a file budget (budget.n). A deeply nested directory tree without cycles and with few or no indexed files (e.g., many empty nest"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "line": 268,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Missing symlink cycle guard in hashSourceTree \u2014 potential infinite loop**\n\nThe freshness probe walk (isGraphifyCheckoutFreshFor) has a `visited` Set keyed on `fs.realpathSync(dir)` to prevent infini"
+    },
+    {
+      "path": "src/omp/populate-graphify.ts",
+      "line": 433,
+      "severity": "high",
+      "category": "bug",
+      "content": "**Sidecar write failure creates an unbounded rebuild loop with no circuit-breaker**\n\nIf the sidecar write (`fs.writeFileSync(hashPath, vettedHash, \"utf8\")`) fails persistently (read-only filesystem, d"
+    },
+    {
+      "path": "src/omp/populate.ts",
+      "line": 138,
+      "severity": "high",
+      "category": "bug",
+      "content": "The original exception `e` is discarded when re-wrapping as a new Error. The original stack trace, cause chain, and any structured error properties are lost, making production debugging significantly "
+    },
+    {
+      "path": "src/omp/rsi.ts",
+      "line": 299,
+      "severity": "high",
+      "category": "bug",
+      "content": "`write()` and `supersede()` return `{ id: 0, ... }` \u2014 the actual SQLite `lastInsertRowid` is never captured from `db.run()`. Any caller that uses the returned row's `id` (e.g., for logging, foreign-ke"
+    },
+    {
+      "path": "src/omp/rsi.ts",
+      "line": 515,
+      "severity": "high",
+      "category": "security",
+      "content": "`forgeForTest()` and `forceSupersedeForTest()` are public methods that allow injecting arbitrary unsigned rows and forcing unverified retirements. Any code with an `RsiStore` reference can call these "
+    },
+    {
+      "path": "src/omp/store-open.ts",
+      "line": 50,
+      "severity": "high",
+      "category": "security",
+      "content": "TOCTOU between `realpathSync` and the subsequent `mkdirSync`/`writeFileSync`: after `resolvedScopeRoot` is computed (line 60\u201366), an attacker with local filesystem access could replace a directory com"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "line": 367,
+      "severity": "high",
+      "category": "bug",
+      "content": "BUG: NaN propagation bypasses the [0,1] clamp. If `opts.ageDays` is NaN (e.g., caller passes an undefined arithmetic result), `Math.exp(-NaN / tau)` evaluates to NaN. Then `base * corr * NaN` = NaN. T"
+    },
+    {
+      "path": "src/scoping/db-path.ts",
+      "line": 42,
+      "severity": "high",
+      "category": "bug",
+      "content": "Environment variable values are not tilde-expanded. If a user sets an env var (e.g. `MY_DB_DIR=~/data`) to override the path, the tilde is treated literally, producing a relative path like `~/data/fil"
+    },
+    {
+      "path": "src/scoping/scope-binding.ts",
+      "line": 109,
+      "severity": "high",
+      "category": "maintainability",
+      "content": "The longest-prefix matching pattern (`[...allPrefixes].sort((a, b) => b.length - a.length)` + linear scan) is duplicated in `ownerOf`, `isForeignWave`, `assertOwnWave`, and `assertAliasNamespace` (4 p"
+    },
+    {
+      "path": "src/scoping/scoped-store.ts",
+      "line": 62,
+      "severity": "high",
+      "category": "bug",
+      "content": "WAL mode failure is silently swallowed. The entire module's design (\"the 8-session law\") exists to prevent the whole-file-rewrite race by using SQLite WAL mode. If WAL silently falls back to rollback "
+    },
+    {
+      "path": "src/scoping/scoped-store.ts",
+      "line": 74,
+      "severity": "high",
+      "category": "bug",
+      "content": "After 3 failed schema attempts the broken handle is still assigned to `storeDb` and returned to callers. Every subsequent operation will fail with missing-table errors, and the broken handle will be r"
+    },
+    {
+      "path": "src/scoping/scoped-store.ts",
+      "line": 95,
+      "severity": "high",
+      "category": "bug",
+      "content": "closeStoreDb() clears storeOpenInFlightByPath without resolving or rejecting the pending promises. Any caller awaiting a gate promise from that map will hang indefinitely \u2014 the Promise never settles. "
+    }
+  ],
+  "run": "run-12 (the first audit of the post-R11 tree; the 3 criticals adjudicated REAL and fixed)",
+  "provider": "muse-go-mimo (mimo-v2.5)"
+}
