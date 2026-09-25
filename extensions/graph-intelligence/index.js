@@ -18585,7 +18585,17 @@ function corbellProbe(scopeRoot) {
     rung: "settlement",
     dependency: "the corbell parse-grade checkout (PRIMARY)",
     errorCode: "GI_LAYER_CORBELL",
-    up: () => probePath(storePath, true),
+    up: () => {
+      const probe = probePath(storePath, true);
+      if (!probe.up)
+        return probe;
+      try {
+        assertStoreFresh(storePath);
+        return probe;
+      } catch (e) {
+        return { up: false, evidence: `${storePath} (${e instanceof Error ? e.message : String(e)})` };
+      }
+    },
     facts: (subject) => {
       assertStoreFresh(storePath);
       return storeFacts("L5_CORBELL", "settlement", storePath, subject);
