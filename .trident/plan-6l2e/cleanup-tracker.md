@@ -893,3 +893,14 @@ a lane's death.**
 one model; the conclusion named the whole lane. **When a lane reports dead, probe EACH model on it
 before retiring the lane** — and when a rate-limited lane writes EMPTY parts, the audit's coverage is
 a lie the count hides (37/113 "parts" can be 37 minus the empties).
+
+**★ THE POOL FINDING (the same class, the second instance).** The go lane's key pool:
+```
+  n=8 | go-3 ok · go-8 ok · go-1 dead until 2026-09-25T10:20 · go-6 dead until 09:28 · go-7 dead until 09:34
+        go-2 dead until 2026-10-25 · go-4 dead until 2026-10-25 · go-5 dead until 2026-10-25
+```
+**THREE keys are dead for a MONTH** (go-2/4/5) — the pool is 5-usable-of-8, and a pick that lands on a
+dead key refuses the launch. **`pick` returned good keys 6/6 when measured**, so the lane is healthy
+and the 403 was a transient bad pick. **The audit's retry-on-refuse (5 attempts per half) absorbs it.**
+**★ A pool whose dead entries persist for a month is a pool at 62% — the maintenance defect is the
+dead keys, not the lane.**
