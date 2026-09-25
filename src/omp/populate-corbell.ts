@@ -109,7 +109,13 @@ export function isCorbellCheckoutFreshFor(root: string, warmPath: string): { fre
         try {
           const m = fs.statSync(path.join(dir, entry.name)).mtimeMs;
           if (m > newest) newest = m;
-        } catch { /* unreadable file — skip */ }
+        } catch {
+          // R16D FIX (2026-09-25, group-d finding :110): an unreadable source file
+          // was silently skipped while unreadable DIRS fail closed via walkFailed - a
+          // changed-but-unreadable newest file read 'fresh'. Same discipline: fail closed.
+          walkFailed = true;
+          return;
+        }
       }
     }
   };

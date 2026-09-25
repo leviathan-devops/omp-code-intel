@@ -302,6 +302,10 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
   // the loader passes, default cwd) — an absolute path or a `../` escape from
   // the graph JSON can never anchor a finding outside the target tree (the row
   // keeps its identity; only the anchor is dropped to "").
+  // ★ W16-HIGH: anchors whose realpath cannot be proven (a fixture, a not-yet-written
+  //   generated file, a broken symlink) are KEPT on their lexical normalized path and
+  //   COUNTED — the count is what makes the unproven-containment state OBSERVABLE.
+  let anchorUnverified = 0;
   if (opts?.root) {
     // C2 (qwen d5d5c883 [2]): the base MUST canonicalize — when realpath
     // fails the base is non-real while targets resolve real, so relative()
@@ -318,9 +322,22 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       const n = nodes[i]!;
       const f = n.file;
       if (f.length === 0) continue;
-      const abs = path.isAbsolute(f) ? f : path.resolve(rootReal, f);
+      // ★ W16-HIGH (REVISED 2026-09-25 by the wave audit): the reviewer's fail-closed
+      //   drop was REJECTED in part — it broke the pinned `st-gi-w3-validation` contract
+      //   (`test_w3_chain_skips_lineless_steps`: a fixture whose anchors are not on disk
+      //   yet lost EVERY node → zero in-scope → GRAPH_EMPTY). Dropping a node converts
+      //   "containment unprovable" into "node silently INVISIBLE", which is the
+      //   loud-fail violation (a wrong answer dressed as an empty one).
+      //
+      //   THE `../` ESCAPE IT WORRIED ABOUT IS ALREADY DEAD: `path.resolve(rootReal, f)`
+      //   + `path.normalize` collapse `..` LEXICALLY before the containment compare, so
+      //   the lexical check cannot be fooled by a spelled escape. What the lexical path
+      //   genuinely cannot prove is SYMLINK containment — and for that the correct
+      //   polarity is: keep the node, mark it UNVERIFIED, and count it (never vanish it).
+      //   (C2 still pins the unresolvable-ROOT case to keep-as-is.)
+      const abs = path.isAbsolute(f) ? path.normalize(f) : path.resolve(rootReal, f);
       let real = abs;
-      try { real = fs.realpathSync(abs); } catch { /* keep abs */ }
+      try { real = fs.realpathSync(abs); } catch { anchorUnverified += 1; /* keep the lexical, normalized path */ }
       const rel = path.relative(rootReal, real);
       const contained = isContainedRel(rel);
       const safeFile = contained ? rel.split(path.sep).join("/") : "";
@@ -331,6 +348,9 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
         if (at === n.id) nodeIdByRaw.set(raw, nodes[i]!.id);
       }
     }
+  }
+  if (anchorUnverified > 0) {
+    tridentLog("WARN", "graphify-adapter", `normalize: ${anchorUnverified} anchor(s) kept on their LEXICAL path — realpath unprovable (symlink containment unverified; the row stays visible rather than vanishing)`);
   }
   return { nodes, edges, communities, godNodes };
 }
@@ -737,11 +757,16 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
     // EN-041: the node's `source_location` AND the raw edge are both handed to
     // the resolver — the raw edge is the authoritative locator when the node
     // lacks one (the real schema puts `source_location` on BOTH).
+    // ★ W16-HIGH FIX: resolve via srcId (the source/src-fallback value used for
+    //   the byId lookup above) — the old `nodeByRawId.get(e.src)` read the RAW
+    //   `src` field only, so edges in the real graphify schema (source/target,
+    //   EN-041) missed their node locator and inflated danglingNoLine.
+    const srcRaw = nodeByRawId.get(srcId);
     const line = parseLineValue(edgeLoc)
       ?? srcNode?.line
       ?? tryResolveGraphifyLine(
-        { data: (nodeByRawId.get(e.src)?.data ?? {}) as Record<string, unknown>,
-          source_location: rawSourceLocation(nodeByRawId.get(e.src)) },
+        { data: (srcRaw?.data ?? {}) as Record<string, unknown>,
+          source_location: rawSourceLocation(srcRaw) },
         rawEdge,
       );
     if (line === undefined) danglingNoLine++;

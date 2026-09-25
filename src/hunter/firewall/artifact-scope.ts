@@ -124,7 +124,9 @@ export async function classify(
   // THE NORMALIZED CONTAINMENT — the target's parent, normalized, must equal the master dir.
   // THE REGEX IS THE MECHANICAL DETECTOR ONLY — the path-normalization comparison; THE DECISION
   // is the REPORT_SCOPE_DECISION state machine (PARSED -> ALLOW_REPORT | BLOCKED).
-  const targetNorm = path.normalize(path.resolve(input.target));
+  // ★ R15: relative targets resolve against projectRoot, not process.cwd — the old
+  // path.resolve(input.target) made the normalized-parent gate cwd-dependent.
+  const targetNorm = path.normalize(path.isAbsolute(input.target) ? path.resolve(input.target) : path.resolve(projectRootReal, input.target));
   const targetParentNorm = path.normalize(path.dirname(targetNorm));
   const masterNorm = path.normalize(masterDir);
   const base = path.basename(targetNorm);
@@ -191,7 +193,11 @@ export async function classify(
 
   // THE VERSIONING STEP (§7.3:3409-3413) — an explicit overwrite of an EXISTING report is BLOCKED.
   try {
-    await fs.stat(input.target);
+    // ★ R15: lstat the normalized target — a symlink pointing outside the master dir
+    // must be BLOCKED, never followed. fs.stat follows the link; lstat sees it.
+    const lt = await fs.lstat(targetNorm);
+    if (lt.isSymbolicLink()) return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
+    await fs.stat(targetNorm);
     // The target EXISTS -> the explicit overwrite is BLOCKED (the N-versioning: v1 exists -> v2 allowed).
     return blocked('REPORT_SCOPE_BLOCKED', base, input.target);
   } catch (e: unknown) {

@@ -110,7 +110,27 @@ export interface AppendFindingsResult {
     if (typeof runId !== 'string' || runId.trim() === '') {
       throw findingNoTriplet(`refusing appendFindings of ${findings.length} findings with an empty runId — the run scope is mandatory (K21.2 determinism)`);
     }
-    db.exec('BEGIN IMMEDIATE');
+    // ★ R15H5 FIX (2026-09-25): preventable validation runs BEFORE BEGIN — an
+    //   evidence-less finding is rejectable without a transaction, so it must not
+    //   force a ROLLBACK; an empty batch returns without paying BEGIN/COMMIT.
+    if (findings.length === 0) return { runId, week: week ?? null, appended: 0 };
+    for (let i = 0; i < findings.length; i++) {
+      const f = findings[i];
+      if (typeof f.evidence !== 'string' || f.evidence.trim() === '') {
+        throw findingNoTriplet(
+          `finding ${f.ruleId} at ${f.file}:${f.line} carries an empty evidence string (landed=0 remaining=${findings.length} of ${findings.length})`,
+        );
+      }
+    }
+    // ★ R15H5 FIX (2026-09-25): BEGIN is non-reentrant — a caller already holding
+    //   a transaction (SQLite: cannot start a transaction within a transaction)
+    //   gets the NAMED error, never a raw driver throw. DbClient exposes no
+    //   inTransaction probe, so nesting is refused loud, never detected.
+    try {
+      db.exec('BEGIN IMMEDIATE');
+    } catch (e: unknown) {
+      throw new Error(`FINDING_TX_BEGIN_FAILED: cannot open the appendFindings transaction — ${e instanceof Error ? e.message : String(e)} (appendFindings is non-reentrant; serialize hunts or commit the outer transaction first)`);
+    }
     try {
       for (let i = 0; i < findings.length; i++) {
         const f = findings[i];

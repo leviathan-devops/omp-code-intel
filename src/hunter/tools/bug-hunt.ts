@@ -61,27 +61,45 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
   //   here: canonicalize, require an existing directory target + an existing profile file.
   //   The lock is taken on the ABSOLUTE target (one dir = one lock; relative spellings shared
   //   nothing before). The fs import is dynamic so the tool layer never grows a static dep.
+  // ★ R15: the fail-closed RESULT constructor — validation failures return INCONCLUSIVE (the header contract), never throw.
+  const inconclusive = (message: string): BugHuntResult => ({ runId: `hunt-failed-${Date.now()}`, state: 'inconclusive', findingsCount: 0, reportPath: null, fixOrder: [], error: message });
   const fsDyn = await import('node:fs');
   const absTarget: string = path.resolve(args.targetPath);
   // ★ F-303 FIX (2026-09-24): SCOPE CONTAINMENT. F-251/F-252 canonicalized but never
   //   BOUNDED — `/etc` (or any existing dir) passed the isDirectory check, and any
   //   existing file passed the profile check. When the caller supplies scopeRoot, both
   //   resolved paths must be inside it (symlink-aware: realpath both sides first).
-  const scopeReal = args.scopeRoot ? fsDyn.realpathSync(path.resolve(args.scopeRoot)) : null;
+  // ★ R15: scopeRoot omitted no longer disables containment (the /etc hole) — the validated absolute target is its own containment root; an unresolvable scopeRoot is INCONCLUSIVE, never a raw realpathSync throw.
+  let scopeReal: string | null = null;
+  if (args.scopeRoot) {
+    try {
+      scopeReal = fsDyn.realpathSync(path.resolve(args.scopeRoot));
+    } catch {
+      return inconclusive(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} cannot resolve for scope check (realpath failed — chmod/fix permissions or remove broken symlinks)`);
+    }
+  } else {
+    try {
+      scopeReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      scopeReal = null;
+    }
+  }
   // ★ F-870 FIX (2026-09-24, run-12 CRITICAL): `scopeReal === path.sep ? path.sep : …` made the
   //   prefix `'/'` when scopeRoot was `/` — and EVERY absolute path starts with `/`, so
   //   containment was VACUOUSLY TRUE and the whole F-303 guard defeated. This is the SAME
   //   class F-601 fixed in the shared primitive's `rootPrefixOf` — this site had its own copy.
   //   A filesystem-root scope is now REFUSED (it is not a meaningful containment boundary).
   if (scopeReal === path.sep) {
-    throw new Error(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root — containment against '/' admits every path and is not a boundary`);
+    return inconclusive(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root — containment against '/' admits every path and is not a boundary`);
   }
   const scopePrefix = scopeReal === null ? null : scopeReal + path.sep;
   const inScope = (real: string): boolean => scopeReal === null || real === scopeReal || (scopePrefix !== null && real.startsWith(scopePrefix));
+  // ★ R15 CRITICAL: ONE canonical lock key per scope — the hunt locked absTarget while status locks scopeRoot, so a nested-target hunt never met the status read (F-1004 defeated). Canonical: the resolved scopeRoot when present, else the validated absolute target. Status (below) resolves the same key.
+  const lockTarget = args.scopeRoot ? path.resolve(args.scopeRoot) : absTarget;
   let targetOk = false;
   try { targetOk = fsDyn.statSync(absTarget).isDirectory(); } catch { targetOk = false; }
   if (!targetOk) {
-    throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} — the hunt target must be a real directory inside the scope)`);
+    return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} — the hunt target must be a real directory inside the scope)`);
   }
   if (scopeReal !== null) {
     // ★ F-409 FIX (2026-09-24): fail-closed on realpath failure — if we cannot resolve the
@@ -90,19 +108,19 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
     try {
       targetReal = fsDyn.realpathSync(absTarget);
     } catch {
-      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scopeReal} realpath failed — chmod/fix permissions or remove broken symlinks)`);
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scopeReal} realpath failed — chmod/fix permissions or remove broken symlinks)`);
     }
     if (!inScope(targetReal)) {
-      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
     }
   }
   if (typeof args.profilePath === 'string' && args.profilePath.length > 0) {
     const absProfile: string = path.resolve(args.profilePath);
     if (!fsDyn.existsSync(absProfile)) {
-      throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
+      return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
     }
   }
-  acquireHuntLock(absTarget);
+  acquireHuntLock(lockTarget);
   try {
     // ★ F-251 FIX (2026-09-24): the machine rides the VALIDATED absolute target —
     //   the lock (above) and the loop (here) now share one path, so relative
@@ -115,7 +133,7 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
       let profileOk = false;
       try { profileOk = fsDyn.statSync(absProfile).isFile(); } catch { profileOk = false; }
       if (!profileOk) {
-        throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
+        return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} — the profile must exist)`);
       }
       // ★ F-303b FIX (2026-09-24): the profile obeys the SAME containment as the target.
       if (scopeReal !== null) {
@@ -124,25 +142,27 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
         try {
           profileReal = fsDyn.realpathSync(absProfile);
         } catch {
-          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} cannot resolve for scope check (scope=${scopeReal} realpath failed — chmod/fix permissions or remove broken symlinks)`);
+          return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} cannot resolve for scope check (scope=${scopeReal} realpath failed — chmod/fix permissions or remove broken symlinks)`);
         }
         if (!inScope(profileReal)) {
-          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
+          return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
         }
       }
     }
     // ★ F-252b FIX (2026-09-24): build the options object as a SINGLE typed literal — the
     //   spread union widened `profilePath` to `string | undefined`, which the required
     //   MicroLoopOptions.profilePath rejects. `absProfile` is set whenever the caller passed one.
-    const machine = createMicroLoop({
-      targetPath: absTarget,
-      profilePath: absProfile ?? "",
-      ...(args.adapter ? { adapter: args.adapter } : {}),
-      ...(args.profile ? { profile: args.profile } : {}),
-      ...(args.battery ? { battery: args.battery } : {}),
-      ...(args.reportWriter ? { reportWriter: args.reportWriter } : {}),
-    });
+    // ★ R15: the machine is created INSIDE the fail-closed try — a createMicroLoop throw maps to INCONCLUSIVE like every other machine failure, never escapes as a throw.
+    let machine: ReturnType<typeof createMicroLoop> | null = null;
     try {
+      machine = createMicroLoop({
+        targetPath: absTarget,
+        profilePath: absProfile ?? "",
+        ...(args.adapter ? { adapter: args.adapter } : {}),
+        ...(args.profile ? { profile: args.profile } : {}),
+        ...(args.battery ? { battery: args.battery } : {}),
+        ...(args.reportWriter ? { reportWriter: args.reportWriter } : {}),
+      });
       machine.start({ type: "START" });
       await machine.done();
       const { result } = machine.getSnapshot();
@@ -171,17 +191,17 @@ export async function spawnBugHunterLoop(args: BugHuntArgs & BugHuntLoopOverride
       };
     } finally {
       try {
-        machine.context.db?.close();
+        machine?.context.db?.close();
       } catch {
         /* the idempotent close */
       }
       // ★ F-17 FIX (2026-09-24): the stop() is guarded — an unguarded throw in the finally
       //   would mask the original error (the R16 cleanup law).
-      try { machine.stop(); } catch { /* the idempotent stop */ }
+      try { machine?.stop(); } catch { /* the idempotent stop */ }
     }
   } finally {
     try {
-      releaseHuntLock(absTarget);
+      releaseHuntLock(lockTarget);
     } catch (e: unknown) {
       console.error(`[bug-hunt] HUNT_LOCK_RELEASE_FAILED target=${args.targetPath} error=${e instanceof Error ? e.message : String(e)} (loud, never masking the hunt RESULT)`);
     }
@@ -274,7 +294,7 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
         //   that is neither before nor after. PROBE: status while the lock is held -> HUNT_BUSY
         //   (never a half-written count).
         try {
-          acquireHuntLock(scopeRoot);
+          acquireHuntLock(path.resolve(scopeRoot));
         } catch (lockErr) {
           const lockMsg = lockErr instanceof Error ? lockErr.message : String(lockErr);
           if (lockMsg.includes("HUNT_ALREADY_RUNNING")) {
@@ -312,7 +332,7 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
           });
         } finally {
           // * F-1004 (release): the status holds the hunt lock only for the read window.
-          try { releaseHuntLock(scopeRoot); } catch { /* best-effort release */ }
+          try { releaseHuntLock(path.resolve(scopeRoot)); } catch { /* best-effort release */ }
         }
       } catch (e) {
         // ★ F-33 FIX (2026-09-24): `"code" in err` throws TypeError when the caught

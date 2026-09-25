@@ -96,10 +96,21 @@ export class GraphifyClientReader {
       // ★ F-1024 FIX (2026-09-25): a stalled transport hung listTools() forever, holding
       // ★ the captured reference and deadlocking later ops — same class as F-611/F-612.
       // ★ Bounded with the same 5000ms Promise.race shape as attach()/disconnect().
-      return await Promise.race([
-        t.listTools(),
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000).unref?.()),
-      ]);
+      // ★ R16C FIX (2026-09-25, group-c:99): the abandoned timeout fired 5s after a win,
+      //   holding the event loop (the `.unref?.()` sat on the Promise, not the timer, so it
+      //   never unref'd). The timer is captured, correctly unref'd, and cleared on settle.
+      //   NOTE: the "crash" mechanism does not reproduce — Promise.race subscribes to both
+      //   legs, so the loser's later rejection is handled, not unhandled (probed: 0 unhandled).
+      let listTimer: ReturnType<typeof setTimeout> | undefined;
+      const listTimeout = new Promise<never>((_, rej) => {
+        listTimer = setTimeout(() => rej(new Error('GRAPHIFY_LIST_TIMEOUT: listTools() exceeded 5000ms')), 5000);
+        listTimer?.unref?.();
+      });
+      try {
+        return await Promise.race([t.listTools(), listTimeout]);
+      } finally {
+        if (listTimer) clearTimeout(listTimer);
+      }
     } catch (err) {
       throw new Error(`GRAPHIFY_MCP_LIST_FAILED: ${String((err as Error).message ?? err)}`);
     }

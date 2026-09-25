@@ -142,8 +142,8 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
   const masterContextDir = resolveMasterContextDir(input.projectRoot)
     ?? path.join(input.projectRoot, 'MASTER_CONTEXT');
   fs.mkdirSync(masterContextDir, { recursive: true });
-  const version = nextReportVersion(masterContextDir);
-  const reportPath = path.join(masterContextDir, `bug_hunter_report_v${version}.md`);
+  let version = nextReportVersion(masterContextDir);
+  let reportPath = path.join(masterContextDir, `bug_hunter_report_v${version}.md`);
 
   const lines: string[] = [
     `# BUG-HUNT REPORT — v${version}`,
@@ -189,12 +189,21 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
   // ★ F-37 FIX (2026-09-24): exclusive create — a concurrent report that already
   //   landed this version no longer gets silently overwritten; the collision is a
   //   loud named error (hunts ride the hunt-lock, so this is pathological-only).
-  try {
-    fs.writeFileSync(reportPath, document, { encoding: 'utf-8', flag: 'wx' });
-  } catch (e: unknown) {
-    const code = (e !== null && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : '';
-    if (code === 'EEXIST') throw new Error(`REPORT_VERSION_COLLISION: path=${reportPath} (another report landed v${version} concurrently — re-run the report actor)`);
-    throw new Error(`REPORT_WRITE_FAILED: path=${reportPath} detail=${e instanceof Error ? e.message : String(e)}`);
+  // ★ R15: bounded retry — two concurrent hunts probing the same max version both attempt
+  // v(N+1); the loser retries instead of failing with REPORT_VERSION_COLLISION.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const retryVersion = nextReportVersion(masterContextDir);
+    const retryPath = path.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);
+    try {
+      fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });
+      version = retryVersion;
+      reportPath = retryPath;
+      break;
+    } catch (e: unknown) {
+      const code = (e !== null && typeof e === 'object' && 'code' in e) ? String((e as { code: unknown }).code) : '';
+      if (code === 'EEXIST' && attempt < 4) continue;
+      throw new Error(`REPORT_WRITE_FAILED: path=${retryPath} detail=${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   const bytes = Buffer.byteLength(document, 'utf-8');
   return {
@@ -281,7 +290,13 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
     //   (The graph_facts memory wire below stays best-effort OUTSIDE the tx: it is
     //   cross-run memory, not the hunt's own truth. Rollback failure is its own loud
     //   state — the caller must know the batch error AND the tx may still be open.)
-    input.db.exec('BEGIN IMMEDIATE');
+    // ★ R15: BEGIN inside the guarded region — a caller holding a transaction or a locked
+    // DB throws REPORT_TX_BEGIN_FAILED instead of escaping with an indeterminate handle.
+    try {
+      input.db.exec('BEGIN IMMEDIATE');
+    } catch (e: unknown) {
+      throw new Error(`REPORT_TX_BEGIN_FAILED: ${e instanceof Error ? e.message : String(e)} (caller may already hold a transaction — use a savepoint or serialize hunts)`);
+    }
     try {
       for (const s of sections) {
         appendReportSection(input.db, s, input.runId);

@@ -97,9 +97,13 @@ export async function generateLocalReport(input: ReportWriterInput): Promise<Rep
     console.error(
       `[report-writer-local] REPORT_CAPPED reason=operator-500-cap findings=${cov.total} rendered=${MAX_REPORT_FINDINGS} byRule=${JSON.stringify(cov.byRule)} (the FULL set stays in the hunt store — query it via the structural verbs, never a silent truncation)`,
     );
-    const keep = new Set(findings.slice(0, MAX_REPORT_FINDINGS).map((f) => f.id));
+    // ★ R15: severity rank before truncation — the header promises 'RANKED ACTIONABLE CORE'
+    // but the old code kept input order. CRIT>HIGH>MED>WARN, stable tie-break by original index.
+    const severityRank: Record<string, number> = { CRIT: 0, HIGH: 1, MED: 2, WARN: 3 };
+    const ranked = [...findings].sort((a, b) => (severityRank[a.severity] ?? 99) - (severityRank[b.severity] ?? 99));
+    const keep = new Set(ranked.slice(0, MAX_REPORT_FINDINGS).map((f) => f.id));
     sections = sections.filter((s) => keep.has(s.finding_id));
-    findings = findings.slice(0, MAX_REPORT_FINDINGS);
+    findings = ranked.slice(0, MAX_REPORT_FINDINGS);
   }
   // ★ F-34 FIX (2026-09-24): the writer throw (disk full/perm/missing dir) was an
   //   uncontextualized propagation — wrap with the named REPORT_WRITE_FAILED token

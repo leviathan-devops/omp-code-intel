@@ -124,10 +124,11 @@ export function graphFromManifest(nodes: FixtureNodeManifest[]): GraphAdapter {
       // ★ TypeError. The loader's expectation (graph.nodes is FixtureNodeManifest[]) is enforced
       // ★ here with the loud CALIBRATION_FIXTURE_INVALID naming the offending label.
       const g = (parsed as { graph?: unknown }).graph;
-      if (g !== undefined) {
-        if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {
-          throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);
-        }
+      // ★ R15 FIX: graph is REQUIRED — both loaders dereference manifest.graph.nodes
+      //   unconditionally, so a manifest with no graph key used to pass the guard and
+      //   die with bare TypeError instead of CALIBRATION_FIXTURE_INVALID.
+      if (typeof g !== 'object' || g === null || !Array.isArray((g as { nodes?: unknown }).nodes)) {
+        throw new Error(`CALIBRATION_FIXTURE_INVALID: ${label} graph.nodes must be an array`);
       }
       return parsed as T;
     }
@@ -175,6 +176,12 @@ function severityFromBinding(v: unknown): 'CRIT' | 'HIGH' | 'MED' | 'WARN' {
  *  ★ named-error contract the health register depends on). */
 export function loadFireFixture(dir: string): FireFixture {
   const manifest = asFixture<FireFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'fire manifest');
+  // ★ R15 FIX: a missing/non-string sourceFile used to reach path.resolve and die with
+  //   bare ERR_INVALID_ARG_TYPE; "" resolved to the dir itself (later EISDIR) — neither
+  //   surfaced as CALIBRATION_FIXTURE_INVALID. Validate before any filesystem touch.
+  if (typeof manifest.sourceFile !== 'string' || manifest.sourceFile.length === 0) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} carries a missing/empty sourceFile`);
+  }
   // The manifest's own SPELLING is still checked lexically (a `..` that escapes is refused
   // on the string form — the shape question, asked before any filesystem touch).
   const spelled = path.resolve(dir, manifest.sourceFile);
@@ -211,6 +218,10 @@ export function loadFireFixture(dir: string): FireFixture {
  *  ★ Same two-question shape: lexical spelling check, then requireContained. */
 export function loadGoldenFixture(dir: string): GoldenFixture {
   const manifest = asFixture<GoldenFixtureManifest>(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'), 'golden manifest');
+  // ★ R15 FIX: same missing/empty sourceFile class as the fire loader above.
+  if (typeof manifest.sourceFile !== 'string' || manifest.sourceFile.length === 0) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} carries a missing/empty sourceFile`);
+  }
   const spelled = path.resolve(dir, manifest.sourceFile);
   const dirSpelled = path.resolve(dir);
   if (spelled !== dirSpelled && !spelled.startsWith(dirSpelled + path.sep)) {

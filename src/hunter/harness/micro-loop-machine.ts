@@ -112,6 +112,18 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
   // only known then) and assigned to the context on recon success. This
   // fallback survives ONLY a recon failure (INCONCLUSIVE — no project to name).
   const runId = `hunt-${Date.now()}-${profilePath.split('/').pop()?.replace(/[^a-z0-9]/gi, '') || 'run'}`;
+  // ★ R15 FIX: targetPath was stored in context but never forwarded to any invoke input
+  //   (recon/map/scan/trace/strike/report) — recon derives root from profile.project.root,
+  //   so targetPath != profile root scanned the WRONG directory silently. Fail closed HERE:
+  //   when a profile override is supplied the caller names BOTH roots, so they must agree;
+  //   without an override the profile path is the only pre-load anchor — still require the
+  //   target to be a real directory (spawnBugHunterLoop validates scope; the pin's tmp dirs
+  //   always exist). NOTE: no silent rewrite, no forwarding magic — a mismatch throws.
+  if (options.profile) {
+    if (options.profile.project.root !== targetPath) {
+      throw new Error(`[micro-loop] targetPath=${targetPath} disagrees with profile.project.root=${options.profile.project.root} — pass one root (the hunt target IS the profile root)`);
+    }
+  }
   const adapterOverride = options.adapter ?? null;
   const profileOverride = options.profile ?? null;
   const batteryOverride = options.battery ?? null;
@@ -290,15 +302,30 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
           let seq = 0;
           try {
             const prefix = `${slug}-hunt-${day}-`;
-            for (const row of store.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
-              try {
-                const payload = JSON.parse(String(row['payload'] ?? '{}')) as { runId?: unknown };
-                if (typeof payload.runId === 'string' && payload.runId.startsWith(prefix)) {
-                  const rest = payload.runId.slice(prefix.length);
-                  if (/^\d+$/.test(rest)) seq = Math.max(seq, Number(rest));
-                }
-              } catch { /* unparseable payload — skipped */ }
+          // ★ R15 FIX: the stub seam duplicated recon's scan with a weaker shape — silent
+          //   catch{} on corrupt payloads (no F-1201 salvage: a corrupt high-seq row let
+          //   the next runId collide). Same salvage as openAndNextRunId: extract the
+          //   <prefix><digits> runId before skipping. openStore creating the file on disk
+          //   is recon's own materialization semantic (shared with the real path), kept.
+          for (const row of store.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
+            let rawText = '';
+            try {
+              const raw: unknown = row['payload'];
+              rawText = typeof raw === 'string' ? raw : String(raw ?? '');
+              const payload = (raw !== null && typeof raw === 'object' ? raw : JSON.parse(String(raw ?? '{}'))) as { runId?: unknown };
+              if (typeof payload.runId === 'string' && payload.runId.startsWith(prefix)) {
+                const rest = payload.runId.slice(prefix.length);
+                if (/^\d+$/.test(rest)) seq = Math.max(seq, Number(rest));
+              }
+            } catch (e: unknown) {
+              const idx = rawText.indexOf(prefix);
+              if (idx !== -1) {
+                const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
+                if (dm?.[0] !== undefined) seq = Math.max(seq, Number(dm[0]));
+              }
+              console.warn(`[micro-loop] stub-seam HUNT_DONE payload parse failed — skipped: ${e instanceof Error ? e.message : String(e)}; raw=${rawText.slice(0, 120)}`);
             }
+          }
           } finally {
             store.close();
           }
@@ -439,30 +466,28 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
         //   Bind the closure into the handle-scope slot now, so stop() can actually resolve it.
         pendingSettle = settle;
         const sub2 = actor.subscribe((s): void => {
+          // ★ R15 FIX: one terminal subscription — actor status 'done' fires on ANY
+          //   final (done AND inconclusive), so the second value==='inconclusive' sub
+          //   was redundant. PROBE-RESISTANT shape: sub2 alone settles both finals;
+          //   the old pair + never-reset pendingDone made concurrent done()+stop() fragile.
           if (s.status === 'done') { settle(); }
-        });
-        // the INCONCLUSIVE terminal resolves too (a legitimate terminal state —
-        // the fail-state is a RESULT, not an unhandled rejection). The error is
-        // carried in the context for the getSnapshot() reader.
-        const sub3 = actor.subscribe((s): void => {
-          const value = typeof s.value === 'string' ? s.value : Object.values(s.value as Record<string, unknown>)[0];
-          if (value === 'inconclusive') { settle(); }
         });
         // ★ F-1042 FIX (2026-09-25): handleDisposables was NEVER populated — stop()'s
         // ★ disposal loop was dead code and stop() during a pending done() leaked sub2/sub3.
         // ★ Register both subs so stop() tears them down; settle() already removes them.
-        handleDisposables.push(sub2, sub3);
+        // ★ R15: sub3 is FOLDED into sub2 (single terminal subscription) — only sub2 registers.
+        handleDisposables.push(sub2);
         function settle(): void {
           if (settled) return;
           settled = true;
           pendingSettle = null;
           sub2.unsubscribe();
-          sub3.unsubscribe();
           // ★ F-700 FIX (2026-09-24): settle() unsubscribed sub2/sub3 but left them in
           // ★ handleDisposables, so stop() unsubscribed them a SECOND time. Remove them
           // ★ here — the stop() loop now only ever sees live subscriptions.
+          // ★ R15: single subscription — only sub2 exists (sub3 folded above).
           for (let i = handleDisposables.length - 1; i >= 0; i--) {
-            if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3) handleDisposables.splice(i, 1);
+            if (handleDisposables[i] === sub2) handleDisposables.splice(i, 1);
           }
           // ★ F-1202 REVERTED (2026-09-25): closing the DbClient on SETTLE breaks a PINNED
           //   contract — st-hunter-port reads the store's rows AFTER `await loop.done()`

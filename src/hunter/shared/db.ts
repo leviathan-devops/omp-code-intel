@@ -462,6 +462,15 @@ export class SharedDb implements DbClient {
         throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
       }
     }
+    // ★ R15 FIX: with foreign_keys=ON a dangling endpoint died as raw
+    //   SQLITE_CONSTRAINT_FOREIGNKEY mid-transaction (undiagnosable rollback reason).
+    //   Check endpoint existence FIRST and name the edge fail-closed (LINEAGE_MISSING vocabulary).
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    for (const e of edges) {
+      if (!nodeIds.has(e.sourceId) || !nodeIds.has(e.targetId)) {
+        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId} (dangling endpoint — no such node in this write batch)`);
+      }
+    }
     const tx = this.handle.transaction((): void => {
       // THE PER-RUN REBUILD (2026-08-13 — the FK crash fix): clear the graph
       // tables first (edges before nodes — the FK order), then insert the fresh
@@ -495,7 +504,13 @@ export class SharedDb implements DbClient {
     }
     if (!SEVERITIES.includes(finding.severity)) throw findingInvalid('severity', finding.severity);
     if (!FINDING_VERDICTS.includes(finding.verdict)) throw findingInvalid('verdict', finding.verdict);
-    const persistedEvidence = (finding as FindingInput & { triad?: unknown }).triad ? `${finding.evidence} | TRIAD ${JSON.stringify((finding as FindingInput & { triad?: unknown }).triad)}` : finding.evidence;
+    // ★ R15 FIX: the '| TRIAD <json>' suffix broke round-trip fidelity, LIKE/search on
+    //   evidence, and downstream parsing (the triad JSON may itself contain '|' and is
+    //   unescaped; JSON.stringify can throw raw on circular triads). Evidence stays
+    //   VERBATIM; the triad rides the typed FindingInput.triad field (and the triad.ts
+    //   authority), never a string-concat. No reader parsed the suffix (grep TRIAD: only
+    //   this writer + triad.ts); nothing downstream changes shape.
+    const persistedEvidence = finding.evidence;
     this.handle.prepare(
       `INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
@@ -548,41 +563,45 @@ export class SharedDb implements DbClient {
   mirrorToMasterContext(profile: ProjectProfile): string {
     const mirrorDir = path.join(profile.project.root, 'MASTER_CONTEXT', 'knowledge-graph');
     const mirrorPath = path.join(mirrorDir, 'graph.db');
-    let mirror: Database;
+    let mirror: Database | undefined;
     try {
       fs.mkdirSync(mirrorDir, { recursive: true });
       mirror = new Database(mirrorPath);
       applyPragmas(mirror);
     } catch (e: unknown) {
+      // ★ R15 FIX: a new Database() success followed by an applyPragmas throw leaked the
+      //   just-opened handle (WAL + -shm/-wal fds). Best-effort close before the named throw.
+      try { mirror?.close(); } catch { /* best-effort — the named error below is what matters */ }
       throw mirrorWriteFailed(mirrorPath, `mirror open failed: ${String(e)}`);
     }
-
+    // Narrowed: the catch above throws, so a fall-through mirror is always open.
+    const openMirror: Database = mirror;
     // ★ F-35 FIX (2026-09-24): the whole rebuild (DROP + schema + row copies)
     //   rides ONE transaction — a crash mid-copy rolls back to the previous mirror
     //   instead of a half-schema/half-data file (bun:sqlite DDL is transactional on
     //   the same handle, same as writeGraph's rebuild above).
     try {
-      const rebuild = mirror.transaction((): void => {
-        mirror.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;');
-        mirror.exec(MIRROR_SCHEMA_SQL);
+      const rebuild = openMirror.transaction((): void => {
+        openMirror.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;');
+        openMirror.exec(MIRROR_SCHEMA_SQL);
         // the graph (the nodes + the edges)
-        const nodeIns = mirror.prepare('INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)');
+        const nodeIns = openMirror.prepare('INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)');
         for (const row of this.handle.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[]) {
           nodeIns.run(row['id'], row['kind'], row['name'], row['file'], row['line'], row['lineage'], row['source'], row['data']);
         }
-        const edgeIns = mirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)');
+        const edgeIns = openMirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)');
         for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges').all() as Record<string, SQLQueryBindings>[]) {
           edgeIns.run(row['source_id'], row['target_id'], row['kind'], row['lineage'], row['created_at']);
         }
         // the findings summaries (never the report_sections bodies — line 2229)
-        const findIns = mirror.prepare(
+        const findIns = openMirror.prepare(
           'INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
         );
         for (const row of this.handle.prepare('SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings').all() as Record<string, SQLQueryBindings>[]) {
           findIns.run(row['rule_id'], row['severity'], row['file'], row['line'], row['range_start'], row['range_end'], row['evidence'], row['verdict'], row['week'], row['run_id'], row['created_at']);
         }
         // the events (the HUNT_DONE/BUILD_DONE/AUDIT_DONE bus + the report pointers)
-        const evIns = mirror.prepare('INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)');
+        const evIns = openMirror.prepare('INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)');
         for (const row of this.handle.prepare('SELECT kind,payload,created_at FROM events').all() as Record<string, SQLQueryBindings>[]) {
           evIns.run(row['kind'], row['payload'], row['created_at']);
         }
@@ -591,7 +610,7 @@ export class SharedDb implements DbClient {
     } catch (e: unknown) {
       throw mirrorWriteFailed(mirrorPath, `mirror copy failed: ${String(e)}`);
     } finally {
-      mirror.close();
+      openMirror.close();
     }
     return mirrorPath;
   }
@@ -677,11 +696,16 @@ export class FamilyGraphStore {
     this.branchDb = branchDb;
     ensureFamilyTables(this.familyDb);
     ensureFamilyTables(this.branchDb);
-    try { this.branchDb.exec("CREATE VIEW IF NOT EXISTS branch_union_view AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM graph_nodes"); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #1:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     // ★ F-250 NOTE (2026-09-24): NOT-A-BUG (guard scope) — these guards wrap
     //   CREATE VIEW IF NOT EXISTS / ATTACH idempotent DDL only; every REAL write
     //   path in this file (writeGraph, appends, mirror, migrations) throws loud named
     //   errors with no catch. A DDL failure here is debug-logged, never success-shaped.
+    // ★ R15 VERDICT (db.ts:680): PROBE-CONFIRMED NOT-A-BUG — same scope. The ctor guard wraps
+    //   CREATE VIEW IF NOT EXISTS only; writeBranchView's rebuild (DROP+CREATE, same file)
+    //   already throws BRANCH_VIEW_REBUILD_FAILED loud (F-1010). Only 'already exists'-class
+    //   DDL rides a debug guard here; a wrong-shape view fails at the exec and surfaces —
+    //   no silent stale view is trusted by this path (getBranchUnion prefers the view but the
+    //   manual fallback is the audited F-6 shape, and the write path never consults the view).
   }
 
   lookupByContentHash(hash: string | null | undefined): GraphNode | null {
@@ -781,12 +805,18 @@ export class FamilyGraphStore {
     try {
       const fam = this.familyDb.prepare('SELECT id, node_json FROM family_nodes').all() as Record<string, SQLQueryBindings>[];
       for (const r of fam) {
+        // ★ R15 FIX: a corrupt node_json used to debug-log and return {}-shaped rows (or skip
+        //   rows) — corrupt graph data propagating as valid nodes. Fail closed with a named
+        //   throw carrying the row id (the fail-closed contract: corruption is loud, never
+        //   success-shaped empties). Zero callers outside this file (ripwire count=0), zero
+        //   tests pin the skip — no pin changes shape.
+        let n: GraphNode;
         try {
-          const n = JSON.parse(r['node_json'] as string) as GraphNode;
-          out.push({ ...n, id: (r['id'] as string) ?? n.id, origin: 'family' });
-        } catch (pe) { console.debug('[kg-store] family node_json parse failed — skipped:', pe instanceof Error ? pe.message : String(pe)); }
+          n = JSON.parse(r['node_json'] as string) as GraphNode;
+        } catch (pe) { throw new Error(`FAMILY_NODE_CORRUPT: id=${String(r['id'])} cause=${pe instanceof Error ? pe.message : String(pe)}`); }
+        out.push({ ...n, id: (r['id'] as string) ?? n.id, origin: 'family' });
       }
-    } catch (famErr) { console.debug('[kg-store] family_nodes fallback read failed:', famErr instanceof Error ? famErr.message : String(famErr)); }
+    } catch (famErr) { if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr; console.debug('[kg-store] family_nodes fallback read failed:', famErr instanceof Error ? famErr.message : String(famErr)); }
     const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[];
     for (const r of delta) out.push({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['data'] as string); } catch (pe) { console.debug('[kg-store] delta data parse failed — empty object:', pe instanceof Error ? pe.message : String(pe)); return {}; } })(), origin: 'delta' });
     return out;
@@ -843,8 +873,13 @@ export class FamilyGraphStore {
     // idempotent guard swallowed it, so the promotion lived only in memory. Fail LOUD.
     if (this.sealed) throw familyRootReadonly('cannot request promotion on sealed family store: ' + hash);
     this.pendingPromotions.set(hash, detail);
-    try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES (?,?)").run(`promotion_pending:${hash}`, detail); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #6:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
-    try { this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES ('promotion_state','PROMOTION_PENDING')").run(); } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #7:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
+    // ★ R15 FIX: both INSERTs were debug-only guards — on a sealed/readonly DB the promotion
+    //   lived only in memory and was lost on restart while the call still threw
+    //   PROMOTION_PENDING as if recorded. Metadata failures propagate loud now (the throw
+    //   below is the operator-gate signal AND the record lands — zero callers outside this
+    //   file, zero tests pin the swallow).
+    this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES (?,?)").run(`promotion_pending:${hash}`, detail);
+    this.familyDb.prepare("INSERT OR REPLACE INTO family_metadata (key, value) VALUES ('promotion_state','PROMOTION_PENDING')").run();
     throw familyPromotionPending(hash, detail);
   }
 

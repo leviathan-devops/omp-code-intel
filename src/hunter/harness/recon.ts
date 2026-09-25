@@ -38,6 +38,10 @@ function countQuotedRules(profile: ProjectProfile): number {
   let count = 0;
   for (const entry of profile.rules.corpus) {
     const abs = path.isAbsolute(entry) ? entry : path.resolve(profile.project.root, entry);
+    // ★ R15: containment — resolved path must stay under project root; cap size to prevent OOM.
+    if (!abs.startsWith(profile.project.root + path.sep) && abs !== profile.project.root) {
+      throw new Error(`CORPUS_UNREADABLE: path=${abs} escapes project root ${profile.project.root} — resolve corpus paths inside the project`);
+    }
     let text: string;
     try {
       text = fs.readFileSync(abs, 'utf8');
@@ -113,17 +117,24 @@ function openAndNextRunId(token: string, dbPath: string): string {
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const prefix = `${token}-hunt-${day}-`;
     let seq = 0;
-    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
-      let payload: { runId?: unknown };
+    // ★ R15: prefix prefilter pushes filtering into SQL — instead of fetching+JSON-parsing
+    // every HUNT_DONE payload on each recon (O(N) unbounded), LIKE narrows to the row(s)
+    // that could actually advance the sequence counter. Buffer/BLOB payloads from bun:sqlite
+    // are decoded via toString('utf8') before JSON.parse, preventing silent cast corruption.
+    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?").all(`${prefix}%`)) {
+      let payload: { runId?: unknown } = {};
       let rawText = '';
       try {
-        // ★ F-1053 FIX (2026-09-25): a driver returning an already-parsed object made String() yield '[object Object]' → parse throw → silent skip → duplicate runId (SILENT). Objects assign directly; only strings/buffers go through JSON.parse.
-        // THE R16 TYPE_CERTAINTY FIX — JSON.parse returns `any`; the assignment
-        // to the typed variable needs no cast at all (no AsExpression to flag),
-        // and the runId read below is typeof-guarded before use.
+        // ★ R15: Buffer/Uint8Array from bun:sqlite BLOB columns must be decoded before parse.
         const raw: unknown = row['payload'];
-        rawText = typeof raw === 'string' ? raw : String(raw ?? '');
-        payload = raw !== null && typeof raw === 'object' ? (raw as { runId?: unknown }) : JSON.parse(String(raw ?? '{}'));
+        if (raw instanceof Uint8Array) rawText = new TextDecoder().decode(raw);
+        else if (typeof raw === 'string') rawText = raw;
+        else if (raw !== null && typeof raw === 'object') { payload = raw as { runId?: unknown }; }
+        else rawText = String(raw ?? '');
+        if (!rawText && typeof payload !== 'object') rawText = String(raw ?? '{}');
+        if (rawText) payload = JSON.parse(rawText);
+        if (payload !== null && typeof payload === 'object' && !Array.isArray(payload)) { /* valid */ }
+        else { console.warn('[recon] HUNT_DONE payload is not an object — skipped'); continue; }
       } catch (e: unknown) {
         // ★ F-1201 FIX (2026-09-25): the parse-failure `continue` silently dropped the
         // ★ row's sequence number — a corrupt row carrying a HIGH seq let the next runId

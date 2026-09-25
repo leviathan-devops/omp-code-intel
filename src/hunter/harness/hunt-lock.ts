@@ -53,7 +53,16 @@ function readPayload(lockPath: string): HuntLockPayload | null {
   try {
     const raw = fs.readFileSync(lockPath, 'utf8');
     const parsed = JSON.parse(raw) as Partial<HuntLockPayload>;
-    if (typeof parsed.pid !== 'number' || typeof parsed.acquiredAt !== 'string') return null;
+    // ★ R15H5 FIX (2026-09-25): the old check accepted a lock with a missing /
+    //   non-string hostname as valid — isStale's foreign-host guard (`typeof
+    //   hostname === 'string' && ...`) and release's foreign-host refusal then
+    //   skipped the fail-closed path, letting a colliding local PID free/delete
+    //   another host's live lock on a shared filesystem. Require the FULL
+    //   ownership triple (integer pid, parseable acquiredAt, non-empty hostname)
+    //   so legacy/corrupt locks take the null-payload TTL-gated path instead.
+    if (typeof parsed.pid !== 'number' || !Number.isInteger(parsed.pid) || parsed.pid <= 0) return null;
+    if (typeof parsed.acquiredAt !== 'string' || Number.isNaN(Date.parse(parsed.acquiredAt))) return null;
+    if (typeof parsed.hostname !== 'string' || parsed.hostname.length === 0) return null;
     return parsed as HuntLockPayload;
   } catch (e: unknown) {
     console.warn(`[hunt-lock] readPayload failed for ${lockPath}: ${e instanceof Error ? e.message : String(e)}`);

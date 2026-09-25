@@ -247,19 +247,23 @@ function chain(input: QueryInput, db: DbClient): QueryRow[] {
     //   across BFS branches and must not be mutated.
     return rev.map((r, i) => ({ ...r, step: i + 1 }));
   };
+  // ★ R15H5 FIX (2026-09-25): the edge statement was prepared INSIDE the dequeue
+  //   loop — every visited node (up to depth 64 with hub fan-out) paid a
+  //   prepare+execute. Hoisted once outside the loop; the per-node bind stays.
+  const chainEdgesStmt = db.prepare(`
+        SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
+               dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
+        FROM typed_edges e
+        JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+        WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL
+      `);
   while (head < queue.length) {
     const curId = queue[head]!;
     const curDepth = depthOf.get(curId) ?? 0;
     head += 1;
     if (curDepth >= MAX_DEPTH) continue;
     const out = rowsAs<{ dst_id: string; dst_label: string; dst_file: string; dst_line: number; predicate: string }>(
-      db.prepare(`
-        SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
-               dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
-        FROM typed_edges e
-        JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
-        WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL
-      `).all(curId),
+      chainEdgesStmt.all(curId),
       'chain edges',
     );
     for (const e of out) {

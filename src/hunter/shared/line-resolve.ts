@@ -24,16 +24,20 @@
 
 /** The silent walk: the first finite >= 1 line in the precedence chain, or undefined. Never throws. */
 export function tryResolveLine(
-  node: { line?: unknown; data?: Record<string, unknown>; source_location?: unknown },
+  node: { line?: unknown; data?: Record<string, unknown>; source_location?: unknown } | null | undefined,
   edge?: { source_location?: unknown; metadata?: unknown } | null,
 ): number | undefined {
-  const data = node.data ?? {};
+  // ★ W16-HIGH FIX: null guard — a null/undefined node threw TypeError off the
+  //   `node.data` read, escaping as an unrouted exception instead of the named
+  //   LINELESS_NODE refusal. Null node: no node candidates, edge-only walk still runs.
+  const obj = node !== null && typeof node === 'object' ? node : undefined;
+  const data = obj?.data ?? {};
   const candidates: unknown[] = [
-    node.line,
+    obj?.line,
     data["line"],
     data["line_start"],
     data["line_end"],
-    node.source_location,
+    obj?.source_location,
     data["source_location"],
     edge?.source_location,
     (edge?.metadata as Record<string, unknown> | undefined)?.["line"],

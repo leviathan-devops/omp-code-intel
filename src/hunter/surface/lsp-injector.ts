@@ -366,7 +366,7 @@ export class LiveGraphWatcher extends DiagnosticsServer {
     try {
       this.watcher = fs.watch(absDir, { recursive: true }, (_event: string, filename: string | null) => {
         if (!filename) return;
-        if (this.pausedFlag || this.writeLock) { this.queue.push(filename); this.enforceBacklog(); return; }
+        if (this.pausedFlag || this.writeLock) { this.queue.push(path.resolve(absDir, filename)); this.enforceBacklog(); return; }
         this.queue.push(path.resolve(absDir, filename));
         this.enforceBacklog();
         this.scheduleDrain(onChange, absDir);
@@ -399,7 +399,7 @@ export class LiveGraphWatcher extends DiagnosticsServer {
 
   resume(): void {
     this.pausedFlag = false;
-    if (this.queue.length > 0) { const pending = this.drainQueue(); this.triggerReparse(pending); }
+    if (this.queue.length > 0) { const pending = this.drainQueue(); this.triggerReparse(pending); this.scan(pending); }
   }
 
   acquireWriteLock(): void {
@@ -439,6 +439,11 @@ export class LiveGraphWatcher extends DiagnosticsServer {
       const folded = new Map<string, string>();
       for (const f of this.queue) folded.set(f, f);
       this.queue = [...folded.values()];
+      // ★ R15: after dedupe, shed oldest beyond cap — without this, distinct entries
+      //   keep the queue > cap forever (unbounded growth + repeated WATCHER_STALLED warns).
+      if (this.queue.length > WATCHER_BACKLOG_CAP) {
+        this.queue = this.queue.slice(this.queue.length - WATCHER_BACKLOG_CAP);
+      }
     }
   }
 
@@ -660,7 +665,13 @@ export function inject(result: ToolResultLike, server: DiagnosticsServer): Injec
       : block);
   }
   if (blocks.length === 0) return { output: base };
-  const joined = blocks.join('\n\n');
+  // ★ R15: cap blocks — a broad glob matching dozens of files injects tens of KB,
+  //   pushing real tool output out of context (the O32.3 regression the budget prevents).
+  const MAX_BLOCKS = 3;
+  const capped = blocks.slice(0, MAX_BLOCKS);
+  let joined = capped.join('\n\n');
+  if (blocks.length > MAX_BLOCKS) joined += `\n\n  (${blocks.length - MAX_BLOCKS} more files with diagnostics omitted)`;
+  if (joined.length > LOGIC_LSP_BYTE_COST * MAX_BLOCKS) joined = joined.slice(0, LOGIC_LSP_BYTE_COST * MAX_BLOCKS) + '\n  (…truncated)';
   return { output: base ? `${base}\n\n${joined}` : joined };
 }
 

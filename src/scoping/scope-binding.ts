@@ -156,7 +156,19 @@ class ScopeBindingImpl implements ScopeBinding {
   get tmpDir(): string { return this.spec.tmpDir; }
 
   statePath(scopeRoot: string, ...parts: string[]): string {
-    return path.join(scopeRoot, this.stateDir, ...parts);
+    // R16D FIX (2026-09-25, group-d finding :158): no traversal sanitization - `..`
+    // segments in parts escaped stateDir (path.join resolves them). Resolve the joined
+    // path and refuse LOUD on escape. In-bounds inputs return the exact joined string
+    // as before (no behavior change for legitimate callers).
+    const joined = path.join(scopeRoot, this.stateDir, ...parts);
+    const base = path.resolve(scopeRoot, this.stateDir);
+    const resolved = path.resolve(joined);
+    if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+      throw new Error(
+        `[${this.label} SCOPE] statePath: resolved path "${resolved}" escapes the state directory "${base}". Refusing.`,
+      );
+    }
+    return joined;
   }
 
   ownsWave(waveId: string): boolean {

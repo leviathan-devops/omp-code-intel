@@ -35,7 +35,8 @@ function bindSeverity(b: Record<string, unknown>): Severity {
 // The edge leg is MANDATORY — a finding without a traversed edge is theater.
 function evEdge(mid: string, file: string, line: number, snippet: string, bug: string, anchor: EdgeAnchor): string {
   const cite = firstCite(anchor.cites, file);
-  const edgeLeg = cite ? edgeEvidence(cite) : 'edge NONE (unanchored — never emitted)';
+  if (!cite) throw new Error(`FINDING_NO_ANCHOR: ${mid} at ${file}:${line} — no traversed edge (callers must pre-check firstCite)`);
+  const edgeLeg = edgeEvidence(cite);
   return `[${bug}] ${mid} at ${file}:${line} — ${snippet.slice(0, 180)} | ${edgeLeg} | triad=${mid}`;
 }
 // THE WINDOW READ: the hoisted contentMap first, the lockdown source read as the
@@ -82,6 +83,7 @@ export const P1: PredicateTemplate = {
     if (anchor === null) return findings;
     for (const file of anchor.files) {
       const text = windowText(ctx, file); if (text === undefined) continue;
+      if (!firstCite(anchor.cites, file)) continue;
       if (!text.includes('process.cwd()')) continue;
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if ((lines[i] ?? '').includes('process.cwd()')) {
@@ -112,11 +114,13 @@ export const P2: PredicateTemplate = {
     if (anchor === null) return findings;
     for (const file of anchor.files) {
       const text = windowText(ctx, file); if (text === undefined) continue;
+      if (!firstCite(anchor.cites, file)) continue;
       if (!text.includes('setAbortFlag')) continue;
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if ((lines[i] ?? '').includes('setAbortFlag')) {
-        const win = lines.slice(Math.max(0, i - 15), Math.min(lines.length, i + 15)).join('\n');
-        if (/abort/i.test(win) && !/writeStateAtomic|phase.*FAILED/.test(win)) {
+        // F-1602: exclude trigger line — setAbortFlag contains abort, making /abort/i trivially true.
+        const winWithoutTrigger = lines.slice(Math.max(0, i - 15), i).join('\n') + '\n' + lines.slice(i + 1, Math.min(lines.length, i + 15)).join('\n');
+        if (/abort/i.test(winWithoutTrigger) && !/writeStateAtomic|phase.*FAILED/.test(winWithoutTrigger)) {
           const triad = makeTriad(file, i + 1, 'semantic.dual-store-lifecycle-write', sev);
           findings.push({ ruleId: 'semantic.dual-store-lifecycle-write', severity: sev, file, line: i + 1, evidence: evEdge('semantic.dual-store-lifecycle-write', file, i + 1, lines[i]!.trim(), 'HT-BUG-2', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }
@@ -161,6 +165,7 @@ export const P3: PredicateTemplate = {
       if (!/(enforce|gate|guard|STATE_GATE)/i.test(node.name)) continue;
       const file = node.file ?? ''; if (!file) continue;
       if (!anchor.files.has(file)) continue;
+      if (!firstCite(anchor.cites, file)) continue;
       const nid = (node as unknown as { id?: string }).id;
       if (deadIds !== null) {
         if (nid === undefined || !deadIds.has(nid)) continue;
@@ -200,6 +205,7 @@ export const P4: PredicateTemplate = {
     if (anchor === null) return findings;
     for (const file of anchor.files) {
       const text = windowText(ctx, file); if (text === undefined) continue;
+      if (!firstCite(anchor.cites, file)) continue;
       if (!text.includes('stopReason')) continue;
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if (/stopReason.*error|stopReason.*aborted/i.test(lines[i] ?? '')) {
@@ -230,6 +236,7 @@ export const P5: PredicateTemplate = {
     if (anchor === null) return findings;
     for (const file of anchor.files) {
       const text = windowText(ctx, file); if (text === undefined) continue;
+      if (!firstCite(anchor.cites, file)) continue;
       if (!/PHASE_REQUIRED_TOOLS/i.test(text)) continue;
       if (/DIAGNOSTIC_TOOLS/i.test(text)) continue;
       const lines = text.split('\n');
@@ -264,6 +271,7 @@ export const P6: PredicateTemplate = {
     if (anchor === null) return findings;
     for (const file of anchor.files) {
       const text = windowText(ctx, file); if (text === undefined) continue;
+      if (!firstCite(anchor.cites, file)) continue;
       if (!/scanTsFiles|readdirSync/i.test(text)) continue;
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i++) if (/scanTsFiles|readdirSync/i.test(lines[i] ?? '')) {

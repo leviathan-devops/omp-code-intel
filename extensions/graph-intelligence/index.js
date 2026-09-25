@@ -176563,11 +176563,14 @@ function rootPrefixOf(rootReal) {
 function insideRoot(real, rootReal) {
   return real === rootReal || real.startsWith(rootPrefixOf(rootReal));
 }
-function realNearest(target, maxClimb = 12) {
+function realNearest(target, maxClimb = 512) {
   const abs = path20.resolve(target);
   const missing = [];
   let dir = abs;
   for (let i = 0;i <= maxClimb; i += 1) {
+    if (i === maxClimb) {
+      throw new Error(`CONTAINMENT_CLIMB_EXHAUSTED: target=${target} (the missing chain exceeds ${maxClimb} segments \u2014 refusing unverified containment)`);
+    }
     try {
       const realDir = fs18.realpathSync(dir);
       return missing.length === 0 ? realDir : path20.join(realDir, ...missing.reverse());
@@ -176585,20 +176588,30 @@ function realNearest(target, maxClimb = 12) {
   return abs;
 }
 function checkContained(target, root) {
-  let rootReal;
-  let rootResolved;
   try {
-    rootReal = fs18.realpathSync(root);
-    rootResolved = true;
+    let rootReal;
+    let rootResolved;
+    try {
+      rootReal = fs18.realpathSync(root);
+      rootResolved = true;
+    } catch {
+      rootReal = realNearest(root);
+      rootResolved = false;
+    }
+    const real = realNearest(target);
+    const contained = insideRoot(real, rootReal);
+    const targetAbs = path20.resolve(target);
+    const resolved = real !== targetAbs || fs18.existsSync(real);
+    return { real, rootReal, contained, resolved };
   } catch {
-    rootReal = realNearest(root);
-    rootResolved = false;
+    let rootReal = "";
+    try {
+      rootReal = fs18.realpathSync(root);
+    } catch {
+      rootReal = path20.resolve(root);
+    }
+    return { real: path20.resolve(target), rootReal, contained: false, resolved: false };
   }
-  const real = realNearest(target);
-  const contained = insideRoot(real, rootReal);
-  const targetAbs = path20.resolve(target);
-  const resolved = real !== targetAbs || fs18.existsSync(real);
-  return { real, rootReal, contained, resolved };
 }
 function requireContained(target, root, onViolation) {
   const { real, rootReal, contained } = checkContained(target, root);
@@ -177286,9 +177299,33 @@ function makeCappedGrepTool(targetRoot) {
           resolve(String(stdout));
         });
       });
-      let out = await run("rg", ["-n", "--max-count", String(maxResults), "--", pattern, targetRoot]);
+      const rootReal = realResolve(path36.resolve(targetRoot));
+      let out = await run("rg", ["-n", "--no-follow", "--max-count", String(maxResults), "--", pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-p", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+      }
+      if (!out.startsWith("SEARCH_FAILED")) {
+        const kept = [];
+        let trimmed = 0;
+        for (const line of out.split(`
+`)) {
+          if (line.length === 0)
+            continue;
+          const hitFile = line.split(":")[0] ?? "";
+          const abs = path36.isAbsolute(hitFile) ? path36.resolve(hitFile) : path36.resolve(targetRoot, hitFile);
+          if (!isWithinRoot(realResolve(abs), rootReal) && realResolve(abs) !== rootReal) {
+            trimmed += 1;
+            continue;
+          }
+          kept.push(line);
+        }
+        if (trimmed > 0)
+          out = (kept.length > 0 ? kept.join(`
+`) : "") + `
+[SEARCH_SCOPE_TRIMMED: ${trimmed} hit(s) outside targetRoot dropped]`;
+        else
+          out = kept.length > 0 ? kept.join(`
+`) : out;
       }
       if (out.startsWith("SEARCH_FAILED"))
         return out;
@@ -179281,7 +179318,7 @@ function resolveDial(env = process.env, dialFile) {
 }
 function runGraphGate(input) {
   if (!input.hasStore) {
-    if ((process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+    if ((input.env?.GI_ALLOW_NO_STORE ?? process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
       return {
         cancel: false,
         token: "GI_NO_STORE",
@@ -179845,14 +179882,22 @@ function resolveCorbell(profile, env = process.env) {
   throw new Error("CORBELL_NOT_FOUND - the corbell binary is missing; install it with 'pip install git+https://github.com/Corbell-AI/Corbell.git' or set CORBELL_BIN or graph.binaryPath");
 }
 var defaultExec = (cmdRaw, opts) => {
-  if (/[;&|`$(){}!<>\n\r*~?#\[\]]/.test(cmdRaw)) {
-    throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
+  const shellEscape = (tok) => `'${tok.split(`'`).join(`'"'"'`)}'`;
+  const parts = cmdRaw.trim().split(/\s+/).filter((s) => s.length > 0);
+  if (parts.length === 0) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: refusing empty command`);
   }
-  const cmd = "exec " + cmdRaw;
+  const [binRaw, ...args] = parts;
+  if (/[^A-Za-z0-9_@%+=:,./\\-]/.test(binRaw)) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: binary path contains shell metacharacters: ${binRaw.slice(0, 120)}`);
+  }
+  const cmd = "exec " + [binRaw, ...args.map(shellEscape)].join(" ");
   const ATTEMPTS = 8;
   const retryT0 = Date.now();
   const retryTimeout = opts?.timeout;
   const retryDeadline = typeof retryTimeout === "number" && retryTimeout > 0 ? retryT0 + retryTimeout : Number.POSITIVE_INFINITY;
+  let blockedMs = 0;
+  const SYNC_BLOCK_BUDGET_MS = 30000;
   let lastErr;
   for (let attempt = 1;attempt <= ATTEMPTS; attempt++) {
     try {
@@ -179881,7 +179926,10 @@ var defaultExec = (cmdRaw, opts) => {
       const remaining = retryDeadline - Date.now();
       if (remaining <= 0)
         break;
-      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1), remaining);
+      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1), remaining, SYNC_BLOCK_BUDGET_MS - blockedMs);
+      if (backoff <= 0)
+        break;
+      blockedMs += backoff;
       console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) \u2014 retrying in ${backoff}ms`);
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, backoff);
     }
@@ -180214,13 +180262,32 @@ class CorbellAdapter {
             const srcPath = path7.isAbsolute(file) ? file : path7.join(profile.project.root, file);
             let src = srcCache.get(srcPath);
             if (src === undefined) {
-              src = fs7.readFileSync(srcPath, "utf8");
-              srcCache.set(srcPath, src);
+              try {
+                const st = fs7.statSync(srcPath);
+                if (st.size > 1e6) {
+                  console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${st.size}B > 1MB cap)`);
+                  src = "";
+                  srcCache.set(srcPath, src);
+                }
+              } catch {}
+              if (src === undefined) {
+                src = fs7.readFileSync(srcPath, "utf8");
+                srcCache.set(srcPath, src);
+              }
             }
-            const nums = [...src.matchAll(/(\d+\.\d+)/g)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n));
-            if (nums.length > 0) {
-              data["comparator"] = Math.max(...nums);
-              data["numericLiterals"] = nums;
+            if (src.length > 1e6) {
+              console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${src.length}B > 1MB cap)`);
+            } else {
+              const nums = [];
+              for (const m of src.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
+                const n = Number(m[0]);
+                if (Number.isFinite(n))
+                  nums.push(n);
+              }
+              if (nums.length > 0) {
+                data["comparator"] = nums.reduce((a, b) => a > b ? a : b, nums[0]);
+                data["numericLiterals"] = nums.slice(0, 1e4);
+              }
             }
           } catch (e) {
             console.warn(`[corbell-adapter] source-read enrichment failed for '${file}': ${String(e)}`);
@@ -180336,7 +180403,7 @@ class CorbellAdapter {
     return this.cachedEdges.filter((e) => e.kind === "calls" && e.targetId === target).map((e) => {
       const caller = this.nodeById(e.sourceId);
       return {
-        file: caller?.file ?? this.profile.project.root,
+        file: caller?.file ?? e.file ?? "",
         line: e.line ?? caller?.line ?? 0,
         caller: caller?.name ?? e.sourceId
       };
@@ -180357,7 +180424,7 @@ class CorbellAdapter {
           from: caller?.name ?? e.sourceId,
           to: callee?.name ?? e.targetId,
           kind: e.kind,
-          file: callee?.file ?? this.profile.project.root,
+          file: callee?.file ?? e.file ?? "",
           line: e.line ?? callee?.line ?? 0
         });
         if (!seen.has(e.targetId)) {
@@ -180374,7 +180441,7 @@ class CorbellAdapter {
     return this.cachedEdges.filter((e) => e.kind === "imports" && e.sourceId === start).map((e) => {
       const src = this.nodeById(e.sourceId);
       const dst = this.nodeById(e.targetId);
-      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? e.file ?? "", line: e.line ?? src?.line ?? 0 };
     });
   }
   awaits(symbol) {
@@ -180383,13 +180450,13 @@ class CorbellAdapter {
     return this.cachedEdges.filter((e) => e.kind === "awaits" && e.sourceId === start).map((e) => {
       const src = this.nodeById(e.sourceId);
       const dst = this.nodeById(e.targetId);
-      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+      return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? e.file ?? "", line: e.line ?? src?.line ?? 0 };
     });
   }
   unwired() {
     this.ensureBuilt();
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === "calls").map((e) => e.targetId));
-    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "method" || n.kind === "class") && !callTargets.has(n.id)).map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line ?? 0 }));
+    return this.cachedNodes.filter((n) => (n.kind === "function" || n.kind === "method" || n.kind === "class") && !callTargets.has(n.id)).map((n) => ({ id: n.id, name: n.name, file: n.file ?? "", line: n.line ?? 0 }));
   }
   nodes(kind) {
     if (!this.built)
@@ -180501,8 +180568,8 @@ function graphEmpty(detail) {
   return new GraphEmptyError(detail);
 }
 function selectAdapter(profile) {
-  if (!profile || typeof profile.graph?.substrate !== "string") {
-    throw adapterFailed(`substrate=${String(profile.graph?.substrate)}`, "profile.graph or profile.graph.substrate is missing or not a string \u2014 set graph.substrate to corbell or graphify.");
+  if (!profile || typeof profile?.graph?.substrate !== "string") {
+    throw adapterFailed(`substrate=${String(profile?.graph?.substrate)}`, "profile.graph or profile.graph.substrate is missing or not a string \u2014 set graph.substrate to corbell or graphify.");
   }
   if (profile.graph.substrate === "native-ast") {
     throw adapterFailed(`substrate='native-ast'`, "REMOVED: the native-ast fallback was ripped out per the operator ruling \u2014 corbell is the hard dependency. Install corbell (pip install git+https://github.com/Corbell-AI/Corbell.git into a py3.11+ venv, or set CORBELL_BIN) or fix graph.binaryPath. No fallback exists.");
@@ -180644,6 +180711,7 @@ function normalizeGraphifyGraph(raw, opts) {
     degree.set(e.dst, (degree.get(e.dst) ?? 0) + 1);
   }
   const godNodes = [...degree.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
+  let anchorUnverified = 0;
   if (opts?.root) {
     const rootReal = (() => {
       try {
@@ -180660,11 +180728,13 @@ function normalizeGraphifyGraph(raw, opts) {
       const f = n.file;
       if (f.length === 0)
         continue;
-      const abs = path8.isAbsolute(f) ? f : path8.resolve(rootReal, f);
+      const abs = path8.isAbsolute(f) ? path8.normalize(f) : path8.resolve(rootReal, f);
       let real = abs;
       try {
         real = fs8.realpathSync(abs);
-      } catch {}
+      } catch {
+        anchorUnverified += 1;
+      }
       const rel = path8.relative(rootReal, real);
       const contained = isContainedRel(rel);
       const safeFile = contained ? rel.split(path8.sep).join("/") : "";
@@ -180676,6 +180746,9 @@ function normalizeGraphifyGraph(raw, opts) {
           nodeIdByRaw.set(raw, nodes[i].id);
       }
     }
+  }
+  if (anchorUnverified > 0) {
+    tridentLog("WARN", "graphify-adapter", `normalize: ${anchorUnverified} anchor(s) kept on their LEXICAL path \u2014 realpath unprovable (symlink containment unverified; the row stays visible rather than vanishing)`);
   }
   return { nodes, edges, communities, godNodes };
 }
@@ -180992,9 +181065,10 @@ function projectGraphifyGraph(graph, root) {
     const edgeLoc = rawEdge["source_location"];
     const srcNode = byId.get(src);
     const srcFile = srcNode?.file;
+    const srcRaw = nodeByRawId.get(srcId);
     const line = parseLineValue(edgeLoc) ?? srcNode?.line ?? tryResolveGraphifyLine({
-      data: nodeByRawId.get(e.src)?.data ?? {},
-      source_location: rawSourceLocation(nodeByRawId.get(e.src))
+      data: srcRaw?.data ?? {},
+      source_location: rawSourceLocation(srcRaw)
     }, rawEdge);
     if (line === undefined)
       danglingNoLine++;
@@ -181393,8 +181467,6 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
       }
     }
   };
-  if (walkFailed)
-    return { fresh: false, reason: "stale-read-failed" };
   for (const rel of scope) {
     const target = containedScopeTarget(root, rel);
     if (target === null)
@@ -181417,6 +181489,8 @@ function isGraphifyCheckoutFreshFor(root, graphPath, scope = ["src"], excludes =
     if (stTarget?.isDirectory())
       walk(target);
   }
+  if (walkFailed)
+    return { fresh: false, reason: "stale-read-failed" };
   if (filesSeen === 0)
     return { fresh: false, reason: "stale-unscooped" };
   if (exhausted)
@@ -181511,6 +181585,11 @@ function hashSourceTree(root, scope, excludes, budgetN) {
           continue;
         walk(path9.join(dir, entry.name), prefix + entry.name + "/");
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        if (excludes.includes(entry.name)) {
+          hash.update(`skip-excluded:${prefix}${entry.name}
+`);
+          continue;
+        }
         budget.n--;
         try {
           const stat = fs9.statSync(path9.join(dir, entry.name));
@@ -181680,7 +181759,10 @@ function isCorbellCheckoutFreshFor(root, warmPath) {
           const m = fs10.statSync(path10.join(dir, entry.name)).mtimeMs;
           if (m > newest)
             newest = m;
-        } catch {}
+        } catch {
+          walkFailed = true;
+          return;
+        }
       }
     }
   };
@@ -181818,7 +181900,9 @@ function populateSessionStore(storePath, root, runTag = "populate-" + Date.now()
         console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
       }
     } finally {
-      db.close();
+      try {
+        db.close();
+      } catch {}
     }
     console.error(`[gi-omp] populate substrate=corbell checkout=${corbell.checkoutPath} nodes=${corbell.nodes} edges=${corbell.edges}`);
     return {
@@ -182172,7 +182256,11 @@ function readPayload(lockPath) {
   try {
     const raw = fs12.readFileSync(lockPath, "utf8");
     const parsed = JSON.parse(raw);
-    if (typeof parsed.pid !== "number" || typeof parsed.acquiredAt !== "string")
+    if (typeof parsed.pid !== "number" || !Number.isInteger(parsed.pid) || parsed.pid <= 0)
+      return null;
+    if (typeof parsed.acquiredAt !== "string" || Number.isNaN(Date.parse(parsed.acquiredAt)))
+      return null;
+    if (typeof parsed.hostname !== "string" || parsed.hostname.length === 0)
       return null;
     return parsed;
   } catch (e) {
@@ -182565,6 +182653,12 @@ class SharedDb {
         throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
       }
     }
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    for (const e of edges) {
+      if (!nodeIds.has(e.sourceId) || !nodeIds.has(e.targetId)) {
+        throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId} (dangling endpoint \u2014 no such node in this write batch)`);
+      }
+    }
     const tx = this.handle.transaction(() => {
       this.handle.prepare("DELETE FROM graph_edges").run();
       this.handle.prepare("DELETE FROM graph_nodes").run();
@@ -182590,7 +182684,7 @@ class SharedDb {
       throw findingInvalid("severity", finding.severity);
     if (!FINDING_VERDICTS.includes(finding.verdict))
       throw findingInvalid("verdict", finding.verdict);
-    const persistedEvidence = finding.triad ? `${finding.evidence} | TRIAD ${JSON.stringify(finding.triad)}` : finding.evidence;
+    const persistedEvidence = finding.evidence;
     this.handle.prepare(`INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(finding.ruleId, finding.severity, finding.file ?? null, finding.line ?? null, finding.rangeStart ?? null, finding.rangeEnd ?? null, persistedEvidence, finding.verdict, week ?? null, runId, Date.now());
   }
@@ -182624,25 +182718,29 @@ class SharedDb {
       mirror = new Database5(mirrorPath);
       applyPragmas(mirror);
     } catch (e) {
+      try {
+        mirror?.close();
+      } catch {}
       throw mirrorWriteFailed(mirrorPath, `mirror open failed: ${String(e)}`);
     }
+    const openMirror = mirror;
     try {
-      const rebuild = mirror.transaction(() => {
-        mirror.exec("DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;");
-        mirror.exec(MIRROR_SCHEMA_SQL);
-        const nodeIns = mirror.prepare("INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)");
+      const rebuild = openMirror.transaction(() => {
+        openMirror.exec("DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS findings; DROP TABLE IF EXISTS graph_edges; DROP TABLE IF EXISTS graph_nodes;");
+        openMirror.exec(MIRROR_SCHEMA_SQL);
+        const nodeIns = openMirror.prepare("INSERT OR REPLACE INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)");
         for (const row of this.handle.prepare("SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes").all()) {
           nodeIns.run(row["id"], row["kind"], row["name"], row["file"], row["line"], row["lineage"], row["source"], row["data"]);
         }
-        const edgeIns = mirror.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)");
+        const edgeIns = openMirror.prepare("INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)");
         for (const row of this.handle.prepare("SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges").all()) {
           edgeIns.run(row["source_id"], row["target_id"], row["kind"], row["lineage"], row["created_at"]);
         }
-        const findIns = mirror.prepare("INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+        const findIns = openMirror.prepare("INSERT INTO findings (rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
         for (const row of this.handle.prepare("SELECT rule_id,severity,file,line,range_start,range_end,evidence,verdict,week,run_id,created_at FROM findings").all()) {
           findIns.run(row["rule_id"], row["severity"], row["file"], row["line"], row["range_start"], row["range_end"], row["evidence"], row["verdict"], row["week"], row["run_id"], row["created_at"]);
         }
-        const evIns = mirror.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)");
+        const evIns = openMirror.prepare("INSERT INTO events (kind,payload,created_at) VALUES (?,?,?)");
         for (const row of this.handle.prepare("SELECT kind,payload,created_at FROM events").all()) {
           evIns.run(row["kind"], row["payload"], row["created_at"]);
         }
@@ -182651,7 +182749,7 @@ class SharedDb {
     } catch (e) {
       throw mirrorWriteFailed(mirrorPath, `mirror copy failed: ${String(e)}`);
     } finally {
-      mirror.close();
+      openMirror.close();
     }
     return mirrorPath;
   }
@@ -182717,7 +182815,7 @@ var ProjectProfileSchema = object({
     bindings: record(string2(), any()).default({}).refine((b) => Object.keys(b).length <= 500, { message: "the bindings map is capped at 500 keys (abuse cap \u2014 split the profile)" })
   }),
   pipeline: object({
-    stages: array(PipelineStageSchema).min(1)
+    stages: array(PipelineStageSchema).min(1).refine((s) => new Set(s.map((x) => x.id)).size === s.length, { message: "pipeline.stages[].id must be unique per profile" })
   }),
   history: object({
     failureLogs: array(string2()).default([])
@@ -182898,9 +182996,11 @@ function splitTopLevel(s, sep) {
           q = null;
       }
     } else {
-      if (c === "\\")
+      if (c === "\\" && i + 1 < s.length) {
+        cur += c + s[i + 1];
         i++;
-      else if (c === '"')
+        continue;
+      } else if (c === '"')
         q = null;
     }
     cur += c;
@@ -183215,7 +183315,14 @@ function loadProfile(profilePath) {
   } catch {
     throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
   }
-  if (!fs14.existsSync(resolvedRoot) || !fs14.statSync(resolvedRoot).isDirectory()) {
+  try {
+    const st = fs14.statSync(resolvedRoot);
+    if (!st.isDirectory()) {
+      throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("PROFILE_INVALID"))
+      throw e;
     throw profileInvalid("project.root", profile.project.root, "the project root must exist and be a directory");
   }
   const contained = (entry) => {
@@ -183257,7 +183364,19 @@ function appendFindings(db, findings, runId, week) {
   if (typeof runId !== "string" || runId.trim() === "") {
     throw findingNoTriplet(`refusing appendFindings of ${findings.length} findings with an empty runId \u2014 the run scope is mandatory (K21.2 determinism)`);
   }
-  db.exec("BEGIN IMMEDIATE");
+  if (findings.length === 0)
+    return { runId, week: week ?? null, appended: 0 };
+  for (let i = 0;i < findings.length; i++) {
+    const f = findings[i];
+    if (typeof f.evidence !== "string" || f.evidence.trim() === "") {
+      throw findingNoTriplet(`finding ${f.ruleId} at ${f.file}:${f.line} carries an empty evidence string (landed=0 remaining=${findings.length} of ${findings.length})`);
+    }
+  }
+  try {
+    db.exec("BEGIN IMMEDIATE");
+  } catch (e) {
+    throw new Error(`FINDING_TX_BEGIN_FAILED: cannot open the appendFindings transaction \u2014 ${e instanceof Error ? e.message : String(e)} (appendFindings is non-reentrant; serialize hunts or commit the outer transaction first)`);
+  }
   try {
     for (let i = 0;i < findings.length; i++) {
       const f = findings[i];
@@ -183354,7 +183473,7 @@ function bindOperator(bindings) {
   if (typeof v === "string" && (v === "lt" || v === "lte" || v === "gt" || v === "gte")) {
     return v;
   }
-  return "gt";
+  throw templateBindingInvalid("domain.numeric-threshold", `the operator binding must be one of lt|lte|gt|gte, got ${JSON.stringify(v)}`);
 }
 function bindNumber(bindings, key) {
   const v = bindings[key];
@@ -183727,7 +183846,12 @@ function resolveEdgeAnchor(graph, spec) {
   for (const n of safeNodes(graph)) {
     if (n.kind !== "function" && n.kind !== "method" && n.kind !== "class")
       continue;
-    if (!spec.defMatchers.some((rx) => rx.test(n.name)))
+    if (!spec.defMatchers.some((rx) => {
+      rx.lastIndex = 0;
+      const hit = rx.test(n.name);
+      rx.lastIndex = 0;
+      return hit;
+    }))
       continue;
     const inbound = safeWhoCalls(graph, n.name);
     const steps = safeChain(graph, n.id);
@@ -183778,7 +183902,9 @@ function isEvidenceTriad(v) {
     return false;
   if (!sta || typeof sta.machineId !== "string" || sta.machineId.trim() === "")
     return false;
-  if (typeof sta.from !== "string" || typeof sta.to !== "string")
+  if (typeof sta.from !== "string" || sta.from.trim() === "")
+    return false;
+  if (typeof sta.to !== "string" || sta.to.trim() === "")
     return false;
   if (!ev || typeof ev.file !== "string" || ev.file.trim() === "")
     return false;
@@ -183807,7 +183933,9 @@ function bindSeverity2(b) {
 }
 function evEdge(mid, file, line, snippet, bug, anchor) {
   const cite = firstCite(anchor.cites, file);
-  const edgeLeg = cite ? edgeEvidence(cite) : "edge NONE (unanchored \u2014 never emitted)";
+  if (!cite)
+    throw new Error(`FINDING_NO_ANCHOR: ${mid} at ${file}:${line} \u2014 no traversed edge (callers must pre-check firstCite)`);
+  const edgeLeg = edgeEvidence(cite);
   return `[${bug}] ${mid} at ${file}:${line} \u2014 ${snippet.slice(0, 180)} | ${edgeLeg} | triad=${mid}`;
 }
 function windowText(ctx, file) {
@@ -183852,6 +183980,8 @@ var P1 = {
       const text = windowText(ctx, file);
       if (text === undefined)
         continue;
+      if (!firstCite(anchor.cites, file))
+        continue;
       if (!text.includes("process.cwd()"))
         continue;
       const lines = text.split(`
@@ -183888,15 +184018,19 @@ var P2 = {
       const text = windowText(ctx, file);
       if (text === undefined)
         continue;
+      if (!firstCite(anchor.cites, file))
+        continue;
       if (!text.includes("setAbortFlag"))
         continue;
       const lines = text.split(`
 `);
       for (let i = 0;i < lines.length; i++)
         if ((lines[i] ?? "").includes("setAbortFlag")) {
-          const win = lines.slice(Math.max(0, i - 15), Math.min(lines.length, i + 15)).join(`
+          const winWithoutTrigger = lines.slice(Math.max(0, i - 15), i).join(`
+`) + `
+` + lines.slice(i + 1, Math.min(lines.length, i + 15)).join(`
 `);
-          if (/abort/i.test(win) && !/writeStateAtomic|phase.*FAILED/.test(win)) {
+          if (/abort/i.test(winWithoutTrigger) && !/writeStateAtomic|phase.*FAILED/.test(winWithoutTrigger)) {
             const triad = makeTriad(file, i + 1, "semantic.dual-store-lifecycle-write", sev);
             findings.push({ ruleId: "semantic.dual-store-lifecycle-write", severity: sev, file, line: i + 1, evidence: evEdge("semantic.dual-store-lifecycle-write", file, i + 1, lines[i].trim(), "HT-BUG-2", anchor), verdict: "VIOLATION", triad });
           }
@@ -183935,6 +184069,8 @@ var P3 = {
       if (!file)
         continue;
       if (!anchor.files.has(file))
+        continue;
+      if (!firstCite(anchor.cites, file))
         continue;
       const nid = node.id;
       if (deadIds !== null) {
@@ -183982,6 +184118,8 @@ var P4 = {
       const text = windowText(ctx, file);
       if (text === undefined)
         continue;
+      if (!firstCite(anchor.cites, file))
+        continue;
       if (!text.includes("stopReason"))
         continue;
       const lines = text.split(`
@@ -184017,6 +184155,8 @@ var P5 = {
     for (const file of anchor.files) {
       const text = windowText(ctx, file);
       if (text === undefined)
+        continue;
+      if (!firstCite(anchor.cites, file))
         continue;
       if (!/PHASE_REQUIRED_TOOLS/i.test(text))
         continue;
@@ -184055,6 +184195,8 @@ var P6 = {
     for (const file of anchor.files) {
       const text = windowText(ctx, file);
       if (text === undefined)
+        continue;
+      if (!firstCite(anchor.cites, file))
         continue;
       if (!/scanTsFiles|readdirSync/i.test(text))
         continue;
@@ -184348,6 +184490,9 @@ function countQuotedRules(profile) {
   let count = 0;
   for (const entry of profile.rules.corpus) {
     const abs = path17.isAbsolute(entry) ? entry : path17.resolve(profile.project.root, entry);
+    if (!abs.startsWith(profile.project.root + path17.sep) && abs !== profile.project.root) {
+      throw new Error(`CORPUS_UNREADABLE: path=${abs} escapes project root ${profile.project.root} \u2014 resolve corpus paths inside the project`);
+    }
     let text;
     try {
       text = fs16.readFileSync(abs, "utf8");
@@ -184390,13 +184535,27 @@ function openAndNextRunId(token, dbPath) {
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const prefix = `${token}-hunt-${day}-`;
     let seq = 0;
-    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
-      let payload;
+    for (const row of db.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE' AND payload LIKE ?").all(`${prefix}%`)) {
+      let payload = {};
       let rawText = "";
       try {
         const raw = row["payload"];
-        rawText = typeof raw === "string" ? raw : String(raw ?? "");
-        payload = raw !== null && typeof raw === "object" ? raw : JSON.parse(String(raw ?? "{}"));
+        if (raw instanceof Uint8Array)
+          rawText = new TextDecoder().decode(raw);
+        else if (typeof raw === "string")
+          rawText = raw;
+        else if (raw !== null && typeof raw === "object") {
+          payload = raw;
+        } else
+          rawText = String(raw ?? "");
+        if (!rawText && typeof payload !== "object")
+          rawText = String(raw ?? "{}");
+        if (rawText)
+          payload = JSON.parse(rawText);
+        if (payload !== null && typeof payload === "object" && !Array.isArray(payload)) {} else {
+          console.warn("[recon] HUNT_DONE payload is not an object \u2014 skipped");
+          continue;
+        }
       } catch (e) {
         const idx = rawText.indexOf(prefix);
         if (idx !== -1) {
@@ -184424,13 +184583,14 @@ import path18 from "path";
 
 // src/hunter/shared/line-resolve.ts
 function tryResolveLine(node, edge) {
-  const data = node.data ?? {};
+  const obj = node !== null && typeof node === "object" ? node : undefined;
+  const data = obj?.data ?? {};
   const candidates = [
-    node.line,
+    obj?.line,
     data["line"],
     data["line_start"],
     data["line_end"],
-    node.source_location,
+    obj?.source_location,
     data["source_location"],
     edge?.source_location,
     edge?.metadata?.["line"]
@@ -184701,10 +184861,15 @@ function writeCompiledCache(db, battery, cards, corpusHash) {
     for (const c of cards) {
       insCard.run(c.verbatimQuote, c.anchor, c.classification, c.severity, c.proposed, corpusHash);
     }
-    if (battery.length > 0 && battery[0] !== undefined) {
+    {
       const delBat = db.prepare("DELETE FROM compiled_predicates WHERE battery_version = ?");
       stmts.push(delBat);
-      delBat.run(battery[0].batteryVersion);
+      delBat.run(corpusHash);
+      for (const p of battery) {
+        if (p.batteryVersion !== corpusHash) {
+          throw new LexiconError("VERSION_MISMATCH", `VERSION_MISMATCH: battery predicate ${p.id} has batteryVersion ${p.batteryVersion} != corpusHash ${corpusHash}`);
+        }
+      }
     }
     if (battery.length > 0) {
       const insBat = db.prepare(`INSERT OR REPLACE INTO compiled_predicates (${COMPILED_PREDICATES_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?)`);
@@ -184797,7 +184962,7 @@ function batteryNameFromCards(cards) {
   const stem = first.anchor.split("/").pop()?.split(".")[0] ?? "rules";
   return `${first.classification.toLowerCase()}-${stem}`;
 }
-async function batteryVersionAsync(profile) {
+async function batteryVersionWithCardsAsync(profile) {
   const [texts, cards] = await Promise.all([
     Promise.all(profile.rules.corpus.map(async (p) => {
       let text;
@@ -184815,7 +184980,8 @@ ${text}`;
 `);
   const hash = sha256(`${corpusText}
 ${JSON.stringify(profile.rules.bindings)}`);
-  return `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+  const version = `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+  return { version, cards };
 }
 function selectTemplate(card) {
   const need = (key) => {
@@ -184882,14 +185048,14 @@ async function compile(profile) {
   return battery;
 }
 async function compileBattery(profile, db) {
-  const version = await batteryVersionAsync(profile);
+  const { version, cards: versionCards } = await batteryVersionWithCardsAsync(profile);
   if (db) {
     const row = db.prepare("SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?").get(version);
     if (Number(row?.["c"] ?? 0) > 0) {
       return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
     }
   }
-  const cards = await extractRuleCardsAsync(profile.rules.corpus);
+  const cards = versionCards;
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
     writeCompiledCache(db, battery, cards, version);
@@ -184897,10 +185063,12 @@ async function compileBattery(profile, db) {
   return { battery, batteryVersion: version, fromCache: false };
 }
 function severityFromBinding(v) {
+  if (v === undefined)
+    return "HIGH";
   if (typeof v === "string" && SEVERITIES.includes(v)) {
     return v;
   }
-  return "HIGH";
+  throw new LexiconError("SEVERITY_UNKNOWN", `SEVERITY_UNKNOWN: declared binding carries invalid severity '${String(v)}' (expected ${SEVERITIES.join("|")})`);
 }
 
 // src/hunter/diagnostics/calibration.ts
@@ -184956,8 +185124,12 @@ class CalibrationGate {
     return this.battery.filter((p) => this.verdictOf(p.id) === "FLAGGED");
   }
   batteryVersion(fixtureVersion = this.fixtureVersion) {
-    const corpusHash = sha256(this.battery.map((p) => `${p.anchor}
-${p.verbatimQuote}`).join(`
+    const corpusHash = sha256(this.battery.map((p) => `${p.id}
+${p.anchor}
+${p.verbatimQuote}
+${p.severity}
+${p.template}
+${p.family}`).join(`
 `));
     const bindingsHash = sha256(this.battery.map((p) => JSON.stringify(p.bindings)).join(`
 `));
@@ -185050,7 +185222,7 @@ ${p.verbatimQuote}`).join(`
     const coverageNote = excluded.length === 0 ? "all predicates calibrated \u2014 zero exclusions" : excluded.map((p) => `${p.id}: ${records.find((r) => r.predicateId === p.id)?.reason ?? "FLAGGED"}`).join(`
 `);
     const version = this.batteryVersion(fixtureVersion);
-    if (write) {
+    if (write && !this.dryRun) {
       const recordPath = write.recordPath ?? path19.join(profile.project.root, ".trident", "bug-hunter");
       if (write.db) {
         this.writeCalibrationRows(write.db, records, fixtureVersion);
@@ -185086,7 +185258,12 @@ ${p.verbatimQuote}`).join(`
     for (const fixture of matching) {
       this.validateFireFixture(fixture);
       const findings = this.runCheck(p, fixture.graph, fixture.source);
-      const hit = findings.some((f) => f.ruleId === p.id && f.verdict === "VIOLATION" && f.file.endsWith(fixture.file) && f.line >= fixture.line - 2 && f.line <= fixture.line + 2);
+      const normFixture = fixture.file.replace(/\\/g, "/");
+      const hit = findings.some((f) => {
+        const normFinding = f.file.replace(/\\/g, "/");
+        const fileMatch = normFinding === normFixture || normFinding.endsWith("/" + normFixture);
+        return f.ruleId === p.id && f.verdict === "VIOLATION" && fileMatch && f.line >= fixture.line - 2 && f.line <= fixture.line + 2;
+      });
       (hit ? hits : misses).push(`${fixture.file}:${fixture.line}`);
     }
     const fired = hits.length > 0;
@@ -185157,12 +185334,17 @@ ${p.verbatimQuote}`).join(`
       verdict = "FLAGGED";
     else if (fire && silent)
       verdict = "CALIBRATED";
-    const owned = this.battery.find((b) => b.id === p.id) ?? p;
-    if (verdict) {
-      this.verdicts.set(p.id, verdict);
-      markCalibrated(owned, verdict);
+    const owned = this.battery.find((b) => b.id === p.id);
+    if (owned) {
+      if (verdict) {
+        this.verdicts.set(p.id, verdict);
+        markCalibrated(owned, verdict);
+      } else {
+        markCalibrated(owned, "PENDING");
+      }
     } else {
-      markCalibrated(owned, "PENDING");
+      if (verdict)
+        this.verdicts.set(p.id, verdict);
     }
   }
   writeCalibrationRows(db, records, fixtureVersion) {
@@ -185331,6 +185513,9 @@ async function scan(profile, adapter, runId, db) {
           liveBattery = cal.liveBattery;
           console.warn(`[scan] D17 calibration: ${cal.excluded.length} FLAGGED \u2192 EXCLUDED; ${cal.coverageNote}`);
         }
+        if (liveBattery.length === 0) {
+          throw new Error(`HUNT_NO_COVERAGE: all ${battery.length} predicates FLAGGED by D17 calibration (liveBattery empty) \u2014 zero calibrated predicates is INCONCLUSIVE, never a clean pass. ${cal.coverageNote}`);
+        }
       }
     } catch (calErr) {
       const msg = calErr instanceof Error ? calErr.message : String(calErr);
@@ -185428,9 +185613,9 @@ function strike(findings, profile, traces = []) {
   }
   const relevanceOf = (f) => {
     const t = traceByFinding.get(findingIdOf(f));
-    if (!t)
+    if (!t || t.relevance == null)
       return 0;
-    return Object.values(t.relevance).reduce((s, v) => s + v, 0);
+    return Object.values(t.relevance).reduce((s, v) => s + (typeof v === "number" && Number.isFinite(v) ? Math.max(0, v) : 0), 0);
   };
   const ordered = [...ranked].sort((a, b) => {
     const ra = relevanceOf(a);
@@ -185521,8 +185706,8 @@ function nextReportVersion(masterContextDir) {
 async function writeReportDirect(input) {
   const masterContextDir = resolveMasterContextDir(input.projectRoot) ?? path22.join(input.projectRoot, "MASTER_CONTEXT");
   fs19.mkdirSync(masterContextDir, { recursive: true });
-  const version = nextReportVersion(masterContextDir);
-  const reportPath = path22.join(masterContextDir, `bug_hunter_report_v${version}.md`);
+  let version = nextReportVersion(masterContextDir);
+  let reportPath = path22.join(masterContextDir, `bug_hunter_report_v${version}.md`);
   const lines = [
     `# BUG-HUNT REPORT \u2014 v${version}`,
     "",
@@ -185557,13 +185742,20 @@ async function writeReportDirect(input) {
   }
   const document = lines.join(`
 `);
-  try {
-    fs19.writeFileSync(reportPath, document, { encoding: "utf-8", flag: "wx" });
-  } catch (e) {
-    const code = e !== null && typeof e === "object" && "code" in e ? String(e.code) : "";
-    if (code === "EEXIST")
-      throw new Error(`REPORT_VERSION_COLLISION: path=${reportPath} (another report landed v${version} concurrently \u2014 re-run the report actor)`);
-    throw new Error(`REPORT_WRITE_FAILED: path=${reportPath} detail=${e instanceof Error ? e.message : String(e)}`);
+  for (let attempt = 0;attempt < 5; attempt++) {
+    const retryVersion = nextReportVersion(masterContextDir);
+    const retryPath = path22.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);
+    try {
+      fs19.writeFileSync(retryPath, document, { encoding: "utf-8", flag: "wx" });
+      version = retryVersion;
+      reportPath = retryPath;
+      break;
+    } catch (e) {
+      const code = e !== null && typeof e === "object" && "code" in e ? String(e.code) : "";
+      if (code === "EEXIST" && attempt < 4)
+        continue;
+      throw new Error(`REPORT_WRITE_FAILED: path=${retryPath} detail=${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   const bytes = Buffer.byteLength(document, "utf-8");
   return {
@@ -185620,7 +185812,11 @@ async function report(input) {
         throw stripErr;
       console.warn("[report] thinking-strip failed (non-fatal):", stripErr instanceof Error ? stripErr.message : String(stripErr));
     }
-    input.db.exec("BEGIN IMMEDIATE");
+    try {
+      input.db.exec("BEGIN IMMEDIATE");
+    } catch (e) {
+      throw new Error(`REPORT_TX_BEGIN_FAILED: ${e instanceof Error ? e.message : String(e)} (caller may already hold a transaction \u2014 use a savepoint or serialize hunts)`);
+    }
     try {
       for (const s of sections) {
         appendReportSection(input.db, s, input.runId);
@@ -185672,6 +185868,11 @@ var MICRO_LOOP_TYPES = machineTypes();
 function createMicroLoop(options) {
   const { targetPath, profilePath } = options;
   const runId = `hunt-${Date.now()}-${profilePath.split("/").pop()?.replace(/[^a-z0-9]/gi, "") || "run"}`;
+  if (options.profile) {
+    if (options.profile.project.root !== targetPath) {
+      throw new Error(`[micro-loop] targetPath=${targetPath} disagrees with profile.project.root=${options.profile.project.root} \u2014 pass one root (the hunt target IS the profile root)`);
+    }
+  }
   const adapterOverride = options.adapter ?? null;
   const profileOverride = options.profile ?? null;
   const batteryOverride = options.battery ?? null;
@@ -185839,14 +186040,25 @@ function createMicroLoop(options) {
           try {
             const prefix = `${slug}-hunt-${day}-`;
             for (const row of store.prepare("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all()) {
+              let rawText = "";
               try {
-                const payload = JSON.parse(String(row["payload"] ?? "{}"));
+                const raw = row["payload"];
+                rawText = typeof raw === "string" ? raw : String(raw ?? "");
+                const payload = raw !== null && typeof raw === "object" ? raw : JSON.parse(String(raw ?? "{}"));
                 if (typeof payload.runId === "string" && payload.runId.startsWith(prefix)) {
                   const rest = payload.runId.slice(prefix.length);
                   if (/^\d+$/.test(rest))
                     seq = Math.max(seq, Number(rest));
                 }
-              } catch {}
+              } catch (e) {
+                const idx = rawText.indexOf(prefix);
+                if (idx !== -1) {
+                  const dm = /^\d+/.exec(rawText.slice(idx + prefix.length));
+                  if (dm?.[0] !== undefined)
+                    seq = Math.max(seq, Number(dm[0]));
+                }
+                console.warn(`[micro-loop] stub-seam HUNT_DONE payload parse failed \u2014 skipped: ${e instanceof Error ? e.message : String(e)}; raw=${rawText.slice(0, 120)}`);
+              }
             }
           } finally {
             store.close();
@@ -185961,28 +186173,16 @@ function createMicroLoop(options) {
             settle();
           }
         });
-        const sub3 = actor.subscribe((s) => {
-          const value = typeof s.value === "string" ? s.value : Object.values(s.value)[0];
-          if (value === "inconclusive") {
-            settle();
-          }
-        });
-        handleDisposables.push(sub2, sub3);
+        handleDisposables.push(sub2);
         function settle() {
           if (settled)
             return;
           settled = true;
           pendingSettle = null;
           sub2.unsubscribe();
-          sub3.unsubscribe();
           for (let i = handleDisposables.length - 1;i >= 0; i--) {
-            if (handleDisposables[i] === sub2 || handleDisposables[i] === sub3)
+            if (handleDisposables[i] === sub2)
               handleDisposables.splice(i, 1);
-          }
-          try {
-            snapshot.db?.close();
-          } catch (e) {
-            console.error("[micro-loop] db close failed:", e instanceof Error ? e.message : String(e));
           }
           resolve();
         }
@@ -186070,14 +186270,29 @@ function machineTypes() {
 
 // src/hunter/tools/bug-hunt.ts
 async function spawnBugHunterLoop(args) {
+  const inconclusive = (message) => ({ runId: `hunt-failed-${Date.now()}`, state: "inconclusive", findingsCount: 0, reportPath: null, fixOrder: [], error: message });
   const fsDyn = await import("fs");
   const absTarget = path24.resolve(args.targetPath);
-  const scopeReal = args.scopeRoot ? fsDyn.realpathSync(path24.resolve(args.scopeRoot)) : null;
+  let scopeReal = null;
+  if (args.scopeRoot) {
+    try {
+      scopeReal = fsDyn.realpathSync(path24.resolve(args.scopeRoot));
+    } catch {
+      return inconclusive(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} cannot resolve for scope check (realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
+    }
+  } else {
+    try {
+      scopeReal = fsDyn.realpathSync(absTarget);
+    } catch {
+      scopeReal = null;
+    }
+  }
   if (scopeReal === path24.sep) {
-    throw new Error(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root \u2014 containment against '/' admits every path and is not a boundary`);
+    return inconclusive(`HUNT_SCOPE_INVALID: scopeRoot=${args.scopeRoot} resolves to the filesystem root \u2014 containment against '/' admits every path and is not a boundary`);
   }
   const scopePrefix = scopeReal === null ? null : scopeReal + path24.sep;
   const inScope = (real) => scopeReal === null || real === scopeReal || scopePrefix !== null && real.startsWith(scopePrefix);
+  const lockTarget = args.scopeRoot ? path24.resolve(args.scopeRoot) : absTarget;
   let targetOk = false;
   try {
     targetOk = fsDyn.statSync(absTarget).isDirectory();
@@ -186085,26 +186300,26 @@ async function spawnBugHunterLoop(args) {
     targetOk = false;
   }
   if (!targetOk) {
-    throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} \u2014 the hunt target must be a real directory inside the scope)`);
+    return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} (no existing directory at ${absTarget} \u2014 the hunt target must be a real directory inside the scope)`);
   }
   if (scopeReal !== null) {
     let targetReal;
     try {
       targetReal = fsDyn.realpathSync(absTarget);
     } catch {
-      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scopeReal} realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} cannot resolve for scope check (scope=${scopeReal} realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
     }
     if (!inScope(targetReal)) {
-      throw new Error(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
+      return inconclusive(`HUNT_SCOPE_INVALID: targetPath=${args.targetPath} resolves outside the scope root (scope=${scopeReal} target=${targetReal})`);
     }
   }
   if (typeof args.profilePath === "string" && args.profilePath.length > 0) {
     const absProfile = path24.resolve(args.profilePath);
     if (!fsDyn.existsSync(absProfile)) {
-      throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
+      return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
     }
   }
-  acquireHuntLock(absTarget);
+  acquireHuntLock(lockTarget);
   try {
     const absProfile = typeof args.profilePath === "string" && args.profilePath.length > 0 ? path24.resolve(args.profilePath) : undefined;
     if (absProfile !== undefined) {
@@ -186115,29 +186330,30 @@ async function spawnBugHunterLoop(args) {
         profileOk = false;
       }
       if (!profileOk) {
-        throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
+        return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} (nothing at ${absProfile} \u2014 the profile must exist)`);
       }
       if (scopeReal !== null) {
         let profileReal;
         try {
           profileReal = fsDyn.realpathSync(absProfile);
         } catch {
-          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} cannot resolve for scope check (scope=${scopeReal} realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
+          return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} cannot resolve for scope check (scope=${scopeReal} realpath failed \u2014 chmod/fix permissions or remove broken symlinks)`);
         }
         if (!inScope(profileReal)) {
-          throw new Error(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
+          return inconclusive(`HUNT_SCOPE_INVALID: profilePath=${args.profilePath} resolves outside the scope root (scope=${scopeReal} profile=${profileReal})`);
         }
       }
     }
-    const machine = createMicroLoop({
-      targetPath: absTarget,
-      profilePath: absProfile ?? "",
-      ...args.adapter ? { adapter: args.adapter } : {},
-      ...args.profile ? { profile: args.profile } : {},
-      ...args.battery ? { battery: args.battery } : {},
-      ...args.reportWriter ? { reportWriter: args.reportWriter } : {}
-    });
+    let machine = null;
     try {
+      machine = createMicroLoop({
+        targetPath: absTarget,
+        profilePath: absProfile ?? "",
+        ...args.adapter ? { adapter: args.adapter } : {},
+        ...args.profile ? { profile: args.profile } : {},
+        ...args.battery ? { battery: args.battery } : {},
+        ...args.reportWriter ? { reportWriter: args.reportWriter } : {}
+      });
       machine.start({ type: "START" });
       await machine.done();
       const { result } = machine.getSnapshot();
@@ -186166,15 +186382,15 @@ async function spawnBugHunterLoop(args) {
       };
     } finally {
       try {
-        machine.context.db?.close();
+        machine?.context.db?.close();
       } catch {}
       try {
-        machine.stop();
+        machine?.stop();
       } catch {}
     }
   } finally {
     try {
-      releaseHuntLock(absTarget);
+      releaseHuntLock(lockTarget);
     } catch (e) {
       console.error(`[bug-hunt] HUNT_LOCK_RELEASE_FAILED target=${args.targetPath} error=${e instanceof Error ? e.message : String(e)} (loud, never masking the hunt RESULT)`);
     }
@@ -186236,7 +186452,7 @@ function createBugHuntTool(pi, opts) {
       }
       try {
         try {
-          acquireHuntLock(scopeRoot);
+          acquireHuntLock(path24.resolve(scopeRoot));
         } catch (lockErr) {
           const lockMsg = lockErr instanceof Error ? lockErr.message : String(lockErr);
           if (lockMsg.includes("HUNT_ALREADY_RUNNING")) {
@@ -186271,7 +186487,7 @@ function createBugHuntTool(pi, opts) {
           });
         } finally {
           try {
-            releaseHuntLock(scopeRoot);
+            releaseHuntLock(path24.resolve(scopeRoot));
           } catch {}
         }
       } catch (e) {
@@ -186394,19 +186610,20 @@ function chain(input, db) {
     rev.push(finalStep);
     return rev.map((r, i) => ({ ...r, step: i + 1 }));
   };
+  const chainEdgesStmt = db.prepare(`
+        SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
+               dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
+        FROM typed_edges e
+        JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
+        WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL
+      `);
   while (head < queue.length) {
     const curId = queue[head];
     const curDepth = depthOf.get(curId) ?? 0;
     head += 1;
     if (curDepth >= MAX_DEPTH)
       continue;
-    const out = rowsAs(db.prepare(`
-        SELECT dst.canonical_id AS dst_id, dst.label AS dst_label,
-               dst.file AS dst_file, dst.line AS dst_line, e.predicate AS predicate
-        FROM typed_edges e
-        JOIN typed_nodes dst ON e.dst_canonical = dst.canonical_id
-        WHERE e.src_canonical = ? AND e.predicate = 'calls' AND e.superseded_run IS NULL
-      `).all(curId), "chain edges");
+    const out = rowsAs(chainEdgesStmt.all(curId), "chain edges");
     for (const e of out) {
       const step = {
         from: curId,
@@ -187366,8 +187583,9 @@ function kevProbe(scopeRoot) {
         const tail = String(err.stdout ?? "").slice(-300);
         throw new Error(`GI_ENFORCE_KEV: the KEV CLI failed \u2014 ${tail.length > 0 ? tail : (err.message ?? String(e)).slice(0, 200)}`);
       }
-      const line = out.split(`
-`).reverse().find((l) => l.trim().startsWith("{"));
+      const candidates = out.split(`
+`).filter((l) => l.trim().startsWith("{") && l.includes('"ok"'));
+      const line = candidates[candidates.length - 1];
       if (line === undefined)
         throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON \u2014 output: ${out.slice(0, 200)}`);
       let ans;
@@ -187666,7 +187884,7 @@ function consumptionAudit(scopeRoot, subject) {
 
 // src/omp/graph-facts.ts
 import { Database as Database7 } from "bun:sqlite";
-var LIKE = (target) => `%${target.replace(/[%_]/g, "")}%`;
+var LIKE = (target) => `%${target.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 function freshnessGate(db, input) {
   const f = layerFreshness(db, { derivation: input.derivation ?? "explicit", now: input.now });
   if (!f.stale)
@@ -187680,7 +187898,7 @@ function freshnessGate(db, input) {
   };
 }
 function inDegree(db, target, predicate) {
-  const where = predicate === undefined ? `dst_canonical LIKE ?1 AND superseded_run IS NULL` : `dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL`;
+  const where = predicate === undefined ? `dst_canonical LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL` : `dst_canonical LIKE ?1 ESCAPE CHAR(92) AND predicate = ?2 AND superseded_run IS NULL`;
   const params = predicate === undefined ? [LIKE(target)] : [LIKE(target), predicate];
   const n = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE ${where}`).get(...params).n;
   const rows = db.query(`SELECT src_canonical FROM typed_edges WHERE ${where} LIMIT 5`).all(...params);
@@ -187704,7 +187922,7 @@ function graphFacts(input) {
     const stale = freshnessGate(db, input);
     if (stale !== null)
       return [stale];
-    const known = db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
+    const known = db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`).get(LIKE(input.target)).n;
     if (known === 0) {
       return [{
         rule: "M-GRAPH-1",
@@ -187715,7 +187933,7 @@ function graphFacts(input) {
       }];
     }
     const inD = inDegree(db, input.target);
-    const outD = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
+    const outD = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`).get(LIKE(input.target)).n;
     if (input.intent === "consume") {
       const producers = inDegree(db, input.target, "calls");
       verdicts.push(producers.n === 0 ? {
@@ -187733,7 +187951,7 @@ function graphFacts(input) {
       });
     }
     if (input.intent === "declare") {
-      verdicts.push(inD.n === 0 ? {
+      verdicts.push(outD === 0 && inD.n === 0 ? {
         rule: "M-GRAPH-2",
         settles: true,
         action: "FIRE",
@@ -187758,7 +187976,7 @@ function graphFacts(input) {
       });
     }
     if (input.intent === "measure") {
-      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical = dst_canonical AND src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)).n;
+      const self2 = db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical = dst_canonical AND src_canonical LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`).get(LIKE(input.target)).n;
       verdicts.push(self2 > 0 ? {
         rule: "M-GRAPH-5",
         settles: true,

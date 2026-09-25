@@ -90,6 +90,10 @@ export interface GateInput {
   newText: string;
   file: string;
   hasStore: boolean;
+  /** R16D (2026-09-25, group-d finding :112): optional env override (test/DI seam) -
+   *  when present, GI_ALLOW_NO_STORE is read from here first, same pattern as
+   *  resolveDial(env). Absent = process.env, so existing callers are unchanged. */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface GateResult {
@@ -109,7 +113,8 @@ export function runGraphGate(input: GateInput): GateResult {
   //   (the first populate of a fresh scope). It is never the default, and it is never
   //   silent — the advisory records that the gate was bypassed ON PURPOSE.
   if (!input.hasStore) {
-    if ((process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
+    // R16D: input.env override first (unit-testable without mutating process.env).
+    if ((input.env?.GI_ALLOW_NO_STORE ?? process.env.GI_ALLOW_NO_STORE ?? "") === "1") {
       return {
         cancel: false,
         token: "GI_NO_STORE",

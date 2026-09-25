@@ -121,7 +121,15 @@ export class HydraPipeline<TInput, TSubResult, TSynthesis, TOutput> {
     for (const gate of this.config.gates.pre) {
       this.log("GATE_CHECK", { gate: gate.name, phase: "pre" }, evidence);
       const result = await gate.check(input);
-      if (!result.passed) this.failLoud(gate, result.reason ?? "pre-gate failed");
+      if (!result.passed) {
+        // R16D FIX (2026-09-25, group-d finding :121): a pre-gate rejection threw
+        // before the try block, so the run trail never reached this.evidence -
+        // concurrent readers saw a stale snapshot. Publish the partial trail (with
+        // PIPELINE_FAILED) before throwing, same as the post-gate path.
+        this.log("PIPELINE_FAILED", { name: this.config.name, error: `pre-gate ${gate.name}: ${result.reason ?? "pre-gate failed"}` }, evidence);
+        this.publishRun(seq, evidence);
+        this.failLoud(gate, result.reason ?? "pre-gate failed");
+      }
     }
 
     // ★ F-202 FIX (2026-09-24): honor the declared targetRootFor/graphPathFor

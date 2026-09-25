@@ -144,6 +144,14 @@ function db(sessionId?: string): Database {
   if (hit) {
     try {
       hit.query('SELECT 1').get();
+      // ★ W16-HIGH FIX: refresh recency on hit — a Map preserves insertion order,
+      //   so without delete+set the HOTTEST path reads as oldest and is evicted
+      //   first (FIFO, not LRU). Re-insertion moves it to most-recent.
+      // ★ (the same-site second half — deferred close of evicted handles — rides
+      //   the LRU fix's close path: evicted handles close AFTER map removal, so a
+      //   cross-path re-entrant db() never hands out a closed handle mid-transaction.)
+      poolDbByPath.delete(want);
+      poolDbByPath.set(want, hit);
       // W9+W26 (frozen-scan HIGH) + W44: the re-hardening is O_NOFOLLOW+
       // fchmod — a swap-to-symlink inside the window throws ELOOP and lands
       // in the catch below (handle dropped, fresh safe open) instead of
@@ -189,6 +197,23 @@ function db(sessionId?: string): Database {
     // pair that could harden the VICTIM through a swap inside the window.
     hardenPoolFile(want);
   }
+  // ★ W16-HIGH FIX (TOCTOU tightener): the O_EXCL pre-create refuses a plant at
+  //   create time, but an attacker swapping file→symlink between the EEXIST
+  //   harden and the SQLite open below makes SQLite open THROUGH the link (the
+  //   post-open lstat refusal then fires too late — the victim already
+  //   touched). Re-check lstat immediately before the open in the same tight
+  //   sequence (no I/O between except the constructor), and fail closed.
+  try {
+    if (fs.lstatSync(want).isSymbolicLink()) {
+      throw new Error(`GO_POOL_SYMLINK: ${want} is a symlink plant — refusing (remove it or set GO_POOL_DB)`);
+    }
+  } catch (e: unknown) {
+    const code = (e as NodeJS.ErrnoException)?.code;
+    if (code !== 'ENOENT') throw e;
+    // vanished between EEXIST and here — recreate barred by O_EXCL? fall
+    // through: the constructor with create:true materializes it, then the
+    // post-open lstat below still guards.
+  }
   const fresh = new Database(want, { create: true });
   try { hardenPoolFile(want); } catch { /* fs may already restrict */ }
   // W44 (pool:167): post-open refusal — if the path became a symlink during
@@ -210,7 +235,18 @@ function db(sessionId?: string): Database {
   for (const side of [want + '-wal', want + '-shm']) {
     // W44/F21: same no-follow discipline as the main file — a swapped sidecar
     // symlink must hit ELOOP here, never get chmodded through to a victim.
-    try { hardenPoolFile(side); } catch { /* sidecar absent or plant — best-effort */ }
+    // ★ W16-HIGH FIX: ELOOP is a PLANT, not an absence — swallowing it best-effort
+    //   lets SQLite open sidecars through the link while the harden silently
+    //   passes. Absence stays best-effort; a plant fails CLOSED (delete the
+    //   plant so the next open recreates a real sidecar, then throw).
+    try { hardenPoolFile(side); } catch (e: unknown) {
+      const code = (e as NodeJS.ErrnoException)?.code;
+      if (code === 'ELOOP') {
+        try { fs.unlinkSync(side); } catch { /* already gone */ }
+        throw new Error(`GO_POOL_SYMLINK: ${side} is a symlink plant — refusing (removed; retry the open)`);
+      }
+      /* sidecar absent — best-effort */
+    }
   }
   fresh.run(`CREATE TABLE IF NOT EXISTS go_key_pool (
     idx INTEGER PRIMARY KEY,
@@ -398,6 +434,21 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
       if (displaced && typeof displaced.keyid === 'string' && displaced.keyid.length > 0) {
         const home = GO_KEYS.findIndex((k) => createHash('sha256').update(k).digest('hex').slice(0, 16) === displaced.keyid);
         if (home >= 0 && home !== idx) {
+          // ★ W16-HIGH FIX: the old UPDATE hit the idx PRIMARY KEY when `home`
+          //   was already occupied (a swap reorder) → the whole transaction
+          //   rolled back → markGoKeyDead returned 0 with NO exile persisted and
+          //   the still-limited key kept getting hammered. Move the occupant at
+          //   `home` out of the way first (a non-colliding negative sentinel —
+          //   mergedDeadViews resolves by keyid over ALL rows, so the exile still
+          //   binds its key), then re-home the displaced row.
+          const occupant = conn.query('SELECT keyid FROM go_key_pool WHERE idx = ?').get(home) as { keyid: string | null } | null;
+          if (occupant && typeof occupant.keyid === 'string' && occupant.keyid.length > 0 && occupant.keyid !== displaced.keyid) {
+            const minRow = conn.query('SELECT MIN(idx) AS m FROM go_key_pool').get() as { m: number | null } | null;
+            const sentinel = Math.min(-1, (minRow?.m ?? 0) - 1);
+            conn.run('UPDATE go_key_pool SET idx = ? WHERE idx = ?', [sentinel, home]);
+          } else {
+            conn.run('DELETE FROM go_key_pool WHERE idx = ?', [home]);
+          }
           conn.run('UPDATE go_key_pool SET idx = ? WHERE keyid = ? AND idx = ?', [home, displaced.keyid, idx]);
         } else if (home === idx) {
           // ★ F-512 FIX (2026-09-24): same-slot displaced row (a reload reordered nothing, or the
@@ -426,10 +477,22 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
           }
         }
       }
+      // ★ WAVE-AUDIT FIX (2026-09-25): COLLAPSE SAME-KEYID SIBLINGS. The re-home branch
+      //   above handles a DISPLACED row carrying a DIFFERENT keyid at `idx`; nothing
+      //   removed a GHOST row that carries the SAME keyid at ANOTHER idx (a post-reorder
+      //   duplicate — exactly the shape st-gi-w7-scanhighs:111 pins: "exactly ONE row
+      //   names this key"). The pre-W16 code had a DELETE-siblings step that did; the
+      //   re-home refactor dropped it, so a key could own two rows and the ghost's
+      //   stale window could outlive the real one. Exile is PRESERVED: any sibling's
+      //   dead_until is folded into the effective window before the delete.
+      const selfKeyid = keyidFor(idx);
+      const sib = conn.query('SELECT MAX(dead_until) AS d FROM go_key_pool WHERE keyid = ? AND idx != ?').get(selfKeyid, idx) as { d: number | null } | null;
+      const untilEff = Math.max(until, Number(sib?.d ?? 0));
+      conn.run('DELETE FROM go_key_pool WHERE keyid = ? AND idx != ?', [selfKeyid, idx]);
       conn.run(
         `INSERT INTO go_key_pool (idx, keyid, dead_until, reason, marked_at) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(idx) DO UPDATE SET keyid = excluded.keyid, dead_until = excluded.dead_until, reason = excluded.reason, marked_at = excluded.marked_at`,
-        [idx, keyidFor(idx), until, redactKeyMaterial(msg).slice(0, 300), now],
+        [idx, selfKeyid, untilEff, redactKeyMaterial(msg).slice(0, 300), now],
       );
       conn.exec('COMMIT;');
       // W9 (frozen-scan HIGH): SQLite can recreate -wal/-shm at the process

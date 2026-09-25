@@ -181,9 +181,17 @@ export function extractMechanical(program: tsImport.Program, opts: ExtractMechan
           pushTriple(fileCanon, 'exports', toFnCanonical(stmt.name.text), expEvidence, relPosix, expLine);
         } else if (ts.isVariableStatement(stmt)) {
           for (const decl of stmt.declarationList.declarations) {
-            if (ts.isIdentifier(decl.name)) {
-              pushTriple(fileCanon, 'exports', `fn:${decl.name.text}`, expEvidence, relPosix, expLine);
-            }
+            if (!ts.isIdentifier(decl.name)) continue;
+            // ★ R15H5 FIX (2026-09-25): the old form emitted `exports fn:<name>` for
+            //   EVERY inline-exported variable (`export const x = 5` → `fn:x`), while
+            //   `declares` only emits `fn:` for arrow/function initializers — the
+            //   `fn:` namespace was polluted and declares↔exports joins broke. Gate
+            //   on the function-like initializer like the declares branch above; a
+            //   non-function export has no declares triple to join to, so it emits
+            //   nothing instead of a dangling `fn:` edge.
+            const isFn = decl.initializer !== undefined && (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer));
+            if (!isFn) continue;
+            pushTriple(fileCanon, 'exports', `fn:${decl.name.text}`, expEvidence, relPosix, expLine);
           }
         }
       }

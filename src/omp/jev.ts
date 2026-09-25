@@ -51,6 +51,15 @@ export function resolveKey(env: Record<string, string | undefined> = process.env
           `key file ${KEY_FILE} refused at open (${c.code} — a symlink plant or unreadable file; expected a 0600 regular file — chmod 600 ${KEY_FILE})`,
         );
       }
+      // ★ R16B FIX (2026-09-25): EMFILE/ENFILE is fd exhaustion, not a missing key — it must
+      //   not fall through to GI_JEV_NO_KEY (that misdirects to key presence instead of fd
+      //   pressure). A distinct JevError; still a throw (the hard-dep law stands).
+      if (c?.code === 'EMFILE' || c?.code === 'ENFILE') {
+        throw new JevError(
+          "GI_JEV_KEY_IO",
+          `key file ${KEY_FILE} could not be opened (${c.code} — process out of file descriptors; not a missing key)`,
+        );
+      }
       // ENOENT and friends: fall through to the NO_KEY throw below (the old readFile path did the same).
     }
     if (fd !== null) {

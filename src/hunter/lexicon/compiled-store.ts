@@ -75,10 +75,18 @@ export function writeCompiledCache(
     // ★ orphans of the live version would ride the battery). Delete the incoming version first.
     // ★ Cross-version rows are unreachable by construction (version = sha(corpus+bindings);
     // ★ same version ⇒ same deterministic id set), so no wider eviction is attempted here.
-    if (battery.length > 0 && battery[0] !== undefined) {
+    // ★ R15: evict by the authoritative corpusHash param, not battery[0] — a recompile to
+    // empty skipped eviction (leaving stale rows); mixed-version batteries only evicted the
+    // first version. Cross-check: every row must share corpusHash or the write is a bug.
+    {
       const delBat = db.prepare('DELETE FROM compiled_predicates WHERE battery_version = ?');
       stmts.push(delBat);
-      delBat.run(battery[0].batteryVersion);
+      delBat.run(corpusHash);
+      for (const p of battery) {
+        if (p.batteryVersion !== corpusHash) {
+          throw new LexiconError('VERSION_MISMATCH', `VERSION_MISMATCH: battery predicate ${p.id} has batteryVersion ${p.batteryVersion} != corpusHash ${corpusHash}`);
+        }
+      }
     }
     if (battery.length > 0) {
       const insBat = db.prepare(

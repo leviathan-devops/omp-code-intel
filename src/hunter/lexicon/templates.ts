@@ -222,7 +222,10 @@ function bindOperator(bindings: Record<string, unknown>): 'lt' | 'lte' | 'gt' | 
   if (typeof v === 'string' && (v === 'lt' || v === 'lte' || v === 'gt' || v === 'gte')) {
     return v;
   }
-  return 'gt';
+  // ★ R15 FIX: the silent 'gt' fallback inverted threshold verdicts on loader-bypassing
+  //   bindings (a 'gte ' typo silently became gt), inconsistent with bindSeverity's loud
+  //   TEMPLATE_BINDING_INVALID. An absent operator is the caller's omission — loud too.
+  throw templateBindingInvalid('domain.numeric-threshold', `the operator binding must be one of lt|lte|gt|gte, got ${JSON.stringify(v)}`);
 }
 
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the number binding (typeof-guarded). */
@@ -712,7 +715,10 @@ export function resolveEdgeAnchor(graph: GraphAdapter, spec: AnchorSpec): EdgeAn
   }
   for (const n of safeNodes(graph)) {
     if (n.kind !== 'function' && n.kind !== 'method' && n.kind !== 'class') continue;
-    if (!spec.defMatchers.some((rx) => rx.test(n.name))) continue;
+    // ★ R15 FIX: a caller-supplied defMatcher with g/y advances lastIndex on every test,
+    //   so the SAME node alternated hit/miss across iterations (K20.3 determinism broken).
+    //   Reset around each test (both sides — a throw between would leave it dirty).
+    if (!spec.defMatchers.some((rx) => { rx.lastIndex = 0; const hit = rx.test(n.name); rx.lastIndex = 0; return hit; })) continue;
     const inbound = safeWhoCalls(graph, n.name);
     const steps = safeChain(graph, n.id);
     const aw = safeAwaits(graph, n.name);

@@ -201,7 +201,7 @@ function splitTopLevel(s: string, sep: string): string[] {
     } else if (q === "'") {
       if (c === "'") { if (s[i + 1] === "'") i++; else q = null; }
     } else {
-      if (c === '\\') i++;
+      if (c === '\\' && i + 1 < s.length) { cur += c + s[i + 1]; i++; continue; }
       else if (c === '"') q = null;
     }
     cur += c;
@@ -542,7 +542,15 @@ export function loadProfile(profilePath: string): ProjectProfile {
   } catch {
     throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
   }
-  if (!fs.existsSync(resolvedRoot) || !fs.statSync(resolvedRoot).isDirectory()) {
+  // ★ R15: single statSync in try/catch — the old existsSync||statSync was a TOCTOU race
+  // where a delete between them threw raw ENOENT instead of PROFILE_INVALID.
+  try {
+    const st = fs.statSync(resolvedRoot);
+    if (!st.isDirectory()) {
+      throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
+    }
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message.startsWith('PROFILE_INVALID')) throw e;
     throw profileInvalid('project.root', profile.project.root, 'the project root must exist and be a directory');
   }
 

@@ -129,16 +129,32 @@ export function mergePasses(mechanical: TypedTriple[], semantic: TypedTriple[], 
 
     if (mechExact) {
       const anchor = mechExact;
-      const inheritedFile = anchor.file;
-      const inheritedLine = anchor.line;
+      // ★ R15H5 FIX (2026-09-25): the old form pushed a SECOND row with the same
+      //   tripleKey as the mechanical row already emitted (and indexed in
+      //   mergedByKey) — identical triples were doubled and counts skewed
+      //   downstream. Upgrade the emitted row in place: source='both', the
+      //   semantic evidence/confidence, the mechanical file:line anchor.
+      const existing = mergedByKey.get(k);
+      if (existing) {
+        existing.source = 'both';
+        existing.evidence = s.evidence.trim().slice(0, 500);
+        existing.confidence = s.confidence;
+        existing.file = anchor.file || s.file;
+        existing.line = anchor.line || s.line;
+        existing.subjectKind = s.subjectKind ?? anchor.subjectKind;
+        existing.objectKind = s.objectKind ?? anchor.objectKind;
+        existing.anchorFile = anchor.file ?? null;
+        existing.anchorLine = anchor.line ?? null;
+        continue;
+      }
       merged.push({
         subject: s.subject.trim(),
         predicate: s.predicate as Predicate,
         object: s.object.trim(),
         evidence: s.evidence.trim().slice(0, 500),
         confidence: s.confidence,
-        file: inheritedFile || s.file,
-        line: inheritedLine || s.line,
+        file: anchor.file || s.file,
+        line: anchor.line || s.line,
         subjectKind: s.subjectKind ?? anchor.subjectKind,
         objectKind: s.objectKind ?? anchor.objectKind,
         source: 'both',

@@ -53,11 +53,20 @@ export function insideRoot(real: string, rootReal: string): boolean {
  *
  * `maxClimb` bounds the walk (default 12 — deeper than any real project nesting).
  */
-export function realNearest(target: string, maxClimb = 12): string {
+export function realNearest(target: string, maxClimb = 512): string {
+  // ★ W16-HIGH FIX: the old maxClimb=12 silently degraded deep missing chains to
+  //   the unresolved spelling, which could then satisfy insideRoot while the real
+  //   path escapes (a fixed depth bound deciding a security check). The walk now
+  //   climbs until the filesystem root bounds it (parent===dir); exhausting
+  //   maxClimb (a pathological chain, never a real project) throws LOUD instead
+  //   of returning unverified spelling as safe.
   const abs = path.resolve(target);
   const missing: string[] = [];
   let dir = abs;
   for (let i = 0; i <= maxClimb; i += 1) {
+    if (i === maxClimb) {
+      throw new Error(`CONTAINMENT_CLIMB_EXHAUSTED: target=${target} (the missing chain exceeds ${maxClimb} segments — refusing unverified containment)`);
+    }
     try {
       const realDir = fs.realpathSync(dir);
       return missing.length === 0 ? realDir : path.join(realDir, ...missing.reverse());
@@ -104,6 +113,11 @@ export interface ContainmentResult {
  * BOTH paths in its message, which is what makes a refusal debuggable.
  */
 export function checkContained(target: string, root: string): ContainmentResult {
+  // ★ W16-HIGH FIX: checkContained documents NEVER-throws (callers rely on
+  //   no-throw). realNearest (climb-exhaustion), rootPrefixOf (empty root) and
+  //   insideRoot all throw on adversarial inputs — catch them here and answer
+  //   contained:false + resolved:false (fail-closed), never an uncaught throw.
+  try {
   // ★ F-603 FIX (2026-09-24, the restored lane's HIGH): `existsSync(root) ? realpathSync(root)`
   //   is a TOCTOU — the dir can vanish between the two calls and realpathSync then THROWS,
   //   violating this module's "NEVER throws" contract. realpath directly; realNearest already
@@ -121,6 +135,13 @@ export function checkContained(target: string, root: string): ContainmentResult 
   const targetAbs = path.resolve(target);
   const resolved = real !== targetAbs || fs.existsSync(real);
   return { real, rootReal, contained, resolved };
+  } catch {
+    // Fail-closed total: an unresolvable root/empty root/climb-exhaustion can
+    // never read as contained. resolved:false marks the unverified spelling.
+    let rootReal = '';
+    try { rootReal = fs.realpathSync(root); } catch { rootReal = path.resolve(root); }
+    return { real: path.resolve(target), rootReal, contained: false, resolved: false };
+  }
 }
 
 /**

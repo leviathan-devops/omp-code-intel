@@ -100,8 +100,14 @@ export function batteryVersion(profile: ProjectProfile): string {
   return `${projectTokenSlug(profile.project.name)}-${batteryName(profile)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
 }
 
-/** The async twin of batteryVersion (★ F-146 FIX (2026-09-24)): the identical version string via non-blocking reads — the async compile paths below must not block the event loop on corpus I/O. The sync export stays for sync callers. */
-export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
+/** The async twin's single-extraction core: the corpus texts + the ONCE-extracted
+ *  cards → {version, cards}. Returned together so compileBattery can reuse the SAME
+ *  cards it fingerprinted — a concurrent corpus edit between a version pass and a
+ *  re-extract pass can no longer fingerprint one byte-set and compile another
+ *  (the K20.3 determinism skew). batteryVersionAsync keeps its string-only contract
+ *  over this core.
+ *  ★ W16-HIGH FIX (version-vs-cards double-read skew). */
+export async function batteryVersionWithCardsAsync(profile: ProjectProfile): Promise<{ version: string; cards: RuleCard[] }> {
   // ★ F-832 (cont.): ZERO sync I/O on the async path — the corpus texts feed the hash and the
   //   async cards feed the name, overlapped in one Promise.all (one wall-time pass, no event-loop
   //   block). extractRuleCardsAsync shares the cardsFromLines core with the sync twin (K20.3),
@@ -120,7 +126,14 @@ export async function batteryVersionAsync(profile: ProjectProfile): Promise<stri
   ]);
   const corpusText = texts.join('\n');
   const hash = sha256(`${corpusText}\n${JSON.stringify(profile.rules.bindings)}`);
-  return `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+  const version = `${projectTokenSlug(profile.project.name)}-${batteryNameFromCards(cards)}-battery-v1 (fingerprint: ${hash.slice(0, 12)})`;
+  return { version, cards };
+}
+
+/** The async twin of batteryVersion (★ F-146 FIX (2026-09-24)): the identical version string via non-blocking reads — the async compile paths below must not block the event loop on corpus I/O. The sync export stays for sync callers. */
+export async function batteryVersionAsync(profile: ProjectProfile): Promise<string> {
+  const { version } = await batteryVersionWithCardsAsync(profile);
+  return version;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,7 +246,11 @@ export interface CompileResult {
  *  compiled + persisted (the rule cards under the corpus_hash + the battery rows
  *  INSERT OR REPLACE). A corpus edit changes the hash → a cache miss → re-compile. */
 export async function compileBattery(profile: ProjectProfile, db?: DbClient): Promise<CompileResult> {
-  const version = await batteryVersionAsync(profile);
+  // ★ W16-HIGH FIX: single extraction — the version pass and the compile pass
+  //   share ONE extraction. The old shape fingerprinted (version) then
+  //   re-extracted (cards) — a concurrent corpus edit between the two passes
+  //   compiled bytes the fingerprint never described.
+  const { version, cards: versionCards } = await batteryVersionWithCardsAsync(profile);
   if (db) {
     const row = db.prepare('SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?').get(version);
     if (Number(row?.['c'] ?? 0) > 0) {
@@ -243,7 +260,7 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
   // ★ F-704 FIX (2026-09-24): the async extractor — the sync readFileSync path
   // ★ blocked the event loop inside this async compile (the F-146 fix's purpose
   // ★ defeated). batteryName (sync, batteryVersion callers) keeps the sync twin.
-  const cards = await extractRuleCardsAsync(profile.rules.corpus);
+  const cards = versionCards;
   const battery = [...compileCards(cards, profile, version), ...compileDeclared(profile, version)];
   if (db) {
     // ★ F-147 FIX (2026-09-24): no half-cache — writeRuleCards and writeBattery each commit internally (no nesting), so a writeBattery failure after writeRuleCards succeeded cleans up the orphaned cards and throws named.
@@ -260,8 +277,14 @@ export async function compileBattery(profile: ProjectProfile, db?: DbClient): Pr
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the severity binding is narrowed by
  *  the SEVERITIES membership check (the assertion is earned by the validation). */
 function severityFromBinding(v: unknown): Severity {
+  // ★ W16-HIGH FIX: fail-closed — default to 'HIGH' ONLY when the binding is
+  //   ABSENT (undefined). A present-but-invalid severity (a 'HIGG' typo, a
+  //   number, an object) throws SEVERITY_UNKNOWN instead of silently coercing,
+  //   hiding the typo and diverging from templates.ts bindSeverity's loud
+  //   TEMPLATE_BINDING_INVALID contract.
+  if (v === undefined) return 'HIGH';
   if (typeof v === 'string' && (SEVERITIES as readonly string[]).includes(v)) {
     return v as Severity;
   }
-  return 'HIGH';
+  throw new LexiconError('SEVERITY_UNKNOWN', `SEVERITY_UNKNOWN: declared binding carries invalid severity '${String(v)}' (expected ${SEVERITIES.join('|')})`);
 }

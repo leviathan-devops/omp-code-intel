@@ -80,7 +80,9 @@ export function populateSessionStore(storePath: string, root: string, runTag = "
         console.error(`[gi-omp] GI_META_WRITE_FAILED: batch meta write for ${storePath} did not commit (${e instanceof Error ? e.message : String(e)}) - data populated, meta degraded`);
       }
     } finally {
-      db.close();
+      // ★ R16A FIX (2026-09-25, group-a:82): close best-effort — a close() throw must not
+      //   mask the return (incl. metaDegraded). Same pattern as the graphify path (F-46).
+      try { db.close(); } catch { /* close best-effort */ }
     }
     console.error(`[gi-omp] populate substrate=corbell checkout=${corbell.checkoutPath} nodes=${corbell.nodes} edges=${corbell.edges}`);
     return {

@@ -95,8 +95,17 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
   //   The swallow now applies ONLY when BEGIN itself failed (no transaction to commit).
   let began = false;
   try {
-    try { db.exec('BEGIN IMMEDIATE'); began = true; } catch { began = false; /* no explicit-BEGIN support: bare exec below */ }
-    db.exec(TYPED_GRAPH_DDL);
+    // ★ R15H5 FIX (2026-09-25): the old catch-all conflated lock contention with
+    //   no-BEGIN support — a SQLITE_BUSY/locked/timeout/I-O failure on BEGIN fell
+    //   through to bare auto-commit exec, turning transient concurrency failure
+    //   into an unverified multi-statement partial migration. Fall back ONLY on
+    //   unsupported-syntax shapes (or a nested-transaction join into the caller's
+    //   tx); rethrow contention/timeout/I-O immediately.
+    try { db.exec('BEGIN IMMEDIATE'); began = true; } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/no such|syntax|not supported|cannot start a transaction/i.test(msg)) began = false; /* no explicit-BEGIN support (or nested join): bare exec below */
+      else throw new Error(`TYPED_MIGRATION_FAILED: BEGIN IMMEDIATE failed: ${msg}`);
+    }
     try { db.exec('COMMIT'); } catch (commitErr: unknown) { if (began) throw commitErr; /* else: nothing to commit */ }
     // ★ F-833 FIX (2026-09-24): without BEGIN each DDL statement auto-committed — a
     //   mid-sequence failure leaves a half-migrated schema the caller cannot detect. Verify all

@@ -116,7 +116,10 @@ export function kevProbe(scopeRoot: string): ConsumerProbe {
         const tail = String(err.stdout ?? "").slice(-300);
         throw new Error(`GI_ENFORCE_KEV: the KEV CLI failed — ${tail.length > 0 ? tail : (err.message ?? String(e)).slice(0, 200)}`);
       }
-      const line = out.split("\n").reverse().find((l) => l.trim().startsWith("{"));
+      // ★ R16A FIX (2026-09-25, group-a:119): prefer a line that looks like a real KEV answer
+      //   (carries "ok") — a debug/progress line beginning with "{" must not win over it.
+      const candidates = out.split("\n").filter((l) => l.trim().startsWith("{") && l.includes('"ok"'));
+      const line = candidates[candidates.length - 1];
       if (line === undefined) throw new Error(`GI_ENFORCE_KEV: the KEV CLI printed no JSON — output: ${out.slice(0, 200)}`);
       // ★ AUDIT HIGH (W5, 2026-09-23): the parse was UNPROTECTED — a debug line
       //   beginning with `{` or a truncated fragment threw a cryptic SyntaxError,

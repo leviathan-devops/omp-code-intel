@@ -143,6 +143,9 @@ export async function scan(
           liveBattery = cal.liveBattery;
           console.warn(`[scan] D17 calibration: ${cal.excluded.length} FLAGGED → EXCLUDED; ${cal.coverageNote}`);
         }
+        if (liveBattery.length === 0) {
+          throw new Error(`HUNT_NO_COVERAGE: all ${battery.length} predicates FLAGGED by D17 calibration (liveBattery empty) — zero calibrated predicates is INCONCLUSIVE, never a clean pass. ${cal.coverageNote}`);
+        }
       }
     } catch (calErr: unknown) {
       // ★ F-347 FIX (2026-09-24): the old catch swallowed EVERY calibration fault — a

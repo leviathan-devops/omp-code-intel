@@ -117,7 +117,13 @@ export function edgeEvidence(edge: GraphEdge, nodesById: Map<string, GraphNode>)
     try {
       let lines = edgeEvidenceLineCache.get(file);
       if (!lines) {
-        lines = fs.readFileSync(file, "utf8").split("\n");
+        // ★ R15 FIX: the unbounded whole-file read blocked the loop, OOM'd on large
+        //   files, and followed any absolute path the adapter supplied with a stale
+        //   cache in long-lived processes. Cap at 1 MiB / 20k lines (the evidence is
+        //   ONE trimmed line); oversized files fall through to the id pair, loud and safe.
+        const st = fs.statSync(file);
+        if (!st.isFile() || st.size > 1048576) return `${edge.sourceId} -> ${edge.targetId}`;
+        lines = fs.readFileSync(file, "utf8").split("\n", 20000);
         edgeEvidenceLineCache.set(file, lines);
         if (edgeEvidenceLineCache.size > EDGE_EVIDENCE_CACHE_MAX) {
           const oldest = edgeEvidenceLineCache.keys().next().value;
@@ -180,6 +186,13 @@ export function writeCorbellToTypedStore(
 ): CorbellStoreWriteResult {
   const runTag = opts?.runTag ?? `corbell-${Date.now().toString(36)}`;
   const { nodeRows, edgeRows } = mapCorbellToTyped(nodes, edges, runTag, opts?.nodeTypeById);
+  // ★ R15 FIX: the global supersede UPDATEs below ran unconditionally — an empty build
+  //   tombstoned every live row with no replacements (a wipe). Empty is INCONCLUSIVE-shaped
+  //   (the map actor already refuses GRAPH_EMPTY); this guard is defense in depth at the
+  //   writer boundary, never a silent zero-row commit.
+  if (nodeRows.length === 0 && edgeRows.length === 0) {
+    throw new Error('CORBELL_STORE_WRITE: refusing to supersede the store with empty input (zero nodes + zero edges — a wipe, never a write)');
+  }
   const db = openTypedStore(storePath);
   // ★ F-144 FIX (2026-09-24): pre-close verification reads — the counts below are captured before db.close() (see COMMIT site); fresh connections opened AFTER close can miss the close-triggered WAL checkpoint.
   let storeNodes = 0;
@@ -242,6 +255,11 @@ export function writeCorbellCheckout(
 ): CorbellStoreWriteResult {
   const runTag = opts?.runTag ?? `corbell-checkout-${Date.now().toString(36)}`;
   const { nodeRows, edgeRows } = mapCorbellToTyped(nodes, edges, runTag, opts?.nodeTypeById);
+  // ★ R15 FIX: same empty-supersede class as the session writer above — an empty checkout
+  //   build must not tombstone the checkout's live rows with no replacements.
+  if (nodeRows.length === 0 && edgeRows.length === 0) {
+    throw new Error('CORBELL_STORE_WRITE: refusing to supersede the checkout with empty input (zero nodes + zero edges — a wipe, never a write)');
+  }
   const fsMod = fs;
   // ★ F-256 FIX (2026-09-24): bare filenames broke the parent math — "store.sqlite".lastIndexOf("/") is -1, so slice(0,-1) mkdir'd "store.sqlit" (silent wrong dir). path.dirname() is total: "store.sqlite"->".", "a/b.sqlite"->"a".
   fsMod.mkdirSync(path.dirname(checkoutPath), { recursive: true });

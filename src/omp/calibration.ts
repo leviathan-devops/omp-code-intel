@@ -77,6 +77,13 @@ export function precisionFromCounts(c: ResolvedCounts, z = 1.96): PrecisionEstim
   // ★ F-337 FIX (2026-09-24): fail-closed on negative counts — a negative input
   //   silently produced a negative denominator / out-of-range precision and bogus
   //   sufficient/starved flags. Counts are cardinalities; negatives are caller bugs.
+  // ★ R16C FIX (2026-09-25, group-c:80): NaN bypassed the guard above (every
+  //   relational comparison with NaN is false), then propagated NaN through p /
+  //   centre / low / high with sufficient=false, starved=false — a corrupt ledger
+  //   row reading as a measured answer. Finite-first: non-finite counts throw LOUD.
+  if (!Number.isFinite(c.confirmed) || !Number.isFinite(c.refuted) || !Number.isFinite(c.unresolved)) {
+    throw new Error(`CALIBRATION_BAD_COUNTS: counts must be finite numbers (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
+  }
   if (c.confirmed < 0 || c.refuted < 0 || c.unresolved < 0) {
     throw new Error(`CALIBRATION_BAD_COUNTS: counts must be non-negative (confirmed=${c.confirmed}, refuted=${c.refuted}, unresolved=${c.unresolved})`);
   }

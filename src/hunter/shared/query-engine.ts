@@ -18,7 +18,12 @@ export interface TypedEdgeRow {
   src_canonical: string;
   dst_canonical: string;
   predicate: string;
-  evidence_quote: string;
+  // ★ R15 FIX: the mappers emit null for a missing evidence_quote (legacy rows) and
+  //   silenced it with `as TypedEdgeRow` — callers trusting `string` hit null at
+  //   runtime. The interface now says what the mapper does. confidence/created_run
+  //   keep their legacy-row defaults (1 / '') — the DDL says NOT NULL, so a row that
+  //   needs either default is a legacy shape, never a fresh write.
+  evidence_quote: string | null;
   confidence: number;
   created_run: string;
   superseded_run: string | null;
@@ -274,6 +279,10 @@ export class QueryEngine {
       }
       return components.sort((a, b) => a.componentId - b.componentId);
     } catch (e: unknown) {
+      // ★ R15 FIX: preserve the fail-loud guards the way path()/temporal() do — the
+      //   unconditional wrap turned COMMUNITY_TOO_LARGE/_UNMEASURABLE into
+      //   COMMUNITY_QUERY_FAILED: COMMUNITY_TOO_LARGE: ... (obscured guard, broken prefix matchers).
+      if (e instanceof Error && e.message.startsWith('COMMUNITY_')) throw e;
       throw new Error(`COMMUNITY_QUERY_FAILED: ${e instanceof Error ? e.message : String(e)}`);
     }
   }

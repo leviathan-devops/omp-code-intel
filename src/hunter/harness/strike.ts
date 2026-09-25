@@ -49,8 +49,12 @@ export function strike(
 
   const relevanceOf = (f: NormalizedFinding): number => {
     const t = traceByFinding.get(findingIdOf(f));
-    if (!t) return 0;
-    return Object.values(t.relevance).reduce((s, v) => s + v, 0);
+    // ★ R15 FIX: the merge above sanitizes (finite numbers only) but this read did
+    //   not — a non-numeric relevance coerces/concatenates (the return type lies),
+    //   NaN poisons the total (comparator returns NaN, treated as 0), and a null
+    //   relevance throws TypeError instead of scoring 0. Same guard as the merge.
+    if (!t || t.relevance == null) return 0;
+    return Object.values(t.relevance).reduce((s, v) => s + (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0), 0);
   };
 
   const ordered = [...ranked].sort((a, b) => {

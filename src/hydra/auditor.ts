@@ -186,9 +186,31 @@ function makeCappedGrepTool(targetRoot: string): MissionTool {
         });
       // V21 W6: `--` terminates flag parsing — a leading-dash pattern can no
       // longer inject rg/grep flags.
-      let out = await run("rg", ["-n", "--max-count", String(maxResults), "--", pattern, targetRoot]);
+      // ★ R16B FIX (2026-09-25) + PROBE (this wave): rg NEVER follows symlinks by default
+      //   (needs -L) and grep -r never dereferences them (only -R/-S do), so any symlink
+      //   INSIDE targetRoot pointing out reads as an UNMATCHED PATH, never a match — the
+      //   alleged `/etc/shadow`-through-symlink leak did not reproduce on this host. The
+      //   --no-follow belt is defense-in-depth: rg --no-follow keeps it unfollowed even if a
+      //   user config flips -L on, and grep -p keeps -r from following in `-rp` combos. Post-hoc
+      //   containment (realpath each hit under rootReal, drop escapes) closes even a future
+      //   follower: escapes surface as SEARCH_SCOPE_TRIMMED, never silently served.
+      const rootReal = realResolve(path.resolve(targetRoot));
+      let out = await run("rg", ["-n", "--no-follow", "--max-count", String(maxResults), "--", pattern, targetRoot]);
       if (out.startsWith("SEARCH_FAILED") || out.length === 0) {
-        out = await run("grep", ["-rn", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+        out = await run("grep", ["-rn", "-p", "-E", "-m", String(maxResults), "--", pattern, targetRoot]);
+      }
+      if (!out.startsWith("SEARCH_FAILED")) {
+        const kept: string[] = [];
+        let trimmed = 0;
+        for (const line of out.split("\n")) {
+          if (line.length === 0) continue;
+          const hitFile = line.split(":")[0] ?? "";
+          const abs = path.isAbsolute(hitFile) ? path.resolve(hitFile) : path.resolve(targetRoot, hitFile);
+          if (!isWithinRoot(realResolve(abs), rootReal) && realResolve(abs) !== rootReal) { trimmed += 1; continue; }
+          kept.push(line);
+        }
+        if (trimmed > 0) out = (kept.length > 0 ? kept.join("\n") : "") + `\n[SEARCH_SCOPE_TRIMMED: ${trimmed} hit(s) outside targetRoot dropped]`;
+        else out = kept.length > 0 ? kept.join("\n") : out;
       }
       if (out.startsWith("SEARCH_FAILED")) return out;
       if (out.trim().length === 0) return "(no matches)";

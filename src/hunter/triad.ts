@@ -44,7 +44,8 @@ export function isEvidenceTriad(v: unknown): v is EvidenceTriad {
   // ★ F-75 FIX (2026-09-24): the guard accepted ANY string ('BOGUS' passed the Severity union).
   if (pat.familySeverity !== 'CRITICAL' && pat.familySeverity !== 'HIGH' && pat.familySeverity !== 'MEDIUM' && pat.familySeverity !== 'LOW') return false;
   if (!sta || typeof sta.machineId !== 'string' || sta.machineId.trim() === '') return false;
-  if (typeof sta.from !== 'string' || typeof sta.to !== 'string') return false;
+  if (typeof sta.from !== 'string' || sta.from.trim() === '') return false;
+  if (typeof sta.to !== 'string' || sta.to.trim() === '') return false;
   if (!ev || typeof ev.file !== 'string' || ev.file.trim() === '') return false;
   // ★ F-403 FIX (2026-09-24): line refs must be positive integers — -1/0/3.7 used to pass validation and pointed findings at nonsense locations.
   if (typeof ev.line !== 'number' || !Number.isFinite(ev.line) || ev.line < 1 || !Number.isInteger(ev.line)) return false;

@@ -76,6 +76,14 @@ export function writeSessionState(statePath: string, state: SessionStateMap): vo
   withStateLock(statePath, () => { writeSessionStateRaw(statePath, state); });
 }
 
+/** ★ R16A FIX (2026-09-25, group-a:75): the atomic-mutator entry — read + mutate +
+ *  write happen INSIDE the lock, so a caller can no longer read-then-write across
+ *  a concurrent tickSessionBudget (the TOCTOU class). writeSessionState keeps its
+ *  signature (zero live callers outside this module; no break); new callers prefer this. */
+export function updateSessionState(statePath: string, mutator: (current: SessionStateMap) => SessionStateMap): void {
+  withStateLock(statePath, () => { writeSessionStateRaw(statePath, mutator(readSessionState(statePath))); });
+}
+
 /** ★ F-130 FIX (2026-09-24): the read-modify-write lock. tickSessionBudget reads the
  *  state file, mutates it, writes it back — two concurrent callers both read the same
  *  snapshot, both increment, one write wins (a LOST tick). The lock serializes the RMW;
@@ -85,10 +93,16 @@ function withStateLock<T>(statePath: string, fn: () => T): T {
   // ★ F-135 FIX (2026-09-24): the lock carries a TOKEN; the release unlinks only if the token
   //   still matches (else a peer's reclaimed lock would be destroyed by our late release).
   const token = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // ★ R16A FIX (2026-09-25, group-a:88): wall-clock deadline — the lock start is stamped
+  //   once; a permanently unreclaimable lock throws loud instead of spinning forever.
+  const lockStart = Date.now();
   for (;;) {
     try { fs.writeFileSync(lockPath, token, { flag: "wx" }); break; }
     catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      // ★ R16A FIX (2026-09-25, group-a:88): if stale-reclaim consistently fails
+      //   (permissions/filesystem), fail loud after 30s rather than deadlocking.
+      if (Date.now() - lockStart > 30_000) throw new Error(`[session-state] failed to acquire lock ${lockPath} after 30s — a peer may hold it, or stale-reclaim is failing (check permissions)`);
       // ★ F-134 FIX (2026-09-24): a FRESH age per iteration. The old single upfront deadline meant
       //   that after the first reclaim every later EEXIST re-unlinked (mutual exclusion broken) and
       //   the deadline was never reset. Now a peer's FRESH lock (age < 2s) is never unlinked.

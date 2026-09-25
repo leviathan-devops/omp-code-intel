@@ -54,6 +54,7 @@ export function preFlight(storePath: string, target: string): PreFlightResult {
     }
 
     const warnings: string[] = [];
+    if ((imp as { truncated?: boolean }).truncated === true) warnings.push(`IMPACT TRUNCATED: blast-radius ledger capped at 5000 rows — reachability UNDER-REPORTED for ${target}; commit strategy may be too lenient`);
     if (q.rows === 0 && uses === 0) warnings.push(`NO CONSUMERS: ${target} has zero callers and zero uses — dead-code candidate, safe-delete before building on it`);
     if (imp.reaches >= 50) warnings.push(`WIDE BLAST RADIUS: ${imp.reaches} nodes reached — architectural review required before coding`);
 

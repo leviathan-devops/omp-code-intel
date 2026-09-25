@@ -239,8 +239,22 @@ export function liveSocketComponent(
       //   "listening" because `.../xabc.sock` appears in the table. The kernel's table is
       //   whitespace-delimited with the path LAST, so the comparison is exact equality of
       //   the final token.
+      // ★ R16A FIX (2026-09-25, group-a:242, corrected after python-probe lt4/lt5):
+      //   the reviewer's suggested parts[3]==="0A" is the TCP-state value and never
+      //   occurs in /proc/net/unix (unix St is 01/03) — it would force every probe
+      //   DOWN, including the pinned P5-socket-liveness UP case. The CORRECT listener
+      //   marker is Flags (col 3, 0-indexed) __SO_ACCEPTCON bit 0x10000: a LISTENING
+      //   socket carries Flags=00010000; a connected/shutdown socket carries
+      //   Flags=00000000 (python probes /tmp/lt4.py, /tmp/lt5.py: connect() does NOT
+      //   flip St; srv.close() removes ALL path rows while the stale FILE remains).
+      //   Columns: Num RefCount Protocol Flags Type St Inode Path.
       const listeningPaths = new Set(
-        table.split("\n").map((line) => {
+        table.split("\n").filter((line) => {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length < 8) return false;
+          const flags = Number.parseInt(parts[3] ?? "", 16);
+          return Number.isFinite(flags) && (flags & 0x10000) !== 0;
+        }).map((line) => {
           const parts = line.trim().split(/\s+/);
           return parts[parts.length - 1] ?? "";
         }),

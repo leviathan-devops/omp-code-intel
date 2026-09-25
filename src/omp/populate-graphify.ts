@@ -171,7 +171,6 @@ export function isGraphifyCheckoutFreshFor(
       }
     }
   };
-  if (walkFailed) return { fresh: false, reason: "stale-read-failed" };
   for (const rel of scope) {
     const target = containedScopeTarget(root, rel);
     if (target === null) continue;
@@ -189,6 +188,11 @@ export function isGraphifyCheckoutFreshFor(
     }
     if (stTarget?.isDirectory()) walk(target);
   }
+  // ★ R16D FIX (2026-09-25, group-d finding :174): the walkFailed check sat BEFORE
+  //   the scope loop that invokes walk(), so it could never fire — a realpath/readdir
+  //   failure mid-walk fell through to the mtime compare on partial data (false-fresh).
+  //   Checked here, after every walk() call, the stale-read-failed path is reachable.
+  if (walkFailed) return { fresh: false, reason: "stale-read-failed" };
   // V21 cleanup fix-now: zero indexable files seen = the probe proved nothing
   // — fail-closed (fresh-by-vacuity is the silent-staleness class).
   if (filesSeen === 0) return { fresh: false, reason: "stale-unscooped" };
@@ -294,6 +298,15 @@ function hashSourceTree(root: string, scope: string[], excludes: string[], budge
         if (excludes.includes(entry.name)) continue;
         walk(path.join(dir, entry.name), prefix + entry.name + "/");
       } else if (/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|json|yaml|yml|toml|md)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+        // R16D FIX (2026-09-25, group-d finding :296): the file branch hashed every
+        // matching file while the freshness probe skipped excluded names - an excluded-file
+        // edit reported fresh-by-mtime yet stale-content by hash. Parity: excluded names
+        // skip here too; the skip folds a marker (the F-937 fail-open digest law), so an
+        // excludes-list change still moves the digest deterministically.
+        if (excludes.includes(entry.name)) {
+          hash.update(`skip-excluded:${prefix}${entry.name}\n`);
+          continue;
+        }
         budget.n--;
         try {
           const stat = fs.statSync(path.join(dir, entry.name));

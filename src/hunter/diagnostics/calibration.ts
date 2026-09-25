@@ -228,6 +228,11 @@ export class CalibrationGate {
 
   /** The LIVE battery — ONLY the CALIBRATED predicates. The FLAGGED are excluded,
    *  never shipped (the exclusion is the fail-state, never a silent pass). */
+  /** The LIVE battery — ONLY the CALIBRATED predicates. The FLAGGED are excluded,
+   *  never shipped (the exclusion is the fail-state, never a silent pass).
+   *  ★ R15: dryRun is SURFACED, not applied — liveBattery() still reads the verdicts,
+   *  but callers MUST check result.dryRun before consuming it (scan.ts documents its
+   *  curation act at the call site); run() below persists NOTHING when dryRun. */
   liveBattery(): CompiledPredicate[] {
     return this.battery.filter((p) => this.verdictOf(p.id) === 'CALIBRATED');
   }
@@ -243,7 +248,9 @@ export class CalibrationGate {
    *  hashed at K20.3); the fixturesHash covers the fixture set + the fixture
    *  VERSION, so a fixture edit OR a version change invalidates the version. */
   batteryVersion(fixtureVersion: string = this.fixtureVersion): string {
-    const corpusHash = sha256(this.battery.map((p) => `${p.anchor}\n${p.verbatimQuote}`).join('\n'));
+    // ★ R15: the corpus hash covers identity+behavior (id+severity+template+family), not just
+    // ★ anchor+quote — an id rename or severity/threshold/check change invalidates the version (O22.4).
+    const corpusHash = sha256(this.battery.map((p) => `${p.id}\n${p.anchor}\n${p.verbatimQuote}\n${p.severity}\n${p.template}\n${p.family}`).join('\n'));
     const bindingsHash = sha256(this.battery.map((p) => JSON.stringify(p.bindings)).join('\n'));
     const fixturesHash = sha256(`${this.serializeFixtures()}|${fixtureVersion}`);
     return sha256(`${corpusHash}|${bindingsHash}|${fixturesHash}`);
@@ -395,7 +402,7 @@ export class CalibrationGate {
       : excluded.map((p) => `${p.id}: ${records.find((r) => r.predicateId === p.id)?.reason ?? 'FLAGGED'}`).join('\n');
     const version = this.batteryVersion(fixtureVersion);
 
-    if (write) {
+    if (write && !this.dryRun) {
       const recordPath = write.recordPath ?? path.join(profile.project.root, '.trident', 'bug-hunter');
       if (write.db) {
         this.writeCalibrationRows(write.db, records, fixtureVersion);
@@ -447,13 +454,18 @@ export class CalibrationGate {
     for (const fixture of matching) {
       this.validateFireFixture(fixture);
       const findings = this.runCheck(p, fixture.graph, fixture.source);
-      const hit = findings.some(
-        (f) => f.ruleId === p.id
+      const normFixture = fixture.file.replace(/\\/g, '/');
+      const hit = findings.some((f) => {
+        // ★ R15: exact-or-/-boundary match on POSIX-normalized paths — bare endsWith
+        // ★ matched lib/b.ts against src/b.ts and ab.ts against b.ts (false FIRED).
+        const normFinding = f.file.replace(/\\/g, '/');
+        const fileMatch = normFinding === normFixture || normFinding.endsWith('/' + normFixture);
+        return f.ruleId === p.id
           && f.verdict === 'VIOLATION'
-          && f.file.endsWith(fixture.file)
+          && fileMatch
           && f.line >= fixture.line - 2
-          && f.line <= fixture.line + 2,
-      );
+          && f.line <= fixture.line + 2;
+      });
       (hit ? hits : misses).push(`${fixture.file}:${fixture.line}`);
     }
     const fired = hits.length > 0;
@@ -537,12 +549,21 @@ export class CalibrationGate {
     // ★ callers hand back the caller's own battery row; the old markCalibrated(p)
     // ★ wrote straight onto it (re-calibration contamination, live-scan side
     // ★ effects). The verdicts map stays the authority; the object mark is courtesy.
-    const owned = this.battery.find((b) => b.id === p.id) ?? p;
-    if (verdict) {
-      this.verdicts.set(p.id, verdict);
-      markCalibrated(owned, verdict);
+    // ★ R15: never touch the caller's object — mark only the gate's OWNED row. Ad-hoc
+    // ★ predicates (not in battery) still record verdict maps (the return values stay
+    // ★ truthful) but write no calibrated marker anywhere; duplicate ids remain a
+    // ★ caller bug (documented) — verdict maps are keyed by id by design.
+    const owned = this.battery.find((b) => b.id === p.id);
+    if (owned) {
+      if (verdict) {
+        this.verdicts.set(p.id, verdict);
+        markCalibrated(owned, verdict);
+      } else {
+        markCalibrated(owned, 'PENDING');
+      }
     } else {
-      markCalibrated(owned, 'PENDING');
+      // ★ R15: ad-hoc predicate not in battery — record verdict map only, never mutate caller object.
+      if (verdict) this.verdicts.set(p.id, verdict);
     }
   }
 

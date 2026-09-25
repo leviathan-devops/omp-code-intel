@@ -181,6 +181,13 @@ function resolveHarnessRecord(
     const h = heuristicDecide(newEnt, existing);
     return { alias, canonicalId: h.canonical ? h.canonical.canonical_id : newEnt.id, verdict: h.verdict, reasoning: `harness canonical '${canonicalId || alias}' not found — heuristic fallback: ${h.reasoning}`, destructive: h.destructive, newEntity: newEnt, existingCanonical: h.canonical };
   }
+  // ★ R15 FIX: an unrelated record with an unknown canonical kept the arbitrary harness
+  //   string (canonicalId || alias) with existingCanonical null — the else DB branch then
+  //   wrote that dangling id into resolutions. Unrelated canonicalizes to its own alias.
+  if (!existCanon && verdict === 'unrelated') {
+    const reasoning2 = typeof rec.reasoning === 'string' && rec.reasoning ? rec.reasoning : `harness verdict ${verdict}`;
+    return { alias, canonicalId: newEnt.id, verdict, reasoning: reasoning2, destructive: Boolean(rec.destructive), newEntity: newEnt, existingCanonical: null };
+  }
   const reasoning = typeof rec.reasoning === 'string' && rec.reasoning ? rec.reasoning : `harness verdict ${verdict}`;
   return { alias, canonicalId: canonicalId || alias, verdict, reasoning, destructive: Boolean(rec.destructive), newEntity: newEnt, existingCanonical: existCanon };
 }
@@ -245,6 +252,11 @@ export async function resolveEntities(
   for (const c of existing) {
     if (!c || typeof c !== 'object') throw new ResolverError(`RESOLVER_FAILED: existing entry must be object, got ${typeof c}`);
     if (typeof c.canonical_id !== 'string' || c.canonical_id.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: existing canonical_id must be non-empty`);
+    // ★ R15 FIX: heuristicDecide/shareSignificantToken call normalizeLabel(c.label) /
+    //   normalizeLabel(c.kind) unconditionally — a missing/non-string label/kind used to
+    //   escape validation and die with bare TypeError instead of ResolverError.
+    if (typeof c.label !== 'string' || c.label.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: existing label must be non-empty string, got ${JSON.stringify((c as { label?: unknown }).label)}`);
+    if (typeof c.kind !== 'string' || c.kind.trim().length === 0) throw new ResolverError(`RESOLVER_FAILED: existing kind must be non-empty string, got ${JSON.stringify((c as { kind?: unknown }).kind)}`);
   }
   const prompt = buildPrompt2Batch(newEntities, existing);
   let harnessDecisions: ResolutionDecision[] | null = null;
@@ -321,8 +333,11 @@ export async function resolveEntities(
   if (db) {
     // ★ F-4 FIX (2026-09-24): atomic resolutions commit — one BEGIN/COMMIT
     // around the loop; a mid-loop failure rolls back instead of half-writing.
-    db.exec('BEGIN');
+    // ★ R15 FIX: BEGIN used to sit OUTSIDE the try — a BEGIN failure (locked DB,
+    //   nested transaction, I/O error) escaped as a raw driver error instead of
+    //   a named failure sharing the rollback/error contract. BEGIN rides inside now.
     try {
+      db.exec('BEGIN');
       for (const d of decisions) {
         if (d.verdict === 'unrelated' && d.destructive) {
           try {

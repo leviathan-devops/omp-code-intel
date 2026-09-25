@@ -99,8 +99,8 @@ export interface GraphFactInput {
   now?: number;
 }
 
-/** The canonical-id prefix the indexer writes; fragments match within it. */
-const LIKE = (target: string) => `%${target.replace(/[%_]/g, "")}%`;
+/** The canonical-id prefix the indexer writes; fragments match within it. ★ R16B: LIKE wildcards escaped, not stripped (strip lost live nodes: `foo_bar` → `%foobar%`, 0 rows); every LIKE site carries ESCAPE CHAR(92). */
+const LIKE = (target: string) => `%${target.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 
 /** ★ M-GRAPH-3 IS CHECKED FIRST AND IT GATES EVERYTHING ELSE. A fact read from a stale store
  *  is WORSE than no fact: it is a confident answer about a codebase that no longer exists.
@@ -124,8 +124,8 @@ function inDegree(db: Database, target: string, predicate?: string): { n: number
   //   separately (LIMIT 5). The old shape returned n = rows.length from a LIMIT-5 query, so every
   //   in-degree > 5 read as exactly 5 — the sample bound was silently the count bound.
   const where = predicate === undefined
-    ? `dst_canonical LIKE ?1 AND superseded_run IS NULL`
-    : `dst_canonical LIKE ?1 AND predicate = ?2 AND superseded_run IS NULL`;
+    ? `dst_canonical LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`
+    : `dst_canonical LIKE ?1 ESCAPE CHAR(92) AND predicate = ?2 AND superseded_run IS NULL`;
   const params: (string | number)[] = predicate === undefined ? [LIKE(target)] : [LIKE(target), predicate];
   const n = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE ${where}`).get(...params) as { n: number }).n;
   const rows = db.query(`SELECT src_canonical FROM typed_edges WHERE ${where} LIMIT 5`).all(...params) as { src_canonical: string }[];
@@ -164,7 +164,7 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     //   PASS." A rule that fires on absence is a generic gate wearing a specific name.
     // ★ F-GF2 FIX (2026-09-24): a superseded (dead) node still counted as KNOWN — the
     //   absence branch never ran for it. Live-only, like every typed_edges read.
-    const known = (db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
+    const known = (db.query(`SELECT COUNT(*) AS n FROM typed_nodes WHERE canonical_id LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
     if (known === 0) {
       return [{
         rule: "M-GRAPH-1",
@@ -176,7 +176,7 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
     }
 
     const inD = inDegree(db, input.target);
-    const outD = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
+    const outD = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
 
     // ── M-GRAPH-1 · HAS-PRODUCER ────────────────────────────────────────────────
     if (input.intent === "consume") {
@@ -256,7 +256,7 @@ export function graphFacts(input: GraphFactInput): GraphFactVerdict[] {
       // ★ src=dst equality keeps the documented fragment-input contract (GraphFactInput
       // ★ target is "a canonical_id fragment or a file basename", so LIKE stays for
       // ★ known/inDegree/outD) while M-GRAPH-5 fires only on a true self-loop.
-      const self = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical = dst_canonical AND src_canonical LIKE ?1 AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
+      const self = (db.query(`SELECT COUNT(*) AS n FROM typed_edges WHERE src_canonical = dst_canonical AND src_canonical LIKE ?1 ESCAPE CHAR(92) AND superseded_run IS NULL`).get(LIKE(input.target)) as { n: number }).n;
       verdicts.push(self > 0
         ? { rule: "M-GRAPH-5", settles: true, action: "FIRE",
             reason: `"${input.target}" appears on BOTH ends of an edge — a self-referential measurement`,

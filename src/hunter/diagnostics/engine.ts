@@ -590,10 +590,15 @@ function collectLocalTsFiles(root: string): string[] {
             console.error(`[engine:local-build] symlink cycle skipped LOUD: ${abs} -> ${real}`);
             continue;
           }
-          visitedRealDirs.add(real);
           walk(abs);
         } else if (e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) {
-          out.push(abs);
+          // F-1600 FIX: require symlink-to-file target inside root (containment).
+          const rootPrefix = rootReal + path.sep;
+          if (real === rootReal || real.startsWith(rootPrefix)) {
+            out.push(abs);
+          } else {
+            console.error(`[engine:local-build] symlink target outside root skipped: ${abs} -> ${real}`);
+          }
         }
         continue;
       }
@@ -601,7 +606,6 @@ function collectLocalTsFiles(root: string): string[] {
         if (LOCAL_BUILD_SKIPS.has(e.name)) continue;
         const real = (() => { try { return fs.realpathSync(abs); } catch { return abs; } })();
         if (visitedRealDirs.has(real)) continue;
-        visitedRealDirs.add(real);
         walk(abs);
       } else if (e.isFile() && e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')) {
         out.push(abs);
@@ -612,7 +616,6 @@ function collectLocalTsFiles(root: string): string[] {
   try { rootReal = fs.realpathSync(root); } catch (err: unknown) {
     throw sourceReadFailed(root, `local build root realpath failed: ${String(err)}`);
   }
-  visitedRealDirs.add(rootReal);
   walk(root);
   return out;
 }

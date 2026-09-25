@@ -106,16 +106,12 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
     const rest = command.replace(/^\S+\s+(?:"-n"|'-n'|-n)\s*/, '');
     const m = SED_N_RANGE_RE.exec(rest);
     if (m) return null; // the whole command is the sanctioned range read — no other metachars possible
-    // The quoted NON-range (a substitution smuggled in the quotes — 's/x/y/') must BLOCK:
-    // the quote char is the detected metachar (the carve-out is EXACT — §7.2:3203-3211).
-    if (rest.startsWith('\'') || rest.startsWith('"')) return '\'';
-    // ★ F-430 FIX (2026-09-24, run-8 CRITICAL): the unquoted non-match fell through to
-    //   `return null` — SKIPPING THE ENTIRE SCAN. `sed -n 1,20p | node -e "…execSync('rm -rf /')"`
-    //   never matched the (quote-anchored) range regex, so the carve-out returned null and the
-    //   `|` splitter was NEVER SCANNED — the command classified ALLOW_READ. The carve-out may
-    //   only EXEMPT when it actually matched; a non-match MUST continue to the metacharacter
-    //   scan below (the sed verb is in the read/exec list, so the true splitters still fire).
-    //   (No early return here — control falls through to the scan.)
+    // ★ W16-HIGH FIX: fail-closed — any other `sed -n` shape (unquoted script,
+    //   -e/-E flags, quoted non-range like 's/x/y/') must BLOCK. Falling through
+    //   to the narrow scan let `sed -n s/foo/bar/p file` and `sed -n -e ...`
+    //   sail past (the narrow list ignores `/` and quotes) into ALLOW_READ.
+    //   Only the exact quoted-range above is exempt; everything else is BYPASS.
+    return '\'';
   }
 
   // THE BLOCK-VERB ARGUMENT-SYNTAX EXEMPTION (the F3 reconciliation, generalized):
@@ -156,6 +152,12 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
   // ★ as the block-verb exemption. The A4 pipe case (`cat file | python -c x`)
   // ★ still blocks via `|`.
   if (READ_VERBS.has(firstToken)) {
+    // ★ W16-HIGH FIX: deny-list the dangerous read-verb options BEFORE the splitter
+    //   scan. `find . -exec rm -rf / {} +` carries none of the narrow splitters
+    //   (the `+` terminator is not one — only the `;` variant was caught), so the
+    //   old path returned null and ALLOW_READ blessed an execution primitive.
+    //   The `-exec...{} +` form executes; only the bare listing form is a read.
+    if (firstToken === 'find' && /\s(-exec|-execdir|-delete|-fls|-fprint|-fprint0|-ok|-okdir)\b/.test(command)) return 'E';
     for (const ch of command) {
       if (NARROW_SPLITTERS.has(ch)) return ch;
     }
@@ -171,6 +173,9 @@ function scanMetacharacters(command: string, firstToken: string, secondToken: st
 interface ParsedCommand {
   firstToken: string;
   secondToken: string;
+  /** ★ W16-HIGH FIX: tokens[2..] ride the parse so routeGit can refuse trailing
+   *  write flags (`git log --output=...`) — the old shape dropped them. */
+  restTokens: string[];
   metacharacter: string | null;
 }
 
@@ -187,14 +192,29 @@ function parseCommand(command: string): ParsedCommand {
   const tokens = rawTokens.map(stripQuotes);
   const firstToken = tokens[0] ?? '';
   const secondToken = tokens[1] ?? '';
+  const restTokens = tokens.slice(2);
   // The sed -n carve-out is detected BEFORE the scan so the sanctioned quotes are exempted.
   const metacharacter = scanMetacharacters(trimmed, firstToken, secondToken);
-  return { firstToken, secondToken, metacharacter };
+  return { firstToken, secondToken, restTokens, metacharacter };
 }
 
-/** The git second-token routing — READ | MUTATION | null (the fail-closed for the unrecognized sub-verb). */
-function routeGit(secondToken: string): 'READ' | 'MUTATION' | null {
-  if (GIT_READ_SUBVERBS.has(secondToken)) return 'READ';
+/** The git second-token routing — READ | MUTATION | null (the fail-closed for the unrecognized sub-verb).
+ *  ★ W16-HIGH FIX: a READ sub-verb candidate carrying a trailing WRITE flag
+ *  (`git log --output=/tmp/out`, `--upload-pack`, `--receive-pack`, `-o`) routes
+ *  MUTATION — the old tokens[1]-only check allowed a file-write primitive that
+ *  bypasses the `>` guard. The rest-token scan is lexical (exact `--flag` or
+ *  `--flag=` prefix, never a substring), so `--output2` / paths containing the
+ *  word cannot false-positive. */
+const GIT_READ_WRITE_FLAGS: ReadonlySet<string> = new Set(['--output', '--upload-pack', '--receive-pack', '-o']);
+function routeGit(secondToken: string, restTokens: string[] = []): 'READ' | 'MUTATION' | null {
+  if (GIT_READ_SUBVERBS.has(secondToken)) {
+    for (const tok of restTokens) {
+      for (const flag of GIT_READ_WRITE_FLAGS) {
+        if (tok === flag || tok.startsWith(flag + '=')) return 'MUTATION';
+      }
+    }
+    return 'READ';
+  }
   if (GIT_MUTATION_SUBVERBS.has(secondToken)) return 'MUTATION';
   return null; // 'git' alone or an unrecognized sub-verb — the fail-closed -> BLOCKED
 }
@@ -236,7 +256,7 @@ export function classify(command: string): BashLockdownDecision {
   // THE MUTATION FAMILY — the git/sed second-token routing included.
   if (MUTATION_VERBS.has(firstToken)) {
     if (firstToken === 'git') {
-      const routed = routeGit(secondToken);
+      const routed = routeGit(secondToken, parsed.restTokens);
       if (routed === 'MUTATION') return blocked('BASH_MUTATION', firstToken, command);
       if (routed === null) return blocked('BASH_UNKNOWN', firstToken, command);
       // routed === 'READ' falls through to the READ check below (git diff/log/status/show).
@@ -254,7 +274,7 @@ export function classify(command: string): BashLockdownDecision {
   }
 
   // THE READ FAMILY — only reached when no BLOCK fired.
-  if (READ_VERBS.has(firstToken) || (firstToken === 'git' && routeGit(secondToken) === 'READ')) {
+  if (READ_VERBS.has(firstToken) || (firstToken === 'git' && routeGit(secondToken, parsed.restTokens) === 'READ')) {
     return allowed('BASH_READ', firstToken, command);
   }
 

@@ -57,7 +57,16 @@ describe("st-w3-criticals: ★ THE 8 CRITICALS, EACH PINNED", () => {
     const src = read("src/omp/graph-facts.ts");
     // ★ after F-133 the inDegree filter lives in the `where` template (still applied via ${where});
     //   every OTHER typed_edges read must carry the filter inline.
-    expect(src.includes("dst_canonical LIKE ?1 AND superseded_run IS NULL")).toBe(true);
+    // ★★ PIN RE-SPECIFIED (2026-09-25, wave audit): this assertion pinned the LITERAL
+    //    `dst_canonical LIKE ?1 AND superseded_run IS NULL`. R16B's fix added
+    //    `ESCAPE CHAR(92)` after the bound parameter — a REAL correctness fix: without
+    //    escaping, `_` is a LIKE wildcard, so a fragment `foo_bar` matched `foobar`
+    //    (a live node reported as having 0 inbound edges). The literal is the pin's
+    //    MECHANISM; its INTENT is "the dst_canonical read carries the superseded filter".
+    //    The regex below asserts exactly that intent and tolerates the escape clause.
+    //    Assertions #2 (`>= 4 superseded_run IS NULL`) and #3 (every `FROM typed_edges`
+    //    is filtered) are UNCHANGED and still green — they are the intent half.
+    expect(/dst_canonical LIKE \?1(?: ESCAPE CHAR\(92\))? AND superseded_run IS NULL/.test(src)).toBe(true);
     expect((src.match(/superseded_run IS NULL/g) ?? []).length).toBeGreaterThanOrEqual(4);
     // no typed_edges read is left unfiltered: every `FROM typed_edges` is paired with the filter
     const edgeLines = src.split("\n").filter((l) => l.includes("FROM typed_edges"));

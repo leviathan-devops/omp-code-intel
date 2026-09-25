@@ -58,7 +58,7 @@ export const ProjectProfileSchema = z.object({
     bindings: z.record(z.string(), z.any()).default({}).refine((b) => Object.keys(b).length <= 500, { message: 'the bindings map is capped at 500 keys (abuse cap — split the profile)' }), // the predicate parameters (the P1-P22 bindings for Plutus). ★ F-68 FIX (2026-09-24): arbitrary-shape VALUES are by-design (P1-P22 heterogeneity, validated at use sites e.g. scan.ts) but the map was unbounded — the key-count cap bounds the abuse surface with zero effect on valid profiles.
   }),
   pipeline: z.object({
-    stages: z.array(PipelineStageSchema).min(1), // the declared stages (id/entry/contract)
+    stages: z.array(PipelineStageSchema).min(1).refine((s) => new Set(s.map((x) => x.id)).size === s.length, { message: 'pipeline.stages[].id must be unique per profile' }), // the declared stages (id/entry/contract)
   }),
   history: z.object({
     failureLogs: z.array(z.string()).default([]), // the violation-history docs (validated to EXIST at load)

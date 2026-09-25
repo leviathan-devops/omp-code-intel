@@ -137,6 +137,10 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
     let stderr = '';
     let timer: ReturnType<typeof setTimeout> | null = null;
     let killTimer: ReturnType<typeof setTimeout> | null = null;
+    // ★ W16-HIGH FIX: forceKillTimer was created INSIDE the timeout closure and
+    //   never cleared by done() — a 10s orphan handle outliving every timed-out
+    //   build. Hoisted so done() clears all three timers together.
+    let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
     // ★ F-252b FIX (2026-09-24): the `settled` latch the F-336 timeout work depends on was
     //   REFERENCED but never DECLARED — every `done()`/timeout path threw TS2304 (broken
     //   tsc). One latch, set by whichever settles first (close, error, or the timeout),
@@ -144,7 +148,7 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
     let settled = false;
     /** ★ F-433: set when the timeout FIRES — suppresses a late close-resolve, never disarms done(). */
     let timedOut = false;
-    const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); if (killTimer !== null) clearTimeout(killTimer); fn(); };
+    const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); if (killTimer !== null) clearTimeout(killTimer); if (forceKillTimer !== null) clearTimeout(forceKillTimer); fn(); };
     if (typeof timeoutMs === 'number' && timeoutMs > 0) {
       // ★ F-336 FIX (2026-09-24): SIGTERM alone leaked a trapping child — it kept running
       // ★ after rejection (settled guard blocked the close/error handlers, nobody reaped it).
@@ -169,7 +173,7 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
         // ★ F-412 FIX (2026-09-24): reject AFTER the child exits to prevent orphaned
         //   processes. If SIGKILL does not terminate within 10s, reject anyway with a
         //   hard-kill error — the caller is no longer left with an unknown-lived child.
-        const forceKillTimer = setTimeout(() => {
+        forceKillTimer = setTimeout(() => {
           done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child survived SIGKILL, no partial graph accepted`)));
         }, 10_000);
         (forceKillTimer as unknown as { unref?: () => void }).unref?.();
@@ -179,6 +183,16 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
       }, timeoutMs);
       (timer as unknown as { unref?: () => void }).unref?.();
     }
+    // ★ W16-HIGH FIX: the timeout arm registers proc.on('exit') INSIDE the
+    //   timeout closure — a child that already emitted 'exit' before the timeout
+    //   fires never settles the promise (late listener misses the emission).
+    //   This early exit latch settles timed-out builds the moment the child
+    //   actually dies, regardless of listener order.
+    proc.on('exit', () => {
+      if (timedOut) {
+        done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));
+      }
+    });
     proc.stdout?.on('data', (data: Buffer) => { stdout += data.toString(); });
     proc.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
     proc.on('close', (code) => {
@@ -197,22 +211,33 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
 }
 
 export const defaultExec: ExecFn = (cmdRaw, opts) => {
-  // ★ F-411 FIX (2026-09-24): defense-in-depth metachar guard — resolveCorbell validates
-  //   the binary path, but defaultExec is a public export; future callers may pass
-  //   user-influenced input. Fail-closed on shell metacharacters before sh -c.
-  // ★ F-513 FIX (2026-09-24): harmonized with safe()'s allowlist — safe() REJECTS * and ~
-  //   (absent from its allow set), but this denylist did not, so a future caller passing a
-  //   * / ~ / ? / # / [ / ] bearing string would glob-expand, tilde-expand, or comment-split
-  //   under /bin/sh -c. Denied here; a path passing safe() is now also safe here.
-  if (/[;&|`$(){}!<>\n\r*~?#\[\]]/.test(cmdRaw)) {
-    throw new Error(`CORBELL_EXEC_UNSAFE: command contains shell metacharacters: ${cmdRaw.slice(0, 120)}`);
+  // ★ W16-CRITICAL FIX (shell-injection gap): cmdRaw reached `/bin/sh -c` as
+  //   `'exec ' + cmdRaw`, so `'`, `"` and `\` retained shell meaning (quoting,
+  //   line-continuation, `$( )` bypass via token split). safe() rejects those
+  //   for the BINARY path, but this PUBLIC entry point re-allowed them — a
+  //   widened denylist would just move the hole. The fix is MECHANISM, not
+  //   list: shell-escape every argv token (wrap in single quotes; an embedded
+  //   quote closes + re-opens), so the composed string carries NO live shell
+  //   syntax — quotes, backslashes and `$()` arrive as literal characters,
+  //   never as shell structure. The ExecFn string contract is preserved
+  //   (callers + stubs unchanged); the sh -c layer keeps the `exec`-replace
+  //   (the orphan fix) with zero live syntax.
+  const shellEscape = (tok: string): string => `'${tok.split(`'`).join(`'"'"'`)}'`;
+  const parts = cmdRaw.trim().split(/\s+/).filter((s) => s.length > 0);
+  if (parts.length === 0) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: refusing empty command`);
+  }
+  const [binRaw, ...args] = parts as [string, ...string[]];
+  // The binary path keeps safe()'s allowlist law (fail-closed before escape).
+  if (/[^A-Za-z0-9_@%+=:,./\\-]/.test(binRaw)) {
+    throw new Error(`CORBELL_EXEC_UNSAFE: binary path contains shell metacharacters: ${binRaw.slice(0, 120)}`);
   }
   // THE ORPHAN FIX (2026-08-23 device-freeze incident): execSync runs the cmd
   // via `/bin/sh -c <cmd>` — a timeout SIGTERM killed ONLY the shell while the
   // binary (python/torch, GBs of RAM) survived as an unsupervised orphan.
   // Prefixing `exec ` makes the shell REPLACE ITSELF with the binary (same
   // PID): the timeout kill now reaches the REAL worker. Zero interface change.
-  const cmd = 'exec ' + cmdRaw;
+  const cmd = 'exec ' + [binRaw, ...args.map(shellEscape)].join(' ');
   // THE CONCURRENCY RETRY (HT-BUG-16 — the 5+-session law): corbell's store is
   // WAL (persistent since 2026-08-23) so readers never block, but writer-
   // writer collisions can still surface SQLITE_BUSY. Retry with backoff —
@@ -226,6 +251,14 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
   const retryT0 = Date.now();
   const retryTimeout = opts?.timeout;
   const retryDeadline = typeof retryTimeout === "number" && retryTimeout > 0 ? retryT0 + retryTimeout : Number.POSITIVE_INFINITY;
+  // ★ W16-HIGH FIX: cap the TOTAL sync-blocked sleep. Without opts.timeout the
+  //   old loop Atomics.waited up to ~2min (1s doubling capped at 16s × 7 sleeps)
+  //   with zero interleaving — async callers starve. The sync ExecFn contract
+  //   stays (string return), but the sleep budget is capped: 30s of backoff,
+  //   then the last error throws. Async callers that must not block use
+  //   buildCorbellGraphAsync instead (see the F-940 note above).
+  let blockedMs = 0;
+  const SYNC_BLOCK_BUDGET_MS = 30_000;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     try {
@@ -255,7 +288,9 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
       // ★ F-940: cap the sleep at the remaining budget; spent budget stops the loop.
       const remaining = retryDeadline - Date.now();
       if (remaining <= 0) break;
-      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1), remaining);
+      const backoff = Math.min(16000, 1000 * Math.pow(2, attempt - 1), remaining, SYNC_BLOCK_BUDGET_MS - blockedMs);
+      if (backoff <= 0) break;
+      blockedMs += backoff;
       console.warn(`[corbell-adapter] database locked (attempt ${attempt}/${ATTEMPTS}) — retrying in ${backoff}ms`);
       // ★ F-1 FIX (2026-09-24): blocking sleep WITHOUT a shell spawn — the old
       // execSync('sleep …') forked /bin/sh + /bin/sleep per retry on top of the
@@ -745,13 +780,38 @@ export class CorbellAdapter implements GraphAdapter {
             const srcPath = path.isAbsolute(file) ? file : path.join(profile.project.root, file);
             let src = srcCache.get(srcPath);
             if (src === undefined) {
-              src = fs.readFileSync(srcPath, 'utf8');
-              srcCache.set(srcPath, src);
+              // ★ W16-HIGH FIX (size cap, first half): stat before read — a
+              //   multi-GB source must never enter memory whole.
+              try {
+                const st = fs.statSync(srcPath);
+                if (st.size > 1_000_000) {
+                  console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${st.size}B > 1MB cap)`);
+                  src = '';
+                  srcCache.set(srcPath, src);
+                }
+              } catch { /* stat failed — the read below reports it */ }
+              if (src === undefined) {
+                src = fs.readFileSync(srcPath, 'utf8');
+                srcCache.set(srcPath, src);
+              }
             }
-            const nums = [...src.matchAll(/(\d+\.\d+)/g)].map((m) => Number(m[1])).filter((n) => Number.isFinite(n));
-            if (nums.length > 0) {
-              data['comparator'] = Math.max(...nums);
-              data['numericLiterals'] = nums;
+            // ★ W16-HIGH FIX: the old float-only /(\d+\.\d+)/ missed integer
+            //   thresholds (`100`, `5`) so downstream domain checks stayed silent,
+            //   and Math.max(...nums) spread an unbounded array (stack overflow
+            //   on large files). Integer-aware match + reduce-max (no spread) +
+            //   a file-size cap before the read.
+            if (src.length > 1_000_000) {
+              console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${src.length}B > 1MB cap)`);
+            } else {
+              const nums: number[] = [];
+              for (const m of src.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
+                const n = Number(m[0]);
+                if (Number.isFinite(n)) nums.push(n);
+              }
+              if (nums.length > 0) {
+                data['comparator'] = nums.reduce((a, b) => (a > b ? a : b), nums[0] as number);
+                data['numericLiterals'] = nums.slice(0, 10_000);
+              }
             }
           } catch (e: unknown) {
             console.warn(`[corbell-adapter] source-read enrichment failed for '${file}': ${String(e)}`);
@@ -935,7 +995,10 @@ export class CorbellAdapter implements GraphAdapter {
       .map((e) => {
         const caller = this.nodeById(e.sourceId);
         return {
-          file: caller?.file ?? this.profile.project.root,
+          // ★ W16-HIGH FIX: fail LOUD, never a directory — the old `?? project.root`
+          //   attributed the finding to the project DIR when the node file was
+          //   undefined (FOREIGN_PATH_UNRESOLVED degraded to undefined).
+          file: caller?.file ?? e.file ?? '',
           line: e.line ?? caller?.line ?? 0,
           caller: caller?.name ?? e.sourceId,
         };
@@ -958,7 +1021,8 @@ export class CorbellAdapter implements GraphAdapter {
           from: caller?.name ?? e.sourceId,
           to: callee?.name ?? e.targetId,
           kind: e.kind,
-          file: callee?.file ?? this.profile.project.root,
+          // ★ W16-HIGH FIX: fail LOUD, never a directory (see whoCalls above).
+          file: callee?.file ?? e.file ?? '',
           line: e.line ?? callee?.line ?? 0,
         });
         if (!seen.has(e.targetId)) {
@@ -978,7 +1042,7 @@ export class CorbellAdapter implements GraphAdapter {
       .map((e) => {
         const src = this.nodeById(e.sourceId);
         const dst = this.nodeById(e.targetId);
-        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? e.file ?? '', line: e.line ?? src?.line ?? 0 }; // ★ W16-HIGH FIX: never a directory (see whoCalls above).
       });
   }
 
@@ -990,7 +1054,7 @@ export class CorbellAdapter implements GraphAdapter {
       .map((e) => {
         const src = this.nodeById(e.sourceId);
         const dst = this.nodeById(e.targetId);
-        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: e.line ?? src?.line ?? 0 };
+        return { from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? e.file ?? '', line: e.line ?? src?.line ?? 0 }; // ★ W16-HIGH FIX: never a directory (see whoCalls above).
       });
   }
 
@@ -999,7 +1063,7 @@ export class CorbellAdapter implements GraphAdapter {
     const callTargets = new Set(this.cachedEdges.filter((e) => e.kind === 'calls').map((e) => e.targetId));
     return this.cachedNodes
       .filter((n) => (n.kind === 'function' || n.kind === 'method' || n.kind === 'class') && !callTargets.has(n.id))
-      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line ?? 0 }));
+      .map((n) => ({ id: n.id, name: n.name, file: n.file ?? '', line: n.line ?? 0 })); // ★ W16-HIGH FIX: never a directory (see whoCalls above).
   }
 
   nodes(kind?: GraphNodeKind): GraphNode[] {

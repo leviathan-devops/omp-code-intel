@@ -117,9 +117,15 @@ export class HydraBus {
     //   `WHERE id > ?`); the loud skip above is defense for foreign rows, and every
     //   numeric id advances the cursor.
     for (const row of clean) {
-      let payload: Record<string, unknown> = {};
+      let payload: Record<string, unknown>;
       try {
-        payload = JSON.parse(row.payload) as Record<string, unknown>;
+        const parsed: unknown = JSON.parse(row.payload);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          console.error(`[hydra-bus] event id=${row.id} payload is not an object, skipped`);
+          this.cursor = row.id;
+          continue;
+        }
+        payload = parsed as Record<string, unknown>;
       } catch (e: unknown) {
         console.warn(`[hydra-bus] event payload parse failed — the raw form is kept: ${e instanceof Error ? e.message : String(e)}`);
         payload = { raw: row.payload };

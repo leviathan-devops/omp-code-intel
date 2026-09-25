@@ -96,12 +96,13 @@ export interface LexiconDecision {
 export function makeLexiconDecision(
   base: Pick<LexiconDecision, 'verdict' | 'pattern' | 'token' | 'message' | 'mPSE'> & { resolvedDir?: string },
 ): LexiconDecision {
-  return { ...base, state: base.verdict, triplet: base.mPSE };
+  return Object.freeze({ ...base, state: base.verdict, triplet: Object.freeze({ ...base.mPSE }) });
 }
 /** THE LOUD MISMATCH GUARD — value-compares the aliases against their sources (clone-safe:
  *  JSON round-trips break reference identity, so Pattern/State/Evidence compare by value).
  *  Throws LEXICON_ALIAS_MISMATCH on any drift — call before enforcing. */
 export function assertLexiconDecisionConsistent(d: LexiconDecision): void {
+  if (!d || !d.triplet || !d.mPSE) throw new Error('LEXICON_ALIAS_MISMATCH: missing decision/triplet/mPSE');
   const tripletOk = d.triplet.Pattern === d.mPSE.Pattern
     && d.triplet.State === d.mPSE.State
     && d.triplet.Evidence === d.mPSE.Evidence;
