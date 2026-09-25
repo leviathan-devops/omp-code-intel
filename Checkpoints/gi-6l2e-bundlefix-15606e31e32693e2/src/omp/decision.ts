@@ -270,7 +270,16 @@ export function decideFireFromGraph(
     //   to return a `FireEvidence`. A named error keeps the contract.
     throw new Error(`GI_LEDGER_DIR_FAILED: cannot create ${ledgerDir} (${e instanceof Error ? e.message : String(e)})`);
   }
-  const ledger = new FireLedger(ledgerPath);
+  // ★ R21-HIGH FIX (2026-09-25): `new FireLedger` was OUTSIDE the guard — the constructor opens the
+  //   SQLite path and can THROW (corrupt db, permission), escaping this function's `FireEvidence`
+  //   contract as an UNCAUGHT throw while the mkdir above was already guarded for the same class.
+  //   A named error keeps the contract.
+  let ledger: FireLedger;
+  try {
+    ledger = new FireLedger(ledgerPath);
+  } catch (e) {
+    throw new Error(`GI_LEDGER_OPEN_FAILED: cannot open the fire ledger at ${ledgerPath} (${e instanceof Error ? e.message : String(e)})`);
+  }
 
   return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };
 }

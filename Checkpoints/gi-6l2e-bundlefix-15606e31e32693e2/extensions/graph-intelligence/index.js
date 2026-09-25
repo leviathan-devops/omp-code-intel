@@ -20278,7 +20278,12 @@ function decideFireFromGraph(scopeRoot, target, intent) {
   } catch (e) {
     throw new Error(`GI_LEDGER_DIR_FAILED: cannot create ${ledgerDir} (${e instanceof Error ? e.message : String(e)})`);
   }
-  const ledger = new FireLedger(ledgerPath);
+  let ledger;
+  try {
+    ledger = new FireLedger(ledgerPath);
+  } catch (e) {
+    throw new Error(`GI_LEDGER_OPEN_FAILED: cannot open the fire ledger at ${ledgerPath} (${e instanceof Error ? e.message : String(e)})`);
+  }
   return { storePath, target, intent, verdicts, settles, fires, policyCount, policySource, ledgerPath, ledger };
 }
 
