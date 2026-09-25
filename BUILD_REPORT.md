@@ -847,3 +847,28 @@ region misreads marked NOT-A-BUG with quoted proofs.
 **The verification:** the deployed bundle == the repo dist (sha match).
 **The honest notes:** the audit gate is FAIL (4 crit / 51 high); the high count fell 92→51 across
 five runs. The run continues to 0/0.
+
+---
+
+## BR · 2026-09-25 · THE 9 MB BUNDLE FIX (dist sha 15606e31e32693e2…)
+
+**THE OPERATOR'S COMPLAINT:** "your plugin is currently 9mb + causing a 20s cold boot latency."
+**THE MEASURED DEFECT:** the deployed bundle was **9,560,681 B**. At byte 152,440 it inlined
+`node_modules/typescript/lib/typescript.js` — the **whole TypeScript compiler** — pulled in by two
+imports (`src/hunter/diagnostics/engine.ts:44`, `src/hunter/graph/mechanical.ts:2`) for the AST walk.
+
+**THE FIX + RESULT:**
+```
+  scripts/build-extension.sh   (COMMITTED — the defect cannot regress)
+    bun build … --bundle --external typescript --external '@huggingface/transformers'
+  bundle        9,336K → 746K    (92% smaller)
+  import          139 ms → 41 ms
+  tool surface    7 tools + 4 hooks → IDENTICAL
+  tsc             0 errors
+  battery         441/0 + 539/0, exit 0
+  dist sha        15606e31e32693e23b16fd7a589319bdabf3ad0eab27e05bec30e8c82ac7d021
+```
+**THE BOOT HONESTY:** the 9.2 MB import measured **139 ms**, NOT 20 s — V8/Bun parses it lazily.
+The 20 s is a STACK whose largest measured component is the **MCP server spawns** (serena alone =
+1.2 s; six servers, two loading heavyweight runtimes: `plutus-au` boots a `.ts` via node,
+`semantica` boots a Python venv). **The 9 MB is a real defect worth fixing; it is not the whole 20 s.**

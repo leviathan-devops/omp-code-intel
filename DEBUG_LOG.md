@@ -1771,3 +1771,20 @@ step. **Re-read the whole block after any edit; a delimiter inside a comment is 
 **THE HONEST REMAINDER:** run 18's gate read `CRITICAL=0 HIGH=35`; 4 highs are now fixed and 1
 refuted. The remaining ~30 are adjudicated in the slices (`artifacts/r18-full-slices/`) and the
 loop continues. The gate is a MEASUREMENT — the next run measures the next state.
+
+---
+
+## DL · 2026-09-25 · THE 9 MB BUNDLE (a bundler-default defect, not a design need)
+
+**FINDING:** the deployed GI extension was 9,560,681 B (15.6× the 613,000 B pre-mount bundle), because
+`bun build --bundle` inlined the entire TypeScript compiler at byte 152,440. Two `import ts` lines
+(engine.ts:44, mechanical.ts:2) drag the compiler's whole source into the artifact.
+**ROOT CAUSE:** a bundled dependency is a BUILD-CONFIG choice. The bundler's default is maximal
+inlining; nothing externalized the multi-MB deps.
+**FIX:** `--external typescript --external '@huggingface/transformers'`; `typescript` stays a runtime
+require (resolves at ~/node_modules/typescript — verified with a `createRequire` from the extension
+dir + a working AST walk at v5.9.3).
+**VERIFICATION:** 9,336K → 746K · import 139 ms → 41 ms · 7 tools + 4 hooks unchanged · tsc 0 ·
+battery 441/0 + 539/0.
+**LESSON:** every `--bundle` build needs an externalization pass for its heavy deps (the compiler, the
+ONNX runtime, any multi-MB library), or the artifact pays the whole dependency tree's weight per load.
