@@ -417,3 +417,30 @@ without its probe is a hypothesis.
 fix or prove each, then re-run the whole-tree audit (two lanes, `AUDIT_PROVIDER=muse-go-mimo`)
 until the gate reads `CRITICAL=0 HIGH=0`; after ANY src edit rebuild the corbell/graphify stores
 (17 s / 32 s) before believing a register failure.
+
+---
+
+## ★★ RUN-19 PROGRESS — 23 OF 37 HIGHS FIXED
+
+**HEAD `4116f86` · uncommitted 0 · dist `ff824230566881c7` · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 21  report.ts:145    the retry wrote a document built from the INITIAL version — the file NAME
+                      said v(N+1) while its own header said v(N): a report disagreeing with
+                      itself about which report it is. Only line 0 embeds the version; it is now
+                      regenerated per attempt.
+ 22  populate.ts:50   the graphify catch produced the SAME shape a freshness MISS produces, but a
+                      catch means a THROW — and the inner leg RETURNS (never throws) for a miss.
+                      A BUILD failure was indistinguishable from "the store is stale". The
+                      distinction is structural, so it is now NAMED: `GRAPHIFY_BUILD_FAILED:`.
+ 23  artifact-scope:198  the `fs.stat` after a successful lstat was REDUNDANT (lstat proves
+                      existence) and opened a TOCTOU window — a swap leaving the path absent made
+                      stat throw ENOENT, which the catch reads as "does not exist" and routes to
+                      the CREATE path.
+```
+
+**THE REMAINING 14** are in `artifacts/r19-full-slices/`.
+**★ A NOTE ON MY OWN EDITS:** the report.ts fix's FIRST attempt was a larger refactor (turning the
+`lines` array into a function) — the array literal closes BEFORE the later `lines.push()` calls, so
+it broke `tsc`. The surgical fix (regenerate line 0 per attempt) is both smaller and correct.
+`tsc` caught it in the same step, which is why every edit here runs the compiler before the claim.
