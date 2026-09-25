@@ -125,7 +125,14 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
     //   the one that just silently no-op'd for an unknown number of commits — was the ONLY path
     //   with no verification. The assertion is the guard that CATCHES a future line-eating edit;
     //   skipping it exactly where the DDL runs is backwards.
-    assertNonTransactionalSchema(db);
+    // ★ R19-HIGH FIX (2026-09-25): the unconditional call introduced a FALSE FAILURE — this
+    //   assertion REQUIRES a readable sqlite_master (db.query is OPTIONAL on the handle), so a
+    //   driver with explicit-BEGIN support but no `query` threw TYPED_MIGRATION_FAILED on a
+    //   migration that had just COMMITTED successfully. The two paths need different rules:
+    //     · committed (began) — the COMMIT IS the atomicity proof; an unverifiable schema is
+    //       not a failure, but verification is still attempted as defense in depth.
+    //     · no BEGIN — the verification is the ONLY guarantee and is REQUIRED.
+    assertSchema(db, began);
   } catch (e: unknown) {
     if (began) { try { db.exec('ROLLBACK'); } catch { /* best-effort: the original error below is the truth */ } }
     throw new Error(`TYPED_MIGRATION_FAILED: ${e instanceof Error ? e.message : String(e)}`);
@@ -133,15 +140,20 @@ export function ensureTypedGraphSchema(db: TypedGraphDb): void {
 }
 
 // ★ F-833 (cont.): the post-execution integrity check for the non-transactional fallback.
-function assertNonTransactionalSchema(db: TypedGraphDb): void {
+/** ★ R19: `committed` distinguishes the two paths. After a successful COMMIT the schema is
+ *  atomic by construction, so an UNVERIFIABLE schema is tolerated (a driver whose handle has no
+ *  readable sqlite_master is a driver we cannot interrogate, not a driver that failed). Without
+ *  BEGIN the verification is the ONLY guarantee and is REQUIRED — the original refusal stands. */
+function assertSchema(db: TypedGraphDb, committed: boolean): void {
   const EXPECTED = ['typed_nodes', 'typed_edges', 'resolutions', 'graph_facts'];
   let names: string[] | null = null;
   try {
     const q = db.query?.("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('typed_nodes','typed_edges','resolutions','graph_facts')");
     if (q) names = q.all().map((r) => r.name);
-  } catch { names = null; /* the throw below names it */ }
+  } catch { names = null; /* handled below */ }
   if (names === null) {
-    throw new Error('TYPED_MIGRATION_FAILED: non-transactional fallback executed without BEGIN and the driver exposes no readable sqlite_master — cannot verify all-or-nothing migration (remedy: use a driver with explicit-BEGIN support)');
+    if (committed) return; // the COMMIT is the atomicity proof; unverifiable ≠ failed
+    throw new Error('TYPED_MIGRATION_FAILED: the fallback executed without BEGIN and the driver exposes no readable sqlite_master — cannot verify all-or-nothing migration (remedy: use a driver with explicit-BEGIN support)');
   }
   const verified: string[] = names;
   const missing = EXPECTED.filter((t) => !verified.includes(t));

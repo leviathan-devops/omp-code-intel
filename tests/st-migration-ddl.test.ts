@@ -55,9 +55,21 @@ describe("st-migration-ddl: ★ the standalone migration MUST execute its DDL", 
     ) as string;
     // the DDL exec must be PRESENT (the line-eating edit's signature is its absence)
     expect(src.includes("db.exec(TYPED_GRAPH_DDL)")).toBe(true);
-    // and the verification must NOT be gated on the non-transactional path
+    // and the verification must NOT be gated on the non-transactional path.
+    // ★ RE-SPECIFIED (2026-09-25, the R19 wave): the assertion is now `assertSchema(db, began)`
+    //   because the UNCONDITIONAL call introduced a FALSE FAILURE — the assertion requires a
+    //   readable sqlite_master (db.query is OPTIONAL on the handle), so a driver with
+    //   explicit-BEGIN support but no `query` threw TYPED_MIGRATION_FAILED on a migration that had
+    //   just COMMITTED. The two paths need different rules, and the new shape encodes them:
+    //     · committed (began) — the COMMIT is the atomicity proof; unverifiable ≠ failed
+    //     · no BEGIN — the verification is the ONLY guarantee and is REQUIRED
+    //   THE PIN'S INTENT IS UNCHANGED: the verification runs on BOTH paths, never gated to the
+    //   fallback (the original inversion). The literal moved because the design improved.
     expect(src).not.toContain("if (!began) assertNonTransactionalSchema(db)");
-    expect(src).toContain("assertNonTransactionalSchema(db);");
+    expect(src).toContain("assertSchema(db, began);");
+    // both rules are present: the committed path returns, the un-begun path refuses
+    expect(src).toContain("if (committed) return;");
+    expect(src).toContain("cannot verify all-or-nothing migration");
   });
 
   // ── THE SCHEMA IS REAL: the DDL declares the four tables ─────────────────────

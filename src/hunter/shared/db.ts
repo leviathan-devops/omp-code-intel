@@ -816,7 +816,19 @@ export class FamilyGraphStore {
         } catch (pe) { throw new Error(`FAMILY_NODE_CORRUPT: id=${String(r['id'])} cause=${pe instanceof Error ? pe.message : String(pe)}`); }
         out.push({ ...n, id: (r['id'] as string) ?? n.id, origin: 'family' });
       }
-    } catch (famErr) { if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr; console.debug('[kg-store] family_nodes fallback read failed:', famErr instanceof Error ? famErr.message : String(famErr)); }
+    } catch (famErr) {
+      if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr;
+      // ★ R19-HIGH FIX (2026-09-25): this catch swallowed EVERY other error — I/O failure,
+      //   disk-full, a locked/corrupt DB, a driver fault — as a debug line, then returned the
+      //   branch delta as if the family store had simply been EMPTY. A degraded read was
+      //   reported as a complete one (the fail-closed violation). Only a MISSING family table
+      //   is the benign shape (a store that never had one); everything else is LOUD.
+      const msg = famErr instanceof Error ? famErr.message : String(famErr);
+      if (!/no such table|no such column|does not exist/i.test(msg)) {
+        throw new Error(`KG_STORE_FAMILY_READ_FAILED: the family_nodes fallback read failed (${msg}) — refusing to return a partial union as if the family store were empty`);
+      }
+      console.debug('[kg-store] family_nodes table absent — the branch delta is the whole union:', msg);
+    }
     const delta = this.branchDb.prepare('SELECT id, kind, name, file, line, lineage, source, data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[];
     for (const r of delta) out.push({ id: r['id'] as string, kind: r['kind'] as string, name: r['name'] as string, file: r['file'] as string | null, line: r['line'] as number | null, lineage: r['lineage'] as NodeLineage, source: r['source'] as string, data: (()=>{ try { return JSON.parse(r['data'] as string); } catch (pe) { console.debug('[kg-store] delta data parse failed — empty object:', pe instanceof Error ? pe.message : String(pe)); return {}; } })(), origin: 'delta' });
     return out;
