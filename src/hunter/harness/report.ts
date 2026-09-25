@@ -146,6 +146,11 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
   let version = nextReportVersion(masterContextDir);
   let reportPath = path.join(masterContextDir, `bug_hunter_report_v${version}.md`);
 
+  // ★ R19-HIGH FIX (2026-09-25): the body was built ONCE, with the INITIAL version,
+  //   but the retry loop below may land at a DIFFERENT version — the file NAME said
+  //   v(N+1) while the document's own header still said v(N). A report whose name and
+  //   content disagree about which report it is. The body is now a function of the
+  //   version actually written.
   const lines: string[] = [
     `# BUG-HUNT REPORT — v${version}`,
     '',
@@ -196,6 +201,12 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
     const retryVersion = nextReportVersion(masterContextDir);
     const retryPath = path.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);
     try {
+      // ★ R19-HIGH FIX (2026-09-25): `document` was built ONCE from the INITIAL
+      //   version, but this loop can land at a DIFFERENT one — the file NAME said
+      //   v(N+1) while the document's own header still said v(N): a report whose name
+      //   and content disagree about which report it is. Only line 0 embeds the version,
+      //   so regenerate it from the version THIS attempt writes.
+      const document = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\n');
       fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });
       version = retryVersion;
       reportPath = retryPath;

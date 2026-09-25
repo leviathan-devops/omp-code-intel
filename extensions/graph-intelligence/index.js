@@ -185830,6 +185830,8 @@ async function writeReportDirect(input) {
     const retryVersion = nextReportVersion(masterContextDir);
     const retryPath = path22.join(masterContextDir, `bug_hunter_report_v${retryVersion}.md`);
     try {
+      const document = [`# BUG-HUNT REPORT \u2014 v${retryVersion}`, ...lines.slice(1)].join(`
+`);
       fs19.writeFileSync(retryPath, document, { encoding: "utf-8", flag: "wx" });
       version = retryVersion;
       reportPath = retryPath;
