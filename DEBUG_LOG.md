@@ -1695,3 +1695,48 @@ proves a pattern matched ONCE and says **nothing about what else the match consu
 structural edit, re-read the WHOLE block and confirm the neighbours survived. The R14 wave hit the
 same class (a fix that broke a pinned contract); this one hit it harder — a fix that silently
 deleted a statement.
+
+---
+
+## EN-W3-SUBSTRATE — A SRC EDIT MAKES THE GRAPH STORES STALE (2026-09-25)
+
+**THE SYMPTOM.** After the W3 fix wave landed, the battery went **434 pass / 7 fail** — every
+failure in W1's own suite:
+```
+  C1 FAIL  all 8 consumers are CONSUMED for their own domains (…)
+        └─ consumers NEVER consumed for any domain subject: L5_CORBELL:NEVER_CONSUMED,L6_GRAPHIFY:NEVER_CONSUMED
+  test_goal_predicate: 5/5 … → exit 1
+  test_goal_predicate_honest_text … → exit 1
+  test_consumption_predicate (×2) … → exit 1
+```
+
+**THE MECHANISM.** The consumption audit now read:
+```
+  L5_CORBELL   GI_LAYER_ERROR:L5_CORBELL rung=settlement facts=0
+               facts() threw: GI_LAYER_STALE:explicit — the store at …/.omp/graph-intelligence/corbell-checkout
+```
+**Editing `src/` made the corbell and graphify stores STALE** — they are built FROM the tree, so a
+source change invalidates them. The stale-refusal is CORRECT BEHAVIOUR (a stale store must not
+serve stale facts); the register honestly dropped to `consumed:5/8`.
+
+**THE FIX — the F-96 scope discipline (never a repo-root rebuild):**
+```
+  bun scripts/corbell-build.ts  --target . --rebuild    → 17.2 s · nodes=1116 edges=4731 · store 2.29 MB
+  bun scripts/graphify-build.ts --target . --extract    → 32.5 s · nodes=1745 edges=3860
+                                                          marked fresh: graph.graph_hash=95cbe7821d7f02d5
+```
+Both ran in SECONDS, not the 90+ minutes F-96 recorded — because the profile declares
+`scope: [src]` and `scopeRepoRef()` emits `../src` (the F-96 fix: 90+ min → 17.2 s).
+
+**THE RECOVERY (measured):**
+```
+  before the rebuild:  consumed:5/8  GI_LAYER_ERROR=L5_CORBELL,L6_GRAPHIFY   → battery 434/7
+  after  the rebuild:  consumed:7/8  (only L2_ARSUMBRIS — the honest repo-name domain)
+                       the predicate 5/5 · exit 0
+  after the dist rebuild: 441 pass / 0 fail + 539 pass / 0 fail, exit 0
+```
+
+**THE LESSON:** ★ **THE GRAPH SUBSTRATE IS DERIVED STATE — a source edit invalidates it, and the
+suite is what tells you.** A failure in the REGISTER's suite after a code change is a stale
+substrate until proven otherwise; rebuild BOTH stores (each is seconds with the scope fix) and
+re-run. Never treat the stale refusal as a register bug — the refusal is the guard working.
