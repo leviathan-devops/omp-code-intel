@@ -131,26 +131,35 @@ export function isAnchored(f: LayerFact): boolean {
   return typeof f.source === "string" && f.source.trim().length > 0;
 }
 
+/**
+ * ★ R19-HIGH FIX (2026-09-25): THE PROBE CALL — one definition, both views.
+ *   auditOne and factsForWithFaults each called p.up(), validated the shape, and interpreted the
+ *   result INDEPENDENTLY — and they drifted FOUR times (F-405, F-706, F-1007, F-1208: every one a
+ *   "two-view drift" fix, each patching one side while the other kept the old rule). That is the
+ *   signature of a missing unit, not of four unlucky edits. The call + the shape validation + the
+ *   normalization have one home now: a malformed or throwing probe is DOWN with a NAMED reason, and
+ *   both views read the SAME normalized result, so they cannot disagree by construction.
+ */
+function probeConsumer(p: ConsumerProbe): { up: boolean; evidence: string } {
+  try {
+    const raw = p.up() as SubstrateProbe | null | undefined;
+    return raw !== null && raw !== undefined && typeof raw.up === "boolean"
+      ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" }
+      : { up: false, evidence: "the probe returned a malformed shape (no boolean `up`) - DOWN by construction" };
+  } catch (e) {
+    // A probe that THROWS is DOWN. Silence is never UP.
+    return { up: false, evidence: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** Build a registry over a fixed consumer set. Registration is idempotent by id:
  *  a duplicate id REPLACES (so a test can override one consumer without rebuilding). */
 export function createLayerRegistry(): LayerRegistry {
   const byId = new Map<ConsumerId, ConsumerProbe>();
 
   const auditOne = (p: ConsumerProbe, subject: string): ConsumptionReport => {
-    let probe: SubstrateProbe;
-    try {
-      // ★ AUDIT H-8 FIXED: the first version trusted the probe's return shape — a null/
-      //   undefined return threw OUTSIDE this try and aborted the WHOLE audit for all 8
-      //   consumers. The shape is now validated here: one malformed adapter marks ITSELF
-      //   DOWN instead of taking the registry with it.
-      const raw = p.up() as SubstrateProbe | null | undefined;
-      probe = raw !== null && raw !== undefined && typeof raw.up === "boolean"
-        ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" }
-        : { up: false, evidence: "the probe returned a malformed shape (no boolean `up`) — DOWN by construction" };
-    } catch (e) {
-      // A probe that THROWS is DOWN. Silence is never UP.
-      probe = { up: false, evidence: e instanceof Error ? e.message : String(e) };
-    }
+    // ★ R19: the shared probe call (AUDIT H-8's validation lives in probeConsumer now).
+    const probe: SubstrateProbe = probeConsumer(p);
     if (!probe.up) {
       return {
         consumer: p.id,
@@ -236,36 +245,15 @@ export function createLayerRegistry(): LayerRegistry {
         //   auditOne — an up() THROW is GI_LAYER_DOWN (substrate absent), never the "facts()
         //   threw mid-query" GI_LAYER_ERROR token. The single try/catch classified both legs as
         //   a mid-query fault, contradicting auditOne's taxonomy (two-view drift).
-        try {
-          // ★ F-405 FIX (2026-09-24): auditOne validates the probe shape (malformed → DOWN
-          //   with evidence); factsFor trusted p.up().up, so a non-object truthy return
-          //   silently skipped the consumer and the two views disagreed. Same rule here:
-          //   only boolean-true up contributes; malformed-or-DOWN contributes nothing.
-          // ★ F-706 FIX (2026-09-24): factsFor used `.up !== true` while auditOne validates
-          // `typeof raw.up === "boolean"` - a truthy non-boolean (up:1) read UP in audit but
-          // vanished in factsFor (two-view drift). Same rule as auditOne: boolean-shaped and true.
-          const rawProbe: unknown = p.up();
-          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { up?: unknown }).up === "boolean";
-          // * F-1007 FIX (2026-09-25): malformed-or-DOWN vanished here with zero trace while
-          //   auditOne reports GI_LAYER_DOWN for the same consumer (two-view drift - the exact
-          //   class F-405/F-706 left open on this path). Mirror auditOne: a NAMED GI_LAYER_DOWN
-          //   fault, LOUD on stderr like every other factsFor fault (F-707/F-936). PROBE: a
-          //   truthy-non-object up() and an up:1 up() each yield one faults row AND an audit
-          //   GI_LAYER_DOWN for the same consumer.
-          if (!probeValid || (rawProbe as { up?: unknown }).up !== true) {
-            const probeEvidence = typeof rawProbe === "object" && rawProbe !== null && typeof (rawProbe as { evidence?: unknown }).evidence === "string" ? (rawProbe as { evidence: string }).evidence : "";
-            const reason = !probeValid
-              ? `GI_LAYER_DOWN:${p.id} - the probe returned a malformed shape (no boolean up) - DOWN by construction`
-              : `GI_LAYER_DOWN:${p.id} - the probe reports DOWN${probeEvidence ? `: ${probeEvidence}` : ""}`;
-            console.error('[layer-registry] factsFor: consumer ' + p.id + ' is DOWN or malformed - see audit GI_LAYER_DOWN:' + p.id + ': ' + reason);
-            faults.push({ consumer: p.id, reason });
-            continue;
-          }
-        } catch (upErr) {
-          // ★ F-1208: the probe leg — a throwing up() is DOWN (auditOne line 150-153), never
-          //   a mid-query ERROR. Same GI_LAYER_DOWN token, LOUD on stderr + faults.
-          const reason = `GI_LAYER_DOWN:${p.id} - the probe threw: ${upErr instanceof Error ? upErr.message : String(upErr)}`;
-          console.error('[layer-registry] factsFor: consumer ' + p.id + ' probe threw - see audit GI_LAYER_DOWN:' + p.id + ': ' + reason);
+        // ★ R19-HIGH FIX (2026-09-25): THE SHARED PROBE CALL. This block re-implemented auditOne's
+        //   probe validation and drifted FOUR times against it (F-405, F-706, F-1007, F-1208 — each
+        //   a "two-view drift" fix). It now consumes probeConsumer(), the SAME normalized result
+        //   auditOne reads, so the two views cannot disagree: a malformed shape AND a thrown probe
+        //   both arrive here as up:false with the same NAMED evidence auditOne would report.
+        const probe = probeConsumer(p);
+        if (!probe.up) {
+          const reason = `GI_LAYER_DOWN:${p.id} - ${probe.evidence || "the probe reports DOWN"}`;
+          console.error('[layer-registry] factsFor: consumer ' + p.id + ' is DOWN or malformed - see audit GI_LAYER_DOWN:' + p.id + ': ' + reason);
           faults.push({ consumer: p.id, reason });
           continue;
         }

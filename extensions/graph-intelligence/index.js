@@ -186997,16 +186997,18 @@ async function runQueryTool(args) {
 function isAnchored(f) {
   return typeof f.source === "string" && f.source.trim().length > 0;
 }
+function probeConsumer(p) {
+  try {
+    const raw = p.up();
+    return raw !== null && raw !== undefined && typeof raw.up === "boolean" ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" } : { up: false, evidence: "the probe returned a malformed shape (no boolean `up`) - DOWN by construction" };
+  } catch (e) {
+    return { up: false, evidence: e instanceof Error ? e.message : String(e) };
+  }
+}
 function createLayerRegistry() {
   const byId = new Map;
   const auditOne = (p, subject) => {
-    let probe;
-    try {
-      const raw = p.up();
-      probe = raw !== null && raw !== undefined && typeof raw.up === "boolean" ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" } : { up: false, evidence: "the probe returned a malformed shape (no boolean `up`) \u2014 DOWN by construction" };
-    } catch (e) {
-      probe = { up: false, evidence: e instanceof Error ? e.message : String(e) };
-    }
+    const probe = probeConsumer(p);
     if (!probe.up) {
       return {
         consumer: p.id,
@@ -187075,19 +187077,10 @@ function createLayerRegistry() {
       const facts = [];
       const faults = [];
       for (const p of [...byId.values()]) {
-        try {
-          const rawProbe = p.up();
-          const probeValid = typeof rawProbe === "object" && rawProbe !== null && typeof rawProbe.up === "boolean";
-          if (!probeValid || rawProbe.up !== true) {
-            const probeEvidence = typeof rawProbe === "object" && rawProbe !== null && typeof rawProbe.evidence === "string" ? rawProbe.evidence : "";
-            const reason = !probeValid ? `GI_LAYER_DOWN:${p.id} - the probe returned a malformed shape (no boolean up) - DOWN by construction` : `GI_LAYER_DOWN:${p.id} - the probe reports DOWN${probeEvidence ? `: ${probeEvidence}` : ""}`;
-            console.error("[layer-registry] factsFor: consumer " + p.id + " is DOWN or malformed - see audit GI_LAYER_DOWN:" + p.id + ": " + reason);
-            faults.push({ consumer: p.id, reason });
-            continue;
-          }
-        } catch (upErr) {
-          const reason = `GI_LAYER_DOWN:${p.id} - the probe threw: ${upErr instanceof Error ? upErr.message : String(upErr)}`;
-          console.error("[layer-registry] factsFor: consumer " + p.id + " probe threw - see audit GI_LAYER_DOWN:" + p.id + ": " + reason);
+        const probe = probeConsumer(p);
+        if (!probe.up) {
+          const reason = `GI_LAYER_DOWN:${p.id} - ${probe.evidence || "the probe reports DOWN"}`;
+          console.error("[layer-registry] factsFor: consumer " + p.id + " is DOWN or malformed - see audit GI_LAYER_DOWN:" + p.id + ": " + reason);
           faults.push({ consumer: p.id, reason });
           continue;
         }

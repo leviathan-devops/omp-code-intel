@@ -162,6 +162,31 @@ function severityFromBinding(v: unknown): 'CRIT' | 'HIGH' | 'MED' | 'WARN' {
   return 'HIGH';
 }
 
+/**
+ * ★ R19-HIGH FIX (2026-09-25): THE FIXTURE CONTAINMENT — ONE definition for both loaders.
+ *   loadFireFixture and loadGoldenFixture each carried the same two-question check (the lexical
+ *   spelling question, then requireContained's symlink question) with only the kind WORD differing
+ *   — and the two legs had already been fixed in lockstep three times (F-702, F-931, R15), which is
+ *   the cost of the copy: every traversal fix must be applied twice or one loader silently keeps
+ *   the hole. The check has one home now; both loaders ask it.
+ */
+function containedFixtureSource(dir: string, sourceFile: string, kind: "fire" | "golden"): string {
+  // The manifest's own SPELLING is still checked lexically (a `..` that escapes is refused on the
+  // string form — the shape question, asked before any filesystem touch).
+  const spelled = path.resolve(dir, sourceFile);
+  const dirSpelled = path.resolve(dir);
+  if (spelled !== dirSpelled && !spelled.startsWith(dirSpelled + path.sep)) {
+    throw new Error(`CALIBRATION_FIXTURE_INVALID: ${kind} fixture ${dir} sourceFile '${sourceFile}' escapes the fixture directory`);
+  }
+  // The SYMLINK question is asked against the real path (requireContained resolves the nearest
+  // existing ancestor, so a dangling link target still answers containment).
+  return requireContained(
+    spelled,
+    dir,
+    ({ real }) => { throw new Error(`CALIBRATION_FIXTURE_INVALID: ${kind} fixture ${dir} sourceFile '${sourceFile}' escapes the fixture directory (realpath ${real})`); },
+  );
+}
+
 /** Read one fire fixture dir (manifest.json + the source file) → a FireFixture.
  *  ★ F-702 FIX (2026-09-24): manifest.sourceFile used to join straight into
  *  ★ readFileSync — a malicious manifest.json referencing ../../etc/passwd
@@ -184,18 +209,8 @@ export function loadFireFixture(dir: string): FireFixture {
   }
   // The manifest's own SPELLING is still checked lexically (a `..` that escapes is refused
   // on the string form — the shape question, asked before any filesystem touch).
-  const spelled = path.resolve(dir, manifest.sourceFile);
-  const dirSpelled = path.resolve(dir);
-  if (spelled !== dirSpelled && !spelled.startsWith(dirSpelled + path.sep)) {
-    throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory`);
-  }
-  // The SYMLINK question is asked against the real path (requireContained resolves the
-  // nearest existing ancestor, so a dangling link target still answers containment).
-  const contained = requireContained(
-    spelled,
-    dir,
-    ({ real }) => { throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory (realpath ${real})`); },
-  );
+  // ★ R19: the shared check (one definition, both loaders).
+  const contained = containedFixtureSource(dir, manifest.sourceFile, "fire");
   const source = fs.readFileSync(contained, 'utf8');
   if (!manifest.ruleId || !manifest.file || !manifest.line) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} carries an empty ruleId/file/line anchor`);
@@ -222,16 +237,8 @@ export function loadGoldenFixture(dir: string): GoldenFixture {
   if (typeof manifest.sourceFile !== 'string' || manifest.sourceFile.length === 0) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} carries a missing/empty sourceFile`);
   }
-  const spelled = path.resolve(dir, manifest.sourceFile);
-  const dirSpelled = path.resolve(dir);
-  if (spelled !== dirSpelled && !spelled.startsWith(dirSpelled + path.sep)) {
-    throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory`);
-  }
-  const contained = requireContained(
-    spelled,
-    dir,
-    ({ real }) => { throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory (realpath ${real})`); },
-  );
+  // ★ R19: the shared check (one definition, both loaders).
+  const contained = containedFixtureSource(dir, manifest.sourceFile, "golden");
   const source = fs.readFileSync(contained, 'utf8');
   if (!manifest.anchor || !manifest.file) {
     throw new Error(`CALIBRATION_FIXTURE_INVALID: golden fixture ${dir} carries an empty anchor/file`);
