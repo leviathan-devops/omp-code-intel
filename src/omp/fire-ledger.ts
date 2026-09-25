@@ -622,6 +622,17 @@ export function drain(gate: FireGate, ledger: FireLedger): number {
   // ★ PASS-3 CRITICAL — THE WATERMARK ADVANCES ONLY FOR ROWS THE LEDGER CONFIRMS.
   // Marking every ATTEMPTED row seen was the original F0 defect wearing the R7
   // fallback as a disguise: a partially-committed batch lost its failures forever.
+  // ★ R19 NOT-A-BUG ADJUDICATION (2026-09-25) — the finding claimed "concurrent async
+  //   judgeWithPersist calls can double-write rows: between checking !seen.has(row) and the
+  //   eventual seen.add(row)". FALSE, and mechanically so: this whole function is SYNCHRONOUS.
+  //   `appendManyDetailed` returns a PLAIN OBJECT ({ committed, failed }) — not a promise — and
+  //   there is NO `await` anywhere between the `!seen.has(row)` check above and the
+  //   `seen.add(row)` below. JavaScript runs a synchronous block to completion; no other drain
+  //   can interleave inside it, so the check-to-mark window cannot be entered twice. A lock or a
+  //   transaction here would guard a window that does not exist. (The two invariants that DO
+  //   matter are already implemented and pinned: the watermark advances ONLY for rows the ledger
+  //   CONFIRMS — AUDIT FINDING 0 + PASS-3, both quoted above — and a transient write fault
+  //   retries while a poison row is quarantined, F-341.)
   const { committed, failed } = ledger.appendManyDetailed(fresh);
   for (const row of committed) seen.add(row);
   for (const f of failed) { if (POISON_CODES.has(poisonCodeOf(f.error.code))) poison.add(poisonSignature(f.row)); }
