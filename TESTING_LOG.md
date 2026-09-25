@@ -2822,3 +2822,43 @@ the now-unconditional guard. Run 18 finds **zero**.
 ruling governs: *"all findings are legit; if your code is perfect the llm will say so."* The
 remedy is to FIX EVERY FINDING, repeatedly, until the column reads 0. The run-18 findings are
 dispatched as slices (`artifacts/r18-full-slices/`), each adjudicated FIXED / NOT-A-BUG-with-proof.
+
+---
+
+## ★ RUN 19 — THE THIRD FULL-TREE AUDIT: CRITICAL STABLE AT ZERO (2026-09-25)
+
+```
+  parts .................. 113 / 113   ← the WHOLE TREE (A 57 + B 56, both pre-flight-probed)
+  comments ............... 344
+  ★ THE INSTRUMENT ....... 0 instrument-dead · 20 CLEAN REVIEWS · 4 out-of-scope
+     critical 0 · high 37 · medium 171 · low 136
+  ★ THE GATE: CRITICAL=0 HIGH=37 → FAIL (on the highs)
+```
+
+**THE HONEST TRAJECTORY ACROSS THREE FULL-TREE RUNS:**
+| run | the coverage | critical | high | medium | low |
+|---|---|---|---|---|---|
+| 17 | 113/113 | 1 | 33 | 166 | 151 |
+| 18 | 113/113 | **0** | 35 | 179 | 114 |
+| **19** | **113/113** | **0** | **37** | **171** | **136** |
+
+**★ THE CRITICAL IS ELIMINATED AND STABLE.** Runs 18 and 19 both read **0** (down from 1). The one
+critical — F-123, the migration whose `db.exec(TYPED_GRAPH_DDL)` a structural edit ate — is fixed,
+pinned (`tests/st-migration-ddl.test.ts` 3/0), and its negative control reproduces both the defect
+and the guard.
+
+**★ THE HIGH COLUMN DOES NOT MONOTONICALLY FALL — MEASURED, NOT ASSUMED.** 33 → 35 → 37 across
+three runs on the SAME tree family. Each run samples a FRESH comment set from the reviewer; the
+operator's ruling governs (*"all findings are legit; if your code is perfect the llm will say so"*),
+so the remedy is to fix every finding, repeatedly. **The converge signal is the CRITICAL column
+(1 → 0 → 0) and the CLEAN-REVIEW count (a rising share of files the reviewer reads and finds
+nothing in).** This is the measurement; the gate moves when the reviewer stops finding highs.
+
+**THE FIXES THIS RUN LANDED (each with its mechanism):** the export regex's `function * foo` gap ·
+the tsg redaction's API-key PREFIX · the report-writer's promised-but-absent tie-break · `log.ts`'s
+type-vs-body lie whose `as unknown` cast DEFEATED narrowing · `whoCalls`' missing LIMIT ·
+enforcement's abandoned promise (an unhandled rejection) · bus-hook's unbounded failure log ·
+graph-pre-flight's docstring naming one of two escalation legs + its unbounded `IN (...)` feed ·
+`HAS_FINDING_PREDICATE` (the one predicate outside the canon, a bare literal in BOTH the CHECK and
+its writer) · `batteryVersion`'s double corpus read. Plus **one refuted by the compiler**
+(`populate-corbell`'s `storePath` IS used — the rename broke tsc, which named the real use).

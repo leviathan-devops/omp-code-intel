@@ -1,0 +1,695 @@
+[HIGH] src/hunter/diagnostics/engine.ts:343-353 (security)
+  TOCTOU race in `lockdownReadSource`: Between `realpathSync(abs)` (containment check, line 344) and `readFileSync(fileReal, ...)` (the read, line 353), an attacker with filesystem write access can swap the symlink target. The `realpathSync` validates one inode, then `readFileSync` opens a potentially different inode. The same pattern exists in `violationFrequencies` (lines 271–275, 281). Fix: open the file descriptor first, then fstat to validate containment on the fd itself, then read from the same fd:
+```typescript
+const fd = fs.openSync(fileReal, 'r');
+try {
+  const stat = fs.fstatSync(fd);
+  const realFd = fs.readlinkSync(`/proc/self/fd/${fd}`); // or realpath on the open path
+  if (!insi
+  ```existing
+  let fileReal = abs;
+      try { fileReal = fs.realpathSync(abs); } catch { /* the file may not exist yet — the read below reports it loud */ }
+      if (!inside(fileReal)) throw sourceReadFailed(abs, `symlink escapes project root (root=${rootReal} file=${fileReal})`);
+      let text: string;
+      try {
+        // ★ F-441 FIX (2026-09-24): READ THE RESOLVED PATH. The containment above resolved
+   
+  ```
+
+[HIGH] src/hunter/diagnostics/engine.ts:755-755 (bug)
+  Edge `file` and `line` metadata is silently lost on the stored-graph REUSE path. The `graph_edges` database table (db.ts line 239) only stores `source_id,target_id,kind,lineage` — it has no `file` or `line` columns. When `readStoredGraph` maps `StoredEdgeRow` to `GraphEdge` (line 774), it produces edges with `file: undefined` and `line: undefined`. But `buildLocalGraph` (line 719) creates edges WITH `file: rel, line: callLine`. This means the STORED path degrades edge provenance compared to the LOCAL BUILD path: `whoCalls` (line 485), `chain` (lines 498, 503), and `imports` (line 513) all silently fall back to empty/zero values for edges loaded from the DB. Either add `file`/`line` columns t
+  ```existing
+  const erows = db.prepare('SELECT source_id,target_id,kind,lineage FROM graph_edges').all() as unknown as StoredEdgeRow[];
+  ```
+
+[HIGH] src/hunter/diagnostics/fixture-calibration.ts:194-199 (maintainability)
+  Duplicated path-containment logic between loadFireFixture and loadGoldenFixture (identical ~15-line block: lexical spelling check, `requireContained` call, and error callbacks). A future security fix applied to one loader but not the other would reintroduce the F-702/F-931 class vulnerability. Extract a shared helper, e.g. `resolveContainedSource(dir, sourceFile, fixtureKind): string` that performs both the lexical escape check and the symlink-aware `requireContained` call, then use it in both loaders.
+  ```existing
+  const contained = requireContained(
+    spelled,
+    dir,
+    ({ real }) => { throw new Error(`CALIBRATION_FIXTURE_INVALID: fire fixture ${dir} sourceFile '${manifest.sourceFile}' escapes the fixture directory (realpath ${real})`); },
+  );
+  const source = fs.readFileSync(contained, 'utf8');
+  ```
+  ```suggested
+  /** Resolve sourceFile against dir with both lexical and symlink containment checks.
+ *  Called by both loadFireFixture and loadGoldenFixture to keep the security
+ *  invariant (F-702, F-931) in a single enforceable location. */
+function resolveContainedSource(dir: string, sourceFile: string, fixtureKind: 'fire' | 'golden'): string {
+  const spelled = path.resolve(dir, sourceFile);
+  const dirSpel
+  ```
+
+[HIGH] src/hunter/firewall/readonly.ts:75-78 (security)
+  The metacharacter scanner only checks for ASCII shell metacharacters. Unicode bidirectional override characters (U+202A–U+202E, U+2066–U+2069) can be used to visually disguise a dangerous command as a safe one in code review and logs. For example, a command containing U+202E (RIGHT-TO-LEFT OVERRIDE) followed by safe-looking tokens could visually render as a harmless command while the actual byte stream contains injection characters. Consider adding bidirectional override/separator characters to the BYPASS_METACHARACTERS set, or reject commands containing any non-ASCII control characters.
+  ```existing
+  const BYPASS_METACHARACTERS: ReadonlySet<string> = new Set([
+  '|', ';', '&', '>', '<', '(', ')', '*', '?', '[', ']', '{', '}',
+  '#', '!', '%', '~', '$', '`', '\\', '\'', '"', '\n',
+]);
+  ```
+  ```suggested
+  const BYPASS_METACHARACTERS: ReadonlySet<string> = new Set([
+  '|', ';', '&', '>', '<', '(', ')', '*', '?', '[', ']', '{', '}',
+  '#', '!', '%', '~', '$', '`', '\\', '\'', '"', '\n',
+  // Unicode bidirectional override/separator characters (security: visual spoofing defense)
+  '\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+  '\u2066', '\u2067', '\u2068', '\u2069', '\u206A', '\u206B',
+  '\u206C'
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:272-280 (bug)
+  Bug: Call/new expression callee resolution only matches simple identifiers, silently dropping call edges for all member/qualified/calculated invocations. For `A.B()`, `obj.method()`, `arr.forEach(cb)`, `foo()()`, `this.init()`, etc., `node.expression` is a PropertyAccessExpression, ElementAccessExpression, CallExpression, etc., and `ts.isIdentifier(node.expression)` returns false — so no `calls`/`awaits` triple is emitted. This is a significant gap: any call-graph query (whoCalls, callChains) will miss all method-on-method call edges, which dominate real codebases. Consider walking PropertyAccessExpression to extract the `.name` text (or for deeper chains like `a.b.c()`, at minimum extract t
+  ```existing
+  if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && ts.isIdentifier(node.expression)) {
+          const callee = node.expression.text;
+          const inAwait = parent !== undefined && ts.isAwaitExpression(parent);
+          const callerId = currentFnId ?? fileCanon;
+          const pred: Predicate = inAwait ? 'awaits' : 'calls';
+          const callLine = lineOf(sf, node);
+          co
+  ```
+  ```suggested
+  if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+          const expr = node.expression;
+          let calleeName: string | undefined;
+          if (ts.isIdentifier(expr)) {
+            calleeName = expr.text;
+          } else if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.name)) {
+            // A.B(), obj.method(), this.init() — extract the leaf method name
+         
+  ```
+
+[HIGH] src/hunter/graph/mechanical.ts:216-220 (bug)
+  Bug: Default-exported declarations (`export default class Foo {}`, `export default function bar() {}`) are parsed by the TypeScript AST as ExportAssignment nodes, not as standalone ClassDeclaration/FunctionDeclaration. The F-821b block at line 175 explicitly excludes ExportAssignment (`!ts.isExportAssignment(stmt)`), and the ExportAssignment handler at line 216 only emits `exports -> default:module` without extracting the contained declaration. Result: no `declares class:Foo` or `declares fn:bar` triple is ever emitted for the default-exported entity — it becomes invisible to any graph join on its canonical name. The ExportAssignment handler should inspect `stmt.expression` to extract the de
+  ```existing
+  if (ts.isExportAssignment(stmt)) {
+        const expLine = lineOf(sf, stmt);
+        const expEvidence = evidenceQuoteForNode(sf, stmt);
+        pushTriple(fileCanon, 'exports', `default:${moduleCanon}`, expEvidence, relPosix, expLine);
+      }
+  ```
+  ```suggested
+  if (ts.isExportAssignment(stmt)) {
+        const expLine = lineOf(sf, stmt);
+        const expEvidence = evidenceQuoteForNode(sf, stmt);
+        pushTriple(fileCanon, 'exports', `default:${moduleCanon}`, expEvidence, relPosix, expLine);
+        // Extract the declaration name from the default export so it also has a declares triple.
+        const expr = stmt.expression;
+        if (ts.isClassDecla
+  ```
+
+[HIGH] src/hunter/graph/resolver.ts:80-80 (security)
+  Entity labels, IDs, and kinds are interpolated directly into the LLM prompt without any escaping or quoting. If an entity label contains characters like double-quotes (`"`), newlines (`\n`), or backticks, it will break the prompt structure and could cause the LLM to produce garbled or adversarial output. For example, a label containing `\n- alias="..." verdict="same"` would inject a fake resolution line into the prompt.
+
+This is a prompt-injection surface: a maliciously crafted entity label could manipulate the LLM into returning incorrect resolutions, potentially causing data corruption in the DB-backed `same`/`related` verdicts.
+
+Suggestion: escape or quote the values (e.g., JSON-encode th
+  ```existing
+  const newLines = newEntities.map((e) => `- alias="${e.id}" label="${e.label}" kind=${e.kind} file=${e.file ?? ''}:${e.line ?? ''}`).join('\n');
+  ```
+  ```suggested
+  const esc = (s: string) => s.replace(/["\n\r\\]/g, (c) => ({ '"': '\"', '\n': '\\n', '\r': '\\r', '\\': '\\\\' })[c] ?? c);
+  const newLines = newEntities.map((e) => `- alias="${esc(e.id)}" label="${esc(e.label)}" kind=${esc(e.kind)} file=${esc(e.file ?? '')}:${String(e.line ?? '')}`).join('\n');
+  ```
+
+[HIGH] src/hunter/harness/map.ts:115-118 (bug)
+  The `GraphEdge` interface (both in `interface.ts:69-78` and `db.ts:125-130`) does NOT declare `source_location` or `metadata` fields. The double-cast `(e as unknown as Record<string, unknown>)` accesses these fields at runtime, but the TypeScript type system cannot verify they exist. If adapters never populate these properties on edge objects, the entire `edgeLocByTarget` map always contains `{ source_location: undefined, metadata: undefined }` entries, making the F-332 fix and all edge-based line resolution dead code — nodes that depend solely on edge metadata for line resolution will be falsely refused as LINELESS_NODE.
+
+Either the `GraphEdge` interface should be extended with `source_loca
+  ```existing
+  const edgeLocByTarget: Record<string, { source_location?: unknown; metadata?: unknown }> = {};
+  for (const e of buildResult.edges) {
+    const rec = e as unknown as Record<string, unknown>;
+    const cand = { source_location: rec['source_location'], metadata: rec['metadata'] };
+  ```
+  ```suggested
+  // NOTE: if adapters produce edges with source_location/metadata at runtime,
+  // the GraphEdge interface in interface.ts and db.ts should declare these fields
+  // so the TypeScript compiler can verify this access:
+  //   source_location?: unknown;
+  //   metadata?: Record<string, unknown>;
+  const edgeLocByTarget: Record<string, { source_location?: unknown; metadata?: unknown }> = {};
+  for (con
+  ```
+
+[HIGH] src/hunter/harness/micro-loop-machine.ts:451-454 (bug)
+  **Database handle leak when `done()` is called without `stop()`**: The `done()` path never closes `snapshot.db`. If a caller does `await loop.done()` without subsequently calling `stop()`, the SQLite WAL file descriptor leaks permanently. The code comments acknowledge this (F-1202 reverted closing in `settle()`), and the intended contract is 'stop() owns teardown' — but the `done()` path silently leaves the fd open with no warning, no documentation on the returned promise, and no auto-cleanup. Consider either (a) closing `db` inside `settle()` and removing the st-hunter-port pin, (b) adding a `finally` / `await done().then(() => stop())` pattern to all callers, or (c) logging a warning when 
+  ```existing
+  done(): Promise<void> {
+      if (pendingDone !== null) return pendingDone;
+      pendingDone = new Promise<void>((resolve): void => {
+        if (actor.getSnapshot().status === 'done') { resolve(); return; }
+  ```
+  ```suggested
+  done(): Promise<void> {
+      if (pendingDone !== null) return pendingDone;
+      pendingDone = new Promise<void>((resolve): void => {
+        if (actor.getSnapshot().status === 'done') { cleanupAndResolve(); return; }
+        const snapStatus: unknown = (actor.getSnapshot() as { status?: unknown }).status;
+        if (snapStatus === 'stopped' || snapStatus === 'error') { cleanupAndResolve(); retu
+  ```
+
+[HIGH] src/hunter/harness/recon.ts:198-200 (bug)
+  If db.close() throws, the thrown exception will replace any in-flight error from the try block, masking the real failure reason from upstream callers. This is especially problematic because the recon function's callers expect specific named errors (PROFILE_INVALID / CORPUS_MISSING / HISTORY_MISSING) to route to INCONCLUSIVE - a masked error could cause incorrect micro-loop routing.
+  ```existing
+  } finally {
+    db.close();
+  }
+  ```
+  ```suggested
+  } finally {
+    try {
+      db.close();
+    } catch (_closeErr) {
+      // Swallow close errors to avoid masking the primary error.
+    }
+  }
+  ```
+
+[HIGH] src/hunter/harness/report.ts:145-160 (bug)
+  Bug: The `document` string is built once at line 188 using the initial `version` value, but the retry loop (lines 194-207) re-probes `nextReportVersion()` on each iteration and may write the document under a DIFFERENT version number. When a collision occurs (EEXIST), the retry picks up `retryVersion` which can be greater than the initial version, but the document content is never rebuilt. This causes two concrete data correctness defects:
+
+1. The file is named `bug_hunter_report_vN.md` but the heading inside says `# BUG-HUNT REPORT — vM` where M < N.
+2. The `supersedes:` metadata line references `bug_hunter_report_v(M-1)` instead of `bug_hunter_report_v(N-1)`, pointing to the wrong predecess
+  ```existing
+  let version = nextReportVersion(masterContextDir);
+  let reportPath = path.join(masterContextDir, `bug_hunter_report_v${version}.md`);
+
+  const lines: string[] = [
+    `# BUG-HUNT REPORT — v${version}`,
+    '',
+    `- runId: ${input.runId}`,
+    `- findings: ${input.findings.length}`,
+    `- sections: ${input.sections.length}`,
+    ...(version > 1 ? [`- supersedes: bug_hunter_report_v${version - 1
+  ```
+  ```suggested
+  let version = nextReportVersion(masterContextDir);
+  let reportPath = path.join(masterContextDir, `bug_hunter_report_v${version}.md`);
+
+  const findingRows: ReportFinding[] = input.findings;
+  const graphRows: GraphSummary[] = input.graphSummaries;
+
+  /** Build the document content for a given version number. */
+  function buildDocument(v: number): string {
+    const hdr: string[] = [
+      `# BUG
+  ```
+
+[HIGH] src/hunter/harness/strike.ts:46-46 (bug)
+  The merge loop accesses t.relevance via Object.entries() without a null guard. If a trace row has relevance: null or relevance: undefined, this line throws TypeError: Cannot convert undefined or null to object. The first encounter path (line 43) safely spreads null via {...t.relevance} yielding {}, but the second-encounter path (this line) does not. The R15 fix in relevanceOf only guards the read side, not the merge side.
+  ```existing
+  for (const [k, v] of Object.entries(t.relevance)) merged[k] = (merged[k] ?? 0) + (typeof v === "number" ? v : 0);
+  ```
+  ```suggested
+  for (const [k, v] of Object.entries(t.relevance ?? {})) merged[k] = (merged[k] ?? 0) + (typeof v === 'number' ? v : 0);
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:127-130 (bug)
+  Empty corpus handling is asymmetric between the sync and async paths. The sync `batteryVersion` silently produces a valid version string (`'project-rules-battery-v1 (fingerprint: ...)'`) when `profile.rules.corpus` is empty — treating it as the spec's 'honest zero battery'. However, `batteryVersionWithCardsAsync` explicitly throws `corpusEmpty()` for the same input. Callers using different paths for the same profile will see contradictory behavior: sync succeeds, async throws. This violates the spec's own principle that 'the two states are distinguished by measurement, never conflated.' Either both paths should treat empty corpus as a valid zero battery, or both should throw.
+  ```existing
+  if (profile.rules.corpus.length === 0) {
+    const { corpusEmpty } = await import('./rule-card.ts');
+    throw corpusEmpty();
+  }
+  ```
+  ```suggested
+  // Align with batteryVersion (sync): empty corpus = valid honest zero battery.
+  // The cards array will be empty, batteryNameFromCards([]) returns 'rules',
+  // and the fingerprint will be deterministic from the empty corpus + bindings.
+  // If the caller wants to reject empty corpus, do so at the profile-validation
+  // layer, not inconsistently in one path only.
+  ```
+
+[HIGH] src/hunter/lexicon/compiler.ts:271-276 (bug)
+  The DB cache hit check (`SELECT COUNT(*)`) and the subsequent `writeCompiledCache` are not wrapped in a single transaction or guarded by any concurrency mechanism. Two concurrent `compileBattery` calls for the same profile can both see an empty cache (both SELECTs return 0), then both proceed to compile and write. Depending on `writeCompiledCache`'s UPSERT semantics this either silently overwrites (wasting work) or throws a unique-constraint conflict. The check-then-write pattern is a classic TOCTOU race. Consider using a locking mechanism (e.g., advisory lock keyed on the battery version) or moving the SELECT inside the transaction in `writeCompiledCache` to make it atomic.
+  ```existing
+  if (db) {
+    const row = db.prepare('SELECT COUNT(*) AS c FROM compiled_predicates WHERE battery_version = ?').get(version);
+    if (Number(row?.['c'] ?? 0) > 0) {
+      return { battery: loadBattery(db, version), batteryVersion: version, fromCache: true };
+    }
+  }
+  ```
+  ```suggested
+  if (db) {
+    // Atomic check-or-write: move the existence check inside writeCompiledCache's
+    // transaction to prevent two concurrent compilations from both missing the cache
+    // and both writing. Alternatively, use an advisory lock:
+    //   db.prepare('SELECT 1 FROM compiled_predicates WHERE battery_version = ?').get(version);
+    const existing = db.prepare('SELECT 1 FROM compiled_predic
+  ```
+
+[HIGH] src/hunter/shared/db.ts:819-819 (bug)
+  **Fail-closed violation in fallback path**: The outer `catch` on line 819 catches ANY error from the family read (including DB corruption, permission errors, connection failures), but only re-throws `FAMILY_NODE_CORRUPT`. All other errors are silently logged at debug level, and the method returns *partial* data (delta nodes only, family silently dropped). This contradicts the file's stated fail-closed philosophy (the R15 FIX on the inner try already enforces it for JSON corruption). A corrupt or inaccessible family DB should be loud, not silently swallowed — returning partial union data is worse than failing, because downstream consumers trust the result is complete.
+  ```existing
+  } catch (famErr) { if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr; console.debug('[kg-store] family_nodes fallback read failed:', famErr instanceof Error ? famErr.message : String(famErr)); }
+  ```
+  ```suggested
+  } catch (famErr) {
+      if (famErr instanceof Error && famErr.message.startsWith('FAMILY_NODE_CORRUPT')) throw famErr;
+      // Any other error (DB corruption, I/O, permission) must be loud — returning partial
+      // union data silently is worse than failing, because callers trust completeness.
+      throw new Error(`FAMILY_READ_FAILED: ${famErr instanceof Error ? famErr.message : String(famErr
+  ```
+
+[HIGH] src/hunter/shared/migrations.ts:128-128 (bug)
+  The `assertNonTransactionalSchema` function is called unconditionally (line 100), but it relies on `db.query` which is an optional method. When the driver doesn't support `BEGIN` (i.e., `began` is false) AND `db.query` is undefined, the function will throw the 'cannot verify' error. However, in the transactional path where `began` is true, a successful COMMIT already implies the DDL succeeded — yet `assertNonTransactionalSchema` is still called. If `db.query` happens to be undefined on a driver that does support BEGIN/COMMIT, this verification will throw a misleading error after a successful migration. The check should either be conditional (`if (!began)`) or the `query` method should be req
+  ```existing
+  assertNonTransactionalSchema(db);
+  ```
+  ```suggested
+  db.exec(TYPED_GRAPH_DDL);
+    try { db.exec('COMMIT'); } catch (commitErr: unknown) { if (began) throw commitErr; /* else: nothing to commit */ }
+    if (!began) {
+      assertNonTransactionalSchema(db);
+    }
+  ```
+
+[HIGH] src/hunter/shared/ontology.ts:17-20 (bug)
+  `HAS_FINDING_PREDICATE` is a valid predicate used in the graph (written by report.ts, enforced by migrations.ts CHECK constraint), but it is **not** included in `PREDICATE_SET`. Any consumer that validates predicates via `isPredicate()` will reject `'has_finding'`, causing a runtime validation failure or silent data rejection. The fix is to include it in the canonical set.
+  ```existing
+  export const HAS_FINDING_PREDICATE = 'has_finding' as const;
+export const ALL_PREDICATES: readonly Predicate[] = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring] as const;
+export const NODE_TYPES_SET: ReadonlySet<string> = new Set(NODE_TYPES as readonly string[]);
+export const PREDICATE_SET: ReadonlySet<string> = new Set(ALL_PREDICATES as readonly string[]);
+  ```
+  ```suggested
+  export const HAS_FINDING_PREDICATE = 'has_finding' as const;
+export type HasFindingPredicate = typeof HAS_FINDING_PREDICATE;
+export const ALL_PREDICATES: readonly Predicate[] = [...PREDICATES.lasme, ...PREDICATES.mpse, ...PREDICATES.sro, ...PREDICATES.wiring] as const;
+export const ALL_PREDICATES_PLUS: readonly (Predicate | HasFindingPredicate)[] = [...ALL_PREDICATES, HAS_FINDING_PREDICATE] as con
+  ```
+
+[HIGH] src/hunter/shared/ontology.ts:24-26 (bug)
+  `isPredicate()` does not recognise `'has_finding'` as a valid predicate. Any code path that validates user-supplied or DB-sourced predicate strings through this guard will incorrectly reject it, potentially causing data loss or silent constraint violations at write time.
+  ```existing
+  export function isPredicate(v: unknown): v is Predicate {
+  return typeof v === 'string' && (PREDICATE_SET as Set<string>).has(v);
+}
+  ```
+  ```suggested
+  export function isPredicate(v: unknown): v is Predicate | HasFindingPredicate {
+  return typeof v === 'string' && (PREDICATE_SET as Set<string>).has(v);
+}
+  ```
+
+[HIGH] src/hunter/shared/query-engine.ts:194-208 (maintainability)
+  **Edge row mapper is copy-pasted identically** in `buildPathEdges` and `temporal()`. Both perform the same field validation (EDGE_ROW_SHAPE check) and the same fallback-default mapping for `evidence_quote`, `confidence`, `created_run`, and `superseded_run`. If the `typed_edges` schema evolves (e.g., a new column is added or a field changes nullability), one copy will be updated and the other silently drifts. Extract a private `mapEdgeRow(r: Record<string, unknown>): TypedEdgeRow` helper and call it from both sites.
+  ```existing
+  edges = rows.map((r) => {
+          if (typeof r.id !== 'number' || typeof r.src_canonical !== 'string' || typeof r.dst_canonical !== 'string' || typeof r.predicate !== 'string') {
+            throw new Error(`EDGE_ROW_SHAPE: the typed_edges row ${JSON.stringify(r).slice(0, 120)} is missing id/src_canonical/dst_canonical/predicate`);
+          }
+          return {
+            id: r.id,
+           
+  ```
+  ```suggested
+  private static mapEdgeRow(r: Record<string, unknown>): TypedEdgeRow {
+  if (typeof r.id !== 'number' || typeof r.src_canonical !== 'string' || typeof r.dst_canonical !== 'string' || typeof r.predicate !== 'string') {
+    throw new Error(`EDGE_ROW_SHAPE: the typed_edges row ${JSON.stringify(r).slice(0, 120)} is missing id/src_canonical/dst_canonical/predicate`);
+  }
+  return {
+    id: r.id,
+    src
+  ```
+
+[HIGH] src/hunter/shared/query-engine.ts:293-308 (maintainability)
+  **Temporal filter SQL clause construction is duplicated** for nodes and edges. The `createdRun`, `liveOnly`, and `supersededRun` filter logic is repeated independently for both the node query and the edge query, with subtly different SQL fragments and parameter arrays. A change applied to one branch (e.g., adding a new filter dimension) that is not mirrored to the other will silently return inconsistent node/edge sets. Extract a helper like `buildTemporalWhere(tableAlias: string, filter: TemporalFilter): { sql: string; params: unknown[] }`.
+  ```existing
+  let nodeSql = 'SELECT id, canonical_id, kind, label, file, line, created_run, superseded_run FROM typed_nodes WHERE 1=1';
+      const nodeParams: unknown[] = [];
+      if (filter.createdRun !== undefined) {
+        if (typeof filter.createdRun !== 'string' || filter.createdRun.trim().length === 0) throw new Error('TEMPORAL_INVALID: createdRun must be non-empty string');
+        nodeSql += ' AND cr
+  ```
+  ```suggested
+  private buildTemporalClauses(filter: TemporalFilter): { where: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (filter.createdRun !== undefined) {
+    if (typeof filter.createdRun !== 'string' || filter.createdRun.trim().length === 0) throw new Error('TEMPORAL_INVALID: createdRun must be non-empty string');
+    clauses.push('AND created_run = ?');
+  ```
+
+[HIGH] src/hunter/surface/lsp-injector.ts:245-263 (security)
+  **ReDoS vulnerability remains despite the guard.** The `GLOB_MAX_STARS=8` and `GLOB_MAX_LEN=200` checks are necessary but not sufficient. A pattern like `*a*a*a*a*a*a*a*a` (8 stars, 15 chars — passes both guards) compiles to `.*a.*a.*a.*a.*a.*a.*a.*a`. On a non-matching string with many `a` characters (e.g., `"aaaaaaaaaaaaaaaaab"` — 16 `a`s followed by `b`), the regex engine must try exponentially many partitions of the `.*` groups, causing catastrophic backtracking. The same vulnerability exists in the duplicate copy in `resolveTouchedFiles`. Both the `globToRegExp` method and the inline copy in `resolveTouchedFiles` need this fixed.
+  ```existing
+  /** ★ F-1205 FIX (2026-09-25): the glob→RegExp compiler shared with the in-memory
+   *  branch below (F-32/F-49 escaping + F-1043 ReDoS guards) — one compiler, so the DB
+   *  expansion and the state-key expansion cannot diverge. Null = refuse (never invent). */
+  private globToRegExp(candidate: string): RegExp | null {
+    const GLOB_MAX_LEN = 200;
+    const GLOB_MAX_STARS = 8;
+    if (candidate.
+  ```
+  ```suggested
+  private globToRegExp(candidate: string): RegExp | null {
+    const GLOB_MAX_LEN = 200;
+    const GLOB_MAX_STARS = 8;
+    if (candidate.length > GLOB_MAX_LEN) return null;
+    let starCount = 0;
+    for (const ch of candidate) if (ch === '*') starCount++;
+    if (starCount > GLOB_MAX_STARS) return null;
+    try {
+      // ReDoS-safe: replace glob stars with atomic-like alternation groups.
+      // 
+  ```
+
+[HIGH] src/hydra/pipeline.ts:142-154 (bug)
+  Evidence trail lost on input validation / graph-load failures. The R16D fix (line 107-109) correctly publishes partial evidence before throwing on pre-gate rejections, but the same pattern was NOT applied to the input-validation errors (lines 121-125) and the graph-load failure (lines 124-125). When these paths throw, the local `evidence` array (containing PIPELINE_START and any pre-gate GATE_CHECK entries) is never passed to `publishRun`, so concurrent readers of `this.evidence` see a stale snapshot — the exact class of bug R16D fixed for pre-gates.
+
+Wrap these throw sites with the same publish-before-throw pattern, or refactor to use a single `finally` block for evidence publication.
+  ```existing
+  } catch (e) {
+      throw new Error(`[${this.config.name}] GATE FAILED: input — targetRootFor/graphPathFor threw: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (targetRoot.trim() === "" || graphPath.trim() === "") {
+      throw new Error(`[${this.config.name}] GATE FAILED: input — targetRoot and graphPath required`);
+    }
+    this.log("GRAPH_EXTRACT_START", {}, evidence);
+    let 
+  ```
+  ```suggested
+  } catch (e) {
+      this.log("PIPELINE_FAILED", { name: this.config.name, error: `targetRootFor/graphPathFor threw: ${e instanceof Error ? e.message : String(e)}` }, evidence);
+      this.publishRun(seq, evidence);
+      throw new Error(`[${this.config.name}] GATE FAILED: input — targetRootFor/graphPathFor threw: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (targetRoot.trim() === 
+  ```
+
+[HIGH] src/kernel/scan-chain.ts:188-198 (bug)
+  **Race condition: `streamComplete` set AFTER the read loop creates a window where a late timer callback can discard successfully buffered content.**
+
+The stall timer fires every 5s on the event loop. `streamComplete` is assigned `!dead` AFTER the for-loop breaks. In the gap between `done === true` and `clearInterval`, if the timer callback runs (e.g., a final 5s tick queued just before the stream's last chunk arrived), it sets `dead = true`. Then `streamComplete` becomes `false`, and the condition `dead && !streamComplete` on the next line incorrectly returns `STALL` — discarding the fully buffered content in `full`.
+
+Fix: set `streamComplete = true` before (or instead of after) the loop, so
+  ```existing
+  streamComplete = !dead;
+    } catch {
+      // ★ F-405 FIX (2026-09-24): reader.read() may throw after abort — fall through
+      //   to finally for deterministic cleanup (the old code leaked the underlying
+      //   TCP/socket connection held by the Response body on abort or exception).
+    } finally {
+      reader.cancel().catch(() => {}); // release the underlying connection
+    }
+    clearIn
+  ```
+  ```suggested
+  streamComplete = true; // set BEFORE any potential timer tick; gated on loop exit
+    } catch {
+      // ★ F-405 FIX (2026-09-24): reader.read() may throw after abort — fall through
+      //   to finally for deterministic cleanup (the old code leaked the underlying
+      //   TCP/socket connection held by the Response body on abort or exception).
+    } finally {
+      reader.cancel().catch(() => {
+  ```
+
+[HIGH] src/omp/adapters/_shared.ts:226-233 (bug)
+  `storeFacts` returns facts from the store without verifying freshness, yet `assertStoreFresh` exists as a separate exported function. If a caller omits the freshness check (or a new adapter is added without it), stale / superseded graph data is silently served. Since `storeFacts` is the single public entry point for store reads, the freshness gate should be enforced here to make staleness bugs structurally impossible rather than relying on every caller's discipline.
+  ```existing
+  export function storeFacts(
+  consumer: ConsumerId,
+  rung: Rung,
+  storePath: string,
+  subject: string,
+  limit = 50,
+): LayerFact[] {
+  const db = openReadOnly(storePath);
+  ```
+  ```suggested
+  export function storeFacts(
+  consumer: ConsumerId,
+  rung: Rung,
+  storePath: string,
+  subject: string,
+  limit = 50,
+): LayerFact[] {
+  assertStoreFresh(storePath); // enforce staleness gate at the single read entry point
+  const db = openReadOnly(storePath);
+  ```
+
+[HIGH] src/omp/adapters/tsg.ts:53-58 (security)
+  The adapter's `tsgKey` reads `KEY_FILE` via a plain `readFileSync(KEY_FILE, "utf8")` which follows symlinks and performs no permission check. The register's own keyFileComponent in `jev.ts` deliberately uses `fs.openSync(KEY_FILE, O_RDONLY | O_NOFOLLOW)` with a 0600 permission check to prevent TOCTOU symlink-swap attacks. The inconsistency means an attacker who can plant a symlink at `~/.config/typesafe/key` can cause the adapter to read an arbitrary file and inject its contents into the child process environment as `TYPESAFE_API_KEY`. Even though the CLI will likely reject the value, the file contents are sent over the network to the TypeSafe API. Adopt the same `O_NOFOLLOW` open + permissi
+  ```existing
+  try {
+    const v = fs.readFileSync(KEY_FILE, "utf8").trim();
+    return v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+  ```
+  ```suggested
+  try {
+    const fd = fs.openSync(KEY_FILE, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+      const v = fs.readFileSync(fd, "utf8").trim();
+      return v.length > 0 ? v : null;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+  ```
+
+[HIGH] src/omp/fire-gate.ts:542-552 (bug)
+  **Unhandled promise rejection risk on the timer.** `Promise.withResolvers<never>()` at line 542 creates a deferred whose rejection has no `.catch()` handler. When the judge call wins the `Promise.race` at line 549, `clearTimeout(handle)` cancels the timer callback (so the rejection never fires), and the normal path processes the answer. However, `timer.promise` itself is never `.catch()`-ed — if a timer callback fires and rejects *after* the await resolves (e.g., a timer queued before `clearTimeout` executes its synchronous cancel in a race condition with the event loop), the rejection is unhandled. The standard pattern for this is to attach a no-op `.catch()` to suppress the rejection on th
+  ```existing
+  const timer = Promise.withResolvers<never>();
+      const handle = setTimeout(() => timer.reject(new FireGateTimeout(ceiling)), ceiling);
+      // ★ W2-1: a concurrent identical fire SHARES the call already in flight.
+      const call = this.judgeOnce(cacheKey, state);
+      sharedCall = call.shared;
+      thisCall = call.answers;
+      try {
+        answers = await Promise.race([call.answers, tim
+  ```
+  ```suggested
+  const timer = Promise.withResolvers<never>();
+      const handle = setTimeout(() => timer.reject(new FireGateTimeout(ceiling)), ceiling);
+      // Suppress unhandled rejection when the judge call wins the race.
+      void timer.promise.catch(() => {});
+      // ★ W2-1: a concurrent identical fire SHARES the call already in flight.
+      const call = this.judgeOnce(cacheKey, state);
+      sharedCal
+  ```
+
+[HIGH] src/omp/gate-hook.ts:122-128 (bug)
+  **Bug: Cancel-path wipes ALL pending steer entries for the tool name, not just the cancelled call's entry.**
+
+When a verdict fires `cancel` (line 121), the code at line 124 filters the pendingSteer queue with `e.tool !== name`, which removes *every* pending steer entry for that tool name. If two interleaved `edit` calls exist (e.g., edit-A on file₁ and edit-B on file₂), cancelling edit-A also destroys edit-B's steer note. The F-1207 fix (line 74-77) correctly added file-based matching for the `tool_result` path, but the cancel-path cleanup was never updated to match.
+
+Fix: filter by both tool name AND file to only evict the specific entry being cancelled, or simply leave the queue intact sin
+  ```existing
+  const stale = pendingSteer.get(steerSid);
+      if (stale) {
+        const rest = stale.filter((e) => e.tool !== name);
+        if (rest.length > 0) pendingSteer.set(steerSid, rest);
+        else pendingSteer.delete(steerSid);
+      }
+      throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
+  ```
+  ```suggested
+  const stale = pendingSteer.get(steerSid);
+      if (stale) {
+        const rest = stale.filter((e) => !(e.tool === name && e.file === rec.file));
+        if (rest.length > 0) pendingSteer.set(steerSid, rest);
+        else pendingSteer.delete(steerSid);
+      }
+      throw new Error(`${verdict.token}: ${verdict.advisory ?? rec.file}`);
+  ```
+
+[HIGH] src/omp/kernel-v2.ts:550-552 (bug)
+  The degradation classification (lines 348-352) relies on `message.includes("GI_FIREGATE_BUDGET")` etc. to determine the error code. The comment at EN-056 explicitly warns against detecting degradation by prose, yet this code does exactly that — classifying by string-matching on error messages. If the upstream error text changes or is wrapped, the wrong degradation code will be emitted. Consider having the gate throw typed/structured errors (e.g., instances of named error classes) so the caller can use `instanceof` or a `code` property instead of substring matching.
+  ```existing
+  const code = message.includes("GI_FIREGATE_BUDGET") ? "GI_GATE_BUDGET_EXHAUSTED"
+      : message.includes("GI_FIREGATE_JUDGE_TIMEOUT") ? "GI_GATE_TIMEOUT"
+      : "GI_GATE_UNAVAILABLE";
+  ```
+  ```suggested
+  // Prefer structured error types from FireGate over string matching.
+    // e.g.: if (e instanceof FireGateBudgetError) { code = "GI_GATE_BUDGET_EXHAUSTED"; }
+    const code = e instanceof Error && e.name === "FireGateBudgetError" ? "GI_GATE_BUDGET_EXHAUSTED"
+      : e instanceof Error && e.name === "FireGateJudgeTimeout" ? "GI_GATE_TIMEOUT"
+      : "GI_GATE_UNAVAILABLE";
+  ```
+
+[HIGH] src/omp/layer-registry.ts:0-0 (maintainability)
+  **Duplicated probe validation logic between `auditOne` and `factsForWithFaults` is the root cause of the F-405 through F-1209 bug class.** The probe-shape validation (lines 146-149 vs 247-258), the up()-throw handling (lines 150-152 vs 264-270), and the facts-shape validation (lines 170-186 vs 275-288) are independently implemented in two separate code paths. Despite the comments explicitly naming this as the drift class, the fix pattern so far has been to patch each path separately and add a comment noting the other must also be patched. This is inherently fragile — the next consumer addition or probe contract change will likely reintroduce two-view drift.
+
+**Recommendation**: Extract the s
+  ```existing
+  const auditOne = (p: ConsumerProbe, subject: string): ConsumptionReport => {
+    let probe: SubstrateProbe;
+    try {
+      const raw = p.up() as SubstrateProbe | null | undefined;
+      probe = raw !== null && raw !== undefined && typeof raw.up === "boolean"
+        ? { up: raw.up, evidence: typeof raw.evidence === "string" ? raw.evidence : "" }
+        : { up: false, evidence: "the probe returne
+  ```
+  ```suggested
+  /** Shared probe+facts validation — single source of truth for both audit and factsFor views. */
+  type ProbeResult = 
+    | { status: 'down'; evidence: string }
+    | { status: 'error'; reason: string }
+    | { status: 'ok'; facts: LayerFact[] };
+
+  const probeAndQuery = (p: ConsumerProbe, subject: string): ProbeResult => {
+    let probe: SubstrateProbe;
+    try {
+      const raw = p.up() as Subs
+  ```
+
+[HIGH] src/omp/oracle.ts:218-221 (bug)
+  Invalid `windowMs` handling is inconsistent with `notAfter` and lacks pre-validation. In `gather`, it silently returns an empty Evidence bag, while `notAfter` throws. In `resolveAll`, it is not pre-validated, leading to silent failures for the entire batch. Consider throwing for invalid `windowMs` in `gather` or pre-validating it in `resolveAll` to match error handling and provide clear diagnostics.
+  ```existing
+  if (typeof windowMs !== "number" || !Number.isFinite(windowMs) || windowMs <= 0) {
+    const note = `windowMs ${JSON.stringify(windowMs)} is not a positive finite number — refusing to derive a window`;
+    return { laterEdit: false, testsAfter: 0, testsPassed: 0, testsFailed: 0, withdrawn: false, permitted: false, signals: [], notes: [note], dismissed: [note] };
+  }
+  ```
+
+[HIGH] src/omp/populate.ts:50-54 (bug)
+  **Graphify build/transform errors are miscategorized as freshness "misses" in the outer catch.**
+
+When `populateGraphifySessionStore` is called (line 45), the inner function already returns a structured `skipped` result for the freshness-miss case (line 128–131) — it does not throw. The outer `catch` on line 46 only fires when `buildSync` (line 139), `mapGraphifyToTyped` (line 140), or the re-thrown `GRAPHIFY_WRITE_FAILED` (line 147) throws. Yet the log on line 49 labels all of these as `populate substrate=graphify miss:`, and the caller receives the same `{ skipped: true, fallbackReason }` shape as a genuine freshness miss.
+
+This means downstream callers **cannot distinguish** between "grap
+  ```existing
+  } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      console.error(`[gi-omp] populate substrate=graphify miss: ${reason} (graph build or write failed)`);
+      return { filesIndexed: 0, nodes: 0, edges: 0, runTag, skipped: true, substrate: "graphify", fallbackReason: reason };
+    }
+  ```
+  ```suggested
+  try {
+      return populateGraphifySessionStore(storePath, root, runTag, opts?.scope);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      const isWrite = reason.startsWith("GRAPHIFY_WRITE_FAILED");
+      const prefix = isWrite ? "GRAPHIFY_WRITE_FAILED" : "GRAPHIFY_BUILD_FAILED";
+      console.error(`[gi-omp] populate substrate=graphify ${prefix}: ${reason}`);
+
+  ```
+
+[HIGH] src/omp/rsi.ts:165-167 (bug)
+  PRAGMA busy_timeout is not set. With BEGIN IMMEDIATE + WAL mode, if another connection holds a write lock, the IMMEDIATE lock acquisition fails immediately with SQLITE_BUSY. Adding `PRAGMA busy_timeout=N` (e.g. 5000ms) allows SQLite to retry automatically instead of failing instantly under concurrent access — critical for a production enforcement layer.
+  ```existing
+  this.db = new Database(cfg.storePath);
+    this.db.exec("PRAGMA journal_mode=WAL;");
+    this.db.exec(this.schema());
+  ```
+  ```suggested
+  this.db = new Database(cfg.storePath);
+    this.db.exec("PRAGMA journal_mode=WAL;");
+    this.db.exec("PRAGMA busy_timeout = 5000;");
+    this.db.exec(this.schema());
+  ```
+
+[HIGH] src/omp/store-open.ts:89-106 (bug)
+  Race-condition orphan: when two concurrent openers both create the file via wx (one wins, one gets EEXIST), and both see `!current` in the first registry check, the second upsert overwrites the first's registry row. The first opener (which DID create the file) returns successfully with `created=true` and no further registry check — its store file is now orphaned on disk with no matching registry entry. Later openers will hit EEXIST on wx (file exists) but find no registry row, and since the file was not created by *this* opener (`created=false`), the orphan never gets cleaned up.
+
+The existing F-1210 orphan cleanup only handles the *current* opener's file when it loses the registry race — it
+  ```existing
+  if (!current) {
+    upsertGiSession({
+      sessionId: ownerKey,
+      scopeRoot: resolvedScopeRoot,
+      storePath,
+    });
+  }
+  // ★ F-1047 FIX (2026-09-25, run-13 HIGH): check-then-upsert raced — two concurrent openers
+  // ★ could both observe `!current` and the loser silently overwrote the winner's row (the
+  // ★ F-896 class: losing a race must not fall through). Verify-after-write: re-rea
+  ```
+  ```suggested
+  if (!current) {
+    upsertGiSession({
+      sessionId: ownerKey,
+      scopeRoot: resolvedScopeRoot,
+      storePath,
+    });
+  }
+  // ★ F-1047 FIX: verify after write — a foreign owner means this opener lost the race.
+  const written = findGiSessionByStorePath(storePath);
+  if (written && written.session_id !== ownerKey) {
+    // If THIS opener created the file, clean up the orphan (existing logi
+  ```
+
+[HIGH] src/omp/typed-write.ts:404-410 (bug)
+  Both catch blocks silently swallow ALL errors with a comment about fresh stores. A real failure — permission denied (EACCES), corrupt database, disk full — would also be swallowed here, leaving the caller unaware that layer_id columns were never added. Only catch specific error codes (e.g., SQLITE_ERROR for 'no such table') and rethrow everything else.
+  ```existing
+  } catch { /* no rows to backfill on a fresh store */ }
+  try {
+    db.run(
+      `UPDATE typed_edges SET layer_id = substr(src_canonical, 1, instr(src_canonical, ':') - 1)
+       WHERE layer_id IS NULL AND instr(src_canonical, ':') > 0`,
+    );
+  } catch { /* fresh store */ }
+  ```
+  ```suggested
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/no such table|no such column/i.test(msg)) throw e;
+    /* fresh store without typed_nodes */
+  }
+  try {
+    db.run(
+      `UPDATE typed_edges SET layer_id = substr(src_canonical, 1, instr(src_canonical, ':') - 1)
+       WHERE layer_id IS NULL AND instr(src_canonical, ':') > 0`,
+    );
+  } catch (e) {
+    const msg
+  ```
+
+[HIGH] src/scoping/gi-ecosystem.ts:16-16 (security)
+  `GI_TMP_DIR` is exported directly as a constant, allowing any consumer to `mkdirSync`, `writeFile`, `symlink`, or otherwise manipulate it without going through `makeGiTmpDir()`. This undermines the entire TOCTOU mitigation chain: an attacker-controlled module could write a symlink at `GI_TMP_DIR` (or a child path) before `makeGiTmpDir` runs, and the defensive checks inside `makeGiTmpDir` would catch it — but a future caller that writes directly under `GI_TMP_DIR` would never be guarded. The comment at line 12 says "CALLERS must not write directly under it" but there is no enforcement. Consider either removing the re-export from `index.ts` (line 25) and exposing only `makeGiTmpDir` + `createG
+  ```existing
+  export const GI_TMP_DIR = join(tmpdir(), "gi-omp-tmp");
+  ```
+  ```suggested
+  // Make GI_TMP_DIR module-private so consumers can only reach it via makeGiTmpDir().
+// If the re-export in index.ts is needed for binding-spec compat, export a
+// read-only accessor (e.g. getGiTmpDirBase()) instead of the raw const.
+const GI_TMP_DIR = join(tmpdir(), "gi-omp-tmp");
+
+export function getGiTmpDirBase(): string {
+  return GI_TMP_DIR;
+}
+  ```
+
+[HIGH] src/scoping/gi-ecosystem.ts:37-37 (security)
+  `mkdirSync(GI_TMP_DIR, { recursive: true })` does not set an explicit `mode`. When the directory is newly created, the actual permissions depend on the process umask (typically 0o777 & ~0o022 = 0o755), meaning group and other can read/list the temp base. The function's doc comment promises 0700, and the security rationale ("a foreign parent owner still cannot read inside it") only holds if the directory is actually 0o700. Add `{ recursive: true, mode: 0o700 }` to enforce the advertised permission.
+  ```existing
+  mkdirSync(GI_TMP_DIR, { recursive: true });
+  ```
+  ```suggested
+  mkdirSync(GI_TMP_DIR, { recursive: true, mode: 0o700 });
+  ```
+
+[HIGH] src/scoping/gi-session-path.ts:84-85 (security)
+  Symlink traversal guard (F-434b / F-1048) is silently skipped when `fs.realpathSync(parent)` throws (e.g. parent directory does not yet exist). The broad `catch` swallows ALL errors — not just ENOENT — so any transient I/O error (EMFILE, EACCES, etc.) would also disable the guard. This is a security-critical path; at minimum, distinguish ENOENT (expected — store not created yet) from unexpected errors and rethrow the latter. Example: catch specific error codes or at least log a warning when an unexpected error disables the guard.
+  ```existing
+  let parentReal: string | null = null;
+  try { parentReal = fs.realpathSync(parent); } catch { parentReal = null; }
+  ```
+  ```suggested
+  let parentReal: string | null = null;
+  try {
+    parentReal = fs.realpathSync(parent);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException)?.code;
+    if (code && code !== "ENOENT" && code !== "ENOTDIR") {
+      // Unexpected I/O error — do not silently disable the security guard.
+      throw new GiPathError(
+        "GI_SHARED_PROJECT_STORE",
+        `GI_SHARED_PROJECT_STORE: realpathSy
+  ```
+
+# total: 37
