@@ -82,6 +82,14 @@ export function ensureAuditRoot(targetReal: string, auditRoot: string): string |
   return null;
 }
 export function ledgerDirConfined(ledgerReal: string, targetReal: string): boolean {
+  // ★ R20-HIGH FIX (2026-09-25, FOUND BY THE CONTAINER RUN — the LLM audit never reported it):
+  //   this is EXPORTED surface (the bundle re-exports it), so a malformed argument reaches it
+  //   from outside the module — and it threw a bare `TypeError [ERR_INVALID_ARG_TYPE]` from
+  //   path.relative instead of a NAMED refusal. A crash is not a refusal: the caller cannot tell
+  //   "you passed garbage" from "the filesystem broke". Guarded, named.
+  if (typeof ledgerReal !== "string" || typeof targetReal !== "string") {
+    throw new Error(`GI_LEDGER_CONFINE_INVALID: ledgerDirConfined needs two string paths, got (${typeof ledgerReal}, ${typeof targetReal})`);
+  }
   const rel = path.relative(targetReal, ledgerReal);
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
@@ -102,6 +110,13 @@ export function substrateNeedsPopulate(storePath: string, scopeRoot: string): bo
 // under the audit target. The verdict is the component check against the
 // AUDIT TARGET root, nothing else.
 export function settlementLedgerConfined(ledgerPath: string, targetReal: string): { ok: true; real: string } | { ok: false; error: string } {
+  // ★ R20-HIGH FIX (2026-09-25, the container round): this function's contract is to RETURN a
+  //   result, never to throw — but a non-string argument reached `fs.realpathSync` and threw a
+  //   bare TypeError past the contract. A malformed argument is now a RETURNED named refusal, so
+  //   the contract holds for every input.
+  if (typeof ledgerPath !== "string" || typeof targetReal !== "string") {
+    return { ok: false, error: `GI_LEDGER_INVALID: settlementLedgerConfined needs two string paths, got (${typeof ledgerPath}, ${typeof targetReal})` };
+  }
   let real = ledgerPath;
   try {
     real = fs.realpathSync(ledgerPath);
@@ -156,6 +171,12 @@ export function graphProbeWipeAudited(
 // their truncated prefix as a phantom root. '|' is the documented universal
 // separator; ':' now survives whole (a bare Windows drive root included).
 export function parseTargetRoots(raw: string): string[] {
+  // ★ R20-HIGH FIX (2026-09-25, FOUND BY THE CONTAINER RUN): `raw.split` on a null/object threw
+  //   `TypeError: null is not an object` / `raw.split is not a function` — a bare crash from an
+  //   EXPORTED parser. A malformed argument is a NAMED refusal, never a TypeError.
+  if (typeof raw !== "string") {
+    throw new Error(`GI_TARGET_ROOTS_INVALID: parseTargetRoots needs a '|'-separated string, got ${typeof raw}`);
+  }
   return raw.split("|").map((r) => r.trim()).filter((r) => r.length > 0);
 }
 const confineTargetPath = (normalized: string, callerCwd: string): { ok: true; real: string } | { ok: false; error: string } => {

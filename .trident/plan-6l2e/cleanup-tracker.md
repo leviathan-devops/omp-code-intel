@@ -956,3 +956,46 @@ stale-artifact class. **The re-audit is the only instrument that can say what re
 **RUN 20 RELAUNCHED ON TWO LANES IN PARALLEL** (A → `muse-go-mimo`/`mimo-v2.5`, B → `poolside-laguna-s`),
 both probed HTTP 200, 4 workers each. **Measured lane throughput earlier: the go lane ~0.7 files/min
 (the per-key rate limit caps concurrency), so two lanes halve the wall time.**
+
+---
+
+## ★★★ THE 9 MB DEFECT — FIXED (the operator's boot-latency complaint)
+
+**THE DIAGNOSIS (measured, byte-anchored).** The deployed bundle inlined the WHOLE TypeScript
+compiler:
+```
+  index.js (deployed)          9,560,681 B      ← the operator's 9 MB
+  index.js.bak-premount-011706   613,000 B      ← the pre-bloat bundle (15.6× smaller)
+  at bundle byte 152,440:  // node_modules/typescript/lib/typescript.js
+  the imports that drag it in:
+    src/hunter/diagnostics/engine.ts:44   import ts from 'typescript'
+    src/hunter/graph/mechanical.ts:2      import * as tsImport from 'typescript'
+  usage: ts.createSourceFile / ts.isIdentifier / ts.isMethodDeclaration / ts.forEachChild
+```
+
+**THE ROOT CAUSE.** A bundled dependency is a BUILD-CONFIG choice, not a design need. `bun build
+--bundle` inlined the entire dep tree; the 9 MB compiler source landed verbatim in `index.js`.
+
+**THE FIX — `scripts/build-extension.sh` (committed, so the defect cannot regress):**
+```
+  bun build src/omp/extension.ts --outfile … --target bun --format esm --bundle \
+    --external typescript --external '@huggingface/transformers'
+```
+**`typescript` resolves at runtime** — verified by `createRequire` from the extension dir:
+`/home/leviathan/node_modules/typescript/lib/typescript.js`, reachable by node's upward walk.
+
+**MEASURED BEFORE → AFTER:**
+```
+  bundle size        9,336K  →   746K   (92% smaller · 15.6× → 1.0×)
+  import time         139 ms →    41 ms  (the raw bundle; deployed 130 ms incl. the ts require)
+  tool surface        7 tools + 4 hooks  → IDENTICAL (verified against the deployed bundle)
+  GI_TOOL_NAMES       unchanged: graph-probe, graph-query, bug-hunt, aether-code-audit,
+                                   gi-consumption, gi-decide (+ the graph-code-audit alias)
+  external typescript  v5.9.3 · AST walk finds `foo` in a source file  ← the path still works
+  tsc                  0 errors
+  dist sha            15606e31e32693e2
+```
+**★ THE LESSON: A BUNDLER'S DEFAULT IS MAXIMAL INLINING.** Two `import ts from 'typescript'` lines
+turned a 600 KB extension into a 9.2 MB one. **Every `--bundle` build needs an externalization pass
+for its heavy deps** — the compiler, the ONNX runtime, any multi-MB library — or the artifact pays
+the whole dependency tree's weight on every load.
