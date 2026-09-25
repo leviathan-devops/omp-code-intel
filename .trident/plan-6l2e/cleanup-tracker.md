@@ -226,3 +226,46 @@ current tree) is the instrument.** 22 of run 17's 33 highs sat in files the wave
 touched, so the fresh audit is the honest way to see what actually remains.
 
 **RUN 18 — LAUNCHED BOTH LANES (57 + 56 = 113), both pre-flight-probed HTTP 200.**
+
+---
+
+## ★ THE RESUME POINT (2026-09-25, end of the run) — THE STOP IS NOT MET
+
+**HEAD `17bdeae` · uncommitted 0 · dist `4479ff564450e219` (deployed == repo) · src newer 0**
+
+```
+  ★ THE §6 SNAPSHOT, MEASURED
+  tsc --noEmit ............ exit 0
+  bun run test ............ 441 pass / 0 fail + 539 pass / 0 fail, exit 0
+  goal-verify ............. PASSED: 5/5 (C1 carries the honest 7/8 qualifier in the PASS line)
+  consumption-audit ....... consumed:7/8 (L2_ARSUMBRIS — the honest repo-name domain)
+  fire_decisions .......... 4 DISTINCT (rule_id,band,action); 1 critical-class row set
+  the whole-tree audit .... RUN 18: 113/113 files · 0 CRITICAL · 35 high · 20 CLEAN REVIEWS
+  ★ THE GATE .............. CRITICAL=0 HIGH=35 → FAIL (on the highs)
+```
+
+**WHAT IS DONE (verified this run):**
+- **FR-1** (the lying gate) — the C1 PASS line carries the honest reading; both pins green.
+- **FR-2** (the hollow ledger) — 4 DISTINCT tuples, each from a REAL varied act with correct
+  thresholds (theatrical 1.0/act · destructive 1.0/act · benign 0.0/ignore · dumb).
+- **FR-3+FR-4** (the 2.7% audit) — **the whole tree is now covered**: run 17 (113/113) proved the
+  coverage by set algebra (A∪B = the tree, disjoint) and run 18 re-measured it.
+- **★ THE CRITICAL IS ELIMINATED (1 → 0).** F-123: a structural edit in an earlier wave ate
+  `db.exec(TYPED_GRAPH_DDL)` between two nested trys, making `ensureTypedGraphSchema` a SILENT
+  NO-OP. Restored + the assertion made unconditional; a negative control reproduces BOTH the
+  defect AND the guard; `tests/st-migration-ddl.test.ts` 3/0.
+- **★ THE INSTRUMENT'S FALSE-POSITIVE CLASS FIXED.** The aggregator counted a **CLEAN REVIEW** as
+  an instrument failure — the gate would have fired on the BEST outcome. Three states now distinct.
+- **THE SUBSTRATE DISCIPLINE.** A src edit makes the corbell/graphify stores stale
+  (`GI_LAYER_STALE:explicit`). Rebuild both with the F-96 scope fix: corbell **17.2 s** · graphify
+  **32.5 s**. Never a repo-root rebuild.
+- **6 run-18 highs fixed** (the export regex's `function * foo` gap · the tsg API-key PREFIX in
+  redactions · the report-writer's promised-but-absent tie-break · log.ts's type-vs-body lie +
+  its narrowing-defeating cast · whoCalls' missing LIMIT · enforcement's unhandled rejection ·
+  bus-hook's unbounded failure log) + **1 refuted** (populate-corbell's `storePath` IS used — tsc
+  named the use when the rename broke it).
+
+**WHAT REMAINS (~28 highs, adjudicated in `artifacts/r18-full-slices/`):** each needs FIXED or a
+NOT-A-BUG with quoted/executed proof. The loop is: fix → re-audit → the gate moves. **A BLOCKED
+state names its resume condition; this one's is: clear the run-18 highs, then re-run the
+whole-tree audit until the gate reads 0/0.**
