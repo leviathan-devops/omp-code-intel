@@ -51,6 +51,14 @@ export function tsgKey(env: NodeJS.ProcessEnv = process.env): string | null {
     if (typeof v === "string" && v.trim().length > 0) return v.trim();
   }
   try {
+    // ★ R19-HIGH FIX (2026-09-25): this was a bare `readFileSync` — it FOLLOWS a symlink and
+    //   checks no permissions, while the register's own keyFileComponent uses the O_NOFOLLOW +
+    //   mode discipline. A planted link at KEY_FILE (or a world-readable copy) handed this
+    //   adapter a key the register would have refused. Same discipline here: lstat first
+    //   (never follows), refuse a symlink, refuse a file that is readable by group/other.
+    const st = fs.lstatSync(KEY_FILE);
+    if (st.isSymbolicLink()) return null;              // a link is a plant, not a key
+    if ((st.mode & 0o077) !== 0) return null;          // group/other bits set ⇒ not a private key file
     const v = fs.readFileSync(KEY_FILE, "utf8").trim();
     return v.length > 0 ? v : null;
   } catch {

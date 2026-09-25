@@ -187524,6 +187524,11 @@ function tsgKey(env = process.env) {
       return v.trim();
   }
   try {
+    const st = fs25.lstatSync(KEY_FILE);
+    if (st.isSymbolicLink())
+      return null;
+    if ((st.mode & 63) !== 0)
+      return null;
     const v = fs25.readFileSync(KEY_FILE, "utf8").trim();
     return v.length > 0 ? v : null;
   } catch {

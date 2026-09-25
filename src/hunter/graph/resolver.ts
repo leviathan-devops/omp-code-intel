@@ -76,9 +76,23 @@ function shareSignificantToken(a: string, b: string, minLen = 5): boolean {
   return false;
 }
 
+/** ★ R19-HIGH: a value interpolated into the SRO prompt was written RAW. An entity id/label/kind
+ *  carrying a double-quote, a newline, or a model-directed sentence breaks the line format and can
+ *  INJECT an instruction — these values come from parsed source, so a crafted symbol name is
+ *  attacker-controlled text entering an instruction channel. Fail-closed normalization: strip the
+ *  delimiters the format depends on, collapse whitespace, bound the length. It is a display/format
+ *  guard, never a content filter — the resolver still sees the real names, just one line each. */
+function promptSafe(v: string, max = 200): string {
+  return v
+    .replace(/[\r\n\t]+/g, ' ')     // one line per entry — a newline forges a new row
+    .replace(/["'`]/g, '')            // the delimiters the format uses to quote fields
+    .replace(/[\u202A-\u202E\u2066-\u2069]/g, '') // bidi overrides cannot reorder what a reader sees
+    .slice(0, max);
+}
+
 function buildPrompt2Batch(newEntities: NewEntity[], existing: ExistingCanonical[]): string {
-  const newLines = newEntities.map((e) => `- alias="${e.id}" label="${e.label}" kind=${e.kind} file=${e.file ?? ''}:${e.line ?? ''}`).join('\n');
-  const existingLines = existing.length > 0 ? existing.map((c) => `- canonical="${c.canonical_id}" label="${c.label}" kind=${c.kind}`).join('\n') : '- (no existing canonicals — all new)';
+  const newLines = newEntities.map((e) => `- alias="${promptSafe(e.id)}" label="${promptSafe(e.label)}" kind=${promptSafe(e.kind, 40)} file=${promptSafe(e.file ?? '', 300)}:${e.line ?? ''}`).join('\n');
+  const existingLines = existing.length > 0 ? existing.map((c) => `- canonical="${promptSafe(c.canonical_id)}" label="${promptSafe(c.label)}" kind=${promptSafe(c.kind, 40)}`).join('\n') : '- (no existing canonicals — all new)';
   return `# SRO PROMPT 2 — RESOLUTION (B2b, batch, PRE-INSERTION)
 
 You are the SRO resolver. This is a BATCH job over NEW entities BEFORE insertion (MC-B-03 — retrofitting is harder than upfront).
