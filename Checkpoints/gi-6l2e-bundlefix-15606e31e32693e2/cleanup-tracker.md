@@ -1231,3 +1231,18 @@ unpersisted registry row · the cached-path sidecar ELOOP.
 **★ THE PROGRESS MEASURE:** run 19 half A = 23 highs → run 20 half A = 11 highs. **The code measurably
 improved.** The audit gate (0 crit/0 high) remains the ONE open stop-condition; **the goal stays
 ACTIVE.**
+
+## ★ RUN-20 TRIAGE — 28 FIXED · 10 ADJUDICATED · ~6 OPEN (the named residual)
+
+**THE ~6 OPEN (each named for the next pass):**
+| # | file:line | the finding |
+|---|---|---|
+| [15] | hunter/keys/go-key-pool.ts:473 | the F-941b sentinel UPDATE (needs the displacement semantics read) |
+| [17] | hunter/harness/scan.ts:176 | `batteryVersion` is pre-calibration vs `liveBattery` |
+| [32] | omp/adapters/kev.ts:103 | `execFileSync` blocks the loop (DOCUMENTED with its remedy — a worker-thread migration) |
+| [18] | harness/micro-loop-machine.ts | ADJUDICATED NOT-A-BUG |
+| [28] | omp/jev.ts | ALREADY FIXED ([26]) |
+| [41] | kernel/scan-chain.ts | ALREADY FIXED ([39]) |
+
+**THE MEASURED STATE:** tsc 0 · battery 441/0 + 539/0 · goal-verify 5/5 · consumed:7/8 · distinct=4 ·
+the seal sha-matched · dist 752 KB · HEAD 8cd0037.

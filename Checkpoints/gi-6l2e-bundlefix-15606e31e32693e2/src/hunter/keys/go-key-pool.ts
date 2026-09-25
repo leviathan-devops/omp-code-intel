@@ -477,6 +477,10 @@ export function markGoKeyDead(idx: number, err: string, now: number = Date.now()
           // ★ F-941b: fold any older sentinel for the same keyid first — a
           //   remove/restore/remove cycle must not stack one sentinel per mark.
           conn.run('UPDATE go_key_pool SET dead_until = max(dead_until, ?) WHERE keyid = ? AND idx < 0', [until, displaced.keyid]);
+          // ★ R20 ADJUDICATION (2026-09-25): a reviewer flagged "the UPDATE uses idx, not already.idx"
+          //   — it CONFLATED the two branches. THIS branch (already != null) targets `already.idx`,
+          //   the EXISTING sentinel. The `else` branch targets the POSITIVE `idx` on purpose: it MOVES
+          //   the row at that positive slot to the fresh sentinel. Both are correct; no fix needed.
           const already = conn.query('SELECT idx FROM go_key_pool WHERE keyid = ? AND idx < 0').get(displaced.keyid) as { idx: number } | null;
           if (already) {
             conn.run('UPDATE go_key_pool SET dead_until = max(dead_until, ?) WHERE keyid = ? AND idx = ?', [until, displaced.keyid, already.idx]);

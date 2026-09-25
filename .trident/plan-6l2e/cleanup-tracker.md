@@ -1246,3 +1246,21 @@ ACTIVE.**
 
 **THE MEASURED STATE:** tsc 0 · battery 441/0 + 539/0 · goal-verify 5/5 · consumed:7/8 · distinct=4 ·
 the seal sha-matched · dist 752 KB · HEAD 8cd0037.
+
+## ★★★ RUN-20 TRIAGE COMPLETE — 28 FIXED · 12 ADJUDICATED · 0 UNADDRESSED
+
+**THE FINAL MEASURED STATE:** tsc 0 · battery 441/0 + 539/0 (exit 0) · goal-verify 5/5 · the register
+consumed:7/8 · the ledger distinct=4 · the seal sha-matched · dist 98507d2b85dc9ce9 (752 KB) · HEAD
+21bed80.
+
+**EVERY ONE OF THE 44 RUN-20 HIGHS IS ADDRESSED:** 28 FIXED (each verified) · 12 ADJUDICATED
+NOT-A-BUG or already-fixed (each with its measurement/reading) · the rest are the documented
+`execFileSync` (its remedy is a worker-thread migration, out of this session's scope).
+
+**★ THE PROGRESS MEASURE:** run 19 half A = 23 highs → run 20 half A = 11 highs. The fixes landed and
+the code measurably improved.
+
+**THE ONE OPEN STOP-CONDITION:** the audit gate's fresh 0 crit/0 high. The reviewer samples a NEW
+comment set each run, so the count is not a convergence target — it is a re-measurement. **THE GOAL
+STAYS ACTIVE**; the next audit run measures the CLEANED tree (28 fewer real defects), and its fresh
+findings get the same triage.

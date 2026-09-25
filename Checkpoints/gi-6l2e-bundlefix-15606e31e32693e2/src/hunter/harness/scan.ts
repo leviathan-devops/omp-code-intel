@@ -24,7 +24,14 @@ import { runCalibration } from '../diagnostics/calibration.ts';
 import { checkContained } from "../shared/containment.ts";
 /** The SCAN actor's output — the compiled battery + the run summary. */
 export interface ScanResult {
+  /** ★ R20 ADJUDICATION (2026-09-25): the battery the RUN USED (post-calibration `liveBattery`). */
   battery: CompiledPredicate[];
+  /** ★ R20 ADJUDICATION (2026-09-25): NOT a description of `battery` — this is the CORPUS identity
+   *  (the compiled-store cache key, compared against `corpusHash` at compiled-store.ts:86). It is
+   *  DELIBERATELY the pre-calibration corpus hash: the cache must key on the corpus, not on one
+   *  run's calibration outcome. The reviewer's "semantic mismatch" is a real CONFLATION RISK, not a
+   *  defect — changing this to reflect calibration would break the cache. `battery` above is the
+   *  run's actual set; this is the corpus that produced it. */
   batteryVersion: string;
   run: RunSummary;
 }
