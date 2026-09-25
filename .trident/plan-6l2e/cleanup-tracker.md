@@ -493,3 +493,37 @@ half-written sidecar committed beside a clean db is worse than no sidecar.
 **★ THE METHOD NOTE FOR THE NEXT SESSION:** the differential probe is what made this fix
 trustworthy — a unit probe alone would have shipped the `[^a]` drift. When replacing a mechanism,
 run the OLD and the NEW over a matrix and require zero disagreements; the disagreement is the bug.
+
+---
+
+## ★★ RUN-19 PROGRESS — 28 OF 37 ADDRESSED (27 fixed + 1 refuted)
+
+**HEAD `473d9df` · uncommitted 0 · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+**★★★ THE PIN LED TO THE DEEPER BUG — the reviewer described only half of it.**
+```
+ 26  store-open.ts:89   the losing opener's throw left an ORPHAN file it had created (no registry
+                        row) — the first branch already knew to clean it; same discipline here.
+ 27  oracle.ts:218      the invalid-windowMs guard returned an empty bag with the explanation in
+                        `notes` — and **NO CALLER READS .notes** (checked: every consumer reads
+                        laterEdit/permitted/…). So an invalid window reached the caller as
+                        `laterEdit: false` — a SILENT FALSE NEGATIVE dressed as a clean answer —
+                        while the sibling parameter `notAfter` THROWS on the same class of input.
+                        Aligned: windowMs THROWS.
+ 27b evidence-producer:202   the graph source narrowed with `LIKE '%target%'` (a plain substring)
+                        while the event path decided with containsAtBoundary — the graph could
+                        serve a fact the event source refuses. The LIKE is now the candidate
+                        narrowing only; the predicate decides in JS.
+     ★★ AND FIXING THAT EXPOSED: containsAtBoundary's guard was `hay.length <= needle.length` —
+        FALSE when the two are THE SAME LENGTH, i.e. **AN EXACT MATCH IS NOT A TOUCH.** Both callers
+        pair the predicate both ways, so whenever an event's target EQUALLED the subject's target
+        the match was dropped: a silent false negative on the most obvious case. `<=` → `<`.
+        PROBE (extracted verbatim from disk): 5 cases / 0 wrong incl. the exact-match control.
+        THE PIN: 11 pass / 0 fail (40 expect calls, from 38).
+```
+
+**★★ THE METHOD NOTE, EXTENDED:** the differential probe found the glob drift; the PIN found this
+one. Both instruments earn their keep — a probe you wrote tests your model of the mechanism, a
+pin you did not write tests the mechanism. **Keep both.**
+
+**THE REMAINING 9** are in `artifacts/r19-full-slices/`.
