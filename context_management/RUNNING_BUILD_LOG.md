@@ -816,3 +816,28 @@ files, 4 workers) after the single-lane run proved too slow on a 3-key go pool.
 (`3a3143c03eedd217` · `a855309d2a21adb2` · `c002a9b683ce1746` · `1878207f121ea431`) removed after
 proving each REFUSED a connection while `5066bda3d0a390b3` CONNECTS (the live daemon, pid 176379,
 kept).
+
+## RB · 2026-09-25 · W1 CLOSED AT THE FINISH LINE — FR-1'S HONEST TEXT
+
+**WHAT CHANGED:** `scripts/goal-verify.ts:43` — the C1 condition string. It read
+`all 8 consumers are CONSUMED for their own domains (the per-domain union)`. The spec's FR-1 fix
+wanted the honest reading IN THE PASS LINE: a reader must not see "8" and infer 8/8.
+
+**NOW:**
+```
+[goal-verify]   C1 detail: all 8 consumers CONSUMED for their domains · for 'evidence' the register reads consumed:7/8
+  C1 PASS  all 8 consumers are CONSUMED for their own domains (the per-domain union; 7/8 for 'evidence' — L2_ARSUMBRIS answers REPO names, never code symbols)
+[goal-verify] ★ THE PREDICATE PASSED: 5/5 conditions met
+```
+No number appears that another line contradicts; the honest reading is at face value in BOTH lines.
+
+**THE PINS, RE-RUN BY THE ORCHESTRATOR (builder-under-audit):**
+```
+  bun test -t test_goal_predicate ................. 4 pass / 0 fail   (10 expect calls)
+  bun test -t test_goal_predicate_honest_text ..... 1 pass / 0 fail   (4 expect calls)
+  bunx tsc --noEmit ............................... 0 errors
+```
+The pin's three mechanical rules all hold: the pinned substring
+(`all 8 consumers are CONSUMED for their own domains`) survives in the source; the forbidden
+string (`condition: "the register reads consumed:8`) is absent; and no PASS line carries a
+`consumed:N/8` token that could differ from its detail.
