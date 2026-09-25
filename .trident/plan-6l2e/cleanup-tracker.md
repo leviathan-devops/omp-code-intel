@@ -527,3 +527,26 @@ one. Both instruments earn their keep — a probe you wrote tests your model of 
 pin you did not write tests the mechanism. **Keep both.**
 
 **THE REMAINING 9** are in `artifacts/r19-full-slices/`.
+
+---
+
+## ★★ RUN-19 PROGRESS — 29 OF 37 ADDRESSED (27 fixed + 2 refuted)
+
+**HEAD updated · tsc 0 · battery 441/0 + 539/0 exit 0**
+
+```
+ 28  fire-ledger.ts:609   ADJUDICATED NOT-A-BUG, proven mechanically: the drain is SYNCHRONOUS
+                          end-to-end. appendManyDetailed returns a PLAIN OBJECT, and there are
+                          **0 'await' occurrences** in the 954-char check-to-mark window. JS runs a
+                          synchronous block to completion — no other drain can interleave, so the
+                          window cannot be entered twice. A lock would guard a window that does not
+                          exist. (The real invariants — watermark-after-confirm, poison quarantine —
+                          are already implemented and pinned.)
+```
+
+**★★ THE REFUTATION PATTERN (this run's second):** both refuted findings (rsi.recount, fire-ledger.drain)
+were "concurrency" claims about code that is **synchronous**. The proof is mechanical and cheap:
+count the `await`s between the check and the effect. **A concurrency finding against a
+run-to-completion block is refuted by the absence of a suspension point, not by an argument.**
+
+**THE REMAINING 8** are in `artifacts/r19-full-slices/`.
