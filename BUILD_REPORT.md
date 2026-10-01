@@ -925,5 +925,241 @@ ground truth. Both FAILED, both LOUD.
 6. JevK5-4b is on the GPU and UNWIRED (W5).
 7. The audit gate is demoted from "the goal" to "a hygiene check."
 
-**THE RE-ANCHOR:** the plan below (`GI_KERNEL_V3_REBUILD_SPEC.md` + the master blueprint) makes the
+**THE RE-ANCHOR:** the plan below (`GI_KERNEL_V2.2_REBUILD_SPEC.md` + the master blueprint) makes the
 kernel self-populating, correctly scoped, and GPU-judged — the thing the operator can deploy.
+
+---
+
+# ★ V2.2 — GI KERNEL V2.2: THE GRAPH IS A FUNCTION OF THE TARGET (2026-09-26)
+
+**THE MISSION:** rebuild the GI 6L+2E kernel so it builds its graph FROM ANY TARGET (self-populating, content-scoped), judges with JevK5 on the GPU, and BLOCKS hallucinated completion.
+**THE SPEC:** GI_KERNEL_V2.2_REBUILD_SPEC.md (711 L, SPEC-AUDIT: APPROVED 0/8) · **dist:** 9a1635912a95583d1a2cbd4c9a7d4ca09cbaeacdab87cce2401225556b603b62 (776K).
+
+## THE BUILT (per wave — every claim carries its evidence)
+- **W1 — the ghost stores purged.** corbell-checkout (16.5 MB, 9,565 nodes, `file LIKE 'src/%'` = 0, built from a dead /tmp) + graphify-checkout (40.5 MB, nodes pointing at a Checkpoints archive). Backup at /tmp/gi-ghost-stores-backup-*.tar.gz. Gate: `ls …/*/store.sqlite | wc -l` → 0.
+- **W2 — target-driven source-root discovery.** `src/hunter/profile/source-roots.ts` (413 L) — `discoverSourceRoots(target)`, 5 rules (profile → workspace manifest → tsconfig → conventional → bounded walk); a no-hit is `GI_NO_SOURCE_ROOT`. Wired into corbell-adapter / corbell-build / graphify-build / structural-extract. **Understand-Anything: 739 nodes (was GRAPH_EMPTY).**
+- **W3 — content scoping.** `setBuildRoot` (typed-write) + `assertStoreScope` (store-open) — every store asserts `gi_meta.build_root`; a cross-scope read is `GI_STORE_SCOPE_MISMATCH`.
+- **W4 — the self-populate path.** `scripts/gi-populate.ts` + `scripts/typed-schema-init.ts` — `gi-populate --target X` builds every layer into THE TARGET's scope. A fresh tmp project populates (corbell 3/graphify 5/structural 1/ua 4). **The foreign target register: 0/8 → 3/8.**
+- **W5a — JevK5 wired.** `src/omp/adapters/jevk5.ts` + the TSG ladder (jevk5 GPU → kev CPU → tsg CLI).
+- **W5b — ABIDE live.** `judgeDiff` on the CURRENT diff (the ledger read is the offline fallback); fail-OPEN.
+- **W5c — the claim firewall.** `src/omp/claim-firewall.ts` (345 L) — a claim with no THIS-TURN tool-result span is FABRICATED → REJECTED; fail-CLOSED.
+
+## THE 3 DEFECTS FOUND BY RUNNING (not reading)
+1. corbell-build's `rebuild=false` default skipped the scan on a never-built store → GRAPH_EMPTY. Fixed: gi-populate forces `--rebuild` when the store is absent.
+2. rule 3 returned the tsconfig common ancestor (the repo root) → corbell walked the whole tree → RecursionError. Fixed: the glob-prefix dirs.
+3. the W3 seam routes through the session-path enforcement; a project-scope store refused. Fixed: the raw sqlite3 stamp channel.
+
+## THE DoD (spec §2) — ALL GREEN
+D1 ✓ D2 ✓ D3 ✓ D4 ✓ D5 ✓ D6 ✓ D7 ✓ D8 ✓ — the register on the GI repo reads **7/8 PRODUCED**; on a foreign target **3/8** (was 0/8).
+
+## THE HONEST REMAINDER
+- L2_ARSUMBRIS UNCONSUMED on the GI repo (the au-engine is at ~/.arsumbris, not repo-scoped).
+- semantica + c2kg DOWN on a foreign target (the venv module + the Java toolkit are host-relative).
+- the container (omp-ct-gi20) reads 0/8 with every layer named (it lacks the layer tooling).
+- the store TTL: a reading is valid WITHIN the TTL; a stale store is refused (`CORBELL_NOT_WARM:stale`).
+
+---
+
+# ★ V2.2 — THE RENAME + THE RULE-5 FIX + THE HOST-DEPLOY PREP (2026-09-26)
+
+**The built:** the V2.2 rename (the operator's ruling: the build is V2.2, not V3) · the rule-5 root-most fix (the nested-root duplication) · the stale-pin reconciliation (the TTL class) · the mechanism-contract assertions · the dist rebuild · the ship docs + the checkpoint + the host-deploy prep.
+**The why:** the operator's instruction *"rename this as V2.2, not V3"* + the discovery that rule 5 produced overlapping roots (the duplicate canonical ids) while re-fixing the fork store.
+**The how:** the rename scoped to the SEMANTIC referents (excluding `packages/gi-kernel-v2/`, a different system's v3); rule 5's predicate made ANCESTOR-aware; the tests' frozen pins updated to the measured values + the engine-dependent assertions moved to the mechanism contract.
+**The evidence:**
+```
+dist:      b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3 (800,295 B)
+deployed:  the same sha (the host extension path)
+battery:   453 pass / 0 fail (leg 1) + 551 pass / 0 fail (leg 2) · EXIT 0
+tsc:       exit 0
+rename:    0 GI_KERNEL_V3 · 0 standalone V3 (outside packages/gi-kernel-v2/)
+rule 5:    source roots (3) · openStore canonical ids: 1 · nodes 2087 (was 2720)
+the register: the GI repo 7/8 PRODUCED · a foreign target 3/8 (was 0/8)
+```
+**The verification:** the pasted outputs above; the audit gate `BLOCKED (degraded — 52/118 EMPTY_RESULT; 0 critical, 136 high)`; the checkpoint `gi-kernel-v2.2-self-populate-d1d8-green`.
+**The honest notes:** the audit is BLOCKED (the lane rate-limited) → the ship-ready claim is withheld; the container cannot self-populate (a bare env); the 136 high findings are the D-1 treadmill class (0 critical).
+
+## THE V2.2 WAVE TABLE
+
+| the wave | the deliverable | the gate | the evidence |
+|---|---|---|---|
+| W1 | the 2 ghost stores purged | `ls …/*/store.sqlite \| wc -l` → 0 | corbell 9,565 nodes / 0 live-src |
+| W2 | `discoverSourceRoots(target)` (5 rules) | 4 tests green; the real target builds | Understand-Anything: 739 nodes (was GRAPH_EMPTY) |
+| W3 | `setBuildRoot` + `assertStoreScope` | 3 tests green; a cross-scope read refuses | `GI_STORE_SCOPE_MISMATCH` |
+| W4 | `gi-populate --target X` | a fresh project populates; 8/8-or-named | the foreign target 0/8 → 3/8 |
+| W5a | JevK5 wired (GPU → KEV → tsg) | the TSG evidence names jevk5 | `TSG CONSUMED … :8090` |
+| W5b | ABIDE judges the CURRENT diff live | a violating diff → a live verdict | `REPAIR p=0.879` |
+| W5c | the claim firewall (L2, fail-CLOSED) | a fabricated claim → REJECTED | `FABRICATED → REJECT` |
+| W6 | the 3-tier testing | every capability claim carries its tier | SCRIPT 453/0 · CONTAINER all-named · HOST 7/8 |
+
+## THE V2.2 BUG LEDGER (the session's 7)
+
+| # | the bug | the mechanism | the fix |
+|---|---|---|---|
+| B-1 | the ghost stores | built from a dead /tmp + a Checkpoints archive | purged |
+| B-2 | rule 3 → the repo root | the commonAncestor of the include globs | the glob-prefix dirs |
+| B-3 | `rebuild=false` on a fresh store | a synthesized profile skips the scan | force `--rebuild` when absent |
+| B-4 | the W3 stamp refused a project-scope store | the session-path enforcement | the raw sqlite3 channel |
+| B-5 | the F-95 wiring gap | built+tested but never called → tree-shaken | wired into the live paths |
+| B-6 | rule 5 → nested roots | the parent-aware predicate | the ancestor-aware (root-most) law |
+| B-7 | the frozen corbell-extraction pin | an engine snapshot as a contract | the mechanism contract |
+
+**THE AUDIT GATE (the milestone citation):** `AUDIT GATE: BLOCKED (degraded run) — 52/118 parts rate-limited; 0 critical, 136 high` · the artifact `artifacts/whole-tree-audit.json` · the dist covered `b2ab09acc77684e4`.
+
+---
+## 2026-09-28 — V2.3 THE REFLEXIVE KERNEL
+
+**dist `7d4e9db83263ba22`** (810129B) · repo=deploy sha-matched · src **120 .ts** · tsc EXIT 0 ·
+trident **0** · battery **464 pass / 2 fail** (the build's own staleness gates).
+
+**WHAT WAS BUILT:** the GI LSP (`scripts/gi-lsp.ts`) wired into OMP's native runtime
+(`~/.omp/agent/lsp.json`) · the 5 fact-card shapes (`src/gi-lsp/cards.ts`) · the Card-HUD
+(`src/omp/card-hud.ts`) · the JevK5 MEANING route · the claim-firewall A-1 fix · the de-brand
+(53→0, lazy read-fallback) · the boot-persistence timer + TTL widen · the graph-health gate.
+
+**THE PREDICATE (REFLEXIVE):** `lspDiagnosticsPerWrite = 18` · `layersRoutedThroughLsp = 6` ·
+`decisionsInfluenced ≥ 1` (a MEANING card carries confidence 0.514 from the live JevK5).
+
+**THE W0 HEADLINE:** structural 70453 → 7866 nodes (12.4% → 100% in-scope) — the PY/TS
+discovery divergence (the V2.2 W4 glob-prefix law never ported to Python).
+
+**THE EVIDENCE:** `RECEIPT_V2.3.md` · `reports/GRAPH_GATE_live_forensic.md` ·
+`host-test-failure-log.md` · `Checkpoints/gi-kernel-v2.3-reflexive-kernel-7d4e9db8/`.
+
+## FINAL DIST e883de4a24d014c6 (2026-09-28, the shipped artifact)
+The V2.3 build ships dist `e883de4a24d014c6` (repo=deploy sha-matched) — the seal: Checkpoints/gi-kernel-v2.3-reflexive-kernel-e883de4a24d014c6.
+
+---
+**THE CURRENT DIST (the current-reality marker): `4694b1323fcc6887`** — sha256 of `extensions/graph-intelligence/index.js`, sha-matched by the seal's DIST.SHA256. (Every SHA above this line in a HISTORICAL section is an append-only record of its own build.)
+
+---
+
+# THE JEV DECISION LAYER — THE WIRE (2026-09-29T23:29:56+04:00)
+
+**THE MANDATE (verbatim):** *"ALL DECISION MAKING TO BE DOEN THROUGH JEV"* · *"we should NOT have
+any agent-loop breaking dumb features like tool lockdowns"* · *"everything needs to be recoverable."*
+
+## WHAT WAS BUILT
+
+| # | the artifact | the path | the proving measurement |
+|---|---|---|---|
+| 1 | the tool-gate Jev interface | `src/omp/jev.ts` (+217L appended) | `bunx tsc --noEmit` EXIT-0; `detectCandidate("")`→NONE |
+| 2 | the 40-case control set + the threshold derivation | `scripts/gate-control-set.ts` (NEW) | **40/40, RC=0** — 10 attacks · 10 legit · 10 quoted · 10 boundary |
+| 3 | pbk-v2's judge client | `src/ext/tool-gate.ts` (NEW) | `askGateDecision`/`enforceGate`/`recordGateDecision`/`smokeCandidate`/`docTypeCandidate` |
+| 4 | the STTGF gate wired | `pbk-v2/src/middleware/sttgf-gate.ts` | the judge clears a false INLINE_EXEC match; `node -e` still blocks |
+| 5 | the doc-density gate wired | `pbk-v2/src/middleware/doc-density-gate-v2.ts` | the classification + the floor consultation |
+| 6 | the F-144 lazy-compiler fix | `hunter/diagnostics/engine.ts` · `hunter/graph/mechanical.ts` | the container's clean boot: **0 load failures** |
+| 7 | the W1/W2 test surface | `tests/st-gi-jev-gate.test.ts` | **5 pass / 0 fail** (`test_gate_*` ids) |
+
+## THE DECISION PATH — AS IT NOW IS
+
+the tool call → the DETECTOR (`detectCandidate`/`classifyVerb` — candidates + signals, NO verdict)
+→ the JUDGE (the LIVE jevk5-4b at :8090, the `choice` shape, `{choice, confidence, probabilities}`)
+→ the ENFORCER (mechanical: refuse iff the judge CHOSE refuse and p >= the DERIVED 0.5; a refusal
+NAMES its remedy) → the LEDGER (`~/.omp/run/gate-ledger.jsonl`, the evidence triad per row).
+
+## THE NUMBERS (measured this round, not asserted)
+
+- The 40-case corpus: 40/40 · the operator's exact broken command VERBATIM at
+  `QUOTE_CONCAT serve p=0.9411` → served.
+- The ledger: **253/253 rows carry a judge call + confidence** · 0 degraded rows · judge
+  `jevk5-4b-v0.2-Q8_0` on every row.
+- The judge's discrimination (the shape probe): the 4 genuine inline-execs → refuse p=0.93-0.96;
+  the heredoc-containing write → serve p=0.837.
+- pbk-v2: `bun test ./tests/` **401 pass / 1 fail** (the 1 pre-existing, proven by stash) · tsc EXIT-0.
+- The deploys: pbk-v2 `9da0eaf9 → 964b33c23c1d624e95e1f134`; GI `4694b1323fcc6887 →
+  db9252e48f519a718ec8`; the container's clean boot 0 load failures.
+
+## THE HONEST REMAINDER (see THEATRICALITY_LOG)
+
+- The container canNOT reach the host's :8090 → the in-container judge proof needs the
+  host-bridge recipe (the container's gate correctly degrades fail-closed).
+- The ESCALATE path (block-count >= 3) is NOT judge-gated — the judge sits in the BLOCK branch.
+- ★ SUPERSEDED: the graph gate + the container gate ARE NOW WIRED — all 4 gates judge (the W3-completion round).
+
+---
+
+# THE JEV DECISION LAYER + THE FALLBACK CHANGE (2026-09-30)
+
+**The built:** (1) the 4 enforcement gates now route every decision through the LIVE Jev judge
+(`jevk5-4b-v0.2-Q8_0` @ `127.0.0.1:8090`) — the regex is demoted to a detector, the judge returns
+`{choice, confidence}`, `enforceGate` applies the DERIVED bar (0.5), `recordGateDecision` ledgers
+the triad; (2) the OMP fallback chain `retry.fallbackChains['opencode-go/*']` changed from
+`mimo-v2.5` to `muse-spark-1.3-contributor:xhigh`.
+
+**The why:** the operator's mandate — "ALL DECISION MAKING TO BE DOEN THROUGH JEV"; the F-141
+misfire class (a legitimate quoted command blocked); the F-144 container load failure. And the
+latest directive: "update the fallback on omp so it goes to muse spark 1.3 and not mimo v2.5".
+
+**The how:** `src/omp/jev.ts` (+217L: the interface + detector + judge + enforcer + ledger) ·
+`pbk-v2/src/ext/tool-gate.ts` (NEW: the pbk judge client + the 3 candidate builders) · the 4 gate
+wirings · `scripts/gate-control-set.ts` (NEW: the 40-case corpus + the derivation) ·
+`src/hunter/{diagnostics/engine,graph/mechanical}.ts` (the F-144 lazy compiler).
+
+**The evidence:** the corpus 40/40 · the deployed proof 10/10 · the ledger 1647 rows ·
+omp-ct sha `fe86a02fe77e18a906898b95...` · the GI ext sha `2e2a39031c6059ca0fa02eacf...` ·
+the checkpoint `Checkpoints/gi-jev-decision-layer-1cb47863b810/`.
+
+**The verification:** the pasted outputs in TESTING_LOG (the 40/40, the 10/10, the 5/0, the
+401/1, the EXIT-0s, the 0 load failures).
+
+**The honest notes:** the audit gate is BLOCKED (no clean run); 2 of the 4 gates' questions are
+uncalibrated on the residual FP classes (F-150 the verb-list breadth, F-151 the documentation FP);
+F-147 the escalation ladder, F-148 the container-judge route, both OPEN.
+
+
+## 2026-09-30 — THE JEV WIRE MILESTONE (the audit-scope finding + the full doc pass)
+
+**The built:** the JEV decision-layer wire (the 4 gates judge via jevk5-4b-v0.2-Q8_0; the socat bridge onto the docker gateways; the container proof 10/10; the red-team replay all-caught) — plus this turn's full ship-docs + canon refresh.
+**The why:** the operator's directives — log everything with extensive detail; scan the debug logs for the derailments the kernel must police; red-team the kernel in the container; then update all docs, save the checkpoint, and generate the ship package.
+**The how:** 4 parallel scouts over the project's own logs (~50 classes, the catalogue); the ABIDE/container FP data captured live; the audit artifact parsed object-by-object (the multi-object break found + worked around).
+**The evidence:** the corpus 40/40 · the proof 10/10 (host + container) · the ledger 1987 rows · omp-ct sha `fe86a02fe77e18a906898b95` · the GI ext sha `2e2a39031c6059ca0fa02eacf` · the audit session e0c136e3 + verdict BLOCKED + counts 6M/4L + the artifact path.
+**The verification:** the pasted outputs in TESTING_LOG (the 40/40, the 10/10, the 5/0, the 401/1, the EXIT-0s, the 0 load failures, the 10/10 in-rig).
+**The honest notes:** the audit scope missed the wire (V-2031, BLOCKED); F-147/F-148/F-150/F-151 stay OPEN; the bridge is nohup (a unit is the operator's call); the ship-ready claim stays WITHHELD until a scoped-clean audit.
+
+
+## 2026-10-01 — THE FULL DOC PASS + THE HOST-SUITE LADDER
+
+**The built:** the complete ship-docs + canon refresh (DEBUG_LOG EN-16..EN-26 for the audit's 10 findings + the host-suite; FAILURE_LOG F-154..F-158; SPEC_VIOLATION V-2031; TESTING_LOG audit-gate plan + the JEV battery + the host-suite results + AUDIT GATE: BLOCKED; BUILD_REPORT milestone; THEATRICALITY self-review) + the canon U1-U4 gates (3 stale SHAs fixed, all 5 read-first docs match the TRUE dist SHA).
+**The why:** the operator's directives — update all docs with extensive detail; run the adversarial host suite across the failure patterns.
+**The how:** parsed the audit artifact object-by-object (the multi-object break); adjudicated all 10 as PRE-EXISTING backlog; ran the host-suite stub (13/13) then --live (8/13, F-157 OPEN); fixed the 3 stale canon SHAs.
+**The evidence:** DEBUG_LOG 2503L+ · the corpus 40/40 · the proof 10/10 · the ledger 2046 rows · GI sha 2e2a39031c6059ca · omp-ct sha fe86a02fe77e18a9 · the audit session e0c136e3 + BLOCKED + 6M/4L.
+**The honest notes:** the ship-ready claim stays WITHHELD (the audit gate BLOCKED); F-157 (the 5 live failures) + F-158 (the rig DOWN) OPEN; the JEV wire itself has NO audit verdict yet.
+
+
+## 2026-10-01 — THE SHIPPED-GI-KERNEL ENFORCEMENT RED-TEAM (the FP hunt + the detector fix)
+
+**The built:** two source fixes in the smoke enforcement —
+`pbk-v2/src/firewalls/semantic-smoke-firewall.ts:221` (the interpreter family: `nodejs` + the
+versioned pythons `python\d*(\.\d+)?` + the shell-`c` wrapper) and `pbk-v2/src/ext/tool-gate.ts`
+`smokeCandidate` (the full family named in `instructions` + `criteria.refuse`). Plus two new
+permanent corpus docs: `derailment-data-log.md` and `host-test-failure-log.md`.
+
+**The why:** the operator's report — *"properly test the shipped GI kernel. find ALL BUGS i can see
+this affecting my other sessions already"*. The gate was refusing legitimate work in live sessions.
+
+**The how:** the artifact-first hunt — the ledger refusal-cluster read (which commands the gate
+actually refused) → the per-case ledger adjudication (detector vs judge vs harness) → the SOURCE
+read when the ledger's truncation made adjudication impossible → a faithful judge probe (the
+correct `kind` string) → the fix → the family/corpus/matrix verification.
+
+**The evidence:**
+```
+deployed omp-ct sha256  acdbafd3342db280…   == source dist   (the fix IS deployed)
+family probe            8 MISSED -> 0 MISSED
+control corpus          TOTAL 40/40
+detector matrix         FP->ALLOW | node -e ->BLOCK | python3 -c ->BLOCK | legit->ALLOW
+tsc                     RC=0 (pbk)   RC=0 (GI)
+ledger                  2614 rows = 117 real-session + 2497 harness
+real-session FPs        8  (the false-positive class)
+```
+
+**The verification:** the runs above, all pasted in `TESTING_LOG.md`; the source anchors in
+`FAILURE_LOG.md` F-160/F-161/F-163..F-170.
+
+**The honest notes:** the detector gaps (F-160) and the criteria gap (F-161) are FIXED+PROVEN.
+The FALSE-POSITIVE class (F-163) is **OPEN** — the fixes so far removed the *detector* half; the
+*judge boundary* half (F-164/F-165/F-166) remains, with WO-3..WO-7 specified in
+`derailment-data-log.md §7`. The audit gate ran BLOCKED (quota) — no ship-ready claim is made.
+
+**The audit citation:** AUDIT GATE: BLOCKED (the code-audit lane is quota-capped this session) —
+no milestone ship-ready claim is made.

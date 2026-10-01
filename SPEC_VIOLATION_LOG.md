@@ -639,3 +639,74 @@ ZERO criteria named the deployed artifact.
 | V-2026-09-25-4 | the scoping boilerplate README | "EVERYTHING IS PROJECT WORKSPACE SCOPED" + "NO JSON fallback, NO dual-write" | the store FILE is scoped but its CONTENT describes `/tmp/corbell-scoped` (dead) + a Checkpoints archive. | **VIOLATED CRITICAL** | `SELECT COUNT(*) FROM typed_nodes WHERE file LIKE 'src/%'` → 0 |
 | V-2026-09-25-5 | the no-stub law (Warhead 23) | "every module that WORKS in the source MUST be ported with its full import graph resolved" | the graph's per-project stores are PRE-BUILT and committed; the POPULATE path (the thing that makes it work) is not exercised. | **VIOLATED HIGH** | a fresh project reads `consumed:0/8` |
 | P-2026-09-25-1 | the operator's macro-build directive | "you're losing the plot of the macro level build" | two days of LLM-code-review triage (46 "fixes") with ZERO change to the graph's runtime behaviour. | **VIOLATED** | the register on a real project: 0/8 before AND after |
+| V-2027 | Spec §1 E1: "layers/semantica/kg.json (0 entities — empty)" | the artifact carries 5,450 entities / 6,081 relationships, sampled paths 400/400 live | VERDICT: SPEC CLAIM REFUTED — the deletion condition ("empty") is not met; the kg is KEPT, the purge set narrowed to 2 | evidence: python3 len(entities)=5450; sampled 400/400 on disk |
+| V-2028 | the operator's naming ruling: "rename this as V2.2, not V3" | the build carried the working title "V3" in 105 files + 6 paths | PASSED — renamed: 0 `GI_KERNEL_V3` + 0 standalone `V3` remain outside `packages/gi-kernel-v2/` (a foreign system's v3, excluded); the files renamed (GI_KERNEL_V2.2_* · .trident/plan-gi-v2.2 · Checkpoints/gi-kernel-v2.2-*) | evidence: `grep -rlE '\bV3\b' … \| wc -l` → 0; the battery 453/0 + 551/0 |
+| V-2029 | the spec §3 W2: "a bounded walk (depth ≤ 4) collecting every dir that contains ≥1 .ts and whose PARENT does not (the 'root-most source dirs' heuristic)" | the implementation's parent-aware predicate pushed a root AND its descendants (overlapping roots → duplicate canonical ids) | VIOLATED MEDIUM → FIXED — the ancestor-aware predicate (a pushed root covers its subtree) | evidence: `openStore canonical ids: 1` (was 2); `nodes 2087` (was 2720); `source-roots.ts:386-416` |
+| V-2030 | the spec §2 D5: "a source-less target returns GI_NO_SOURCE_ROOT … NEVER GRAPH_EMPTY after a wrong-path attempt" | the fork store's tests pinned a specific corbell extraction (an engine snapshot) as a contract | PASSED (the contract) — the assertions moved to the mechanism contract (an anchored named caller); the counts pin the measured values | evidence: `bun test ./tests/st-verbs-parse.ts` → 6 pass / 0 fail |
+
+---
+## 2026-09-28 — GI KERNEL V2.3 · SPEC-COMPLIANCE MAP
+Each V2.3 FR against its S-criterion (the DPL1 spec, `packages/gi-kernel-v2.3/`):
+
+| FR | the S-criterion | the status | the evidence |
+|---|---|---|---|
+| FR-1 (the GI LSP) | S1: `gi-lsp --selftest` ≥1 diagnostic | PASS | 18 diagnostics, source=gi-lsp/callers |
+| FR-2 (the OMP registration) | S2: OMP uses it | PASS (config) | lsp.json · test_gi_lsp_registered_in_omp |
+| FR-3 (the cards) | S3/S4 | PASS | st-gi-lsp 3/3 |
+| FR-4 (the Card-HUD) | S3: an edit queues a card | PASS | st-card-hud 3/3 · wired in extension.ts:875 |
+| FR-5 (the Jev route) | S4: a meaning card carries a confidence | IN FLIGHT | W4 |
+| FR-6 (the shared skip) | S5: 4/4 producers import it | PASS | structural + ua use WALK_SKIP |
+| FR-7 (the health gate) | S6 | PASS | graph-health EXIT=0 |
+| FR-8 (the structural archive fix) | S7: 0 archive rows | PASS | 7866 nodes, 0 Checkpoints |
+| FR-9 (the claim firewall) | S8: the named tests green | PASS (A-1) | st-claim-firewall 4/4 |
+| FR-10 (the de-brand) | S10: `grep -ri trident` → 0 | IN FLIGHT | W7 |
+| FR-11 (the boot-persistence) | S11: the timer | IN FLIGHT | W8 |
+| the SHIP | S9/S12: the audit + the battery | PENDING | W9 |
+
+**NO SPEC SHRINK.** The build wires every component the spec names. The IN-FLIGHT rows are the
+running subagent's waves.
+
+## V2.3 — DIST 7d4e9db83263ba22 (the shipped artifact, 2026-09-28)
+The V2.3 build ships dist `7d4e9db83263ba22` (repo=deploy sha-matched). See RECEIPT_V2.3.md.
+
+## FINAL DIST e883de4a24d014c6 (2026-09-28, the shipped artifact)
+The V2.3 build ships dist `e883de4a24d014c6` (repo=deploy sha-matched) — the seal: Checkpoints/gi-kernel-v2.3-reflexive-kernel-e883de4a24d014c6.
+
+---
+**THE CURRENT DIST (the current-reality marker): `4694b1323fcc6887`** — sha256 of `extensions/graph-intelligence/index.js`, sha-matched by the seal's DIST.SHA256. (Every SHA above this line in a HISTORICAL section is an append-only record of its own build.)
+
+---
+
+## [2026-09-29T23:34:28+04:00] — THE JEV ROUND: the deltas from the minted plan
+
+| the plan's text | what was built | the reason (evidence-backed) |
+|---|---|---|
+| W1: `src/omp/jev.ts` (3 exports) | 5 exports (+`enforceGate`, `GATE_THRESHOLD`) | the enforcer + the derived bar are the wave-plan's own "mechanical enforcer" + "the DERIVED threshold" — they live with the interface |
+| W2: `src/omp/adapters/jevk5.ts` the live call | `askToolGate` calls the live :8090 DIRECTLY (the jevk5 contract, the choice shape) | the adapter's `postSystemone` is nlsync/unexported for the choice shape; the wire reuses the SAME endpoint + contract the adapter documents |
+| W3: `pbk-v2/src/firewalls/semantic-smoke-firewall.ts` | `pbk-v2/src/middleware/sttgf-gate.ts` + `src/ext/tool-gate.ts` (NEW) + `doc-density-gate-v2.ts` | the firewall's `classifyVerb` is the DETECTOR (kept); the DECISION site is the GATE (`sttgfGate`), and pbk-v2's bundle must be self-contained (a cross-repo import into the live enforcement bundle is the F-142-class fragility) |
+| W3: "the 4 gates call askToolGate" | 2 of 4 wired (the STTGF + the doc-density); the container + the graph gate NAMED as open | honest partial — the 2 wired are the 2 that misfire (F-140/F-141 + the doc-type FP) |
+| the threshold "DERIVED" | derived = 0.5, from the corpus's measured separation | the corpus measured: the judge's CHOICE separates; the confidence sets overlap (refuse 0.53-0.96, serve 0.76-0.94) — a confidence cut cannot separate, the argmax does |
+| W5: "the GI extension LOADS in omp-ct" | DONE (the F-144 lazy-compiler fix; 0 load failures) | the mechanism was pinned by probe, not guessed |
+
+---
+
+## [2026-09-30] — the JEV round's deltas
+
+| V-30 | the plan's W3 | "the 4 gates call askToolGate" | ALL 4 gates call the judge (smoke/doc-density/container/graph) | PASSED | the 10/10 deployed proof + the 4 wire sites |
+| V-31 | the plan's W2 | "the threshold DERIVED" | derived = 0.5 (the CHOICE is the separator) | PASSED | the corpus's confidence section + `GATE_THRESHOLD` |
+| V-32 | the operator's mandate | "ALL DECISION MAKING THROUGH JEV" | the 4 gates consult the judge; the regex detects only | PASSED | the ledger (every row judge-bearing) |
+| V-33 | the operator's directive | "the fallback → muse spark 1.3 not mimo v2.5" | `retry.fallbackChains['opencode-go/*']: [muse-spark-1.3-contributor:xhigh]` | PASSED | `omp config get retry.fallbackChains` |
+| P-20 | the fail-closed law | the smoke gate's outer catch was fail-OPEN (a firewall infra failure silently allowed) | fixed: fail-CLOSED with a named reason | FIXED | `sttgf-gate.ts` (the catch returns a block) |
+| P-21 | the evidence-or-delete law | the ledger persisted raw commands (a pasted key would land in the JSONL) | fixed: `scrubSecrets` + `sanitizeForJudge` | FIXED | `tool-gate.ts` + `jev.ts` |
+
+
+| V-2031 | the ship-docs-update skill: "NO SHIP-DOCS UPDATE IS COMPLETE WITHOUT THE LATEST CODE-AUDIT ARTIFACT WIRED IN" | the artifact `sg-ocr-7d99a4f0aab46f00.json` covers 2 pre-existing files (decision.ts + extension.ts) with zero overlap with the JEV wire files, so it cannot witness the round's changes | VERDICT: VIOLATED MEDIUM (audit-scope mismatch) | the artifact path + session e0c136e3 + files_reviewed=2 vs the JEV file list |
+
+
+| V-2032 | the smoke-gate spec (the interpreter family) | the family must cover the inline-exec class | the family missed 8 shapes (nodejs / python2 / python3.11 / python3.12 / sh -c / bash -c / zsh -c / dash -c) | **VIOLATED HIGH** | `semantic-smoke-firewall.ts:221`; the family probe 8→0 | 
+| V-2033 | the judge contract (the evidence record) | the ledger must record what the detector matched | `signals` records the first 80 chars, not the match | **VIOLATED MEDIUM** | `tool-gate.ts:174`; the live row `["cd /home/…/PLUTUS-COMMON-SENSE-LSP\nech"]` |
+| V-2034 | the judge contract (the decision input) | the judge must decide on the command's action | the state is `commandStr.slice(0, 1200)` — a prefix | **VIOLATED MEDIUM** | `sttgf-gate.ts:95` |
+| V-2035 | the enforcement policy (block the claim, not the work) | legitimate work must not be blocked | 8 real-session refusals of legit multi-statement scripts | **VIOLATED HIGH** | the ledger; `derailment-data-log.md §1` |
+| V-2036 | the observability contract | the ledger must name each row's population | no `origin` field; 2497/2614 rows are harness | **VIOLATED MEDIUM** | the ledger group-by |
+| P-22 | the process rule (adjudicate before declaring) | a "failure" must be classified before it is a defect | the pre-compaction session asserted "10 flaws" without the three-layer separation | the operator's catch — *"you degenerated into a bullshit loop"* | `host-test-failure-log.md` HT-BUG-10 |
+| P-23 | the process rule (artifact-first) | a claim without the artifact is void | the loop re-read the truncated ledger instead of escalating to the source | cost: the compaction + the operator's correction | `DEBUG_LOG.md` EN-30 |

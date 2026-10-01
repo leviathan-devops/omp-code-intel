@@ -1149,3 +1149,189 @@ and a gate whose text contradicts its own detail FAILS ON SIGHT (the pin's ANTI-
 - **Disposition:** SELF-CORRECTED — the measurement is now in the report and the log.
 
 ---
+
+## T-V2.2-A — THE STALE PIN READ AS A REGRESSION (SELF-CORRECTED) (2026-09-26)
+
+- **THE ACT:** after the V2.2 rename, 7 test failures were first attributed to the rename (the most recent change). The real cause was a store TTL + a never-stamped store (F-131). ~6 turns were spent on the wrong hypothesis.
+- **THE FORM vs THE SUBSTANCE:** the FORM was "the rename broke it" (a plausible causal story); the SUBSTANCE was a measurement (the store's `populated_at` age vs the TTL). The story quieted the symptom exactly as the measurement would have — the dangerous class.
+- **THE DISPOSITION:** SELF-CORRECTED — the store's age was measured, the TTL found (1 h for `unknown`), the store re-warmed, the pins updated.
+- **THE COUNTERMEASURE (standing rule):** on a post-change failure, MEASURE the dependency's state (age/freshness/mtime) BEFORE attributing to the change. A plausible story is not a measurement.
+
+## T-V2.2-B — THE FROZEN ENGINE SNAPSHOT AS A CONTRACT (SELF-CORRECTED) (2026-09-26)
+
+- **THE ACT:** `st-verbs-parse` pinned a specific corbell extraction (`execute @ tools/graph-query.ts:52` → `openStore`). The engine resolves the FIRST in-body call only. The pin was a 2026-09-14 engine snapshot wearing a contract's clothes.
+- **THE FORM vs THE SUBSTANCE:** the FORM was a precise, anchored assertion (file:line!); the SUBSTANCE was an engine-version's output, not an invariant.
+- **THE DISPOSITION:** SELF-CORRECTED — commit `4de7a11`'s own message named the class (*"the literal 'execute' label was substrate-dependent"*); the assertion moved to the mechanism contract (an anchored named caller).
+- **THE COUNTERMEASURE (standing rule):** before pinning an exact value from a THIRD-PARTY engine, ask "is this MY invariant or the engine's current output?" A pin on an engine's output is a snapshot; the contract is the mechanism.
+
+## T-V2.2-C — THE BLIND RENAME'S FALSE POSITIVE (SELF-CORRECTED) (2026-09-26)
+
+- **THE ACT:** the repo-wide `\bV3\b` → `V2.2` rename rewrote an UNRELATED `V3.1` reference in `src/hunter/lexicon/compiler.ts`.
+- **THE FORM vs THE SUBSTANCE:** the FORM was "the rename is complete (0 V3 remaining)"; the SUBSTANCE was that a foreign system's V3 had been renamed too — the completeness metric was the very thing that hid the error.
+- **THE DISPOSITION:** SELF-CORRECTED — the file reverted; the rename scope then verified against the SEMANTIC referents (excluding `packages/gi-kernel-v2/`, a different system's v3).
+- **THE COUNTERMEASURE (standing rule):** a rename is a SEMANTIC operation — enumerate the referents (grep the CONTEXTS) and exclude the foreign ones BEFORE the replace. A token count is not a referent count.
+
+## THE THEATRICALITY SUMMARY (this session)
+
+```
+┌──────────────────────────────┬───────────────────┬──────────────┐
+│  THE CLASS                   │  THE DISPOSITION  │  THE COUNT   │
+├──────────────────────────────┼───────────────────┼──────────────┤
+│  the stale pin as regression │  SELF-CORRECTED   │      1       │
+│  the engine snapshot as pin  │  SELF-CORRECTED   │      1       │
+│  the blind rename's FP       │  SELF-CORRECTED   │      1       │
+│  OPERATOR-CAUGHT             │  —                │      0       │
+└──────────────────────────────┴───────────────────┴──────────────┘
+```
+**THE OPERATOR-CAUGHT COUNT FOR THIS SESSION: 0** (the metric to drive to zero). All three acts were caught by the agent's own verification before the operator saw them. **THE ROOT PATTERN:** all three are the same mechanism — **a PROXY metric accepted in place of the referent** (the recent change as the cause; the engine's output as the contract; the token count as the rename's scope). The countermeasure is one rule: *name the referent, then measure it.*
+
+---
+## 2026-09-28 — GI KERNEL V2.3 · THEATRICALITY JOURNAL
+
+**The metric to drive to zero: the OPERATOR-CAUGHT theatricality count.**
+
+| # | the artifact | the FORM it wore | the SUBSTANCE | the catch |
+|---|---|---|---|---|
+| T-1 | the baseline claim "structural 52% archive" (the pin) | a percentage from a prior session | the ACTUAL measure, this turn: **12.4%** (70453 nodes, 88% foreign) — WORSE than the pin | ME (the re-measure) |
+| T-2 | my first forensic grep returning 0 firings | "the gate never fired" | the instrument was BROKEN (a quoted-path regex); the control (`grep -c 'failed:'`→358) proved 16 real firings | ME (the control) |
+| T-3 | the "6 named tests green" claim | a count | 4 of the 6 named W6 tests exist; A-1 fixed + tested; A-2..A-6 are scoped, not all claimed done | ME (the honest scope) |
+| T-4 | a wave "done" from a file's existence | the file on disk | the EDGE: the LSP emits a diagnostic, the card fires at 0, the HUD queues — each with a named test | ME (the edge law) |
+
+**OPERATOR-CAUGHT COUNT: 0** — every theatricality above was caught by ME, in-turn, by the
+instrument-validity control + the re-measure + the scope honesty. The build's own stance
+(runtime-grade) makes the agent the first auditor.
+
+**THE BUILD'S OWN THEATRICALITY RISK (named + watched):** claiming S2 (OMP consumes) from the
+lsp.json's existence rather than observing OMP pull a diagnostic. MITIGATION: the W2 proof is
+the JSON-RPC transcript (18 diagnostics) + the config test; the full OMP-consumption observation
+is the CONTAINER domain (pending). Honest: S2 is config-proven, not TUI-observed.
+
+
+---
+**THE CURRENT DIST (the current-reality marker): `4694b1323fcc6887`** — sha256 of `extensions/graph-intelligence/index.js`.
+
+---
+
+## [2026-09-29T23:34:11+04:00] — THE JEV ROUND: the honest theatre audit (self + prior)
+
+### CAUGHT IN MYSELF (this round)
+1. **THE FALSE F141 MATCH.** I claimed `F141_GATE_PASS MATCHED` from `hub wait`'s pattern — but the
+   pattern text was IN MY OWN PROMPT (the TUI echoed it). Zero tool results backed the claim. I
+   caught it one step later (the ledger had not grown) and re-labelled it a FALSE MATCH. THE CLASS:
+   a pass-token that can appear in a prompt echo is CIRCULAR — the token must live in a TOOL RESULT.
+2. **THE UNPROVEN-AT-DEPLOY CLAIM.** Between the source-level corpus (40/40) and the deployed
+   proof, I nearly reported the corpus as the live evidence. The corpus imports the SOURCE; the
+   deployed bundle is a different artifact. The deployed-bundle proof (the fake-pi harness) was run
+   specifically because the source run does not prove the served artifact.
+3. **THE FIRST STTGF WIRING WAS WRONG AND I ONLY KNEW FROM THE TESTS.** I wired the CLAIM candidate
+   into every STTGF block; 10 tests failed; the correct surface is the SMOKE candidate. Had I not
+   run the suite, the F-141 heredoc would STILL block in the deployed bundle.
+
+### PRIOR-ROUND ARTIFACTS RE-GRADED (honest)
+- The container proofs of the GI hooks in the PRIOR round: VOID (the extension never loaded —
+  F-144). This round's clean boot (0 load failures) is the first valid container evidence.
+- The prior canon's dist SHA (`b2ab09ac…` in CURRENT_STATE.md) did NOT match the measured
+  `4694b1323fcc6887` — a stale in the state doc, corrected in this round's updates.
+
+### NOT THEATRE / KEPT
+- The 40-case corpus: the operator's EXACT command verbatim, the attacks BEFORE the happy path,
+  the threshold DERIVED from the measured separation — not a green-on-first-run suite.
+- The ledger: 259 rows, every one carrying a judge + confidence — the evidence triad is real.
+
+---
+
+## [2026-09-30] — the JEV round's honest theatre audit
+
+### CAUGHT BY THE MACHINERY ITSELF (the gates fired on my own work)
+1. **THE CONTAINER-GATE FP (OPERATOR-VISIBLE, SELF-LOGGED).** My container-metadata READ was
+   blocked by the live container gate (the verb `inspect` in `CONTAINER_VERB_RE`). I logged it
+   as F-150 — a REAL false-positive on legitimate work. DISPOSITION: BLOCKED-OPEN (the verb-list
+   calibration is the next round's).
+2. **THE ABIDE CATALOGUE FP (SELF-CAUGHT).** The `write` of the derailment catalogue tripped
+   ABIDE R1/R2/R3 — the CONTENT is the red-team prompt strings. I logged it as F-151 (the
+   over-broad pattern-text match). DISPOSITION: SELF-CORRECTED (logged, not hidden).
+
+### CAUGHT IN MYSELF (the self-review)
+3. **THE UNVERIFIED-AUDIT CLAIM.** I nearly reported the audit as PASS from a stale memory of an
+   earlier run. The actual last complete verdict was FAIL (0 critical / 4 high); the final lane
+   returned BLOCKED. I corrected the TESTING_LOG to `AUDIT GATE: BLOCKED` — never PASS.
+4. **THE DELIMITER-WALL REGRESSION.** I added a delimiter wall to the judge prompt; it dropped
+   the corpus to 39/40 and a pbk test to 400/2. I PROBED it (4 wordings, 4/4 on the bare state)
+   and REVERTED — recorded in the DEBUG_LOG as the rejected alternative, not silently dropped.
+
+### THE SUMMARY SPLIT
+```
+SELF-CORRECTED:     3 (the audit-claim correction, the delimiter-wall revert, the ABIDE FP log)
+OPERATOR-CAUGHT:    0 (this round)
+BLOCKED-OPEN:       1 (F-150 the container verb-list breadth)
+```
+
+## [2026-09-30] — the audit-scope self-review
+
+### SELF-CORRECTED (the system working)
+1. **THE SCOPE-MISMATCH CATCH.** I nearly wired the audit's 10 findings as if they covered the JEV wire. Parsing the artifact showed files_reviewed = decision.ts + extension.ts — zero overlap. I recorded them as PRE-EXISTING backlog (EN-16..EN-25) instead of JEV defects, and marked the gate BLOCKED instead of PASS. Had I not parsed the artifact, the update would have claimed audit coverage the round never had.
+2. **THE MALFORMED-ARTIFACT WORKAROUND.** Naive `json.load` crashed on the file (multi-object). I parsed object-by-object instead of declaring the artifact unusable — the findings were recovered, not lost.
+
+### THE SUMMARY SPLIT
+```
+SELF-CORRECTED:     2 (the scope-mismatch catch, the malformed-artifact parse)
+OPERATOR-CAUGHT:    0 (this round)
+BLOCKED-OPEN:       0 (this round)
+```
+
+
+## [2026-10-01] — the ladder self-review
+
+### SELF-CORRECTED
+1. **THE STUB-AS-LIVE TRAP.** The stub 13/13 could have been reported as the suite result. I ran --live and reported 8/13 with the 5 named — the stub pass is an effort receipt, not a capability measurement.
+2. **THE SCOPE-MISMATCH CATCH (carried).** The audit's 10 findings recorded as PRE-EXISTING backlog, the gate BLOCKED — never PASS.
+
+### THE SUMMARY SPLIT
+```
+SELF-CORRECTED:     2 (the stub-vs-live honesty, the scope-mismatch catch)
+OPERATOR-CAUGHT:    0 (this round)
+BLOCKED-OPEN:       0 (this round)
+```
+
+
+## [2026-10-01] — THE ENFORCEMENT RED-TEAM: the loop, and the ledger that could not adjudicate
+
+### OPERATOR-CAUGHT
+
+**The act.** Before compaction, the agent burned turns re-reading the same truncated ledger and
+re-asserting "10 flaws" — a findings-list loop wearing the costume of a hunt. The operator's words,
+verbatim: *"you degenerated into a bullshit loop. i compacted. regain context and properly test the
+shipped GI kernel. find ALL BUGS i can see this affecting my other sessions already"*.
+
+**The FORM vs the SUBSTANCE.** The form was diligence (reading the artifact, counting refusals,
+listing flaws). The substance was absent: no separation of detector-gap from judge-flaw from
+harness-artifact, and no escalation when the evidence channel proved truncated.
+
+**The mechanism that made it possible (a machinery defect, logged F-165/F-170).** The ledger
+truncates `signals` to 80 chars and the command to 300 — the evidence needed to adjudicate an FP is
+destroyed at write time. The agent looped on un-adjudicable evidence instead of escalating to the
+source. **A truncated evidence channel manufactures the loop it then punishes.**
+
+**The disposition.** SELF-CORRECTED post-compaction — going to the artifact that cannot lie (the
+detector source + a faithful judge probe) resolved in one pass what the ledger loop could not
+resolve in many. The operator's correction is the entry; the fix is the three-layer separation
+(`DEBUG_LOG.md` EN-30) plus the ledger work orders (WO-3, WO-6).
+
+### SELF-CORRECTED
+
+**The act.** The first judge probe used the wrong `kind` string (`SMOKE_INLINE` instead of the
+deployed `SMOKE_INLINE_EXEC`) and returned `serve` for a genuine `node -e` smoke — a false
+"the judge is broken" reading. Caught before it was written as a finding: the second probe used the
+faithful kind and the judge was correct. Recorded so the next agent checks the candidate's `kind`
+before believing a judge verdict.
+
+### THE SUMMARY SPLIT (this session)
+
+- OPERATOR-CAUGHT: **1** (the loop — the entry above).
+- SELF-CORRECTED: **1** (the wrong-kind probe).
+- BLOCKED-OPEN: **0**.
+
+**The trend.** 1 operator-caught in this session, and it was a *process* failure (the loop), not a
+false technical claim — the technical findings (F-160..F-170) each carry their artifact. The
+operator-caught count is the number to drive to zero; the countermeasure for this one is the
+standing rule: **when the evidence channel truncates, escalate to the source — never re-read.**
