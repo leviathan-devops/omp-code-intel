@@ -1163,3 +1163,34 @@ The FALSE-POSITIVE class (F-163) is **OPEN** — the fixes so far removed the *d
 
 **The audit citation:** AUDIT GATE: BLOCKED (the code-audit lane is quota-capped this session) —
 no milestone ship-ready claim is made.
+
+## 2026-10-01 (round 2) — THE GATE-CHAIN SWEEP: the same defect classes in 3 gates, fixed
+
+**The built:** the container-gate verb list narrowed (`exec|run|attach|rm|stop|kill`); the quoted+heredoc
+strip applied to the container detector; the judge-state bounds raised (sttgf 1200→4000, container
+1200→4000, doc-density 400→2000); the `signals` bound 80→300 and `State.command` 300→600; the container
+criteria family enumerated; the ledger gains `origin: real|harness`.
+
+**The why:** the operator's question — *"have you fixed all of these bugs and identified all other
+remaining bugs"*. The honest answer was NO — 2 of 11 fixed, and the other gates un-audited. This round
+audited them.
+
+**The evidence:**
+```
+container probe   10/10 x3 reps   (exec/run/attach/rm BLOCK; cp/ps/logs/inspect/heredoc ALLOW)
+smoke corpus      TOTAL 40/40
+family probe      0 gaps
+tsc               RC=0
+deployed sha      f82cb6d2494901f9  (== source dist)
+origin field      36+ rows live
+LIVE reproduction CONTAINER_BYPASS refused on a heredoc writing a file that MENTIONS docker (18:15:55)
+```
+
+**The honest notes:** FIXED — HT-BUG-12..18 (the container verb over-breadth, the heredoc FP, the
+truncated states, the criteria family, the signals/state bounds, the ledger origin). NOT-A-BUG —
+HT-BUG-19 (a documented observe-only path). **STILL OPEN — F-176** (the SMOKE gate's judge-boundary FP
+class: the same command flips `refuse@0.532` ⇄ `serve@0.673` across windows) and **F-177** (the judge
+model's accuracy ceiling — the architectural fix, detector-resolves-the-unambiguous-shape, is specified
+but not implemented). **AUDIT GATE: BLOCKED** (the code-audit lane is quota-capped) — no ship-ready claim.
+
+**The audit citation:** AUDIT GATE: BLOCKED (quota) — withheld.

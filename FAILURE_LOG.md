@@ -2448,3 +2448,56 @@ failure (10 fields exactly) — proven pre-existing by stash; it keeps the pbk s
 - **Impact:** the pre-compaction session LOOPED on the un-adjudicable ledger (the operator's catch:
   *"you degenerated into a bullshit loop"*). The truncation was the mechanical cause of the loop.
 - **Disposition:** **OPEN** — WO-3 + WO-6 make the ledger a usable evidence channel.
+
+### F-171 — THE CONTAINER GATE'S VERB LIST WAS OVER-BROAD (2026-10-01) — FIXED+PROVEN
+
+- **What happened:** `container-gate.ts:19` blocked `docker cp|logs|inspect|port|top|wait|start` — read/stage
+  ops. `docker cp` (staging a build artifact) is the operator's own workflow (refused live 18:04).
+- **Disposition:** **FIXED+PROVEN** — narrowed to `exec|run|attach|rm|stop|kill`; the probe: exec/run/attach/rm
+  BLOCK, cp/ps/logs/inspect ALLOW, 10/10 ×3 reps.
+
+### F-172 — THE CONTAINER GATE MATCHED DOCKER INSIDE A HEREDOC BODY (2026-10-01) — FIXED+PROVEN
+
+- **What happened (REPRODUCED LIVE):** the agent's own heredoc — writing a test file whose TEXT contains
+  container strings — was refused: `18:15:55 CONTAINER_BYPASS judge=refuse@0.596 enforced=refused`; the file
+  was never written. The agent could not apply the fix while its comment carried the shape.
+- **Disposition:** **FIXED+PROVEN** — quoted spans + heredoc bodies stripped before the verb test.
+
+### F-173 — THREE GATES DECIDED ON TRUNCATED EVIDENCE (2026-10-01) — FIXED
+
+- **What happened:** sttgf `slice(0,1200)` · container `slice(0,1200)` · doc-density `slice(0,400)`; the
+  ledger's `signals` was 80 and `State.command` 300.
+- **Disposition:** **FIXED** — 4000/4000/2000 for the judge state; signals 300; state 600. (The fragment-vs-
+  `match[0]` improvement, WO-3, remains.)
+
+### F-174 — THE CONTAINER CRITERIA DID NOT NAME THE VERB FAMILY (2026-10-01) — FIXED+PROVEN
+
+- **What happened:** `tmux send-keys` and `docker run --rm` were SERVED — the judge told "a container verb"
+  without the list.
+- **Disposition:** **FIXED+PROVEN** — the family named in instructions + refuse; **10/10 ×3 reps**.
+
+### F-175 — THE LEDGER COULD NOT NAME A ROW'S POPULATION (2026-10-01) — FIXED+PROVEN
+
+- **What happened:** 2497/2614 rows were harness rows with no field to say so.
+- **Disposition:** **FIXED+PROVEN** — `origin: real|harness` written at record time; 36+ rows carry it live.
+
+### F-176 — THE SMOKE GATE STILL FALSE-POSITIVES ON LEGIT MULTI-STATEMENT SCRIPTS (2026-10-01) — **OPEN**
+
+- **What happened:** the F-163 class is NOT closed. The round-2 sweep fixed the CONTAINER gate's FP classes;
+  the SMOKE gate's judge-boundary FP remains — the judge's choice flips across cache windows
+  (`refuse@0.532` ⇄ `serve@0.673` for the same command; the 370-char command is not truncated).
+- **Root cause:** a 4B sampling judge at a 0.50 bar — its choice (argmax) is the separator, and at the
+  boundary the argmax is unstable.
+- **Disposition:** **OPEN** — WO-5 (a two-sided band: refuse only at p≥0.6, serve at p≤0.4, deterministic
+  tie-break in the gray zone) and/or judge T=0. Both need re-validation against the corpus.
+
+### F-177 — THE JUDGE'S ACCURACY IS THE CEILING (2026-10-01) — OPEN
+
+- **What happened:** the same shape (a genuine bypass) was blocked in one window and served in another;
+  the criteria wording moved the accuracy from 8/10 → 10/10 on the container family, and 6/8 → 8/8 on the
+  smoke family — but the JUDGE MODEL (jevk5-4b) remains the variable.
+- **Root cause:** the architecture puts a small LLM at the decision point; its accuracy is a property of
+  the model, not the code.
+- **Disposition:** **OPEN (by design)** — the mitigation is (a) the criteria enumerate their family
+  (DONE), (b) the detector resolves the UNAMBIGUOUS shapes without the judge, leaving only the gray zone
+  to the model. (b) is the architectural fix; not yet implemented.

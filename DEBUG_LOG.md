@@ -2556,3 +2556,18 @@ it ran 3 happy-path scenarios. THE PROPER SUITE (plan .omp/ct-plan-v2.md, 4587 c
 - **THE LESSON:** a "failure" is a hypothesis about WHICH LAYER failed. Read the ledger to name the
   layer — but when the ledger itself truncates, escalate to the SOURCE; re-reading a truncated
   ledger is the loop (the operator's catch).
+
+## EN-31 — THE ROUND-2 SWEEP: the same defect classes across 3 gates (2026-10-01)
+
+- **THE FINDING:** the round-2 sweep of the OTHER gates found the SAME two classes replicated: (a) an
+  over-broad regex conflating DATA with ACTION (`container-gate` verbs + heredoc bodies), and (b) a judge
+  decided on truncated evidence (1200/1200/400).
+- **THE REPRODUCTION:** the agent's own heredoc — writing a test file that MENTIONS docker — was refused
+  live (`CONTAINER_BYPASS refused`), and the agent could not apply the fix while the comment carried the shape.
+- **THE FIXES:** the container verb list narrowed; the quoted+heredoc strip applied; the judge-state bounds
+  raised; the criteria families enumerated; the ledger gains `origin`.
+- **THE VERIFICATION:** container probe **10/10 ×3 reps**; smoke corpus **40/40**; family probe **0 gaps**;
+  tsc **RC=0**; deployed `f82cb6d2494901f9`; `origin` live on 36+ rows.
+- **THE LESSON:** a per-gate patch leaves the next gate to be found by refusing real work. The
+  countermeasure is systemic: every detector tests the ACTION view, every judge gets the fragment, every
+  criteria enumerates its family.

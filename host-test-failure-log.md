@@ -130,3 +130,68 @@ criteria gap (HT-BUG-2) are the same shape at the regex/lexicon layer: **a famil
 on paper, closed only partially in code.** The countermeasure belongs in the standing rules:
 **an enforcement must decide and record on the FULL matched fragment, and its ledger must name
 which population each row belongs to.**
+
+---
+
+## ROUND 2 — the sweep of the OTHER gates (the operator: "identified all others?")
+
+**Counters after this round: last id = HT-BUG-19 · next available = HT-BUG-20.**
+The deployed artifact for all proofs: `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `f82cb6d2494901f9…`.
+
+### HT-BUG-12 — the container gate's verb list was OVER-BROAD (FALSE-POSITIVE) — FIXED+PROVEN
+
+- **VERBATIM (MECHANICAL):** `container-gate.ts:19` — `docker\s+(exec|run|attach|logs|cp|stop|rm|start|kill|wait|top|inspect|port)`.
+  The read/stage verbs (`cp|logs|inspect|port|top|wait|start`) are not bypasses — `docker cp` STAGES a
+  build into a container (the operator's own workflow, refused live at 18:04).
+- **Mechanism:** one regex conflating EXECUTION with MANAGEMENT/READ.
+- **WO:** narrow to `exec|run|attach` (execute) + `rm|stop|kill` (destroy the evidence). **DONE.**
+- **Proof:** the container probe — `exec/run/attach/rm` BLOCK · `cp/ps/logs/inspect` ALLOW. **10/10 ×3 reps.**
+
+### HT-BUG-13 — the container gate matched docker inside a HEREDOC BODY (FALSE-POSITIVE) — FIXED+PROVEN
+
+- **REPRODUCED LIVE (MECHANICAL):** the agent's own command — a heredoc writing a test file whose
+  TEXT contains container strings — was **refused**:
+  `18:15:55 CONTAINER_BYPASS judge=refuse@0.596 enforced=refused` and the file was never written.
+  The agent could not even apply the fix while the comment text carried the shape.
+- **Mechanism:** `container-gate.ts:79-83` tested the RAW command — no quoted-span / heredoc-body
+  strip (the smoke gate already strips; this gate did not). The F-141 class, unfixed here.
+- **WO:** strip quoted spans + heredoc bodies; test only the command's ACTION. **DONE.**
+- **Proof:** the probe's "HEREDOC writing a file that MENTIONS it" → ALLOW.
+
+### HT-BUG-14 — the container judge's state was 1200 chars (FEED-DEATH) — FIXED
+`container-gate.ts` `${cmd.slice(0, 1200)}` → `slice(0, 4000)`.
+
+### HT-BUG-15 — the doc-density judge's state was 400 chars (FEED-DEATH) — FIXED
+`doc-density-gate-v2.ts:403-404` — the judge decides the doc CLASS on `content.slice(0, 400)` → `slice(0, 2000)`.
+
+### HT-BUG-16 — the container CRITERIA did not name the verb family (CRITERIA-GAP) — FIXED+PROVEN
+
+- **VERBATIM (MECHANICAL):** the probe showed `tmux send-keys` and `docker run --rm` SERVED — the judge
+  was told "a container verb" without the list.
+- **WO:** name the family (`docker exec/run/attach/rm/stop/kill`; `tmux send-keys/capture-pane/pipe-pane/new-session/split-window`; `pkill -f omp`) in `instructions` + `criteria.refuse`. **DONE.**
+- **Proof:** **10/10 × 3 reps** (was 8/10, and 9/10 before that).
+
+### HT-BUG-17 — the ledger's `signals` (80) + `State.command` (300) too small (OBSERVABILITY) — FIXED
+`tool-gate.ts` — `signals` 80→300; `State.command` 300→600 (the fragment is still not `match[0]`; WO-3 open).
+
+### HT-BUG-18 — the ledger could not separate HARNESS from REAL (OBSERVABILITY) — FIXED+PROVEN
+`recordGateDecision` now writes `origin: "real"|"harness"` (from the sessionId path). **Proof: 36+ rows
+carry the field live.** F-167's 96%-harness invisibility is closed.
+
+### HT-BUG-19 — the dispatch-template-gate `catch → return undefined` — NOT-A-BUG (adjudicated)
+
+- **VERBATIM:** `dispatch-template-gate.ts:297` — inside `if (mode === "warn")`, documented OBSERVE-ONLY
+  ("record the finding, then ALLOW"). The surrounding `if (!ctx.isAgentOrigin) return undefined` is the
+  documented extension-origin exempt.
+- **Verdict:** **NOT-A-BUG** — a probe-error (my grep flagged a documented design). Recorded as such.
+
+---
+
+## THE ROUND-2 META-PATTERN
+
+Round 1 found one gate wrong in one way. Round 2 shows the SAME two defect classes replicated across
+**three** gates: (a) an over-broad regex conflating DATA with ACTION (the smoke family, the container
+verbs, the heredoc bodies), and (b) a judge decided on truncated evidence (1200/400/80). **The
+countermeasure is systemic, not per-gate:** every detector tests the command's ACTION view (quotes +
+heredocs stripped), every judge gets the full bounded fragment, and every criteria ENUMERATES its
+family. A per-gate patch leaves the next gate to be found the same way — by refusing real work.
