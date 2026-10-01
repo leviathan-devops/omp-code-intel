@@ -2559,3 +2559,11 @@ legit cases to **0.07–0.08** and smokes to **0.66–0.98** — a clean gap. Me
 POSITIVES), container 10/10, write 5/5, the 8 original real-session FPs 8/8 ALLOW, host 7/7, the seam
 suite 37/37, tsc RC=0, deployed `5d198c0c26b3b419` == source dist. The CONFIRMED defects (HT-BUG-1..25)
 are fixed with their probes.
+
+### F-184 — THE AUDIT LANE SWITCHED: muse-go 403 → poolside Lane 2 (2026-10-02) — FIXED (lane working)
+
+- **What happened:** the pinned `muse-go` lane 403s ("An active OpenCode Go subscription is required");
+  Lane 1 (the muse-free 4098 adapter) 429s (FreeUsageLimit). Per the lane-switch law the session moved
+  to Lane 2 (poolside-laguna-s + the tuned shape) — which completed an 8-minute audit of tool-gate.ts
+  (6 comments: 1 high + 5 low), ALL fixed. The 4 remaining files are queued on the same lane.
+- **Disposition:** **FIXED** — the audit gate is unblocked via Lane 2. F-183's blocker is superseded.

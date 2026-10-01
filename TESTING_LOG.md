@@ -370,3 +370,22 @@ deployed                   omp-ct/dist.js sha256 39d9330dad77f66c (== source dis
 construction. Three passes produced 39 → 40 → (degraded). The progress measure is the CONFIRMED defects
 fixed + the runtime driven: the session-disrupting classes (the false positives) are at **0 across every
 probe**, and each audit finding is adjudicated (FIXED / BY-DESIGN / OPEN-with-severity).
+
+## TEST RESULT — 2026-10-02 — the code-audit gate (LANE 2 WORKS)
+
+### SCRIPT — audit gate
+- **The run:** Lane 1 (muse-free via the 4098 adapter) → `429 FreeUsageLimitError`; Lane 2
+  (poolside-laguna-s direct + the tuned flags) → **a completed audit of `src/ext/tool-gate.ts`**:
+  `session 5b41a05d-7aaa-4023-bde4-583c564eaff4`, 8m2s, 6 comments (1 high, 5 low).
+- **The raw output (the Lane-2 findings):**
+  ```
+  [high] tool-gate.ts:185 — the origin check hardcoded /home/leviathan (portability)
+  [low]  tool-gate.ts:138 — e.name always "Error" (the degraded identifier)
+  [low]  tool-gate.ts:128 — confidence `<= 0` rejects a valid 0 (the contract says [0,1])
+  [low]  tool-gate.ts:117 — `a == null` vs the strict-equality rule
+  [low]  tool-gate.ts:46  — scrubSecrets typed `string` but handles null/undefined
+  [low]  tool-gate.ts:236 — containerCandidate indentation
+  ```
+- **The verdict:** **ALL 6 FIXED + PROVEN** (the high + the 5 lows) — tsc RC=0, the battery green.
+  The 4 remaining files are queued on the same lane (serial, per the skill's procedure).
+- **The artifacts:** the session JSONL above; the fixes in pbk HEAD `2f745e56`.
