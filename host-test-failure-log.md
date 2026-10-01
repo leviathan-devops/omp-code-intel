@@ -392,3 +392,38 @@ write-gate probe    5/5
 the 8 original FPs  8/8 ALLOW
 host test           7/7 legit ALLOW · 0 blocked
 ```
+
+---
+
+## ROUND 7 — THE FRESH AUDIT (aa709ea3, 2 critical + 17 high) + THE FIX WAVE
+
+**Counter: last id = HT-BUG-31 · next available = HT-BUG-32.**
+Deployed: `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `1057c6588c8f383f…` (pbk HEAD `6508f065`).
+
+### HT-BUG-30 — THE FRESH-AUDIT WAVE (the confirmed defects) — FIXED+PROVEN
+
+| # | Finding | Fix |
+|---|---|---|
+| CRIT | doc-density:316 — a write-over-existing judged the OLD file | the fallback is now `input.content` (a write REPLACES) |
+| CRIT | container:96/220 — the strip blanked `bash -c 'docker…'`; the `??` chain scanned one field | a raw-cmd shell-wrapper check + ALL payload fields collected (objects JSON-serialised) |
+| H | doc-density:406 — the wiring recomputed a divergent postState | (closed by the CRIT fix — one formula now) |
+| H | tool-gate:192 — the gray-zone branch caught legal low-confidence refuse | only a genuinely unknown choice lands there |
+| H | tool-gate:105 — the sanitizer missed zero-width/bidi/Cf chars | the class extended (the v3 backtick distinction preserved) |
+| H | tool-gate:313 — `fp`/`g` inside quoted literals | delimited `<<fp>>` STATE + quote-stripped values |
+| H | sttgf:77 — the CT_DEBUG chain log unscrubbed | scrubSecrets + bounded + newline-stripped |
+| H | container:61 — the runner window paddable | windowless co-occurrence |
+| H | container:118 — the exempt plantable | anchored `(^|/)` |
+| H | container:141 — `hasDocker` missed attach/stop/kill | widened + entrypoint/spawn shapes |
+
+### HT-BUG-31 — THE RUNTIME AFTER THE WAVE (the measure)
+
+```
+tsc                 RC=0
+seam suite          37/37 pass
+doc-density suite   7/7 pass
+smoke corpus        FALSE POSITIVES: 0
+container probe     10/10
+write-gate probe    5/5
+the 8 original FPs  8/8 ALLOW
+host test           7/7 legit ALLOW · 0 blocked
+```

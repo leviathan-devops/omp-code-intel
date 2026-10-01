@@ -429,3 +429,13 @@ probe**, and each audit finding is adjudicated (FIXED / BY-DESIGN / OPEN-with-se
   host test           7/7 legit ALLOW · 0 blocked
   ```
 - **The verdict:** **PASS** — 0 false positives across every probe.
+
+## TEST RESULT — 2026-10-02 — the fresh audit (aa709ea3) + the fix wave
+
+### SCRIPT — audit gate
+- **The run:** `qwen-code-audit action=scan` over the 5 gate files — the muse-go lane healthy.
+- **The raw output:** `GATE: FAIL (2 critical, 17 high)  filesReviewed=5 findings=38  session=aa709ea3`.
+- **The verdict:** the criticals + highs triaged first-hand; the confirmed defects fixed (HT-BUG-30);
+  the residual mediums adjudicated (the doc-density subtype regexes, the claim-lexicon bounds, the
+  fixed windows, the cross-session artifact, the ContextWindow stubs — non-blocking surfaces).
+- **The artifacts:** the session above; pbk HEAD `6508f065`.
