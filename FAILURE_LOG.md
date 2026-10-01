@@ -2536,3 +2536,26 @@ legit cases to **0.07–0.08** and smokes to **0.66–0.98** — a clean gap. Me
   the count did not fall. An LLM reviewer generates findings indefinitely.
 - **Disposition:** **ACCEPTED** — the operator's anti-treadmill law: the finding count is the tool's
   design, not the system's state. The measure is the runtime driven + the confirmed defects fixed.
+
+### F-183 — THE AUDIT GATE IS BLOCKED BY A PROVIDER SUBSCRIPTION (2026-10-02) — BLOCKED (external)
+
+- **What happened (MECHANICAL):** the audit lane's health probe:
+  `POST http://127.0.0.1:4097/zen/go/v1/responses → 403 Forbidden {"type":"server_error","message":"Upstream request failed: An active OpenCode Go subscription is required to use Go models."}`
+  Passes 3-4 of the audit returned `BLOCKED (OCR_JSON_ABSENT)` — the engine produced no parseable JSON.
+- **Root cause:** an EXTERNAL dependency — the OpenCode Go subscription behind the :4097 lane. The
+  audit tool's `provider` override (poolside) also returned `OCR_JSON_ABSENT`, so no fallback lane
+  is currently wired.
+- **Impact:** the mandatory ship gate (`qwen-code-audit`) cannot complete → **no ship-ready claim**
+  is made. This is a TOOLING/LANE blocker, not a code finding.
+- **The options (per the Hard-Dependency Law):**
+  1. Restore the OpenCode Go subscription (or set a working go key) → re-run the audit.
+  2. Wire a fallback lane for the audit tool (the poolside-direct or zen-free adapter) → re-run.
+  3. Accept the runtime evidence in lieu of the LLM audit (NOT equivalent — the audit is the
+     mandatory gate; this option requires the operator's explicit ruling).
+- **The retry condition:** a working audit lane → `qwen-code-audit action=scan` returning a
+  parseable verdict.
+
+**THE CODE STATE (unchanged by the blocker):** the runtime battery is green — smoke 38/40 (0 FALSE
+POSITIVES), container 10/10, write 5/5, the 8 original real-session FPs 8/8 ALLOW, host 7/7, the seam
+suite 37/37, tsc RC=0, deployed `5d198c0c26b3b419` == source dist. The CONFIRMED defects (HT-BUG-1..25)
+are fixed with their probes.
