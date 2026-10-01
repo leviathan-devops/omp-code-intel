@@ -1,0 +1,13 @@
+import { checkSmokeTestFirewall } from "/home/leviathan/.omp/wt/graph-intelligence-66dfa4c/pbk-anchor2/src/firewalls/semantic-smoke-firewall.ts";
+import { smokeCandidate, askGateDecision, enforceGate } from "/home/leviathan/.omp/wt/graph-intelligence-66dfa4c/pbk-anchor2/src/ext/tool-gate.ts";
+const CASES = [['13:44 grep chain', 'cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/LIVE/dashboard/dashboard; grep -n "activateSurface(kind) {" -A22 electron/agent-display.js | head -26; echo "=== agentEnv"'], ['16:17 forensic', 'cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS-COMMON-SENSE-LSP\necho \'=== forensic dir (unbounded logs?) ===\'; du -sh forensic 2>/dev/null; ls -la forensic 2>/dev/null | head\necho; echo \'=== JEVK5 health ===\'; for u in http://127.0.0.1:8090/health http://127.0.0.1:8090/v1/systemone; do curl -s -m 3 "$u" | head -c 200; echo; done'], ['15:24 screenshot', 'sleep 2\nWIN=$(DISPLAY=:3 xdotool search --name "Plutus Vision" | head -1)\nDISPLAY=:3 import -window "$WIN" -silent /tmp/pv-DONE.png 2>&1 | head -2\necho "capture done"'], ['17:24 env setup', 'cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS-COMMON-SENSE-LSP && export PLUTUS_L1_PATH=/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/.omp/graph-intelligence/layers/semantica/kg.json && time node x.mjs'], ['18:44 mkdir/cp', 'cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS_VISION\nCP=Checkpoints/v1-clean-baseline\nmkdir -p $CP/pine-ide/pine-ide $CP/tooling/computer-use\ncp ~/.omp/agent/extensions/computer-use/index.js $CP/tooling/computer-use/index.js'], ['18:47 sed -i', 'cd /x; sed -i "s#node_modules/ws/wrapper.mjs#node_modules/ws/wrapper.mjs#" /tmp/emit.mjs 2>/dev/null; grep -n "wrapper" /tmp/emit.mjs'], ['18:44 json read', 'cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Jev_Gates\npython3 -c "\nimport json\nd=json.load(open(\'.trident/ct-results-w4.json\'))\nprint(\'SUITE:\', d.get(\'suite\'))\n"'], ['18:44:02 build+json', "cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Jev_Gates\nbun run build 2>&1 | tail -3; echo '=== dist sha ==='; sha256sum /tmp/jev-dist/index.js"]];
+for (const [label, cmd] of CASES) {
+  const fw = await checkSmokeTestFirewall({ toolName:'bash', sessionId:'v', agentName:'v', mode:'', args:{command:cmd}, commandStr:cmd });
+  let got='allow';
+  if ((fw as any).action === 'BLOCK') {
+    const cand = smokeCandidate(String((fw as any).category || 'INLINE'), cmd);
+    const jv = await askGateDecision(cand, 'flagged: ' + (fw as any).category + '\n' + cmd.slice(0,4000));
+    got = enforceGate(cand, jv).action === 'refuse' ? 'block' : 'allow';
+  }
+  console.log('  ' + (got==='allow'?'OK ':'XX ') + label.padEnd(20) + ' -> ' + got);
+}
