@@ -389,3 +389,20 @@ probe**, and each audit finding is adjudicated (FIXED / BY-DESIGN / OPEN-with-se
 - **The verdict:** **ALL 6 FIXED + PROVEN** (the high + the 5 lows) — tsc RC=0, the battery green.
   The 4 remaining files are queued on the same lane (serial, per the skill's procedure).
 - **The artifacts:** the session JSONL above; the fixes in pbk HEAD `2f745e56`.
+
+## TEST RESULT — 2026-10-02 — the lane-2 waves re-verified (post-fix battery)
+
+### SCRIPT — the full probe battery (the deployed bundle `0d1cd314aebb0c90`)
+- **The run:** tsc + the seam suite + the smoke/container/write/host probes + the 8 original FPs.
+- **The raw output:**
+  ```
+  tsc                 RC=0
+  seam suite          37/37 pass
+  smoke corpus        38/40 · FALSE POSITIVES (legit blocked): 0
+  container probe     10/10
+  write-gate probe    5/5
+  the 8 original FPs  8/8 ALLOW
+  host test           7/7 legit ALLOW · 0 blocked
+  ```
+- **The verdict:** **PASS** — 0 false positives across every probe; every true positive still blocks.
+- **The artifacts:** pbk HEAD `67209a79`; deployed `~/.omp/agent/extensions/omp-ct/dist.js` (sha match).

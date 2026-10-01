@@ -329,3 +329,35 @@ is green (0 false positives across every probe). The audit's remaining findings 
 above — mostly medium hardening items on surfaces that do not block work (the doc-density slop
 scorer, the claim lexicons, the fixed-window regexes). **No ship-ready claim is made while any
 CRITICAL/HIGH remains open; the open items are enumerated with their severity.**
+
+---
+
+## ROUND 5 — THE LANE-2 AUDIT WAVES (fixed, proven, committed)
+
+**Counter: last id = HT-BUG-27 · next available = HT-BUG-28.**
+Deployed: `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `0d1cd314aebb0c90…` (pbk HEAD `67209a79`).
+
+### HT-BUG-26 — THE LANE-2 FINDINGS (the confirmed defects) — FIXED+PROVEN
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | instructions/criteria sent verbatim (injection via an exported builder) | `sanitizeForJudge(..., 2000)` on instructions + both criteria at the send site |
+| 2 | the container judge prompt carried the raw command bare | `<untrusted-command>` DATA-ONLY wrapper |
+| 3 | any `serve` cleared a SECURITY block (p=0.01 serve = allow) | clear only on `serve && !degraded && p >= 0.9`; else the block stands |
+| 4 | the write gate read 3 payload fields; two-step edits evaded | all string-bearing fields + `edits[]` collected |
+| 5 | the write exemption was a whole-directory substring | narrowed to the gate's own file |
+| 6 | `hasDocker` missed attach/stop/kill + entrypoint/spawn shapes | verb list + shape checks widened |
+| 7 | scrubSecrets missed quoted/PEM/AKIA/JWT/`github_pat_` forms | 4 new patterns + quoted-value matching |
+| 8 | the spawn/entrypoint windows evadable by padding | windowless co-occurrence on the stripped ACTION view |
+
+### HT-BUG-27 — THE RUNTIME AFTER THE WAVES (the measure)
+
+```
+tsc                 RC=0
+seam suite          37/37 pass
+smoke corpus        38/40 · FALSE POSITIVES: 0
+container probe     10/10
+write-gate probe    5/5
+the 8 original FPs  8/8 ALLOW
+host test           7/7 legit ALLOW · 0 blocked
+```
