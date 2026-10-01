@@ -361,3 +361,34 @@ write-gate probe    5/5
 the 8 original FPs  8/8 ALLOW
 host test           7/7 legit ALLOW · 0 blocked
 ```
+
+---
+
+## ROUND 6 — THE FRESH AUDIT (muse-go lane healthy) + THE FIX WAVE
+
+**Counter: last id = HT-BUG-29 · next available = HT-BUG-30.**
+Deployed: `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `de1b99bb0b73d3cc…` (pbk HEAD `b948bb92`).
+Audit: `session=aa709ea3-f739-4c7d-98c4-a7fc0a5b7443` — GATE: FAIL (0 critical, 22 high), 42 findings.
+
+### HT-BUG-28 — THE FRESH-AUDIT WAVE (the confirmed defects) — FIXED+PROVEN
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | unknown `choice` coerced to serve (the CRIT-1 inversion) | unknown choice → fail-CLOSED on security, fail-OPEN on info |
+| 2 | missing confidence silently became 0 → degraded to allow | missing confidence THROWS `GI_TOOLGATE_BAD_CONFIDENCE` |
+| 3 | `candidate.signals.map` threw on undefined; empty catch hid loss | guarded signals + boolean return + stderr line |
+| 4 | the criteria sanitizer stripped the backticks/quotes v3 relies on | the strip dropped (the delimiter wall is the defense); the 11/11 distinction preserved |
+| 5 | the pending arms had no TTL; concurrent arms overwrote | `{armedAt, count}` + 30-min TTL sweep + 1000-entry bound + count increment/decrement |
+| 6 | the confirm cleared on ANY successful CT call (status/help) | the completed action must be in CT_ACTIONS + count decrement |
+
+### HT-BUG-29 — THE RUNTIME AFTER THE WAVE (the measure)
+
+```
+tsc                 RC=0
+seam suite          37/37 pass
+smoke corpus        FALSE POSITIVES: 0
+container probe     10/10
+write-gate probe    5/5
+the 8 original FPs  8/8 ALLOW
+host test           7/7 legit ALLOW · 0 blocked
+```

@@ -406,3 +406,26 @@ probe**, and each audit finding is adjudicated (FIXED / BY-DESIGN / OPEN-with-se
   ```
 - **The verdict:** **PASS** — 0 false positives across every probe; every true positive still blocks.
 - **The artifacts:** pbk HEAD `67209a79`; deployed `~/.omp/agent/extensions/omp-ct/dist.js` (sha match).
+
+## TEST RESULT — 2026-10-02 — the fresh audit (muse-go healthy) + the fix wave
+
+### SCRIPT — audit gate
+- **The run:** `qwen-code-audit action=scan` over the 5 gate files — the muse-go lane healthy.
+- **The raw output:** `GATE: FAIL (0 critical, 22 high)  filesReviewed=5 findings=42  session=aa709ea3`.
+- **The verdict:** the 22 highs triaged first-hand; the confirmed defects fixed (HT-BUG-28); the
+  residual mediums adjudicated (the doc-density subtype regexes, the claim-lexicon bounds, the
+  fixed windows, the cross-session artifact, the ContextWindow stubs — non-blocking surfaces).
+- **The artifacts:** the session above; pbk HEAD `b948bb92`.
+
+### SCRIPT — the post-wave battery (the deployed bundle `de1b99bb0b73d3cc`)
+- **The raw output:**
+  ```
+  tsc                 RC=0
+  seam suite          37/37 pass
+  smoke corpus        FALSE POSITIVES: 0
+  container probe     10/10
+  write-gate probe    5/5
+  the 8 original FPs  8/8 ALLOW
+  host test           7/7 legit ALLOW · 0 blocked
+  ```
+- **The verdict:** **PASS** — 0 false positives across every probe.
