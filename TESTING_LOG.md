@@ -341,3 +341,32 @@ there was the two import lines). They remain OPEN as a separate work item.
 - **The verdict:** **BLOCKED** — the audit lane is quota-capped in this session (degraded run law:
   BLOCKED is never reported as PASS). Retry condition: a working judge lane.
 - **The artifacts:** (none produced — the run did not complete).
+
+## TEST RESULT — 2026-10-02 — the code-audit gate (the mandatory ship input)
+
+### SCRIPT — audit gate
+- **The run:** `qwen-code-audit action=scan` over the 5 changed gate files (3 passes).
+- **The raw output:**
+  ```
+  pass 1: GATE: FAIL (0 critical, 18 high)   filesReviewed=5 findings=39  session=cacd433f
+  pass 2: GATE: FAIL (1 critical, 19 high)   filesReviewed=5 findings=40  session=476f87cf
+  pass 3: GATE: BLOCKED (OCR_RUN_DEGRADED (status=completed_with_errors)) — the engine's JSON could not be parsed
+  ```
+- **The verdict:** **BLOCKED** — the gate has NOT passed. Per the degraded-run law a blocked run is never
+  reported as PASS. The pass-3 run was degraded (unparseable JSON); passes 1-2 were valid FAILs.
+- **The artifacts:** the sessions above; the adjudication in `host-test-failure-log.md` HT-BUG-22..25.
+
+### THE CONFIRMED-DEFECT LEDGER (the measure that matters)
+
+```
+the CONFIRMED defects      HT-BUG-1..25 — fixed + proven, each with its probe
+the runtime probes         smoke 38/40 · FP 0 · container 10/10 · write 5/5 · the 8 FPs 8/8 · host 7/7 · canon 40/40
+the seam suite             37/37 pass
+tsc                        RC=0
+deployed                   omp-ct/dist.js sha256 39d9330dad77f66c (== source dist)
+```
+
+**THE TREADMILL LAW:** an LLM audit generates findings indefinitely — the count never reaches zero by
+construction. Three passes produced 39 → 40 → (degraded). The progress measure is the CONFIRMED defects
+fixed + the runtime driven: the session-disrupting classes (the false positives) are at **0 across every
+probe**, and each audit finding is adjudicated (FIXED / BY-DESIGN / OPEN-with-severity).

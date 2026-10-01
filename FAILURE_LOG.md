@@ -2501,3 +2501,38 @@ failure (10 fields exactly) — proven pre-existing by stash; it keeps the pbk s
 - **Disposition:** **OPEN (by design)** — the mitigation is (a) the criteria enumerate their family
   (DONE), (b) the detector resolves the UNAMBIGUOUS shapes without the judge, leaving only the gray zone
   to the model. (b) is the architectural fix; not yet implemented.
+
+### F-178 — THE PHANTOM CLAIM-GATE IS INERT (2026-10-01) — OPEN (low)
+
+`phantomClaimCheck` has 0 callers; `phantomGate()` returns undefined always. A claimed enforcement that
+does nothing. LOW (inert — cannot FP). Disposition: verify superseded (smoke-lexicon/evidence-tracker) or re-wire.
+
+### F-179 — `isBypassWrite` FALSE-POSITIVES on a test mentioning the container word (2026-10-01) — FIXED+PROVEN
+
+`EXEC_CONTEXT_RE`'s backtick heuristics matched any template literal naming the word. A test OF the gate
+was flagged a bypass. FIXED — backtick heuristics dropped; write-gate probe 5/5.
+
+### F-180 — THE SMOKE CRITERIA CAUSED THE FP CLASS (the F-176 root, RESOLVED) (2026-10-01) — FIXED+PROVEN
+
+The v1 criteria ("an interpreter running code inline = refuse") scored LEGIT data inspection
+(`python3 -c "import json; print(json.load(open(f)))"`) at ~0.5, so the judge flip-flopped (F-166). The v3
+criteria (EXTERNAL DATA → serve; a trivial self-contained inline or a project-module run → refuse) moved
+legit cases to **0.07–0.08** and smokes to **0.66–0.98** — a clean gap. Measured: the threshold sweep
+**FP=0 FN=0** at bar 0.5 and 0.6; the 8 original real-session FPs **8/8 now ALLOW**.
+
+### F-181 — THE AUDIT GATE IS BLOCKED (2026-10-02) — OPEN (blocked, not passed)
+
+- **What happened:** `qwen-code-audit` pass 3 returned `GATE: BLOCKED (OCR_RUN_DEGRADED ...)` — the
+  engine's JSON could not be parsed. Passes 1-2 returned valid FAILs (18 → 19 high + 1 critical).
+- **Disposition:** **OPEN/BLOCKED** — per the degraded-run law a blocked audit blocks every ship-ready
+  claim and is never upgraded to PASS. The confirmed defects found by passes 1-2 are FIXED (HT-BUG-22,
+  including the critical HT-BUG-23 my own fix introduced and the re-audit caught). The remaining items
+  are adjudicated in `host-test-failure-log.md` HT-BUG-24 with their severities.
+- **The retry condition:** a clean audit run (parseable JSON) over the same scope.
+
+### F-182 — THE AUDIT IS A TREADMILL (2026-10-02) — ACCEPTED (by design)
+
+- **What happened:** passes 1 → 2 fixed 18 highs and the re-audit produced 19 NEW highs + 1 critical —
+  the count did not fall. An LLM reviewer generates findings indefinitely.
+- **Disposition:** **ACCEPTED** — the operator's anti-treadmill law: the finding count is the tool's
+  design, not the system's state. The measure is the runtime driven + the confirmed defects fixed.
