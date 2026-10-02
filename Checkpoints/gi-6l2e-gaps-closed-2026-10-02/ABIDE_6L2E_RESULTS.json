@@ -1,0 +1,68 @@
+{
+ "goal": "GI 6L+2E: all 8 consumers CONSUMED + ABIDE observable",
+ "at": "2026-10-02T18:48:37Z",
+ "deployedSha": "73e907fffa6647d1",
+ "sourceSha": "73e907fffa6647d1",
+ "waves": [
+  {
+   "wave": "W1",
+   "test_id": "ST-1",
+   "file": "src/omp/adapters/arsumbris.ts + scripts/au-read.ts",
+   "command": "bun scripts/consumption-audit.ts <root> populateSessionStore",
+   "stdout_excerpt": "L2_ARSUMBRIS CONSUMED rung=knowledge facts=50",
+   "pass_token_found": true,
+   "exit": 0
+  },
+  {
+   "wave": "W1",
+   "test_id": "ST-1b",
+   "file": "tests/st-gi-6l2e.test.ts",
+   "command": "bun test tests/st-gi-6l2e.test.ts -t consume_arsumbris",
+   "stdout_excerpt": "2 pass, 0 fail, 103 expect() calls",
+   "pass_token_found": true,
+   "exit": 0
+  },
+  {
+   "wave": "W2",
+   "test_id": "ST-2",
+   "file": "scripts/consumption-audit.ts",
+   "command": "bun scripts/consumption-audit.ts <root> --gate",
+   "stdout_excerpt": "6 per-subject rows + union=8/8 + PREDICATE PASSED",
+   "pass_token_found": true,
+   "exit": 0
+  },
+  {
+   "wave": "W3",
+   "test_id": "ST-3",
+   "file": ".c2kg/index.json + src/omp/adapters/c2kg.ts",
+   "command": "python3 -c 'len(json.load(open(.c2kg/index.json))[\"edges\"])'",
+   "stdout_excerpt": "edges: 411; audit reader-battery -> L4_C2KG CONSUMED facts=13",
+   "pass_token_found": true,
+   "exit": 0
+  },
+  {
+   "wave": "W4",
+   "test_id": "ST-4",
+   "file": "src/omp/gate-hook.ts + gate-ledger",
+   "command": "bun /tmp/w4-probe.ts (a write through the deployed bundle)",
+   "stdout_excerpt": "Pattern=ABIDE_JUDGE p=0.703 signals=ABIDE-R1=0.703 ABIDE-R2=0.659 ABIDE-R3=0.407",
+   "pass_token_found": true,
+   "exit": 0
+  },
+  {
+   "wave": "W5",
+   "test_id": "ST-5",
+   "file": "the checkpoint + ship docs",
+   "command": "bun scripts/consumption-audit.ts <root> --gate",
+   "stdout_excerpt": "union=8/8 PREDICATE PASSED; sha(deployed)==sha(source)",
+   "pass_token_found": true,
+   "exit": 0
+  }
+ ],
+ "union": "8/8",
+ "circuit_breaker": {
+  "gates_rerun": true,
+  "sha_match": true,
+  "audit_subjects": 6
+ }
+}
