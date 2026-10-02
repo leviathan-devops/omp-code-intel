@@ -46,7 +46,7 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       const hits = symbols.filter(
         (s) => typeof s === "object" && s !== null && typeof s.name === "string" && s.name.includes(subject),
       );
-      return hits.map((s) => ({
+      const symbolFacts: LayerFact[] = hits.map((s) => ({
         consumer: "L4_C2KG" as const,
         rung: "context" as const,
         subject,
@@ -57,6 +57,22 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
         },
         source: `${indexPath}#symbols(${typeof s.file === "string" ? s.file : "?"}:${typeof s.line === "number" ? s.line : "?"})`,
       }));
+      // ★ W3 FIX (2026-10-02): THE EDGE READ. The index was a symbol list with `edges: []` — a
+      //   context rung that cannot say what references what. With edges present, a subject that
+      //   participates in an edge yields that RELATIONSHIP as a context fact.
+      const idxEdges = Array.isArray((idx as { edges?: unknown }).edges) ? (idx as { edges: Array<Record<string, unknown>> }).edges : [];
+      const edgeFacts: LayerFact[] = idxEdges
+        .filter((e) => typeof e === "object" && e !== null &&
+          (String(e["src"] ?? "").includes(subject) || String(e["dst"] ?? "").includes(subject)))
+        .slice(0, 50)
+        .map((e) => ({
+          consumer: "L4_C2KG" as const,
+          rung: "context" as const,
+          subject,
+          value: { src: e["src"], predicate: e["predicate"], dst: e["dst"], confidence: e["confidence"] },
+          source: `${indexPath}#edges(${String(e["src"] ?? "?")} ${String(e["predicate"] ?? "?")} ${String(e["dst"] ?? "?")})`,
+        }));
+      return symbolFacts.concat(edgeFacts).slice(0, 50);
     },
   };
 }
