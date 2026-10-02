@@ -5,6 +5,13 @@ import { resolveSessionIdFromEvent } from "../scoping/gi-session-path.ts";
 import * as fs from "node:fs";
 import { resolveDial, runGraphGate, type GiDial } from "./gate-middleware.ts";
 import { classifyEdit, computeDrift, createEmptyState, gateDecision, recordEdit, recordGraphQuery, type GraphGateSessionState } from "./graph-gate.ts";
+// ★ V2.2 W5b WIRING (2026-09-26): the ABIDE live judge on the CURRENT hunk diff. The adapter's
+//   judgeDiff asks JevK5 one question per model rule against the diff; a REPAIR band becomes a
+//   steer note. FAIL-OPEN (the blueprint: "Abide fail-open on missing key") — a down judge never
+//   blocks the edit.
+import { judgeDiff } from "./adapters/abide.ts";
+// ★ W3 — THE JEV DECISION LAYER: the export-removal regex matched a SHAPE; the judge decides.
+import { askToolGate, enforceGate, graphBreakCandidate, recordGateDecision } from "./jev.ts";
 
 export interface GiToolCallEvent {
   toolName: string;
@@ -84,7 +91,7 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       else if (live.length !== q.length) pendingSteer.set(sid, live);
     }
   };
-  pi.on("tool_call", (event: Record<string, unknown>) => {
+  pi.on("tool_call", async (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = (event.input && typeof event.input === "object" ? event.input : {}) as Record<string, unknown>;
     // ★ F-GH1 FIX (2026-09-24): the per-call debug append ran on EVERY tool_call (sync I/O
@@ -105,6 +112,45 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     if (event.isAgentOrigin === false) return undefined;
     const dial: GiDial = resolveDial(process.env);
     const rec = reconstruct(name, input);
+    // ★ V2.2 W5b (2026-09-26): the ABIDE live judge on the CURRENT hunk. Fail-OPEN — a REPAIR
+    //   band queues a steer note (a REPAIR OPPORTUNITY, never a block); a down judge is silent.
+    try {
+      const judged = judgeDiff(rec.newText ?? "");
+      // ★ OBSERVABILITY (2026-10-02): the live judge ran but left NO record — the bundle's ABIDE
+      //   leg was unobservable (only the OTHER consumer, kernel-judge, wrote rows, and it skips on
+      //   a missing rubric). Record EVERY judgeDiff verdict to the gate ledger, scores included,
+      //   so "ABIDE ran vs skipped" is answerable from data.
+      try {
+        const maxP = Object.values(judged.scores).reduce((a, b) => Math.max(a, b), 0);
+        const cand = {
+          kind: "ABIDE_JUDGE" as const,
+          signals: [rec.file ?? "?", `verdict=${judged.verdict}`,
+                    Object.entries(judged.scores).map(([k, v]) => `${k}=${v.toFixed(3)}`).join(" ")].filter(Boolean),
+          severity: "info" as const,
+          instructions: "the ABIDE live judge over the edit diff",
+          criteria: { serve: "no rule violated", refuse: "a rule at the act band (>=0.8)" },
+        };
+        recordGateDecision(cand, {
+          judge: judged.judge,
+          choice: judged.verdict === "REPAIR" ? "refuse" : "serve",
+          confidence: maxP,
+          probabilities: judged.scores,
+          ms: 0,
+          degraded: !judged.ok,
+        }, {
+          tool: name, command: rec.file ?? "", sessionId: resolveSessionIdFromEvent(event).id,
+          enforced: judged.verdict === "REPAIR" ? "refused" : "served", remedy: judged.repair ?? null,
+        });
+      } catch { /* ledger best-effort: a write failure never blocks the edit */ }
+      if (judged.ok && judged.verdict === "REPAIR" && judged.repair) {
+        const jSid = resolveSessionIdFromEvent(event).id;
+        sweepStaleSteer(Date.now());
+        const q = pendingSteer.get(jSid) ?? [];
+        q.push({ tool: name, note: `[ABIDE] ${judged.repair}`, enqueuedAt: Date.now(), file: rec.file });
+        while (q.length > PENDING_STEER_MAX_PER_SID) q.shift();
+        pendingSteer.set(jSid, q);
+      }
+    } catch { /* fail-open: the judge never blocks an edit */ }
     const verdict = runGraphGate({
       dial,
       oldText: rec.oldText,
@@ -119,6 +165,27 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
     }
     const steerSid = resolveSessionIdFromEvent(event).id;
     if (verdict.cancel && verdict.token) {
+      // ★ W3 — THE JEV DECISION LAYER (the mandate). The export-removal regex matched a
+      //   SHAPE (a name is gone from the new text); the JUDGE decides whether it is a REAL
+      //   signature break or a legitimate refactor. INFO surface: fail-OPEN — a down judge
+      //   NEVER blocks an edit (the same polarity as the ABIDE judge above).
+      try {
+        const cand = graphBreakCandidate(rec.file, verdict.advisory ?? "");
+        const jv = await askToolGate(cand, `file=${rec.file}
+the gate flagged: ${verdict.token}
+${verdict.advisory ?? ""}
+-- the OLD text --\n${(rec.oldText ?? "").slice(0, 900)}
+-- the NEW text --\n${(rec.newText ?? "").slice(0, 900)}`);
+        const ef = enforceGate(cand, jv);
+        recordGateDecision(cand, jv, {
+          tool: name, command: rec.file, sessionId: steerSid,
+          enforced: ef.action === "refuse" ? "refused" : "served", remedy: ef.remedy,
+        });
+        if (ef.action === "serve") {
+          // the judge cleared it — NO cancel, the edit proceeds (and no steer is dropped)
+          return undefined;
+        }
+      } catch { /* fail-open: the judge never blocks an edit */ }
       // ★ R19-HIGH FIX (2026-09-25): this filtered by TOOL NAME, so cancelling ONE `edit`
       //   call discarded EVERY pending steer for `edit` in that session — including ones
       //   queued for entirely different files. The only per-call discriminator the entry
@@ -227,7 +294,7 @@ export function registerGraphGate(pi: { on: (ev: string, h: (event: Record<strin
       else if (live.length !== q.length) pendingQueries.set(sid, live);
     }
   };
-  pi.on("tool_call", (event: Record<string, unknown>) => {
+  pi.on("tool_call", async (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const isEdit = name === "write" || name === "write_file" || name === "edit" || name === "patch";
     const isQuery = name === "graph-query" || name === "ripwire" || String(event.toolName ?? "") === "graph-query";
