@@ -21,6 +21,7 @@ import { abideProbe } from "../src/omp/adapters/abide.ts";
 import { uaProbe } from "../src/omp/adapters/ua.ts";
 import { semanticaProbe } from "../src/omp/adapters/semantica.ts";
 import { c2kgProbe } from "../src/omp/adapters/c2kg.ts";
+import { arsumbrisProbe } from "../src/omp/adapters/arsumbris.ts";
 import { graphFacts, type GraphFactRule } from "../src/omp/graph-facts.ts";
 import { FireGate, absorbContext } from "../src/omp/fire-gate.ts";
 import { decideFromRegistry } from "../src/omp/decision.ts";
@@ -166,6 +167,29 @@ describe("st-gi-6l2e: the 8 consumers against the live tree", () => {
     const facts = probe.facts("populateSessionStore");
     expect(facts.length).toBeGreaterThan(0);
     for (const f of facts) expect(f.consumer).toBe("L6_GRAPHIFY");
+  });
+
+  test("test_consume_arsumbris_symbol", () => {
+    // ★ W1 (2026-10-02): L2 ARSUMBRIS → the knowledge rung. The `instances` read
+    //   answers repo-level subjects only; the `files` read resolves a SYMBOL to
+    //   the file that names it (forward: path/stem contains the subject; reverse:
+    //   the symbol contains the file stem). A symbol subject must yield facts.
+    const probe = arsumbrisProbe(REPO);
+    expect(probe.up().up).toBe(true);
+    const facts = probe.facts("populateSessionStore");
+    expect(facts.length).toBeGreaterThan(0);
+    for (const f of facts) {
+      expect(f.consumer).toBe("L2_ARSUMBRIS");
+      expect(f.source.length).toBeGreaterThan(0); // every fact carries its anchor
+    }
+  });
+
+  test("test_consume_arsumbris_absent_subject", () => {
+    // ★ W1 adversarial: a subject in NO space yields ZERO facts → UNCONSUMED,
+    //   never a fabricated answer.
+    const probe = arsumbrisProbe(REPO);
+    const facts = probe.facts("zzz-no-such-symbol-zzz");
+    expect(facts.length).toBe(0);
   });
 
   // ★ the real TSG edge makes the audit a network round-trip (~19 s) — the bun default

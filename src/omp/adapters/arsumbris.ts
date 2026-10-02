@@ -39,7 +39,7 @@ export function auEngineRead(repoRoot: string, read: string, subject: string): u
   if (!fs.existsSync(script)) throw new Error(`GI_LAYER_ARSUMBRIS: the reader is absent at ${script}`);
   let out: string;
   try {
-    out = execFileSync(process.execPath, ["run", script, read, subject], {
+    out = execFileSync(process.execPath, ["run", script, read, subject, repoCanon], {
       encoding: "utf8",
       timeout: 45_000,
       maxBuffer: 32 * 1024 * 1024,
@@ -122,7 +122,7 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
             walk(i);
             return values.some((v) => v.includes(subject));
           });
-      return hits.slice(0, 50).map((i) => {
+      const instanceFacts: LayerFact[] = hits.slice(0, 50).map((i) => {
         const claim = Array.isArray(i["claim"]) ? (i["claim"] as unknown[]).map(String) : [];
         return {
           consumer: "L2_ARSUMBRIS" as const,
@@ -132,6 +132,36 @@ export function arsumbrisProbe(scopeRoot: string, home = process.env.HOME ?? os.
           source: `${res.socket ?? "~/.arsumbris/au-engine/run"}${"#instance("}${claim.slice(0, 2).join(",") || "?"})`,
         };
       });
+      // ★ W1 FIX (2026-10-02): THE SYMBOL/FILE-SPACE READ. The `instances` read answers repo-level
+      //   subjects (the engine's own repo defs) and returns 0 for a SYMBOL. The engine's `files`
+      //   read indexes THIS repo (14,885 entries: {kind, path, repo, stem}), so a symbol subject
+      //   resolves to the file that names it — forward (path/stem/repo contains the subject) AND
+      //   reverse (a symbol like `populateSessionStore` contains the file stem `populate`).
+      let fileFacts: LayerFact[] = [];
+      if (subject.trim().length > 0) {
+        try {
+          const filesRaw = auEngineRead(scopeRoot, "files", "");
+          const files = (filesRaw as { reply?: { result?: { files?: Array<Record<string, unknown>> } } })
+            ?.reply?.result?.files;
+          const fileList = Array.isArray(files) ? files : [];
+          fileFacts = fileList
+            .filter((e) => {
+              const vals = [e["path"], e["stem"], e["repo"]].filter((v): v is string => typeof v === "string");
+              if (vals.some((v) => v.includes(subject))) return true;
+              // the reverse arm: `populateSessionStore` names the file stem `populate`.
+              return subject.length >= 6 && vals.some((v) => v.length >= 6 && subject.includes(v));
+            })
+            .slice(0, 50)
+            .map((e) => ({
+              consumer: "L2_ARSUMBRIS" as const,
+              rung: "knowledge" as const,
+              subject,
+              value: { kind: e["kind"], path: e["path"], stem: e["stem"] },
+              source: `${res.socket ?? "~/.arsumbris/au-engine/run"}#file(${String(e["path"] ?? "?")})`,
+            }));
+        } catch { /* the file read is best-effort; the instance read above already answered */ }
+      }
+      return instanceFacts.concat(fileFacts).slice(0, 50);
     },
   };
 }

@@ -18,6 +18,20 @@ import * as path from "node:path";
 
 const readName = process.argv[2] ?? "instances";
 const subject = process.argv[3] ?? "";
+// ★ W1 FIX (2026-10-02): the daemon's reads take DIFFERENT fields — `instances` takes `query`,
+//   but `files`/`types`/`hubs`/`imports` take `repo` (+ `scope`); sending `{query}` to those is
+//   `malformed read: unknown field 'query'`. The 4th arg carries the repo root so this maps each
+//   read to its OWN required fields.
+const repoRootArg = process.argv[4] ?? "";
+const repoName = repoRootArg ? path.basename(path.resolve(repoRootArg)) : undefined;
+
+/** Map a read name to the fields THAT read accepts (the daemon is strict per-read). */
+function fieldsFor(read: string): Record<string, unknown> {
+  if (read === "instances") return subject.length > 0 ? { query: subject, limit: 50 } : { limit: 50 };
+  if (read === "files" || read === "types" || read === "hubs") return repoName ? { repo: repoName } : { scope: "all" };
+  if (read === "imports") return repoName ? { repo: repoName } : {};
+  return subject.length > 0 ? { query: subject, limit: 50 } : { limit: 50 };
+}
 
 function engineRunDir(): string {
   return path.join(os.homedir(), ".arsumbris", "au-engine", "run");
@@ -64,7 +78,9 @@ function request(sockPath: string, read: string, extra: Record<string, unknown>)
       // ★ MEASURED: a read body is STRICT — schema_version is a FRAME-BASE field, not a
       //   read field (the daemon: "unknown field `schema_version`, expected one of `repo`,
       //   `summary`, `scope`, `limit`, `offset`"). It is omitted here.
-      const body = Buffer.from(JSON.stringify({ type: "read", id, read, ...extra }), "utf8");
+      // ★ W1 FIX (2026-10-02): `instances` accepts `type:"read"` but `files`/`types`/`hubs` REJECT
+      //   it (`malformed read: unknown field 'type'`). Omitting it works for every read measured.
+      const body = Buffer.from(JSON.stringify({ id, read, ...extra }), "utf8");
       const prefix = Buffer.alloc(4);
       prefix.writeUInt32BE(body.length, 0);
       c.write(Buffer.concat([prefix, body]));
@@ -97,7 +113,7 @@ if (sock === null) {
   process.exit(3);
 }
 try {
-  const reply = await request(sock, readName, subject.length > 0 ? { query: subject, limit: 50 } : { limit: 50 });
+  const reply = await request(sock, readName, fieldsFor(readName));
   process.stdout.write(JSON.stringify({ ok: true, socket: sock, read: readName, reply }));
 } catch (e) {
   console.error(`GI_LAYER_ARSUMBRIS: the engine read failed — ${e instanceof Error ? e.message : String(e)}`);
