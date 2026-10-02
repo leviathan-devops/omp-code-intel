@@ -538,3 +538,58 @@ authoritative by design (the local setters are legacy compat).
 ```
 tsc RC=0 · seam 37/37 · doc-density 7/7 · smoke 38/40 (0 FP) · container 10/10 · write 5/5 · 8 FPs 8/8 · host 7/7
 ```
+
+
+---
+
+## ROUND 16 — THE LIVE CRASH TEST (the operator: "crash test everything live")
+
+**Counter: last id = HT-BUG-46 · next = HT-BUG-47.**
+Deployed: `9414610afb498f8e` (pbk HEAD `3300994e`).
+
+### HT-BUG-43 (CRITICAL) — THE WRITE GATE LET A SHELL SCRIPT BE THE BYPASS — FIXED+PROVEN
+
+- **The attack (PROVEN LIVE):** write a `.sh` whose content IS `docker exec` — the write gate
+  ALLOWED it AND `chmod +x`'d it; then `bash /tmp/x.sh` passed (the bash gate cannot see inside a
+  file). `./x.sh`, `sh x`, `source x`, `. x`, `make -f x`, `npm run bypass` — all ungated.
+  **A complete bypass chain: write a script, run it.**
+- **Root cause:** `isBypassWrite` required an EXEC_CONTEXT marker (spawnSync/bash -c/redirect) — but a
+  SHELL SCRIPT's content IS the program, no wrapper needed. And `isContainerPathCommand` never read
+  a file the command runs.
+- **The fix:** (1) a shell-script extension (`.sh/.bash/.zsh/.fish/.ksh`) is flagged on hasDocker
+  ALONE; (2) `isContainerPathCommand` READS any script the command invokes (shell keyword /
+  interpreter / `<` redirect / `$(cat x)` / direct-head / `VAR=x.sh; bash $VAR`) and scans its body;
+  (3) the array form `["docker","exec"]` and `Bun.$`/`subprocess` are caught.
+- **Verified:** write 11/11 · follow-through 11/11 · evade 13/14 · the 8 FPs 8/8 · host 8/8.
+- **Misfire risk:** `cat x.sh` (read) stays allowed; a comment-only mention is stripped; the `.ts`
+  string-mention FP stays fixed.
+
+### HT-BUG-44 (HIGH) — THE DEPLOYED FIX IS **NOT LIVE** IN RUNNING SESSIONS — OPEN (needs a restart)
+
+- **The evidence (§4 of the hot-reload skill):** bundle mtime `15:31:37` > the omp processes' start
+  `14:56:34` — **every running session predates the deploy.** Confirmed live: the `.sh` bypass write
+  SUCCEEDED while the file-level `isBypassWrite` returns true, and a `spawnSync` write BLOCKED (the
+  gate IS armed, just with older code). omp imports extension code ONCE at process construction;
+  ESM caches it. **A code deploy does not reach a running process.**
+- **Impact:** "live use across all active sessions" requires a SESSION RESTART per session. The
+  bundle is correct on disk; the running processes are stale.
+- **Remedy:** restart the omp sessions (new processes) to load `9414610afb498f8e`.
+
+### HT-BUG-45 (MEDIUM) — `php -r` WAS A DETECTOR FALSE NEGATIVE — FIXED+PROVEN
+
+- **The evidence:** the smoke verb class was `[ce]` — `-r` had been dropped to avoid FP-ing `node -r`
+  / `ruby -r` (legit `--require`), which also dropped **`php -r` (a genuine inline exec)**. Measured:
+  `classifyVerb("php -r 'echo 1;'")` = `other`; `ruby -e` / `perl -e` = `inline_exec`.
+- **The fix:** a php-specific `\bphp\s+-[a-zA-Z]*r\b` check. **Verified:** smoke 36/36 (0 FP, 0 FN).
+
+### HT-BUG-46 (residual, LOW) — `./x.sh` RESOLVES AGAINST THE GATE'S CWD — OPEN
+
+- `cd /tmp && bash x.sh` is caught (cd-resolution added); a bare `./x.sh` depends on the gate's cwd
+  matching the command's cwd. Evade matrix 13/14 (the 1 is this cwd fixture). Non-blocking.
+
+### THE RUNTIME (round 16, the deployed bundle)
+
+```
+smoke 36/36 (0 FP/0 FN) · container 21/21 · follow 11/11 · write 11/11 · evade 13/14 ·
+8 original FPs 8/8 ALLOW · host 8/8 · seam 37/37 · doc-density 7/7 · tsc RC=0
+```
