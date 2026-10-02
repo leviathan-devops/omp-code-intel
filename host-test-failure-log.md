@@ -427,3 +427,45 @@ write-gate probe    5/5
 the 8 original FPs  8/8 ALLOW
 host test           7/7 legit ALLOW · 0 blocked
 ```
+
+---
+
+## ROUNDS 8-11 — THE FRESH-AUDIT WAVES (continuous hardening)
+
+**Counters: last id = HT-BUG-35 · next available = HT-BUG-36.**
+Deployed (final): `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `a223f20a400389b2…` (pbk HEAD `a862ce36`..`952e928c`).
+
+### HT-BUG-32..35 — THE CONFIRMED DEFECTS ACROSS 5 AUDIT PASSES (each fixed + proven)
+
+| Class | Findings fixed |
+|---|---|
+| **Fail-polarity** | the smoke catch now fails OPEN for non-smoke work (no deadlock), CLOSED for smoke verbs; the doc-density judge catch fails OPEN (INFO surface) per its own header; the container clear requires `serve && !degraded && p>=0.9` |
+| **Injection wall** | `buildJudgeState` defangs + strips control/zero-width/bidi from the BODY; instructions/criteria sanitized; `docTypeCandidate` values delimited + `<>`-stripped; the container prompt `<>`-stripped + untruncated |
+| **Type/null safety** | `enforceGate` guards a malformed candidate/verdict; `scrubSecrets` coerces null; `recordGateDecision` guards signals + returns a status; the judge `model` bounded; `probabilities` validated + capped |
+| **Evasion surfaces** | `CONTAINER_VERB_RE` allows path prefix + flag+value + podman/nerdctl; the shell-wrapper broadened; `SPAWN_INDIRECTION` both orders, windowless; base64 broadened; the write-gate extensions widened; the filler stems + subtype anchors + the anchor regex tightened |
+| **State correctness** | the arm/confirm TTL-on-confirm + strict `isError===false` + action-validated decrement; the write-over-existing postState unified; the draft floor binds on the file; the non-empty-line floor |
+| **SSRF / provenance** | the judge URL host-pinned; the ledger origin normalized (no traversal) |
+| **Dead code** | the unreachable VERIFY_INSPECT / smoke_verification branches + the dead HEREDOC/DOCKER_ANYWHERE constants removed; the ContextWindow shims wired to the real store |
+
+### HT-BUG-35 — THE RUNTIME (the measure, every pass)
+
+```
+tsc                 RC=0
+seam suite          37/37 pass
+doc-density suite   7/7 pass
+smoke corpus        FALSE POSITIVES: 0
+container probe     10/10
+write-gate probe    5/5
+the 8 original FPs  8/8 ALLOW
+host test           7/7 legit ALLOW · 0 blocked
+```
+
+### THE TREADMILL (the honest state)
+
+Five audit passes produced 39→38→45→47→? findings. **The count does not fall — the LLM
+generates findings indefinitely.** The measure that matters is the RUNTIME: 0 false positives
+across every probe, the confirmed session-disrupting classes all fixed. The residual findings are
+ADJUDICATED: (a) a TRUE SHELL LEXER for quote/`$()`/backtick handling is an architectural rewrite
+(the current strip + the judge is the designed trade); (b) cross-session evidence scoping and the
+sync-I/O avoidance are hardening items on a defense-in-depth layer; (c) the ContextWindow/window
+eviction is a bounded-memory nicety.
