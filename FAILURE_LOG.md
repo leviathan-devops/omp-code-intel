@@ -2567,3 +2567,20 @@ are fixed with their probes.
   to Lane 2 (poolside-laguna-s + the tuned shape) — which completed an 8-minute audit of tool-gate.ts
   (6 comments: 1 high + 5 low), ALL fixed. The 4 remaining files are queued on the same lane.
 - **Disposition:** **FIXED** — the audit gate is unblocked via Lane 2. F-183's blocker is superseded.
+
+### F-185 — THE 6L+2E SHIP AUDIT: BLOCKED lane (zen-free 429) then RESCUED on poolside-laguna-s (2026-10-03) — FIXED
+
+- **What happened:** the ship package's Phase A needs the mandatory code-audit artifact (GATE S7). The
+  default `muse-free` (4098) lane was day-capped (`429 FreeUsageLimitError`); the direct `poolside`
+  provider arg returned `OCR_JSON_ABSENT`. The named lane `poolside-laguna-s` (the F-184 Lane 2)
+  completed a REAL 424.9 s review of 4 files (session `5938c5e6-7eb0-4566-83d4-6b6d76db83d8`).
+- **Found:** the operator's ship-package request → Phase A ground-truth → the newest 6L+2E audit
+  artifact was Sep 28 and scope-mismatched (session `e0c136e3`).
+- **Root cause (lane):** the free zen lane's per-day cap is a hard (training-time) limit; the tool's
+  `provider` arg only accepts a `custom_providers` key, not an arbitrary lane string.
+- **Impact:** the audit gate was BLOCKED until the lane was named correctly; no 6L+2E ship claim was
+  possible without it.
+- **Disposition:** **FIXED** — audit completed on `poolside-laguna-s`; artifact
+  `/tmp/sg-ocr-728e6ceb94844450.json` (+ `artifacts/`); findings adjudicated (DEBUG_LOG EN-32). Verdict:
+  `GATE: FAIL (1 critical, 2 high)` → **0 critical/high OPEN** after the fixes (1 crit FIXED+PROVEN, 1
+  high FIXED, 1 high NOT-A-BUG documented, mediums FIXED).

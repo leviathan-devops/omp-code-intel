@@ -249,3 +249,99 @@ D-11 the v2.1 shape           src/omp/fire-gate.ts:196            (mpsePreFilter
 D-13 the thread interface     ~/.omp/threads/store.sqlite          (the standing-rule entry)
 D-15 the skill                ~/.omp/agent/managed-skills/derive-runtime-measurements/
 ```
+
+## ★ V2.2 DECISIONS (2026-09-26)
+
+| # | the decision | the reason |
+|---|---|---|
+| V2.2-1 | W1 is a PURGE, not a patch | a store with no `build_root` cannot be validated — only replaced. |
+| V2.2-2 | rule 3 returns the GLOB-PREFIX dirs, not the common ancestor | the ancestor (the repo root) made corbell walk the whole tree → RecursionError. |
+| V2.2-3 | gi-populate forces `--rebuild` when the store is absent | corbell-build's `rebuild=false` default skipped the scan on a never-built store → GRAPH_EMPTY. |
+| V2.2-4 | the W3 stamp uses the RAW sqlite3 channel for project-scope stores | the W3 seam routes through the session-path enforcement (correct for a session store, wrong for a project-scope store). |
+| V2.2-5 | the TSG ladder prefers jevk5 (GPU) → kev (CPU) → tsg | the operator's ruling R1/R2 (shift to GPU jevk5). |
+| V2.2-6 | ABIDE fail-OPEN · the CLAIM FIREWALL fail-CLOSED — never unified | the blueprint §9.4, verbatim. |
+| V2.2-7 | the semantica kg KEPT (the spec's "0 entities" refuted) | the artifact carried 5,450 entities; the deletion condition was not met. |
+
+---
+## V2.3 — THE DECISIONS (2026-09-28)
+
+- **D-V23-1 · the LSP over a hook:** the graph becomes a SENSE ORGAN via OMP's native LSP runtime,
+  not another tool the agent must choose. (The predicate: `lspDiagnosticsPerWrite ≥ 1`.)
+- **D-V23-2 · the Project `Database`, not a path:** the project-scope stores do NOT satisfy
+  `openTypedStore`'s session-store contract → the cards use the `*InDb` cores on a directly-opened db.
+- **D-V23-3 · the shared WALK_SKIP, one law:** every producer imports it; the PY/TS discovery
+  divergence is the class the fix kills.
+- **D-V23-4 · the lazy read-fallback (`resolveStateRel`):** `.gi/<rel>` wins, else any prior `.`-dir
+  with a `knowledge-graph/` — the de-brand needs NO `mv`; checkpoints keep reading.
+- **D-V23-5 · the polarity law held:** the Card-HUD + ABIDE fail-OPEN; the CLAIM FIREWALL fail-CLOSED.
+- **D-V23-6 · the meaning judge optional:** `fileCards({…, judge?})` — a down JevK5 → no MEANING
+  card (fail-open), never a broken editor.
+
+## 2026-09-29 — THE JEV DECISION LAYER + THE GUARDRAIL ROUND (the operator verdicts, verbatim)
+
+- **D-RULING-1 (THE JEV MANDATE, restated):** *"ALL DECISION MAKING TO BE DOEN THROUGH JEV"* ·
+  *"WHY ARE THESE NOT USING JEV TO MAKE INTELLIGENT DECISIONS"* · *"I EXPLICITLY SAID TO WIRE
+  FUCKING JEV AS THE INTELLIGENT DECISION MAKING LAYER"*.
+  **THE CONSEQUENCE:** the kernel's gate decisions MUST route through the Jev judge. The regex
+  is a DETECTOR (candidate-marking + signal extraction) — it never returns a verdict. The judge
+  returns `{choice, confidence}`; the enforcer is mechanical; every decision is ledgered.
+  THE MEASURED GAP: the judge is live (jevk5-4b, 104ms) and the adapters exist (src/omp/jev.ts +
+  adapters/jevk5.ts) — Jev decides in 3 places (the meaning card, the claim firewall, the card
+  HUD) and NOT in the 4 gates.
+
+- **D-RULING-2 (THE LOCKDOWN BAN):** *"we should NOT have any agent-loop breaking dumb features
+  like tool lockdowns or dumb shit like this"* + *"NO FUCKING DUMB LOCKDOWN GARBAGE"* (after the
+  FR-11 hook refused a legitimate quoted command in ANOTHER session).
+  **THE CONSEQUENCE:** any enforcement that can block a legitimate operation and disturb the loop
+  is BANNED unless it is (a) decision-layer-backed with a confidence, and (b) RECOVERABLE — the
+  refusal names the permitted form + the sanctioned tool, and the loop continues.
+
+- **D-RULING-3 (RECOVERABILITY):** *"everything needs to be recoverable"*.
+  **THE CONSEQUENCE:** the ACCEPTANCE GATE for every enforcement is the recoverability matrix —
+  for each gate: trigger it, read the message, follow the named remedy, confirm the work proceeds.
+
+- **D-RULING-4 (THE PROBE SET):** the FR-11 falsification (F-141) established that a misfire
+  discriminator measured on a narrow set of simple commands is UNMEASURED for the shapes that
+  break it. **THE CONSEQUENCE:** a misfire probe set is a DELIVERABLE and MUST contain the
+  breaking shapes — quoted args, `&&` chains, `--flag "value"`, the subshells, the redirects,
+  and the operator's exact broken command verbatim.
+
+- **D-RULING-5 (DEPLOYED IS NOT RUNNING):** F-142 measured that the extension's hooks bind at
+  SESSION CONSTRUCTION. **THE CONSEQUENCE:** a deploy without a clean-boot verification is
+  DEPLOYED-NOT-RUNNING; every live observation of a fix requires the restart first.
+
+---
+
+## THE JEV ROUND — THE RULINGS (2026-09-29)
+
+| # | the ruling | the basis |
+|---|---|---|
+| R1 | THE JUDGE IS THE DECIDER; the regex is a DETECTOR | the operator's mandate, verbatim |
+| R2 | The threshold is 0.5 (DERIVED), and a serve-argmax NEVER blocks | the corpus measured: the CHOICE separates, the confidence sets OVERLAP — so the bar sits at the argmax boundary (0.50), and only a refuse-argmax can block |
+| R3 | The polarity is PER SURFACE: the smoke gate fail-CLOSED (recoverable block), the doc-density fail-OPEN | a dead judge must not brick a doc write; the smoke block names its remedy |
+| R4 | The smoke candidate's QUESTION is "a genuine inline execution vs TEXT that contains the shape", NOT "is this a claim" | the tests + the block log: the STTGF's surface is the INLINE_EXEC shape; the first wiring (a claim question) broke 10 tests |
+| R5 | pbk-v2 gets its OWN judge client (`src/ext/tool-gate.ts`) — no cross-repo import into the live enforcement bundle | the bundle must be self-contained (the F-142-class fragility of a cross-repo path) |
+| R6 | The lazy boundary is at the FIRST USE, not the first import | F-144: `--external typescript` made the extension's LOAD depend on an optional package |
+| R7 | The deployed artifact's behavior is proven by the FAKE-PI HARNESS, not the source run | the corpus imports the SOURCE; the served bundle is a different artifact |
+
+## [2026-09-30] — the audit-scope rulings
+- "SCOPE THE AUDIT AT THE CHANGED FILES — diff files_reviewed against the round's file list BEFORE wiring; never assume coverage." (context: the artifact covered 2 pre-existing files with zero JEV overlap; rationale: an unwitnessed claim is void)
+- "A MALFORMED ARTIFACT IS PARSED, NOT DISCARDED — object-by-object recovery before declaring it unusable." (context: the multi-object break; rationale: the findings are evidence even when the envelope is broken)
+- "PRE-EXISTING FINDINGS ARE BACKLOG, NOT ROUND DEFECTS — record them with decline/owner, never silently drop, never fix out-of-scope." (context: all 10 findings predate the JEV diff; rationale: the wave-ownership law)
+
+## [2026-10-01] — the ladder rulings
+- "THE STUB IS AN EFFORT RECEIPT, NOT A CAPABILITY MEASUREMENT — report both runs, never the stub alone." (context: stub 13/13 vs live 8/13; rationale: model nondeterminism is the classic gap)
+- "AN UNADJUDICATED FAILURE IS OPEN — never a defect, never a probe error, until both sides are examined." (context: F-157's 5; rationale: the pressure-test adjudication law)
+
+
+## 2026-10-03 — DC-6L2E-AUDIT: the C2KG result ordering + the lane-key law
+- **RULING (EDGES-FIRST):** the C2KG adapter's `.facts()` returns EDGE facts before SYMBOL facts.
+  Rationale: the rung is *context* — its value is the RELATIONSHIP (`src predicate dst`), not the
+  symbol name. `symbolFacts.concat(edgeFacts).slice(0,50)` let 50 symbol matches starve every edge
+  (the round-2 audit's CRITICAL). The fix: `edgeFacts.concat(symbolFacts).slice(0,50)`.
+- **RULING (the lane-key law):** the code-audit provider arg takes a `custom_providers` KEY, never a
+  bare provider string. `provider=poolside` -> `OCR_JSON_ABSENT`; the working lane is the key
+  `poolside-laguna-s`. A rate limit is a signal to switch LANES, never to stall (Warhead 6 / F-184).
+- **RULING (guard the cast, not the fields):** `JSON.parse(...) as T` is an unchecked cast — the
+  parse-result OBJECT-NESS is a separate guard from the field-ARRAY-ness (F-346 fixed the array; the
+  critical fixed the object). Every untrusted `as T` is normalized before any property read.

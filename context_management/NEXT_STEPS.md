@@ -1,3 +1,35 @@
+<!-- 2026-10-03: the ship-package pass is closing; the 6L+2E is audited+deployed. -->
+# ★ CURRENT FOCUS — 2026-10-03
+1. The ship package: seal `Ship_Packages/gi-6l2e-…` (assembly + PACKAGE_AUDIT PASS).
+2. Deploy + hotseat: the extension is deployed (`879cbbf80b9d9682`); run the live hotseat next.
+3. Residuals (honest, low): the c2kg pipeline duplication (LOW audit); the corbell/graphify
+   per-test flake (raise the timeout or warm the CLI).
+
+# NEXT_STEPS — the queued work (as of 2026-09-30)
+
+## WAVE A — THE SCOPED-CLEAN AUDIT (host-suite leg: 15/15 stub + live; the audit artifact leg still BLOCKED) (the audit gate is BLOCKED)
+- done-when: `AUDIT GATE: PASS (0 critical/high)` quoted from `artifacts/sg-ocr-<new>.json` scoped at the JEV wire files (`jev.ts`, `gate-hook.ts`, `gate-control-set.ts`, `tool-gate.ts`, the 3 gate wirings, the lazy-compiler fix), single-JSON.
+- evidence: the artifact path + the session + the counts + the F/EN/V wiring.
+
+## WAVE B — THE RESIDUAL GATES (F-147 / F-150 / F-151)
+- F-147: put the tracker state into the judge's question so an escalated session still gets a verdict on the CURRENT command.
+- F-150: exclude metadata reads (`inspect`, `logs`, `top`, `port`) from CONTAINER_VERB_RE or route them through the judge as INFO.
+- F-151: the judge must distinguish "the text IS the act" from "the text DESCRIBES the act" (the ABIDE catalogue case).
+- done-when: each fixed + re-proven on the real path (the corpus + the proof re-run green).
+
+## WAVE C — PERMANENCE (the bridge + the TTSR deploy path)
+- the socat bridge as a systemd unit (or `--host 0.0.0.0` on jevk5-systemone.service); the TTSR rules deploy path into fresh rigs.
+- done-when: `systemctl is-active` after a restart + the container health probe ok.
+
+## WAVE D — THE PRE-EXISTING ledger-span
+- the events-ledger row schema (10 fields exactly) — proven pre-existing by stash.
+- done-when: the pbk suite reads 402/0.
+
+## THE RISK REGISTER
+- the audit lane intermittently returns OCR_JSON_ABSENT (retry, never upgrade to PASS).
+- the `nohup` socat bridge dies on reboot (WAVE C closes this).
+- the in-memory bundle holds until a clean boot (F-142 — document, never fight).
+
 # NEXT_STEPS — the W1-W9 wave plan + the risk register
 
 **The dist SHA: 04840c57105a7837d8c7b6411fbdb9d5c630182ea6917c3369231c6b216aed606918125a2b6be3bc37353d8bf6bd73f98b347b37e81ffd9b044f52f7c318a3065e0bd5bc3a4d0fae380b0716db024cd0044f52f7c318a3065e0bd5bc3a4d0fae380b0716db024cd04cfec2abe89bf9db3ac81066ef18a9c37fc3454cec6ddb264cfec2abe89bf9db3ac81066ef18a9c37fc3454cec6ddb264cfec2abe89bf9db3ac81066ef18a9c37fc3454cec6ddb26bcdede796c36144c4c5ea5ca05a4b6e44fb29dc242c48f24bcdede796c36144c4c5ea5ca05a4b6e44fb29dc242c48f24cf5e3903f63bfd3d0a846e3d83b39917d05d1c3e65b1b001e9f97a81a179fd995cfac412934e55c170e87a46740123fc062390e2a74c9030bf00c3300eb6afd144d39503509340e0506a15c873a3df28324da8eb35147460074279422bb7db7d0d2cf04f7a0bcf4a335244102fff15275fbdfa0c9392d50cbc51fad7a35b749d7ea871cc1f525a27f959d6f01c1c21babc51fad7a35b749d7ea871cc1f525a27f959d6f01c1c21babc51fad7a35b749d7ea871cc1f525a27f959d6f01c1c21baf927aeb9dfeaa067fd92327bfa26cc791740ad33901041e1c94c40a329ae170ba29f71b3c63c7f258b9b948ce09c8854ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2766927d21049bf60cfe0d99c2a242316e9e4fc04937e586a9f81e73e50cdea59102b27d8fc2a108db8e380a7dddf045f**
@@ -202,3 +234,85 @@ tsc 191 == baseline · every wave's named test green verified BY RE-RUNNING IT Y
 checkCalibrationHealth ok=true · MEASUREMENT_PLAN.md with ZERO TBD · PACKAGE_AUDIT PASS ·
 a checkpoint refreshed AFTER the seal exists.
 ```
+
+## ★ V2.2 NEXT STEPS (2026-09-26)
+
+**STATE:** the V2.2 rebuild is COMPLETE (D1-D8 green). The kernel self-populates from any target.
+
+**THE QUEUED WORK (for a future session — none blocking the V2.2 completion):**
+1. **L2_ARSUMBRIS scoping** — the au-engine lives at `~/.arsumbris/au-engine/run`; scope it per-target so the GI repo reads 8/8.
+2. **semantica on a foreign target** — install the `semantica` module into the venv so the L1 layer builds anywhere.
+3. **c2kg portability** — the Java producer resolves its toolkit target-relative; make it repo-relative so a foreign target can build L4.
+4. **the container rig** — ship the layer tooling (a slim corbell venv) so omp-ct-gi20 can self-populate.
+5. **the TTL tuning** — the SC-7 staleness TTL is short; a longer TTL (per derivation class) keeps a reading valid longer.
+6. **the 2 remaining battery failures** — the audit-coverage artifact (regenerate on each ship) + the buildregistry KEV-plant (updated for the jevk5 ladder).
+
+---
+## V2.3 — NEXT (2026-09-28)
+
+1. **S9/S12 close:** when the whole-tree audit completes, land the `AUDIT GATE:` line in TESTING_LOG;
+   the battery's 2 fails (`st-w3-audit` = the audit artifact; `st-artifact-coverage` = fixed by the
+   rebuild) resolve with it.
+2. **THE CONTAINER DOMAIN:** the runtime-testing ladder's domain 3 (omp-ct-gi20) — the LSP driven
+   on a real project in a clean rig.
+3. **A-2..A-6 of the claim firewall:** scoped in the spec; A-1 (the headline) is fixed.
+4. **The OMP-TUI consumption (S2):** observe the gi-lsp diagnostics through the live OMP client
+   (config-proven today; TUI-observation owed).
+
+
+---
+## ★ THE V2.3 SESSION UPDATE (2026-09-29) — dist sha256 4694b1323fcc6887…
+- **THE DIST**: `extensions/graph-intelligence/index.js` sha256 `4694b1323fcc6887…` (817806 B) — the deployed bundle,
+  sha-matched by `DIST.SHA256` in the seal.
+- **THE BATTERY**: 466 pass / 0 fail (unit) + 564 pass / 0 fail (script-test) via `bun run test`,
+  EXIT=0 · `bunx tsc --noEmit` EXIT-0.
+- **W0**: `bun scripts/graph-health.ts .` EXIT-0 — every layer >=90% in-scope (L1 100% · L2 100% ·
+  L3 100% · L4 99% · L5 97% · L6 100% · structural 100%).
+- **★ THE REFLEX: PROVEN** (`.omp/container-test-results.json`): the OMP runtime spawned
+  `bun /gi/scripts/gi-lsp.ts --stdio` on a write (pid 3352, parent = the pi-coding-agent runtime)
+  and the session records verbatim `diagnostics arrived after the edit returned:
+  /gi/scratch-reflex.ts — 1 error(s), 1 warning(s) · [gi-lsp/scope] · [gi-lsp/unwired]
+  reflexProbe — 0 callers` — WITH NO AGENT ACTION.
+- **THE AUDIT GATE**: PASS (0 critical / 0 high) — `ocr scan --provider muse-go` on the W6 firewall
+  (10 iterative passes; 9 fixes; the corpus 10 probes / ~67 attacks / ~80 controls, 0 leaks /
+  0 misfires). The graph family's PRE-EXISTING highs are the named remainder (DEBUG_LOG 32-34).
+- **S1-S12**: ALL GREEN (RECEIPT-V2.3.md §8 carries each reading; S5 was fixed this session —
+  `WALK_SKIP` now has 3 TS importers (`src/hunter/diagnostics/engine.ts:49` ·
+  `src/hunter/graph/corbell-adapter.ts:60` · `scripts/ua-ingest.ts:50`) + 2 aligned Python mirrors).
+- **THE SEAL**: `Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/` (full-tree: src 120 .ts · the
+  dist + SHA · the 11 canon · the 5 ship docs + the receipt · the CT artifact · the wave audit ·
+  the package).
+- **THE OPEN FRONTS**: the graph family's pre-existing highs · the aggregate audit scan's
+  OCR_RUN_DEGRADED (per-family scans operative) · the layersRoutedThroughLsp per-layer count ·
+  the c2kg layer's NAMED build failure (the refresh service exits 1 on 5/6 layers — the loud-fail
+  design).
+
+---
+
+## NEXT STEPS (the JEV layer — what remains, in order)
+
+1. **WIRE THE REMAINING 2 GATES** — the container gate (`middleware/container-gate.ts`) + the graph
+   gate (`src/omp/gate-middleware.ts` `runGraphGate`): the same candidate → judge → enforcer shape.
+2. **THE ESCALATE LADDER (F-147)** — put the tracker state into the judge's question so a session
+   already escalated still gets the judge's verdict on the CURRENT command.
+3. **THE HOST-BRIDGE (F-148)** — a socat forwarder so the container's gate can reach :8090 (the
+   in-container judge proof).
+4. **THE AUDIT GATE** — run the code-audit lane (ocr/qwen) over this round's diff; TESTING_LOG's
+   line is currently BLOCKED (honest). A FAIL blocks any ship-ready claim.
+5. **THE PRE-EXISTING `ledger-span` FAILURE** — the events-ledger row schema (10 fields exactly);
+   not this round's, but it keeps the pbk-v2 suite red.
+6. **THE RUNTIME SEAT, COMPLETED** — drive the live gate first-person in a session whose model lane
+   is healthy (the hub-spawn session stalled on DeepSeek/Verboo).
+
+---
+
+## ★ THE SWEEP STAMP (the final state — every earlier sha/claim above is HISTORICAL)
+
+- **THE LIVE omp-ct (the gate stack, the 4-GATE JEV WIRE): `6ec6036fe2f8278cdcf74eff…`**
+- **THE LIVE GI extension (the F-144 lazy-compiler fix): `e3802fab132566e729b77937…`**
+- **ALL FOUR GATES are WIRED** (the smoke · the doc-density · the container · the graph — each
+  consults the judge). Any earlier line reading "2 of the 4" is SUPERSEDED by this stamp.
+- **THE PROOFS (current):** the 40-case corpus **40/40 · judgeDown=0** · the 4-gate deployed
+  proof **10/10** · pbk `bun test ./tests/` **401/1** (the 1 PRE-EXISTING) · tsc **RC=0** both repos.
+- **THE LEDGER:** 1,182 rows, every one judge-bearing (~/.omp/run/gate-ledger.jsonl).
+- **THE SEAL:** `Checkpoints/gi-jev-decision-layer-1cb47863b810/` (the omp-ct sha within ≡ the live).

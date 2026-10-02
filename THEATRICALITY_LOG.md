@@ -1335,3 +1335,21 @@ before believing a judge verdict.
 false technical claim — the technical findings (F-160..F-170) each carry their artifact. The
 operator-caught count is the number to drive to zero; the countermeasure for this one is the
 standing rule: **when the evidence channel truncates, escalate to the source — never re-read.**
+
+### EN-T-19 — THE AUDIT-SCOPE THEATRE: a stale artifact nearly stood in for a current one (2026-10-03)
+
+- **THE ACT (self-corrected):** entering the ship pass, the newest 6L+2E code-audit artifact on disk
+  was `artifacts/sg-ocr-7d99a4f0aab46f00.json` (Sep 28, scope `src/omp/decision.ts` — a DIFFERENT
+  change). The green-looking instinct was to cite it as "the audit". It is NOT the 6L+2E audit; the
+  6L+2E work (Oct 2) had never been audited.
+- **THE SUBSTANCE CHECK:** the artifact's `files_reviewed` did not include any 6L+2E file; the version
+  it covered predates the change. A form-that-is-verification (an audit JSON on disk) standing in for
+  the verification (an audit OF THIS CHANGE).
+- **DISPOSITION:** **SELF-CORRECTED** — ran a fresh audit on the 6L+2E files (session `5938c5e6`),
+  which returned 1 critical + 2 high; adjudicated + fixed (EN-32); re-audited post-fix.
+- **THE LESSON:** "an artifact exists" is not "the artifact covers the change". Assert the artifact's
+  SCOPE against the change's file set before citing it — the S7 gate's `files_reviewed` read is the
+  mechanical guard.
+
+**THE SUMMARY SPLIT (this session): OPERATOR-CAUGHT: 0 · SELF-CORRECTED: 1 (this entry,
+EN-32) · BLOCKED-OPEN: 0.**

@@ -1,3 +1,31 @@
+<!-- 2026-10-03: the ship-package pass is closing; the 6L+2E is audited+deployed. -->
+# ★ CURRENT FOCUS — 2026-10-03
+1. The ship package: seal `Ship_Packages/gi-6l2e-…` (assembly + PACKAGE_AUDIT PASS).
+2. Deploy + hotseat: the extension is deployed (`879cbbf80b9d9682`); run the live hotseat next.
+3. Residuals (honest, low): the c2kg pipeline duplication (LOW audit); the corbell/graphify
+   per-test flake (raise the timeout or warm the CLI).
+
+# TASK_QUEUE — the gates + the evidence (as of 2026-09-30)
+
+## DONE (this round, each with its evidence)
+- [x] the 40-case corpus 40/40, judgeDown=0 — `/tmp/gate-control-set.json`
+- [x] the host proof 10/10 — `/tmp/deployed-gate-proof.ts` output
+- [x] the container proof 10/10 — the in-rig run + the 6-row ledger
+- [x] the red-team replay — 12 derailments caught, 6 negatives clean
+- [x] the bridge — 4 socat listeners, the container health ok
+- [x] the ship-docs gate — PASSED (see below)
+- [x] the audit artifact parsed + wired (EN-16..EN-25, F-154..F-156, V-2031, AUDIT GATE: BLOCKED)
+
+## ACTIVE
+- [x] the adversarial host suite 15/15 (stub + live) — /tmp/host-suite-jev.json
+- [ ] the scoped-clean audit artifact (WAVE A remainder) — owner: the next session; gate: the verdict line
+- [ ] F-147 / F-150 / F-151 (WAVE B) — owner: the next session; gate: the re-proven proof
+- [ ] permanence (WAVE C) — owner: the operator (unit decisions)
+
+## BACKLOG
+- [ ] the ledger-span schema (WAVE D)
+- [ ] the 12 coverage-gaps in DERAILMENT_CATALOGUE.md (identity/session, mock-as-proof, multi-writer, schema-spelling, starvation, containment, rename, deny-list, F-147/148/149/134)
+
 # TASK_QUEUE — gates, active, completed, blocked
 
 **The dist SHA: 04840c57105a7837d8c7b6411fbdb9d5c630182ea6917c3369231c6b216aed606918125a2b6be3bc37353d8bf6bd73f98b347b37e81ffd9b044f52f7c318a3065e0bd5bc3a4d0fae380b0716db024cd0044f52f7c318a3065e0bd5bc3a4d0fae380b0716db024cd04cfec2abe89bf9db3ac81066ef18a9c37fc3454cec6ddb264cfec2abe89bf9db3ac81066ef18a9c37fc3454cec6ddb264cfec2abe89bf9db3ac81066ef18a9c37fc3454cec6ddb26bcdede796c36144c4c5ea5ca05a4b6e44fb29dc242c48f24bcdede796c36144c4c5ea5ca05a4b6e44fb29dc242c48f24cf5e3903f63bfd3d0a846e3d83b39917d05d1c3e65b1b001e9f97a81a179fd995cfac412934e55c170e87a46740123fc062390e2a74c9030bf00c3300eb6afd144d39503509340e0506a15c873a3df28324da8eb35147460074279422bb7db7d0d2cf04f7a0bcf4a335244102fff15275fbdfa0c9392d50cbc51fad7a35b749d7ea871cc1f525a27f959d6f01c1c21babc51fad7a35b749d7ea871cc1f525a27f959d6f01c1c21babc51fad7a35b749d7ea871cc1f525a27f959d6f01c1c21baf927aeb9dfeaa067fd92327bfa26cc791740ad33901041e1c94c40a329ae170ba29f71b3c63c7f258b9b948ce09c8854ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2ef5da5ceaf9505520e8858ba5bb49a8815aac6deb5b9c0c2766927d21049bf60cfe0d99c2a242316e9e4fc04937e586a9f81e73e50cdea59102b27d8fc2a108db8e380a7dddf045f**
@@ -202,3 +230,22 @@ cd /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence && \
   cat context_management/COMPACTION_SURVIVAL.md
 # then read POST-COMPACTION_PROMPT.md and give the 5-line proof-of-context
 ```
+
+## ★ V2.2 QUEUE (2026-09-26) — the V2.2 rebuild is COMPLETE; this is the forward queue
+
+| # | task | priority |
+|---|---|---|
+| Q1 | scope L2_ARSUMBRIS per-target (the au-engine at ~/.arsumbris) | MED |
+| Q2 | install the `semantica` module into the venv (L1 anywhere) | MED |
+| Q3 | make the c2kg Java producer repo-relative (L4 anywhere) | MED |
+| Q4 | ship a slim corbell venv into the container rig | LOW |
+| Q5 | tune the SC-7 staleness TTL per derivation class | LOW |
+| Q6 | regenerate the audit artifact on each ship | LOW |
+
+---
+## V2.3 QUEUE (2026-09-28)
+- [x] W0 clean floor · W1 LSP · W2 wiring · W3 cards · W4 jev · W5 HUD · W6 firewall A-1 · W7 debrand · W8 persist · W9 rebuild
+- [ ] W9 audit: the `AUDIT GATE:` line (running)
+- [ ] the CONTAINER domain (omp-ct-gi20)
+- [ ] A-2..A-6 of the claim firewall (scoped)
+- [ ] the OMP-TUI consumption observation (S2)

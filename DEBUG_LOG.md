@@ -2571,3 +2571,30 @@ it ran 3 happy-path scenarios. THE PROPER SUITE (plan .omp/ct-plan-v2.md, 4587 c
 - **THE LESSON:** a per-gate patch leaves the next gate to be found by refusing real work. The
   countermeasure is systemic: every detector tests the ACTION view, every judge gets the fragment, every
   criteria enumerates its family.
+
+## EN-32 — THE 6L+2E AUDIT: a critical JSON-shape guard + the symbol-cap harden (2026-10-03)
+
+- **THE FINDING:** the ship-package audit (qwen-code-audit, `poolside-laguna-s` lane, session
+  `5938c5e6-7eb0-4566-83d4-6b6d76db83d8`, 424.9 s, 4 files) returned **1 critical + 2 high** across the
+  6L+2E changed files. The critical: `src/omp/adapters/c2kg.ts` parses `.c2kg/index.json` with
+  `JSON.parse(...) as C2kgIndex`; a **valid-JSON-but-non-object** payload (`null`, `42`, `"x"`, `[]`)
+  yielded a non-object and the very next read (`idx.symbols` / `idx.edges`) threw a RAW TypeError —
+  bypassing the `GI_LAYER_C2KG` contract. F-346 guarded a non-array `symbols`; it did not guard the
+  PARSE RESULT.
+- **THE REPRODUCTION:** `/tmp/c2kg-null-probe/.c2kg/index.json = "null"` → `c2kgProbe(root).facts("x")`.
+  BEFORE: raw TypeError at `idx.symbols`. AFTER: `NULL_GUARD_OK facts=0`.
+- **THE FIXES (all adjudicated-real, all in the shipped bundle):** `c2kg.ts` — normalize a non-object
+  parse result to `{}`; `.slice(0,50)` the symbol `hits` BEFORE `.map` (matches the edge path); narrow
+  the edge fields (`src/predicate/dst/confidence`) to typed. `consumption-audit.ts` — derive the
+  consumer count from `Object.keys(DOMAIN_SUBJECTS).length` (was hardcoded `8` ×3). `au-read.ts` — reject
+  the socket promise on early `close` (was a 20 s hang); fix the "partial frame" comment. The 2nd HIGH
+  (the `--gate` union accumulates across domain subjects) was **NOT-A-BUG**: the union IS the goal's
+  stated STOP condition — documented, contract-labeled.
+- **THE VERIFICATION:** `bunx tsc --noEmit` EXIT-0; `tests/st-gi-6l2e.test.ts` **30/30 ×3 runs** (one
+  transient 28/30 flake in an earlier run, not reproduced); `consumption-audit . --gate` → `union=8/8`
+  EXIT-0 (derived count prints "all 8"); rebuild `extensions/graph-intelligence/index.js` sha
+  `728e6ceb94844450` == deployed; the null probe `NULL_GUARD_OK facts=0`.
+- **THE LESSON:** the parse-result object-ness is a SEPARATE guard from the field-array-ness. A
+  `JSON.parse(...) as T` is an unchecked cast — the same class F-815 fixed one level down. Guard the
+  cast, not just the fields.
+

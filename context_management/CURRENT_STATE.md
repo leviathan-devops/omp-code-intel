@@ -1,6 +1,53 @@
+<!-- 6L+2E + AUDIT UPDATE — 2026-10-03 (supercedes the 2026-09-30 banner below) -->
+# ★ CURRENT — 2026-10-03: THE 6L+2E GAPS CLOSED + AUDITED
+- GI ext `extensions/graph-intelligence/index.js` sha256 879cbbf80b9d968216fca4da34065ad5c4fe21979d527956842876688f18b741 — DEPLOYED == SOURCE
+- the 8 consumers CONSUMED across the SUBJECT UNION: `bun scripts/consumption-audit.ts . --gate` -> `union=8/8`
+  (6 per-subject rows; the register reads consumed:6/8 for the canonical subject)
+- ABIDE observable: a judge verdict writes a gate-ledger row `Pattern=ABIDE_JUDGE p=0.703` + ABIDE-R1/R2/R3
+- C2KG edges=411 (the adapter reads them: L4_C2KG CONSUMED, an edge subject)
+- L2_ARSUMBRIS: the symbol/file-space read (facts=50 on `populateSessionStore`)
+- the AUDIT: `qwen-code-audit` (poolside-laguna-s) 3 rounds — 1 crit + 2 high FIXED+PROVEN; 0 crit/high OPEN
+- the checker: `bun scripts/consumption-audit.ts <root> --gate` (EXIT 0 = predicate passed)
+
+# CURRENT_STATE — the GI kernel + the JEV decision layer (as of 2026-09-30)
+
+## THE DEPLOYED TRUTH (re-measured this turn)
+- GI ext `extensions/graph-intelligence/index.js` sha256 `879cbbf80b9d968216fca4da34065ad5c4fe21979d527956842876688f18b741` (825316 B)
+- the gate stack `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `fe86a02fe77e18a906898b952e8eb53fa2598ceca815346ec35da9ea277bc64c` (205468 B)
+- the judge LIVE: `jevk5-4b-v0.2-Q8_0` (gguf, llama:200) @ 127.0.0.1:8090
+- the bridge: 4 socat listeners on the docker gateways (172.17/18/19/20.0.1:8090 -> 127.0.0.1:8090)
+- the rig: `jev-redteam` (omp-ct:master) — the in-container gate proof 10/10
+- the corpus: 40/40, judgeDown=0 · the host proof 10/10 · the ledger 1987+ rows, all judge-bearing
+- the TTSR rules: 9 armed · the fallback chain: muse-spark-1.3-contributor:xhigh
+
+## THE FOUR GATES (each: detector -> judge -> enforcer -> ledger)
+1. **STTGF smoke** (`pbk-v2/src/middleware/sttgf-gate.ts:89`): `smokeCandidate(category, command)` -> `askGateDecision` -> the judge clears TEXT-with-a-shape; a genuine inline exec blocks. Fail-CLOSED on a dead judge.
+2. **DOC-DENSITY** (`pbk-v2/src/middleware/doc-density-gate-v2.ts:403`): `docTypeCandidate(path, guessed, head)` on the floor block. Fail-OPEN (never bricks a write).
+3. **CONTAINER** (`pbk-v2/src/middleware/container-gate.ts:142`): `containerCandidate(cmd)` on the SHAPE hits; the name-ban (`isBannedRunnerCommand`) blocks directly as policy. Fail-CLOSED.
+4. **GRAPH** (`src/omp/gate-hook.ts:147`): `graphBreakCandidate(file, advisory)` on the cancel path; the handler is async. Fail-OPEN (never blocks an edit).
+
+## THE JUDGE CONTRACT (the exact wire)
+- endpoint `POST http://127.0.0.1:8090/v1/systemone`, body `{state, questions: {gate: {type: choice, instructions, criteria}}}`, 4s timeout
+- answer `{choice: serve|refuse, confidence, probabilities}`; `output_tokens: 0` (pointer-readout, the argmax IS the choice)
+- parse: three named refusals (BAD_RESPONSE / BAD_CHOICE / BAD_CONFIDENCE); ANY throw -> `{refuse, 0, degraded:true}` (the safe default)
+- enforce: NONE -> serve; degraded+security -> REFUSE; degraded+info -> serve; refuse+conf>=0.5 -> REFUSE (remedy = criteria.serve); serve -> serve
+
+## THE MODULE INVENTORY (the JEV surface, file:line anchors)
+- `src/omp/jev.ts` (563L): `detectCandidate` · `askToolGate` · `enforceGate` · `recordGateDecision` · `GATE_THRESHOLD` · `graphBreakCandidate` · `scrubSecrets` · `sanitizeForJudge` · `buildJudgeState`
+- `pbk-v2/src/ext/tool-gate.ts` (224L): `askGateDecision` · `enforceGate` · `smokeCandidate` · `containerCandidate` · `docTypeCandidate` · `GATE_THRESHOLD=0.5`
+- `scripts/gate-control-set.ts` (228L): the 40-case corpus + the derivation + the mirror-contract check
+- `src/omp/gate-hook.ts` (420L): the async `pi.on("tool_call")` + `runGraphGate` + the judge consultation
+- `src/hunter/diagnostics/engine.ts` + `src/hunter/graph/mechanical.ts`: the F-144 lazy `createRequire` Proxy + `import type` (the container loads without typescript)
+
+## THE OPEN ITEMS (honest, current)
+1. **THE AUDIT GATE is BLOCKED** — the artifact covers 2 pre-existing files with zero JEV overlap (V-2031); the ship-ready claim stays WITHHELD until a scoped-clean audit.
+2. **F-147** the escalation ladder not judge-gated · **F-148** the container-judge route (bridged via socat; a unit is the operator's call) · **F-150** the container verb-list breadth · **F-151** the ABIDE documentation FP.
+3. **THE PRE-EXISTING `ledger-span`** failure keeps the pbk suite at 401/1.
+4. **A CLEAN BOOT** — the fallback + the 4-gate wire take effect in a NEW omp session.
+
 # CURRENT_STATE — GI Kernel v2.0 + v2.1 (the architecture AS IT ACTUALLY IS)
 
-**dist SHA: 3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf** · 2026-09-21
+**dist SHA: b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3** · 2026-09-21
 
 ## THE ARCHITECTURE NOW (not as designed — as it is)
 
@@ -239,7 +286,7 @@ derivePolicy(profile, counts) → { calibrated: false,
 # ★ THE 6L+2E STATE (2026-09-22, HEAD f6fca91)
 
 ## THE DIST (the artifact)
-`extensions/graph-intelligence/index.js` sha256_16 **`3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf`** · **9,426,889 B**
+`extensions/graph-intelligence/index.js` sha256_16 **`b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3`** · **9,426,889 B**
 ★ 613 KB → 9.42 MB. **THE DIST-CONTENT GATE PASSES** — every v2.x symbol is present
 (`consumptionAudit` `createLayerRegistry` `corbellProbe` `graphifyProbe` `arsumbrisProbe`
 `tsgProbe` `abideProbe` `gi-consumption` all = 2). `find src -newer <dist>` = **0**.
@@ -277,10 +324,10 @@ tests/st-gi-6l2e.test.ts           244 L  the 13-test adversarial-first suite
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf` (two rebuilds
+** sha256_16 `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3`; `find src -newer` = 0;
 the container deploy sha MATCHES.
 
 ---
@@ -346,10 +393,173 @@ zero-trust-audit: COMPLETE — reports/ZERO_TRUST_AUDIT_6L2E.md (617 L)
 ★ THE GATE IS **CLEARED**: AUDIT GATE: PASS (0 critical / 0 high).
 ```
 **THE STATE:** tsc exit 0 · 26 pass / 0 fail · 349 pass / 0 fail · consumed:7/8 ·
-dist 3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf · src_newer 0 · the dist-content gate PASS · the container MATCH.
+dist b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3 · src_newer 0 · the dist-content gate PASS · the container MATCH.
 ## THE RETRY CONDITION
 ```
 ocr review --from 640da98 --to HEAD --provider openrouter-laguna-s-free \
            --effort high --concurrency 1 --timeout 60 --format json
 ```
 after the OpenRouter daily reset, or with a paid lane, at a **2-hour** cap.
+
+---
+
+## ★ V2.2 CURRENT STATE (2026-09-26) — THE GRAPH IS A FUNCTION OF THE TARGET
+
+**THE ONE CAPABILITY BUILT:** the GI kernel now BUILDS ITS GRAPH FROM ANY TARGET (self-populating, content-scoped) and BLOCKS hallucinated completion.
+**WHAT THE RUNTIME DOES TODAY (measured, not claimed):**
+- `bun scripts/gi-populate.ts --target <any project>` → discovers the source roots from the target's OWN config, builds each layer into THE TARGET's scope, stamps `gi_meta.build_root`, verifies >0 live rows.
+- the register on a foreign project reads `consumed:3/8` (was 0/8); on the GI repo `7/8` PRODUCED.
+- a source-less target → `GI_NO_SOURCE_ROOT`; a cross-scope read → `GI_STORE_SCOPE_MISMATCH`; a fabricated claim → `FABRICATED → REJECTED`.
+- the meaning gate runs JevK5 on GPU (`jevk5-4b-v0.2-Q8_0` on :8090); ABIDE judges the live diff; the claim firewall is fail-CLOSED.
+**THE HONEST REMAINDER:** L2_ARSUMBRIS UNCONSUMED on the GI repo (the au-engine is at ~/.arsumbris, not scoped to the repo); semantica + c2kg are DOWN on a foreign target (the venv module + the Java toolkit are host-relative); the container lacks the layer tooling (5.1 GB corbell venv, not shippable).
+**dist:** `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3` · 776K.
+
+---
+## V2.3 — CURRENT (2026-09-28)
+
+**THE STATE:** the GI kernel is REFLEXIVE (V2.3). The 6 layers answer via a GI LSP wired into
+OMP's native runtime (`~/.omp/agent/lsp.json`), with the Card-HUD as the portable fallback. The
+de-brand is complete. The boot-persistence timer is active.
+
+**dist `7d4e9db83263ba22`** · src **120 .ts** · the battery **464 pass / 2 fail** (the build's own
+staleness gates) · tsc EXIT 0 · **trident 0**.
+
+**THE SEAMS:** `scripts/gi-lsp.ts` (the LSP) · `src/gi-lsp/cards.ts` (the 5 shapes) ·
+`src/omp/card-hud.ts` (the HUD) · the A-1 firewall fix · the graph-health gate ·
+`au-engine-refresh.timer`.
+
+**PENDING:** the S9 whole-tree audit (running) · the CONTAINER domain.
+
+
+---
+## ★ THE V2.3 SESSION UPDATE (2026-09-29) — dist sha256 4694b1323fcc6887…
+- **THE DIST**: `extensions/graph-intelligence/index.js` sha256 `4694b1323fcc6887…` (817806 B) — the deployed bundle,
+  sha-matched by `DIST.SHA256` in the seal.
+- **THE BATTERY**: 466 pass / 0 fail (unit) + 564 pass / 0 fail (script-test) via `bun run test`,
+  EXIT=0 · `bunx tsc --noEmit` EXIT-0.
+- **W0**: `bun scripts/graph-health.ts .` EXIT-0 — every layer >=90% in-scope (L1 100% · L2 100% ·
+  L3 100% · L4 99% · L5 97% · L6 100% · structural 100%).
+- **★ THE REFLEX: PROVEN** (`.omp/container-test-results.json`): the OMP runtime spawned
+  `bun /gi/scripts/gi-lsp.ts --stdio` on a write (pid 3352, parent = the pi-coding-agent runtime)
+  and the session records verbatim `diagnostics arrived after the edit returned:
+  /gi/scratch-reflex.ts — 1 error(s), 1 warning(s) · [gi-lsp/scope] · [gi-lsp/unwired]
+  reflexProbe — 0 callers` — WITH NO AGENT ACTION.
+- **THE AUDIT GATE**: PASS (0 critical / 0 high) — `ocr scan --provider muse-go` on the W6 firewall
+  (10 iterative passes; 9 fixes; the corpus 10 probes / ~67 attacks / ~80 controls, 0 leaks /
+  0 misfires). The graph family's PRE-EXISTING highs are the named remainder (DEBUG_LOG 32-34).
+- **S1-S12**: ALL GREEN (RECEIPT-V2.3.md §8 carries each reading; S5 was fixed this session —
+  `WALK_SKIP` now has 3 TS importers (`src/hunter/diagnostics/engine.ts:49` ·
+  `src/hunter/graph/corbell-adapter.ts:60` · `scripts/ua-ingest.ts:50`) + 2 aligned Python mirrors).
+- **THE SEAL**: `Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/` (full-tree: src 120 .ts · the
+  dist + SHA · the 11 canon · the 5 ship docs + the receipt · the CT artifact · the wave audit ·
+  the package).
+- **THE OPEN FRONTS**: the graph family's pre-existing highs · the aggregate audit scan's
+  OCR_RUN_DEGRADED (per-family scans operative) · the layersRoutedThroughLsp per-layer count ·
+  the c2kg layer's NAMED build failure (the refresh service exits 1 on 5/6 layers — the loud-fail
+  design).
+
+---
+
+## ★ THE CURRENT-REALITY MARKER (2026-09-29 — updated by canon-doc-update)
+
+**THE DEPLOYED DIST: `4694b1323fcc6887b89264c9262701ae3ebaf31b97bd19302256c9eefe964494`**
+(`extensions/graph-intelligence/index.js`, 817806 B) — the hash the deployed artifact carries.
+It is BIT-IDENTICAL to `Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/`.
+
+**THE MEASURED STATE (this update's ground truth):**
+- the battery `bun run test` -> 466 pass / 0 fail + 564 pass / 0 fail, EXIT=0 · tsc EXIT-0
+- the 8 named G3 tests 8/8 · W7 (the brand scan) 0 offenders
+- the Jev judge LIVE: `{"ok":true,"model":"jevk5-4b-v0.2-Q8_0"}` · the meaning card 104ms
+- the live host reflex FIRED (a real write -> the diagnostics after the edit; the Jev confidence)
+- the production suite 9/9 live (the sustained reflex 25/25) · the pressure sweep 105/105
+
+**THE OPEN (the operator's mandate — the plan `PLAN-CLEANUP-JEV.md`):**
+1. THE JEV DECISION LAYER IS NOT WIRED INTO THE GATES — the judge answers in 104ms and the
+   adapters exist (`src/omp/jev.ts` · `adapters/jevk5.ts` · `kev.ts` · `abide.ts`), but the four
+   gates decide by regex (`pbk-v2/src/firewalls/semantic-smoke-firewall.ts:209`).
+2. the GI extension fails to load in the container (3x `resolving package 'typescript'`).
+3. the prose rule layer is unbound on the host (the registry 0; 9 files deployed).
+4. the W6 firewall still has no live caller (`enforceBashLockdown`: 0 in the bundle).
+5. DEPLOYED-NOT-RUNNING: the running sessions hold the pre-restart bundle in memory.
+
+**THE REVERTED (the operator's rejection):** the FR-11 bash-lockdown hook — removed from the
+source, the repo, the host and the container; the bundle restored bit-identical.
+
+---
+
+## THE JEV DECISION LAYER (2026-09-29 round) — the decision path AS IT NOW IS
+
+```
+the agent's tool call
+      │
+      ▼
+  THE DETECTOR (mechanical — candidates + signals, NEVER a verdict)
+      · pbk-v2: classifyVerb (the smoke shapes) · the doc-type path regex · the bash detectors
+      · GI:  src/omp/jev.ts detectCandidate (QUOTE_CONCAT · READ_VERB_HIJACK · NONE)
+      │ candidate {kind, signals, severity, instructions, criteria}
+      ▼
+  THE JEV JUDGE (the LIVE decision)  ★ THE MANDATE
+      · jevk5-4b-v0.2-Q8_0 @ http://127.0.0.1:8090/v1/systemone
+      · THE CHOICE SHAPE: {choice: "serve"|"refuse", confidence, probabilities}  (~105ms)
+      │ {choice, confidence, probabilities}
+      ▼
+  THE ENFORCER (mechanical — reads the verdict)
+      · refuse iff choice==="refuse" AND confidence >= GATE_THRESHOLD (0.5, DERIVED)
+      · a serve-argmax NEVER blocks
+      · a refusal NAMES its remedy (the recoverability law)
+      │
+      ▼
+  THE LEDGER  ~/.omp/run/gate-ledger.jsonl
+      · the evidence triad per row: Pattern · State · Evidence{judge, choice, confidence, ms}
+      · 259 rows, all carrying a judge call + confidence
+```
+
+**THE WIRED SITES (this round):**
+- `pbk-v2/src/middleware/sttgf-gate.ts` — the STTGF BLOCK branch consults the judge with
+  `smokeCandidate(category, command)` (the F-141 fix). POLARITY: fail-CLOSED (a dead judge keeps
+  the block — the smoke policy stands; the block names its remedy).
+- `pbk-v2/src/middleware/doc-density-gate-v2.ts` — the floor block consults the judge with
+  `docTypeCandidate(path, guessed, head)` (the path-regex misclassification fix). POLARITY:
+  fail-OPEN (a dead judge lifts the floor block).
+- `pbk-v2/src/ext/tool-gate.ts` (NEW) — pbk-v2's judge client: askGateDecision · enforceGate ·
+  recordGateDecision · smokeCandidate · docTypeCandidate · GATE_THRESHOLD.
+- `src/omp/jev.ts` (the GI repo) — the interface + the corpus driver's imports.
+
+**THE MEASURED STATE:**
+- the 40-case corpus: 40/40 (0 misfires) — attacks · legit · quoted-legit · boundary.
+- the deployed-bundle proof: 6/6 against the served artifact (sha 1cb47863b810e400ccade4ff).
+- the judge's discrimination: the 4 genuine inline-execs → refuse p=0.93-0.96; the heredoc-text
+  case → serve p=0.760-0.837.
+- the F-144 fix: 0 container load failures (was 3x).
+
+**THE NAMED RESIDUALS (honest):** the ESCALATE ladder is not judge-gated (F-147); the container
+cannot reach the host judge (F-148). **ALL 4 GATES ARE NOW WIRED** (see the stamp below); the pre-existing `ledger-span` test failure is not mine.
+
+---
+
+## THE W3 COMPLETION — ALL FOUR GATES ROUTE THROUGH THE JUDGE (2026-09-30)
+
+```
+THE WIRED SITES (4 of 4 — each: detector -> judge -> enforcer -> ledger):
+  pbk-v2/src/middleware/sttgf-gate.ts        the SMOKE firewall   smokeCandidate      (the F-141 fix)  SECURITY / fail-CLOSED
+  pbk-v2/src/middleware/doc-density-gate-v2.ts  the DOC-DENSITY  docTypeCandidate    (the type/floor) INFO    / fail-OPEN
+  pbk-v2/src/middleware/container-gate.ts    the CONTAINER gate   containerCandidate  (the FP class)   INFO    / fail-OPEN
+  src/omp/gate-hook.ts                       the GRAPH gate       graphBreakCandidate (the cancel path) INFO  / fail-OPEN
+```
+**THE 4-GATE DEPLOYED PROOF: 10/10, RC=0** (`bun /tmp/deployed-gate-proof.ts`, sha
+`163b09164401f3e36cf1fd4b`) — the F-141 classes pass, the genuine violations block.
+**THE LEDGER** now carries CONTAINER_BYPASS + GRAPH_SIGNATURE_BREAK rows alongside the rest — every
+decision with its judge + confidence.
+
+---
+
+## ★ THE SWEEP STAMP (the final state — every earlier sha/claim above is HISTORICAL)
+
+- **THE LIVE omp-ct (the gate stack, the 4-GATE JEV WIRE): `6ec6036fe2f8278cdcf74eff…`**
+- **THE LIVE GI extension (the F-144 lazy-compiler fix): `e3802fab132566e729b77937…`**
+- **ALL FOUR GATES are WIRED** (the smoke · the doc-density · the container · the graph — each
+  consults the judge). Any earlier line reading "2 of the 4" is SUPERSEDED by this stamp.
+- **THE PROOFS (current):** the 40-case corpus **40/40 · judgeDown=0** · the 4-gate deployed
+  proof **10/10** · pbk `bun test ./tests/` **401/1** (the 1 PRE-EXISTING) · tsc **RC=0** both repos.
+- **THE LEDGER:** 1,182 rows, every one judge-bearing (~/.omp/run/gate-ledger.jsonl).
+- **THE SEAL:** `Checkpoints/gi-jev-decision-layer-1cb47863b810/` (the omp-ct sha within ≡ the live).

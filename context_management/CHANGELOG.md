@@ -198,3 +198,105 @@ the measurement   the checkpoint's artifacts/jev-kernel/measurement-14-case.json
 the skill         ~/.omp/agent/managed-skills/derive-runtime-measurements/
 the threads       omp/threads/store.sqlite (system-debugging EN-001..047 · copilot-intelligence)
 ```
+
+## [2026-09-26] V2.2 — THE GRAPH IS A FUNCTION OF THE TARGET
+- **W1** the 2 ghost stores purged (a store that describes a dead tree is worse than none).
+- **W2** `discoverSourceRoots(target)` — 5 rules; the graph is a function of the target (Understand-Anything 739 nodes, was GRAPH_EMPTY). FIXED: rule 3 returned the tsconfig common ancestor (the repo root) → corbell's RecursionError; now the glob-prefix dirs.
+- **W3** `setBuildRoot` + `assertStoreScope` — every store asserts its build root; a cross-scope read is a NAMED refusal.
+- **W4** `gi-populate --target X` — the self-populate path; a fresh project populates into ITS OWN scope. FIXED: corbell-build's `rebuild=false` default skipped the scan on a never-built store.
+- **W5a** JevK5 wired as the TSG meaning-gate default (GPU → KEV → tsg CLI).
+- **W5b** ABIDE judges the CURRENT diff live (the ledger read is the offline fallback).
+- **W5c** the claim firewall (L2) — fail-CLOSED; a claim with no THIS-TURN span is FABRICATED → REJECTED.
+- **the capability measure:** a foreign project 0/8 → 3/8; the GI repo 7/8 PRODUCED.
+
+---
+## 2026-09-28 — V2.3 THE REFLEXIVE KERNEL (the GI LSP)
+
+**WHAT SHIPPED:** a GI LSP server (`scripts/gi-lsp.ts`, stdio JSON-RPC) backed by the 6 layers,
+registered in OMP's native runtime (`~/.omp/agent/lsp.json`); the 5 fact-card shapes
+(`src/gi-lsp/cards.ts`); the Card-HUD fallback (`src/omp/card-hud.ts`); the JevK5 MEANING route;
+the claim-firewall A-1 fix (the negated-span hole); the de-brand (53 → 0, with a lazy read-fallback);
+the boot-persistence timer + the TTL widen.
+
+**THE DIST:** `b2ab09acc77684e4` → `7d4e9db83263ba22` (810129B).
+
+**THE HEADLINE MEASURE:** reflex `lspDiagnosticsPerWrite = 18` (a real file → 18 diagnostics, no
+agent action) · a MEANING card with confidence 0.514 · `layersRoutedThroughLsp = 6`.
+
+**THE ROOT CAUSE FIXED (W0):** the structural PY/TS discovery divergence → 70453 → 7866 nodes.
+
+**THE DEFECTS (12):** `host-test-failure-log.md`. **THE LIVE GATES:** 4 fired on the session
+(graph ×16 · ABIDE ×9 · doc ×5 · STTGF ×1) — `reports/GRAPH_GATE_live_forensic.md`.
+
+## [2026-09-29] — THE JEV-MANDATE + GUARDRAIL ROUND
+- **ACCOMPLISHED:** F-133..F-144 logged (the complete failure data); PLAN-CLEANUP-JEV.md (197L,
+  6 phases, 8 criteria); reports/JEV_DECISION_LAYER_ShowMe.md (276L, ruler-passed); the rejected
+  FR-11 hook removed and the bundle restored bit-identical (4694b1323fcc6887); the smoke
+  detector's over-breadth + the interpreter family fixed at the SOURCE in pbk-v2.
+- **DECISIONS (verbatim):** the Jev mandate (ALL decision-making through the judge); the lockdown
+  ban; recoverability as the acceptance gate; the probe set as a deliverable; deployed != running.
+- **FAILURES + ROOT CAUSE:** F-141 (my hook refused a legit quoted command — the misfire probe
+  SET was too narrow); F-140 (the gates decide by regex while the judge sits unused); F-142 (the
+  in-memory bundle); F-143 (the prose layer unbound); F-144 (the container load failure).
+- **HONEST DISCLOSURES:** the container proofs of the GI hooks this session are VOID (the
+  extension never loaded there — F-144). The W6 firewall's 9 fixes + the 56-case corpus guard
+  nothing on the live path (F-133). The running sessions hold stale bundles (F-142).
+- **EVIDENCE:** the battery 466+564/0 EXIT=0; the production suite 9/9 live; the pressure sweep
+  105/105; the judge live at 104ms; the bundle == the checkpoint bit-identical.
+
+---
+
+## [2026-09-29] THE JEV DECISION LAYER — the wire lands (W1-W5 + the F-144 close)
+
+- **W1** `src/omp/jev.ts` +217L: `detectCandidate` (the regex DEMOTED) · `askToolGate` (the LIVE
+  choice call) · `enforceGate` (the threshold + the polarity) · `recordGateDecision` (the ledger) ·
+  `GATE_THRESHOLD` (the DERIVED bar).
+- **W2** the live judge contract verified: the `choice` shape returns `{choice, confidence,
+  probabilities}` in ~105ms; the `noul` shape in ~385ms (the choice shape is the gate's).
+- **W3** pbk-v2 wired: `src/ext/tool-gate.ts` (NEW) + `sttgf-gate.ts` (the smoke consultation) +
+  `doc-density-gate-v2.ts` (the doc-type consultation).
+- **W4** `scripts/gate-control-set.ts` (NEW): the 40 cases + the threshold derivation → 40/40.
+- **W5** the F-144 lazy-compiler fix: `hunter/diagnostics/engine.ts` + `hunter/graph/mechanical.ts`
+  (the type-only namespace + a lazy `createRequire` Proxy) → the container's 0 load failures.
+- **THE DEPLOYS** pbk-v2 → omp-ct `1cb47863b810e400ccade4ff`; the GI extension →
+  `db9252e48f519a718ec8`; both into the container.
+- **THE PROOFS** the corpus 40/40 · the deployed bundle 6/6 · the ledger 259/259 judge-bearing ·
+  GI tsc RC=0 · pbk-v2 401/1 (1 pre-existing).
+
+## [2026-09-30] — THE FULL DOC PASS (ship-docs + canon + the audit-scope finding)
+- ACCOMPLISHED: DEBUG_LOG EN-16..EN-25 (the audit's 10 findings, adjudicated pre-existing); FAILURE_LOG F-154 (audit-scope mismatch), F-155 (malformed artifact), F-156 (batch-3 recap stall); SPEC_VIOLATION V-2031 (audit-scope VIOLATED MEDIUM); TESTING_LOG (the audit-gate plan PENDING + the JEV battery results + AUDIT GATE: BLOCKED); BUILD_REPORT (the JEV milestone with the audit citation); THEATRICALITY (the scope-mismatch catch + the malformed-artifact parse, SELF-CORRECTED 2 / OPERATOR-CAUGHT 0).
+- DECISIONS (verbatim): "an audit whose scope misses the changed files is a SCOPE finding, not a clean bill" — the gate stays BLOCKED per the degraded-run law; "a BLOCKED run is NEVER reported as PASS."
+- FAILURES + ROOT CAUSE: the artifact is multi-object (a second payload after the closing brace) — naive json.load crashes; the scope missed the wire — the next run must pin the JEV file list.
+- HONEST DISCLOSURES: the ship-ready claim stays WITHHELD; the JEV wire itself has NO audit verdict yet.
+
+## [2026-10-01] — THE HOST-SUITE LADDER (stub 13/13, live 8/13) + the doc pass
+- ACCOMPLISHED: the host suite stub 13/13 green; the --live run 8/13 with 5 named failures (F-157 OPEN, each needs adjudication); the canon U-gates green (3 stale SHAs fixed); the ship-docs gate inputs complete.
+- DECISIONS: "stub-green is never promoted to a live claim" — the ladder demands both runs; "the 5 live failures are OPEN, not defects, until adjudicated."
+- FAILURES: F-157 (the 5) · F-158 (the rig DOWN, the bridge gone — re-stand + re-bridge before any container leg).
+- HONEST: the JEV gate evidence stands (the corpus/proof/ledger); the host-suite leg is partial.
+
+## [2026-10-01] — THE ADVERSARIAL HOST SUITE (15/15 stub, 15/15 live after adjudication)
+- ACCOMPLISHED: `scripts/host-suite-jev.py` (180L) covering every irilement pattern; stub 15/15; live 13/15 -> F-159 (both probe errors) -> 15/15.
+- DECISIONS: "a stable 3/3 refuse proves the probe is STABLE, not that the code is broken."
+- HONEST: the suite probes the judge contract + the artifacts, not the TTSR stream layer (a separate surface).
+
+## [2026-10-01] — THE SHIP PACKAGE (gi-jev-decision-layer v1, committed + tagged)
+- SHIPPED: `JARVIS_WORKSPACE/SHIP_PACKAGES/gi-jev-decision-layer/` (the routed dir, not the gitignored per-project dir) — commit `bb56147` on heads/v4.7, tag `ship/gi-jev-decision-layer-v1`.
+- THE PACKAGE: the 2 dists + the full src + the 6 ship docs + the 12 canon docs + scripts/tests + BUILD_REPORT 2026L + DEBUG_LOG 1376L + FULL_BUILD_CONTEXT 2309L + MASTER_INDEX (5282 files) + PACKAGE_AUDIT **PASS** + DEPLOY.sh (the SHA-verify loop) + the boilerplate + GIT_HISTORY + the Checkpoints.
+- THE GATES: ship-docs PASSED · canon U1-U4 PASSED · PACKAGE_AUDIT PASSED · the audit gate BLOCKED (carried, not hidden).
+
+
+## 2026-10-03 — THE SHIP PACKAGE: the 6L+2E audited, hardened, sealed
+- Accomplished: the full ship-package pass for the 6L+2E gaps-closed work. The mandatory audit (3
+  rounds on `poolside-laguna-s`); the confirmed-real fixes (1 crit: the c2kg null-parse guard + c2kg
+  cap-ordering; 2 high: the au-read frame + the same cap-ordering; mediums: the derived consumer count,
+  the au-read settled guard, the edge-field narrowing, the declared `edges` interface, the symbol cap);
+  re-verify (tsc EXIT-0, 6L2E 30/0, union=8/8); native assembly; deploy; hotseat.
+- Evidence: deployed `879cbbf80b9d9682…` == source; `AUDIT GATE: PASS (0 critical/high OPEN)`;
+  `union=8/8` EXIT-0; the null probe `NULL_GUARD_OK facts=0`.
+- Decisions: EDGES-FIRST in the C2KG result (the context rung's value is the relationship); the audit
+  lane must be a `custom_providers` KEY (`poolside-laguna-s`), never a bare provider string.
+- Failures + root cause: F-185 (the free lane day-capped) — fixed by the named lane; the au-read
+  close-after-resolve regression (round-2 audit caught my own fix's blast radius).
+- Honest disclosures: the load-sensitive corbell/graphify test flake (per-test timeout under CPU load);
+  1 residual LOW audit finding (c2kg pipeline duplication — accepted debt).

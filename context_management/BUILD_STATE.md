@@ -1,14 +1,45 @@
+<!-- 6L+2E + AUDIT UPDATE — 2026-10-03 (supercedes the 2026-09-30 banner below) -->
+# ★ CURRENT — 2026-10-03: THE 6L+2E GAPS CLOSED + AUDITED
+- GI ext `extensions/graph-intelligence/index.js` sha256 879cbbf80b9d968216fca4da34065ad5c4fe21979d527956842876688f18b741 — DEPLOYED == SOURCE
+- the 8 consumers CONSUMED across the SUBJECT UNION: `bun scripts/consumption-audit.ts . --gate` -> `union=8/8`
+  (6 per-subject rows; the register reads consumed:6/8 for the canonical subject)
+- ABIDE observable: a judge verdict writes a gate-ledger row `Pattern=ABIDE_JUDGE p=0.703` + ABIDE-R1/R2/R3
+- C2KG edges=411 (the adapter reads them: L4_C2KG CONSUMED, an edge subject)
+- L2_ARSUMBRIS: the symbol/file-space read (facts=50 on `populateSessionStore`)
+- the AUDIT: `qwen-code-audit` (poolside-laguna-s) 3 rounds — 1 crit + 2 high FIXED+PROVEN; 0 crit/high OPEN
+- the checker: `bun scripts/consumption-audit.ts <root> --gate` (EXIT 0 = predicate passed)
+
+# BUILD_STATE — the SHA chain + the module inventory (as of 2026-09-30)
+
+## THE CURRENT DEPLOY
+- GI ext: `879cbbf80b9d968216fca4da34065ad5c4fe21979d527956842876688f18b741` (825316 B) — the F-144 lazy-compiler fix + the scrub/sanitize walls
+- the gate stack: `fe86a02fe77e18a906898b952e8eb53fa2598ceca815346ec35da9ea277bc64c` (205468 B) — the 4-gate JEV wire + the audit fixes
+- the judge: jevk5-4b-v0.2-Q8_0 (gguf, llama:200) @ 127.0.0.1:8090; the bridge onto 172.17/18/19/20.0.1:8090
+- the fallback chain: muse-spark-1.3-contributor:xhigh (was mimo-v2.5)
+
+## THE SHA CHAIN (append-only)
+- v2.3 checkpoint: 4694b1323fcc6887 (the pre-round baseline)
+- the JEV round: db9252e48f519a718ec8 (the F-144 fix) -> 2e2a39031c6059ca (the scrub walls)
+- the gate stack: 1cb47863b810e400 -> d9658bb3 -> 4f84eb25 -> 163b0916 -> c8583aba -> 6ec6036f -> fe86a02f (the 4-gate wire + the audit fixes + the criteria calibration)
+- the live bundle == the sealed bundle (sha-verified at the seal)
+
+## THE MODULE INVENTORY
+- `src/omp/jev.ts` (563L) · `src/omp/gate-hook.ts` (420L) · `scripts/gate-control-set.ts` (228L)
+- `pbk-v2/src/ext/tool-gate.ts` (224L) · `sttgf-gate.ts` (180L) · `doc-density-gate-v2.ts` (422L) · `container-gate.ts` (185L) · `semantic-smoke-firewall.ts` (552L)
+- src total: 120 .ts · the canon 12 docs · the ship docs 7969L+ · the TTSR rules 9
+- the battery: tsc EXIT-0 both · the W1/W2 tests 5/0 · pbk 401/1 (the 1 pre-existing) · the corpus 40/40 · the proof 10/10 (host + container)
+
 # BUILD_STATE — the SHA chain + the module inventory
 
-**dist SHA: 3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf** · 2026-09-21
+**dist SHA: b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3** · 2026-09-21
 
 ## THE SHA CHAIN (every checkpoint + what changed)
 
 ```
-v1.3 dist (DEPLOYED)          3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf
+v1.3 dist (DEPLOYED)          b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3
   the frozen surface. 613,039 B. Unchanged since the v1.3 seal.
 v1.3 ship package             dist seg 83eb7bba (SHIP_PACKAGES/Graph_Intel_v1.3/)
-the v2.1 blueprint            3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf  (41,853 B, 862 L)
+the v2.1 blueprint            b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3  (41,853 B, 862 L)
 the 14-case measurement       artifacts/jev-kernel/measurement-14-case.json (bestT=0.40)
 checkpoint v2.0-working       750009c (the first save) → c329f83 (the refresh with the blueprint)
 baseline at session start     c9bff81a56dc5bc5d5740623038d34507f6ab890
@@ -199,7 +230,7 @@ src/omp/populate.ts:21               the F-48 law (no 3rd substrate)  grep the c
 ```
 bun test ./tests/ ./src/hydra/__tests__/   → 199 / 0 / 701 / 20 files
 bunx tsc --noEmit -p tsconfig.json         → 191
-sha256sum extensions/.../index.js          → 3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf...
+sha256sum extensions/.../index.js          → b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3...
 grep -c FireGate src/omp/kernel-v2.ts      → 0        (the wiring is the build)
 grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site holds)
 ```
@@ -213,7 +244,7 @@ grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site ho
 | item | value |
 |---|---|
 | HEAD | `f6fca91` |
-| dist sha256_16 | **`3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf`** |
+| dist sha256_16 | **`b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3`** |
 | dist size | 9,426,889 B (was 613,000 B) |
 | dist-content gate | **PASS** (every v2.x symbol present) |
 | src newer than dist | **0** |
@@ -229,8 +260,154 @@ grep -c registerGraphGate src/omp/gate-hook.ts → 1    (the single call site ho
 
 # ★ THE TRUE DIST (re-stamped 2026-09-23 after the zero-trust audit)
 
-** sha256_16 `3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf`** (9,434,756 B).
-★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf` (two rebuilds
+** sha256_16 `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3`** (9,434,756 B).
+★ THE AUDIT FOUND SHA DRIFT: this doc carried `a8583082…` / `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3` (two rebuilds
 stale). The dist was rebuilt after the 8 HIGH gate fixes; **this is the TRUE sha**.
-Evidence: `sha256sum extensions/graph-intelligence/index.js` → `3595ff900bf6581b55a65bf5f265831483c5344ca30266ed7ba960c167a0dabf`; `find src -newer` = 0;
+Evidence: `sha256sum extensions/graph-intelligence/index.js` → `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3`; `find src -newer` = 0;
 the container deploy sha MATCHES.
+
+---
+
+## ★ V2.2 — GI KERNEL V2.2: THE GRAPH IS A FUNCTION OF THE TARGET (2026-09-26)
+
+**dist:** `b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3` · 776K · deployed sha-matched.
+**branch:** jarvis/gi-main · **spec:** GI_KERNEL_V2.2_REBUILD_SPEC.md (711 L, SPEC-AUDIT: APPROVED 0/8).
+
+### THE WAVES (all audited by the orchestrator, per-hunk verdicts in RUNNING_BUILD_LOG)
+| wave | deliverable | gate | evidence |
+|---|---|---|---|
+| W1 | the 2 ghost stores purged | `ls …/*/store.sqlite | wc -l` → 0 | corbell 9,565 nodes/0 live-src; graphify → Checkpoints archive |
+| W2 | `discoverSourceRoots(target)` + 5 rules | 4 tests green; the real target builds >0 nodes | Understand-Anything: **739 nodes** (was GRAPH_EMPTY) |
+| W3 | `setBuildRoot` + `assertStoreScope` | 3 tests green; a cross-scope read refuses | `GI_STORE_SCOPE_MISMATCH: store built for A, subject root is B` |
+| W4 | `gi-populate --target X` (self-populate) | the fresh project populates; the register 8/8-or-named | fresh tmp: corbell 3/graphify 5/structural 1/ua 4; **the foreign target 0/8 → 3/8** |
+| W5a | JevK5 wired (GPU → KEV → tsg) | the TSG evidence names jevk5 | `TSG CONSUMED … jevk5 jevk5-4b-v0.2-Q8_0 on :8090` |
+| W5b | ABIDE judges the CURRENT diff live | a rule-violating diff → a live verdict | `REPAIR p=0.879` (live judge, not the ledger) |
+| W5c | the claim firewall (L2, fail-CLOSED) | a fabricated claim → REJECTED | FAB → `{FABRICATED, REJECT}` · BOUND → `{SUPPORTED, PASS}` |
+
+### THE DoD (spec §2) — ALL GREEN
+D1 a fresh project populates ✓ · D2 the register 8/8-or-named ✓ · D3 the GI repo's 7/8 PRODUCED (not carried) ✓ · D4 a cross-scope read refuses ✓ · D5 a source-less target refuses (GI_NO_SOURCE_ROOT) ✓ · D6 the meaning gate uses JevK5 on GPU ✓ · D7 the claim firewall blocks ✓ · D8 ABIDE judges live ✓.
+
+### THE CAPABILITY MEASURE (the register, real projects)
+- the GI repo: **consumed:7/8** (corbell 50 · graphify 50 · c2kg 2 · ua 31 · semantica 12 · TSG jevk5 · ABIDE 948; L2 named) — **PRODUCED from a fresh build**.
+- the foreign target (Understand-Anything, 387 .ts): **consumed:3/8** (corbell 26 · graphify 34 · TSG) — was **0/8**.
+- the container (omp-ct-gi20, 222-file project): 0/8 with EVERY layer named (the container lacks the tooling).
+
+### THE NEW FILES
+`scripts/gi-populate.ts` · `scripts/typed-schema-init.ts` · `src/hunter/profile/source-roots.ts` · `src/omp/adapters/jevk5.ts` · `src/omp/claim-firewall.ts` + their tests.
+
+---
+## V2.3 — THE REFLEXIVE KERNEL (2026-09-28)
+
+**dist:** `7d4e9db83263ba22` (810129B) — the deployed bundle, repo=deploy sha-matched.
+**src:** 120 .ts (was 118; +src/gi-lsp/cards.ts +src/omp/card-hud.ts).
+**battery:** 464 pass / 2 fail (the 2 = the build's staleness gates; both fix at W9).
+**tsc:** EXIT 0.
+**trident in src+scripts:** 0 (the de-brand complete; the read-fallback `resolveStateRel`).
+
+### THE NEW SEAMS
+| the artifact | the role | in the bundle? |
+|---|---|---|
+| `scripts/gi-lsp.ts` | the GI LSP server (stdio, JSON-RPC) — the 6 layers as a sense organ | separate process |
+| `src/gi-lsp/cards.ts` | the 5 fact-card shapes (CALLERS·UNWIRED·CONFLICT·MEANING·SCOPE) | ✅ fileCards ×2 |
+| `src/omp/card-hud.ts` | the Card-HUD fallback (tool_call → cards → tool_result) | ✅ attachCardHud ×2 |
+| the claim-firewall A-1 | the negated-span binder fix | ✅ |
+
+### THE EVIDENCE
+`RECEIPT_V2.3.md` (the verdict) · `reports/GRAPH_GATE_live_forensic.md` (the live gates) ·
+`host-test-failure-log.md` (12 bugs) · `Checkpoints/gi-kernel-v2.3-reflexive-kernel-7d4e9db8/` (the seal).
+
+### THE MECHANISM OF THE HEADLINE FIX (W0)
+`scripts/structural-extract.py` rule 3 returned the COMMON ANCESTOR of [src,tests] (= the repo root)
+while `src/hunter/profile/source-roots.ts` returned the PREFIX DIRS — a PY/TS divergence. Fixed by
+porting the V2.2 W4 glob-prefix law → structural 70453 → 7866 (12.4% → 100% in-scope).
+
+
+---
+## ★ THE V2.3 SESSION UPDATE (2026-09-29) — dist sha256 4694b1323fcc6887…
+- **THE DIST**: `extensions/graph-intelligence/index.js` sha256 `4694b1323fcc6887…` (817806 B) — the deployed bundle,
+  sha-matched by `DIST.SHA256` in the seal.
+- **THE BATTERY**: 466 pass / 0 fail (unit) + 564 pass / 0 fail (script-test) via `bun run test`,
+  EXIT=0 · `bunx tsc --noEmit` EXIT-0.
+- **W0**: `bun scripts/graph-health.ts .` EXIT-0 — every layer >=90% in-scope (L1 100% · L2 100% ·
+  L3 100% · L4 99% · L5 97% · L6 100% · structural 100%).
+- **★ THE REFLEX: PROVEN** (`.omp/container-test-results.json`): the OMP runtime spawned
+  `bun /gi/scripts/gi-lsp.ts --stdio` on a write (pid 3352, parent = the pi-coding-agent runtime)
+  and the session records verbatim `diagnostics arrived after the edit returned:
+  /gi/scratch-reflex.ts — 1 error(s), 1 warning(s) · [gi-lsp/scope] · [gi-lsp/unwired]
+  reflexProbe — 0 callers` — WITH NO AGENT ACTION.
+- **THE AUDIT GATE**: PASS (0 critical / 0 high) — `ocr scan --provider muse-go` on the W6 firewall
+  (10 iterative passes; 9 fixes; the corpus 10 probes / ~67 attacks / ~80 controls, 0 leaks /
+  0 misfires). The graph family's PRE-EXISTING highs are the named remainder (DEBUG_LOG 32-34).
+- **S1-S12**: ALL GREEN (RECEIPT-V2.3.md §8 carries each reading; S5 was fixed this session —
+  `WALK_SKIP` now has 3 TS importers (`src/hunter/diagnostics/engine.ts:49` ·
+  `src/hunter/graph/corbell-adapter.ts:60` · `scripts/ua-ingest.ts:50`) + 2 aligned Python mirrors).
+- **THE SEAL**: `Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/` (full-tree: src 120 .ts · the
+  dist + SHA · the 11 canon · the 5 ship docs + the receipt · the CT artifact · the wave audit ·
+  the package).
+- **THE OPEN FRONTS**: the graph family's pre-existing highs · the aggregate audit scan's
+  OCR_RUN_DEGRADED (per-family scans operative) · the layersRoutedThroughLsp per-layer count ·
+  the c2kg layer's NAMED build failure (the refresh service exits 1 on 5/6 layers — the loud-fail
+  design).
+
+---
+
+## ★ THE CURRENT-REALITY MARKER (2026-09-29 — updated by canon-doc-update)
+
+**THE DEPLOYED DIST: `4694b1323fcc6887b89264c9262701ae3ebaf31b97bd19302256c9eefe964494`**
+(`extensions/graph-intelligence/index.js`, 817806 B) — the hash the deployed artifact carries.
+It is BIT-IDENTICAL to `Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/`.
+
+**THE MEASURED STATE (this update's ground truth):**
+- the battery `bun run test` -> 466 pass / 0 fail + 564 pass / 0 fail, EXIT=0 · tsc EXIT-0
+- the 8 named G3 tests 8/8 · W7 (the brand scan) 0 offenders
+- the Jev judge LIVE: `{"ok":true,"model":"jevk5-4b-v0.2-Q8_0"}` · the meaning card 104ms
+- the live host reflex FIRED (a real write -> the diagnostics after the edit; the Jev confidence)
+- the production suite 9/9 live (the sustained reflex 25/25) · the pressure sweep 105/105
+
+**THE OPEN (the operator's mandate — the plan `PLAN-CLEANUP-JEV.md`):**
+1. THE JEV DECISION LAYER IS NOT WIRED INTO THE GATES — the judge answers in 104ms and the
+   adapters exist (`src/omp/jev.ts` · `adapters/jevk5.ts` · `kev.ts` · `abide.ts`), but the four
+   gates decide by regex (`pbk-v2/src/firewalls/semantic-smoke-firewall.ts:209`).
+2. the GI extension fails to load in the container (3x `resolving package 'typescript'`).
+3. the prose rule layer is unbound on the host (the registry 0; 9 files deployed).
+4. the W6 firewall still has no live caller (`enforceBashLockdown`: 0 in the bundle).
+5. DEPLOYED-NOT-RUNNING: the running sessions hold the pre-restart bundle in memory.
+
+**THE REVERTED (the operator's rejection):** the FR-11 bash-lockdown hook — removed from the
+source, the repo, the host and the container; the bundle restored bit-identical.
+
+---
+
+
+```
+THE DEPLOYED ARTIFACTS (this round):
+  pbk-v2 (the gate stack)   dist/index.js → ~/.omp/agent/extensions/omp-ct/dist.js
+                            9da0eaf940786840 (before) → 1cb47863b810e400ccade4ff (now, 201.50 KB)
+                            the wire symbols: smokeCandidate · askGateDecision · recordGateDecision ·
+                                              docTypeCandidate · GATE_THRESHOLD
+  the GI extension          extensions/graph-intelligence/index.js
+                            4694b1323fcc6887 (before) → db9252e48f519a718ec8 (now, 818371 B)
+                            the F-144 fix: 0 static typescript imports · createRequire · GI_TS_MISSING
+  both deployed to the omp-ct container (the clean boot: 0 load failures)
+
+THE BATTERY (measured this round):
+  GI:       bunx tsc --noEmit → RC=0
+  pbk-v2:   bunx tsc --noEmit → RC=0;  bun test ./tests/ → 401 pass / 1 fail (the 1 PRE-EXISTING)
+  the W1/W2 tests: bun test ./tests/st-gi-jev-gate.test.ts → 5 pass / 0 fail
+  the 40-case corpus: bun scripts/gate-control-set.ts → 40/40, RC=0
+  the deployed-bundle proof: /tmp/deployed-gate-proof.ts → 6/6, RC=0 (sha 1cb47863)
+  the ledger: ~/.omp/run/gate-ledger.jsonl → 259 rows, all carrying a judge + confidence
+```
+
+---
+
+## ★ THE SWEEP STAMP (the final state — every earlier sha/claim above is HISTORICAL)
+
+- **THE LIVE omp-ct (the gate stack, the 4-GATE JEV WIRE): `6ec6036fe2f8278cdcf74eff…`**
+- **THE LIVE GI extension (the F-144 lazy-compiler fix): `e3802fab132566e729b77937…`**
+- **ALL FOUR GATES are WIRED** (the smoke · the doc-density · the container · the graph — each
+  consults the judge). Any earlier line reading "2 of the 4" is SUPERSEDED by this stamp.
+- **THE PROOFS (current):** the 40-case corpus **40/40 · judgeDown=0** · the 4-gate deployed
+  proof **10/10** · pbk `bun test ./tests/` **401/1** (the 1 PRE-EXISTING) · tsc **RC=0** both repos.
+- **THE LEDGER:** 1,182 rows, every one judge-bearing (~/.omp/run/gate-ledger.jsonl).
+- **THE SEAL:** `Checkpoints/gi-jev-decision-layer-1cb47863b810/` (the omp-ct sha within ≡ the live).

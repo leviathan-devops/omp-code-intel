@@ -1194,3 +1194,49 @@ model's accuracy ceiling — the architectural fix, detector-resolves-the-unambi
 but not implemented). **AUDIT GATE: BLOCKED** (the code-audit lane is quota-capped) — no ship-ready claim.
 
 **The audit citation:** AUDIT GATE: BLOCKED (quota) — withheld.
+
+## 2026-10-03 — THE SHIP PACKAGE: the 6L+2E audited, hardened, and sealed
+
+**The built:** the updated GI ship package — the 6L+2E gaps-closed work (union=8/8, ABIDE_JUDGE
+observable, C2KG edges=411) carried through the full ship-package pipeline (ship docs → canon docs →
+blocks → dist gate → native assembly → git → deploy → hotseat). The code-facing delta: the 6L+2E audit
+fixes — `src/omp/adapters/c2kg.ts` (a critical JSON-parse-shape guard; EDGES-FIRST result ordering;
+typed edge fields; a declared `edges` interface; a pre-`.map` symbol cap), `scripts/consumption-audit.ts`
+(a derived consumer count, was hardcoded `8`×3), `scripts/au-read.ts` (a single-settlement `settled`
+guard; a 64 MB frame cap; a corrected comment).
+
+**The why:** the operator's directive — *"generate the updated [package] and deploy to host for live
+hotseat testing, make sure all docs are updated."* The audit is the ship gate: the 6L+2E work (Oct 2)
+had never been code-audited (the newest artifact was Sep 28, scope-mismatched).
+
+**The how:** loaded `ship-docs-update` + `canon-doc-update` + `extracting-production-boilerplates`
+(no memory); ran the mandatory `qwen-code-audit` (3 rounds on `poolside-laguna-s`); adjudicated 12+8+2
+findings; fixed the confirmed-real (1 critical + 2 high + mediums); re-verified (tsc EXIT-0, 6L2E
+30/30, union=8/8, rebuild sha-match); then the native SPG assembly.
+
+**The evidence:**
+```
+audit round 1   session 5938c5e6  424.9s  4 files  1 crit 2 high 5 med 4 low
+audit round 2   session c183570e  356.0s  3 files  1 crit 1 high 2 med 5 low
+audit round 3   session df2b5c0a          2 files  1 med 1 low   (0 crit/high)
+audit gate      PASS (0 critical/high OPEN)
+fixes           c2kg null-guard (crit) · c2kg cap-ordering (crit) · au-read frame (high)
+                c2kg edge-narrow + interface + symbol-cap · consumption-audit count · au-read settled
+verification    tsc EXIT-0 · st-gi-6l2e 30/0 · consumption-audit --gate union=8/8 EXIT-0
+null probe      NULL_GUARD_OK facts=0 (null AND 42 — was a raw TypeError)
+deployed        extensions/graph-intelligence/index.js sha256 879cbbf80b9d9682 == source
+```
+
+**The honest notes:** a LOAD-SENSITIVE flake (2-3 fails in `test_consume_corbell`/`test_consume_graphify`
+under concurrent CPU load — the per-test timeout, not the changed files; 0 fail when run alone); the
+1 residual LOW audit finding (c2kg pipeline duplication — accepted refactor debt); the audit lane
+required the `poolside-laguna-s` key (the free lane was day-capped, F-185).
+
+**The audit citation:** AUDIT GATE: PASS (0 critical/high OPEN) — session `df2b5c0a-3dd9-46de-9a74-6fa254c40c32`
+surfaced 0 critical/high after the fixes; artifact `artifacts/sg-ocr-728e6ceb94844450.json`.
+
+**The deployment fingerprints (this milestone):**
+```
+GI ext  sha256 879cbbf80b9d968216fca4da34065ad5c4fe21979d527956842876688f18b741   (~/.omp/agent/extensions/graph-intelligence/index.js)
+source == deployed (verified at seal)
+```
