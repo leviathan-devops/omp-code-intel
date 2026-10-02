@@ -469,3 +469,34 @@ ADJUDICATED: (a) a TRUE SHELL LEXER for quote/`$()`/backtick handling is an arch
 (the current strip + the judge is the designed trade); (b) cross-session evidence scoping and the
 sync-I/O avoidance are hardening items on a defense-in-depth layer; (c) the ContextWindow/window
 eviction is a bounded-memory nicety.
+
+---
+
+## ROUND 14 — THE SHELL LEXER + THE CROSS-SESSION SCOPING (the last two real classes)
+
+**Counter: last id = HT-BUG-39 · next available = HT-BUG-40.**
+Deployed (final): `~/.omp/agent/extensions/omp-ct/dist.js` sha256 `baf361fb57d92e07…`.
+
+### HT-BUG-38 — THE NAIVE REGEX STRIP (the last architectural evasion) — FIXED+PROVEN
+
+- **The defect:** both gates separated DATA from ACTION with `replace(/"[^"]*"/g,'""')` — which
+  ignored `\`-escapes, backticks, `$()` and heredoc variants. A crafted quote hid an inline
+  execution (a false NEGATIVE); a literal filename/pattern bled into the action (a false POSITIVE).
+- **The fix:** `src/firewalls/shell-strip.ts` — a single-pass shell tokenizer. DATA = single/
+  double-quoted spans (escapes respected) + heredoc bodies (delimiter-matched) → blanked. ACTION =
+  kept verbatim, INCLUDING `$()`/backticks (they execute) and, crucially, a `$()`/backtick INSIDE a
+  double-quoted span (the shell still expands it). Wired into BOTH gates (smoke + container).
+- **Verified:** the shell-strip matrix **8/8** (incl. the `"$(docker exec)"` substitution case).
+
+### HT-BUG-39 — THE CWD-GLOBAL EVIDENCE ARTIFACT (cross-session) — FIXED+PROVEN
+
+- **The defect:** `setContainerTestRan` called the CWD-global `locateEvidenceArtifact()` — a stale
+  artifact from another session (same cwd) could satisfy a fresh claim's evidence check.
+- **The fix:** the artifact must be RECENT (mtime within the claim window). The arm/confirm layer
+  (session-scoped) remains the primary guard.
+
+### THE RUNTIME (round 14)
+
+```
+tsc RC=0 · seam 37/37 · smoke 38/40 (0 FP) · container 10/10 · write 5/5 · 8 FPs 8/8 · host 7/7
+```
