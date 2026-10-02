@@ -75,9 +75,19 @@ if (gate) {
   //   prose subjects) could never consume. The loop now iterates the UNION of every consumer's own
   //   domain subjects — the map is the single source of truth.
   const domainSuite = [...new Set(Object.values(DOMAIN_SUBJECTS).flat().concat([subject]))];
+  const perSubject: Array<{ subject: string; consumed: number; offenders: string }> = [];
   for (const s of domainSuite) {
-    for (const r of consumptionAudit(scopeRoot, s).reports) if (r.consumed) everConsumed.add(r.consumer);
+    const run = consumptionAudit(scopeRoot, s);
+    const n = run.reports.filter((r) => r.consumed).length;
+    perSubject.push({ subject: s, consumed: n, offenders: run.reports.filter((r) => !r.consumed).map((r) => r.consumer).join(",") || "(none)" });
+    for (const r of run.reports) if (r.consumed) everConsumed.add(r.consumer);
   }
+  // ★ W2 (2026-10-02): THE SUBJECT-MATRIX ROWS. The union verdict alone hides which subject
+  //   consumed which consumer — the 5/8-vs-7/8 confusion. Print every subject's row.
+  for (const row of perSubject) {
+    console.log(`[consumption] subject='${row.subject}' consumed:${row.consumed}/8 offenders=${row.offenders}`);
+  }
+  console.log(`[consumption] union=${everConsumed.size}/8`);
   const never = Object.keys(DOMAIN_SUBJECTS).filter((c) => !everConsumed.has(c));
   if (never.length > 0) {
     console.log(`GI_CONSUMPTION_BELOW_EXPECTED: consumers NEVER consumed for any domain subject: ${never.join(",")}`);
