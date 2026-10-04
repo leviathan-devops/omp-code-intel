@@ -5,6 +5,7 @@
 // on the same law with different shapes; this factory carries BOTH.
 //
 // THE RESOLUTION ORDER (the law):
+// W3 RE-SYNC (2026-09-26): verified conformant to the boilerplate — no fork drift; mechanism untouched.
 //   1. an explicit dataDir argument (the caller knows best)
 //   2. THE ENV CHAIN — each env var in order, first set wins
 //      (the test convention sets ONE env; every reader honors the SAME env —

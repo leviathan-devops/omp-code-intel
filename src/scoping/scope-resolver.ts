@@ -5,10 +5,10 @@
 // THE OPERATOR'S LAW (verbatim, :339-340): "MAKE SURE THIS IS FULLY CLEAN.
 // EVERYTHING IS PROJECT WORKSPACE SCOPED".
 //
-// THE THREE-TIER RESOLUTION:
-//   1. EXPLICIT projectToken absolute path WINS (the strongest signal) —
+// THE FOUR-TIER RESOLUTION:
+//   TIER 1 — 1. EXPLICIT projectToken absolute path WINS (the strongest signal) —
 //      and PINS the session's cache.
-//   2. THE STICKY CACHE — a session that already resolved NEVER re-derives
+//   TIER 2 — 2. THE STICKY CACHE — a session that already resolved NEVER re-derives
 //      (the flush-proof guarantee; sole exception: the cached path itself
 //      vanished — see resolve() ★ F-156 (2026-09-24)). THE LAW BEHIND IT (:340-347): the
 //      first extraction used a FLUSHABLE 200-part window — a run of
@@ -16,14 +16,14 @@
 //      resolver grabbed a FOREIGN root (the live misfire: the stale
 //      workspace-global spec loaded + a COUNT MISMATCH). STICKY = resolved
 //      once from real project activity, NEVER re-derived mid-session.
-//   3. AUTO-DETECT from the session's own file activity: the WORKDIR ANCHOR
+//   TIER 3 — 3. AUTO-DETECT from the session's own file activity: the WORKDIR ANCHOR
 //      (bash commands carry relative paths; the workdir field IS the project
 //      anchor, weighted ×2 — the cmd-regex alone captures junk fragments),
 //      then the ROOT SCORER below.
-//   4. LAST RESORT — process.cwd() (never a parent-workspace hardcode).
+//   TIER 4 — 4. LAST RESORT — process.cwd() (never a parent-workspace hardcode).
 //
 // THE ROOT SCORER'S LAWS (the winner :419-433, each from a live misfire):
-//   1. A root has .git, .trident (your state dir), OR package.json — but NOT
+//   1. A root has .git, .gi (your state dir), OR package.json — but NOT
 //      bare `src` (a .ts file LIVES under .../src, so src matched its own
 //      ascent — the "src false-root" class).
 //   2. STATE-DIR PRESENCE DOMINATES: the wave state lives in the root that
@@ -52,7 +52,7 @@ export interface SessionActivity {
 export type ActivityReader = (sessionId: string, limit: number) => SessionActivity[];
 
 export interface ScopeResolverOptions {
-  /** The state-dir marker that DOMINATES root selection ('.trident'). */
+  /** The state-dir marker that DOMINATES root selection ('.gi'). */
   stateDir: string;
   /** The session-activity reader (the seam). */
   readActivity: ActivityReader;
@@ -76,9 +76,9 @@ export class ScopeResolver {
     this.cwd = opts.cwd ?? process.cwd();
   }
 
-  /** THE THREE-TIER RESOLUTION. sessionId null → explicit-or-cwd only. */
+  /** THE FOUR-TIER RESOLUTION. sessionId null → explicit-or-cwd only. */
   resolve(sessionId: string | null, projectToken?: unknown): string {
-    // 1) EXPLICIT absolute path wins + PINS.
+    // TIER 1 — 1) EXPLICIT absolute path wins + PINS.
     if (typeof projectToken === 'string' && projectToken.trim().length > 0) {
       const tok = projectToken.trim();
       if (fs.existsSync(tok)) {
@@ -87,7 +87,7 @@ export class ScopeResolver {
       }
       return this.cwd;
     }
-    // 2) THE STICKY CACHE — never re-derive mid-session (★ F-156 FIX 2026-09-24:
+    // TIER 2 — 2) THE STICKY CACHE — never re-derive mid-session (★ F-156 FIX 2026-09-24:
     //   doc corrected — the existsSync guard below IS the sole exception: a
     //   vanished cached path falls through and re-pins instead of scoping
     //   state into a ghost dir).
@@ -101,7 +101,7 @@ export class ScopeResolver {
         console.warn(`[scope-resolver] cached path vanished for session ${sessionId}: ${cached} - re-detecting`);
       }
     }
-    // 3) AUTO-DETECT from the session's own file activity.
+    // TIER 3 — 3) AUTO-DETECT from the session's own file activity.
     if (typeof sessionId === 'string' && sessionId.length > 0) {
       try {
         const activities = this.readActivity(sessionId, this.activityLimit);
@@ -142,7 +142,7 @@ export class ScopeResolver {
       // ★ warning above sets the precedent).
       } catch (err) { console.warn(`[scope-resolver] auto-detect failed for session ${sessionId}:`, err); }
     }
-    // 4) LAST RESORT — the current dir.
+    // TIER 4 — 4) LAST RESORT — the current dir.
     return this.cwd;
   }
 }

@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/trace.ts:1-113 (LEGACY fallback path) + :169-179/:288-292 (degrade contract).
+// PORTED FROM the archived upstream skill tree/harness/trace.ts:1-113 (LEGACY fallback path) + :169-179/:288-292 (degrade contract).
 // SEAMS: Severity -> ../shared/db.ts (REAL); NormalizedFinding ->
 // ../diagnostics/findings-store.ts (REAL); GraphAdapter -> ../graph/interface.ts (REAL).
 // DEVIATION (named, per the port work order — "port with the legacy fallback;

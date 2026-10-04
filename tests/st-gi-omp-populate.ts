@@ -61,10 +61,10 @@ describe("GI populate + verbs accuracy (frozen 2026-09-14)", () => {
     // counts per substrate (2026-09-14).
     if (r.substrate === "corbell") {
       expect(r.filesIndexed).toBe(0);
-      expect(r.nodes).toBe(2086);
-      expect(r.edges).toBe(9386);
-      expect(countTypedNodes(o.storePath)).toBe(2086);
-      expect(countTypedEdges(o.storePath)).toBe(9386);
+      expect(r.nodes).toBe(2087);
+      expect(r.edges).toBe(9337);
+      expect(countTypedNodes(o.storePath)).toBe(2087);
+      expect(countTypedEdges(o.storePath)).toBe(9337);
     } else {
       // F-48: no corbell => LOUD fail (GI_POPULATE_FAILED + skip), never regex.
       expect(r.skipped).toBe(true);

@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/firewall/lexicon-types.ts (121L) — T.E.B shared types: PatternFamily, MPSE, LexiconDecision, BASH_ERROR_MESSAGE, REPORT_SCOPE_ERROR, MASTER_CONTEXT_VARIANTS
+// PORTED FROM the archived upstream skill tree/firewall/lexicon-types.ts (121L) — T.E.B shared types: PatternFamily, MPSE, LexiconDecision, BASH_ERROR_MESSAGE, REPORT_SCOPE_ERROR, MASTER_CONTEXT_VARIANTS
 // Ported 2026-09-14 (port wave W3-P1/P2). Verbatim bytes; do not edit in place without re-diffing the source.
 /**
  * lexicon-types.ts — THE T.E.B SHARED TYPES (W3, the firewall dir's contract surface)

@@ -28,7 +28,7 @@ import { Database } from "bun:sqlite";
 import { produce, type ToolEvent } from "../src/omp/evidence-producer.ts";
 import { resolveAll, gather, classify, type Subject } from "../src/omp/oracle.ts";
 
-const OUT = path.join(process.cwd(), ".trident");
+const OUT = path.join(process.cwd(), ".gi");
 fs.mkdirSync(OUT, { recursive: true });
 
 /** ★★★ EN-089 — THE REPAIR SHAPE, computed per (file, timestamp) FROM THE DIFFS.
@@ -175,7 +175,7 @@ async function main() {
     perFire,
   };
   fs.writeFileSync(path.join(OUT, "e1-sizing.json"), `${JSON.stringify(artifact, null, 2)}\n`);
-  console.log(`  artifact: .trident/e1-sizing.json\n`);
+  console.log(`  artifact: .gi/e1-sizing.json\n`);
 
   // ★★ THE WINDOW SWEEP — THE DIRECT TEST OF REMEDY (c). Option (c) claims the 24h window is
   //    the saturation's cause. That is a TESTABLE claim: sweep the window and watch the

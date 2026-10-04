@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/diagnostics/engine.ts — verbatim bytes; SEAM: shared/knowledge-graph imports rewritten to the ported siblings (../shared/db.ts, ../profile/*).
-// src/subagents/trident-bug-hunter/diagnostics/engine.ts
+// PORTED FROM the archived upstream skill tree/diagnostics/engine.ts — verbatim bytes; SEAM: shared/knowledge-graph imports rewritten to the ported siblings (../shared/db.ts, ../profile/*).
+// the archived upstream skill tree/diagnostics/engine.ts
 // THE DIAGNOSTICS ENGINE (W5, spec §3.10 lines 1298-1376). THE BATTERY RUNNER:
 // the W4 compiled battery × the W2 graph adapter + the source → the findings
 // (the MPSE triplets), deterministic + idempotent, the runId-scoped append-only
@@ -41,11 +41,34 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+// ★ F-144 FIX (2026-09-30): LAZY COMPILER RESOLUTION. The static `import ts from 'typescript'`
+//   forced every consumer to HAVE typescript merely to LOAD the extension — the omp-ct container
+//   has none, so the whole extension died (`Failed to load extension: Unexpected while resolving
+//   package 'typescript'`, measured 3× in the container's omp log). The type-only import keeps
+//   the TYPE namespace (`tsT.SourceFile`); the Proxy provides the VALUE and defers the runtime
+//   require to the FIRST PROPERTY ACCESS: a process that never walks an AST never touches the
+//   compiler; a process that does gets a NAMED refusal instead of a load failure.
+import type * as tsT from 'typescript';
+import { createRequire } from 'node:module';
+const _giRequire = createRequire(import.meta.url);
+let _giTs: typeof import('typescript') | null = null;
+const ts = new Proxy({} as typeof import('typescript'), {
+  get(_t, p) {
+    if (_giTs === null) {
+      try {
+        _giTs = _giRequire('typescript') as typeof import('typescript');
+      } catch (e) {
+        throw new Error(`GI_TS_MISSING: 'typescript' is not resolvable from ${import.meta.url} (${e instanceof Error ? e.message : "ERR"}) — the AST-walk path requires it`);
+      }
+    }
+    return Reflect.get(_giTs as object, p);
+  },
+});
 import type {DbClient, Severity} from '../shared/db.ts';
-import { FINDING_VERDICTS, SEVERITIES, findingInvalid, findingNoTriplet, openStore } from '../shared/db.ts';
+import { FINDING_VERDICTS, SEVERITIES, findingInvalid, findingNoTriplet, openStore, resolveStoreDbPath } from '../shared/db.ts';
 import type { ProjectProfile } from '../profile/schema.ts';
 import { loadProfile } from '../profile/loader.ts';
+import { WALK_SKIP } from '../profile/source-roots.ts';
 import type { AwaitEdge, BuildResult, CallSite, ChainStep, DeadNode, GraphAdapter, GraphEdge, GraphNode, GraphNodeKind, ImportEdge } from '../graph/interface.ts';
 import type { CheckContext, CompiledPredicate, Finding } from '../lexicon/templates.ts';
 import { appendFindings, type NormalizedFinding } from './findings-store.ts';
@@ -546,7 +569,10 @@ export class StoreGraphAdapter implements GraphAdapter {
   }
 }
 
-const LOCAL_BUILD_SKIPS = new Set(['node_modules', '.trident', 'dist', 'Checkpoints', '.git']);
+// ★ FR-6 (2026-09-29): ONE SKIP LAW (S5) — the local build skips ARE the shared WALK_SKIP.
+//   The per-consumer literal was the drift class the pin names: the walker and the producers
+//   must never carry different skip sets.
+const LOCAL_BUILD_SKIPS = WALK_SKIP;
 
 /** Collect the .ts sources under root (the skip set is the walker-exclude canon). */
 function collectLocalTsFiles(root: string): string[] {
@@ -643,7 +669,7 @@ function collectLocalTsFiles(root: string): string[] {
   return out;
 }
 
-function localLineOf(sf: ts.SourceFile, node: ts.Node): number {
+function localLineOf(sf: tsT.SourceFile, node: tsT.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 }
 
@@ -687,7 +713,7 @@ export function buildLocalGraph(root: string): { nodes: GraphNode[]; edges: Grap
       // ★ source is SOURCE_READ_FAILED, never a skipped file behind console.error.
       throw sourceReadFailed(abs, `local build read failed: ${String(e)}`);
     }
-    let sf: ts.SourceFile;
+    let sf: tsT.SourceFile;
     try {
       sf = ts.createSourceFile(abs, text, ts.ScriptTarget.Latest, true);
     } catch (e: unknown) {
@@ -732,7 +758,7 @@ export function buildLocalGraph(root: string): { nodes: GraphNode[]; edges: Grap
     }
     let currentClass: string | null = null;
     let currentFnId: string | null = null;
-    const visit = (node: ts.Node, parent: ts.Node | undefined): void => {
+    const visit = (node: tsT.Node, parent: tsT.Node | undefined): void => {
       const prevClass = currentClass;
       const prevFn = currentFnId;
       if (ts.isClassDeclaration(node) && node.name) currentClass = node.name.text;
@@ -881,7 +907,7 @@ export function runGraphLogicDiagnostics(args: GraphLogicDiagnosticsArgs): Graph
     );
   }
   const projectRoot = path.resolve(profile.project.root);
-  const dbPath = path.join(projectRoot, '.trident', 'knowledge-graph', 'shared.db');
+  const dbPath = resolveStoreDbPath(projectRoot);
   let rows: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
   if (fs.existsSync(dbPath)) {
     rows = readStoredGraph(dbPath);

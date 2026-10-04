@@ -11,23 +11,28 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { CorbellAdapter } from "../src/hunter/graph/corbell-adapter.ts";
+import { discoverSourceRoots } from "../src/hunter/profile/source-roots.ts";
 import { readCorbellNodeTypes, writeCorbellCheckout } from "../src/hunter/graph/store-map.ts";
 import { loadProfile } from "../src/hunter/profile/loader.ts";
 import type { ProjectProfile } from "../src/hunter/profile/schema.ts";
 
 function usageFail(msg: string): never {
-  console.error(`corbell-build: ${msg}\nusage: bun scripts/corbell-build.ts --target <dir> [--rebuild]`);
+  console.error(`corbell-build: ${msg}\nusage: bun scripts/corbell-build.ts --target <dir> [--rebuild] [--source-root <dir> ...]`);
   process.exit(2);
 }
 
 const argv = process.argv.slice(2);
 let target = "";
 let rebuild = false;
+const sourceRoots: string[] = [];
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === "--target") {
     target = argv[++i] ?? "";
   } else if (argv[i] === "--rebuild") {
     rebuild = true;
+  } else if (argv[i] === "--source-root") {
+    const s = argv[++i] ?? "";
+    if (s.length > 0) sourceRoots.push(s);
   } else {
     usageFail(`unknown arg ${argv[i]}`);
   }
@@ -36,6 +41,25 @@ if (!target) usageFail("--target <dir> is required");
 const root = path.resolve(target);
 if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
   usageFail(`target is not a directory: ${root}`);
+}
+
+// GI KERNEL V2.2 W2 — TARGET-DRIVEN SOURCE ROOTS (spec §3 W2): --source-root
+// (repeatable) wins; otherwise discover from the target. A source-less target
+// is the NAMED GI_NO_SOURCE_ROOT refusal (exit 1) — never an empty graph.
+let discoveredRoots: string[];
+{
+  if (sourceRoots.length > 0) {
+    discoveredRoots = sourceRoots.map((s) => path.resolve(root, s));
+    console.log(`[corbell-build] source roots (explicit --source-root): ${discoveredRoots.join(", ")}`);
+  } else {
+    const found_roots = discoverSourceRoots(root);
+    if ("error" in found_roots) {
+      console.error(found_roots.error);
+      process.exit(1);
+    }
+    discoveredRoots = found_roots.roots;
+    console.log(`[corbell-build] source roots (${discoveredRoots.length}): ${discoveredRoots.join(", ")} (${found_roots.evidence})`);
+  }
 }
 
 // The profile: prefer an explicit profile file under the target; otherwise
@@ -51,6 +75,7 @@ if (found) {
   profile = loadProfile(found);
   profile.project.root = root;
   (profile as unknown as { graph: { rebuild?: boolean } }).graph.rebuild = rebuild ? undefined : false;
+  (profile as unknown as { graph: { sourceRoots?: string[] } }).graph.sourceRoots = discoveredRoots;
   console.log(`[corbell-build] profile: ${found} (root pinned to ${root}, rebuild=${String(rebuild)})`);
 } else {
   const slug = path.basename(root).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "target";
@@ -64,7 +89,13 @@ if (found) {
       build: "bun run build",
       test: "bun test",
     },
-    graph: { substrate: "corbell", scope: ["src"], excludes: [], ...(rebuild ? {} : { rebuild: false }) },
+    graph: {
+      substrate: "corbell",
+      scope: ["src"],
+      excludes: [],
+      ...(rebuild ? {} : { rebuild: false }),
+      sourceRoots: discoveredRoots,
+    },
     rules: { corpus: [], bindings: {} },
     pipeline: { stages: [{ id: "s1", entry: "main", contract: "inspection-build" }] },
     history: { failureLogs: [] },

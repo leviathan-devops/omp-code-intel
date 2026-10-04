@@ -13,6 +13,8 @@ import { probePath } from "./_shared.ts";
 
 interface C2kgIndex {
   symbols?: Array<{ name?: string; file?: string; line?: number; kind?: string }>;
+  // ★ AUDIT FIX (2026-10-03): declare the edge shape (was read via a runtime cast).
+  edges?: Array<Record<string, unknown>>;
 }
 
 export function c2kgProbe(scopeRoot: string): ConsumerProbe {
@@ -29,12 +31,17 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       if (!fs.existsSync(indexPath)) {
         throw new Error(`GI_LAYER_C2KG: the index is absent at ${indexPath}`);
       }
-      let idx: C2kgIndex;
+      let parsed: unknown;
       try {
-        idx = JSON.parse(fs.readFileSync(indexPath, "utf8")) as C2kgIndex;
+        parsed = JSON.parse(fs.readFileSync(indexPath, "utf8"));
       } catch (e) {
         throw new Error(`GI_LAYER_C2KG: the index is unparseable — ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`);
       }
+      // ★ AUDIT FIX (2026-10-03): a valid-JSON-but-non-object payload (`null` / `42` / `"x"` / `[]`)
+      //   parsed to a non-object and then threw a raw TypeError at `idx.symbols` / `idx.edges`,
+      //   bypassing the GI_LAYER_C2KG contract. Normalize any non-object shape to an empty index
+      //   (zero facts) — the SAME class as F-346, one level up.
+      const idx: C2kgIndex = typeof parsed === "object" && parsed !== null ? (parsed as C2kgIndex) : {};
       // ★ F-346 FIX (2026-09-24): idx.symbols is runtime-untrusted JSON — a non-array
       //   shape (string/number/object) threw raw TypeError at .filter, bypassing the
       //   GI_LAYER_C2KG contract. Array.isArray narrows; non-array reads as zero hits.
@@ -46,7 +53,9 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       const hits = symbols.filter(
         (s) => typeof s === "object" && s !== null && typeof s.name === "string" && s.name.includes(subject),
       );
-      const symbolFacts: LayerFact[] = hits.map((s) => ({
+      // ★ AUDIT FIX (2026-10-03): cap BEFORE `.map` — an untrusted index with a large hit set
+      //   materialized every row before the final `.slice(0,50)`. Matches the edge path.
+      const symbolFacts: LayerFact[] = hits.slice(0, 50).map((s) => ({
         consumer: "L4_C2KG" as const,
         rung: "context" as const,
         subject,
@@ -60,7 +69,7 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       // ★ W3 FIX (2026-10-02): THE EDGE READ. The index was a symbol list with `edges: []` — a
       //   context rung that cannot say what references what. With edges present, a subject that
       //   participates in an edge yields that RELATIONSHIP as a context fact.
-      const idxEdges = Array.isArray((idx as { edges?: unknown }).edges) ? (idx as { edges: Array<Record<string, unknown>> }).edges : [];
+      const idxEdges = Array.isArray(idx.edges) ? idx.edges : [];
       const edgeFacts: LayerFact[] = idxEdges
         .filter((e) => typeof e === "object" && e !== null &&
           (String(e["src"] ?? "").includes(subject) || String(e["dst"] ?? "").includes(subject)))
@@ -69,10 +78,19 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
           consumer: "L4_C2KG" as const,
           rung: "context" as const,
           subject,
-          value: { src: e["src"], predicate: e["predicate"], dst: e["dst"], confidence: e["confidence"] },
+          // ★ AUDIT FIX (2026-10-03): narrow the runtime-untrusted edge fields (the symbol path
+          //   already does) — raw `unknown` values are not a valid LayerFact payload.
+          value: {
+            src: typeof e["src"] === "string" ? e["src"] : undefined,
+            predicate: typeof e["predicate"] === "string" ? e["predicate"] : undefined,
+            dst: typeof e["dst"] === "string" ? e["dst"] : undefined,
+            confidence: typeof e["confidence"] === "number" ? e["confidence"] : undefined,
+          },
           source: `${indexPath}#edges(${String(e["src"] ?? "?")} ${String(e["predicate"] ?? "?")} ${String(e["dst"] ?? "?")})`,
         }));
-      return symbolFacts.concat(edgeFacts).slice(0, 50);
+      // ★ AUDIT FIX (2026-10-03): EDGES FIRST. `symbolFacts.concat(edgeFacts).slice(0,50)` let 50
+      //   symbol matches starve every edge fact (the context rung's actual value). Edges lead.
+      return edgeFacts.concat(symbolFacts).slice(0, 50);
     },
   };
 }

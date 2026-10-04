@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/graph/corbell-adapter.ts:604-615 (the corbell schema walk: data['line'] -> data['line_start'] -> data['line_end']) + /home/leviathan/aether/src/hydra/graph-mapper.ts node source_location L-number locus (fixture graph.json: nodes carry source_location "L1"/"L2"; edges carry source_location + metadata.line).
+// PORTED FROM the archived upstream skill tree/graph/corbell-adapter.ts:604-615 (the corbell schema walk: data['line'] -> data['line_start'] -> data['line_end']) + /home/leviathan/aether/src/hydra/graph-mapper.ts node source_location L-number locus (fixture graph.json: nodes carry source_location "L1"/"L2"; edges carry source_location + metadata.line).
 // src/hunter/shared/line-resolve.ts
 // THE SHARED LINE RESOLVER (W3, EN-002 fix) — the ONE function BOTH map paths
 // (corbell + graphify) use to resolve a 1-indexed file line. The port crossed

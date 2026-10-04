@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/lexicon/compiled-store.ts — verbatim bytes; SEAM: db->../shared/db-canon.ts, profile->../profile/schema.ts.
-// src/subagents/trident-bug-hunter/lexicon/compiled-store.ts
+// PORTED FROM the archived upstream skill tree/lexicon/compiled-store.ts — verbatim bytes; SEAM: db->../shared/db-canon.ts, profile->../profile/schema.ts.
+// the archived upstream skill tree/lexicon/compiled-store.ts
 // THE COMPILED STORE (W4, spec §3.9's compiled-store — lines 1243-1257). The
 // battery rows → W1's compiled_predicates table (the C18.4 schema, db.ts lines
 // 257-268) via the DbClient PASS-THROUGH surface (prepare/exec — the documented

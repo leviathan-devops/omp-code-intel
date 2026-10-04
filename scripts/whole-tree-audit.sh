@@ -25,7 +25,7 @@ fi
 #   Probe the lane with ONE real completion BEFORE the wave; refuse to start on a dead lane.
 #   ★ PROTOCOL-AWARE: the go providers speak chat/completions; the zen-free adapter speaks
 #   /responses. Both are probed with the SHAPE their protocol requires.
-PROV="${AUDIT_PROVIDER:-muse-free}"
+PROV="${AUDIT_PROVIDER:-muse-go}"
 CFG=/home/leviathan/.opencodereview/config.json
 PROBE_URL="$(python3 -c "import json;print(json.load(open('$CFG'))['custom_providers'].get('$PROV',{}).get('url',''))" 2>/dev/null)"
 PROBE_PROTO="$(python3 -c "import json;print(json.load(open('$CFG'))['custom_providers'].get('$PROV',{}).get('protocol','openai'))" 2>/dev/null)"
@@ -82,7 +82,7 @@ worker() {
       #   budget on reasoning_tokens, so `content` returns null on large files and the part lands
       #   EMPTY. `--max-tokens` raises the per-file budget so the model finishes its analysis.
       #   MEASURED: engine.ts scans clean (exit 0, real tool calls) at --max-tokens 60000.
-      timeout 1800 ocr scan --path "$f" --provider ${AUDIT_PROVIDER:-muse-free} --max-tokens 60000 --format json 2>/dev/null \
+      timeout 1800 ocr scan --path "$f" --provider ${AUDIT_PROVIDER:-muse-go} --max-tokens 60000 --format json 2>/dev/null \
         | head -c 300000 > "$pf"
       [ -s "$pf" ] && break
       attempt=$((attempt + 1))

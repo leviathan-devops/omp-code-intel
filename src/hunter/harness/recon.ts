@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/recon.ts:1-150.
+// PORTED FROM the archived upstream skill tree/harness/recon.ts:1-150.
 // SEAMS: profile-loader -> ../profile/loader.ts (REAL ported sibling);
 // db -> ../shared/db.ts openStore/DbClient (REAL ported sibling).
 // Everything else verbatim: the fail-closed canon read, the blockquote battery
@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadProfile } from '../profile/loader.ts';
 import type { ProjectProfile } from '../profile/schema.ts';
-import { openStore, type DbClient } from '../shared/db.ts';
+import { openStore, resolveStoreDbPath, type DbClient } from '../shared/db.ts';
 
 /** The intended-behavior summary (spec §2.8:369) — the RECON actor's output.
  *  The runId is the machine's NAMED hunt run id ('<project>-hunt-<yyyyMMdd>-<seq>')
@@ -108,7 +108,7 @@ export function recon(profilePath: string): IntendedBehavior {
   // THE MATERIALIZATION + THE NAMED RUN ID (the rehydration build — the
   // compaction-inert promise made physical): the recon actor is the machine's
   // UNCONDITIONAL first state — opening the store HERE (create-if-absent)
-  // materializes <project>/.trident/knowledge-graph/shared.db + the C18.4
+  // materializes <project>/.gi/knowledge-graph/shared.db + the C18.4
   // tables + the WAL sidecars on the FIRST hunt, before any lazy first-write.
   // The map actor re-opens the SAME store (the WAL + busy_timeout 5000 absorb
   // the two-agent contention). The same open counts the prior HUNT_DONE runs
@@ -119,7 +119,7 @@ export function recon(profilePath: string): IntendedBehavior {
   //   loader's root check; defense-in-depth against a hand-edited root.
   const projectRootResolved = path.resolve(profile.project.root);
   // ★ R20-HIGH FIX (2026-09-25): the containment check was STRING-based — `path.resolve` collapses
-  //   `..` but follows NO symlink, so a symlinked project root (or a symlink in `.trident/`) could
+  //   `..` but follows NO symlink, so a symlinked project root (or a symlink in `.gi/`) could
   //   redirect the store write while the string prefix still matched. realpath the root first (the
   //   SAME shape as assertInsideProject), then contain against the REAL prefix. A missing root is a
   //   named failure, never a silent pass.
@@ -129,7 +129,7 @@ export function recon(profilePath: string): IntendedBehavior {
   } catch (e) {
     throw new Error(`recon actor: project root does not resolve (${projectRootResolved}) — ${e instanceof Error ? e.message : String(e)}`);
   }
-  const dbPath = path.resolve(projectRootReal, '.trident', 'knowledge-graph', 'shared.db');
+  const dbPath = resolveStoreDbPath(projectRootReal);
   if (dbPath !== projectRootReal && !dbPath.startsWith(projectRootReal + path.sep)) {
     throw new Error(`recon actor: resolved dbPath escapes project root (${dbPath} not under ${projectRootReal})`);
   }

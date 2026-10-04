@@ -22,7 +22,7 @@
 // ★ RUN:  bun scripts/host-suite.ts            (deterministic stub judge)
 //         bun scripts/host-suite.ts --live     (the REAL Jev — costs tokens)
 //
-// ★ THE ARTIFACT: .trident/host-suite-results.json — per-scenario verdicts with the
+// ★ THE ARTIFACT: .gi/host-suite-results.json — per-scenario verdicts with the
 //   observation, the expectation, the channel, and the delta.
 
 import * as fs from "node:fs";
@@ -41,7 +41,7 @@ import { produce, resolveFromSession, type ToolEvent } from "../src/omp/evidence
 import { resolveAll, type Subject } from "../src/omp/oracle.ts";
 
 const LIVE = process.argv.includes("--live");
-const OUT = path.join(process.cwd(), ".trident");
+const OUT = path.join(process.cwd(), ".gi");
 fs.mkdirSync(OUT, { recursive: true });
 const LEDGER = path.join(OUT, `host-suite-${LIVE ? "live" : "stub"}.sqlite`);
 try { fs.unlinkSync(LEDGER); } catch { /* fresh */ }
@@ -404,7 +404,7 @@ async function main() {
   };
   fs.writeFileSync(path.join(OUT, "host-suite-results.json"), `${JSON.stringify(artifact, null, 2)}\n`);
   console.log(`=== ${pass}/${results.length} PASS · ${pass === results.length ? "ALL GREEN" : "SEE FAILURES"} ===`);
-  console.log(`artifact: .trident/host-suite-results.json\n`);
+  console.log(`artifact: .gi/host-suite-results.json\n`);
 }
 
 await main();

@@ -1,7 +1,7 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/utils.ts (20L) — tridentLog + shortFile + the confidence-label ladder.
+// PORTED FROM fork-v143 live-tree/graph-intelligence/utils.ts (20L) — giLog + shortFile + the confidence-label ladder.
 // SEAM: none (zero-dep). CorbellAdapter imports this as its logger.
-// GI-PORT SEAM: tridentLog (src/utils.js) — console-backed (see BUILD_STATE).
-export function tridentLog(level: string, ns: string, msg: string): void {
+// GI-PORT SEAM: giLog (src/utils.js) — console-backed (see BUILD_STATE).
+export function giLog(level: string, ns: string, msg: string): void {
   console.error(`[${level} ${ns}] ${msg}`)
 }
 // ★ R18-HIGH FIX (2026-09-25): the parameter was typed `string` while the body explicitly

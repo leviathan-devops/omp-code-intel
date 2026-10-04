@@ -140,6 +140,62 @@ export function setMeta(storePath: string, key: string, value: string): void {
   }
 }
 
+// ── W3 CONTENT SCOPING — the writer seam (GI_KERNEL_V2.2_REBUILD_SPEC §3 W3) ──
+// Every store asserts the tree it was built from, so a store built for tree A
+// can never be served as if it described tree B (the F-124/D-2 ghost-store class).
+// gi_meta gains: build_root (realpath) · build_root_sha (sha256 of the sorted
+// file list + sizes + mtimes) · built_at (ISO) · builder (layer id).
+/** The closed builder set — the layer that produced the store. */
+export type StoreBuilder = "corbell" | "graphify" | "structural" | "c2kg" | "ua" | "semantica";
+/** sha256 over the sorted "path|size|mtimeMs" lines under the real target root. */
+export function computeBuildRootSha(targetRoot: string): string {
+  const real = fs.realpathSync(targetRoot);
+  const entries: string[] = [];
+  const walk = (dir: string): void => {
+    let names: fs.Dirent[];
+    try {
+      names = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    names.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const e of names) {
+      if (e.name === "node_modules" || e.name === ".git") continue;
+      const full = path.join(dir, e.name);
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!e.isFile()) continue;
+      try {
+        const st = fs.statSync(full);
+        entries.push(`${full}|${st.size}|${st.mtimeMs}`);
+      } catch {
+        /* raced delete — skip, never fail the stamp */
+      }
+    }
+  };
+  walk(real);
+  entries.sort();
+  return createHash("sha256").update(entries.join("\n")).digest("hex");
+}
+/** Stamp a store with its build root. Reuses the existing setMeta seam. */
+export function setBuildRoot(
+  storePath: string,
+  targetRoot: string,
+  builder: StoreBuilder,
+): { buildRoot: string; sha: string; builtAt: string } {
+  const buildRoot = fs.realpathSync(targetRoot);
+  const sha = computeBuildRootSha(buildRoot);
+  const builtAt = new Date().toISOString();
+  setMeta(storePath, "build_root", buildRoot);
+  setMeta(storePath, "build_root_sha", sha);
+  setMeta(storePath, "built_at", builtAt);
+  setMeta(storePath, "builder", builder);
+  return { buildRoot, sha, builtAt };
+}
+
 // W36 (frozen-scan HIGH): post-open re-verify — narrows the validation→open
 // TOCTOU window the pre-open lstat+magic check leaves. A symlink planted
 // after validation is refused here (lstat, no follow); garbage swapped in
@@ -440,11 +496,27 @@ export function migrateLayerColumns(db: Database): { added: string[]; backfilled
 // re-read); a heuristic edge tolerates longer (it is expensive and approximate).
 // SC-7 uses a TTL of 0 for the test, which makes ANY prior populate stale — the
 // deterministic way to assert the gate fires without waiting a day.
+/** ★ THE LAYER TTL (FR-11) — how long a store's population is trusted, per derivation class.
+ *
+ *  THE `unknown` ROW'S DERIVATION (why 24 h, recorded here because the class is the number):
+ *  `derivation` is NULL/detectable when a producer records no provenance (typed-write.ts:83,
+ *  SC-6), and layerFreshness falls back to THIS row for any unrecognised key — so `unknown`
+ *  is the FLOOR for the whole table. Two constraints fix it:
+ *  ① THE BOOT GAP (FR-11's actual objective — "the stores never age out"): the refresh timer
+ *     (au-engine-refresh.timer) re-populates every 30 min, but the host is a laptop: a suspend
+ *     or an overnight power-off leaves a longer window. 1 h was SHORTER than one sleep cycle, so
+ *     a store populated before a suspend read GI_LAYER_STALE on wake with nothing wrong (a false
+ *     stale — the exact defect FR-11 exists to close). 24 h covers a full suspend/wake + boot
+ *     cycle, and still fails a store genuinely abandoned for more than a day.
+ *  ② THE ORDERING LAW: an UNCLASSIFIED store must never be trusted LONGER than the
+ *     shortest-classified one. The classified rungs are explicit 24 h < inferred 72 h <
+ *     heuristic 7 d, so 24 h is the exact ceiling `unknown` may take — it ties `explicit`
+ *     (the shortest, safest class) and never exceeds it. */
 export const LAYER_TTL_MS: Readonly<Record<string, number>> = {
   explicit: 24 * 60 * 60 * 1000,
   inferred: 3 * 24 * 60 * 60 * 1000,
   heuristic: 7 * 24 * 60 * 60 * 1000,
-  unknown: 60 * 60 * 1000,
+  unknown: 24 * 60 * 60 * 1000, // ★ FR-11: 1 h → 24 h (derivation ①/② above)
 };
 
 export interface LayerFreshness {
@@ -817,7 +889,7 @@ function ph(n: number): string {
 
 // Fork query-tool.ts:177-194 who-calls: typed 'calls'/'imports' edges into the
 // symbol, label-resolved like the gate. Returns caller rows, not self rows.
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:178-194
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:178-194
 // + src/hunter/graph/store-map.ts:73-95 corbellEdgeToPredicate (method_call->calls + flow_step->traces-to).
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // Flow 'traces-to' callers have NULL file — they are still callers (file="" line=0, honest not silent).
@@ -864,7 +936,7 @@ export function whoCalls(storePath: string, name: string): { rows: number; names
 }
 // Fork query-tool.ts:415-458 blast-radius: symbol -> files -> depth-capped
 // recursive CTE over 'calls'/'imports'. Default depth 8 (DEFAULT_BLAST_DEPTH).
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:416-458
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:416-458
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // File-level walk: flow 'traces-to' sources have NULL file so they terminate the file
 // chain honestly (surfaced by whoCalls/impact instead — never silently dropped).
@@ -924,7 +996,7 @@ export function blastRadius(storePath: string, symbol: string, depth = 8): { roo
 
 // Fork query-tool.ts:460-492 would-break: typed 'calls' edges into the symbol.
 // The typed substrate has no per-call signature metadata: argsUnknown true.
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:461-492
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:461-492
 // CORBELL VOCABULARY (W4): delegates to whoCalls so 'calls' + 'traces-to' (+ 'imports'
 // for fallback stores) all count as callers — a signature change breaks flow 'traces-to'
 // dependents too, not just 'calls'.
@@ -958,7 +1030,7 @@ export interface ChainStep {
 
 // R5 chain port (fork query-tool.ts:200-243): BFS over TYPED 'calls' edges
 // from label -> to label. MAX_DEPTH 64 bounds pathological graphs.
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:201-244
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:201-244
 // CORBELL VOCABULARY (W4): predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores)
 // so flow_step 'traces-to' paths (flow -> method) are traversable, not half-invisible.
 export function chainCalls(storePath: string, from: string, to: string, maxDepth = 64, visitCap = 20000): ChainStep[] & { truncated?: boolean } {
@@ -1043,7 +1115,7 @@ export interface UnwiredRow {
 
 // R5 unwired port (fork query-tool.ts:283-302): Function nodes with zero
 // inbound 'calls'/'imports' edges. OMP kinds are File/Function only.
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:284-303
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:284-303
 // + src/hunter/graph/store-map.ts:63-67 resolveTypedKind (corbell node_type preserved as kind).
 // CORBELL VOCABULARY (W4): kinds method/flow/service/class (+ function/file/module +
 // Function/Class/File/Module for fallback stores) with zero inbound 'calls' + 'traces-to'
@@ -1098,7 +1170,7 @@ export interface ImpactResult {
 // W4 impact (OMP-NEW, no single fork source: the fork's blast-radius walks DOWNSTREAM
 // files via CHECK 3's CTE in surface/query-tool.ts:416-458; impact walks the UPSTREAM
 // direction — callers-of-callers — which the fork never materialized as a verb).
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:416-458
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:416-458
 // (the JOIN shape: typed_edges e + typed_nodes dst on dst.label + typed_nodes src).
 // CORBELL VOCABULARY: predicates 'calls' + 'traces-to' (+ 'imports' for fallback stores).
 // BFS over callers-of-callers with a depth ledger; hint names the follow-up (next=chain).
@@ -1163,7 +1235,7 @@ export function impact(storePath: string, symbol: string, depth = 8): ImpactResu
     db.close();
   }
 }
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts:178-194
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts:178-194
 // ONE result: direct callers (NAMED file:line) + transitive reaches (callers-of-callers
 // count via impact) + uses (symbols this symbol calls) + test-reach (callers/uses whose
 // file matches test/spec/mock/fixture paths). Empty sets are honest empties, never throws.

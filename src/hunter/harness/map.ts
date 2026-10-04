@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/map.ts:216-254 (LEGACY path only).
+// PORTED FROM the archived upstream skill tree/harness/map.ts:216-254 (LEGACY path only).
 // SEAMS: profile-schema -> ../profile/schema.ts (REAL); db
 // (openStore/writeGraph/mirrorToMasterContext/DbClient) -> ../shared/db.ts
 // (REAL whole-fork-db port); graph selectAdapter/GraphAdapter/BuildResult ->
@@ -6,7 +6,7 @@
 // ../shared/line-resolve.ts (REAL shared sibling, W3 EN-002 fix).
 // DEVIATION (named): the fork's corbell build path + additive SRO typed-graph
 // population (populateTypedGraph: typescript program + mechanical/merge/resolver
-// extraction + tridentLog/utils.js) is NOT ported — that corbell build path is
+// extraction + giLog/utils.js) is NOT ported — that corbell build path is
 // another agent's port (OmpCorbellPort). This map.ts carries the LEGACY path:
 // selectAdapter -> adapter.build -> LINELESS guard -> writeGraph ->
 // mirrorToMasterContext. The graphify case rides the SAME shape (the routed
@@ -16,7 +16,7 @@
 import path from 'node:path';
 import type { ProjectProfile } from '../profile/schema.ts';
 import type { DbClient } from '../shared/db.ts';
-import { openStore, writeGraph, mirrorToMasterContext } from '../shared/db.ts';
+import { openStore, resolveStoreDbPath, writeGraph, mirrorToMasterContext } from '../shared/db.ts';
 import { selectAdapter, graphEmpty, type GraphAdapter, type BuildResult } from '../graph/interface.ts';
 import { resolveLine, tryResolveLine } from '../shared/line-resolve.ts';
 
@@ -77,7 +77,7 @@ export async function map(profile: ProjectProfile, adapterOverride?: GraphAdapte
   // ★ W3-RUN17 FIX: resolve + contain — a `..`-spelling root redirected the
   //   store write outside the project. Fail LOUD, never a silent redirect.
   const projectRootResolved = path.resolve(profile.project.root);
-  const dbPath = path.resolve(projectRootResolved, '.trident', 'knowledge-graph', 'shared.db');
+  const dbPath = resolveStoreDbPath(projectRootResolved);
   if (dbPath !== projectRootResolved && !dbPath.startsWith(projectRootResolved + path.sep)) {
     throw new Error(`map actor: resolved dbPath escapes project root (${dbPath})`);
   }

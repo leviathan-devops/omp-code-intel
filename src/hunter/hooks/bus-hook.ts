@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/hooks/bus-hook.ts — verbatim bytes; SEAM: shared import rewritten.
-// src/subagents/trident-bug-hunter/hooks/bus-hook.ts
+// PORTED FROM the archived upstream skill tree/hooks/bus-hook.ts — verbatim bytes; SEAM: shared import rewritten.
+// the archived upstream skill tree/hooks/bus-hook.ts
 // THE EVENT BUS HOOK (W7, spec §5.1:2339-2357 — the Hydra transport, D19.2).
 // The passive pub-sub over W1's events table: the REPORT actor INSERTs the
 // HUNT_DONE row; this hook polls the events table past its cursor and pushes to
@@ -40,6 +40,25 @@ function rowsAs<T>(rows: unknown, label: string): T[] {
   throw new Error(`[hydra-bus] ${label} expected an array of rows, got ${typeof rows}`);
 }
 
+/** ★ W9-AUDIT FIX (2026-09-28): THE DELIVERY CLONE. The parsed payload used to be fanned to
+ *  every subscriber BY REFERENCE and stored in the dead-letter queue BY REFERENCE too — one
+ *  mutating subscriber corrupted the LATER subscribers' view of the same event AND the replayed
+ *  copy. Every delivery and every recorded failure now gets its own deep copy. `structuredClone`
+ *  is the deep copy; the JSON round-trip is the fallback for a value it refuses (only reachable
+ *  if a caller hand-built a payload carrying a function/symbol — a JSON event cannot); the shallow
+ *  spread is the last resort so a delivery never throws on the clone itself. */
+function clonePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  try {
+    return structuredClone(payload);
+  } catch {
+    try {
+      return JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+    } catch {
+      return { ...payload };
+    }
+  }
+}
+
 /** THE R16 TYPE_CERTAINTY GUARDED READ — the event kind is narrowed by the
  *  isBusKind membership check (the assertion is earned by the validation). */
 function eventKind(v: unknown): EventKind {
@@ -70,6 +89,12 @@ export class HydraBus {
   //   via the counter below so a full log is never silent.
   private static readonly MAX_FAILED_EVENTS = 500;
   private failuresDropped = 0;
+  // ★ W9-AUDIT FIX (2026-09-28): the UNKNOWN-KIND skip counter (see poll()). A row whose kind is
+  //   not a bus kind used to advance the cursor and sit in the RETURNED array as if it had been
+  //   pushed — silent. It is now counted, logged once per kind, dead-lettered, and exposed on the
+  //   audit surface via getUnknownKinds().
+  private unknownKinds = 0;
+  private readonly unknownKindLogged = new Set<string>();
 
   subscribe(fn: BusSubscriber): void {
     this.subscribers.push(fn);
@@ -84,10 +109,13 @@ export class HydraBus {
       return [];
     }
     this.polling = true;
-    // ★ F-1023 FIX (2026-09-25): an escaping throw mid-poll must not strand the
-    // ★ cursor past rows never delivered (silent event loss on next poll). The saved
-    // ★ cursor is restored on unexpected throw; normal poison skips still advance it.
-    const cursorBefore = this.cursor;
+    // ★ W9-AUDIT FIX (2026-09-28): the F-1023 cursor ROLLBACK is REMOVED. Restoring the pre-poll
+    // ★ cursor on an escaping throw rewound past rows ALREADY fanned out in the loop below, so the
+    // ★ next poll re-selected and REDELIVERED them — duplicate HUNT_DONE/BUILD_DONE dispatches with
+    // ★ no idempotency guard downstream. The cursor advances per row (at the end of each row's
+    // ★ dispatch), so it now simply STAYS at the last fully-delivered row: the worst case is
+    // ★ at-least-once for the single IN-FLIGHT row, never a duplicate of a delivered one. An
+    // ★ escaping throw still propagates LOUD to the caller (nothing is swallowed).
     try {
     const rows = rowsAs<EventRow>(db.prepare('SELECT id, kind, payload FROM events WHERE id > ? ORDER BY id ASC').all(this.cursor), 'events');
     // ★ F-65 FIX (2026-09-24): the F-41 shape throw left the cursor behind the poison row —
@@ -123,7 +151,32 @@ export class HydraBus {
     //   non-numeric id is unreachable from the real store (NULL never satisfies
     //   `WHERE id > ?`); the loud skip above is defense for foreign rows, and every
     //   numeric id advances the cursor.
+    const pushed: EventRow[] = [];
     for (const row of clean) {
+      // ★ W9-AUDIT FIX (2026-09-28): THE UNKNOWN-KIND IS NO LONGER SILENT. A row whose kind is
+      //   not a bus kind used to fall straight through the `isBusKind` guard, advance the cursor,
+      //   and sit in the RETURNED array as if it had been pushed — a corrupt/forward-compat row
+      //   became invisible (no log, no counter, no dead-letter entry). It is NOT dispatched (a
+      //   subscriber must never be handed a kind the type system swears cannot exist), so it is
+      //   dead-lettered, counted, logged ONCE per distinct kind, and kept OUT of the pushed set.
+      if (!isBusKind(row.kind)) {
+        this.unknownKinds += 1;
+        const sig = String(row.kind).slice(0, 80);
+        if (!this.unknownKindLogged.has(sig)) {
+          this.unknownKindLogged.add(sig);
+          console.error(`[hydra-bus] event id=${row.id} carries an UNKNOWN kind ${JSON.stringify(row.kind)} — not dispatched (known: HUNT_DONE|BUILD_DONE|AUDIT_DONE); dead-lettered`);
+        }
+        this.failedEvents.push({
+          row,
+          payload: { raw: row.payload },
+          error: new Error(`[hydra-bus] unknown event kind ${JSON.stringify(row.kind)}`),
+          attempt: 1,
+          failedIndex: -1,
+        });
+        this.trimFailedEvents();
+        this.cursor = row.id;
+        continue;
+      }
       let payload: Record<string, unknown>;
       try {
         const parsed: unknown = JSON.parse(row.payload);
@@ -134,37 +187,45 @@ export class HydraBus {
         }
         payload = parsed as Record<string, unknown>;
       } catch (e: unknown) {
-        console.warn(`[hydra-bus] event payload parse failed — the raw form is kept: ${e instanceof Error ? e.message : String(e)}`);
-        payload = { raw: row.payload };
+        // ★ W9-AUDIT FIX (2026-09-28): an UNPARSEABLE payload is DEAD-LETTERED, never dispatched.
+        //   The old fallback handed `{ raw: row.payload }` to the normal kind dispatch, so
+        //   onHuntDone/onBuildDone/onAuditDone were handed a shape they never validate (the
+        //   audit's own example: `conformanceZero` silently read `false` off the raw string) — a
+        //   corrupt row delivered AS a valid event. Recorded (inspectable), logged LOUD, cursor
+        //   advanced (at-most-once for the row). `failedIndex: -1` marks it non-replayable: a
+        //   retry cannot make the payload valid, and retryFailed() drops it LOUD.
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[hydra-bus] event id=${row.id} payload is not valid JSON — dead-lettered, NOT dispatched (${msg}): ${String(row.payload).slice(0, 160)}`);
+        this.failedEvents.push({ row, payload: { raw: row.payload }, error: e, attempt: 1, failedIndex: -1 });
+        this.trimFailedEvents();
+        this.cursor = row.id;
+        continue;
       }
-      if (isBusKind(row.kind)) {
-        for (let si = 0; si < this.subscribers.length; si++) {
-          const fn = this.subscribers[si]!;
-          try {
-            fn(eventKind(row.kind), payload);
-          } catch (e: unknown) {
-            // ★ F-349 FIX (2026-09-24): a subscriber failure must not kill the poll loop —
-            //   the row is still consumed (the cursor advances below), but the failure is
-            //   RECORDED (not just logged) so a transient fault never silently loses a
-            //   dispatch directive (e.g. HUNT_DONE → main-agent dispatch).
-            // ★ F-816 FIX (2026-09-24): record the subscriber INDEX — retry redelivers
-            //   ONLY to the thrower, never rebroadcasts to the subscribers that landed.
-            console.error(`[hydra-bus] subscriber #${si} for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
-            this.failedEvents.push({ row, payload, error: e, attempt: 1, failedIndex: si });
-            this.trimFailedEvents();
-          }
+      for (let si = 0; si < this.subscribers.length; si++) {
+        const fn = this.subscribers[si]!;
+        try {
+          // ★ W9-AUDIT FIX (2026-09-28): a CLONE per subscriber. The parsed object used to be
+          //   fanned to every subscriber by reference, so one mutating subscriber corrupted a
+          //   later subscriber's view of the same event (and the recorded replay copy).
+          fn(eventKind(row.kind), clonePayload(payload));
+        } catch (e: unknown) {
+          // ★ F-349 FIX (2026-09-24): a subscriber failure must not kill the poll loop —
+          //   the row is still consumed (the cursor advances below), but the failure is
+          //   RECORDED (not just logged) so a transient fault never silently loses a
+          //   dispatch directive (e.g. HUNT_DONE → main-agent dispatch).
+          // ★ F-816 FIX (2026-09-24): record the subscriber INDEX — retry redelivers
+          //   ONLY to the thrower, never rebroadcasts to the subscribers that landed.
+          console.error(`[hydra-bus] subscriber #${si} for ${row.kind} threw: ${e instanceof Error ? e.message : String(e)}`);
+          // ★ W9-AUDIT FIX: the dead-letter copy is CLONED too — the stored payload must not
+          //   alias the object a later subscriber is about to be handed.
+          this.failedEvents.push({ row, payload: clonePayload(payload), error: e, attempt: 1, failedIndex: si });
+          this.trimFailedEvents();
         }
       }
+      pushed.push(row);
       this.cursor = row.id;
     }
-      return clean;
-    } catch (e: unknown) {
-      // ★ F-1202 FIX (2026-09-25): the restore below re-selects rows already dispatched
-      // ★ in the clean loop — AT-LEAST-ONCE on this path, never at-most-once. Reachable only
-      // ★ when a throwing path escapes the per-subscriber/parse guards (today all are caught);
-      // ★ a future throwing line must add its own guard or accept redelivery. Kept + documented.
-      this.cursor = cursorBefore;
-      throw e;
+      return pushed;
     } finally {
       this.polling = false;
     }
@@ -181,12 +242,27 @@ export class HydraBus {
     return this.failedEvents;
   }
 
-  /** ★ R18-HIGH: keep the failure log bounded, counting what it drops (never a silent cap). */
+  /** ★ W9-AUDIT FIX (2026-09-28): the dead-letter queue's DROPPED history is now on the audit
+   *  surface. It was counted into a field with no getter, no log and no reset, so a sustained
+   *  subscriber failure silently lost the oldest history at the cap. The eviction below logs and
+   *  this getter exposes the running total. */
+  getFailuresDropped(): number {
+    return this.failuresDropped;
+  }
+
+  /** ★ W9-AUDIT FIX (2026-09-28): the audit surface for UNKNOWN-KIND skips (see poll()). */
+  getUnknownKinds(): number {
+    return this.unknownKinds;
+  }
+
+  /** ★ R18-HIGH: keep the failure log bounded, counting what it drops — and now SAYING so:
+   *  an eviction is logged (the count alone was invisible). */
   private trimFailedEvents(): void {
     const over = this.failedEvents.length - HydraBus.MAX_FAILED_EVENTS;
     if (over > 0) {
       this.failedEvents.splice(0, over);
       this.failuresDropped += over;
+      console.error(`[hydra-bus] dead-letter queue at its cap (${HydraBus.MAX_FAILED_EVENTS}) — evicted the ${over} OLDEST failure(s); ${this.failuresDropped} dropped this process (getFailuresDropped())`);
     }
   }
   /** ★ F-349 FIX (2026-09-24): replay every recorded failure through the CURRENT
@@ -217,7 +293,10 @@ export class HydraBus {
         continue;
       }
       try {
-        fn(eventKind(f.row.kind), f.payload);
+        // ★ W9-AUDIT FIX (2026-09-28): the replayed payload is a fresh CLONE — the stored copy
+        //   must not be handed to a subscriber by reference (a mutating subscriber would corrupt
+        //   the dead-letter record and any later retry of the same row).
+        fn(eventKind(f.row.kind), clonePayload(f.payload));
       } catch (e: unknown) {
         console.error(`[hydra-bus] retry for ${f.row.kind} (attempt ${f.attempt + 1}) subscriber #${idx} threw: ${e instanceof Error ? e.message : String(e)}`);
         this.failedEvents.push({ ...f, error: e, attempt: f.attempt + 1 });

@@ -1,5 +1,5 @@
 // GI-OMP ecosystem identity — boilerplate ScopeBindingManager.
-// Sibling to trident-omp / ripwire / opengrok. Foreign ids loud-refuse.
+// Sibling to gi-omp / ripwire / opengrok. Foreign ids loud-refuse.
 
 import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

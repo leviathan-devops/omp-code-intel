@@ -288,7 +288,7 @@ export function gather(
 
     if (r.kind === "edit") {
       // ★ EN-089 — THE MEASURED FIX. A bare TOUCH is not a REPAIR: the clock-based signal
-      //   saturated at 100% on a self-editing session (measured, .trident/e1-sizing.json),
+      //   saturated at 100% on a self-editing session (measured, .gi/e1-sizing.json),
       //   so it carried ZERO information. The content predicate discriminates at 0.55%.
       //   ★ A touch WITHOUT the repair shape is recorded and does NOT count as harm —
       //   it lands in the dismissed bucket, so the basis DISCLOSES what it saw and declined.

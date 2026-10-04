@@ -32,7 +32,14 @@ describe("st-audit-findings: ★ THE 5 DECLINED, EACH RESOLVED", () => {
       //   CONSTRUCTION, so a plant is seen by a NEW buildRegistry — which is exactly what the
       //   DECISION does per call. The claim is "the decision re-builds", not "one object re-reads".
       const upBefore = buildRegistry(scope).consumers().filter((c) => c.up().up).length;
-      // plant a substrate the registry knows how to find (the KEV runtime = the TSG probe)
+      // ★ V2.2 W5a NOTE (2026-09-26): the TSG rung now prefers JevK5 (GPU, live on :8090), so
+      //   planting the KEV substrate no longer CHANGES the TSG probe's up-state — jevk5 is
+      //   already up via the live server. The test's intent (a registry built BEFORE a
+      //   substrate appears must see it AFTER) is preserved by planting the UA substrate
+      //   (`.ua/knowledge-graph.json`), a layer that is DOWN in a bare scope.
+      fs.mkdirSync(path.join(scope, ".ua"), { recursive: true });
+      fs.writeFileSync(path.join(scope, ".ua", "knowledge-graph.json"), JSON.stringify({ nodes: [{ id: "x", label: "x" }], edges: [] }));
+      // and the KEV plant stays (belt-and-suspenders — it arms the TSG fallback when jevk5 is down)
       fs.mkdirSync(path.join(scope, "node_modules", "@huggingface", "transformers"), { recursive: true });
       fs.writeFileSync(path.join(scope, "node_modules", "@huggingface", "transformers", "package.json"), "{}");
       fs.mkdirSync(path.join(scope, "scripts"), { recursive: true });

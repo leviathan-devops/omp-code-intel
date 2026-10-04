@@ -173,7 +173,12 @@ describe("st-corbell-port: adapter + store-map + CLI proof", () => {
     }
   });
 
-  test("(d) GRAPH_EMPTY loud on an empty dir", async () => {
+  test("(d) LOUD named refusal on an empty dir (D5: GI_NO_SOURCE_ROOT, never GRAPH_EMPTY)", async () => {
+    // ★ GI-KERNEL-V2.2 W2/D5 (2026-09-26): the empty dir is now refused by the
+    //   source-root DISCOVERY before the build — GI_NO_SOURCE_ROOT, not the
+    //   post-build GRAPH_EMPTY. The spec's D5 is explicit: "a source-less target
+    //   returns GI_NO_SOURCE_ROOT ... NEVER GRAPH_EMPTY after a wrong-path attempt."
+    //   The loud-refusal contract is unchanged; the token moved one stage earlier.
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-empty-"));
     try {
       const profile = makeProfile(root, "Empty");
@@ -184,7 +189,7 @@ describe("st-corbell-port: adapter + store-map + CLI proof", () => {
       } catch (e: unknown) {
         msg = e instanceof Error ? e.message : String(e);
       }
-      expect(msg).toContain("GRAPH_EMPTY");
+      expect(msg).toContain("GI_NO_SOURCE_ROOT");
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

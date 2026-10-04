@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/strike.ts:1-76.
+// PORTED FROM the archived upstream skill tree/harness/strike.ts:1-76.
 // SEAMS: ProjectProfile -> ../profile/schema.ts (REAL); NormalizedFinding ->
 // ../diagnostics/findings-store.ts (REAL); dedupe/rankFindings/severityScore ->
 // ../diagnostics/engine.ts (REAL ported siblings); findingIdOf/TraceRow ->

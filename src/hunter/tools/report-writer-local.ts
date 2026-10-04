@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/tools/report-writer.ts:91-122 (500-cap + coverage) + :965-1003 (stripBeforeSeal) + :1005-1117 (N-versioning write path)
+// PORTED FROM the archived upstream skill tree/tools/report-writer.ts:91-122 (500-cap + coverage) + :965-1003 (stripBeforeSeal) + :1005-1117 (N-versioning write path)
 // OMP SEAM ADAPTATION — LOGIC ONLY. CUT: the network generation contract
 // (GENERATION_MODEL/PROVIDER/TOKENS/STREAM, StreamFetch transport, the
 // single-provider chain + retry, the chunked/batch assembly, the SSE parser),

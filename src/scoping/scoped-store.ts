@@ -31,6 +31,7 @@ export interface ScopedStoreOptions {
   id?: string;
 }
 
+// W3 RE-SYNC (2026-09-26): verified conformant to the boilerplate — no fork drift; mechanism untouched.
 let storeDb: Database | null = null;
 let storeDbPath: string | null = null;
 

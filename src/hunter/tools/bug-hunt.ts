@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/tools/bug-hunt.ts:1-101
+// PORTED FROM the archived upstream skill tree/tools/bug-hunt.ts:1-101
 // OMP SEAM ADAPTATION: the fork-plugin tool wrapper + the bare zod schema are
 // dropped (banned in OMP code); registration flows through GiExtensionAPI
 // (pi.registerTool + pi.zod, plain describe/default forms, no refinements).

@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/hunt-lock.ts:1-105.
+// PORTED FROM the archived upstream skill tree/harness/hunt-lock.ts:1-105.
 // Verbatim port — node-only lock, portable as-is (no seam adaptation needed).
 // BECAUSE: graph builds ran minutes-long; 30min absorbs 10x without blocking legit hunts
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ export interface HuntLockPayload {
 }
 
 function lockPathFor(targetPath: string): string {
-  return path.join(targetPath, '.trident', 'hunt.lock');
+  return path.join(targetPath, '.gi', 'hunt.lock');
 }
 
 // ★ F-243 NOTE (2026-09-24): NOT-A-BUG — EPERM-as-alive errs toward exclusion
@@ -32,7 +32,11 @@ function isPidAlive(pid: number): boolean {
       if (code === 'EPERM') return true;
     }
     console.warn(`[hunt-lock] isPidAlive unknown code for pid=${pid}: ${String(e)}`);
-    return false;
+    // ★ W9-AUDIT FIX (2026-09-28): FAIL-CLOSED — an unknown error was read as "not alive",
+    //   so a LIVE same-host holder was classified STALE and its lock UNLINKED (the audit's
+    //   HIGH: a mutual-exclusion breach). An ambiguous probe now reads as ALIVE (never steal
+    //   on an unknown failure); ESRCH alone proves death.
+    return true;
   }
 }
 

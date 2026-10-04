@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/diagnostics/calibration.ts — verbatim bytes; SEAM: shared imports rewritten to the ported siblings.
-// src/subagents/trident-bug-hunter/diagnostics/calibration.ts
+// PORTED FROM the archived upstream skill tree/diagnostics/calibration.ts — verbatim bytes; SEAM: shared imports rewritten to the ported siblings.
+// the archived upstream skill tree/diagnostics/calibration.ts
 // THE CALIBRATION MUTATION GATE (W5, spec §3.11 lines 1380-1427 + SECTION 9
 // lines 4088-4687). D17 — every compiled predicate must FIRE on the profile's
 // recorded violation history AND stay SILENT on the operator's golden state.
@@ -403,7 +403,7 @@ export class CalibrationGate {
     const version = this.batteryVersion(fixtureVersion);
 
     if (write && !this.dryRun) {
-      const recordPath = write.recordPath ?? path.join(profile.project.root, '.trident', 'bug-hunter');
+      const recordPath = write.recordPath ?? path.join(profile.project.root, '.gi', 'bug-hunter');
       if (write.db) {
         this.writeCalibrationRows(write.db, records, fixtureVersion);
       }

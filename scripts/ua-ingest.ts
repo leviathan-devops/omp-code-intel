@@ -42,7 +42,13 @@ const core = (await import(CORE)) as {
   saveGraph: (projectRoot: string, graph: unknown) => void;
 };
 
-const SKIP = new Set(["node_modules", ".git", "Checkpoints", "graphify-out", "dist", "out", ".trident", "research", "SHIP_PACKAGES", "packages"]);
+// ★ THE SHARED WALK_SKIP (GI_KERNEL_V2.3 FR-6). ONE law, imported from the same module
+//   every producer mirrors (src/hunter/profile/source-roots.ts). This script walked the
+//   WHOLE repo with a private skip that missed `fork-v143` / `Ship_Packages` / `extensions`
+//   — the L3_ua layer measured 45% in-scope. The private list is gone; the scoping now
+//   comes from discoverSourceRoots (the SAME src+tests the rest of the kernel uses).
+import { discoverSourceRoots, WALK_SKIP } from "../src/hunter/profile/source-roots.ts";
+const SKIP: Set<string> = WALK_SKIP;
 const EXTS = new Set([".ts", ".tsx", ".js", ".mjs"]);
 
 /** Walk the scope for source files, skipping the archive + the vendored trees. */
@@ -62,7 +68,12 @@ function walk(dir: string, out: string[] = [], depth = 0): string[] {
 const plugin = new core.TreeSitterPlugin();
 await plugin.init();
 
-const files = walk(root);
+// ★ SCOPE FROM THE SHARED DISCOVERY (GI_KERNEL_V2.3 FR-6) — walk the DISCOVERED source
+//   roots (the SAME src+tests structural/graphify use), never the raw repo root. The
+//   private whole-repo walk was the L3_ua 45%-in-scope defect.
+const discoveredRoots = discoverSourceRoots(root);
+const scanRoots = "error" in discoveredRoots ? [root] : discoveredRoots.roots;
+const files = scanRoots.flatMap((r) => walk(r));
 const builder = new core.GraphBuilder(
   path.basename(root),
   createHash("sha1").update(String(files.length)).digest("hex").slice(0, 12),

@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/micro-loop-machine.ts:1-498.
+// PORTED FROM the archived upstream skill tree/harness/micro-loop-machine.ts:1-498.
 // SEAMS (per the port work order): xstate (bun add xstate — REAL, v5.33.0);
 // profile -> ../profile/schema.ts (REAL); db DbClient -> ../shared/db.ts (REAL);
 // GraphAdapter -> ../graph/interface.ts (REAL); NormalizedFinding ->
@@ -17,7 +17,7 @@ import { createMachine, fromPromise, assign, createActor } from 'xstate';
 import path from 'node:path';
 import type { ProjectProfile } from '../profile/schema.ts';
 import type { DbClient } from '../shared/db.ts';
-import { openStore } from '../shared/db.ts';
+import { openStore, resolveStoreDbPath } from '../shared/db.ts';
 import type { GraphAdapter } from '../graph/interface.ts';
 import type { NormalizedFinding } from '../diagnostics/findings-store.ts';
 import type { CompiledPredicate } from '../lexicon/templates.ts';
@@ -295,7 +295,7 @@ export function createMicroLoop(options: MicroLoopOptions): MicroLoopHandle {
       // loader — the caller supplies the profile object directly.
       recon: fromPromise(async ({ input }: { input: { profilePath: string } }) => {
         if (profileOverride) {
-          const dbPath = path.join(profileOverride.project.root, '.trident', 'knowledge-graph', 'shared.db');
+          const dbPath = resolveStoreDbPath(profileOverride.project.root);
           const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
           const slug = profileOverride.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
           const store = openStore(dbPath);

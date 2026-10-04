@@ -26,6 +26,7 @@ export interface SessionStateEntry {
 
 export type SessionStateMap = Record<string, SessionStateEntry>;
 
+// W3 RE-SYNC (2026-09-26): verified conformant to the boilerplate — no fork drift; mechanism untouched.
 /** THE SESSION KEY LAW: slice(-24) — the stable tail of the session id (the
  *  source's own key derivation). */
 export function sessionKey(sessionId: string): string {

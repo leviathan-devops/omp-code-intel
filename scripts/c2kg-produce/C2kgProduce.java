@@ -55,12 +55,18 @@ public final class C2kgProduce {
         final String out = args.length > 1 ? args[1]
                 : root + "/.c2kg/index.json";
 
+        // ★ the parse set = the project's declared source roots (args[2..]); the whole
+        //   root only when none are declared.
+        List<String> parseRoots = new ArrayList<>();
+        for (int i = 2; i < args.length; i++) parseRoots.add(args[i]);
+        if (parseRoots.isEmpty()) parseRoots.add(root);
         VsCodeParser parser = FactoriesKt.createVsCodeParser(root, new NoComms());
-        GraphBuilder builder = parser.parseToGraphBuilder(List.of(root));
+        GraphBuilder builder = parser.parseToGraphBuilder(parseRoots);
         Graphlike graph = builder.build(root);
 
         Map<String, Node> nodes = graph.getNodes();
         List<String> rows = new ArrayList<>();
+        java.util.Set<String> kept = new java.util.HashSet<>();
         // ★ THE A-0 LAW APPLIED TO L4: the toolkit's walker respects .gitignore, but
         //   Checkpoints/ is not in this repo's .gitignore — so the graph would describe the
         //   ARCHIVE (measured: the first run carried Checkpoints/ paths). The producer drops
@@ -81,6 +87,15 @@ public final class C2kgProduce {
             rows.add("    {\"name\":" + q(name) + ",\"file\":" + q(file)
                     + ",\"line\":" + line + ",\"kind\":" + q(kind)
                     + ",\"id\":" + q(e.getKey()) + "}");
+            kept.add(e.getKey());
+        }
+        // ★ the edges: every parser connection whose both ends are kept nodes. A KG with
+        //   nodes and no edges is a file list wearing the name.
+        List<String> edges = new ArrayList<>();
+        for (software.bevel.graph_domain.graph.Connection c : graph.getConnections().getAllConnections()) {
+            if (!kept.contains(c.getSourceNodeName()) || !kept.contains(c.getTargetNodeName())) continue;
+            edges.add("    {\"source\":" + q(c.getSourceNodeName()) + ",\"target\":" + q(c.getTargetNodeName())
+                    + ",\"type\":" + q(c.getConnectionType() == null ? "" : c.getConnectionType().name()) + "}");
         }
 
         File f = new File(out);
@@ -92,11 +107,14 @@ public final class C2kgProduce {
             w.println("  \"projectRoot\": " + q(root) + ",");
             w.println("  \"symbols\": [");
             w.println(String.join(",\n", rows));
+            w.println("  ],");
+            w.println("  \"edges\": [");
+            w.println(String.join(",\n", edges));
             w.println("  ]");
             w.println("}");
         }
-        System.out.println("[c2kg] root=" + root + " nodes=" + nodes.size() + " -> " + out
-                + " (" + f.length() + "B)");
+        System.out.println("[c2kg] root=" + root + " roots=" + parseRoots + " nodes=" + rows.size()
+                + " edges=" + edges.size() + " -> " + out + " (" + f.length() + "B)");
     }
 
     private static String q(String s) {

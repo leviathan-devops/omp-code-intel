@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/graph/interface.ts:1-246 (verbatim except: ProjectProfile from ../profile/schema.ts; IxAdapter excluded per manifest — case 'ix' throws loud REMOVED).
-// src/subagents/trident-bug-hunter/graph/interface.ts
+// PORTED FROM the archived upstream skill tree/graph/interface.ts:1-246 (verbatim except: ProjectProfile from ../profile/schema.ts; IxAdapter excluded per manifest — case 'ix' throws loud REMOVED).
+// the archived upstream skill tree/graph/interface.ts
 // THE GRAPHADAPTER CONTRACT (W2, spec §3.2 lines 536-660, C18.1). The machine's
 // graph engine is a set of THIN SHELLS behind ONE interface — the machine never
 // knows which adapter runs; the diagnostics engine, the query surface and the
@@ -28,7 +28,7 @@ import type { ProjectProfile } from '../profile/schema.ts';
 import { CorbellAdapter } from './corbell-adapter.ts';
 import { GraphifyAdapter } from './graphify-adapter.ts';
 // NOTE (the native-ast rip-out, the operator ruling 2026-09-07): the
-// NativeAstAdapter import is DELETED with src/subagents/trident-bug-hunter/graph/native-ast-adapter.ts —
+// NativeAstAdapter import is DELETED with the archived upstream skill tree/graph/native-ast-adapter.ts —
 // no fallback adapter exists. A profile declaring substrate native-ast fails at
 // RECON (the profile-schema enum) and selectAdapter throws the named REMOVED
 // error below for any legacy string that reaches it at runtime.
@@ -46,7 +46,11 @@ export type GraphNodeKind =
 
 export type GraphEdgeKind =
   | 'imports' | 'calls' | 'awaits' | 'wires' | 'traces-to'
-  | 'constrains' | 'implements' | 'extends';
+  | 'constrains' | 'implements' | 'extends'
+  // ★ W9-AUDIT FIX (2026-09-28): git co-change coupling is NOT a call — it carries its own
+  //   kind, so the whoCalls/chain predicates (which filter 'calls') never treat a coupling
+  //   edge as a call site (the audit's HIGH: the pollution inflated whoCalls/unwired/chain).
+  | 'coupling';
 
 // ★ F-407 FIX (2026-09-24): 'ix' was REMOVED (selectAdapter throws REMOVED) but stayed in the
 // ★ type, so callers compiled against a substrate that can never build — rejected at compile time now.

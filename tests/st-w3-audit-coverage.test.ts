@@ -31,20 +31,38 @@ describe("st-w3-audit: ★ THE WHOLE-TREE AUDIT COVERS THE TREE", () => {
     };
     const live = srcFileCount();
     // ★ FR-3's PIN: the scan ATTEMPTS the WHOLE tree, never a sample (the 2.7% fraud).
+    //   THIS is the anti-fraud invariant — it holds regardless of the lane's health.
     expect(audit.files_scanned).toBeGreaterThanOrEqual(live);
-    // and it produced a result for the overwhelming majority (a scan that reads nothing is no scan)
-    expect(audit.files_with_a_result).toBeGreaterThanOrEqual(Math.floor(live * 0.9));
+    // ★ THE HEALTH METRIC (V2.2, 2026-09-26): "most files got a result" is a HEALTHY-LANE
+    //   property. When the free lane rate-limits mid-run, the script writes explicit
+    //   EMPTY_RESULT markers (the honest "the scan returned nothing" record) and the
+    //   artifact's gate line names the degradation. Assert the health metric ONLY on a
+    //   healthy run; on a BLOCKED/degraded run, assert the DEGRADATION IS NAMED (the
+    //   anti-fraud invariant above already held). Fitting a green here would be the
+    //   FITTED-TO-GOLDEN anti-pattern; distinguishing an invariant from an environment
+    //   metric is not.
+    const gate = audit["★ AUDIT GATE (the whole tree)"] ?? "";
+    const degraded = /BLOCKED|degraded|EMPTY_RESULT/i.test(gate);
+    if (!degraded) {
+      expect(audit.files_with_a_result).toBeGreaterThanOrEqual(Math.floor(live * 0.9));
+    } else {
+      // a degraded run must NAME its degradation, never silently read as clean
+      expect(gate).toMatch(/BLOCKED|degraded/i);
+    }
   });
 
   test("test_audit_verdict_is_named", () => {
     const audit = JSON.parse(fs.readFileSync(ARTIFACT, "utf8")) as {
       by_severity: Record<string, number>;
+      empty_result_parts?: number;
       "★ AUDIT GATE (the whole tree)"?: string;
     };
-    // ★ THE VERDICT IS A MECHANICAL FUNCTION OF THE COUNTS — never a hand-typed word.
+    // ★ THE VERDICT IS A MECHANICAL FUNCTION OF THE COUNTS AND THE DEGRADATION — never a hand-typed word.
+    //   V2.2 (2026-09-26): a run with EMPTY_RESULT parts (the lane rate-limited) is BLOCKED, never PASS.
     const crit = audit.by_severity.critical ?? 0;
     const high = audit.by_severity.high ?? 0;
-    const expected = crit === 0 && high === 0 ? "PASS" : "FAIL";
+    const degraded = (audit.empty_result_parts ?? 0) > 0;
+    const expected = degraded ? "BLOCKED" : crit === 0 && high === 0 ? "PASS" : "FAIL";
     expect(audit["★ AUDIT GATE (the whole tree)"]?.startsWith(expected)).toBe(true);
   });
 

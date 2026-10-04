@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/diagnostics/findings-store.ts — verbatim bytes; SEAM: db import rewritten to ../shared/db-canon.ts (the ported slice).
-// src/subagents/trident-bug-hunter/diagnostics/findings-store.ts
+// PORTED FROM the archived upstream skill tree/diagnostics/findings-store.ts — verbatim bytes; SEAM: db import rewritten to ../shared/db-canon.ts (the ported slice).
+// the archived upstream skill tree/diagnostics/findings-store.ts
 // THE APPEND-ONLY FINDINGS WRAPPER (W5, spec §3.10:1333 — the K4.3 store).
 // The machine's single findings surface: the thin adapter over W1's
 // appendFinding (db.ts:170), with the runId + week scoping, the MPSE evidence

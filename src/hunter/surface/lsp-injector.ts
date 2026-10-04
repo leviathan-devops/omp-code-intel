@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/lsp-injector.ts (583L) — verbatim; SEAM: shared imports rewritten. OMP binding: the result hook lands in the tool-adapter wave.
+// PORTED FROM the archived upstream skill tree/surface/lsp-injector.ts (583L) — verbatim; SEAM: shared imports rewritten. OMP binding: the result hook lands in the tool-adapter wave.
 /**
  * lsp-injector.ts — THE LOGIC-LSP (W6, spec §3.13 ~1500-1560)
  *
@@ -22,7 +22,7 @@
  * verdicts are zero — the build agent's fixes alone do NOT clear.
  */
 
-import { openStore } from '../shared/db.ts';
+import { openStore, resolveStoreDbPath } from '../shared/db.ts';
 import type { DbClient } from '../shared/db.ts';
 export const WATCHER_DEBOUNCE_MS = 800;
 export const WATCHER_BACKLOG_CAP = 500;
@@ -524,13 +524,13 @@ function pathResolve(p: string): string {
 const projectServers = new Map<string, DiagnosticsServer>();
 
 /** THE PROJECT ROOT RESOLUTION — walk UP from the touched file to find the
- *  project's .trident/knowledge-graph/shared.db marker. Returns null when the
+ *  project's .gi/knowledge-graph/shared.db marker. Returns null when the
  *  file is outside any machine-tracked project (no per-project LSP — the
  *  platform-level fallback applies). */
 export function resolveProjectRoot(file: string): string | null {
   let dir = path.dirname(pathResolve(file));
   while (true) {
-    const marker = path.join(dir, '.trident', 'knowledge-graph', 'shared.db');
+    const marker = resolveStoreDbPath(dir);
     if (fs.existsSync(marker)) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) return null;   // the filesystem root — no project found
@@ -546,7 +546,7 @@ export function getProjectDiagnosticsServer(projectRoot: string): DiagnosticsSer
   let server = projectServers.get(projectRoot);
   if (!server) {
     server = new DiagnosticsServer();
-    const dbPath = path.join(projectRoot, '.trident', 'knowledge-graph', 'shared.db');
+    const dbPath = resolveStoreDbPath(projectRoot);
     if (fs.existsSync(dbPath)) {
       try {
         const { openStore } = requireProjectDb();

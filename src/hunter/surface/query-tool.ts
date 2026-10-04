@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/surface/query-tool.ts (DEV-4 depth-8 / DEV-5 CTE) — verbatim bytes; SEAM: shared import rewritten.
+// PORTED FROM the archived upstream skill tree/surface/query-tool.ts (DEV-4 depth-8 / DEV-5 CTE) — verbatim bytes; SEAM: shared import rewritten.
 /**
  * query-tool.ts — THE 7-VERB QUERY SURFACE (W6, spec §3.12 ~1400-1500)
  *

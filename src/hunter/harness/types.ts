@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/* — the harness-local seam contracts.
+// PORTED FROM the archived upstream skill tree/harness/* — the harness-local seam contracts.
 // types.ts carries ONLY genuinely structural seams: shapes the harness itself
 // defines (actor I/O, loop options/result, report-writer seam types) plus
 // re-exports of the canonical ported symbols for one-import convenience.
@@ -10,7 +10,7 @@
 //   lexicon        -> ../lexicon/templates.ts (CompiledPredicate/...)
 //   findings       -> ../diagnostics/findings-store.ts (NormalizedFinding)
 //   engine         -> ../diagnostics/engine.ts (dedupe/rankFindings/...)
-//   log            -> ../log.ts (tridentLog)
+//   log            -> ../log.ts (giLog)
 // PENDING-INTEGRATION (next wave): the REAL store integration (DbClient already
 // REAL — no shim); the surface/lsp-injector + tools/report-writer seams stay
 // stubbed OUT of the port (report.ts writes the report file directly).

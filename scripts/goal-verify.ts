@@ -16,6 +16,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import { consumptionAudit } from "../src/omp/layer-consumption.ts";
+import { resolveStateRel } from "../src/hunter/shared/db.ts";
 
 // ★ F-35 FIX (2026-09-24): RESOLVE to absolute — the adapters now require an absolute
 //   scopeRoot (GI_LAYER_UA/SEMANTICA: scopeRoot must be absolute), and the pin invokes
@@ -113,19 +114,17 @@ const checks: Check[] = [
     id: "C3",
     condition: "the container Phase-E is 10/10 + the negative suite",
     run: () => {
-      const hostRaw = fs.existsSync(path.join(scopeRoot, ".trident/plan-6l2e/phaseE.json"))
-        ? (fs.readFileSync(path.join(scopeRoot, ".trident/plan-6l2e/phaseE.json"), "utf8"))
-        : null;
+      const hostPath = resolveStateRel(scopeRoot, "plan-6l2e/phaseE.json");
+      const hostRaw = fs.existsSync(hostPath) ? fs.readFileSync(hostPath, "utf8") : null;
       const host = hostRaw === null ? null : (JSON.parse(hostRaw) as { scenarios?: unknown[]; verdict?: string });
-      if (host === null) return ".trident/plan-6l2e/phaseE.json is ABSENT";
+      if (host === null) return ".gi/plan-6l2e/phaseE.json is ABSENT";
       const n = host.scenarios?.length ?? 0;
       if (n < 10) return `the host rig's Phase-E has ${n} scenarios (< 10)`;
       if (!/PASS/.test(host.verdict ?? "")) return `the host rig's verdict is not PASS: '${host.verdict}'`;
-      const kevRaw = fs.existsSync(path.join(scopeRoot, ".trident/plan-6l2e/phaseE-kev.json"))
-        ? (fs.readFileSync(path.join(scopeRoot, ".trident/plan-6l2e/phaseE-kev.json"), "utf8"))
-        : null;
+      const kevPath = resolveStateRel(scopeRoot, "plan-6l2e/phaseE-kev.json");
+      const kevRaw = fs.existsSync(kevPath) ? fs.readFileSync(kevPath, "utf8") : null;
       const kev = kevRaw === null ? null : (JSON.parse(kevRaw) as { verdict?: string });
-      if (kev === null) return ".trident/plan-6l2e/phaseE-kev.json is ABSENT";
+      if (kev === null) return ".gi/plan-6l2e/phaseE-kev.json is ABSENT";
       if (!/PASS/.test(kev.verdict ?? "")) return `the KEV rig's verdict is not PASS: '${kev.verdict}'`;
       // ★ THE TWO-SIDED ADJUDICATION (this check caught ITSELF): a bare /BLOCKED/ matches the
       //   SUCCESS string "0 BLOCKED". The predicate is correct only for a NONZERO count.

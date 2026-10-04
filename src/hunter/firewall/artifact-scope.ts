@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/firewall/artifact-scope.ts — verbatim bytes; SEAM: none expected (lexicon-types sibling already ported).
+// PORTED FROM the archived upstream skill tree/firewall/artifact-scope.ts — verbatim bytes; SEAM: none expected (lexicon-types sibling already ported).
 /**
  * artifact-scope.ts — THE REPORT_SCOPE_LEXICON (W3, the T.E.B enforcement layer)
  *

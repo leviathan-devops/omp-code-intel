@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/graph/corbell-adapter.ts:1-876 (verbatim except imports: tridentLog from ../log.ts; ProjectProfile from ../profile/schema.ts).
-// src/subagents/trident-bug-hunter/graph/corbell-adapter.ts
+// PORTED FROM the archived upstream skill tree/graph/corbell-adapter.ts:1-876 (verbatim except imports: giLog from ../log.ts; ProjectProfile from ../profile/schema.ts).
+// the archived upstream skill tree/graph/corbell-adapter.ts
 // THE PRIMARY ADAPTER (W2, spec §3.3 lines 662-778) — the thin shell over the
 // REAL Corbell CLI (C7.1, D2). The wire-don't-build law: the CLI is the engine,
 // this file is the shell. Zero graph machinery built from scratch (R11.5).
@@ -36,7 +36,7 @@
 // THE GRAPH_EMPTY LAW: a build that produces zero nodes is a LOUD FAIL (the
 // engine refuses to run on an empty graph), never a silent empty success.
 
-import { tridentLog } from '../log.ts';
+import { giLog } from '../log.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -45,13 +45,19 @@ import { execSync } from 'node:child_process';
 // chain lives in src/audit-engine/harness/pi-aether-agent.ts — zen
 // muse-spark primary per the operator's 2026-08-23 directive; this adapter
 // only consumes the resolved corbell binary path.
-import { Database } from 'bun:sqlite';
+import { createRequire } from 'node:module';
+// ★ HARDEN F6 (2026-09-28): `bun:sqlite` is a TYPE-ONLY import here — the driver is
+//   loaded LAZILY by loadBunSqlite() on the first real store read (see below). The old
+//   value import made MODULE LOAD itself throw under any non-Bun runtime, so even the
+//   mocked / store-absent paths (which never open a DB) were unreachable.
+import type { Database } from 'bun:sqlite';
 import type {
   GraphAdapter, GraphNode, GraphEdge, BuildResult,
   CallSite, ChainStep, ImportEdge, AwaitEdge, DeadNode, GraphNodeKind,
 } from './interface.ts';
 import { adapterFailed, adapterParseError, graphEmpty } from './interface.ts';
 import type { ProjectProfile } from '../profile/schema.ts';
+import { discoverSourceRoots, WALK_SKIP } from '../profile/source-roots.ts';
 
 /** The exec surface the tests stub. execSync-shaped but returns the stdout string. */
 export type ExecFn = (cmd: string, opts?: { cwd?: string; timeout?: number; env?: NodeJS.ProcessEnv }) => string;
@@ -109,7 +115,7 @@ function buildAsyncCouplingEnv(cwd: string): NodeJS.ProcessEnv {
     CORBELL_COUPLING_MONTHS: '1',
     CORBELL_COUPLING_MAX_COMMIT_FILES: '200',
     CORBELL_COUPLING_MAX_COMMITS: '500',
-    CORBELL_WALK_EXCLUDE_DIRS: ['Checkpoints', 'corbell-data', 'context_management', '.trident'].join(','),
+    CORBELL_WALK_EXCLUDE_DIRS: ['Checkpoints', 'corbell-data', 'context_management', '.gi'].join(','),
   };
   try {
     const gitRoot = execSync('git rev-parse --show-toplevel', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -148,7 +154,28 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
     let settled = false;
     /** ★ F-433: set when the timeout FIRES — suppresses a late close-resolve, never disarms done(). */
     let timedOut = false;
+    // ★ HARDEN F1+F2 (2026-09-28): THE EXIT LATCH IS REGISTERED ONCE, AT SPAWN TIME,
+    //   BEFORE THE TIMEOUT IS ARMED. The old timeout arm registered its own
+    //   `proc.on('exit')` INSIDE the timeout closure (i.e. after `timedOut` was set):
+    //   a child that had already emitted 'exit' when the deadline landed (a normal exit
+    //   in the same tick) never reached the late listener, `close` early-returned on
+    //   `timedOut`, and the promise delay-settled the FULL 10s force-kill ceiling for a
+    //   process that was already gone. `childExited` is the latch the timeout arm reads
+    //   SYNCHRONOUSLY to reap in the same tick, and it is also the ONLY registration
+    //   (the duplicate in-closure listener is removed — dead by construction).
+    //   `childPid` is captured at spawn so the SIGKILL-survived path can NAME the
+    //   process the caller must still reap (F2: the handle is not lost with the rejection).
+    let childExited = false;
+    const childPid: number | undefined = proc.pid;
+    const timedOutError = (why: string): Error =>
+      new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — ${why}, no partial graph accepted`);
     const done = (fn: () => void): void => { if (settled) return; settled = true; if (timer !== null) clearTimeout(timer); if (killTimer !== null) clearTimeout(killTimer); if (forceKillTimer !== null) clearTimeout(forceKillTimer); fn(); };
+    // ★ HARDEN F1: the latch — the moment the child dies, a fired timeout's rejection
+    //   lands (this is the listener the old code registered too late to ever fire).
+    proc.on('exit', () => {
+      childExited = true;
+      if (timedOut) done(() => reject(timedOutError(`child killed (pid ${childPid ?? 'unknown'})`)));
+    });
     if (typeof timeoutMs === 'number' && timeoutMs > 0) {
       // ★ F-336 FIX (2026-09-24): SIGTERM alone leaked a trapping child — it kept running
       // ★ after rejection (settled guard blocked the close/error handlers, nobody reaped it).
@@ -165,6 +192,12 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
         //   no timeout and no error. `timedOut` is the separate latch: it SUPPRESSES the late
         //   `close`-handler RESOLVE without disarming the REJECT path.
         timedOut = true;
+        // ★ HARDEN F1: the child already exited (or is exiting) when the deadline landed —
+        //   reap NOW from the latch instead of waiting out the 10s force-kill ceiling.
+        if (childExited || proc.exitCode !== null || proc.signalCode !== null) {
+          done(() => reject(timedOutError(`child already exited (pid ${childPid ?? 'unknown'})`)));
+          return;
+        }
         try { proc.kill('SIGTERM'); } catch { /* already exited */ }
         killTimer = setTimeout(() => {
           try { proc.kill('SIGKILL'); } catch { /* already exited */ }
@@ -173,26 +206,17 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
         // ★ F-412 FIX (2026-09-24): reject AFTER the child exits to prevent orphaned
         //   processes. If SIGKILL does not terminate within 10s, reject anyway with a
         //   hard-kill error — the caller is no longer left with an unknown-lived child.
+        // ★ HARDEN F2 (2026-09-28): the SIGKILL-survived path is the ONLY one that leaves a
+        //   live process. Re-attempt the SIGKILL synchronously here, and carry the PID in
+        //   the named error so the caller can reap what the adapter could not.
         forceKillTimer = setTimeout(() => {
-          done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child survived SIGKILL, no partial graph accepted`)));
+          try { proc.kill('SIGKILL'); } catch { /* died between the re-check and the kill */ }
+          done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child survived SIGKILL (pid ${childPid ?? 'unknown'} may still be running — reap it), no partial graph accepted`)));
         }, 10_000);
         (forceKillTimer as unknown as { unref?: () => void }).unref?.();
-        proc.on('exit', () => {
-          done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));
-        });
       }, timeoutMs);
       (timer as unknown as { unref?: () => void }).unref?.();
     }
-    // ★ W16-HIGH FIX: the timeout arm registers proc.on('exit') INSIDE the
-    //   timeout closure — a child that already emitted 'exit' before the timeout
-    //   fires never settles the promise (late listener misses the emission).
-    //   This early exit latch settles timed-out builds the moment the child
-    //   actually dies, regardless of listener order.
-    proc.on('exit', () => {
-      if (timedOut) {
-        done(() => reject(new Error(`corbell graph build timed out after ${timeoutMs}ms (cwd: ${cwd}) — child killed, no partial graph accepted`)));
-      }
-    });
     proc.stdout?.on('data', (data: Buffer) => { stdout += data.toString(); });
     proc.stderr?.on('data', (data: Buffer) => { stderr += data.toString(); });
     proc.on('close', (code) => {
@@ -210,6 +234,39 @@ export function buildCorbellGraphAsync(bin: string, cwd: string, opts?: { timeou
   });
 }
 
+/** ★ HARDEN F7 (2026-09-28): THE QUOTE-AWARE SHELL-WORDS SPLITTER. The ExecFn contract
+ *  is a shell-words string; the old `cmdRaw.trim().split(/\s+/)` split INSIDE a quoted
+ *  argument, so an argv token carrying a space (the standard `'my dir/x.ts'` form)
+ *  arrived as TWO tokens — a silent semantic change to the command — and the escaper
+ *  then ran on the pieces. Each token is now dequoted (and `\`-unescaped outside
+ *  single quotes) before the escaper wraps it once, so one spaced argument stays one
+ *  argv token. */
+function splitShellWords(raw: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quote: '"' | "'" | null = null;
+  let started = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i] as string;
+    if (quote !== null) {
+      if (ch === quote) { quote = null; continue; }
+      cur += ch;
+      started = true;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch as '"' | "'"; started = true; continue; }
+    if (ch === '\\' && i + 1 < raw.length) { cur += raw[i + 1]; i++; started = true; continue; }
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      if (started) { out.push(cur); cur = ''; started = false; }
+      continue;
+    }
+    cur += ch;
+    started = true;
+  }
+  if (started) out.push(cur);
+  return out;
+}
+
 export const defaultExec: ExecFn = (cmdRaw, opts) => {
   // ★ W16-CRITICAL FIX (shell-injection gap): cmdRaw reached `/bin/sh -c` as
   //   `'exec ' + cmdRaw`, so `'`, `"` and `\` retained shell meaning (quoting,
@@ -223,7 +280,9 @@ export const defaultExec: ExecFn = (cmdRaw, opts) => {
   //   (callers + stubs unchanged); the sh -c layer keeps the `exec`-replace
   //   (the orphan fix) with zero live syntax.
   const shellEscape = (tok: string): string => `'${tok.split(`'`).join(`'"'"'`)}'`;
-  const parts = cmdRaw.trim().split(/\s+/).filter((s) => s.length > 0);
+  // ★ HARDEN F7: quote-aware + dequoting (see splitShellWords) — a spaced argument
+  //   stays ONE argv token instead of being silently split into two commands' worth.
+  const parts = splitShellWords(cmdRaw);
   if (parts.length === 0) {
     throw new Error(`CORBELL_EXEC_UNSAFE: refusing empty command`);
   }
@@ -356,15 +415,19 @@ export function resolveNodeFile(stored: string, root: string, fsMod: typeof fs =
 
 /** Map the corbell edge kind into the contract union. Unknown kinds normalize to
  *  'calls' with a DEBUG note — the engine's predicate checks read the union. */
-function mapEdgeKind(k: string): 'calls' | 'awaits' | 'imports' | 'traces-to' {
+function mapEdgeKind(k: string): 'calls' | 'awaits' | 'imports' | 'traces-to' | 'coupling' {
   switch (k) {
     case 'method_call': case 'call': return 'calls';
     case 'flow_step': case 'wires': return 'traces-to';
     case 'depends-on': case 'import': case 'imports': return 'imports';
     case 'awaits': case 'await': return 'awaits';
-    case 'git_coupling': return 'calls';
+    // ★ W9-AUDIT FIX (2026-09-28): `git_coupling` normalised to `calls` POLLUTED the call
+    //   graph — whoCalls/chain filter `kind === 'calls'`, so co-change coupling appeared as
+    //   call sites + chain steps (false positives, inflating unwired/chain BFS). Coupling is
+    //   NOT a call — it now carries its own kind and is excluded from the call predicates.
+    case 'git_coupling': return 'coupling';
     default:
-      tridentLog('DEBUG', 'corbell-adapter', `unknown edge kind '${k}' -> 'calls' (the fallback)`);
+      giLog('DEBUG', 'corbell-adapter', `unknown edge kind '${k}' -> 'calls' (the fallback)`);
       return 'calls';
   }
 }
@@ -423,6 +486,86 @@ function countLineage(nodes: GraphNode[], edges: GraphEdge[]): { spec: number; c
   };
 }
 
+/** ★ HARDEN F4 (2026-09-28): strip a YAML line comment — a `#` OUTSIDE quotes starts it.
+ *  The old regexes read commented-out keys (`# repo: ../my-service`) as live config. */
+function stripYamlComment(raw: string): string {
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i] as string;
+    if (quote !== null) { if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") { quote = ch as '"' | "'"; continue; }
+    if (ch === '#') return raw.slice(0, i);
+  }
+  return raw;
+}
+
+/** A YAML scalar's value: trimmed, one layer of surrounding quotes removed, NULL when empty. */
+function unquoteYamlScalar(raw: string): string | null {
+  const v = raw.trim();
+  if (v.length === 0) return null;
+  const q = v[0] as string;
+  if ((q === '"' || q === "'") && v.length >= 2 && v.endsWith(q)) return v.slice(1, -1).trim();
+  return v;
+}
+
+/** ★ HARDEN F4 (2026-09-28): THE WORKSPACE-CONFIG SCANNER — line-anchored keys, comment-
+ *  stripped (quote-aware), and EVERY `repo:` collected. The old check used two unanchored
+ *  regexes: they matched `# root:` comments and `myroot:` partial keys, and `svcMatch` read
+ *  only the FIRST `repo:` so a multi-service config (scopeRepoRefs emits one service per
+ *  discovered source root) was judged on service 1 alone. */
+function parseWorkspaceConfig(text: string): { root: string | null; repos: string[] } {
+  let root: string | null = null;
+  const repos: string[] = [];
+  for (const rawLine of text.split('\n')) {
+    const line = stripYamlComment(rawLine).replace(/\s+$/, '');
+    if (line.trim().length === 0) continue;
+    // `key: value` at any indent, with an optional `- ` sequence marker (block or inline form).
+    const m = /^(\s*)(?:-\s+)?([A-Za-z_][A-Za-z0-9_-]*)\s*:(.*)$/.exec(line);
+    if (!m) continue;
+    const indent = m[1]!.length;
+    const key = m[2]!;
+    const value = unquoteYamlScalar(m[3]!);
+    if (value === null) continue;
+    // `workspace.root` sits at indent 2 (or 0); a deeper `root:` key belongs to a service.
+    if (key === 'root' && indent <= 2 && root === null) root = value;
+    if (key === 'repo') repos.push(value);
+  }
+  return { root, repos };
+}
+
+/** ★ HARDEN F6 (2026-09-28): THE LAZY DRIVER LOADER. `bun:sqlite` is a Bun builtin:
+ *  a top-level value import broke the whole module under Node (import-time throw,
+ *  before any guard). The driver is now resolved with the SYNC createRequire on the
+ *  first real store read, so (a) the mocked / store-absent paths never touch it, and
+ *  (b) the sync readStore() contract is preserved (no async import). A missing or
+ *  malformed driver is the NAMED ADAPTER_FAILED / BUN_SQLITE_UNAVAILABLE — loud, never
+ *  a silent empty graph. */
+type BunSqliteModule = { Database: new (filename: string, options?: { readonly?: boolean }) => Database };
+let bunSqliteModule: BunSqliteModule | null = null;
+const requireFromAdapter = createRequire(import.meta.url);
+
+function isBunSqliteModule(v: unknown): v is BunSqliteModule {
+  return typeof v === 'object' && v !== null && 'Database' in v && typeof v.Database === 'function';
+}
+
+function loadBunSqlite(): BunSqliteModule {
+  if (bunSqliteModule) return bunSqliteModule;
+  let loaded: unknown;
+  try {
+    loaded = requireFromAdapter('bun:sqlite');
+  } catch (e: unknown) {
+    throw adapterFailed(
+      'read corbell store',
+      `BUN_SQLITE_UNAVAILABLE: the bun:sqlite driver could not be loaded (the corbell store read requires the Bun runtime): ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  if (!isBunSqliteModule(loaded)) {
+    throw adapterFailed('read corbell store', `BUN_SQLITE_UNAVAILABLE: bun:sqlite loaded without a Database constructor (module shape: ${typeof loaded})`);
+  }
+  bunSqliteModule = loaded;
+  return bunSqliteModule;
+}
+
 /** The thin shell over the production Corbell CLI. */
 export class CorbellAdapter implements GraphAdapter {
   private cachedNodes: GraphNode[] = [];
@@ -440,6 +583,12 @@ export class CorbellAdapter implements GraphAdapter {
 
   async build(profile: ProjectProfile): Promise<BuildResult> {
     this.assertCorbell(profile);
+    // ★ GI KERNEL V2.2 W2 — TARGET-DRIVEN SOURCE ROOTS (spec §3 W2): the graph is a
+    //   function of the target. A source-less target is the NAMED GI_NO_SOURCE_ROOT
+    //   refusal — the build NEVER proceeds to an empty graph (the anti-GRAPH_EMPTY law).
+    const discovered = discoverSourceRoots(path.resolve(profile.project.root));
+    if ('error' in discovered) throw new Error(discovered.error);
+    console.log(`[corbell-adapter] source roots (${discovered.roots.length}): ${discovered.roots.join(', ')} (${discovered.evidence})`);
     // THE INIT GUARD — the container suite found the clobber (2026-08-12, the
     // plutus-bh-test S2 loop): the unconditional `corbell init` REGENERATES the
     // corbell-data/workspace.yaml from the template on EVERY build (the
@@ -465,27 +614,31 @@ export class CorbellAdapter implements GraphAdapter {
     if (wsConfigExists) {
       try {
         const wsText = fs.readFileSync(wsConfigPath, 'utf8');
-        const rootMatch = /root:\s*["']?([^"'\n]+)/.exec(wsText);
-        const svcMatch = /repo:\s*["']?([^"'\n]+)/.exec(wsText);
-        if (rootMatch && svcMatch) {
-          const declaredRoot = rootMatch[1].trim().replace(/^\.\/+/, '');
-          const declaredRepo = svcMatch[1].trim();
-          const actual = profile.project.root.replace(/^\.\/+/, '');
-          // STALE when: the root does not resolve to this project (the '..'
-          // is the WORKING parent-of-config_dir form — the project root) OR
-          // the service repo points away from this project (the
-          // '../my-service' template default). The '..'/'.' forms match.
-          const rootOk = declaredRoot === '.' || declaredRoot === '..' || actual.endsWith(declaredRoot.replace(/\/+$/, ''));
-          // ★ THE SCOPE-STALENESS RULE (2026-09-23): the repo MUST be the
-          // profile's scoped ref (`../src`). A declared `..`/`.` (the whole-tree
-          // root) is the 90-min D-state stall — NOT a valid config. Without
-          // this the unscoped template is judged fresh and never regenerated.
-          const expectedRepo = this.scopeRepoRef(profile);
-          const repoOk = declaredRepo === expectedRepo
-            || (declaredRepo !== '.' && declaredRepo !== '..' && actual.endsWith(declaredRepo.replace(/\/+$/, '')));
-          wsConfigStale = !(rootOk && repoOk);
+        // ★ HARDEN F4 (2026-09-28): the config is PARSED, not regex-probed. The old
+        //   `/root:…/` + `/repo:…/` pair matched `# root:` comments and `myroot:`
+        //   partial keys, judged multi-service configs on the FIRST `repo:` only, and
+        //   accepted any `actual.endsWith(declaredRepo)` suffix (`/evil/app` for `/app`).
+        const cfg = parseWorkspaceConfig(wsText);
+        if (cfg.root === null || cfg.repos.length === 0) {
+          wsConfigStale = true;   // unparseable / no service — regenerate
         } else {
-          wsConfigStale = true;   // unparseable — regenerate
+          const configDir = path.resolve(path.join(profile.project.root, 'corbell-data'));
+          const realOrResolved = (p: string): string => {
+            try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+          };
+          const projectRootAbs = realOrResolved(path.resolve(profile.project.root));
+          // STALE when: the declared root does not RESOLVE to this project root (the
+          // '..' form is the parent-of-config_dir = the project root) …
+          const rootOk = realOrResolved(path.resolve(configDir, cfg.root)) === projectRootAbs;
+          // ★ THE SCOPE-STALENESS RULE (2026-09-23): each declared service repo MUST resolve
+          // to one of the profile's scoped refs (`../src`); a declared `..`/`.` (the whole-tree
+          // root) is the 90-min D-state stall — NOT a valid config. ★ HARDEN F4: EVERY service
+          // is judged (a mixed or stale multi-service config can no longer pass on service 1)
+          // and the comparison is on RESOLVED paths, so no suffix can impersonate a match.
+          const expectedRepos = new Set(this.scopeRepoRefs(profile).map((ref) => realOrResolved(path.resolve(configDir, ref))));
+          const declaredRepos = cfg.repos.map((ref) => realOrResolved(path.resolve(configDir, ref)));
+          const repoOk = declaredRepos.length === expectedRepos.size && declaredRepos.every((abs) => expectedRepos.has(abs));
+          wsConfigStale = !(rootOk && repoOk);
         }
       } catch (e: unknown) {
         console.warn(`[corbell-adapter] workspace.yaml read failed — regenerating: ${String(e)}`);
@@ -534,7 +687,10 @@ export class CorbellAdapter implements GraphAdapter {
       // the profile existed). Checkpoints alone holds full project copies —
       // indexing them was the store bloat multiplier.
       const profileExcludes = (profile as unknown as { graph?: { excludes?: string[] } })?.graph?.excludes ?? [];
-      const walkExcludes = new Set([...profileExcludes, 'Checkpoints', 'corbell-data', 'context_management', '.trident']);
+      // ★ FR-6 (2026-09-29): ONE SKIP LAW (S5) — the walk excludes ARE the shared WALK_SKIP
+      //   plus the profile's own extras; the per-consumer literal list was the drift class
+      //   the pin names (a producer with its own list left structural at 12.4% in-scope).
+      const walkExcludes = new Set([...profileExcludes, ...WALK_SKIP, 'corbell-data', 'context_management']);
       couplingEnv.CORBELL_WALK_EXCLUDE_DIRS = [...walkExcludes].join(',');
       try {
         const gitRoot = execSync('git rev-parse --show-toplevel', {
@@ -652,24 +808,60 @@ export class CorbellAdapter implements GraphAdapter {
    *  WORKING fixture shape is `root: ..` + `repo: ..` (the parent = the project
    *  root — corbell registered the service at the PROJECT root). THE EMISSION
    *  uses `..` — the parent of the config_dir, the project root. */
-  /** THE SCOPE REF (2026-09-23 — the 90-min D-state stall): the corbell `repo:`
-   *  value derived from the profile's `graph.scope`. The config_dir IS
-   *  corbell-data/, so `repo: ../src` resolves to <root>/src and `repo: ..` to
-   *  the project root. MEASURED: `repo: ..` walks the WHOLE tree (2.1 GB —
-   *  research/ 1012 MB, Checkpoints/ 144 MB, its own 531 MB store) and
-   *  D-state-stalls 90+ min; `repo: ../src` completes in 53 s (939 methods,
-   *  4,327 edges). The scope was declared in profile.yaml since W1 and NEVER
-   *  reached the config — this is the wiring. */
-  private scopeRepoRef(profile: ProjectProfile): string {
+  /** THE SCOPE REFS (2026-09-23 scope law + V2.2 W2 discovery): the corbell
+   *  `repo:` values are the DISCOVERED source roots (one service per root),
+   *  not `<root>/src`. The 2026-09-23 law stands — a whole-tree `..` is the
+   *  90-min D-state stall and is never emitted. Each ref is the configDir-
+   *  relative form (`../<path-from-target>`). An explicit `graph.sourceRoots`
+   *  override (the --source-root CLI channel, in-memory — the target's files
+   *  are never touched) wins over discovery; the legacy `graph.scope[0]` is
+   *  the last-resort fallback (a source-less target never reaches here —
+   *  build() throws GI_NO_SOURCE_ROOT first). */
+  private scopeRepoRefs(profile: ProjectProfile): string[] {
+    const configDir = path.join(path.resolve(profile.project.root), 'corbell-data');
+    const toRef = (abs: string): string => {
+      const rel = path.relative(configDir, abs).split(path.sep).join('/');
+      return rel.length > 0 ? rel : '..';
+    };
+    const override = (profile.graph as unknown as { sourceRoots?: unknown }).sourceRoots;
+    if (Array.isArray(override)) {
+      const explicit = override.filter((s): s is string => typeof s === 'string' && s.length > 0);
+      if (explicit.length > 0) return explicit.map((s) => toRef(path.resolve(profile.project.root, s)));
+    }
+    const discovered = discoverSourceRoots(path.resolve(profile.project.root));
+    if (!('error' in discovered) && discovered.roots.length > 0) {
+      return discovered.roots.map(toRef);
+    }
     const first = profile.graph.scope.length > 0 ? String(profile.graph.scope[0]) : '';
     const dir = first.replace(/^\.\/+|\/+$/g, '');
-    return dir.length > 0 ? `../${dir}` : '..';
+    // ★ HARDEN F7 (2026-09-29): the LAST-RESORT `..` IS REFUSED — the audit's HIGH: an
+    //   empty/malformed scope emitted the WHOLE-TREE root (`..`), the unbounded walk the
+    //   scope law forbids (the 742MB/30-min stall class). A named refusal instead.
+    //   Also: a `../src`-style entry already carries its parent prefix — never double it.
+    if (dir.length === 0) {
+      throw new Error(`GI_NO_SOURCE_ROOT: the profile carries no scope and discoverSourceRoots found no roots under ${profile.project.root} — refusing to emit the whole-tree '..' ref (the unbounded-walk class)`);
+    }
+    return [dir.startsWith('../') ? dir : `../${dir}`];
   }
+
+  // ★ HARDEN F4 (2026-09-28): the single-ref helper scopeRepoRef was DELETED with the
+  //   regex staleness check — the check now compares the WHOLE expected ref set
+  //   (scopeRepoRefs) against every declared service, so the `[0]` wrapper had no caller
+  //   left in this tree (verified: grep shows no remaining `this.scopeRepoRef(` site).
 
   private writeWorkspaceConfig(profile: ProjectProfile, wsConfigPath: string): void {
     const slug = profile.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service';
     const languages = profile.project.languages.length > 0 ? profile.project.languages[0] : 'typescript';
-    const repoRef = this.scopeRepoRef(profile);
+    // V2.2 W2: one service per discovered source root (a single-root target
+    // emits exactly the old single-service shape — the st-corbell-port
+    // `repo: ../src` assertions are preserved byte-for-byte).
+    const repoRefs = this.scopeRepoRefs(profile);
+    const serviceBlocks = repoRefs.map((repoRef, i) => [
+      `  - id: ${repoRefs.length === 1 ? slug : `${slug}-${i + 1}`}`,
+      `    repo: ${repoRef}`,
+      `    language: ${languages}`,
+      '    tags: [core]',
+    ].join('\n')).join('\n');
     const config = [
       'version: "1"',
       '',
@@ -678,10 +870,7 @@ export class CorbellAdapter implements GraphAdapter {
       '  root: ".."',
       '',
       'services:',
-      `  - id: ${slug}`,
-      `    repo: ${repoRef}`,
-      `    language: ${languages}`,
-      '    tags: [core]',
+      serviceBlocks,
       '',
       'existing_docs:',
       '  auto_scan: true',
@@ -744,15 +933,25 @@ export class CorbellAdapter implements GraphAdapter {
   private readCorbellStore(profile: ProjectProfile): { nodes: GraphNode[]; edges: GraphEdge[] } {
     const dbPath = path.join(profile.project.root, 'corbell-data', '.corbell', 'workspace.db');
     if (!fs.existsSync(dbPath)) return { nodes: [], edges: [] };
+    // ★ HARDEN F6: the driver resolves HERE, on the first real store read — a missing
+    //   driver raises its own named BUN_SQLITE_UNAVAILABLE (loaded before the open try
+    //   so the store-open wrapper never masks it).
+    const { Database: DatabaseCtor } = loadBunSqlite();
     let db: Database;
     try {
-      db = new Database(dbPath, { readonly: true });
+      db = new DatabaseCtor(dbPath, { readonly: true });
     } catch (e: unknown) {
       throw adapterFailed(`read ${dbPath}`, `could not open the corbell store: ${String(e)}`);
     }
     const nodes: GraphNode[] = [];
     // ★ F-2 FIX (2026-09-24): per-file source cache — the enrichment below read the same file once per node; now once per file.
     const srcCache = new Map<string, string>();
+    // ★ HARDEN F5 (2026-09-28): per-FILE ENRICHMENT cache — the matchAll regex sweep, the
+    //   reduce-max and the 10k-element numericLiterals array were recomputed for EVERY method
+    //   node in the same file (regex over a 1MB source × N nodes). The result is a pure
+    //   function of the file, so it is computed once per srcPath; the cached literal array is
+    //   shared read-only across that file's nodes (nothing in the read path mutates node.data).
+    const enrichCache = new Map<string, { comparator?: number; numericLiterals?: number[] }>();
     try {
       for (const row of db.prepare('SELECT id, node_type, data FROM graph_nodes').all() as Record<string, unknown>[]) {
         const id = String(row['id']);
@@ -778,40 +977,52 @@ export class CorbellAdapter implements GraphAdapter {
             // relative case (the doubled-path ENOENT caught live in the
             // container 2026-08-13: /workspace/fixture-profile/workspace/...)
             const srcPath = path.isAbsolute(file) ? file : path.join(profile.project.root, file);
-            let src = srcCache.get(srcPath);
-            if (src === undefined) {
-              // ★ W16-HIGH FIX (size cap, first half): stat before read — a
-              //   multi-GB source must never enter memory whole.
-              try {
-                const st = fs.statSync(srcPath);
-                if (st.size > 1_000_000) {
-                  console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${st.size}B > 1MB cap)`);
-                  src = '';
+            // ★ HARDEN F5: the ENTIRE enrich pass is a pure function of the FILE — the
+            //   cached result is reused for every further node of the same srcPath (the
+            //   read, the stat, the regex sweep and the 10k array happen once per file).
+            let enriched = enrichCache.get(srcPath);
+            if (enriched === undefined) {
+              enriched = {};
+              let src = srcCache.get(srcPath);
+              if (src === undefined) {
+                // ★ W16-HIGH FIX (size cap, first half): stat before read — a
+                //   multi-GB source must never enter memory whole.
+                try {
+                  const st = fs.statSync(srcPath);
+                  if (st.size > 1_000_000) {
+                    console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${st.size}B > 1MB cap)`);
+                    src = '';
+                    srcCache.set(srcPath, src);
+                  }
+                } catch { /* stat failed — the read below reports it */ }
+                if (src === undefined) {
+                  src = fs.readFileSync(srcPath, 'utf8');
                   srcCache.set(srcPath, src);
                 }
-              } catch { /* stat failed — the read below reports it */ }
-              if (src === undefined) {
-                src = fs.readFileSync(srcPath, 'utf8');
-                srcCache.set(srcPath, src);
               }
+              // ★ W16-HIGH FIX: the old float-only /(\d+\.\d+)/ missed integer
+              //   thresholds (`100`, `5`) so downstream domain checks stayed silent,
+              //   and Math.max(...nums) spread an unbounded array (stack overflow
+              //   on large files). Integer-aware match + reduce-max (no spread) +
+              //   a file-size cap before the read.
+              if (src.length > 1_000_000) {
+                console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${src.length}B > 1MB cap)`);
+              } else {
+                const nums: number[] = [];
+                for (const m of src.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
+                  const n = Number(m[0]);
+                  if (Number.isFinite(n)) nums.push(n);
+                }
+                if (nums.length > 0) {
+                  enriched.comparator = nums.reduce((a, b) => (a > b ? a : b), nums[0] as number);
+                  enriched.numericLiterals = nums.slice(0, 10_000);
+                }
+              }
+              enrichCache.set(srcPath, enriched);
             }
-            // ★ W16-HIGH FIX: the old float-only /(\d+\.\d+)/ missed integer
-            //   thresholds (`100`, `5`) so downstream domain checks stayed silent,
-            //   and Math.max(...nums) spread an unbounded array (stack overflow
-            //   on large files). Integer-aware match + reduce-max (no spread) +
-            //   a file-size cap before the read.
-            if (src.length > 1_000_000) {
-              console.warn(`[corbell-adapter] source-read enrichment skipped for '${file}' (${src.length}B > 1MB cap)`);
-            } else {
-              const nums: number[] = [];
-              for (const m of src.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
-                const n = Number(m[0]);
-                if (Number.isFinite(n)) nums.push(n);
-              }
-              if (nums.length > 0) {
-                data['comparator'] = nums.reduce((a, b) => (a > b ? a : b), nums[0] as number);
-                data['numericLiterals'] = nums.slice(0, 10_000);
-              }
+            if (enriched.comparator !== undefined) {
+              data['comparator'] = enriched.comparator;
+              data['numericLiterals'] = enriched.numericLiterals;
             }
           } catch (e: unknown) {
             console.warn(`[corbell-adapter] source-read enrichment failed for '${file}': ${String(e)}`);
@@ -966,15 +1177,25 @@ export class CorbellAdapter implements GraphAdapter {
 
   /** Resolve a caller-supplied symbol to a node id: `corbell:...` passes
    *  through; a bare name matches the node whose name (or whose id suffix)
-   *  equals it. */
-  private resolveNodeId(symbol: string): string {
+   *  equals it. A MISS is NULL — see the HARDEN F3 note below. */
+  private resolveNodeId(symbol: string): string | null {
     if (symbol.startsWith('corbell:')) return symbol;
     const byName = this.cachedNodes.find((n) => n.name === symbol);
     if (byName) return byName.id;
     const bySuffix = this.cachedNodes.find((n) => n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`));
-    // ★ F-251 FIX (2026-09-24): parity with graphify F-251 — phantom-id fallback is LOUD (was silent empty-reads downstream).
-    if (!bySuffix) tridentLog("WARN", "corbell-adapter", `resolveNodeId: symbol '${symbol}' matched no node — phantom id 'corbell:${symbol}' (callers read empty, never wrong)`);
-    return bySuffix?.id ?? `corbell:${symbol}`;
+    // ★ F-251 FIX (2026-09-24): parity with graphify F-251 — the miss is LOUD (was silent empty-reads downstream).
+    // ★ HARDEN F3 (2026-09-28): the miss now returns NULL — never the phantom `corbell:<symbol>`.
+    //   The fabricated id was a false-positive source, not just an empty read: corbell node ids are
+    //   `corbell:${row.id}`, so an edge whose target happened to be `corbell:<symbol>` matched the
+    //   phantom and the query returned callers that do not exist; when nothing matched, the caller
+    //   read `[]` — indistinguishable from a genuine "no callers". The miss is now the WARN here
+    //   PLUS the null each of the four query verbs checks (they return `[]` only for a resolved node
+    //   with no matching edge).
+    if (!bySuffix) {
+      giLog("WARN", "corbell-adapter", `resolveNodeId: symbol '${symbol}' matched no node — UNRESOLVED (the query verb returns [] and never a phantom match)`);
+      return null;
+    }
+    return bySuffix.id;
   }
 
   private nodeById(id: string): GraphNode | undefined {
@@ -990,6 +1211,9 @@ export class CorbellAdapter implements GraphAdapter {
   whoCalls(symbol: string): CallSite[] {
     this.ensureBuilt();
     const target = this.resolveNodeId(symbol);
+    // ★ HARDEN F3: an UNRESOLVED symbol has no edges — `[]` for a MISS, never a
+    //   phantom-id match (the resolveNodeId WARN is the loud half of the signal).
+    if (target === null) return [];
     return this.cachedEdges
       .filter((e) => e.kind === 'calls' && e.targetId === target)
       .map((e) => {
@@ -1008,6 +1232,8 @@ export class CorbellAdapter implements GraphAdapter {
   chain(id: string): ChainStep[] {
     this.ensureBuilt();
     const start = this.resolveNodeId(id);
+    // ★ HARDEN F3: an unresolved seed has no chain — no phantom-id BFS root.
+    if (start === null) return [];
     const steps: ChainStep[] = [];
     const seen = new Set<string>([start]);
     // a bounded BFS over the calls edges — the trace contract {from,to,kind,file,line}
@@ -1037,6 +1263,8 @@ export class CorbellAdapter implements GraphAdapter {
   imports(module: string): ImportEdge[] {
     this.ensureBuilt();
     const start = this.resolveNodeId(module);
+    // ★ HARDEN F3: an unresolved module has no import edges — no phantom-id match.
+    if (start === null) return [];
     return this.cachedEdges
       .filter((e) => e.kind === 'imports' && e.sourceId === start)
       .map((e) => {
@@ -1049,6 +1277,8 @@ export class CorbellAdapter implements GraphAdapter {
   awaits(symbol: string): AwaitEdge[] {
     this.ensureBuilt();
     const start = this.resolveNodeId(symbol);
+    // ★ HARDEN F3: an unresolved symbol has no await edges — no phantom-id match.
+    if (start === null) return [];
     return this.cachedEdges
       .filter((e) => e.kind === 'awaits' && e.sourceId === start)
       .map((e) => {
@@ -1073,15 +1303,25 @@ export class CorbellAdapter implements GraphAdapter {
 
   async corbellParse(fileSubtree: string[]): Promise<GraphNode[]> {
     const out: GraphNode[] = [];
+    // ★ W9-AUDIT FIX (2026-09-28): the PATH TRAVERSAL — an absolute `file` outside the root
+    //   made `path.relative` return `../…`, and `path.resolve(root, '../…')` re-resolved
+    //   OUTSIDE the root, reading any file the process could read (the audit's HIGH). Every
+    //   resolved path is CONTAINMENT-CHECKED; an escape is refused LOUDLY (skipped).
+    const rootAbs = path.resolve(this.profile.project.root);
     for (const file of fileSubtree) {
-      const rel = path.isAbsolute(file) ? path.relative(this.profile.project.root, file) : file;
+      const rel = path.isAbsolute(file) ? path.relative(rootAbs, file) : file;
+      const abs = path.resolve(rootAbs, rel);
+      if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) {
+        console.error('[corbell-adapter] subtree file OUTSIDE the project root refused:', file);
+        continue;
+      }
       let text = '';
       // grace: an unreadable subtree file carries no class/function surface — skip it (logged)
-      try { text = fs.readFileSync(path.resolve(this.profile.project.root, rel), 'utf8'); } catch (e) { console.error('[corbell-adapter] unreadable subtree file skipped:', rel, e instanceof Error ? e.message : String(e)); continue; }
+      try { text = fs.readFileSync(abs, 'utf8'); } catch (e) { console.error('[corbell-adapter] unreadable subtree file skipped:', rel, e instanceof Error ? e.message : String(e)); continue; }
       const lines = text.split('\n');
       lines.forEach((line, idx) => {
         const m = /^\s*(?:export\s+)?(?:class|function)\s+(\w+)/.exec(line);
-        if (m) out.push({ id: `corbell:${m[1]}`, kind: line.includes('class') ? 'class' : 'function', name: m[1], file: path.resolve(this.profile.project.root, rel), line: idx + 1, lineage: 'CODE_DERIVED', source: `${rel}:${idx + 1}` });
+        if (m) out.push({ id: `corbell:${m[1]}`, kind: line.includes('class') ? 'class' : 'function', name: m[1], file: abs, line: idx + 1, lineage: 'CODE_DERIVED', source: `${rel}:${idx + 1}` });
       });
     }
     return out;

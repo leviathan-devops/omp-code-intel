@@ -1,4 +1,4 @@
-// PORTED FROM /home/leviathan/aether/src/hydra/graph-mapper.ts:1-318 (normalizeGraph + EN-38 guarded graph.json load) + /home/leviathan/aether/src/hydra/types.ts:102-148 (GraphMapper/GraphifyGraph/Node/Edge shapes) + /home/leviathan/aether/src/hydra/corbell-bridge.ts:14-32 (NODE_TYPE_MAP/EDGE_PREDICATE_MAP) + fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/graph/corbell-adapter.ts:271-900 (GraphAdapter query surface + dangling-edge filter).
+// PORTED FROM /home/leviathan/aether/src/hydra/graph-mapper.ts:1-318 (normalizeGraph + EN-38 guarded graph.json load) + /home/leviathan/aether/src/hydra/types.ts:102-148 (GraphMapper/GraphifyGraph/Node/Edge shapes) + /home/leviathan/aether/src/hydra/corbell-bridge.ts:14-32 (NODE_TYPE_MAP/EDGE_PREDICATE_MAP) + the archived upstream skill tree/graph/corbell-adapter.ts:271-900 (GraphAdapter query surface + dangling-edge filter).
 // src/hunter/graph/graphify-adapter.ts
 // THE GRAPHIFY READ PATH (W1) — the thin shell over the graphifyy CLI output.
 // D1 local-scan reader: the machine reads graph.json directly through the
@@ -28,7 +28,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { tridentLog } from "../log.ts";
+import { giLog } from "../log.ts";
 import {
   GRAPH_LOAD_BUDGET_BYTES,
   GRAPH_PARSE_YIELD_BYTES,
@@ -248,7 +248,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
       data: r,
     });
   }
-  if (dropped > 0) tridentLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
+  if (dropped > 0) giLog("WARN", "graphify-adapter", `normalize: dropped ${dropped} id-less rows (no shared "" collision)`);
   let edgeDropped = 0;
   const edges: GraphifyEdge[] = rawLinks.filter((e) => {
     // W44: same null-row discipline for links — drop+count, never throw.
@@ -350,7 +350,7 @@ export function normalizeGraphifyGraph(raw: Record<string, unknown>, opts?: { ro
     }
   }
   if (anchorUnverified > 0) {
-    tridentLog("WARN", "graphify-adapter", `normalize: ${anchorUnverified} anchor(s) kept on their LEXICAL path — realpath unprovable (symlink containment unverified; the row stays visible rather than vanishing)`);
+    giLog("WARN", "graphify-adapter", `normalize: ${anchorUnverified} anchor(s) kept on their LEXICAL path — realpath unprovable (symlink containment unverified; the row stays visible rather than vanishing)`);
   }
   return { nodes, edges, communities, godNodes };
 }
@@ -464,7 +464,7 @@ export function graphifyRelationToEdgeKind(relation: string): GraphEdgeKind {
     case "awaits":
     case "await": return "awaits";
     default:
-      tridentLog("DEBUG", "graphify-adapter", `unknown edge relation '${relation}' -> 'traces-to' (the fallback)`);
+      giLog("DEBUG", "graphify-adapter", `unknown edge relation '${relation}' -> 'traces-to' (the fallback)`);
       return "traces-to";
   }
 }
@@ -514,7 +514,7 @@ export function graphifyPredicateToTyped(relation: string): string {
     case "await": return "awaits";
     case "extends": return "extends";
     default:
-      tridentLog("WARN", "graphify-adapter", `unknown typed predicate '${relation}' -> 'declares' (typo becomes declares — fix the source)`);
+      giLog("WARN", "graphify-adapter", `unknown typed predicate '${relation}' -> 'declares' (typo becomes declares — fix the source)`);
       return "declares";
   }
 }
@@ -779,7 +779,7 @@ export function projectGraphifyGraph(graph: GraphifyGraph, root: string): { node
       line,
     });
   }
-  if (dangling + danglingNoLine > 0) tridentLog("WARN", "graphify-adapter", `project: dropped ${dangling} dangling edges; kept ${danglingNoLine} lineless-edge rows with line undefined (counted, never silent, never invented)`);
+  if (dangling + danglingNoLine > 0) giLog("WARN", "graphify-adapter", `project: dropped ${dangling} dangling edges; kept ${danglingNoLine} lineless-edge rows with line undefined (counted, never silent, never invented)`);
   return { nodes, edges };
 }
 
@@ -859,7 +859,7 @@ export class GraphifyAdapter implements GraphAdapter {
     const projected = projectGraphifyGraph(graph, root);
     const filtered = scopeBuildToProfile(projected.nodes, projected.edges, root, scopeDirs);
     if (filtered.dropped > 0) {
-      tridentLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
+      giLog("WARN", "graphify-adapter", `build: scope filter dropped ${filtered.dropped} out-of-scope row(s) (scope=${scopeDirs.join(",")})`);
     }
     scopedNodes = filtered.nodes;
     scopedEdges = filtered.edges;
@@ -912,7 +912,7 @@ export class GraphifyAdapter implements GraphAdapter {
       if (n.id.endsWith(`::${symbol}`) || n.id.endsWith(`:${symbol}`)) return n.id;
     }
     // ★ F-251 FIX (2026-09-24): phantom-id fallback is now LOUD — it used to return empty-reads downstream indistinguishable from "known symbol, zero results".
-    tridentLog("WARN", "graphify-adapter", `resolveNodeId: symbol '${symbol}' matched no node — phantom id 'graphify:${symbol}' (callers read empty, never wrong)`);
+    giLog("WARN", "graphify-adapter", `resolveNodeId: symbol '${symbol}' matched no node — phantom id 'graphify:${symbol}' (callers read empty, never wrong)`);
     return `graphify:${symbol}`;
   }
 
@@ -974,7 +974,7 @@ export class GraphifyAdapter implements GraphAdapter {
       const raw = projectGraphifyGraph(graph, root);
       const filtered = scopeBuildToProfile(raw.nodes, raw.edges, root, effectiveProfile.graph?.scope ?? ["src"]);
       if (filtered.dropped > 0) {
-        tridentLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
+        giLog("WARN", "graphify-adapter", `buildSync: scope filter dropped ${filtered.dropped} out-of-scope row(s)`);
       }
       // W45/F32 (frozen-scan HIGH): buildSync carries build()'s zero-in-scope
       // graphEmpty — the sync bridge threw when the scope filter emptied the
@@ -1033,7 +1033,7 @@ export class GraphifyAdapter implements GraphAdapter {
         }
       }
     }
-    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `chain: skipped ${linelessSkipped} lineless step(s) (counted, never silent)`);
+    if (linelessSkipped > 0) giLog("WARN", "graphify-adapter", `chain: skipped ${linelessSkipped} lineless step(s) (counted, never silent)`);
     return steps;
   }
 
@@ -1050,7 +1050,7 @@ export class GraphifyAdapter implements GraphAdapter {
       if (line === undefined || line === null) { linelessSkipped += 1; continue; } // P1.5.1
       out.push({ from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line });
     }
-    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `imports: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
+    if (linelessSkipped > 0) giLog("WARN", "graphify-adapter", `imports: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
     return out;
   }
 
@@ -1067,7 +1067,7 @@ export class GraphifyAdapter implements GraphAdapter {
       if (aline === undefined || aline === null) { linelessSkipped += 1; continue; } // P1.5.1
       out.push({ from: src?.name ?? e.sourceId, to: dst?.name ?? e.targetId, file: src?.file ?? this.profile.project.root, line: aline });
     }
-    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `awaits: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
+    if (linelessSkipped > 0) giLog("WARN", "graphify-adapter", `awaits: skipped ${linelessSkipped} lineless edge(s) (counted, never silent)`);
     return out;
   }
 
@@ -1082,7 +1082,7 @@ export class GraphifyAdapter implements GraphAdapter {
       if (n.line === undefined || n.line === null) { linelessSkipped += 1; continue; }
       out.push({ id: n.id, name: n.name, file: n.file ?? this.profile.project.root, line: n.line });
     }
-    if (linelessSkipped > 0) tridentLog("WARN", "graphify-adapter", `unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
+    if (linelessSkipped > 0) giLog("WARN", "graphify-adapter", `unwired: skipped ${linelessSkipped} lineless row(s) (counted, never silent)`);
     return out;
   }
 

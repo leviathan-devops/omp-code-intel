@@ -29,6 +29,9 @@ import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { spawnBugHunterLoop } from "../src/hunter/tools/bug-hunt.ts";
 import { resolveLine, tryResolveLine } from "../src/hunter/shared/line-resolve.ts";
+// ★ W9 (2026-09-28): the store's home is resolved by the SHARED resolver (.gi canonical with a
+//   prior-dir read-fallback) — a test that hardcodes one spelling is the two-spellings defect.
+import { resolveStoreDbPath } from "../src/hunter/shared/db.ts";
 import { assertMappableLines, map } from "../src/hunter/harness/map.ts";
 import { resolveGraphifyBinary } from "../src/hunter/graph/graphify-adapter.ts";
 import type { BuildResult, GraphAdapter, GraphNode } from "../src/hunter/graph/interface.ts";
@@ -139,7 +142,7 @@ describe("st-hunter-live: the LIVE hunt chain (no stubs)", () => {
     expect(report).toContain(result.runId);
 
     // The HUNT_DONE event row (the machine's own terminal record).
-    const db = new Database(path.join(root, ".trident", "knowledge-graph", "shared.db"), { readonly: true });
+    const db = new Database(resolveStoreDbPath(root), { readonly: true });
     try {
       const rows = db.query("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all() as { payload: string }[];
       expect(rows.length).toBeGreaterThanOrEqual(1);
@@ -271,7 +274,7 @@ describe("st-hunter-live: the graphify-populated LIVE hunt chain (no stubs)", ()
     const report = fs.readFileSync(result.reportPath as string, "utf-8");
     expect(report).toContain(result.runId);
     // The HUNT_DONE event row (the machine's own terminal record).
-    const db = new Database(path.join(root, ".trident", "knowledge-graph", "shared.db"), { readonly: true });
+    const db = new Database(resolveStoreDbPath(root), { readonly: true });
     try {
       const rows = db.query("SELECT payload FROM events WHERE kind = 'HUNT_DONE'").all() as { payload: string }[];
       expect(rows.length).toBeGreaterThanOrEqual(1);
@@ -386,7 +389,7 @@ describe("st-hunter-live: the shared resolveLine + the LINELESS_NODE refusal", (
     expect(msg).toContain("LINELESS_NODE");
     expect(msg).toContain("corbell:f::a.ts::ghost");
     // Fail-closed BEFORE persistence: no shared.db was materialized.
-    expect(fs.existsSync(path.join(root, ".trident", "knowledge-graph", "shared.db"))).toBe(false);
+    expect(fs.existsSync(resolveStoreDbPath(root))).toBe(false);
   });
 });
 

@@ -69,7 +69,7 @@ export function verdictInvalid(field: string, value: unknown): Error {
 }
 
 export function mirrorWriteFailed(mirrorPath: string, detail: string): Error {
-  return new Error(`MIRROR_WRITE_FAILED: path=${mirrorPath} detail=${detail} (the MASTER_CONTEXT mirror is the awareness surface, not the truth - the .trident shared.db is the truth - D27)`);
+  return new Error(`MIRROR_WRITE_FAILED: path=${mirrorPath} detail=${detail} (the MASTER_CONTEXT mirror is the awareness surface, not the truth - the .gi shared.db is the truth - D27)`);
 }
 
 export function pragmaFailed(pragma: string, detail: string): Error {
@@ -176,7 +176,7 @@ export interface ConformanceVerdictInput {
   verdict: ConformanceVerdict;   // CONFORMANT | VIOLATED | PARTIAL (§4.9)
   evidence: string;              // the sha comparison + the battery re-run result
   fixedAt?: number | null;
-  fixedBy: string;               // 'trident_build' | 'trident_auditor'
+  fixedBy: string;               // 'gi_build' | 'gi_auditor'
 }
 
 export type EventPayload = Record<string, unknown>; // the HUNT_DONE/BUILD_DONE/AUDIT_DONE bus payloads (§4.11)
@@ -359,7 +359,10 @@ CREATE TABLE IF NOT EXISTS graph_edges (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_id TEXT NOT NULL REFERENCES graph_nodes(id),
   target_id TEXT NOT NULL REFERENCES graph_nodes(id),
-  kind TEXT NOT NULL, lineage TEXT NOT NULL, created_at INTEGER
+  kind TEXT NOT NULL, lineage TEXT NOT NULL, created_at INTEGER,
+  -- ★ W9-AUDIT FIX (2026-09-28): the EDGE'S OWN ANCHOR (the source table carries it via
+  --   the R19 fix); the mirror DROPPED it, so a rebuilt mirror diverged from the truth.
+  file TEXT, line INTEGER
 );
 CREATE TABLE IF NOT EXISTS findings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -407,6 +410,19 @@ export function applyPragmas(db: Database): void {
   // the C18.4 schema = schema version 184 (PRAGMA user_version tracks the schema
   // version, spec line 2227; the migrations transaction applies pending migrations
   // at the first open when the stored version is lower).
+  // ★ W9-AUDIT FIX (2026-09-28): the version was OVERWRITTEN unconditionally, so the
+  //   version-gated migration path could never observe a LOWER stored version (the audit's
+  //   HIGH — the "when the stored version is lower" gate was DEAD). READ it first; a prior
+  //   version < 184 is NAMED (the migrations apply at this open), then advance.
+  let priorVersion = 0;
+  try {
+    priorVersion = Number((db.query('PRAGMA user_version').get() as { user_version?: number } | null)?.user_version ?? 0);
+  } catch {
+    priorVersion = 0; // a fresh/odd handle reads 0 — the fresh-db path
+  }
+  if (priorVersion !== 184) {
+    console.warn(`[db] schema user_version ${priorVersion} -> 184 (the migrations apply at this open)`);
+  }
   execPragma('PRAGMA user_version = 184');
 }
 
@@ -486,27 +502,56 @@ export class SharedDb implements DbClient {
       }
     }
     const tx = this.handle.transaction((): void => {
-      // THE PER-RUN REBUILD (2026-08-13 — the FK crash fix): clear the graph
-      // tables first (edges before nodes — the FK order), then insert the fresh
-      // run's nodes + edges.
-      this.handle.prepare('DELETE FROM graph_edges').run();
-      this.handle.prepare('DELETE FROM graph_nodes').run();
+      // ★ W9-AUDIT FIX (2026-09-28): THE STAGED, ATOMIC-SAFE REBUILD. Two defects are closed
+      //   here. (a) INTERLEAVING: the old shape opened a DEFERRED tx (BEGIN), so two concurrent
+      //   rebuilds both read, then raced the DELETE/INSERT pair — last-wins with a half-written
+      //   graph observable in between (the per-run snapshot contract was enforced only by the
+      //   hunt-lock COMMENT above; a caller outside that lock got silent corruption, not an
+      //   error). The tx now opens BEGIN IMMEDIATE (`tx.immediate()` below): the WRITE lock is
+      //   taken at BEGIN, so a second writer blocks on busy_timeout (5000ms, set by applyPragmas)
+      //   and serializes — never interleaves. (b) DESTRUCTIVE WINDOW: the live tables were
+      //   cleared BEFORE the fresh rows were inserted, so any mid-batch failure (a duplicate id,
+      //   a bad column, an OOM) left the graph necessarily empty at best and the FK/constraint
+      //   abort sat in the middle of the destructive pair. Rows are now STAGED into TEMP tables
+      //   first — every constraint is exercised against the stage, before graph_edges/graph_nodes
+      //   are touched — and the swap is one DELETE+INSERT pair, so the graph is never observed
+      //   half-state and a bad batch leaves the previous graph exactly as it was.
+      this.handle.exec('DROP TABLE IF EXISTS temp._graph_nodes_stage');
+      this.handle.exec('DROP TABLE IF EXISTS temp._graph_edges_stage');
+      this.handle.exec(
+        'CREATE TEMP TABLE _graph_nodes_stage (id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, file TEXT, line INTEGER, lineage TEXT NOT NULL, source TEXT NOT NULL, data TEXT)',
+      );
+      this.handle.exec(
+        'CREATE TEMP TABLE _graph_edges_stage (source_id TEXT NOT NULL, target_id TEXT NOT NULL, kind TEXT NOT NULL, lineage TEXT NOT NULL, file TEXT, line INTEGER)',
+      );
       const nodeStmt = this.handle.prepare(
-        'INSERT INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO _graph_nodes_stage VALUES (?,?,?,?,?,?,?,?)',
       );
       for (const n of nodes) {
         nodeStmt.run(n.id, n.kind, n.name, n.file ?? null, n.line ?? null, n.lineage, n.source, JSON.stringify(n.data ?? {}));
       }
       const edgeStmt = this.handle.prepare(
-        'INSERT INTO graph_edges (source_id,target_id,kind,lineage,file,line) VALUES (?,?,?,?,?,?)',
+        'INSERT INTO _graph_edges_stage (source_id,target_id,kind,lineage,file,line) VALUES (?,?,?,?,?,?)',
       );
       for (const e of edges) {
         // ★ R19-HIGH: the anchor rides the row now — the GraphEdge interface already declares
         //   both fields (the R19 interface fix), so this is an ordinary compiler-checked read.
         edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage, e.file ?? null, e.line ?? null);
       }
+      // THE SWAP — the ONLY statements that touch the live graph, and they are adjacent.
+      this.handle.prepare('DELETE FROM graph_edges').run();
+      this.handle.prepare('DELETE FROM graph_nodes').run();
+      this.handle.exec(
+        'INSERT INTO graph_nodes (id,kind,name,file,line,lineage,source,data) SELECT id,kind,name,file,line,lineage,source,data FROM _graph_nodes_stage',
+      );
+      this.handle.exec(
+        'INSERT INTO graph_edges (source_id,target_id,kind,lineage,file,line) SELECT source_id,target_id,kind,lineage,file,line FROM _graph_edges_stage',
+      );
+      this.handle.exec('DROP TABLE IF EXISTS temp._graph_edges_stage; DROP TABLE IF EXISTS temp._graph_nodes_stage');
     });
-    tx();
+    // ★ W9-AUDIT FIX: BEGIN IMMEDIATE — the write lock at BEGIN (not a deferred read snapshot
+    //   that cannot upgrade). Concurrent rebuilds serialize behind busy_timeout.
+    tx.immediate();
   }
 
   appendFinding(finding: FindingInput, runId: string, week?: string | null): void {
@@ -573,7 +618,7 @@ export class SharedDb implements DbClient {
   }
 
   // D27 — the mirror is a SUMMARY copy (graph + the findings summaries + the
-  // events/report pointers) for the all-agents awareness surface; the .trident
+  // events/report pointers) for the all-agents awareness surface; the .gi
   // shared.db is the truth. The mirror is REBUILT fresh each call (the snapshot
   // semantic) so it never diverges from the source truth.
   mirrorToMasterContext(profile: ProjectProfile): string {
@@ -605,9 +650,9 @@ export class SharedDb implements DbClient {
         for (const row of this.handle.prepare('SELECT id,kind,name,file,line,lineage,source,data FROM graph_nodes').all() as Record<string, SQLQueryBindings>[]) {
           nodeIns.run(row['id'], row['kind'], row['name'], row['file'], row['line'], row['lineage'], row['source'], row['data']);
         }
-        const edgeIns = openMirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at) VALUES (?,?,?,?,?)');
-        for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at FROM graph_edges').all() as Record<string, SQLQueryBindings>[]) {
-          edgeIns.run(row['source_id'], row['target_id'], row['kind'], row['lineage'], row['created_at']);
+        const edgeIns = openMirror.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,created_at,file,line) VALUES (?,?,?,?,?,?,?)');
+        for (const row of this.handle.prepare('SELECT source_id,target_id,kind,lineage,created_at,file,line FROM graph_edges').all() as Record<string, SQLQueryBindings>[]) {
+          edgeIns.run(row['source_id'], row['target_id'], row['kind'], row['lineage'], row['created_at'], row['file'] ?? null, row['line'] ?? null);
         }
         // the findings summaries (never the report_sections bodies — line 2229)
         const findIns = openMirror.prepare(
@@ -688,6 +733,30 @@ function ensureFamilyTables(db: Database): void {
   db.exec(FAMILY_TABLES_SQL);
 }
 
+/** ★ W9-AUDIT FIX (2026-09-28): DDL ON A READ-ONLY HANDLE. `openFamilyReadOnly` builds a
+ *  `{readonly:true}` + `PRAGMA query_only=1` handle, but the constructor ran
+ *  `ensureFamilyTables` unconditionally — and a `CREATE TABLE/INDEX IF NOT EXISTS` still needs
+ *  the WRITE lock for any object that is ABSENT (measured on this host, bun:sqlite: an EXISTING
+ *  object is a no-op, a NEW one throws `attempt to write a readonly database`). So merely
+ *  OPENING an existing store whose index/table was missing (legacy schema, partially built
+ *  store) threw `SQLITE_READONLY` on a pure READ path. The write posture is probed and the DDL
+ *  SKIPPED when writes are blocked: a read-only handle could not create the objects anyway, and
+ *  the read path's own SELECTs are what prove the store usable. NOT a swallow — the probe is
+ *  read-only, and a probe failure falls through to the DDL (the pre-fix, loud behaviour). */
+function ensureFamilyTablesIfWritable(db: Database, label: string): void {
+  let writeBlocked = false;
+  try {
+    writeBlocked = Number((db.query('PRAGMA query_only').get() as { query_only?: number } | null)?.query_only ?? 0) === 1;
+  } catch (probeErr: unknown) {
+    console.debug('[kg-store] query_only probe failed — attempting the family DDL (loud on failure):', probeErr instanceof Error ? probeErr.message : String(probeErr));
+  }
+  if (writeBlocked) {
+    console.debug(`[kg-store] the ${label} handle is read-only (PRAGMA query_only=1) — family DDL skipped; the tables must already exist`);
+    return;
+  }
+  ensureFamilyTables(db);
+}
+
 export type PromotionState = 'FAMILY_ROOT_READONLY' | 'DRIFT' | 'PROMOTION_PENDING';
 
 // ★ F-432 FIX (2026-09-24, run-8 CRITICAL): the branch-union VIEWS referenced EIGHT COLUMNS
@@ -698,6 +767,28 @@ export type PromotionState = 'FAMILY_ROOT_READONLY' | 'DRIFT' | 'PROMOTION_PENDI
 //   is why it went unnoticed) or — worse — silently produced a view with the wrong shape.
 //   The family side now projects the SAME shape as graph_nodes by extracting from node_json.
 //   Applied at all three sites (the constructor, writeBranchView, branch_union_attached).
+/** ★ W9-AUDIT FIX (2026-09-28): the BRANCH DELTA EXPANSION — every node the branch view actually
+ *  inserts: the node itself plus one synthesized row per `data.duplicatePaths` entry
+ *  (id = contentHashId(path, name)). ONE rule, consumed by BOTH the endpoint pre-validation and
+ *  the INSERT loop below, so the validation can never diverge from what is written. */
+function expandBranchDeltaNodes(deltaNodes: GraphNode[]): GraphNode[] {
+  const out: GraphNode[] = [];
+  for (const n of deltaNodes) {
+    out.push(n);
+    const dupPaths = (n.data as Record<string, unknown> | undefined)?.['duplicatePaths'];
+    if (!Array.isArray(dupPaths)) continue;
+    const seenIds = new Set<string>([n.id]);
+    for (const dup of dupPaths) {
+      if (typeof dup !== 'string' || dup.trim() === '') continue;
+      const dupId = contentHashId(dup, n.name);
+      if (seenIds.has(dupId)) continue;
+      seenIds.add(dupId);
+      out.push({ ...n, id: dupId, file: dup });
+    }
+  }
+  return out;
+}
+
 export class FamilyGraphStore {
   private readonly familyDb: Database;
   private readonly branchDb: Database;
@@ -710,8 +801,10 @@ export class FamilyGraphStore {
     this.familyDb = familyDb;
     this.branchPath = branchPath;
     this.branchDb = branchDb;
-    ensureFamilyTables(this.familyDb);
-    ensureFamilyTables(this.branchDb);
+    // ★ W9-AUDIT FIX (2026-09-28): the DDL is attempted ONLY on a writable handle — the
+    //   readonly (query_only) family handle of openFamilyReadOnly must never attempt DDL.
+    ensureFamilyTablesIfWritable(this.familyDb, 'family');
+    ensureFamilyTablesIfWritable(this.branchDb, 'branch');
     // ★ F-250 NOTE (2026-09-24): NOT-A-BUG (guard scope) — these guards wrap
     //   CREATE VIEW IF NOT EXISTS / ATTACH idempotent DDL only; every REAL write
     //   path in this file (writeGraph, appends, mirror, migrations) throws loud named
@@ -742,33 +835,40 @@ export class FamilyGraphStore {
 
   writeBranchView(branchRoot: string, deltaNodes: GraphNode[], refs: GraphEdge[]): void {
     if (this.sealed) throw familyRootReadonly('FamilyGraphStore is sealed read-only — writeBranchView targets the branch db only');
+    // ★ W9-AUDIT FIX (2026-09-28): THE DANGLING-ENDPOINT PRE-VALIDATION (writeGraph's, mirrored),
+    //   with the delta expansion shared with the INSERT loop below. The old edge INSERT went
+    //   straight to SQL with no endpoint check: one bad ref hit a raw
+    //   SQLITE_CONSTRAINT_FOREIGNKEY MID-TRANSACTION and aborted the entire branch write with an
+    //   undiagnosable rollback — the LINEAGE_MISSING vocabulary that NAMES the offending edge was
+    //   never reached. The candidate endpoint set is EXACTLY what gets inserted (the delta nodes
+    //   plus their synthesized duplicate-path ids), because the branch `graph_edges` FK references
+    //   the branch `graph_nodes` table, which this write clears and repopulates from that set
+    //   alone. Everything is validated BEFORE the first DELETE.
+    const deltaExpanded = expandBranchDeltaNodes(deltaNodes);
+    for (const n of deltaExpanded) {
+      if (!isNodeLineage(n.lineage)) throw lineageMissing(n.id);
+    }
+    const branchNodeIds = new Set(deltaExpanded.map((n) => n.id));
+    for (const e of refs) {
+      if (!isNodeLineage(e.lineage)) throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
+      if (!branchNodeIds.has(e.sourceId) || !branchNodeIds.has(e.targetId)) {
+        throw lineageMissing(`branch edge ${e.sourceId} -> ${e.targetId} (dangling endpoint — no such node among the ${branchNodeIds.size} nodes this branch write carries)`);
+      }
+    }
     const tx = this.branchDb.transaction((): void => {
       this.branchDb.prepare('DELETE FROM graph_edges').run();
       this.branchDb.prepare('DELETE FROM graph_nodes').run();
       const nodeStmt = this.branchDb.prepare('INSERT INTO graph_nodes VALUES (?,?,?,?,?,?,?,?)');
-      for (const n of deltaNodes) {
-        if (!isNodeLineage(n.lineage)) throw lineageMissing(n.id);
-        const toInsert: GraphNode[] = [n];
-        const dupPaths = (n.data as Record<string, unknown> | undefined)?.['duplicatePaths'];
-        if (Array.isArray(dupPaths)) {
-          for (const dup of dupPaths) {
-            if (typeof dup !== 'string' || dup.trim() === '') continue;
-            const dupId = contentHashId(dup, n.name);
-            if (dupId === n.id) continue;
-            toInsert.push({ ...n, id: dupId, file: dup });
-          }
-        }
-        const seenIds = new Set<string>();
-        for (const ins of toInsert) {
-          if (seenIds.has(ins.id)) continue;
-          seenIds.add(ins.id);
-          nodeStmt.run(ins.id, ins.kind, ins.name, ins.file ?? null, ins.line ?? null, ins.lineage, ins.source, JSON.stringify(ins.data ?? {}));
-        }
+      for (const ins of deltaExpanded) {
+        nodeStmt.run(ins.id, ins.kind, ins.name, ins.file ?? null, ins.line ?? null, ins.lineage, ins.source, JSON.stringify(ins.data ?? {}));
       }
-      const edgeStmt = this.branchDb.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage) VALUES (?,?,?,?)');
+      // ★ W9-AUDIT FIX (2026-09-28): the edge's OWN ANCHOR rides the row now. `graph_edges`
+      //   carries file/line since the R19 fix, and writeGraph persists them — this writer dropped
+      //   both, so an edge written through the branch view lost its location while the identical
+      //   edge written through writeGraph kept it. Same columns, same meaning.
+      const edgeStmt = this.branchDb.prepare('INSERT INTO graph_edges (source_id,target_id,kind,lineage,file,line) VALUES (?,?,?,?,?,?)');
       for (const e of refs) {
-        if (!isNodeLineage(e.lineage)) throw lineageMissing(`edge ${e.sourceId} -> ${e.targetId}`);
-        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage);
+        edgeStmt.run(e.sourceId, e.targetId, e.kind, e.lineage, e.file ?? null, e.line ?? null);
       }
       // ★ F-1010 FIX (2026-09-25): the branch_union_view rebuild rode OUTSIDE the commit —
       //   a DDL failure left committed data under a stale/missing view while the guard only
@@ -790,8 +890,18 @@ export class FamilyGraphStore {
       this.branchDb.exec(`ATTACH DATABASE '${this.familyPath.replace(/'/g, "''")}' AS family_attached`);
     } catch (idemErr) { /* idempotent guard */ console.debug("[kg-store] idempotent guard #3:", idemErr instanceof Error ? idemErr.message : String(idemErr)); }
     try {
+      // ★ W9-AUDIT FIX (2026-09-28): the attached union must be a TEMP VIEW. SQLite REFUSES a
+      //   persisted view whose body references an ATTACHed database — measured on this host:
+      //   `CREATE VIEW branch_union_attached AS … FROM family_attached.family_nodes` throws
+      //   `view branch_union_attached cannot reference objects in database family_attached`, while
+      //   `CREATE TEMP VIEW` (same body) succeeds and returns both legs. So EVERY writeBranchView
+      //   on a file-backed store threw BRANCH_VIEW_REBUILD_FAILED *after* committing its tx — the
+      //   finding's "aborts the whole branch write" half, live. A temp view is per-connection,
+      //   which is exactly the store's contract: the connection re-creates it on every write, and
+      //   nothing outside this file reads it (ripwire: zero consumers).
+      this.branchDb.exec("DROP VIEW IF EXISTS temp.branch_union_attached");
       this.branchDb.exec("DROP VIEW IF EXISTS branch_union_attached");
-      this.branchDb.exec("CREATE VIEW branch_union_attached AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
+      this.branchDb.exec("CREATE TEMP VIEW branch_union_attached AS SELECT id, json_extract(node_json,'$.kind') as kind, json_extract(node_json,'$.name') as name, json_extract(node_json,'$.file') as file, json_extract(node_json,'$.line') as line, json_extract(node_json,'$.lineage') as lineage, json_extract(node_json,'$.source') as source, json_extract(node_json,'$.data') as data, 'family' as origin FROM family_attached.family_nodes UNION ALL SELECT id, kind, name, file, line, lineage, source, data, 'delta' as origin FROM main.graph_nodes");
     } catch (viewErr) {
       // ★ F-1010 FIX (2026-09-25): propagate — the debug-only catch re-created the silent-stale
       //   class on the attached leg (ATTACH stays idempotent-guarded per F-402; a VIEW failure
@@ -975,13 +1085,65 @@ export function openFamilyReadOnly(familyPath: string): FamilyGraphStore {
 // functions are exported so the W2-W9 writers + the spec's tests compile).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ★ THE STATE DIR + THE PRE-MIGRATION READ-FALLBACK (GI_KERNEL_V2.3 FR-10 ①)
+// ---------------------------------------------------------------------------
+
+/** The project's GI state dir — the store home, `<root>/.gi`. ONE spelling, exported, so
+ *  no caller re-types it (a re-typed path is exactly the drift the de-brand re-introduces). */
+export const GI_PROJECT_STATE_DIR = '.gi';
+
+/** Direct child dirs of `root` that LOOK like a state dir: a `.`-prefixed dir holding a
+ *  `knowledge-graph/` folder. The pre-migration store home is found by SHAPE, never by a
+ *  retired NAME — the de-brand forbids the old spelling in src/, and shape is the stronger
+ *  test anyway (a store is its tables, not its directory name). Sorted → deterministic. */
+function priorStateDirs(root: string): string[] {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && e.name.startsWith('.') && e.name !== GI_PROJECT_STATE_DIR)
+    .map((e) => e.name)
+    .filter((name) => fs.existsSync(path.join(root, name, 'knowledge-graph')))
+    .sort();
+}
+
+/**
+ * ★ RESOLVE A PATH UNDER THE STATE DIR — the FR-10 ① READ-FALLBACK.
+ *  `.gi/<rel>` WINS when it exists (the canonical home). Otherwise the SAME `<rel>` under a
+ *  pre-migration state dir, so a tree populated BEFORE the de-brand still reads (the
+ *  migration is lazy — no `mv`, no `git mv`, existing checkpoints keep answering).
+ *  When neither exists the CANONICAL path is returned: that is what a first writer creates.
+ *  A path that EXISTS always beats a path that does not — the fallback never shadows a live
+ *  canonical store.
+ */
+export function resolveStateRel(root: string, rel: string): string {
+  const canonical = path.join(root, GI_PROJECT_STATE_DIR, rel);
+  if (fs.existsSync(canonical)) return canonical;
+  for (const name of priorStateDirs(root)) {
+    const candidate = path.join(root, name, rel);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return canonical;
+}
+
+/** The project store's db path — `<root>/<state dir>/knowledge-graph/shared.db`.
+ *  Every project-store READER goes through this so the fallback cannot be forgotten at one
+ *  of the sites (the C18.4 store law, with FR-10's migration tolerance). */
+export function resolveStoreDbPath(root: string): string {
+  return resolveStateRel(root, path.join('knowledge-graph', 'shared.db'));
+}
+
 /**
  * Open (or create) the store at dbPath, apply the pragmas, ensure the C18.4 schema.
  * Works for ':memory:' (the fast test cases) and for file paths (the WAL tests).
  */
 export function openStore(dbPath: string): DbClient {
   // the file's parent directory must exist for bun:sqlite to create the file —
-  // shared.db lives at <project>/.trident/knowledge-graph/ whose parent may not
+  // shared.db lives at <project>/.gi/knowledge-graph/ whose parent may not
   // exist yet on the first run; the mkdir makes the open idempotent.
   if (dbPath !== ':memory:') {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });

@@ -14,12 +14,18 @@
 # usage: sh scripts/c2kg-produce/run.sh [projectRoot]
 set -e
 ROOT="${1:-$(pwd)}"
-TOOLKIT="$ROOT/research/graph-infra-repos/code-to-knowledge-graph"
+GI_REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+TOOLKIT="$GI_REPO/research/graph-infra-repos/code-to-knowledge-graph"
 JAR="$TOOLKIT/build/libs/code-to-knowledge-graph-1.2.0.jar"
 
 [ -f "$JAR" ] || (cd "$TOOLKIT" && sh ./gradlew --no-daemon build -x test)
 CP=$(cd "$TOOLKIT" && sh ./gradlew --no-daemon -q printRuntimeCp 2>/dev/null | grep RUNTIME_CP= | sed 's/^RUNTIME_CP=//')
 CP="$CP:$JAR"
 
-javac -cp "$CP" -d /tmp/c2kg "$ROOT/scripts/c2kg-produce/C2kgProduce.java"
-java -cp "/tmp/c2kg:$CP" C2kgProduce "$ROOT" "$ROOT/.c2kg/index.json"
+javac -cp "$CP" -d /tmp/c2kg "$GI_REPO/scripts/c2kg-produce/C2kgProduce.java"
+# the parse set = the target's declared GI source roots (.omp/graph-intelligence/profile.yaml `sources:`)
+PROF="$ROOT/.omp/graph-intelligence/profile.yaml"
+SRCS=""
+[ -f "$PROF" ] && SRCS=$(sed -n '/^sources:/,/^[^ ]/p' "$PROF" | sed -n 's/^ *- *//p' | while read -r s; do [ -d "$ROOT/$s" ] && printf '%s\n' "$ROOT/$s"; done | tr '\n' ' ')
+# shellcheck disable=SC2086
+java -cp "/tmp/c2kg:$CP" C2kgProduce "$ROOT" "$ROOT/.c2kg/index.json" $SRCS

@@ -1,13 +1,15 @@
-// GI-OMP extension factory — T-4. Dedicated sibling to trident-omp.
+// GI-OMP extension factory — T-4. Dedicated sibling to gi-omp.
 // pi.zod schemas (JSON-schema-only is a silent skip on this runtime).
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { Database } from "bun:sqlite";
 import { blastRadius, chainCalls, countTypedNodes, gateAdvisory, getMeta, impact, safeDelete, unwiredNodes, whoCalls, wouldBreak } from "./typed-write.ts";
-import { GiScopeError, openSessionStore } from "./store-open.ts";
+import { assertStoreScope, GiScopeError, openSessionStore } from "./store-open.ts";
 import { GiPathError, resolveSessionId } from "../scoping/index.ts";
 import { attachGiGraphGate, registerGraphGate } from "./gate-hook.ts";
+import { attachClaimFirewall } from "./claim-firewall.ts";
+import { attachCardHud } from "./card-hud.ts"; // ★ V2.3 FR-4 — the portable Card-HUD fallback
 import { clearGiRegistry, GiClearError } from "./gi-registry.ts";
 import { populateSessionStore, type PopulateResult } from "./populate.ts";
 import { corbellCheckoutPath, isCorbellCheckoutFreshFor } from "./populate-corbell.ts";
@@ -288,7 +290,18 @@ sessionId: string,
 popNote: string,
 substrate?: string,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }> {
-if (verb === "who-calls") {
+  // ★ V2.2 W3 WIRING (2026-09-26): EVERY read asserts the store's build_root == the subject root.
+  //   A store built for tree A must NEVER answer as if it described tree B (the F-124/D-2 class).
+  //   A legacy store with no build_root fails OPEN (assertStoreScope returns foreign:false).
+  try {
+    assertStoreScope(storePath, scopeRoot);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("GI_STORE_SCOPE_MISMATCH")) {
+      return textResult(e.message, { ok: false, error: "GI_STORE_SCOPE_MISMATCH", verb });
+    }
+    throw e;
+  }
+  if (verb === "who-calls") {
   const sym = String(p.target ?? p.symbol ?? "");
   if (sym.trim() === "") return textResult("QUERY_INVALID: target required (who-calls needs a symbol)", { ok: false, error: "QUERY_INVALID", verb });
   const q = whoCalls(storePath, sym); // (legs isolated below — a ripwire throw keeps this primary)
@@ -855,6 +868,18 @@ export default function giOmpExtension(pi: GiExtensionAPI): void {
     // W2: registerGraphGate = attachGiGraphGate (per-edit middleware) + the
     // v1.3 drift layer (graph-gate.ts). One call site — grep count must stay 1.
     registerGraphGate(pi as { on: (ev: string, h: (e: Record<string, unknown>, c: unknown) => unknown) => void });
+    // W5c (L2 THE CLAIM FIREWALL — the missing blocking half): the runtime holds the
+    // gate on the stop/turn-end surface. FAIL-CLOSED: an unbound done-shaped claim
+    // throws GI_FABRICATED_CLAIM so the turn cannot close. ABIDE's fail-open repair
+    // path is never touched here (the polarity law: do not unify).
+    attachClaimFirewall(pi as { on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => void });
+    // ★ V2.3 FR-4 — THE CARD-HUD (the portable fallback where no LSP exists). It INFORMS on
+    //   every write/edit (the SAME cards the LSP emits), fail-OPEN — it never blocks.
+    try {
+      attachCardHud(pi as { on: (ev: string, h: (e: Record<string, unknown>) => unknown) => void });
+    } catch {
+      // a HUD attach failure is non-fatal — the gate + firewall remain the enforcement
+    }
   }
   console.error("[gi-omp] registered " + names.join(", "));
 }

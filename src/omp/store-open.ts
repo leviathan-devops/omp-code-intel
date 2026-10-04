@@ -11,6 +11,7 @@ import {
   findGiSessionByStorePath,
   upsertGiSession,
 } from "./gi-registry.ts";
+import { getMeta } from "./typed-write.ts";
 
 export class GiScopeError extends Error {
   readonly code = "GI_SCOPE_REFUSED";
@@ -122,4 +123,52 @@ export function openSessionStore(input: OpenSessionStoreInput): OpenSessionStore
     throw new GiScopeError(`GI_SCOPE_REFUSED: store ${storePath} was not persisted to the registry (upsert wrote no row for ${ownerKey})`);
   }
   return { storePath, ownerKey, created };
+}
+
+// ── W3 CONTENT SCOPING — the read assertion seam (GI_KERNEL_V2.2_REBUILD_SPEC §3 W3) ──
+// A store built for tree A can never be served as describing tree B (F-124/D-2).
+// Fail-CLOSED on mismatch; fail-OPEN on an absent stamp (legacy pre-W3 stores).
+export class GiStoreScopeError extends Error {
+  readonly code = "GI_STORE_SCOPE_MISMATCH";
+  constructor(message: string) {
+    super(message);
+    this.name = "GiStoreScopeError";
+  }
+}
+
+export interface AssertStoreScopeOptions {
+  /** Inspection tooling ONLY — bypasses the foreign-store refusal. */
+  allowForeignStore?: boolean;
+}
+
+export interface AssertStoreScopeResult {
+  buildRoot: string | null;
+  subjectRoot: string;
+  foreign: boolean;
+}
+
+export function assertStoreScope(
+  storePath: string,
+  subjectRoot: string,
+  opts: AssertStoreScopeOptions = {},
+): AssertStoreScopeResult {
+  const subject = fs.realpathSync(subjectRoot);
+  let readBuildRoot: string | null = null;
+  try {
+    readBuildRoot = getMeta(storePath, "build_root");
+  } catch {
+    readBuildRoot = null;
+  }
+  if (readBuildRoot === null || readBuildRoot.length === 0) {
+    return { buildRoot: null, subjectRoot: subject, foreign: false };
+  }
+  if (readBuildRoot !== subject) {
+    if (opts.allowForeignStore === true) {
+      return { buildRoot: readBuildRoot, subjectRoot: subject, foreign: true };
+    }
+    throw new GiStoreScopeError(
+      `GI_STORE_SCOPE_MISMATCH: store built for ${readBuildRoot}, subject root is ${subject}`,
+    );
+  }
+  return { buildRoot: readBuildRoot, subjectRoot: subject, foreign: false };
 }

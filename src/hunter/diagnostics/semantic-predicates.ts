@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/diagnostics/semantic-predicates.ts — verbatim bytes; SEAM: shared/knowledge-graph imports rewritten to the ported siblings (../shared/db.ts, ../profile/*).
+// PORTED FROM the archived upstream skill tree/diagnostics/semantic-predicates.ts — verbatim bytes; SEAM: shared/knowledge-graph imports rewritten to the ported siblings (../shared/db.ts, ../profile/*).
 // semantic predicates — EDGE-ANCHORED traversal (ST-12, CLEANUP_RESTORE_DPL1_SPEC.md §13.2).
 // THE PATTERN per predicate: (a) THE ANCHOR — candidate files resolve through the
 // graph edges (resolveEdgeAnchor over whoCalls/imports/chain/awaits — lexicon/templates.ts),
@@ -59,8 +59,11 @@ function anchored(ctx: CheckContext, spec: AnchorSpec): EdgeAnchor | null {
   try {
     anchor = resolveEdgeAnchor(ctx.graph, spec);
   } catch (e: unknown) {
-    console.error(`[semantic-predicates] edge anchor failed: ${String(e)}`);
-    return null;
+    // ★ W9-AUDIT FIX (2026-09-28): an INFRA FAILURE was read as "no anchors" = a CLEAN verdict
+    //   (the audit's HIGH: a graph outage produced zero findings, INDISTINGUISHABLE from a
+    //   clean scan — the false-green class the loud-fail law forbids). The infra path is now
+    //   LOUD + NAMED; the EMPTY anchor set below stays the honest zero (no anchor = no scan).
+    throw new Error(`SEMANTIC_ANCHOR_INFRA_FAILED: resolveEdgeAnchor failed (spec=${spec.callSymbols.slice(0, 3).join(',') || spec.importMatchers.slice(0, 3).join(',')}) — ${e instanceof Error ? e.message : String(e)}`);
   }
   if (anchor.files.size === 0) return null;
   return anchor;
@@ -89,10 +92,14 @@ export const P1: PredicateTemplate = {
       for (let i = 0; i < lines.length; i++) if ((lines[i] ?? '').includes('process.cwd()')) {
         const win = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 12)).join('\n');
         // ★ R20-HIGH FIX (2026-09-25): the symbol list must MATCH P1_SPEC.callSymbols (line 74) — RM/EXISTS
-        //   were in the spec but omitted from BOTH alternatives, so an .trident rm/exists window was a
+        //   were in the spec but omitted from BOTH alternatives, so an .gi rm/exists window was a
         //   false negative (the F-840 class: one list, two spellings, drift between them).
-        // ★ F-840 FIX (2026-09-24): second alternative mirrored the first — it missed appendFile(Sync)?, createWriteStream, resolve, so `.trident`+appendFile/resolve windows were false negatives while the forward direction fired.
-        if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve|cwd).*\.trident|\.trident.*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve|cwd)/.test(win)) {
+        // ★ F-840 FIX (2026-09-24): second alternative mirrored the first — it missed appendFile(Sync)?, createWriteStream, resolve, so `.gi`+appendFile/resolve windows were false negatives while the forward direction fired.
+        // ★ FR-10 NOTE (2026-09-28, the de-brand): the store token is `.gi`, so the bare
+        //   `\.gi` would ALSO match `.git`, `.gi-keys.json` (a store-family sibling), etc. —
+        //   the `(?![\w-])` lookahead keeps the token the STATE DIR (`.gi/`, `'.gi'`, EOL) and
+        //   nothing else. A false positive here is a live-hunt finding on ordinary git code.
+        if (/(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve|cwd).*\.gi(?![\w-])|\.gi(?![\w-]).*(writeFile(Sync)?|appendFile(Sync)?|mkdir(Sync)?|rmSync|existsSync|createWriteStream|(?:path\.)?join|(?:path\.)?resolve|cwd)/.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.process-cwd-persistence', sev);
           findings.push({ ruleId: 'semantic.process-cwd-persistence', severity: sev, file, line: i + 1, evidence: evEdge('semantic.process-cwd-persistence', file, i + 1, lines[i]!.trim(), 'HT-BUG-3b/15', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }
@@ -258,7 +265,7 @@ export const P5: PredicateTemplate = {
   },
 };
 export const UNSCOPED_WALKER_MESSAGE = 'walker exclude omits Checkpoints';
-export const UNSCOPED_WALKER_REMEDIATION = 'add EXCLUDED_DIRS with Checkpoints .trident dist';
+export const UNSCOPED_WALKER_REMEDIATION = 'add EXCLUDED_DIRS with Checkpoints .gi dist';
 // P6 ANCHOR: files whose modules define the walker symbols (def nodes with edge
 // participation) + callers of the readdirSync/scanTsFiles walker family.
 const P6_SPEC: AnchorSpec = {
@@ -284,15 +291,18 @@ export const P6: PredicateTemplate = {
           const triad = makeTriad(file, i + 1, 'semantic.unscoped-walker', sev);
           findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim(), 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         // ★ F-948 NOTE (2026-09-24): NOT-A-BUG — `||` is the correct require-BOTH shape: the
-        //   remediation (UNSCOPED_WALKER_REMEDIATION) demands Checkpoints AND .trident, so the
+        //   remediation (UNSCOPED_WALKER_REMEDIATION) demands Checkpoints AND .gi, so the
         //   exclusion is incomplete when EITHER is absent (!A || !B). `&&` would flag only when
         //   both are missing, letting a half-scoped walker pass. PROOF (truth table): win with
-        //   Checkpoints but no .trident → hasEx true, !A false, !B true → FIRES (correct:
+        //   Checkpoints but no .gi → hasEx true, !A false, !B true → FIRES (correct:
         //   half-scoped); win with both → !A false, !B false → silent (correct).
-        // ★ F-1050 FIX (2026-09-25): the remediation (UNSCOPED_WALKER_REMEDIATION) demands Checkpoints AND .trident AND dist — the old two-term || let a walker excluding Checkpoints+.trident but NOT dist pass silent (SILENT miss). Third term closes it.
-        } else if (!/Checkpoints/i.test(win) || !/\.trident/i.test(win) || !/\bdist\b/i.test(win)) {
+        // ★ F-1050 FIX (2026-09-25): the remediation (UNSCOPED_WALKER_REMEDIATION) demands Checkpoints AND .gi AND dist — the old two-term || let a walker excluding Checkpoints+.gi but NOT dist pass silent (SILENT miss). Third term closes it.
+        // ★ FR-10 NOTE (2026-09-28, the de-brand): the token is `.gi`, so a bare `\.gi` would be
+        //   satisfied by `.git` — a walker excluding `.git` but NOT `.gi` would read as scoped
+        //   (a SILENT false negative, the F-1050 class). `(?![\w-])` pins it to the state dir.
+        } else if (!/Checkpoints/i.test(win) || !/\.gi(?![\w-])/i.test(win) || !/\bdist\b/i.test(win)) {
           const triad = makeTriad(file, i + 1, 'semantic.unscoped-walker', sev);
-          findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim() + ' missing Checkpoints/.trident/dist', 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
+          findings.push({ ruleId: 'semantic.unscoped-walker', severity: sev, file, line: i + 1, evidence: evEdge('semantic.unscoped-walker', file, i + 1, lines[i]!.trim() + ' missing Checkpoints/.gi/dist', 'HT-BUG-20', anchor), verdict: 'VIOLATION', triad } as TriadFinding);
         }
       }
     }

@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/diagnostics/fixture-calibration.ts — verbatim bytes; SEAM: shared imports rewritten to the ported siblings.
-// src/subagents/trident-bug-hunter/diagnostics/fixture-calibration.ts
+// PORTED FROM the archived upstream skill tree/diagnostics/fixture-calibration.ts — verbatim bytes; SEAM: shared imports rewritten to the ported siblings.
+// the archived upstream skill tree/diagnostics/fixture-calibration.ts
 // THE F11.5 FIXTURE RUN PATH — the wiring that turns the fixture-profile dir
 // (fixtures/fixture-profile/) into a full calibration run: the profile + the
 // fire/golden fixtures → runCalibration → the CALIBRATION_vN.md record. This is

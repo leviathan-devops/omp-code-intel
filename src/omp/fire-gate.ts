@@ -88,7 +88,7 @@ export interface DecisionRow {
    *  and DROPPED THE PLAINTEXT — so no reader could ever point a gatherer at the subject.
    *  THE MEASURED CONSEQUENCE: the oracle's caller had to PAIR subjects by rule
    *  (i % subjects.length), and when E1 was sized against that pairing every "resolution"
-   *  was a false positive (all 3 resolved fires were .trident artifacts the sizing script had
+   *  was a false positive (all 3 resolved fires were .gi artifacts the sizing script had
    *  itself rewritten). 0%, 6%, 94% — ALL NUMBERS ABOUT AN ARBITRARY PAIRING. Optional
    *  because rows written before the migration have no target and NEVER WILL: it is
    *  irrecoverable, and NULL says so honestly. */

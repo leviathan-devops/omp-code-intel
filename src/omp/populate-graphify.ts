@@ -1,4 +1,4 @@
-// PORTED FROM src/omp/populate-corbell.ts:1-121 (checkout-path + freshness probe + supersede-then-insert + named NOT_WARM discipline) + fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/graph/corbell-adapter.ts:340-353 (warm-index skip: the index is built EXPLICITLY, hunts/queries READ).
+// PORTED FROM src/omp/populate-corbell.ts:1-121 (checkout-path + freshness probe + supersede-then-insert + named NOT_WARM discipline) + the archived upstream skill tree/graph/corbell-adapter.ts:340-353 (warm-index skip: the index is built EXPLICITLY, hunts/queries READ).
 // src/omp/populate-graphify.ts
 // THE GRAPHIFY POPULATE LEG (W1) — the third substrate leg beside corbell and
 // the mechanical regex fallback. Reads the warm graph.json (written

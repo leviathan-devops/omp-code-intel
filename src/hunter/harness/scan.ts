@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/scan.ts:1-123.
+// PORTED FROM the archived upstream skill tree/harness/scan.ts:1-123.
 // SEAMS: profile-schema -> ../profile/schema.ts (REAL); db DbClient ->
 // ../shared/db.ts (REAL); GraphAdapter -> ../graph/interface.ts (REAL);
 // CompiledPredicate -> ../lexicon/templates.ts (REAL); compileBattery ->

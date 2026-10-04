@@ -1,8 +1,10 @@
 // ═══ SCOPE BINDING — THE ECOSYSTEM IDENTITY CONTRACT (the boilerplate extraction) ═══
 // TRUE SOURCE: Hydra_Wave_Manager/src/tools/wave-scope.ts (177L, 2026-08-28).
 //
-// THE OPERATOR'S LAW (verbatim, the source :2-7): "hydra should be PROPERLY
-// SCOPED to waves spawned by HYDRA wave manager. trident and hydra wave
+// THE OPERATOR'S LAW (verbatim, the source :2-7, with the retired sibling
+// ecosystem's name elided per the FR-10 de-brand — the elision is marked, the
+// quote is otherwise byte-faithful): "hydra should be PROPERLY
+// SCOPED to waves spawned by HYDRA wave manager. [the sibling ecosystem] and hydra wave
 // managers are 2 separate self contained ecosystems... mutually exclusive one
 // does not trigger the other. tool level equivalent of operational agent
 // identity".
@@ -26,15 +28,15 @@ export interface RegistrySurface {
 }
 
 export interface EcosystemSpec {
-  /** The owning ecosystem's id ('trident' | 'hydra' | yours). */
+  /** The owning ecosystem's id ('gi-omp' | 'hydra' | yours). */
   ecosystem: string;
-  /** The on-disk state dir under the project root ('.trident' | '.hydra'). */
+  /** The on-disk state dir under the project root ('.gi' | '.hydra'). */
   stateDir: string;
   /** The wave-id namespace prefix ('wave-' | 'hy-wave-'). */
   wavePrefix: string;
   /** The generate mode ('sync' | 'async') — carried for the consumer. */
   generateMode: 'sync' | 'async';
-  /** Human name for the logs + the refusals ('TRIDENT' | 'HYDRA'). */
+  /** Human name for the logs + the refusals ('GI' | 'HYDRA'). */
   label: string;
   /** The ecosystem's OWN registry — zero shared state. */
   registry: RegistrySurface;

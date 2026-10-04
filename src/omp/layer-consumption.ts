@@ -23,6 +23,7 @@ import { arsumbrisProbe } from "./adapters/arsumbris.ts";
 import { semanticaProbe } from "./adapters/semantica.ts";
 import { tsgProbe } from "./adapters/tsg.ts";
 import { kevProbe, resolveKevCli, resolveKevRuntime } from "./adapters/kev.ts";
+import { jevk5Available, jevk5Probe } from "./adapters/jevk5.ts";
 import { abideProbe } from "./adapters/abide.ts";
 
 /** ★ THE 8. The consumer set is CLOSED and named here — the registry cannot be
@@ -48,11 +49,11 @@ export function buildRegistry(
   overrides?: Partial<Record<ConsumerId, ConsumerProbe>>,
 ): LayerRegistry {
   const registry = createLayerRegistry();
-  // ★ THE MEANING GATE — KEV IN PLACE OF JEV (the operator's directive, 2026-09-23).
-  //   The remote Jev (the tsg binary + TYPESAFE_API_KEY) is BLOCKED: the org has no TypeSafe
-  //   credits (HTTP 402). KEV (`onnx-community/kev-0.6b-ONNX`) is the SAME CONTRACT, LOCALLY —
-  //   the 0.6B member of the Kev family. When the local model is present it SERVES the TSG
-  //   rung; the remote tsg probe remains the named fallback for a host without the model.
+  // ★ THE MEANING GATE — JEVK5 (GPU) → KEV (CPU) → TSG CLI (the V2.2 W5a ladder, 2026-09-25).
+  //   JevK5 (jevk5-4b-v0.2-Q8_0, :8090/:8008) is the GPU judge and the DEFAULT when its
+  //   health probe answers. KEV (`onnx-community/kev-0.6b-ONNX`) is the OFFLINE fallback
+  //   (the no-GPU case), never the default. The remote tsg probe (BLOCKED: org has no
+  //   TypeSafe credits, HTTP 402) remains the named last resort for a host with neither model.
   // ★ F-270 FIX (2026-09-24): a throwing probe constructor took down ALL 8 consumers — audit() guards RUNTIME failures, never CONSTRUCTION. An unbuildable probe registers DOWN, never fatal.
   const downProbe = (id: ConsumerId, rung: Rung, reason: string): ConsumerProbe => ({
     id, rung, dependency: "unconstructible probe (see evidence)", errorCode: "GI_REGISTRY_PROBE_BUILD",
@@ -72,7 +73,7 @@ export function buildRegistry(
     tryProbe("L3_UA", "context", () => uaProbe(scopeRoot)),
     tryProbe("L2_ARSUMBRIS", "knowledge", () => arsumbrisProbe(scopeRoot)),
     tryProbe("L1_SEMANTICA", "decision", () => semanticaProbe(scopeRoot)),
-    tryProbe("TSG", "meaning", () => (kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot))),
+    tryProbe("TSG", "meaning", () => (jevk5Available() ? jevk5Probe(scopeRoot) : kevAvailable ? kevProbe(scopeRoot) : tsgProbe(scopeRoot))),
     tryProbe("ABIDE", "repair", () => abideProbe(scopeRoot)),
   ];
   for (const p of probes) {

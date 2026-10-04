@@ -527,7 +527,7 @@ export function loadProfile(profilePath: string): ProjectProfile {
     const remedy =
       'MUST be written per this embedded minimal-viable-profile YAML template - fill ONLY the two <angle-bracket> paths: ' +
       'profileVersion: 1 | project: { name: p, root: </abs/project/root>, languages: [typescript], entryPoints: [src/main.ts], build: bun run build, test: bun test } | ' +
-      "graph: { substrate: corbell, scope: [src], excludes: ['node_modules', 'dist', '.trident'] } | " +
+      "graph: { substrate: corbell, scope: [src], excludes: ['node_modules', 'dist', '.gi'] } | " +
       'rules: { corpus: [<path/to/existing/spec.md>] } | pipeline: { stages: [ { id: s1, entry: main, contract: stage-contract-prose } ] } | history: { failureLogs: [] } | awareness: { docs: [] }' +
       ' | ALL-REQUIRED-TOP-LEVEL-FIELDS = profileVersion, project, graph, rules, pipeline, history, awareness';
     throw new Error(`PROFILE_INVALID (${result.error.issues.length} issue${result.error.issues.length === 1 ? '' : 's'}): ${detail} remedy=${remedy}`);

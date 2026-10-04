@@ -24,15 +24,24 @@ import re
 import sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
-SEMANTICA_SRC = os.path.join(
-    ROOT, "research/graph-infra-repos/semantica"
+SEMANTICA_SRC = os.environ.get("SEMANTICA_SRC") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "research/graph-infra-repos/semantica"
 )
 sys.path.insert(0, SEMANTICA_SRC)
 
 from semantica.context import ContextGraph  # noqa: E402
 
-SKIP = {"node_modules", ".git", "Checkpoints", "graphify-out", "dist", "out",
-        ".trident", "research", "SHIP_PACKAGES", "packages", ".ua", "reports"}
+# ★ THE SHARED WALK_SKIP (GI_KERNEL_V2.3 FR-6). ONE law, mirrored from
+#   src/hunter/profile/source-roots.ts WALK_SKIP — the TS producers IMPORT it
+#   (ua-ingest.ts, engine.ts, corbell-adapter.ts); a Python producer MIRRORS it.
+#   Every producer uses THIS law; a producer with its own list is the drift class.
+#   THE MIRROR = the shared set + this producer's own extras (the layer's store dirs).
+SKIP = {"node_modules", ".git", "dist", "build", ".gi", "Checkpoints", "corbell-data",
+        ".omp", "coverage", "fork-v143", "research", "Ship_Packages", "SHIP_PACKAGES",
+        "vendor",
+        # the extras this producer needs beyond the shared law:
+        "graphify-out", "out", "packages", ".ua", "reports", "__pycache__", ".venv",
+        "live-tree"}
 EXTS = {".ts", ".tsx", ".js", ".mjs"}
 # the exported-declaration forms (the same set the gate's own EXPORT_PARSE_RE covers)
 DECL_RE = re.compile(

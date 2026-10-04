@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/harness/report.ts:1-192.
+// PORTED FROM the archived upstream skill tree/harness/report.ts:1-192.
 // SEAMS (per the port work order — "report.ts writes the report file directly"):
 //   profile -> ../profile/schema.ts (REAL); db appendReportSection/appendEvent/
 //   DbClient/ReportSectionInput -> ../shared/db.ts (REAL whole-fork-db port);
@@ -169,7 +169,11 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
     lines.push('_No findings — the honest zero (the battery ran clean)._', '');
   }
   for (const f of findingRows) {
-    lines.push(`### ${f.id} [${f.severity}]`, '', `rule: ${f.rule}`, '', 'evidence:', '', '```', f.evidence, '```', '');
+    // ★ W9-REAUDIT FIX (2026-09-28): the evidence is interpolated between ``` fences — raw
+    //   evidence containing ``` broke OUT of the fence and corrupted the artifact (the
+    //   audit's HIGH). Fence-openers in the evidence are neutralised.
+    const safeEvidence = String(f.evidence).replace(/^(\s*)```/gm, '$1`\u200b``');
+    lines.push(`### ${f.id} [${f.severity}]`, '', `rule: ${f.rule}`, '', 'evidence:', '', '```', safeEvidence, '```', '');
   }
   lines.push('## Report sections (the 6-part contract)', '');
   for (const s of input.sections) {
@@ -214,7 +218,19 @@ export async function writeReportDirect(input: ReportWriterInput): Promise<Repor
       //   v(N+1) while the document's own header still said v(N): a report whose name
       //   and content disagree about which report it is. Only line 0 embeds the version,
       //   so regenerate it from the version THIS attempt writes.
-      document = [`# BUG-HUNT REPORT — v${retryVersion}`, ...lines.slice(1)].join('\n');
+      // ★ W9-REAUDIT FIX (2026-09-28): regenerate the WHOLE header (not just line 0) — the
+      //   `- supersedes:` line embeds version-1, so a retry landing at a different version
+      //   left it STALE (or missing on the v1→v2 path). The body rides from the `---` line.
+      const sepAt = lines.indexOf('---');
+      const retryHeader = [
+        `# BUG-HUNT REPORT — v${retryVersion}`,
+        '',
+        `- runId: ${input.runId}`,
+        `- findings: ${input.findings.length}`,
+        `- sections: ${input.sections.length}`,
+        ...(retryVersion > 1 ? [`- supersedes: bug_hunter_report_v${retryVersion - 1}.md (append-only, never overwrite)`] : []),
+      ];
+      document = [...retryHeader, ...(sepAt >= 0 ? lines.slice(sepAt - 1) : lines.slice(1))].join('\n');
       fs.writeFileSync(retryPath, document, { encoding: 'utf-8', flag: 'wx' });
       version = retryVersion;
       reportPath = retryPath;
@@ -283,11 +299,39 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
     //     the file, read it back and strip ALL meta-commentary: <think> blocks,
     //     everything before the first '# '-prefixed heading line. Then write back.
     try {
+      // ★ W9-AUDIT CRITICAL FIX (2026-09-28): `writerResult.reportPath` is UNTRUSTED — the
+      //   writer is an INJECTED transport (a test double today, a W8 network writer later). The
+      //   read+rewrite below MUST stay inside the project's MASTER_CONTEXT dir. An out-of-tree
+      //   path (`/etc/passwd`, `~/.ssh/*`) is refused LOUDLY — never read, never rewritten.
+      // ★ W9-REAUDIT FIX (2026-09-28): the boundary falls back to the PROJECT ROOT when
+      //   MASTER_CONTEXT does not yet exist (a first hunt) — the previous `rpRoot !== null`
+      //   guard SKIPPED validation entirely on the null path (the audit's HIGH).
+      // ★ W9-REAUDIT FIX 2 (2026-09-28): the fallback is the CANONICAL MASTER_CONTEXT path
+      //   (the same one writeReportDirect creates) — NOT project.root, which widened the
+      //   rewrite surface to the whole project (the audit's HIGH).
+      const rpRoot = resolveMasterContextDir(input.profile.project.root) ?? path.join(input.profile.project.root, 'MASTER_CONTEXT');
+      const rootAbs = path.resolve(rpRoot);
+      // ★ W9-REAUDIT FIX 3 (2026-09-28): a RELATIVE reportPath resolved against process.cwd()
+      //   (path.resolve(rel)) — the containment check must resolve it against the ROOT the
+      //   boundary is anchored on (the audit's HIGH).
+      const rpAbs = path.resolve(rootAbs, writerResult.reportPath);
+      if (rpAbs !== rootAbs && !rpAbs.startsWith(rootAbs + path.sep)) {
+        throw new Error(`REPORT_PATH_UNSAFE: writerResult.reportPath "${writerResult.reportPath}" escapes ${rpRoot} — refusing to read/rewrite an out-of-tree path`);
+      }
       const raw = fs.readFileSync(writerResult.reportPath, 'utf-8');
-      let stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, '');
-      const titleMatch = stripped.match(/^# .*$/m);
+      // ★ W9-REAUDIT FIX (2026-09-28): the strip is FENCE-AWARE — a `<think>` block or a
+      //   `# ` line INSIDE a ``` code fence is REPORT EVIDENCE (a quoted finding), never
+      //   meta-commentary. The raw is split into fenced|plain segments; only PLAIN segments
+      //   are stripped, and the title cut lands on a plain `# ` heading.
+      const segs = raw.split(/(```[\s\S]*?```)/g);
+      let stripped = segs
+        .map((seg, i) => (i % 2 === 1 ? seg : seg.replace(/<think>[\s\S]*?<\/think>/g, '')))
+        .join('');
+      const plain = segs.filter((_, i) => i % 2 === 0).join('\n');
+      const titleMatch = plain.match(/^# .*$/m);
       if (titleMatch && titleMatch.index !== undefined && titleMatch.index > 0) {
-        stripped = stripped.substring(titleMatch.index);
+        const at = stripped.indexOf(titleMatch[0]);
+        if (at > 0) stripped = stripped.substring(at);
       }
       if (stripped !== raw) {
         // ★ F-551 FIX (2026-09-24): post-strip integrity gate — the strip runs BEFORE the
@@ -307,7 +351,10 @@ export async function report(input: ReportActorInput): Promise<ReportResult> {
     } catch (stripErr: unknown) {
       // ★ F-551 FIX: integrity failures are LOUD (they abort before HUNT_DONE); incidental
       //   I/O failures keep the existing non-fatal contract.
-      if (stripErr instanceof Error && stripErr.message.startsWith('REPORT_STRIP_FAILED')) throw stripErr;
+      // ★ W9-REAUDIT FIX (2026-09-28): REPORT_PATH_UNSAFE is an INTEGRITY failure too — it
+      //   MUST abort before HUNT_DONE, never fall into warn-and-continue (the audit's CRITICAL:
+      //   an untrusted path was still committed as truth).
+      if (stripErr instanceof Error && (stripErr.message.startsWith('REPORT_STRIP_FAILED') || stripErr.message.startsWith('REPORT_PATH_UNSAFE'))) throw stripErr;
       console.warn('[report] thinking-strip failed (non-fatal):', stripErr instanceof Error ? stripErr.message : String(stripErr));
     }
 

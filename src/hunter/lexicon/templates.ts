@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/lexicon/templates.ts — verbatim bytes; SEAM: db import rewritten to ../shared/db-canon.ts (the ported slice).
-// src/subagents/trident-bug-hunter/lexicon/templates.ts
+// PORTED FROM the archived upstream skill tree/lexicon/templates.ts — verbatim bytes; SEAM: db import rewritten to ../shared/db-canon.ts (the ported slice).
+// the archived upstream skill tree/lexicon/templates.ts
 // THE PREDICATE TEMPLATE LIBRARY (W4, spec §3.7 lines 1007-1133). The machine's
 // transferable intelligence: the corpus's prose rules compile into deterministic
 // predicates through the 5 typed families (WIRING/CONTRACT/PROVENANCE/DOMAIN/

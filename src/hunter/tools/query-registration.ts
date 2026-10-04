@@ -1,6 +1,6 @@
-// PORTED FROM fork-v143/live-tree/graph-intelligence/subagents/trident-bug-hunter/tools/query-registration.ts:1-105
+// PORTED FROM the archived upstream skill tree/tools/query-registration.ts:1-105
 // OMP SEAM ADAPTATION: the fork-plugin tool wrapper + the bare zod schema are
-// dropped (banned in OMP code); the fork's .trident shared-store path is
+// dropped (banned in OMP code); the fork's .gi shared-store path is
 // dropped (a cross-session LEAK in OMP — the session store is the ONLY truth).
 // This module is READ-ONLY + deterministic: openSessionStore (scope-checked) →
 // the hunter openStore handle (applies the hunter DDL additively — the OMP

@@ -1,4 +1,4 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/testing/inconclusive.ts (10L) — the ::INCONCLUSIVE( marker + thrower
+// PORTED FROM the archived upstream skill tree/testing/inconclusive.ts (10L) — the ::INCONCLUSIVE( marker + thrower
 // Ported 2026-09-14 (port wave W3-P1/P2). Verbatim bytes; do not edit in place without re-diffing the source.
 export const inconclusiveMarker = '::INCONCLUSIVE(';
 

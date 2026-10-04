@@ -75,6 +75,9 @@ if (gate) {
   //   prose subjects) could never consume. The loop now iterates the UNION of every consumer's own
   //   domain subjects — the map is the single source of truth.
   const domainSuite = [...new Set(Object.values(DOMAIN_SUBJECTS).flat().concat([subject]))];
+  // ★ AUDIT FIX (2026-10-03): the consumer count was hardcoded `8` in three log lines — derive it
+  //   so the predicate text can never drift from the actual registry size.
+  const CONSUMER_COUNT = Object.keys(DOMAIN_SUBJECTS).length;
   const perSubject: Array<{ subject: string; consumed: number; offenders: string }> = [];
   for (const s of domainSuite) {
     const run = consumptionAudit(scopeRoot, s);
@@ -85,15 +88,15 @@ if (gate) {
   // ★ W2 (2026-10-02): THE SUBJECT-MATRIX ROWS. The union verdict alone hides which subject
   //   consumed which consumer — the 5/8-vs-7/8 confusion. Print every subject's row.
   for (const row of perSubject) {
-    console.log(`[consumption] subject='${row.subject}' consumed:${row.consumed}/8 offenders=${row.offenders}`);
+    console.log(`[consumption] subject='${row.subject}' consumed:${row.consumed}/${CONSUMER_COUNT} offenders=${row.offenders}`);
   }
-  console.log(`[consumption] union=${everConsumed.size}/8`);
+  console.log(`[consumption] union=${everConsumed.size}/${CONSUMER_COUNT}`);
   const never = Object.keys(DOMAIN_SUBJECTS).filter((c) => !everConsumed.has(c));
   if (never.length > 0) {
     console.log(`GI_CONSUMPTION_BELOW_EXPECTED: consumers NEVER consumed for any domain subject: ${never.join(",")}`);
     process.exit(1);
   }
-  console.log(`[consumption] ★ THE PREDICATE PASSED: all 8 consumers CONSUMED for their domains · for '${subject}' the register reads consumed:${audit.reports.filter((r) => r.consumed).length}/8`);
+  console.log(`[consumption] ★ THE PREDICATE PASSED: all ${CONSUMER_COUNT} consumers CONSUMED for their domains · for '${subject}' the register reads consumed:${audit.reports.filter((r) => r.consumed).length}/8`);
 }
 
 if (expected !== null) {

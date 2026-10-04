@@ -73,7 +73,10 @@ function request(sockPath: string, read: string, extra: Record<string, unknown>)
   return new Promise((resolve, reject) => {
     const c = net.connect(sockPath);
     let buf = Buffer.alloc(0);
-    const timer = setTimeout(() => { c.destroy(); reject(new Error("AU_READ_TIMEOUT")); }, 20000);
+    // ★ AUDIT FIX (2026-10-03): single-settlement guard — a `close` after a successful `resolve`
+    //   must not `reject` an already-settled promise; every terminal path checks it first.
+    let settled = false;
+    const timer = setTimeout(() => { if (settled) return; settled = true; c.destroy(); reject(new Error("AU_READ_TIMEOUT")); }, 20000);
     c.once("connect", () => {
       // ★ MEASURED: a read body is STRICT — schema_version is a FRAME-BASE field, not a
       //   read field (the daemon: "unknown field `schema_version`, expected one of `repo`,
@@ -88,22 +91,29 @@ function request(sockPath: string, read: string, extra: Record<string, unknown>)
     c.on("data", (chunk: Buffer) => {
       buf = Buffer.concat([buf, chunk]);
       while (buf.length >= 4) {
+        // ★ AUDIT FIX (2026-10-03): bound the frame — the 4-byte prefix can claim up to 4 GB.
         const len = buf.readUInt32BE(0);
+        if (len > 64 * 1024 * 1024) { if (settled) return; settled = true; clearTimeout(timer); c.destroy(); reject(new Error("AU_READ_FRAME_TOO_LARGE: " + len)); return; }
         if (buf.length < 4 + len) return;
         const payload = buf.subarray(4, 4 + len);
         buf = buf.subarray(4 + len);
         try {
           const msg = JSON.parse(payload.toString("utf8")) as { id?: string; type?: string };
           if (msg.id === id && msg.type !== "ack") {
+            if (settled) return;
+            settled = true;
             clearTimeout(timer);
             c.destroy();
             resolve(msg);
             return;
           }
-        } catch { /* a partial frame — keep reading */ }
+        } catch { /* a malformed/corrupted frame — keep reading the stream */ }
       }
     });
-    c.once("error", (e) => { clearTimeout(timer); reject(e); });
+    c.once("error", (e) => { if (settled) return; settled = true; clearTimeout(timer); reject(e); });
+    // ★ AUDIT FIX (2026-10-03): reject on early close (was a 20 s hang); the settled guard stops a
+    //   close that FOLLOWS a successful resolve from rejecting an already-settled promise.
+    c.once("close", () => { if (settled) return; settled = true; clearTimeout(timer); reject(new Error("AU_READ_CLOSED: the engine closed before a full reply")); });
   });
 }
 

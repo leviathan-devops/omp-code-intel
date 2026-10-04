@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/lexicon/compiler.ts — verbatim bytes; SEAM: db->../shared/db-canon.ts, profile->../profile/schema.ts.
-// src/subagents/trident-bug-hunter/lexicon/compiler.ts
+// PORTED FROM the archived upstream skill tree/lexicon/compiler.ts — verbatim bytes; SEAM: db->../shared/db-canon.ts, profile->../profile/schema.ts.
+// the archived upstream skill tree/lexicon/compiler.ts
 // THE LEXICON COMPILER (W4, spec §3.9 lines 1212-1294). The corpus + the
 // templates + the bindings → the compiled predicate battery. The compilation is
 // DETERMINISTIC + CACHED by the corpus hash (K20.3): batteryVersion =

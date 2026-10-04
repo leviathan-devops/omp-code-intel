@@ -1,5 +1,5 @@
-// PORTED FROM fork-v143 live-tree/graph-intelligence/subagents/trident-bug-hunter/lexicon/rule-card.ts — verbatim bytes; SEAM: db import rewritten to ../shared/db-canon.ts (the ported slice).
-// src/subagents/trident-bug-hunter/lexicon/rule-card.ts
+// PORTED FROM the archived upstream skill tree/lexicon/rule-card.ts — verbatim bytes; SEAM: db import rewritten to ../shared/db-canon.ts (the ported slice).
+// the archived upstream skill tree/lexicon/rule-card.ts
 // THE RULE-CARD EXTRACTOR (W4, spec §3.8 lines 1137-1208). The corpus docs →
 // the rule cards: the verbatim quotes + the file:line anchors + the
 // classifications + the severities, with the D13 law applied MECHANICALLY (K3.2).
