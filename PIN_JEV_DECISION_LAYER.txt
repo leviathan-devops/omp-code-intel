@@ -1,0 +1,147 @@
+# /goal — GI KERNEL: THE JEV DECISION LAYER (the gates decide through the judge)
+
+## GOAL
+Route EVERY gate decision (the smoke firewall · the doc-density · the container gate · the graph
+gate) through the LIVE Jev judge instead of a regex — the detector marks candidates, the judge
+returns {choice, confidence}, the enforcer is mechanical and RECOVERABLE (every refusal names its
+remedy). DONE only when the 40-case control set is 0-misfire WITH the operator's exact broken
+command passing verbatim AND the Jev ledger carries a judge call per verdict AND the seal+receipt exist.
+
+## BASELINE (re-measured THIS turn — inherited numbers are STALE)
+- repo /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence @ jarvis/gi-main 018aad8
+  dist extensions/graph-intelligence/index.js sha256
+  4694b1323fcc6887b89264c9262701ae3ebaf31b97bd19302256c9eefe964494 size 817806
+- tests 466 pass / 0 fail (unit) + 564 pass / 0 fail (script) via `bun run test`; tsc EXIT-0
+- the judge LIVE: `curl 127.0.0.1:8090/health` -> {"ok":true,"model":"jevk5-4b-v0.2-Q8_0"}
+- rigs: omp-ct (the container; the GI extension currently FAILS to load there) + host-live
+- the gate classifier: pbk-v2/src/firewalls/semantic-smoke-firewall.ts:209 (the regex ladder)
+- build package: packages/gi-jev-layer/WAVE_PLAN.md (WAVES: 5) — minted BEFORE this pin
+FIRST REPLY must re-run these and post the diff before W1.
+
+## BUILD PACKAGE (exists before pinning — G2)
+- the DPL1: PLAN-CLEANUP-JEV.md (197L, the 6 phases + the 8 criteria)
+- the blueprint: reports/JEV_DECISION_LAYER_ShowMe.md (276L, ruler-passed)
+- the wave-plan: packages/gi-jev-layer/WAVE_PLAN.md (first line `WAVES: 5`)
+- the spec/plan is the BINDING AUTHORITY; conflicts resolve against it. A pin with no package is VOID.
+
+## PHASES (owner skill -> exit gate)
+P0 ABSORB goal-prompt -> the baseline re-measured, no memory numbers
+P1 SPEC build-package -> the DPL1 + the wave-plan + the blueprint on disk (DONE this round)
+P2 PREFLIGHT hydra-mode -> the interface lands FIRST; every wave provable before dispatch
+P3 EXECUTE hydra-mode + SDD -> every wave audited (per-hunk verdicts), the battery green
+P4 RUNTIME runtime-grade -> a live identified instance operated first-person; the bug ledger non-empty
+P5 ADVERSARIAL red-team -> a FULL corpus pass: ZERO confirmed defects
+P6 DOCUMENT canon + ship docs -> U-gates + S-gates PASS with the AUDIT GATE line
+P7 CHECKPOINT saving-checkpoints -> the structure gate passed (src, dist+SHA, docs, manifest, one seal)
+P8 VERDICT -> the legal-stop definition met in FULL
+
+## WAVES (PARALLEL — DISJOINT file ownership; the interface lands in W1)
+| wave | the DISJOINT files | the deliverable | the gate | test ids |
+| W1 | src/omp/jev.ts (3 exports) | detectCandidate (the regex demoted) + askToolGate + the ledger | tsc exit 0 + detectCandidate("")=NONE | test_gate_detector_emits_candidates |
+| W2 | src/omp/adapters/jevk5.ts + the calibration | the judge call + the DERIVED threshold | a live reply carries choice+confidence | test_gate_jev_decides_with_confidence |
+| W3 | pbk-v2/src/firewalls/semantic-smoke-firewall.ts + src/omp/extension.ts | the 4 gates call askToolGate; the polarity; the remedy named | `grep -rn "return 'inline_exec'" src/` = 0 | test_gate_attack_blocks · test_gate_judge_down_polarity |
+| W4 | scripts/gate-control-set.ts (NEW) | the 40 cases: 10 attacks + 10 legit + 10 QUOTED-legit + 10 boundary | the runner exit 0, 0 misfires, the broken command VERBATIM passes | test_gate_quoted_legit_passes |
+| W5 | src/omp/extension.ts (load) + the build | the extension LOADS in omp-ct | 0 load failures; the tools visible | test_extension_loads_in_rig |
+Every wave's gate names its test ids; the wave-plan path is packages/gi-jev-layer/WAVE_PLAN.md.
+Boundary checks at every dependency point; NEVER dispatch W2..W5 on a CLAIMED-complete W1.
+Run the ids as `bun test -t <name>`; keep the ST-nn labels alongside for the docs.
+
+## LAWS
+- RIPWIRE FIRST-CLASS: map structure (callers/impact/for) before EVERY coding edit; re-map after
+  structural edits. A blind edit is FORBIDDEN. Missing tool -> RIPWIRE_MISSING.
+- BUILDER-UNDER-AUDIT: a subagent return is a CLAIM. Re-run tsc/the battery/the casts YOURSELF on the
+  combined tree before any wave is marked complete.
+- THE DETECTOR LAW: the regex NEVER returns a verdict; candidates only. The verdict is the judge's.
+- VIOLATION IS AUTOMATIC FAILURE: a verdict without its ledger confidence, a refusal with no named
+  remedy, a probe set narrower than the breaking shapes, or a deploy without a clean-boot check
+  FAILS THE WAVE ON SIGHT — no retry-as-erasure.
+- The wave-plan (packages/gi-jev-layer/WAVE_PLAN.md) is the argument; its `WAVES: 5` is the budget.
+
+## PROOF CONTRACT (four tiers — a claim without its tier artifact is VOID)
+| L0 | tsc --noEmit + the build | the exit codes, RC=0 |
+| L1 | the unit tests — pure functions only | the bun test run |
+| L2 | the SCRIPT test — the real modules + a real sandbox, observation-channel assertions | the PASS/FAIL table + the exit |
+| L3/L4 | the rig — the container AND host-live | the results artifact + the storage probe + the screenshot |
+Named tests (the G3 surface — selectable): test_gate_detector_emits_candidates ·
+test_gate_jev_decides_with_confidence · test_gate_quoted_legit_passes · test_gate_attack_blocks ·
+test_gate_judge_down_polarity · test_extension_loads_in_rig.
+EVERY gate is tested POSITIVE + NEGATIVE: each attack fires its SPECIFIC token (a generic gate
+preempting = UNOBSERVED, never PASS); each legit op passes with ZERO misfire — INCLUDING the
+operator's exact broken command (a quoted flag + an && chain) VERBATIM.
+ADVERSARIAL FIRST: the incident-replay cases run BEFORE the happy path; the happy path is the LAST
+confirmation. Bound every token to a TOOL RESULT (the verbatim output, an artifact path, RC=0,
+exit 0) — never to my prose. Independent re-verification: the orchestrator re-runs every prior
+gate's check on the combined tree and records the PASS/FAIL per token. NO ARTIFACT, NO CLAIM.
+
+## RUNTIME SEAT (mandatory — the author's seat is the default failure)
+Declare it in writing before P4: "I am the driver of the GI kernel's gate path on this host."
+H1 start the REAL instance (the omp-ct container + the host session; the name · the sha · the live process).
+H2 operate FIRST PERSON, numbered, each op with a PRE-REGISTERED expectation + an evidence channel.
+H3 every break is the deliverable: op#, expected, actual VERBATIM, mechanism, fix, retest.
+H4 push it: a quoted legit command · the judge stopped · N at once · the empty + max inputs · a
+   mid-operation kill.
+H5 fix IN the hot seat; the retest is the NEXT numbered op on the SAME battered instance.
+H6 the runtime ledger: what RUNNING taught that READING could not.
+H7 close only when nothing unexperienced remains AND the residual is NAMED.
+ZERO BUGS FOUND IS A RED FLAG. The SECOND OPERATOR: a zero-context subagent, given ONLY the docs,
+must operate it.
+
+## ADVERSARIAL LOOP (adversarial-first; the corpus-exhaustion contract)
+Map every exported decision function first; the surface map IS the probe plan. The corpus per
+function = positive + negative + edge + the FULL evasion family. Probes run against the DEPLOYED
+runtime (source-import is BANNED), each naming its bundle SHA. Adjudicate EVERY failure BOTH ways
+(my expectation wrong? / a real defect?) BEFORE any fix. Sweep the docs for stale markers too. The
+loop terminates only when a FULL pass returns ZERO confirmed defects AND the docs sweep is clean AND
+the unswept frontier is explicitly named.
+
+## DOC CONTRACT
+- canon context_management/ — 11 docs; the 2 logs update at the MOMENT of work, >= every other doc.
+  Gate: 200+ lines, >=3 file:line refs, the 5 read-first agree on the dist SHA.
+- ship — BUILD_REPORT + DEBUG_LOG + FAILURE_LOG + SPEC_VIOLATION_LOG + TESTING_LOG (both zones) +
+  THEATRICALITY_LOG. Gate: 50+ lines, the evidence refs, the newest SHA == the true dist.
+- AUDIT GATE: a code-audit artifact exists AND TESTING_LOG carries `AUDIT GATE: PASS|FAIL|BLOCKED`.
+  FAIL blocks every ship-ready claim; BLOCKED is NEVER PASS.
+- A completed todo without its doc entry is an UNFINISHED todo.
+
+## CHECKPOINT CONTRACT
+Enter P3 with a ROUND-ZERO checkpoint (the restore point for the nuke option): the current
+Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/ is it. At P7 produce a fresh checkpoint:
+src (full, verified count) · the dist + its SHA · context_management (11) · the 5 ship docs · the
+spec + the artifacts · CHECKPOINT_MANIFEST (the state + the HONEST GAPS) · ONE seal mode (full-tree —
+NEVER manifest-only). Hyphens only in the name.
+
+## HARD STOPS
+- Secrets out-of-band: never in the repo, chat, logs, or a doc row.
+- Guarded paths: the round ENDS at the handoff (state the sha + the path + the atomic mv + the
+  restart), then the retest.
+- The judge down / the rig down / quota -> BLOCKED with the retry condition. Never PASS.
+- Operator-owned actions: state them and continue on the independent fronts; never stall.
+
+## STOP
+The run stops only when all 8 phase gates are green AND the seal is written AND the receipt (the
+baseline diff, the battery, the audit verdict, the runtime ledger, the checkpoint path) is posted —
+the LEGAL STOP definition. ANYTHING LESS IS OPEN. A BLOCKED state is never a stop: it names its
+resume condition. FIRST REPLY: re-measure the baseline, post the diff, fire W1 the same turn.
+
+## ANTI-DERAIL (this tree's nouns — each FAILS THE WAVE ON SIGHT when it produces a claim)
+1. a REGEX returning a verdict (the F-140 class) — the verdict is the judge's.
+2. a misfire probe set narrower than the breaking shapes (the F-141 class) — quoted args, && chains,
+   `--flag "value"`, the exact broken command. THE SET IS THE DELIVERABLE.
+3. a deploy without a clean-boot check (the F-142 class) — DEPLOYED-NOT-RUNNING.
+4. a refusal with no named remedy — the recoverability law is the acceptance gate.
+5. a container claim while the extension fails to load (the F-144 class) — VOID, retracted.
+6. scope shrink under pressure; approval-gating required work; a theoretical fix with no run.
+
+## ANTI-STOP (these never close the run)
+- a green battery presented as the Jev wire (the battery predates the change).
+- the judge's PRESENCE reported as the wire (the adapter existing is not the gate deciding).
+- W1's interface landed reported as the plan complete.
+- the container's DEAD-on-load state reported as PASS.
+- blocked-as-done; theater-complete; an empty runtime ledger; "zero bugs" as success.
+
+## RESUME POINTERS
+- the plan PLAN-CLEANUP-JEV.md · the blueprint reports/JEV_DECISION_LAYER_ShowMe.md
+- the wave-plan packages/gi-jev-layer/WAVE_PLAN.md · the failure ledger FAILURE_LOG.md (F-133..F-144)
+- the docs context_management/ (11) + the 5 ship docs · the checkpoint
+  Checkpoints/gi-kernel-v2.3-reflexive-kernel-4694b1323fcc6887/
+A fresh session resumes from DISK, never from this pin's frozen numbers.

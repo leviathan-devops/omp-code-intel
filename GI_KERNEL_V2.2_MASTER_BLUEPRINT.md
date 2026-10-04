@@ -1,7 +1,7 @@
-# GI KERNEL V3 — THE MASTER BLUEPRINT (the derailment guard)
+# GI KERNEL V2.2 — THE MASTER BLUEPRINT (the derailment guard)
 
-**Series:** GI-Kernel-V3 · **Date:** 2026-09-25 · **Baseline:** HEAD 75d2586 · dist 3595ff900bf6581b
-**Companion spec:** `GI_KERNEL_V3_REBUILD_SPEC.md` (651 lines, the W1-W6 work)
+**Series:** GI-Kernel-V2.2 · **Date:** 2026-09-25 · **Baseline:** HEAD 75d2586 · dist 3595ff900bf6581b
+**Companion spec:** `GI_KERNEL_V2.2_REBUILD_SPEC.md` (651 lines, the W1-W6 work)
 **THE PURPOSE OF THIS DOCUMENT:** make derailment IMPOSSIBLE by naming every derailment that has
 actually occurred on this project, its trigger, its detection, and its mechanical remedy — so a fresh
 agent (or this one after a compaction) cannot repeat it.
@@ -12,7 +12,7 @@ agent (or this one after a compaction) cannot repeat it.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────┐
-│  THE GI KERNEL — THE 6L+2E STACK, AFTER V3                                     │
+│  THE GI KERNEL — THE 6L+2E STACK, AFTER V2.2                                     │
 ├────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                │
 │  ┌──────────────────────────── THE TARGET ────────────────────────────────┐   │

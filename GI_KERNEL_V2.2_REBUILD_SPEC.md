@@ -1,9 +1,9 @@
-# GI KERNEL V3 — THE REBUILD SPEC (self-populating · root-asserting · GPU-judged)
+# GI KERNEL V2.2 — THE REBUILD SPEC (self-populating · root-asserting · GPU-judged)
 
-**Series:** GI-Kernel-V3 (the rebuild after the operator's 2026-09-25 rejection)
+**Series:** GI-Kernel-V2.2 (the rebuild after the operator's 2026-09-25 rejection)
 **Date:** 2026-09-25 · **Baseline:** HEAD 75d2586 · dist 3595ff900bf6581b (752 KB)
-**Authority:** this spec + `GI_KERNEL_V3_MASTER_BLUEPRINT.md`
-**class:** system (the GI kernel's V3 rebuild — an infra spine, not a library)
+**Authority:** this spec + `GI_KERNEL_V2.2_MASTER_BLUEPRINT.md`
+**class:** system (the GI kernel's V2.2 rebuild — an infra spine, not a library)
 **Mission:** make the 6L+2E kernel build its graph FROM ANY TARGET, keep it correctly scoped, judge
 with JevK5 on the GPU, and BLOCK hallucinated completion — so the operator can deploy it immediately.
 
@@ -385,7 +385,7 @@ validated; W5 is independent of W1-W4 and can run in parallel from the start.
 
 ## §8 THE HANDOFF
 
-**The next artifact:** the master blueprint (`GI_KERNEL_V3_MASTER_BLUEPRINT.md`) — the guard against
+**The next artifact:** the master blueprint (`GI_KERNEL_V2.2_MASTER_BLUEPRINT.md`) — the guard against
 derailment.
 **The owner skill:** `build-package` (the dense package pipeline) → `trident-deep-planning` (the DPL1)
 → the wave plan.
