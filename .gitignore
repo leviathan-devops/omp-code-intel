@@ -52,3 +52,14 @@ graphify-out/
 # half-written (a torn sidecar beside a clean db is worse than no sidecar at all).
 *.db-shm
 *.db-wal
+
+# ★ hygiene (2026-10-04): runtime/test artifacts that churn `git status` and are never source.
+#   host-suite.ts writes a per-run temp SQLite stub/live DB with a random suffix into .trident/.
+#   .gi/ holds the same temp DBs + s13 sidecars; .abide/ holds the ABIDE fire log + the rubric
+#   COMPILED from ~/.agent/rules.parked-* (regenerable via scripts/compile-rubric.sh).
+.gi/
+.abide/
+.trident/host-suite-stub.sqlite.*
+.trident/host-suite-live.sqlite.*
+__pycache__/
+*.pyc
