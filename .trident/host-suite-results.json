@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-21T13:58:48.550Z",
+  "at": "2026-09-28T13:55:23.042Z",
   "judge": "deterministic-stub",
   "scenarios": 13,
   "passed": 13,
@@ -58,7 +58,7 @@
       "derailment": "THE PRODUCER-LESS CONTRACT",
       "expect": "a consumed symbol with ZERO in-edges settles M-GRAPH-1 FIRE at $0",
       "verdict": "PASS",
-      "observed": "M-GRAPH-1 settles=true action=FIRE jevCalls=0 · \"the consumed symbol \"OrphanContract\" has ZERO incoming edges — nothing constructs or calls it\"",
+      "observed": "M-GRAPH-1 settles=true action=FIRE jevCalls=0 · \"the consumed symbol \"OrphanContract\" has ZERO incoming `calls` edges — nothing constructs or calls it\"",
       "channel": "graphFacts on the fixture store (the fact, then the zero call counter)"
     },
     {
@@ -92,7 +92,7 @@
       "derailment": "THE HUNG JUDGE",
       "expect": "a never-resolving judge returns with +timeout named, well under 8s; the verdict STANDS",
       "verdict": "PASS",
-      "observed": "301ms verdict=REFUSE skipped=GI_GATE_UNAVAILABLE:TIMEOUT — the detector's verdict STOOD",
+      "observed": "302ms verdict=REFUSE skipped=GI_GATE_UNAVAILABLE:TIMEOUT — the detector's verdict STOOD",
       "channel": "the elapsed wall time + the run's gateSkipped"
     },
     {

@@ -1,0 +1,19 @@
+{
+  "status": "success",
+  "lane": "poolside-laguna-s (inference.poolside.ai, openai protocol)",
+  "session_id": "5938c5e6-7eb0-4566-83d4-6b6d76db83d8",
+  "scope": "src/omp/adapters/arsumbris.ts,src/omp/adapters/c2kg.ts,scripts/au-read.ts,scripts/consumption-audit.ts",
+  "files_reviewed": 4,
+  "duration_seconds": 424.93,
+  "llm_failures": 1,
+  "findings": { "critical": 1, "high": 2, "medium": 5, "low": 4, "total": 12 },
+  "gate": "GATE: FAIL (1 critical, 2 high) — adjudicated: 1 critical FIXED+PROVEN, 1 high FIXED, 1 high NOT-A-BUG (documented union contract), mediums FIXED",
+  "adjudication": {
+    "CRITICAL": "c2kg.ts JSON.parse of a valid-but-non-object payload (null/42/[]) -> raw TypeError at idx.symbols. FIXED: normalize non-object to {}. PROVEN: /tmp/c2kg-null-probe -> NULL_GUARD_OK facts=0.",
+    "HIGH-1": "c2kg.ts edge fact values raw unknown (no narrowing). FIXED: narrow to typed fields.",
+    "HIGH-2": "consumption-audit.ts --gate union accumulates across domain subjects (not the canonical subject). NOT-A-BUG: the union IS the goal's stated STOP condition (all 8 CONSUMED across the subject union); documented in the script.",
+    "MEDIUM": "consumption-audit.ts hardcoded 8 -> derived CONSUMER_COUNT; au-read.ts no close handler -> reject on close; misleading 'partial frame' comment -> corrected; subject not validated -> documented; symbol hits cap -> .slice(0,50).",
+    "LOW": "4 minor (perf/comment) — 3 FIXED inline, 1 accepted."
+  },
+  "audited_dist_sha": "728e6ceb94844450"
+}

@@ -1,0 +1,92 @@
+{
+ "rows": [
+  {
+   "id": "S1-the-store-populated",
+   "domain": "D2 live",
+   "rung": "the store",
+   "channel": "the sqlite COUNT(*) read back",
+   "proof": "the ROW (existence)",
+   "verdict": "PASS",
+   "observed": "typed_nodes=12600 (the corbell checkout) · fire-decisions rows=5"
+  },
+  {
+   "id": "S2-the-cards-answer",
+   "domain": "D2 live",
+   "rung": "the cards over the real store",
+   "channel": "the card's own rows+total",
+   "proof": "the ROW + the shape",
+   "verdict": "PASS",
+   "observed": "symbol=gateCheck · callersCard=null · unwiredCard=a card"
+  },
+  {
+   "id": "S3-anchors-point-at-real-files",
+   "domain": "D2 live",
+   "rung": "the store's anchors vs the disk",
+   "channel": "fs.existsSync per sampled anchor",
+   "proof": "the BEHAVIOR DELTA (the disk agrees)",
+   "verdict": "PASS",
+   "observed": "25 sampled · 0 missing"
+  },
+  {
+   "id": "S4-the-judge-live",
+   "domain": "D2 live",
+   "rung": "the JevK5 judge",
+   "channel": "the judge's own HTTP reply",
+   "proof": "the RECEIPT (a real probability from the real model)",
+   "verdict": "PASS",
+   "observed": "HTTP 200 in 117ms · {\"model\":\"jevk5-4b-v0.2-Q8_0\",\"answers\":{\"unwired\":{\"type\":\"choice\",\"confidence\":0.650783038416124,\"choice\":\"yes\",\"probabilities\":{\"yes\":0.650783038416124,\"no\":0.3492169615838761}}},\"usage\":{\"input_to"
+  },
+  {
+   "id": "S5-the-sustained-reflex-25",
+   "domain": "D2 live",
+   "rung": "the LSP over stdio (25 sequential)",
+   "channel": "the per-call latency + the answered count",
+   "proof": "the SEAM-EXACT measurement",
+   "verdict": "PASS",
+   "observed": "25/25 answered (errors=0) · p50=100ms p95=116ms max=120ms"
+  },
+  {
+   "id": "S6-the-concurrent-herd-10",
+   "domain": "D2 live",
+   "rung": "the LSP under 10 simultaneous opens",
+   "channel": "the publishDiagnostics count",
+   "proof": "the SEAM-EXACT measurement",
+   "verdict": "PASS",
+   "observed": "10 publishDiagnostics received for 10 simultaneous opens (expect >=10)"
+  },
+  {
+   "id": "S7-the-firewall-under-load",
+   "domain": "D1 unit",
+   "rung": "the classifier (the persisted corpus)",
+   "channel": "the corpus's own recorded verdicts (re-read from disk)",
+   "proof": "the ROW (the record)",
+   "verdict": "PASS",
+   "observed": "56 classifier cases · leaks=0 · misfires=0 · resolveStore=exported"
+  },
+  {
+   "id": "S8-the-lock-under-contention",
+   "domain": "D1 unit",
+   "rung": "the lock state machine",
+   "channel": "the transition outcomes",
+   "proof": "the BEHAVIOR DELTA (4 transitions)",
+   "verdict": "PASS",
+   "observed": "4/4 transitions correct"
+  },
+  {
+   "id": "S9-the-stale-store-named",
+   "domain": "D2 live",
+   "rung": "the LSP's store resolution",
+   "channel": "the publishDiagnostics text",
+   "proof": "the RECEIPT (the named token)",
+   "verdict": "PASS",
+   "observed": "GI_NO_STORE named"
+  }
+ ],
+ "live": true,
+ "summary": {
+  "pass": 9,
+  "fail": 0,
+  "unreached": 0,
+  "total": 9
+ }
+}

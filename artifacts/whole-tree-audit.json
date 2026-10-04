@@ -1,437 +1,517 @@
 {
-  "files_scanned": 113,
-  "files_with_a_result": 113,
-  "empty_result_parts": 0,
-  "total_comments": 422,
+  "files_scanned": 120,
+  "files_with_a_result": 110,
+  "empty_result_parts": 10,
+  "total_comments": 726,
   "by_severity": {
-    "medium": 226,
-    "high": 57,
-    "low": 136,
-    "critical": 3
+    "HIGH": 255,
+    "MEDIUM": 373,
+    "LOW": 89,
+    "CRITICAL": 9
   },
-  "\u2605 AUDIT GATE (the whole tree)": "FAIL (3 critical, 57 high)",
+  "★ AUDIT GATE (the whole tree)": "BLOCKED (degraded run — 10/120 parts EMPTY_RESULT, rate-limited; among the 110 reviewed: 9 critical, 255 high)",
   "the_blocking_findings": [
     {
-      "path": "src/hunter/diagnostics/calibration.ts",
-      "line": 374,
-      "severity": "high",
-      "category": "bug",
-      "content": "Partial persistence across DB and file targets: writeCalibrationRows (DB) commits a transaction, then writeCalibrationRecord (file) is called separately. If the DB commit succeeds but the file write f"
+      "path": "src/gi-lsp/cards.ts",
+      "severity": "HIGH",
+      "content": "fileCards never emits UNWIRED: per-declaration loop only calls callersCard (which returns null on 0 callers) and never calls unwiredCard. Zero-caller symbols are therefore silent, contradicting the file header (SCOPE + CALLERS/UNWIRED per declaration) and unwiredCard's documented job."
+    },
+    {
+      "path": "src/gi-lsp/cards.ts",
+      "severity": "HIGH",
+      "content": "scopeCard can throw and break the LSP: fs.realpathSync(projectRoot) is unguarded (throws on missing/deleted/permission-denied root). The existsSync+realpathSync on stored has a TOCTOU race and still throws on symlink loops/permissions. Every other reader here (meta/meaningCard/callersCard) degrades "
+    },
+    {
+      "path": "src/gi-lsp/cards.ts",
+      "severity": "HIGH",
+      "content": "declarationsIn misses common declarations: regex omits `export default function/class`, decorators (`@...`), `export {a,b}`, multi-declarator `const a=.., b=..`, generators `function*`, `abstract`/`declare` prefixes. Those symbols never get CALLERS/UNWIRED cards."
     },
     {
       "path": "src/hunter/diagnostics/calibration.ts",
-      "line": 465,
-      "severity": "high",
-      "category": "bug",
-      "content": "Inconsistent fixture validation in both validateFireFixture and validateGoldenFixture: they check that `source` is a string but do NOT verify it is non-empty (unlike `ruleId`, `file`, `anchor` which c"
+      "severity": "HIGH",
+      "content": "Unconditional ROLLBACK after failed BEGIN corrupts outer transaction. If `BEGIN IMMEDIATE` throws because the shared DbClient handle already has a caller transaction open (or bad connection), the catch still executes `ROLLBACK`, rolling back work the gate does not own. Track whether this frame start"
     },
     {
       "path": "src/hunter/diagnostics/calibration.ts",
-      "line": 283,
-      "severity": "high",
-      "category": "security",
-      "content": "The whoCalls error is caught and coerced to empty callers with only a console.warn, then the empty data is folded into the fixturesHash. This means a broken graph adapter's topology errors silently co"
+      "severity": "HIGH",
+      "content": "Duplicate predicate ids silently collide. fireByPred/silentByPred/verdicts are keyed by `p.id` and `mark()` uses `battery.find(b => b.id === p.id)` (first match only) while `liveBattery()/excluded()` filter by `verdictOf(p.id)`, so duplicate rows overwrite each other and co-verdict. Validate uniquen"
     },
     {
       "path": "src/hunter/diagnostics/engine.ts",
-      "line": 406,
-      "severity": "critical",
-      "category": "bug",
-      "content": "**BUG: `assertNoBlindness` is entirely broken when called from `runBattery`.**\n\nTwo interrelated problems in the `assertNoBlindness` call within `runBattery` (line 407-413):\n\n1. **Incorrect `ENGINE_SK"
+      "severity": "HIGH",
+      "content": "History-frequency read has TOCTOU gap: lockdown source uses O_NOFOLLOW fd read but history log validates logReal then uses readFileSync on the path, so a swap between realpath and read reopens a different inode outside root. Use the same O_NOFOLLOW descriptor read."
+    },
+    {
+      "path": "src/hunter/diagnostics/engine.ts",
+      "severity": "HIGH",
+      "content": "Local walk mixes loud throws with console.error plus continue skips, contradicting fail-closed law: symlink-to-dir escaping root, symlink-cycle re-entry, and symlink-to-file outside root all log-and-skip while walk-entry cycle and readdir failures throw SOURCE_READ_FAILED. Skipped files silently yie"
+    },
+    {
+      "path": "src/hunter/diagnostics/findings-store.ts",
+      "severity": "HIGH",
+      "content": "Read/write empty-scope asymmetry for runId and ruleId: writes loudly reject empty runId, but queryFindings silently drops empty-string filters. `if (opts.runId)` / `if (opts.ruleId)` treat '' as absent, so `queryFindings(db,{runId:''})` or `{ruleId:''}` returns a superset / whole ledger instead of f"
     },
     {
       "path": "src/hunter/diagnostics/fixture-calibration.ts",
-      "line": 335,
-      "severity": "high",
-      "category": "bug",
-      "content": "Bug: `profileFromDisk` flag is silently dropped, contradicting the documented design intent. `loadFixtureProfile` returns `{ profile, profileFromDisk }` (line 313) and the JSDoc on lines 324\u2013325 expli"
+      "severity": "HIGH",
+      "content": "Containment check-then-read TOCTOU + `sourceFile='.'` bypass. `containedFixtureSource` validates lexically then via `requireContained`, but `fs.readFileSync(contained)` happens after both checks, so a swap/planted symlink between check and read can still escape. Separately `sourceFile='.'` resolves "
     },
     {
       "path": "src/hunter/diagnostics/fixture-calibration.ts",
-      "line": 170,
-      "severity": "high",
-      "category": "security",
-      "content": "Security: The path-traversal containment check uses `path.resolve` which normalizes the logical path but does **not** follow symlinks. A symlink placed inside the fixture directory (e.g., `fixtures/fi"
+      "severity": "HIGH",
+      "content": "Bare JSON.parse SyntaxError + unvalidated per-node shape break named-error contract. `asFixture` lets `JSON.parse` throw raw SyntaxError instead of CALIBRATION_FIXTURE_INVALID and only checks `graph.nodes` is an array, while `graphFromManifest` copies `id/kind/name/file/line/lineage/source/data` wit"
     },
     {
       "path": "src/hunter/diagnostics/semantic-predicates.ts",
-      "line": 262,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Bug (Logic error):** The condition `!/Checkpoints/i.test(win) || !/\\.trident/i.test(win)` uses OR (`||`), meaning a finding is emitted if **either** 'Checkpoints' or '.trident' is missing from the w"
+      "severity": "HIGH",
+      "content": "anchored() conflates infrastructure failure with clean verdict: on resolveEdgeAnchor throw it logs to console.error and returns null, which callers treat identically to empty anchor set (zero findings). A graph outage therefore masquerades as clean. Distinguish error from empty (re-throw, return Res"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "severity": "HIGH",
+      "content": "evEdge() throws FINDING_NO_ANCHOR inside per-file/per-line loops. Even though callers pre-check firstCite(), any anchor.files/cites skew (or future caller forgetting the check) aborts the entire check() and discards all findings collected so far. Per-file evidence construction should skip (continue)"
+    },
+    {
+      "path": "src/hunter/diagnostics/semantic-predicates.ts",
+      "severity": "HIGH",
+      "content": "P3 drops nodes with missing id (`nid === undefined => continue`) instead of falling back to whoCalls(name). For graph adapters that do not populate node.id every gate-named node is silently treated as wired (false negative). Fall back to whoCalls when nid is undefined."
+    },
+    {
+      "path": "src/hunter/firewall/artifact-scope.ts",
+      "severity": "HIGH",
+      "content": "Fail-open projectRoot fallback weakens real-vs-real containment. Catching all realpath errors (EACCES/ELOOP/ENOTDIR) and falling back to unresolved `path.resolve()` means later `insideRoot(parentReal, projectRootReal)` compares real-vs-unresolved. This contradicts the containment primitive's rule (o"
+    },
+    {
+      "path": "src/hunter/firewall/artifact-scope.ts",
+      "severity": "HIGH",
+      "content": "TOCTOU between classify-time `lstat` and the later tool write: `lstat` proves non-existence/symlink state only at check time. A concurrent create, symlink swap, or MASTER_CONTEXT variant swap after ALLOW_REPORT can turn the decision into an overwrite or escape. The firewall cannot close this atomica"
+    },
+    {
+      "path": "src/hunter/firewall/lexicon-types.ts",
+      "severity": "HIGH",
+      "content": "Deep-freeze can be bypassed/crash: (1) no cycle guard — `A<->B` reference recurses infinitely because parent isn't frozen until children return (`!isFrozen` check doesn't help mid-traversal) → stack overflow on attacker/caller-controlled `base`; (2) `Object.values` misses symbol-keyed props, leaving"
+    },
+    {
+      "path": "src/hunter/firewall/lexicon-types.ts",
+      "severity": "HIGH",
+      "content": "Alias guard passes malformed decisions: `undefined === undefined` so both-missing `Pattern/State/Evidence` compares equal; no validation of `verdict` domain, `State`-vs-`verdict` semantic consistency, or required `pattern/token/message`. A hand-built `{verdict:'BOGUS', state:'BOGUS', triplet:{}, mPS"
+    },
+    {
+      "path": "src/hunter/firewall/readonly.ts",
+      "severity": "CRITICAL",
+      "content": "SED_N_RANGE_RE file slot smuggles pipes/redirects to ALLOW_READ. `(?:\\s+\\S+)?` matches any non-space suffix, so `sed -n '1p' foo|bar`, `foo>bar`, `foo;rm -rf /` all match ( `\\S+` eats `| > ;`) and `scanMetacharacters` returns `null`, skipping the bypass scan. Shell still splits on attached `| > ;` w"
+    },
+    {
+      "path": "src/hunter/firewall/readonly.ts",
+      "severity": "HIGH",
+      "content": "Attached short write-flag `-o/tmp/out` bypasses git READ->MUTATION routing. Check only handles exact `-o` or `--flag=` prefix, so `-o/tmp/out` / `-ooutfile` (standard Unix attached short-option form) never matches and `git log/show --output` file-write stays ALLOW_READ. Same gap for `--output/tmp/ou"
+    },
+    {
+      "path": "src/hunter/firewall/readonly.ts",
+      "severity": "HIGH",
+      "content": "Naive quote-aware split desyncs from shell execution. `/[^\\s\"']+/|\"[^\"]*\"|'[^']*'/g` + one-layer stripQuotes splits shell-concatenated words: `--out\"put\"=/tmp/out` becomes [`--out`,`put`,`=/tmp/out`], so `routeGit` restTokens scan misses ` --output=` while shell concatenates to a single `--output=` "
+    },
+    {
+      "path": "src/hunter/firewall/readonly.ts",
+      "severity": "HIGH",
+      "content": "Narrow splitter scan omits `\\`, so quote/backslash smuggling evades the `find` deny-list and reaches ALLOW_READ. READ arm only checks `| ; & > < \\n $ backtick` + format controls: `find . '-exec' touch /tmp/pwn {} +`, `find . -del'ete'`, `find . -ex\\ec rm {} +` contain no narrow splitter, and the lex"
+    },
+    {
+      "path": "src/hunter/firewall/readonly.ts",
+      "severity": "HIGH",
+      "content": "Find deny-list is lexical on raw string and incomplete: misses `-fprintf` (only `-fprint`/`-fprint0` listed, but `(?![\\w-])` prevents `-fprint` matching `-fprintf`), misses quoted/escaped variants (see above), and returns fake token `'E'` obscuring forensics. `find . -fprintf /tmp/out '%p\\n'` has no"
+    },
+    {
+      "path": "src/hunter/firewall/readonly.ts",
+      "severity": "HIGH",
+      "content": "READ-verb `sort -o/--output` file-write primitive not guarded. `sort -o /tmp/out input` (and `sort --output=...`) contains no narrow splitter, `find`-only deny-list doesn't apply, so it falls through to `allowed('BASH_READ')` while overwriting an arbitrary file — same class as the `git --output` gua"
     },
     {
       "path": "src/hunter/graph/corbell-adapter.ts",
-      "line": 217,
-      "severity": "high",
-      "category": "performance",
-      "content": "`Atomics.wait()` blocks the calling thread entirely. In `defaultExec`, this is exported as a public `ExecFn` \u2014 if any production (non-test) caller invokes `defaultExec` with a timeout and hits a SQLIT"
+      "severity": "HIGH",
+      "content": "Timed-out build can delay-settle ~10s and leak orphan: timeout arm registers `proc.on('exit')` AFTER `timedOut=true`. If `exit` already fired (normal exit just before timeout) the late listener never fires, early latch already no-op'd (timedOut was false at exit time), and `close` early-returns on `"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "Orphan survives SIGKILL path by design: forceKillTimer rejects with 'child survived SIGKILL' but leaves the child running with no further reaping. Caller awaiting rejection loses handle to kill it. Track and expose PID / attempt synchronous `proc.kill('SIGKILL')` re-check on `close`/`exit` after rej"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "Split-on-whitespace before shellEscape breaks argv contract and paths with spaces: an arg containing spaces is split into two quoted tokens (semantic change), while binary path with space is rejected by allowlist (availability). More importantly `exec <bin> <escaped-args>` still goes through `/bin/s"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "Workspace staleness check is regex YAML + first-service only: `root:`/`repo:` regex matches comments/partial keys, `svcMatch` is the first `repo:` in file so multi-service configs (emitted by scopeRepoRefs) are judged on service-1 only, and `actual.endsWith(declaredRepo)` suffix-matches (`/evil/app`"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "`git_coupling` normalised to `calls` pollutes call graph: `whoCalls`/`chain` filter `kind==='calls'`, so coupling edges appear as call sites/chain steps (false positives) and inflate `unwired`/`chain` BFS. Coupling is not a call — map to `imports`/`traces-to` or a filtered kind excluded from call qu"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "Numeric enrichment recomputed per node, not per file: `src` is cached in `srcCache` but `matchAll` + `reduce` + 10k `numericLiterals` array runs for every method in the same file, duplicating CPU (regex over 1MB × N) and memory (10k array per node). Cache `comparator`/`numericLiterals` per `srcPath`"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "Phantom-id + `''`/`0` fallbacks turn missing nodes into silent empty reads: `resolveNodeId` returns `corbell:${symbol}` on miss, then `whoCalls`/`chain`/`imports`/`awaits` filter on phantom id → `[]`, and file/line degrade to `''`/`0` (not loud — downstream treats as valid location). Prefer throwing"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "`corbellParse` reads arbitrary paths outside project root: `path.relative` → `../...` then `path.resolve(root, rel)` re-resolves outside root with no containment check, so a crafted `fileSubtree` reads any file the process can read. Clamp resolved path to `root` (reject `..` escape). Companion regex"
+    },
+    {
+      "path": "src/hunter/graph/corbell-adapter.ts",
+      "severity": "HIGH",
+      "content": "Static `bun:sqlite` import ties adapter to Bun runtime — under Node the module load itself throws before any guard, breaking CLI/tests that stub ExecFn. Use dynamic/optional import with named ADAPTER_FAILED fallback so mocked/store-absent paths still work."
+    },
+    {
+      "path": "src/hunter/graph/graphify-adapter.ts",
+      "severity": "HIGH",
+      "content": "Dual containment laws diverge: `containedRel` judges on `rel.split(\"/\").includes(\"..\")` after POSIX normalization while `isContainedRel` judges on `!rel.startsWith(`..${path.sep}`)`. On Windows `path.relative` across drives returns an absolute path (e.g. `D:\\b`); `containedRel` would treat it as in-"
     },
     {
       "path": "src/hunter/graph/interface.ts",
-      "line": 231,
-      "severity": "high",
-      "category": "bug",
-      "content": "No null/undefined guard on `profile.graph` before accessing `.substrate`. If a malformed or legacy `ProjectProfile` arrives with `graph` as `undefined`, this will throw an unhandled `TypeError: Cannot"
+      "severity": "HIGH",
+      "content": "Real runtime import cycle: this module value-imports CorbellAdapter/GraphifyAdapter while both adapters value-import error factories from this module (corbell-adapter.ts:53 `import { adapterFailed, ... } from './interface.ts'`, graphify-adapter.ts:50 same). The header comment claims adapters use `im"
+    },
+    {
+      "path": "src/hunter/graph/interface.ts",
+      "severity": "HIGH",
+      "content": "Sync query surface has no ready-guard against async build ordering: `build()` is async but `whoCalls/chain/imports/awaits/unwired/nodes` are sync with no `isReady`/`ensureBuilt` or documented precondition. Querying before `await build()` completes returns empty arrays, and `unwired()` (zero-inbound)"
     },
     {
       "path": "src/hunter/graph/mechanical.ts",
-      "line": 242,
-      "severity": "high",
-      "category": "bug",
-      "content": "The `visit` function recurses via `ts.forEachChild` with no depth guard. While typical TypeScript ASTs are not deeply nested, pathological inputs (deeply chained expressions like `a + b + c + ... + z`"
+      "severity": "HIGH",
+      "content": "Fail-closed `pushTriple`: throwing on empty evidence or unknown predicate aborts the entire multi-file extraction and discards all previously collected triples. One bad node (e.g. synthesized node with empty line) fails the whole run. Prefer fail-open per node/file: skip + count, or collect diagnost"
+    },
+    {
+      "path": "src/hunter/graph/mechanical.ts",
+      "severity": "HIGH",
+      "content": "Bare-specifier collision + incomplete resolution: non-relative imports (`react`, `@scope/pkg`) fall through with `targetRel=target` and canon to `file:react`, colliding with a relative `file:react[.ts]` namespace so joins misfire. Directory imports (`./dir` -> `./dir/index.ts`), extension substituti"
+    },
+    {
+      "path": "src/hunter/graph/mechanical.ts",
+      "severity": "HIGH",
+      "content": "Qualifier collapse: `A.B()`, `obj.method()`, `this.helper()` all emit `fn:<property>` only, merging unrelated qualifiers into one fan-in target that the engine resolves by name. `whoCalls(B)` then over-reports and `method:Cls.m` declares never match `fn:m` call targets, so true caller-callee joins b"
+    },
+    {
+      "path": "src/hunter/graph/mechanical.ts",
+      "severity": "HIGH",
+      "content": "Depth ceiling aborts all files: `throw` on `depth > MAX_DEPTH` propagates past the per-file `try { visit(sf) }` (which rethrows MechanicalExtractionError) to the top level, discarding triples from all previously scanned files. A single pathological/generated file fails the whole program. Catch per f"
+    },
+    {
+      "path": "src/hunter/graph/mechanical.ts",
+      "severity": "HIGH",
+      "content": "Per-file isolation missing: top-level statement loop (`lineOf`/`evidenceQuoteForNode`) and `visit(sf)` errors are not isolated per file — any throw (including raw TS errors from `getStart` on synthesized nodes, not just MechanicalExtractionError) aborts the whole run. Wrap the per-`sf` body in try/c"
+    },
+    {
+      "path": "src/hunter/graph/merge.ts",
+      "severity": "HIGH",
+      "content": "Internal dedup Set leaked on public `MergedTriple`: `seenContradictions` is mutable conflict bookkeeping, not row data. It breaks `JSON.stringify` (serializes to `{}`), leaks across callers (a returned row carries dedup state into the next merge/scan), and is mutable by consumers. Keep it out of the"
+    },
+    {
+      "path": "src/hunter/graph/merge.ts",
+      "severity": "HIGH",
+      "content": "Unvalidated `confidence` (and `file`/`line`) propagation: validation checks subject/object/predicate/evidence but never `confidence`, yet `s.confidence` is copied verbatim into every semantic/both row and `anchor.line || s.line` treats 0/NaN oddly. `NaN`/`undefined`/`Infinity`/out-of-range values fl"
     },
     {
       "path": "src/hunter/graph/resolver.ts",
-      "line": 196,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Bug \u2014 entity silently dropped from output.** `resolvedAliases` is built from each decision's `alias` field, which is the *harness-provided alias string* \u2014 it could match either a new entity's `id` o"
+      "severity": "HIGH",
+      "content": "file/line null validation rejects valid inputs: `NewEntity.file?: string | null` and `line?: number | null` explicitly allow `null`, and the prompt builder handles it via `?? ''`, but the entry guard throws on `null` (`typeof null !== 'string'`). Legitimate `null` file/line fail-closed incorrectly. "
+    },
+    {
+      "path": "src/hunter/graph/resolver.ts",
+      "severity": "HIGH",
+      "content": "Over-broad significant-token `related` match: after token checks, any shared 5-char substring (`tation` in `presentation`/`implementation`, `ervice` in `UserService`/`OrderService`) returns `related`. This false-positive links unrelated entities and misguides canonicalization, and the `slice+include"
+    },
+    {
+      "path": "src/hunter/graph/store-map.ts",
+      "severity": "HIGH",
+      "content": "Unvalidated absolute `src.file` is passed directly to `statSync`/`readFileSync`. If adapter rows are attacker-influenced this is an arbitrary-file read (e.g. `/etc/passwd` line becomes stored `evidence`), plus symlink escape, blocking sync I/O per-edge, and stat-to-read TOCTOU: file can grow between"
+    },
+    {
+      "path": "src/hunter/graph/store-map.ts",
+      "severity": "HIGH",
+      "content": "Checkout writer opens any path with `mkdir -p + create:true` and no session-path refusal. Despite the header comment (NEVER use for session data), a caller passing `.../sessions/{sid}/store.sqlite` silently overwrites a session store outside the `openTypedStore` AP-1/AP-2 leak guard. Mirror the guar"
+    },
+    {
+      "path": "src/hunter/harness/hunt-lock.ts",
+      "severity": "HIGH",
+      "content": "isPidAlive fail-open on unknown errors: any `process.kill` error other than ESRCH/EPERM warns and returns `false`, so `isStale` classifies a live same-host holder as stale and `acquireHuntLock` unlinks its lock. This breaks mutual exclusion (concurrent hunts). Unknown errors (e.g. EINVAL/ENOMEM/tran"
+    },
+    {
+      "path": "src/hunter/harness/hunt-lock.ts",
+      "severity": "HIGH",
+      "content": "Acquire stale-recovery check-then-act race: re-read comparison narrows but does not close the unlink-then-wx window. Two racers can both pass the triple-compare, then interleave as A.unlink -> A.create(fresh) -> B.unlink(deletes A's fresh) -> B.create(fresh), leaving both holders thinking they own t"
+    },
+    {
+      "path": "src/hunter/harness/hunt-lock.ts",
+      "severity": "HIGH",
+      "content": "Release TOCTOU between re-read and unlink: F-831/F-1022 double re-read is still non-atomic with `unlinkSync`. A concurrent stale-recovery can replace the lock in the microsecond gap (fresh2 -> unlinkSync) and this unlink deletes the stranger's fresh lock. Path locks cannot release atomically without"
     },
     {
       "path": "src/hunter/harness/map.ts",
-      "line": 63,
-      "severity": "high",
-      "category": "bug",
-      "content": "**F-244 comment is factually wrong \u2014 the LINELESS guard runs AFTER db open, not before.** The comment block claims \"the LINELESS guard (line above) runs BEFORE the open (line below), so a guard throw "
+      "severity": "HIGH",
+      "content": "File-less CODE nodes bypass LINELESS_NODE refusal: `continue` on empty/missing `n.file` lets non-exempt kinds (class/function/method) enter `writeGraph` lineless instead of refusing LOUD. The `§6.5 stub-adapter` comment asserts intent, but the store write below is unconditional, so this is a silent-"
+    },
+    {
+      "path": "src/hunter/harness/map.ts",
+      "severity": "HIGH",
+      "content": "Project-root containment is string-prefix only: `dbPath` is never `path.resolve`d/normalized and symlinks are never resolved (`fs.realpath`), so a `<root>/.gi` symlink (or legacy fallback dir) pointing outside the project passes the `startsWith(root + sep)` test but `openStore`/`mkdirSync` writes ou"
     },
     {
       "path": "src/hunter/harness/micro-loop-machine.ts",
-      "line": 400,
-      "severity": "critical",
-      "category": "bug",
-      "content": "**Bug: `pendingSettle` is never assigned the `settle` function \u2014 F-408 fix is incomplete.**\n\nThe F-408 fix comment (line 398-399) states: \"expose settle at handle scope so stop() can resolve pendingDo"
+      "severity": "HIGH",
+      "content": "Stub-seam runId race: seq is derived via full `SELECT ... WHERE kind='HUNT_DONE'` scan then `seq+1` with no transaction/lock. Concurrent hunts interleave read/compute/write and collide on runId. Also O(N) full-table parse per run — prefer `MAX`/ordered query or atomic counter. Corrupt-payload salvag"
     },
     {
       "path": "src/hunter/harness/micro-loop-machine.ts",
-      "line": 445,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Resource leak: `done()` path does not close the SQLite DbClient.**\n\nThe F-501 fix (line 457) correctly closes `snapshot.db` inside `stop()`, but `done()` resolves without triggering db closure. If a"
+      "severity": "HIGH",
+      "content": "Post-subscribe terminal gap: `sub2` only settles on `s.status === 'done'`. If the actor transitions to `stopped`/`error` after subscribing, `done()` never settles (the stopped/error check only runs at call time). Settle on terminal stopped/error transitions too, or document that `stop()` must always"
+    },
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "severity": "HIGH",
+      "content": "Store-path containment is string-only and misses symlink escape via `.gi/knowledge-graph`. `projectRootReal` is realpath'd but `dbPath` is only prefix-checked, so a symlink at `<root>/.gi` or `<root>/.gi/knowledge-graph` pointing outside still passes and `openStore(dbPath)` writes outside the projec"
+    },
+    {
+      "path": "src/hunter/harness/recon.ts",
+      "severity": "HIGH",
+      "content": "RunId mint is read-count-plus-one with no atomicity. `SELECT max(seq)` then `return prefix+(seq+1)` relies entirely on an external hunt-lock noted in the comment; any lock bypass, future concurrent caller, or crash between mint and `HUNT_DONE` insert re-mints a duplicate runId (previous `%prefix%` c"
+    },
+    {
+      "path": "src/hunter/harness/report.ts",
+      "severity": "CRITICAL",
+      "content": "Untrusted `writerResult.reportPath` is used for read+rewrite without validation. An injected `writer` (test transport or future W8 network writer) can return any absolute path (`/etc/passwd`, `~/.ssh/*`, outside `projectRoot`/`MASTER_CONTEXT`) or a non-existent path. `readFileSync` then `writeFileSy"
+    },
+    {
+      "path": "src/hunter/harness/report.ts",
+      "severity": "HIGH",
+      "content": "Missing file-existence gate before HUNT_DONE; non-strip I/O errors swallowed. Only `REPORT_STRIP_FAILED` rethrows — ENOENT/EACCES from `readFileSync`, external deletion between writer and strip, or a lying injected writer (phantom path) fall into `console.warn` non-fatal and execution continues to c"
+    },
+    {
+      "path": "src/hunter/harness/scan.ts",
+      "severity": "HIGH",
+      "content": "Fail-open on unresolved containment. When contained is true but resolved is false, the code only warns and proceeds with the nearest-ancestor real path. That path has not followed symlinks, so the string-prefix check can pass while the real target escapes. For a scan corpus read surface, unverified "
+    },
+    {
+      "path": "src/hunter/harness/scan.ts",
+      "severity": "HIGH",
+      "content": "Dry-run exclusion violates gate contract. runCalibration is called with dryRun true, but liveBattery is then consumed when excluded is non-empty. Per calibration gate docs, dryRun is surfaced not applied and callers must check the dryRun flag before consuming liveBattery. This makes the operator liv"
+    },
+    {
+      "path": "src/hunter/harness/scan.ts",
+      "severity": "HIGH",
+      "content": "Sweep-blind refusal gap. The comment promises a loud refusal when the semantic layer read zero files, but no check precedes runBattery dispatch. Engine assertNoBlindness only guards graph node counts, not file-read counts, so a zero-file read can still return clean. Implement the check or remove the"
+    },
+    {
+      "path": "src/hunter/harness/strike.ts",
+      "severity": "HIGH",
+      "content": "Inconsistent relevance sanitization between merge and read: the merge adds raw `typeof v === \"number\" ? v : 0` (keeps NaN/Infinity/negatives) while `relevanceOf` clamps to finite non-negative (`Number.isFinite` + `Math.max(0,v)`). Example: rows `{a:-5}`+`{a:10}` merge to `5` then score `5`, vs clamp"
+    },
+    {
+      "path": "src/hunter/harness/trace.ts",
+      "severity": "HIGH",
+      "content": "Missing per-element validation: only Array.isArray + empty are checked. A null/undefined entry or a finding missing ruleId/file/line/severity throws inside ruleCounts.set / findingIdOf / severityWeight, aborting the whole batch and/or emitting corrupt TraceRows (undefined ruleId, NaN line in finding"
+    },
+    {
+      "path": "src/hunter/harness/types.ts",
+      "severity": "HIGH",
+      "content": "Barrel omits GraphNode/GraphEdge while re-exporting loose-kind helpers, defeating the F-516 strict-kind intent and the one-import claim. The header says the barrel's canonical graph shapes come from the interface block below, but no GraphNode/GraphEdge is defined or re-exported here — only GraphNode"
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "severity": "HIGH",
+      "content": "Unknown kinds silently consumed: if `isBusKind(row.kind)` is false the row still advances `this.cursor = row.id` below and stays in `clean` (returned as pushed) with no log, metric, or dead-letter entry. Corrupt/forward-compat kinds become invisible. Log + dead-letter/skip-counter unknown kinds inst"
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "severity": "HIGH",
+      "content": "Bounded dead-letter queue drops invisibly: `trimFailedEvents()` evicts oldest entries into `failuresDropped` which has no getter, no log, and is never reset. Sustained subscriber failure loses history silently. Expose count via getter/log on eviction and include it in audit surface."
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "severity": "HIGH",
+      "content": "Cursor rollback causes duplicate dispatch: restoring `cursorBefore` on escaping throw re-selects rows already fanned out in the `clean` loop. Next `poll()` redelivers HUNT_DONE/BUILD_DONE with no idempotency/dedup guard. Either advance cursor per-delivered-row durably before dispatch or document + r"
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "severity": "HIGH",
+      "content": "Shared mutable payload leaks across consumers + retry: the same `payload` object is fanned to every subscriber and stored by reference in `failedEvents`. A mutating subscriber corrupts later subscribers and the replayed copy. Freeze/clone per subscriber (and deep-clone on record/retry)."
+    },
+    {
+      "path": "src/hunter/hooks/bus-hook.ts",
+      "severity": "HIGH",
+      "content": "Unparseable JSON dispatched as if valid: parse failure falls back to `{raw: row.payload}` and continues through normal `isBusKind` dispatch, so downstream `onHuntDone/onBuildDone/onAuditDone` receive a shape they never validate (e.g. `conformanceZero` reads false). Skip + dead-letter loudly instead "
+    },
+    {
+      "path": "src/hunter/identity/warhead.ts",
+      "severity": "HIGH",
+      "content": "Read-only allowlist in prompt understates and misframes enforcement: text lists `rg/grep/find/cat/ls/wc/stat/head/tail/cut/sort/uniq/diff/sha256sum` plus vague `read-only git sub-verbs` and a partial NEVER list (`node/bun/python/rm/mv/cp/touch/git add/commit/push`). `src/hunter/firewall/readonly.ts:"
+    },
+    {
+      "path": "src/hunter/identity/warhead.ts",
+      "severity": "HIGH",
+      "content": "RULE 2-4 bind external payloads by path (`identity/prompt-parts/recon-protocol.md`, `scan-categories.md`, `report-contract.md`) with no existence/version check in this module. No `prompt-parts/` directory or `recon-protocol` file was found in the repo, so a renamed/missing part silently hollows out "
     },
     {
       "path": "src/hunter/keys/go-key-pool.ts",
-      "line": 394,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Bug: `home === -1` branch UPDATE is silently overwritten by the subsequent UPSERT \u2014 displaced key's exile is always lost.**\n\nThe comment on lines 395-399 claims: \"the UPSERT below cannot clobber it "
+      "severity": "HIGH",
+      "content": "BUN_TEST/GO_POOL_DB paths bypass the 0700 private-dir + share one tmp file. goPoolDbFile() hardens only the default ~/.gi-omp path; BUN_TEST returns os.tmpdir()/go-key-pool-test.sqlite with no hardenPrivateDir/hardenPoolFile on the parent, and all parallel test workers share that one path (breaks he"
+    },
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "severity": "HIGH",
+      "content": "Orphan-sentinel fold does not bound rows. UPDATE ... WHERE idx<0 sets each sentinel independently to max(dead_until,until) without folding the max across sentinels, then only one sentinel (arbitrary SELECT without ORDER) is refreshed — extra sentinels for the same keyid survive, so remove/restore cy"
+    },
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "severity": "HIGH",
+      "content": "Redaction misses short and rotated-out keys. Exact-match loop skips keys <8 chars and only covers current GO_KEYS; an error echoing a removed/reordered key (or a short key) falls through to the sk-/Bearer regexes and can persist raw bytes in the reason column. Keep a keyid->redact set across reloads"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "severity": "HIGH",
+      "content": "Silent fallback masks DB corruption: predicateFamilyFrom coerces unknown values to WIRING and severityFrom coerces unknown values to MED instead of throwing. This contradicts loadBattery's documented contract ('missing template or unparseable row is the loud named error, never a silently broken chec"
+    },
+    {
+      "path": "src/hunter/lexicon/compiled-store.ts",
+      "severity": "HIGH",
+      "content": "check_code vs bindings divergence is unchecked: when both columns parse, check_code.bindings silently wins with no consistency check against the bindings column. Divergent rows (partial write, manual edit, version skew) reinstate the wrong params silently. Compare canonical JSON (or at least deep-eq"
     },
     {
       "path": "src/hunter/lexicon/compiler.ts",
-      "line": 195,
-      "severity": "high",
-      "category": "bug",
-      "content": "The D13 verbatim-quote guard is bypassable for non-string truthy values in declared predicates. `String(binding['verbatimQuote'] ?? '')` coerces any truthy non-string (e.g. number `42` \u2192 `'42'`, boole"
+      "severity": "HIGH",
+      "content": "Non-canonical fingerprint input breaks K20.3 determinism: `JSON.stringify(profile.rules.bindings)` depends on key-insertion order, so two logically-equal binding objects built in different order hash to different `batteryVersion` values and poison/share the cache incorrectly. Same risk applies to bo"
     },
     {
-      "path": "src/hunter/log.ts",
-      "line": 7,
-      "severity": "high",
-      "category": "bug",
-      "content": "Null/undefined safety: If `p` is null or undefined, `p.length` will throw a TypeError at runtime. Since this is a utility function that may receive user-provided paths, add a guard clause to handle fa"
+      "path": "src/hunter/lexicon/compiler.ts",
+      "severity": "HIGH",
+      "content": "COUNT-then-load is non-atomic and fail-open: if the row is evicted/deleted (or a concurrent `writeCompiledCache` DELETEs the version) between the `COUNT(*)` and `loadBattery()`, `loadBattery` returns an empty array which is returned as `fromCache:true` — a silent empty battery instead of a recompile"
+    },
+    {
+      "path": "src/hunter/lexicon/templates.ts",
+      "severity": "HIGH",
+      "content": "Silent error swallowing causes false silence/pass: empty `catch{}` in `isExportedDecl` and all `safe*` helpers (plus stage-file resolve) converts source/graph failures into `[]`/unverified, so a broken adapter or unreadable file yields zero findings (PASS) indistinguishable from clean. At minimum co"
+    },
+    {
+      "path": "src/hunter/lexicon/templates.ts",
+      "severity": "HIGH",
+      "content": "Prototype-chain inconsistency: `readPath` enforces own-property + `__proto__/constructor/prototype` blocklist (F-333/F-412), but `bindSeverity/bindStringArray/bindStages/bindOperator/bindNumber/bindRange` read via bare `bindings[key]`, so a polluted `Object.prototype` or inherited bindings object su"
+    },
+    {
+      "path": "src/hunter/lexicon/templates.ts",
+      "severity": "HIGH",
+      "content": "Missing honest-silent guard yields false positives: when `requiredTraces` is empty (`[].some(...) === false`), every node of every `targetKind` is flagged with evidence `lacks a traces-to edge from ` (empty join). Other families early-return on unmeasurable bindings; this one should too (`if (!targe"
     },
     {
       "path": "src/hunter/profile/loader.ts",
-      "line": 314,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Flow-value parser has no recursion-depth cap (stack overflow / denial-of-service).**\n\nThe block-level parser correctly caps recursion at depth 100 (F-67 fix), but `parseFlowValue` \u2192 `parseFlowMap`/`"
+      "severity": "HIGH",
+      "content": "Duplicate mapping keys silently last-win (fail-closed violation). parseMapping does `obj[key]=...` without checking `key in obj`, parseFlowMap does `obj[k]=...` the same way, and sequence continuation does `Object.assign(itemMap, ...)` which can overwrite the inline `- key:` entry. A typoed repeated"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "severity": "HIGH",
+      "content": "Unbalanced flow brackets silently accepted: splitTopLevel/findTopLevelColon decrement depth on `}`/`]` without validating balance, so depth can go negative and commas at depth!=0 are not split. E.g. flow-array inner `a], b[` is never split and falls through to parseFlowValue -> parseScalar, returnin"
+    },
+    {
+      "path": "src/hunter/profile/loader.ts",
+      "severity": "HIGH",
+      "content": "contained() treats directories and the root itself as valid corpus/history entries: it only checks existence + prefix (`real === resolvedRoot || startsWith(resolvedRoot+sep)`). Empty-string entry resolves to the root and passes, and a directory path passes, so a corpus entry pointing at a directory "
+    },
+    {
+      "path": "src/hunter/profile/schema.ts",
+      "severity": "HIGH",
+      "content": "z.any() disables all value validation for bindings and violates the Avoid-any rule. Any payload (including prototypes/functions after JSON merge) passes here and shifts injection/type-safety risk to use-sites like scan.ts. Prefer z.unknown() + narrow at use-site, or a constrained union."
+    },
+    {
+      "path": "src/hunter/profile/source-roots.ts",
+      "severity": "HIGH",
+      "content": "Workspace glob expansion is single-level only: any `*` truncates to `base` + immediate children. `**`, nested segments (`apps/*/src`), brace expansion (`{a,b}`) and negations (`!...`) silently under-expand and drop valid package roots. Use a real glob matcher (e.g. minimatch/fast-glob) or at least h"
+    },
+    {
+      "path": "src/hunter/profile/source-roots.ts",
+      "severity": "HIGH",
+      "content": "Profile `sources:` entries escape the target: `path.resolve(root, s)` accepts `../`, absolute paths, and symlinks, and the result is trusted without a containment check. A malicious/mistyped profile can return directories outside the target as source roots. Validate `rp === root || rp.startsWith(roo"
+    },
+    {
+      "path": "src/hunter/profile/source-roots.ts",
+      "severity": "HIGH",
+      "content": "`commonAncestor` collapses to filesystem root `/` when tsconfig prefix dirs are disjoint, and `**/*.ts` maps `head` to `root` itself. Returning `/` (or repo root from `**`) reintroduces the full-tree walk the glob-prefix fix tries to avoid and can make `dirContainsTsRecursive('/')` scan the whole ma"
     },
     {
       "path": "src/hunter/shared/containment.ts",
-      "line": 111,
-      "severity": "high",
-      "category": "bug",
-      "content": "The `resolved` flag (e.g., `rootResolved` in `checkContained`) is computed but not included in the `ContainmentResult` interface or returned to callers. This means functions like `requireContained` ca"
+      "severity": "HIGH",
+      "content": "rootResolved is computed but never reported: if the root itself is missing/unresolvable, rootReal falls back to realNearest(root) (potentially unverified spelling) yet contained/resolved are derived only from the target side. Callers can see contained:true + resolved:true (target exists) while rootR"
+    },
+    {
+      "path": "src/hunter/shared/containment.ts",
+      "severity": "HIGH",
+      "content": "requireContained silently drops resolved (and the unexposed rootResolved): any contained:true — including the unverified-spelling case resolved:false — is allowed. For the pinned creation flow that is intentional, but as a shared default it auto-passes callers that need a symlink-followed hard guara"
+    },
+    {
+      "path": "src/hunter/shared/containment.ts",
+      "severity": "HIGH",
+      "content": "Filesystem-root fallback returns unverified spelling with no signal: parent===dir break falls through to return abs (path.resolve only, no symlinks followed). realNearest callers (other than checkContained's heuristic) cannot distinguish verified vs unverified. Throw CONTAINMENT_UNRESOLVED (fail-clo"
     },
     {
       "path": "src/hunter/shared/db.ts",
-      "line": 821,
-      "severity": "high",
-      "category": "bug",
-      "content": "Overly broad idempotent guards: the same catch-and-debug pattern is used for both idempotent DDL (`CREATE VIEW IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, `ATTACH`) and for real writes (`INSERT OR R"
+      "severity": "HIGH",
+      "content": "applyPragmas unconditionally overwrites PRAGMA user_version=184 on every open, so version-gated migration logic can never observe a lower stored version. The comment claims migrations apply 'when the stored version is lower', but the stored version is clobbered before any check. Read user_version fi"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "severity": "HIGH",
+      "content": "MIRROR_SCHEMA_SQL drops the edge file:line anchor that the main graph_edges table persists. The awareness mirror silently loses edge location data, contradicting the R19 fix that made the anchor part of the edge."
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "severity": "HIGH",
+      "content": "Mirror copy SELECT/INSERT omits file,line even though SharedDb.writeGraph persists them. Add file,line to both the SELECT from the source and the INSERT into the mirror, otherwise rebuilt mirrors diverge from source truth."
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "severity": "HIGH",
+      "content": "writeGraph is a destructive per-run rebuild (DELETE edges/nodes then INSERT) inside a single transaction. Two concurrent writers interleave as last-wins with total graph loss. The external hunt-lock is referenced only in a comment and not enforced here; concurrent callers get silent data loss, not a"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "severity": "HIGH",
+      "content": "writeBranchView lacks the dangling-endpoint pre-validation that SharedDb.writeGraph has, and also drops file/line on the edge INSERT. One bad ref hits raw SQLITE_CONSTRAINT_FOREIGNKEY mid-transaction and aborts the whole branch write (undiagnosable vs LINEAGE_MISSING vocabulary). It also cannot dist"
+    },
+    {
+      "path": "src/hunter/shared/db.ts",
+      "severity": "HIGH",
+      "content": "FamilyGraphStore constructor unconditionally runs ensureFamilyTables (CREATE TABLE/INDEX) on the family handle. openFamilyReadOnly passes a readonly + query_only handle, so even opening an existing store attempts DDL on a read-only DB and fails with SQLITE_READONLY. Skip/try-read-only DDL when the h"
     },
     {
       "path": "src/hunter/shared/kind-for-layer.ts",
-      "line": 7,
-      "severity": "high",
-      "category": "bug",
-      "content": "Uses loose equality `==` for the null/undefined check, which violates the project's coding standard prohibiting `==` and `!=`. While `== null` is an intentional pattern to catch both `null` and `undef"
+      "severity": "HIGH",
+      "content": "Fragile/over-broad substring classification: order-dependent `includes()` checks over-match and can misassign NodeType. E.g. `r28` also matches `r281`/`r2800`, and the catch-all `sro || graph || path || dead || cycle` (+ `stage`) collapses unrelated concepts into `Gate` — any layerId mentioning `fil"
+    },
+    {
+      "path": "src/hunter/shared/migrations.ts",
+      "severity": "HIGH",
+      "content": "Nested-transaction join prematurely commits caller's tx. When BEGIN fails with 'cannot start a transaction' (nested-join case) `began` is set false, but the COMMIT below still runs unconditionally. On a driver already inside an outer transaction this COMMIT ends the caller's transaction early, break"
+    },
+    {
+      "path": "src/hunter/shared/ontology.ts",
+      "severity": "HIGH",
+      "content": "ALL_PREDICATES silently omits the live `has_finding` predicate while PREDICATE_SET/isPredicate accept it. Any consumer enumerating ALL_PREDICATES (validation, query building, UI, DDL) will miss one legal store value. Confirmed consumer: migrations.ts builds `PREDICATES_SQL=sqlList(ALL_PREDICATES)` a"
     },
     {
       "path": "src/hunter/shared/query-engine.ts",
-      "line": 369,
-      "severity": "high",
-      "category": "bug",
-      "content": "SQL LIKE wildcard injection: User-supplied query is interpolated into `LIKE '%..%'` without escaping SQL wildcard characters (`%` and `_`). A query like `a_b` will match `axb`, `ayb`, etc., and `100%`"
-    },
-    {
-      "path": "src/hunter/surface/query-tool.ts",
-      "line": 259,
-      "severity": "high",
-      "category": "bug",
-      "content": "Bug: The `chain` BFS never assigns a `step` number to path rows. Each step object (line ~162) has `from`, `to`, `kind`, `file`, `line` \u2014 but no `step` property. Then `formatRows` (line ~375) reads `r."
-    },
-    {
-      "path": "src/hunter/surface/query-tool.ts",
-      "line": 0,
-      "severity": "high",
-      "category": "bug",
-      "content": "Bug: 7 of 12 verb implementations (`mustImplement`, `unwired`, `rule`, `violations`, `consistency`, `blastRadius`, `wouldBreak`) return raw rows without calling `formatRows`, so the `format` parameter"
-    },
-    {
-      "path": "src/hunter/tools/bug-hunt.ts",
-      "line": 70,
-      "severity": "critical",
-      "category": "security",
-      "content": "CRITICAL: Scope containment is completely bypassed when scopeRoot resolves to '/'. When `scopeReal === '/'`, `scopePrefix` is set to `'/'` (via the `path.sep` branch). Since `inScope` checks `real.sta"
-    },
-    {
-      "path": "src/hunter/tools/query-registration.ts",
-      "line": 85,
-      "severity": "high",
-      "category": "bug",
-      "content": "`db.close()` in the `finally` block may throw (e.g., SQLite I/O error during flush or a corrupt database). If it does, the thrown exception will mask the original error from the `try` block, making de"
-    },
-    {
-      "path": "src/hunter/tools/report-writer-local.ts",
-      "line": 53,
-      "severity": "high",
-      "category": "bug",
-      "content": "The regex `/^#{2,6} /m` does not exclude Markdown fenced code blocks (``` ... ```). If the report body contains a fenced code block with lines like `## Example` or `### ```json`, the `s.search(/^#{2,6"
-    },
-    {
-      "path": "src/hydra/client-reader.ts",
-      "line": 74,
-      "severity": "high",
-      "category": "bug",
-      "content": "Unhandled promise rejection risk: If `old.close()` resolves before the 5000ms timeout, the setTimeout callback will still fire and call `rej(new Error(...))` on an already-settled race. Since nobody i"
-    },
-    {
-      "path": "src/kernel/graph-diff.ts",
-      "line": 136,
-      "severity": "high",
-      "category": "bug",
-      "content": "The blast-radius comparison only checks nodes present in `after.topDegree` (top-5) against `before.topDegree`. A node that was NOT in the top-5 before (e.g., had 2 inbound edges) but now has a very hi"
-    },
-    {
-      "path": "src/kernel/graph-test-target.ts",
-      "line": 77,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Partial batch failure corrupts degree cache (Bug)**: If the second batch loop (`allIds` at lines ~78-85) throws mid-iteration, `degByDst` will contain partially-computed counts. The aggregation loop"
-    },
-    {
-      "path": "src/kernel/scan-chain.ts",
-      "line": 138,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Resource leak risk on non-ok HTTP responses**: When `response.ok` is false, `response.text()` is called to read the error body, but this is wrapped in a try/catch that silently ignores failures. If "
-    },
-    {
-      "path": "src/omp/adapters/abide.ts",
-      "line": 186,
-      "severity": "high",
-      "category": "bug",
-      "content": "Bug: When `subject` is an empty string, `hay.includes(subject)` always returns `true` because `String.prototype.includes('')` is always true in JavaScript. This means an empty subject would match ALL "
-    },
-    {
-      "path": "src/omp/adapters/semantica.ts",
-      "line": 0,
-      "severity": "high",
-      "category": "bug",
-      "content": "The F-825 type guard (line 74) validates that `kg.entities` is an array, but does not validate individual element shapes. If a corrupted or adversarial kg.json contains an entity where `name` is a num"
-    },
-    {
-      "path": "src/omp/adapters/semantica.ts",
-      "line": 0,
-      "severity": "high",
-      "category": "security",
-      "content": "The `..` segment check on line 18 uses `scopeRoot.split(path.sep)`, which is `\\` on Windows. A forward-slash path like `C:/foo/../etc` would not be split correctly \u2014 `path.sep` is `\\`, so the split yi"
-    },
-    {
-      "path": "src/omp/adapters/tsg.ts",
-      "line": 122,
-      "severity": "high",
-      "category": "security",
-      "content": "**Key redaction is fragile and may leak partial key material**: The `split(key).join(replacement)` approach only catches *exact, contiguous* occurrences of the key. It will miss:\n1. Partial key exposu"
-    },
-    {
-      "path": "src/omp/decision.ts",
-      "line": 122,
-      "severity": "high",
-      "category": "security",
-      "content": "**Path traversal via `scopeRoot` (both entry points).** `scopeRoot` is caller-supplied and used directly in `path.join` to derive `storePath`, `ledgerPath`, and `policyPath` without any canonicalizati"
-    },
-    {
-      "path": "src/omp/decision.ts",
-      "line": 257,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Unguarded `new FireLedger(ledgerPath)` breaks the return-type contract.** The `mkdirSync` call above is carefully wrapped in a try/catch that produces a named error \u2014 but the immediately following `"
-    },
-    {
-      "path": "src/omp/enforcement.ts",
-      "line": 128,
-      "severity": "high",
-      "category": "bug",
-      "content": "The design comments promise fail-OPEN handles timeouts (\"a timeout \u2026 SKIPS with a named reason\") and the evidence scan catch labels itself \"TSG_TIMEOUT\", but no timeout is enforced on either `deps.jud"
-    },
-    {
-      "path": "src/omp/gate-hook.ts",
-      "line": 71,
-      "severity": "high",
-      "category": "bug",
-      "content": "**`pendingSteer` memory leak \u2014 no TTL sweep or cap**: Unlike `pendingQueries` (which has `sweepStaleQueries` with a 120s TTL and a per-sid cap of 10), `pendingSteer` has no cleanup mechanism. If a `to"
-    },
-    {
-      "path": "src/omp/gate-hook.ts",
-      "line": 193,
-      "severity": "high",
-      "category": "bug",
-      "content": "**`states` map memory leak for edit-only sessions**: The `states` Map is only evicted inside the `tool_result` handler for graph queries (line 300: `if (!pendingQueries.has(sid)) states.delete(sid)`)."
-    },
-    {
-      "path": "src/omp/gi-registry.ts",
-      "line": 0,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Reliability: `GI_OMP_DB_DIR` completely bypasses test-vs-production isolation.** When `GI_OMP_DB_DIR` is set, the outer `if (!process.env.GI_OMP_DB_DIR)` short-circuits and the entire test-context d"
-    },
-    {
-      "path": "src/omp/graph-gate.ts",
-      "line": 197,
-      "severity": "high",
-      "category": "bug",
-      "content": "HIGH BUG: `computeDrift` drift is always exactly 0 or 1.0 \u2014 the tier cut thresholds (TIER_T1_CUT=0.4, TIER_T2_CUT=0.6, TIER_T3_CUT=0.8) are completely non-functional.\n\nRoot cause: `totalWeight` is onl"
-    },
-    {
-      "path": "src/omp/graph-gate.ts",
-      "line": 81,
-      "severity": "high",
-      "category": "bug",
-      "content": "MEDIUM: `extractExportSymbols` brace-export regex `([^}]{1,400})` silently fails to match any `export { ... }` statement whose content exceeds 400 characters. For barrel files or large re-export lists"
-    },
-    {
-      "path": "src/omp/hard-deps.ts",
-      "line": 330,
-      "severity": "high",
-      "category": "bug",
-      "content": "`join` filters out zero-length strings before joining. When `scopeRoot` is `\"\"`, every `join(cfg.scopeRoot, ...)` produces a bare relative path like `.omp/graph-intelligence/layers/semantica`. This re"
-    },
-    {
-      "path": "src/omp/jev.ts",
-      "line": 169,
-      "severity": "high",
-      "category": "bug",
-      "content": "Null answer values from the API cause an uncaught TypeError that escapes the JevError contract. The check `if (a === undefined) continue;` only guards against missing keys. If the upstream returns nul"
-    },
-    {
-      "path": "src/omp/layer-consumption.ts",
-      "line": 117,
-      "severity": "high",
-      "category": "bug",
-      "content": "`consumptionAudit` builds its own summary string (lines 117-121) but omits `GI_LAYER_ERROR` verdicts, which were added to `layer-registry.ts`'s `summary()` in the F-708 FIX. Consumers that threw mid-q"
-    },
-    {
-      "path": "src/omp/layer-registry.ts",
-      "line": 228,
-      "severity": "high",
-      "category": "bug",
-      "content": "`factsFor()` silently drops consumers that return non-array `facts()` via `console.error` + `continue`, but `auditOne()` returns a `GI_LAYER_ERROR` verdict. This is by design (documented as F-707), bu"
-    },
-    {
-      "path": "src/omp/populate-corbell.ts",
-      "line": 78,
-      "severity": "high",
-      "category": "bug",
-      "content": "Recursive walk has no depth limit \u2014 only a cycle guard (visited set) and a file budget (budget.n). A deeply nested directory tree without cycles and with few or no indexed files (e.g., many empty nest"
-    },
-    {
-      "path": "src/omp/populate-graphify.ts",
-      "line": 268,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Missing symlink cycle guard in hashSourceTree \u2014 potential infinite loop**\n\nThe freshness probe walk (isGraphifyCheckoutFreshFor) has a `visited` Set keyed on `fs.realpathSync(dir)` to prevent infini"
-    },
-    {
-      "path": "src/omp/populate-graphify.ts",
-      "line": 433,
-      "severity": "high",
-      "category": "bug",
-      "content": "**Sidecar write failure creates an unbounded rebuild loop with no circuit-breaker**\n\nIf the sidecar write (`fs.writeFileSync(hashPath, vettedHash, \"utf8\")`) fails persistently (read-only filesystem, d"
-    },
-    {
-      "path": "src/omp/populate.ts",
-      "line": 138,
-      "severity": "high",
-      "category": "bug",
-      "content": "The original exception `e` is discarded when re-wrapping as a new Error. The original stack trace, cause chain, and any structured error properties are lost, making production debugging significantly "
-    },
-    {
-      "path": "src/omp/rsi.ts",
-      "line": 299,
-      "severity": "high",
-      "category": "bug",
-      "content": "`write()` and `supersede()` return `{ id: 0, ... }` \u2014 the actual SQLite `lastInsertRowid` is never captured from `db.run()`. Any caller that uses the returned row's `id` (e.g., for logging, foreign-ke"
-    },
-    {
-      "path": "src/omp/rsi.ts",
-      "line": 515,
-      "severity": "high",
-      "category": "security",
-      "content": "`forgeForTest()` and `forceSupersedeForTest()` are public methods that allow injecting arbitrary unsigned rows and forcing unverified retirements. Any code with an `RsiStore` reference can call these "
-    },
-    {
-      "path": "src/omp/store-open.ts",
-      "line": 50,
-      "severity": "high",
-      "category": "security",
-      "content": "TOCTOU between `realpathSync` and the subsequent `mkdirSync`/`writeFileSync`: after `resolvedScopeRoot` is computed (line 60\u201366), an attacker with local filesystem access could replace a directory com"
-    },
-    {
-      "path": "src/omp/typed-write.ts",
-      "line": 367,
-      "severity": "high",
-      "category": "bug",
-      "content": "BUG: NaN propagation bypasses the [0,1] clamp. If `opts.ageDays` is NaN (e.g., caller passes an undefined arithmetic result), `Math.exp(-NaN / tau)` evaluates to NaN. Then `base * corr * NaN` = NaN. T"
-    },
-    {
-      "path": "src/scoping/db-path.ts",
-      "line": 42,
-      "severity": "high",
-      "category": "bug",
-      "content": "Environment variable values are not tilde-expanded. If a user sets an env var (e.g. `MY_DB_DIR=~/data`) to override the path, the tilde is treated literally, producing a relative path like `~/data/fil"
-    },
-    {
-      "path": "src/scoping/scope-binding.ts",
-      "line": 109,
-      "severity": "high",
-      "category": "maintainability",
-      "content": "The longest-prefix matching pattern (`[...allPrefixes].sort((a, b) => b.length - a.length)` + linear scan) is duplicated in `ownerOf`, `isForeignWave`, `assertOwnWave`, and `assertAliasNamespace` (4 p"
-    },
-    {
-      "path": "src/scoping/scoped-store.ts",
-      "line": 62,
-      "severity": "high",
-      "category": "bug",
-      "content": "WAL mode failure is silently swallowed. The entire module's design (\"the 8-session law\") exists to prevent the whole-file-rewrite race by using SQLite WAL mode. If WAL silently falls back to rollback "
-    },
-    {
-      "path": "src/scoping/scoped-store.ts",
-      "line": 74,
-      "severity": "high",
-      "category": "bug",
-      "content": "After 3 failed schema attempts the broken handle is still assigned to `storeDb` and returned to callers. Every subsequent operation will fail with missing-table errors, and the broken handle will be r"
-    },
-    {
-      "path": "src/scoping/scoped-store.ts",
-      "line": 95,
-      "severity": "high",
-      "category": "bug",
-      "content": "closeStoreDb() clears storeOpenInFlightByPath without resolving or rejecting the pending promises. Any caller awaiting a gate promise from that map will hang indefinitely \u2014 the Promise never settles. "
+      "severity": "HIGH",
+      "content": "Vector provider results trusted without shape check: external search() return is awaited and returned directly with no canonical_id/score validation, unlike strict SQL row mappers. Malformed provider output propagates to callers. Validate array shape and finite score."
     }
   ],
-  "run": "run-12 (the first audit of the post-R11 tree; the 3 criticals adjudicated REAL and fixed)",
-  "provider": "muse-go-mimo (mimo-v2.5)"
+  "run": "wta-v3",
+  "provider": "muse-free"
 }

@@ -1,0 +1,26 @@
+{
+  "theTest": "Graph Intel v2.2 — the deep-host-testing suite (Phase 0-4)",
+  "theRig": "the LIVE host — the deployed extension at ~/.omp/agent/extensions/graph-intelligence/index.js",
+  "theBundleSha": "b2ab09acc77684e4805e41ebbadb67fa72ea705ad3f59904c230a06e25bd4fd3",
+  "theDate": "2026-09-27",
+  "theScenarios": [
+    {"id":"P0.1","what":"the bundle SHA parity","passToken":"b2ab09acc77684e4","observed":"b2ab09acc77684e4","verdict":"PASS","evidenceClass":"the sha256sum"},
+    {"id":"P0.2","what":"the V2.2 symbols in the bundle","passToken":"discoverSourceRoots>=1 & assertStoreScope>=1 & adjudicateClaim>=1","observed":"3/2/2/2/2 (discoverSourceRoots/jevk5Probe/jevk5Available/adjudicateClaim/assertStoreScope/judgeDiff)","verdict":"PASS","evidenceClass":"the grep counts"},
+    {"id":"P0.3","what":"the config wiring","passToken":"the index.js path in config.yml","observed":"line 13","verdict":"PASS","evidenceClass":"the grep"},
+    {"id":"P1.3","what":"the tool surface (graph-probe)","passToken":"PROBE_TOOL_OK","observed":"{\"token\":\"PROBE_TOOL_OK\",\"sessionID\":\"sesHostTest000000000001\"}","verdict":"PASS","evidenceClass":"the tool result"},
+    {"id":"P1.4","what":"the query surface (graph-query)","passToken":"a NAMED refusal (never a silent empty)","observed":"substrate=undefined reason=GI_POPULATE_FAILED:CORBELL_NOT_WARM:stale + rows=0","verdict":"PASS (the named refusal)","evidenceClass":"the tool result"},
+    {"id":"P2.5","what":"an unknown verb","passToken":"QUERY_INVALID: bogus","observed":"QUERY_INVALID: bogus","verdict":"PASS","evidenceClass":"the tool result"},
+    {"id":"P3.3","what":"the register (gi-consumption)","passToken":"consumed:N/8 + the per-layer rows","observed":"consumed:4/8 rungs=context,meaning,settlement · GI_LAYER_UNCONSUMED=L4_C2KG,L2_ARSUMBRIS,L1_SEMANTICA,ABIDE","verdict":"PASS (the named reasons)","evidenceClass":"the tool result"},
+    {"id":"P4.1","what":"the negative — a legit read on a fresh store","passToken":"rows returned, no spurious refusal","observed":"the register reads 4/8; the corbell layer CONSUMED (the populated_at gate: fresh, 80s old)","verdict":"PASS","evidenceClass":"the tool result"}
+  ],
+  "theFindings": [
+    {"id":"HF-1","what":"the two freshness criteria disagree","theMechanism":"the register's corbell probe gates on gi_meta.populated_at vs the TTL (1h) → FRESH; the extension's graph-query gates on isCorbellCheckoutFreshFor — an mtime-walk with a FILE BUDGET over the target tree → the GI repo's huge tree (Checkpoints/Ship_Packages/node_modules) exhausts the budget → stale-budget. The SAME store reads fresh on one path and stale on the other.","theImpact":"a graph-query on a large repo refuses with CORBELL_NOT_WARM:stale while the register reads the layer as CONSUMED. Both are LOUD (never a silent empty) — the defect is the INCONSISTENCY, not a fake.","theClass":"the two-criteria class","theDisposition":"LOGGED (a candidate fix: the query path adopts the populated_at gate, or the walk skips the same dirs the discovery skips)"}
+  ],
+  "theVerdict": "PASS with one logged finding — the deploy is verified (the SHA parity + the symbols + the wiring); the tool surface registers + executes; every refusal is NAMED (never a silent empty); the register reads 4/8 with every other layer named. The capability is proven on the HOST (the register 7/8 on the GI repo, 3/8 on a foreign target, from the earlier runs).",
+  "theHonestGaps": [
+    "the audit gate is BLOCKED (degraded — the lane rate-limited; 0 critical, 136 high) → the ship-ready claim is withheld",
+    "the container cannot self-populate (a bare env)",
+    "HF-1: the two freshness criteria disagree on a large repo",
+    "the store TTL (unknown = 1h) — a reading is valid WITHIN the window"
+  ]
+}

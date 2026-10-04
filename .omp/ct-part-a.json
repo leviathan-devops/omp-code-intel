@@ -1,0 +1,55 @@
+{
+ "results": [
+  {
+   "id": "A1-the-broken-store",
+   "passToken": "GI_NO_STORE|[gi-lsp/scope]",
+   "failToken": "a silent zero-diagnostic reply",
+   "ok": true,
+   "note": "diagnostics=1 named=true :: [{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"severity\":1,\"source\":\"gi-lsp/store\",\"message\":\"GI_NO_STORE: no populated store unde"
+  },
+  {
+   "id": "A2-the-foreign-store",
+   "passToken": "scope mismatch",
+   "failToken": "a silent clean",
+   "ok": true,
+   "note": "diagnostics=20 named=true :: [{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":19}},\"severity\":1,\"source\":\"gi-lsp/scope\",\"code\":\"SCOPE\",\"message\":\"GI store scope misma"
+  },
+  {
+   "id": "A3-the-doc-edit-silent",
+   "passToken": "diagnostics=0",
+   "failToken": "a [gi-lsp/ diagnostic on a .md",
+   "ok": true,
+   "note": "diagnostics=0 :: []"
+  },
+  {
+   "id": "A4-malformed-then-alive",
+   "passToken": "ALIVE AFTER MALFORMED",
+   "failToken": "a crash / no reply",
+   "ok": true,
+   "note": "the reply after the malformed input: received (diagnostics=0)"
+  },
+  {
+   "id": "A5-the-rapid-burst",
+   "passToken": "BURST OK",
+   "failToken": "a timeout",
+   "ok": true,
+   "note": "a reply after 50 changes: received"
+  },
+  {
+   "id": "A6-the-huge-file-bounded",
+   "passToken": "HUGE OK",
+   "failToken": "a timeout",
+   "ok": true,
+   "note": "a 10k-line file answered in 16ms (diagnostics=20)"
+  },
+  {
+   "id": "A7-the-reflex-positive",
+   "passToken": "[gi-lsp/",
+   "failToken": "zero diagnostics",
+   "ok": true,
+   "note": "diagnostics=20 gi-sourced=true :: [{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":19}},\"severity\":1,\"source\":\"gi-lsp/scope\",\"code\":\"SCOPE\",\"message\":\"GI store scope mismatch\\n  store build_root: /home/leviathan"
+  }
+ ],
+ "pass": 7,
+ "total": 7
+}
