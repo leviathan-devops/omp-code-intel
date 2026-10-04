@@ -12,6 +12,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import type { Judge, JudgeAnswer, JudgeQuestion } from "./enforcement.ts";
+import { logFire } from "./fire-log.ts";
 
 export const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
 export const TYPESAFE_MODEL = "jev-latest";
@@ -442,9 +443,22 @@ export async function askToolGate(
   const url = opts.url ?? TOOLGATE_URL_DEFAULT;
   const mk = (
     choice: "serve" | "refuse", confidence: number, probabilities: Record<string, number>, judge: string, degraded: boolean,
-  ): GateVerdict => ({
-    choice, confidence, probabilities, judge, ms: Math.round(performance.now() - t0), degraded,
-  });
+  ): GateVerdict => {
+    const v: GateVerdict = { choice, confidence, probabilities, judge, ms: Math.round(performance.now() - t0), degraded };
+    // ★ THE FIRE-LOG (operator ruling 2026-10-04): EVERY TSG fire carries its FULL data — the
+    //   state the judge saw, the question (instructions+criteria), and the answer.
+    logFire("tsg", {
+      surface: "judge",
+      kind: candidate.kind,
+      severity: candidate.severity,
+      instructions: candidate.instructions,
+      criteria: candidate.criteria,
+      signals: candidate.signals.map((x) => String(x)),
+      state: scrubSecrets(state).slice(0, 6000),
+      choice, confidence, probabilities, judge, ms: v.ms, degraded,
+    });
+    return v;
+  };
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -552,6 +566,23 @@ export function recordGateDecision(
     const dir = idx > 0 ? p.slice(0, idx) : "";
     if (dir) fs.mkdirSync(dir, { recursive: true });
     fs.appendFileSync(p, JSON.stringify(row) + "\n");
+    // ★ THE FIRE-LOG (operator ruling 2026-10-04): the ENFORCEMENT half of every TSG fire —
+    //   what the gate DID (served/refused) + the remedy + the confidence it acted on.
+    logFire("tsg", {
+      surface: "enforce",
+      kind: candidate.kind,
+      severity: candidate.severity,
+      choice: v.choice,
+      confidence: v.confidence,
+      probabilities: v.probabilities,
+      judge: v.judge,
+      degraded: v.degraded,
+      tool: extra.tool ?? null,
+      command: (extra.command ?? "").slice(0, 600),
+      sessionId: extra.sessionId ?? null,
+      enforced: extra.enforced ?? null,
+      remedy: extra.remedy ?? null,
+    });
     return true;
   } catch (e) {
     // ★ AUDIT HIGH-5 FIX: the ledger failure was silently swallowed. The verdict still stands

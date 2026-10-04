@@ -12,6 +12,7 @@ import { classifyEdit, computeDrift, createEmptyState, gateDecision, recordEdit,
 import { judgeDiff } from "./adapters/abide.ts";
 // ★ W3 — THE JEV DECISION LAYER: the export-removal regex matched a SHAPE; the judge decides.
 import { askToolGate, enforceGate, graphBreakCandidate, recordGateDecision } from "./jev.ts";
+import { logFire } from "./fire-log.ts";
 
 export interface GiToolCallEvent {
   toolName: string;
@@ -140,6 +141,22 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
         }, {
           tool: name, command: rec.file ?? "", sessionId: resolveSessionIdFromEvent(event).id,
           enforced: judged.verdict === "REPAIR" ? "refused" : "served", remedy: judged.repair ?? null,
+        });
+        // ★ THE FIRE-LOG (operator ruling 2026-10-04): the FULL ABIDE fire — file, verdict, the
+        //   per-rule scores (the decision basis), the repair, and the diff size.
+        logFire("abide", {
+          surface: "judge-diff",
+          file: rec.file ?? null,
+          tool: name,
+          verdict: judged.verdict,
+          judge: judged.judge,
+          ok: judged.ok,
+          scores: judged.scores,
+          maxScore: maxP,
+          repair: judged.repair ?? null,
+          oldTextLen: (rec.oldText ?? "").length,
+          newTextLen: (rec.newText ?? "").length,
+          sessionId: resolveSessionIdFromEvent(event).id,
         });
       } catch { /* ledger best-effort: a write failure never blocks the edit */ }
       if (judged.ok && judged.verdict === "REPAIR" && judged.repair) {
