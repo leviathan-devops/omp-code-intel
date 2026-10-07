@@ -1,0 +1,12 @@
+{
+  "idleTimeoutMs": 300000,
+  "servers": {
+    "gi-lsp": {
+      "command": "bun",
+      "args": ["/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/Graph_Intelligence/scripts/gi-lsp.ts", "--stdio"],
+      "fileTypes": [".ts", ".tsx", ".js", ".jsx"],
+      "rootMarkers": [".omp/graph-intelligence", "tsconfig.json", ".git"],
+      "warmupTimeoutMs": 20000
+    }
+  }
+}

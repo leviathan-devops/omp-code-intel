@@ -1,0 +1,638 @@
+{
+ "rows": [
+  {
+   "id": "classify:find -exec",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:find quoted -exec",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:find -fprintf",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:find -delete",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sort -o",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sort -o attached",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sort --out= abbrev",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sort --compress-prog",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sort quote-concat",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:diff --to-file",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:uniq 2 operands",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:uniq -- operands",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:git -o attached",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_MUTATION]"
+  },
+  {
+   "id": "classify:git -po cluster",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_MUTATION]"
+  },
+  {
+   "id": "classify:git --out= abbrev",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_MUTATION]"
+  },
+  {
+   "id": "classify:git quote-concat",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_MUTATION]"
+  },
+  {
+   "id": "classify:git --ext-diff",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_MUTATION]"
+  },
+  {
+   "id": "classify:rg --pre",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sed pipe-smuggle",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sed redirect",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sed semicolon",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sed -e file-slot",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:DQ expansion",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:backtick expansion",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:escaped-quote pipe",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:unterminated quote",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:bidi control",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:var expansion",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:chained write",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:piped exec",
+   "kind": "POS",
+   "ok": true,
+   "note": "BLOCKED [BASH_BYPASS]"
+  },
+  {
+   "id": "classify:sed -n range",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:sed -n addr",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:sort -k2",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:sort plain",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:sort --reverse",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:uniq one operand",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:uniq -c",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:git log",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:git log -p",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:git show",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:rg plain",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:grep -rn",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:grep quoted pipe",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:grep DQ string",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:find -name",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:cat",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:ls",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:diff plain",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:escaped-quote literal",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:wc",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:head/tail",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:echo",
+   "kind": "NEG",
+   "ok": true,
+   "note": "ALLOW_READ [BASH_READ]"
+  },
+  {
+   "id": "classify:edge:object",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "BLOCKED"
+  },
+  {
+   "id": "classify:edge:undefined",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "BLOCKED"
+  },
+  {
+   "id": "classify:edge:number",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "BLOCKED"
+  },
+  {
+   "id": "classify:edge:object",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "BLOCKED"
+  },
+  {
+   "id": "lock:acquire",
+   "kind": "POS",
+   "ok": true,
+   "note": "pid=23345 host=332c1fd52695"
+  },
+  {
+   "id": "lock:second-acquire-refused",
+   "kind": "POS",
+   "ok": true,
+   "note": "Error: HUNT_ALREADY_RUNNING: pid=23345 acquiredAt=2026-09-29"
+  },
+  {
+   "id": "lock:foreign-host-not-released",
+   "kind": "POS",
+   "ok": true,
+   "note": "kept (fail-closed ✓)"
+  },
+  {
+   "id": "lock:corrupt-not-stolen",
+   "kind": "POS",
+   "ok": true,
+   "note": "refused (fail-closed ✓)"
+  },
+  {
+   "id": "lock:owner-release",
+   "kind": "POS",
+   "ok": true,
+   "note": "released ✓"
+  },
+  {
+   "id": "lock:double-release-benign",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "no throw ✓"
+  },
+  {
+   "id": "lock:reacquire-after-release",
+   "kind": "NEG",
+   "ok": true,
+   "note": "re-acquired ✓"
+  },
+  {
+   "id": "dedupe:pipe-collision",
+   "kind": "POS",
+   "ok": true,
+   "note": "2 rows (must be 2 — the '|' join would merge)"
+  },
+  {
+   "id": "dedupe:exact-dup",
+   "kind": "POS",
+   "ok": true,
+   "note": "1 rows (must be 1)"
+  },
+  {
+   "id": "dedupe:distinct-lines",
+   "kind": "NEG",
+   "ok": true,
+   "note": "2 rows (must be 2)"
+  },
+  {
+   "id": "dedupe:empty",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "0 rows"
+  },
+  {
+   "id": "parse:wellformed",
+   "kind": "POS",
+   "ok": true,
+   "note": "2 nodes"
+  },
+  {
+   "id": "parse:empty-input",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "0 nodes"
+  },
+  {
+   "id": "parse:garbage-named-refusal",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "ADAPTER_PARSE_ERROR: section=corbell graph build stdout detail=no grap"
+  },
+  {
+   "id": "parse:huge-bounded",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "5000 nodes in 3ms"
+  },
+  {
+   "id": "resolve:absolute-exists",
+   "kind": "POS",
+   "ok": true,
+   "note": "resolved to itself"
+  },
+  {
+   "id": "resolve:relative-join",
+   "kind": "POS",
+   "ok": true,
+   "note": "/gi/README.md"
+  },
+  {
+   "id": "resolve:missing-named-refusal",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "FOREIGN_PATH_UNRESOLVED: no/such/file-xyz.ts does not exist under /gi "
+  },
+  {
+   "id": "resolve:empty-no-throw",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "no throw ✓"
+  },
+  {
+   "id": "card:isCodeFile-yes:src/a.ts",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-yes:a.tsx",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-yes:a.js",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-yes:a.jsx",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-yes:a.mjs",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-yes:a.cjs",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-yes:a.py",
+   "kind": "POS",
+   "ok": true,
+   "note": "true"
+  },
+  {
+   "id": "card:isCodeFile-no:README.md",
+   "kind": "NEG",
+   "ok": true,
+   "note": "false"
+  },
+  {
+   "id": "card:isCodeFile-no:a.json",
+   "kind": "NEG",
+   "ok": true,
+   "note": "false"
+  },
+  {
+   "id": "card:isCodeFile-no:a.txt",
+   "kind": "NEG",
+   "ok": true,
+   "note": "false"
+  },
+  {
+   "id": "card:isCodeFile-no:a.yaml",
+   "kind": "NEG",
+   "ok": true,
+   "note": "false"
+  },
+  {
+   "id": "card:isCodeFile-no:Makefile",
+   "kind": "NEG",
+   "ok": true,
+   "note": "false"
+  },
+  {
+   "id": "card:isCodeFile-no:a",
+   "kind": "NEG",
+   "ok": true,
+   "note": "false"
+  },
+  {
+   "id": "card:isCodeFile-uppercase",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "A.TS -> false (case-sensitive by design)"
+  },
+  {
+   "id": "card:isCodeFile-dts",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "a.d.ts -> true"
+  },
+  {
+   "id": "card:decl-plain",
+   "kind": "POS",
+   "ok": true,
+   "note": "foo"
+  },
+  {
+   "id": "card:decl-default",
+   "kind": "POS",
+   "ok": true,
+   "note": "bar"
+  },
+  {
+   "id": "card:decl-generator",
+   "kind": "POS",
+   "ok": true,
+   "note": "gen"
+  },
+  {
+   "id": "card:decl-async-abstract",
+   "kind": "POS",
+   "ok": true,
+   "note": "C"
+  },
+  {
+   "id": "card:decl-dup-deduped",
+   "kind": "POS",
+   "ok": true,
+   "note": "a"
+  },
+  {
+   "id": "card:decl-empty",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "0 decls"
+  },
+  {
+   "id": "card:decl-garbage",
+   "kind": "EDGE",
+   "ok": [],
+   "note": "no crash"
+  },
+  {
+   "id": "card:decl-huge-bounded",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "5000 in 201ms"
+  },
+  {
+   "id": "card:shownTotal-empty",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "shown=0 total=0"
+  },
+  {
+   "id": "card:shownTotal-capped",
+   "kind": "POS",
+   "ok": true,
+   "note": "shown=3 total=40"
+  },
+  {
+   "id": "card:shownTotal-zero-total",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "shown=0 total=0"
+  },
+  {
+   "id": "card:relTo-inside",
+   "kind": "POS",
+   "ok": true,
+   "note": "a/b.ts"
+  },
+  {
+   "id": "card:relTo-trailing-sep",
+   "kind": "POS",
+   "ok": true,
+   "note": "a.ts"
+  },
+  {
+   "id": "card:relTo-outside",
+   "kind": "NEG",
+   "ok": true,
+   "note": "a.ts"
+  },
+  {
+   "id": "card:relTo-root-itself",
+   "kind": "EDGE",
+   "ok": true,
+   "note": "r"
+  }
+ ],
+ "pass": 105,
+ "total": 105,
+ "clsLeaks": 0,
+ "clsMisfires": 0
+}

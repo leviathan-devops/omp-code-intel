@@ -1,0 +1,6 @@
+# W0 (2026-09-22): scope the test runner. Bare `bun test` previously walked
+# research/graph-infra-repos/** (the VENDORED third-party checkouts) and died on
+# their missing deps (elkjs, graphology) after a 300 s timeout. The repo's own
+# battery is ./tests; the vendored trees are SOURCE material, not our tests.
+[test]
+root = "./tests"

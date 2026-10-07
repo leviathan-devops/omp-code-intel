@@ -1,0 +1,68 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "poolside-laguna-s",
+    "model": "poolside/laguna-s-2.1"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 4,
+    "total_tokens": 91863,
+    "input_tokens": 73745,
+    "output_tokens": 18118,
+    "cache_read_tokens": 29312,
+    "elapsed": "5m2s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "content": "CRITICAL BUG: `poolPath` is referenced but NEVER declared in `markGoKeyDead`. It should be `goPoolDbFile(sessionId)`. Because `poolPath` is an undeclared name, it throws a ReferenceError (or a compile error TS2304 in strict TypeScript). The throw is swallowed by the surrounding `catch { /* best-effort */ }`, so the function appears to succeed but the post-write file-permission hardening (chmod 0600 on the pool DB and its -wal/-shm sidecars) NEVER executes after a dead-mark write. This directly contradicts the stated W9 hardening contract and leaves SQLite WAL/SHM sidecar files (which may contain the redacted-but-still-sensitive `reason` column) at a less-restrictive umask-derived mode until the next `db()` call re-hardens them. Fix: declare `const poolPath = goPoolDbFile(sessionId);` before the hardening block.",
+      "existing_code": "      try {\n        // W44/F21 (laguna scan HIGH): the write-path re-chmod goes through the\n        // same O_NOFOLLOW+fchmod discipline — a swapped pool/sidecar symlink\n        // throws here (caught best-effort below) instead of chmodding a victim.\n        hardenPoolFile(poolPath);\n        for (const side of [poolPath + '-wal', poolPath + '-shm']) {\n          try { hardenPoolFile(side); } catch { /* sidecar absent or plant */ }\n        }\n      } catch { /* best-effort */ }",
+      "start_line": 393,
+      "end_line": 401,
+      "thinking": "I need to call the code_comment tool to report my findings, then call task_done. Let me batch all my findings in a single code_comment call.\n\nLet me identify the key findings:\n\n1. **CRITICAL BUG: `poolPath` is undefined in `markGoKeyDead`** - The variable `poolPath` is referenced but never declared. It should be `goPoolDbFile(sessionId)`. This means the post-write file permission hardening (chmod 0600) on the pool file and its WAL/SHM sidecars never executes after a `markGoKeyDead` write.\n\n2. **`dropped` variable always 0 in `goEarliestDeadIdx`** - declared but never incremented, always returns 0.\n\n3. **Duplicate keyid computation** - the SHA-256 fingerprint is computed inline in `readDeadUntil`, `goEarliestDeadIdx`, and `markGoKeyDead` instead of calling the existing `keyidFor(idx)` helper.\n\nLet me batch these in a single code_comment call.",
+      "category": "security",
+      "severity": "critical"
+    },
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "content": "The `dropped` field in `goEarliestDeadIdx`'s return type is declared as `let dropped = 0;`, never incremented/modified anywhere in the function body, and always returned as 0. It is not consumed by any caller in this file (resolveGoKeyIndex only reads `.idx` and `.expiryKnown`). Either the logic to populate it is missing/misplaced, or the field should be removed from the return type to avoid misleading external callers. This is either dead code or a missing feature.",
+      "existing_code": "    let dropped = 0;\n    let best = -1;\n    let bestUntil = Number.MAX_SAFE_INTEGER;\n    let seen = 0;\n    GO_KEYS.forEach((k, i) =\u003e {\n      const kid = createHash('sha256').update(k).digest('hex').slice(0, 16);\n      const merged = byKeyid.get(kid) ?? byIdx.get(i);",
+      "start_line": 482,
+      "end_line": 488,
+      "thinking": "I need to call the code_comment tool to report my findings, then call task_done. Let me batch all my findings in a single code_comment call.\n\nLet me identify the key findings:\n\n1. **CRITICAL BUG: `poolPath` is undefined in `markGoKeyDead`** - The variable `poolPath` is referenced but never declared. It should be `goPoolDbFile(sessionId)`. This means the post-write file permission hardening (chmod 0600) on the pool file and its WAL/SHM sidecars never executes after a `markGoKeyDead` write.\n\n2. **`dropped` variable always 0 in `goEarliestDeadIdx`** - declared but never incremented, always returns 0.\n\n3. **Duplicate keyid computation** - the SHA-256 fingerprint is computed inline in `readDeadUntil`, `goEarliestDeadIdx`, and `markGoKeyDead` instead of calling the existing `keyidFor(idx)` helper.\n\nLet me batch these in a single code_comment call.",
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "content": "The SHA-256 key fingerprint (`createHash('sha256').update(k).digest('hex').slice(0, 16)`) is duplicated inline in three locations — `readDeadUntil`, `goEarliestDeadIdx`, and `markGoKeyDead` (the displaced-row re-homing findIndex) — instead of calling the existing `keyidFor(idx)` helper. If the fingerprint algorithm ever changes, all call-sites must be updated manually. These should call `keyidFor(i)` / `keyidFor(idx)` respectively for consistency and DRY.",
+      "existing_code": "const kid = createHash('sha256').update(k).digest('hex').slice(0, 16);",
+      "start_line": 256,
+      "end_line": 256,
+      "thinking": "I need to call the code_comment tool to report my findings, then call task_done. Let me batch all my findings in a single code_comment call.\n\nLet me identify the key findings:\n\n1. **CRITICAL BUG: `poolPath` is undefined in `markGoKeyDead`** - The variable `poolPath` is referenced but never declared. It should be `goPoolDbFile(sessionId)`. This means the post-write file permission hardening (chmod 0600) on the pool file and its WAL/SHM sidecars never executes after a `markGoKeyDead` write.\n\n2. **`dropped` variable always 0 in `goEarliestDeadIdx`** - declared but never incremented, always returns 0.\n\n3. **Duplicate keyid computation** - the SHA-256 fingerprint is computed inline in `readDeadUntil`, `goEarliestDeadIdx`, and `markGoKeyDead` instead of calling the existing `keyidFor(idx)` helper.\n\nLet me batch these in a single code_comment call.",
+      "category": "maintainability",
+      "severity": "low"
+    },
+    {
+      "path": "src/hunter/keys/go-key-pool.ts",
+      "content": "In `markGoKeyDead`, the displaced-row re-homing logic computes the keyid inline (`GO_KEYS.findIndex((k) =\u003e createHash('sha256').update(k).digest('hex').slice(0, 16) === displaced.keyid)`) instead of leveraging the existing `keyidFor` helper or a reverse-lookup map. This is another instance of the same fingerprint duplication and makes the re-homing O(N) per mark.",
+      "existing_code": "        const home = GO_KEYS.findIndex((k) =\u003e createHash('sha256').update(k).digest('hex').slice(0, 16) === displaced.keyid);",
+      "start_line": 377,
+      "end_line": 377,
+      "thinking": "I need to call the code_comment tool to report my findings, then call task_done. Let me batch all my findings in a single code_comment call.\n\nLet me identify the key findings:\n\n1. **CRITICAL BUG: `poolPath` is undefined in `markGoKeyDead`** - The variable `poolPath` is referenced but never declared. It should be `goPoolDbFile(sessionId)`. This means the post-write file permission hardening (chmod 0600) on the pool file and its WAL/SHM sidecars never executes after a `markGoKeyDead` write.\n\n2. **`dropped` variable always 0 in `goEarliestDeadIdx`** - declared but never incremented, always returns 0.\n\n3. **Duplicate keyid computation** - the SHA-256 fingerprint is computed inline in `readDeadUntil`, `goEarliestDeadIdx`, and `markGoKeyDead` instead of calling the existing `keyidFor(idx)` helper.\n\nLet me batch these in a single code_comment call.",
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "session_id": "dbbdbc77-da3b-499f-a3b9-6baa8ec0360b"
+}

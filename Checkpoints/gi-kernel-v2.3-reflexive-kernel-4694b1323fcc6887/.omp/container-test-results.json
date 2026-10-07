@@ -1,0 +1,132 @@
+{
+ "suite": "GI V2.3 \u2014 THE ADVERSARIAL CONTAINER SUITE v2 (the rejection's remedy)",
+ "date": "2026-09-29",
+ "container": "omp-ct",
+ "image": "omp-ct:master",
+ "mount": "/gi",
+ "plan": {
+  "path": ".omp/ct-plan-v2.md",
+  "chars": 4587,
+  "hash": "910e3c93f944fff8"
+ },
+ "theSha": {
+  "mounted": "4694b1323fcc6887",
+  "host": "4694b1323fcc6887",
+  "match": true
+ },
+ "partA": {
+  "what": "the LSP's own surface (a stdio client inside the container)",
+  "cases": [
+   {
+    "id": "A1-the-broken-store",
+    "passToken": "GI_NO_STORE|[gi-lsp/scope]",
+    "failToken": "a silent zero-diagnostic reply",
+    "ok": true,
+    "note": "diagnostics=1 named=true :: [{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"severity\":1,\"source\":\"gi-lsp/store\",\"message\":\"GI_NO_STORE: no populated store unde"
+   },
+   {
+    "id": "A2-the-foreign-store",
+    "passToken": "scope mismatch",
+    "failToken": "a silent clean",
+    "ok": true,
+    "note": "diagnostics=20 named=true :: [{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":19}},\"severity\":1,\"source\":\"gi-lsp/scope\",\"code\":\"SCOPE\",\"message\":\"GI store scope misma"
+   },
+   {
+    "id": "A3-the-doc-edit-silent",
+    "passToken": "diagnostics=0",
+    "failToken": "a [gi-lsp/ diagnostic on a .md",
+    "ok": true,
+    "note": "diagnostics=0 :: []"
+   },
+   {
+    "id": "A4-malformed-then-alive",
+    "passToken": "ALIVE AFTER MALFORMED",
+    "failToken": "a crash / no reply",
+    "ok": true,
+    "note": "the reply after the malformed input: received (diagnostics=0)"
+   },
+   {
+    "id": "A5-the-rapid-burst",
+    "passToken": "BURST OK",
+    "failToken": "a timeout",
+    "ok": true,
+    "note": "a reply after 50 changes: received"
+   },
+   {
+    "id": "A6-the-huge-file-bounded",
+    "passToken": "HUGE OK",
+    "failToken": "a timeout",
+    "ok": true,
+    "note": "a 10k-line file answered in 16ms (diagnostics=20)"
+   },
+   {
+    "id": "A7-the-reflex-positive",
+    "passToken": "[gi-lsp/",
+    "failToken": "zero diagnostics",
+    "ok": true,
+    "note": "diagnostics=20 gi-sourced=true :: [{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":19}},\"severity\":1,\"source\":\"gi-lsp/scope\",\"code\":\"SCOPE\",\"message\":\"GI store scope mismatch\\n  store build_root: /home/leviathan"
+   }
+  ],
+  "pass": 7,
+  "total": 7
+ },
+ "partB": {
+  "what": "the runtime's consumption (the OMP TUI, the real write path)",
+  "cases": [
+   {
+    "id": "auth-probe-D1",
+    "passToken": "AUTH-PROBE-OK",
+    "passTokenMatch": true,
+    "failTokenAbsent": true,
+    "context": "poolside/laguna-s-2.1 \u00b7 6 real tool calls (bash/edit/read/write) \u00b7 stopReason=stop",
+    "verdict": "PASS"
+   },
+   {
+    "id": "B1-the-broken-store-in-the-runtime",
+    "passToken": "GI_NO_STORE",
+    "passTokenMatch": true,
+    "failTokenAbsent": true,
+    "context": "diagnostics arrived after the edit returned: /gi/scratch-b1.ts \u2014 1 error(s) \u00b7 scratch-b1.ts:1:1 [error] [gi-lsp/store] GI_NO_STORE: no populated store under /gi/.omp/graph-intelligence",
+    "verdict": "PASS"
+   },
+   {
+    "id": "B2-the-doc-edit-silent",
+    "passToken": "diagnostics=0",
+    "passTokenMatch": true,
+    "failTokenAbsent": true,
+    "context": "the edit TOOL appended to /gi/DEBUG_LOG.md (a >=200-line doc \u2014 the write tool is blocked by the doc-density gate on a thin .md; the bash-bypass attempt was adjudicated as a WEAK pass and RE-TESTED via the edit tool) \u00b7 ZERO gi-lsp diagnostics on the .md",
+    "verdict": "PASS"
+   },
+   {
+    "id": "B3-the-reflex",
+    "passToken": "diagnostics arrived after the edit returned",
+    "passTokenMatch": true,
+    "failTokenAbsent": true,
+    "context": "/gi/scratch-b3.ts \u2014 1 error(s), 1 warning(s) \u00b7 [gi-lsp/scope] \u00b7 [gi-lsp/unwired] b3Final \u2014 0 callers \u00b7 the LSP pid 20504 under the runtime (parent 20476)",
+    "verdict": "PASS"
+   }
+  ]
+ },
+ "theFirewallCorpus": {
+  "what": "the W6 decision surface inside the container",
+  "reading": "0 leaks / 0 misfires (12 attacks / 9 controls)",
+  "verdict": "PASS"
+ },
+ "phaseE": {
+  "1_the_sha_match": true,
+  "2_the_auth_probe": true,
+  "3_every_scenario_executed": "A1-A7 + B1-B3 = 10/10",
+  "4_every_token_asserted": true,
+  "5_no_circular_passes": true,
+  "6_no_timeouts": true,
+  "7_the_blast_radius_covered": "the LSP (A1-A7) + the runtime (B1-B3) + the firewall (the corpus) \u2014 every changed file has a covering scenario",
+  "8_the_adversarial_behaved": true,
+  "9_the_container_alive": true,
+  "10_the_results_artifact": true
+ },
+ "theDefectsFound": [
+  "HARNESS-BUG (mine, not the code): A7's assertion looked for the rendered '[gi-lsp/' form in raw JSON \u2014 fixed to the source field; the re-run 7/7",
+  "WEAK-PASS (adjudicated): B2's first attempt created the .md via bash (the doc-density gate blocked the write tool) \u2014 re-tested via the edit tool on a real doc"
+ ],
+ "overall": "PASS \u2014 10/10 scenarios + the auth probe + the firewall corpus, every token in a tool result, zero confirmed code defects."
+}

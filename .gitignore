@@ -6,7 +6,7 @@ bun.lockb
 fork-v143/
 live-tree
 vendor/
-Ship_Packages/
+Ship_Packages/*
 Checkpoints/*
 !Checkpoints/gi-cleanup-w1w2w4-e13d0f5939e3707b/
 !Checkpoints/gi-6l2e-redteam-closed-e13d0f5939e3707b/
@@ -26,6 +26,11 @@ research/graph-infra-repos/
 !Checkpoints/gi-kernel-v2-six-layer-stack-rsi-live-jev-validated/
 !Checkpoints/gi-kernel-v2.0-working-fire-gate-calibration-measured/
 !Checkpoints/gi-kernel-v2.1-wired-measured-container-proven/
+
+# ★ v2.3 FULL SET (operator order 2026-10-07: back the full v2.3 up with no data loss)
+!Checkpoints/gi-kernel-v2.3-*/
+!Checkpoints/gi-jev-decision-layer-v2.3-redteam-ready/
+!Ship_Packages/gi-6l2e-gaps-closed-audited/
 
 # corbell's own workspace (recreated by `corbell init` on demand — the adapter's
 # INIT GUARD runs the init only when workspace.yaml is ABSENT, so deleting it is safe

@@ -1,0 +1,140 @@
+{
+  "status": "success",
+  "llm": {
+    "provider": "muse-free",
+    "model": "muse-spark-1.3-contributor-free"
+  },
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 11,
+    "total_tokens": 149784,
+    "input_tokens": 130242,
+    "output_tokens": 19542,
+    "cache_read_tokens": 81318,
+    "elapsed": "4m8s"
+  },
+  "tool_calls": {
+    "total": 7,
+    "by_tool": {
+      "code_comment": 2,
+      "code_search": 3,
+      "file_read": 2
+    },
+    "failure": 1,
+    "failure_by_tool": {
+      "code_comment": 1
+    },
+    "failure_details": [
+      {
+        "tool_call_number": 6,
+        "tool_name": "code_comment",
+        "file_path": "src/omp/typed-write.ts",
+        "arguments": "{\"comments\":\"[{\\\"category\\\": \\\"maintainability\\\", \\\"content\\\": \\\"Dead helper: `beginImmediateWithRetry` is never called (only definition exists). `insertForkNode`/`insertForkEdge` use raw `BEGIN IMMEDIATE` while claiming `busy_timeout=5000 owns SQLITE_BUSY`. Either delete the helper or wire it in — as-is it is dead code plus a contradictory contention story. Its sync `Date.now()` spin would also block the event loop if ever used.\\\", \\\"existing_code\\\": \\\"function beginImmediateWithRetry(db: Database, attempts = 3): void {\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\", \\\"suggestion_code\\\": \\\"// Either delete beginImmediateWithRetry, or use it at write sites:\\\\n// db.exec(\\\\\\\"PRAGMA busy_timeout = 5000;\\\\\\\"); already set on open —\\\\n// remove the helper if busy_timeout is the chosen strategy.\\\"}, {\\\"category\\\": \\\"security\\\", \\\"content\\\": \\\"Post-open verify does not prevent cross-session open: `new Database(storePath,{create:true})` happens BEFORE `verifyOpenedStoreFile`, and the re-verify only checks lstat-is-symlink + 16-byte magic. A regular-file swap (rename) to another session's valid SQLite passes both pre- and post-checks (magic matches). No dev/ino pinning, no O_NOFOLLOW/fstat comparison, and `openSync(storePath,\\\\\\\"r\\\\\\\")` follows symlinks planted between lstat and open. Fail-closed needs fd-based verification (fstat + compare) or opening with O_NOFOLLOW.\\\", \\\"existing_code\\\": \\\"  const db = new Database(storePath, { create: true });\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"high\\\", \\\"suggestion_code\\\": \\\"// Open with O_NOFOLLOW / pin dev+ino from pre-check, then fstat the opened fd\\\\n// and refuse if (dev,ino) changed or magic mismatches — before running DDL.\\\\n// Never Database-open before the identity is pinned.\\\"}, {\\\"category\\\": \\\"security\\\", \\\"content\\\": \\\"Pre-open lstat-\u003estat-\u003eopen header window is still TOCTOU: `lstatSync` refuses a symlink at T0, but `statSync`, `openSync(head-read)` and `new Database()` all re-resolve by path and follow a symlink planted after T0. `verifyOpenedStoreFile` re-does lstat+open by path so the same race repeats. Use a single O_NOFOLLOW open + fstat for type/size/magic instead of three path-based stats.\\\", \\\"existing_code\\\": \\\"  const lst = fs.lstatSync(storePath);\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"high\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Redundant guard after early-continue: `if (!on) { ...; continue; }` guarantees `on` is non-null, so `if (on) {` is always true / dead branch. Collapse to remove the nesting; also note the UPDATE+retry transaction does ROLLBACK on retry failure which undoes the dedup tombstones — store stays unconstrained but data is preserved (intended), ensure callers surface the `unique_index_deferred` marker.\\\", \\\"existing_code\\\": \\\"          if (on) {\\\\n            const table = on[1]!;\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"low\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"128MiB budget cannot prevent OOM: `contents` is already a fully-materialized string (caller did readFileSync), so `Buffer.byteLength(contents)` traverses it a second time and the stat-before-read enforcement lives elsewhere. Large file already OOMs before this gate. Also double cost: async variant computes byteLen then `parseGraphJsonGuarded` recomputes it. Pass byteLen in or document this as post-read validation only; `sizeHint` is currently unused (non-authoritative by contract but lint-dead).\\\", \\\"existing_code\\\": \\\"export function parseGraphJsonGuarded(contents: string, sizeHint = 0): Record\u003cstring, unknown\u003e {\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\"}, {\\\"category\\\": \\\"performance\\\", \\\"content\\\": \\\"Single `setImmediate` yield does not prevent main-thread stall: `JSON.parse` itself remains fully synchronous and blocking. The yield only lets the loop breathe before the block. For truly large-but-legal graphs consider chunked/streaming parse or worker; otherwise fix the comment. Also `if (byteLen \u003e YIELD \u0026\u0026 byteLen \u003c= BUDGET)` + inner re-check double-scans the string.\\\", \\\"existing_code\\\": \\\"export async function parseGraphJsonGuardedAsync(contents: string, sizeHint = 0): Promise\u003cRecord\u003cstring, unknown\u003e\u003e {\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"`visitCap` bypass: `Math.max(1, Math.floor(visitCap)||20000)` leaves `Infinity` unbounded (floor(Infinity) is truthy), so `chainCalls(..., Infinity)` disables the cap and can enqueue the whole reachable set with O(depth) path clones per node. Clamp to a finite max (e.g. 20000-50000). Also success path `return [...cur.steps, step]` drops the `truncated` flag accumulated earlier — a truncated-then-found result reports untruncated.\\\", \\\"existing_code\\\": \\\"    const cap = Math.max(1, Math.floor(visitCap) || 20000);\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"high\\\", \\\"suggestion_code\\\": \\\"const cap = Math.min(50000, Math.max(1, Math.floor(visitCap) || 20000));\\\\n// and on success: const out = [...cur.steps, step] as ChainStep[] \u0026 {truncated?: boolean};\\\\n// if (truncated) out.truncated = true; return out;\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Self-chain off-by-one: `!(from===to \u0026\u0026 cur.steps.length===0)` suppresses ALL length-1 paths when labels match (A1[label X]-\u003eA2[label X] with steps==0 is skipped and enqueued instead of returned). If the intent is only to suppress zero-length self-return, check `e.dst_id===cur.id` or pre-check start∩target, not the whole first frontier level.\\\", \\\"existing_code\\\": \\\"        if (toSet.has(e.dst_id) \u0026\u0026 !(from === to \u0026\u0026 cur.steps.length === 0)) {\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Ledger cap does not bound work: when `ledger.length\u003e=LEDGER_CAP` the code sets `ledgerTruncated=true` but still `next.push(c.id)` and continues BFS for remaining depths. `seen`/`frontier` grow unbounded on mega-stores despite the comment claiming the cap stops expansion. Stop expanding (or cap frontier) once truncated, or document ledger-only cap.\\\", \\\"existing_code\\\": \\\"        } else {\\\\n          ledgerTruncated = true;\\\\n        }\\\\n        next.push(c.id);\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"high\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Blast truncation is nondeterministic and imprecise: `GROUP BY n.file LIMIT 5000` has no ORDER BY, so which 5000 survive is undefined; `rows.length\u003e=5000` with LIMIT 5000 cannot distinguish exactly-5000 vs \u003e5000 (false-positive truncated). Use the `LIMIT 5001` + slice pattern already used in `unwiredNodes`, add deterministic ORDER BY (file), and don't overwrite the input `depth` param with `maxDepth` in the return (confusing echo vs max). Same missing ORDER BY applies to whoCalls/safeDelete uses (`LIMIT 500` nondeterministic).\\\", \\\"existing_code\\\": \\\"       SELECT n.file AS file, MIN(blast.depth) AS depth\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Unwired returns 5001 rows when truncated: SQL uses `LIMIT 5001` to detect overflow but pushes all non-lineless rows into `out` without slicing to 5000. Cap `out` at 5000. Also `ORDER BY n.label` alone is nondeterministic on same-label ties — add secondary key (canonical_id/rowid) for deterministic truncation like `resolveLiveIds` does.\\\", \\\"existing_code\\\": \\\"       ORDER BY n.label LIMIT 5001`,\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\", \\\"suggestion_code\\\": \\\"// after loop: if (rows.length \u003e 5000) { out.length = Math.min(out.length, 5000); }\\\\n// SQL: ORDER BY n.label, n.canonical_id LIMIT 5001\\\"}, {\\\"category\\\": \\\"bug\\\", \\\"content\\\": \\\"Test-path heuristic overmatches: `/(test|spec|mock|fixture)/i` matches substrings like `special/`, `latest/`. `safeDelete.testReach` will mislabel production callers as test-reach. Match on path segments (e.g. /(^|\\\\\\\\/)(test|tests|spec|specs|__mocks__|fixtures?)(\\\\\\\\/|$)/i) or filename suffixes (.test./.spec.). Also `uses` query `LIMIT 500` has no ORDER BY — nondeterministic under-report; surface its truncation like whoCalls/impact.\\\", \\\"existing_code\\\": \\\"    const isTestPath = (f: string): boolean =\u003e /(test|spec|mock|fixture)/i.test(f);\\\", \\\"path\\\": \\\"src/omp/typed-write.ts\\\", \\\"severity\\\": \\\"medium\\\"}]}\"}",
+        "error": "Error: failed to parse 'comments' JSON string: invalid character '}' after top-level value"
+      }
+    ]
+  },
+  "comments": [
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Dead helper beginImmediateWithRetry is defined but never called; insertForkNode/insertForkEdge use raw BEGIN IMMEDIATE while comment claims busy_timeout owns BUSY. Delete helper or wire it in.",
+      "existing_code": "function beginImmediateWithRetry(db: Database, attempts = 3): void {",
+      "start_line": 340,
+      "end_line": 340,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Post-open verify does not prevent cross-session open: new Database(create:true) runs before verifyOpenedStoreFile, and re-verify only checks symlink-by-path plus 16-byte magic. A renamed valid SQLite from another session passes. Needs dev/ino pinning or O_NOFOLLOW fstat before open.",
+      "existing_code": "const db = new Database(storePath, { create: true });",
+      "start_line": 208,
+      "end_line": 208,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Pre-open lstat then statSync/openSync/new Database all re-resolve by path, so symlink planted after lstat is followed. Single O_NOFOLLOW open plus fstat should replace the three path-based checks.",
+      "existing_code": "const lst = fs.lstatSync(storePath);",
+      "start_line": 126,
+      "end_line": 126,
+      "category": "security",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Redundant if(on) after early continue on !on: branch is always true and adds dead nesting. Collapse it.",
+      "existing_code": "if (on) {",
+      "start_line": 259,
+      "end_line": 259,
+      "category": "bug",
+      "severity": "low"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "128MiB budget cannot prevent OOM: contents is already a materialized string so stat-before-read lives elsewhere; Buffer.byteLength re-scans and sizeHint is unused. Document as post-read validation only.",
+      "existing_code": "export function parseGraphJsonGuarded(contents: string, sizeHint = 0): Record\u003cstring, unknown\u003e {",
+      "start_line": 29,
+      "end_line": 29,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "visitCap bypass with Infinity: floor(Infinity) is truthy so cap stays Infinity and BFS can enqueue whole reachable set with path clones. Clamp to finite max. Success return also drops truncated flag.",
+      "existing_code": "const cap = Math.max(1, Math.floor(visitCap) || 20000);",
+      "start_line": 677,
+      "end_line": 677,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Self-chain off-by-one: from===to with steps.length===0 suppresses all length-1 same-label paths, not just zero-length self. Check dst_id===cur.id instead.",
+      "existing_code": "if (toSet.has(e.dst_id) \u0026\u0026 !(from === to \u0026\u0026 cur.steps.length === 0)) {",
+      "start_line": 704,
+      "end_line": 704,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Ledger cap does not bound work: when full it sets truncated but still pushes to next and continues BFS, so seen/frontier grow unbounded. Stop expansion or document ledger-only cap.",
+      "existing_code": "ledgerTruncated = true;",
+      "start_line": 832,
+      "end_line": 832,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Blast LIMIT 5000 without ORDER BY is nondeterministic and rows.length\u003e=5000 cannot distinguish exact-5000 vs overflow. Use LIMIT 5001 plus deterministic ORDER BY like unwiredNodes.",
+      "existing_code": "SELECT n.file AS file, MIN(blast.depth) AS depth",
+      "start_line": 599,
+      "end_line": 599,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Unwired returns 5001 rows when truncated: SQL fetches 5001 for detection but out is never sliced to 5000. Slice output and add secondary ORDER BY key for deterministic ties.",
+      "existing_code": "ORDER BY n.label LIMIT 5001`,",
+      "start_line": 750,
+      "end_line": 750,
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "src/omp/typed-write.ts",
+      "content": "Test-path regex overmatches substrings like special/latest; safeDelete testReach will mislabel prod callers. Match on path segments or test/spec suffixes instead.",
+      "existing_code": "const isTestPath = (f: string): boolean =\u003e /(test|spec|mock|fixture)/i.test(f);",
+      "start_line": 902,
+      "end_line": 902,
+      "category": "bug",
+      "severity": "medium"
+    }
+  ],
+  "project_summary": "### Top Issues\n\n1. **TOCTOU store open allows symlink swap / cross-session file** — `src/omp/typed-write.ts` pre-open `lstat` then `statSync`/`openSync`/`new Database(create:true)` re-resolve by path, and post-open `verifyOpenedStoreFile` only checks symlink-by-path + 16-byte magic after creation. Planted symlink after `lstat` is followed; renamed valid SQLite from another session passes. Needs single `O_NOFOLLOW` open + `fstat` with `dev`/`ino` pinning.\n2. **Graph traversal caps don't bound work → OOM** — `src/omp/typed-write.ts`: `visitCap=Infinity` survives `floor()` check so BFS enqueues whole reachable set with path clones, and ledger-full path sets `truncated` but still pushes to `next`/continues BFS so `seen`/frontier grow unbounded. Success path also drops `truncated`.\n3. **Unsafe `safeDelete` test-caller heuristic** — `src/omp/typed-write.ts` `testReach` regex overmatches substrings like `special/latest`. Prod callers mislabeled as test; match on path segments or `test`/`spec` suffixes.\n4. **Same-node traversal incorrectly suppressed** — `src/omp/typed-write.ts` `from===to \u0026\u0026 steps.length===0` kills all length-1 same-label paths, not just zero-length self. Must check `dst_id===cur.id`.\n5. **Blast/unwired truncation nondeterministic and leaky** — `src/omp/typed-write.ts` blast uses `LIMIT 5000` without `ORDER BY` so `rows.length\u003e=5000` can't distinguish exact-5000 vs overflow; `unwiredNodes` fetches `5001` for detection but never slices `out` to `5000` and lacks secondary `ORDER BY` key for ties. Standardize on `LIMIT 5001` + deterministic `ORDER BY` + slice.\n6. **128MiB budget is post-read validation, not OOM prevention** — `src/omp/typed-write.ts`: `contents` already materialized string, `Buffer.byteLength` re-scans, `sizeHint` unused. Document as such; real fix lives at read site.\n7. **Dead `beginImmediateWithRetry` vs raw `BEGIN IMMEDIATE`** — `src/omp/typed-write.ts` `insertForkNode`/`insertForkEdge` use raw statement while comment claims `busy_timeout` owns `BUSY`. Wire helper in or delete.\n\n### Module Hotspots\n\n- `src/omp/typed-write.ts` — 11/11 comments concentrated in one file; abnormal density. Sub-hotspots: open/verify path (`lstat`/`statSync`/`openSync`/`new Database`/`verifyOpenedStoreFile`), BFS traversal (`visitCap`/ledger/`steps` handling), SQL limits (`blast`/`unwiredNodes`), `safeDelete`/`testReach`.\n\n### Cross-Cutting Concerns\n\n- **Limits that don't limit:** `visitCap=Infinity`, ledger cap that still expands, `LIMIT 5000` without overflow row, `unwired` 5001-row leak, 128MiB post-materialization check in `src/omp/typed-write.ts`.\n- **Comments/docs contradict code:** `busy_timeout` owns `BUSY` vs raw `BEGIN IMMEDIATE`, OOM budget vs already-materialized string, ledger cap vs continued BFS, dropped `truncated` flag in `src/omp/typed-write.ts`.\n- **Path-based re-resolution:** three separate path checks before/including open instead of one pinned fd + `fstat` in `src/omp/typed-write.ts`.\n- **Missing determinism:** `blast` without `ORDER BY`, `unwiredNodes` without tie-breaker in `src/omp/typed-write.ts`.\n\n### Quick Wins\n\n- Collapse redundant `if(on)` after `if(!on) continue` in `src/omp/typed-write.ts`.\n- Slice `unwiredNodes` output to 5000; change blast to `LIMIT 5001` + deterministic `ORDER BY` in `src/omp/typed-write.ts`.\n- Clamp `visitCap` to finite max; propagate `truncated` on success in `src/omp/typed-write.ts`.\n- Fix self check to `dst_id===cur.id`; fix test regex to segment/suffix match in `src/omp/typed-write.ts`.\n- Delete or wire `beginImmediateWithRetry` into `insertForkNode`/`insertForkEdge` in `src/omp/typed-write.ts`.",
+  "session_id": "6947d882-c3d5-42b3-ba4c-d8ade5c66c37"
+}
