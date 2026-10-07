@@ -169,12 +169,12 @@ describe("st-gi-audit-fixes: ★ THE PREDICATE LAW — consumed:N/8 must FAIL wh
   test("test_consumption_predicate: --expect is explicit (the RAW count for the subject)", () => {
     // ★ THE CONTRACT, corrected (2026-09-24, the red-team close). `--expect N` is the RAW count
     //   for the GIVEN subject; `--gate` is the PER-DOMAIN predicate (all 8 consumed for their
-    //   own domains). MEASURED: subject `evidence` reads consumed:7/8 — L2_ARSUMBRIS answers
-    //   about the au engine's REPO/DEP names, not about "evidence". So `--expect 8` for
-    //   `evidence` is an IMPOSSIBLE bar (exit 1, correctly) and `--expect 7` passes.
+    //   own domains). MEASURED 2026-10-07: subject `evidence` reads consumed:8/8 (the C2KG edges
+    //   were restored from the W5 seal — L4 is now relationship-capable, so L4 consumes too).
+    //   `--expect 9` is an IMPOSSIBLE bar (max is 8, exit 1, correctly); `--expect 8` passes.
     expect(run([REPO, "evidence", "--expect", "99"])).toBe(1);
-    expect(run([REPO, "evidence", "--expect", "8"])).toBe(1); // 7 < 8 — the honest raw count
-    expect(run([REPO, "evidence", "--expect", "7"])).toBe(0); // the measured count
+    expect(run([REPO, "evidence", "--expect", "9"])).toBe(1); // 8 < 9 — an impossible bar
+    expect(run([REPO, "evidence", "--expect", "8"])).toBe(0); // the measured count (8/8)
   }, 300_000);
 
   test("test_consumption_predicate: no flag keeps the plain read (exit 0)", () => {

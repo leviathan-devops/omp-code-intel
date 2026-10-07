@@ -11222,7 +11222,8 @@ function countTypedNodes(storePath) {
   }
 }
 function resolveLiveIds(db, label) {
-  const rows = db.query("SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501").all(label);
+  const conventions = [label, `${label}()`, `.${label}()`];
+  const rows = db.query(`SELECT canonical_id FROM typed_nodes WHERE label IN (${ph(conventions.length)}) AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501`).all(...conventions);
   return rows.map((r) => r.canonical_id);
 }
 function ph(n) {
@@ -13341,6 +13342,39 @@ function scopeCard(db, projectRoot) {
     total: -1
   };
 }
+function conflictCard(corbellDb, graphifyDb, symbol) {
+  const read = (db) => {
+    try {
+      return whoCallsInDb(db, symbol).callers;
+    } catch {
+      return null;
+    }
+  };
+  const a = read(corbellDb);
+  const b = read(graphifyDb);
+  if (a === null || b === null)
+    return null;
+  const key = (c) => `${c.file}:${c.line}`;
+  const sa = new Set(a.map(key));
+  const sb = new Set(b.map(key));
+  const onlyA = [...sa].filter((k) => !sb.has(k));
+  const onlyB = [...sb].filter((k) => !sa.has(k));
+  if (onlyA.length === 0 && onlyB.length === 0)
+    return null;
+  return {
+    shape: "CONFLICT",
+    title: `${symbol} \u2014 L5/L6 disagree`,
+    rows: [
+      `corbell-only: ${onlyA.length}`,
+      `graphify-only: ${onlyB.length}`,
+      ...onlyA.slice(0, 3).map((k) => `L5: ${k}`),
+      ...onlyB.slice(0, 3).map((k) => `L6: ${k}`)
+    ],
+    severity: 2,
+    source: "gi-lsp/conflict",
+    total: onlyA.length + onlyB.length
+  };
+}
 function meaningValue(v) {
   if (typeof v !== "object" || v === null)
     return null;
@@ -13383,7 +13417,7 @@ function meaningCard(db, symbol, judge) {
   };
 }
 function fileCards(opts) {
-  const { db, projectRoot, relFile, src, judge } = opts;
+  const { db, projectRoot, relFile, src, judge, altDb } = opts;
   const maxCards = opts.maxCards ?? 20;
   if (!isCodeFile(relFile))
     return [];
@@ -13397,6 +13431,15 @@ function fileCards(opts) {
       const m = meaningCard(db, d.name, judge);
       if (m) {
         cards.push(m);
+        break;
+      }
+    }
+  }
+  if (altDb !== undefined) {
+    for (const d of decls.slice(0, 1)) {
+      const cf = conflictCard(db, altDb, d.name);
+      if (cf) {
+        cards.push(cf);
         break;
       }
     }
@@ -13494,11 +13537,27 @@ function attachCardHud(pi) {
       const relFile = relTo(projectRoot, path11.isAbsolute(file) ? file : path11.join(projectRoot, file));
       const src = fs11.readFileSync(path11.isAbsolute(file) ? file : path11.join(projectRoot, file), "utf8");
       const db = new Database3(storePath, { readonly: true });
+      let altDb = null;
       let cards = [];
       try {
         const judge = jevk5Probe(projectRoot).facts;
-        cards = fileCards({ db, projectRoot, relFile, src, judge });
+        for (const rel of STORE_RELS) {
+          const ap = path11.join(projectRoot, rel);
+          if (ap === storePath || !fs11.existsSync(ap))
+            continue;
+          try {
+            const adb = new Database3(ap, { readonly: true });
+            const n = adb.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get()?.n ?? 0;
+            if (n > 0) {
+              altDb = adb;
+              break;
+            }
+            adb.close();
+          } catch {}
+        }
+        cards = fileCards({ db, projectRoot, relFile, src, judge, altDb: altDb ?? undefined });
       } finally {
+        altDb?.close();
         db.close();
       }
       if (cards.length === 0)
@@ -20551,6 +20610,7 @@ function graphifyProbe(scopeRoot) {
 // src/omp/adapters/c2kg.ts
 import * as fs27 from "fs";
 import * as path32 from "path";
+var C2KG_FACT_CAP = 50;
 function c2kgProbe(scopeRoot) {
   const indexPath = path32.join(scopeRoot, ".c2kg/index.json");
   return {
@@ -20558,7 +20618,20 @@ function c2kgProbe(scopeRoot) {
     rung: "context",
     dependency: "the code-to-knowledge-graph LSP index",
     errorCode: "GI_LAYER_C2KG",
-    up: () => probePath(indexPath, true),
+    up: () => {
+      const base = probePath(indexPath, true);
+      if (!base.up)
+        return base;
+      try {
+        const idx = JSON.parse(fs27.readFileSync(indexPath, "utf8"));
+        const edges = Array.isArray(idx?.edges) ? idx.edges.length : 0;
+        if (edges === 0)
+          return { up: false, evidence: `${indexPath} \u2014 0 edges (a symbol list is not a graph; run scripts/c2kg-produce/run.sh)` };
+        return { up: true, evidence: `${indexPath} (${edges} edges)` };
+      } catch {
+        return { up: false, evidence: `${indexPath} \u2014 unparseable` };
+      }
+    },
     facts: (subject) => {
       if (!fs27.existsSync(indexPath)) {
         throw new Error(`GI_LAYER_C2KG: the index is absent at ${indexPath}`);
@@ -20572,7 +20645,7 @@ function c2kgProbe(scopeRoot) {
       const idx = typeof parsed === "object" && parsed !== null ? parsed : {};
       const symbols = Array.isArray(idx.symbols) ? idx.symbols : [];
       const hits = symbols.filter((s) => typeof s === "object" && s !== null && typeof s.name === "string" && s.name.includes(subject));
-      const symbolFacts = hits.slice(0, 50).map((s) => ({
+      const symbolFacts = hits.slice(0, C2KG_FACT_CAP).map((s) => ({
         consumer: "L4_C2KG",
         rung: "context",
         subject,
@@ -20584,7 +20657,7 @@ function c2kgProbe(scopeRoot) {
         source: `${indexPath}#symbols(${typeof s.file === "string" ? s.file : "?"}:${typeof s.line === "number" ? s.line : "?"})`
       }));
       const idxEdges = Array.isArray(idx.edges) ? idx.edges : [];
-      const edgeFacts = idxEdges.filter((e) => typeof e === "object" && e !== null && (String(e["src"] ?? "").includes(subject) || String(e["dst"] ?? "").includes(subject))).slice(0, 50).map((e) => ({
+      const edgeFacts = idxEdges.filter((e) => typeof e === "object" && e !== null && (String(e["src"] ?? "").includes(subject) || String(e["dst"] ?? "").includes(subject))).slice(0, C2KG_FACT_CAP).map((e) => ({
         consumer: "L4_C2KG",
         rung: "context",
         subject,
@@ -20596,7 +20669,7 @@ function c2kgProbe(scopeRoot) {
         },
         source: `${indexPath}#edges(${String(e["src"] ?? "?")} ${String(e["predicate"] ?? "?")} ${String(e["dst"] ?? "?")})`
       }));
-      return edgeFacts.concat(symbolFacts).slice(0, 50);
+      return edgeFacts.concat(symbolFacts).slice(0, C2KG_FACT_CAP);
     }
   };
 }

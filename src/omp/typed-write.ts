@@ -874,9 +874,15 @@ export interface WhoCallsRow { caller: string; file: string; line: number; kind?
 //   is now contravariant-compatible with the real handle AND every call site is
 //   type-checked. (`unknown[]` was the first attempt — it broke the variance.)
 function resolveLiveIds(db: { query: (sql: string) => { all: (...v: SQLQueryBindings[]) => unknown[] } }, label: string): string[] {
+  // ★ F1 FIX (2026-10-07, the red-team audit): label conventions differ BY SUBSTRATE — the
+  //   corbell leg writes BARE labels (`resolveKey`), the graphify leg writes a `()` suffix
+  //   (`resolveKey()`) and a `.`-qualified method form (`.evaluate()`). The exact `label = ?`
+  //   match found ZERO ids for every graphify symbol → a FALSE UNWIRED on real functions.
+  //   Resolve across ALL THREE conventions.
+  const conventions = [label, `${label}()`, `.${label}()`];
   const rows = db.query(
-    "SELECT canonical_id FROM typed_nodes WHERE label = ? AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501",
-  ).all(label) as Array<{ canonical_id: string }>;
+    `SELECT canonical_id FROM typed_nodes WHERE label IN (${ph(conventions.length)}) AND superseded_run IS NULL ORDER BY canonical_id LIMIT 501`,
+  ).all(...conventions) as Array<{ canonical_id: string }>;
   // W13 (frozen-scan HIGH): ORDER BY makes the 500-cap truncation
   // DETERMINISTIC — the same label always truncates to the same subset.
   return rows.map((r) => r.canonical_id);

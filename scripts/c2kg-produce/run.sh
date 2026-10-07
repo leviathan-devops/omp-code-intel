@@ -28,4 +28,27 @@ PROF="$ROOT/.omp/graph-intelligence/profile.yaml"
 SRCS=""
 [ -f "$PROF" ] && SRCS=$(sed -n '/^sources:/,/^[^ ]/p' "$PROF" | sed -n 's/^ *- *//p' | while read -r s; do [ -d "$ROOT/$s" ] && printf '%s\n' "$ROOT/$s"; done | tr '\n' ' ')
 # shellcheck disable=SC2086
+# ★ F3 FIX (2026-10-07): protect a GOOD index from a bad regen. The Bevel no-comms parser
+#   emits NODES with 0 edges; a regen silently dropped the W5-seal 411 edges. Back up the
+#   existing index; after the parse, if the new one has 0 edges but the backup had edges,
+#   RESTORE the backup (the edges survive) — else fail LOUD (nothing to preserve).
+PREV="/tmp/c2kg-prev-$$.json"
+[ -f "$ROOT/.c2kg/index.json" ] && cp "$ROOT/.c2kg/index.json" "$PREV"
 java -cp "/tmp/c2kg:$CP" C2kgProduce "$ROOT" "$ROOT/.c2kg/index.json" $SRCS
+
+python3 - "$ROOT/.c2kg/index.json" "$PREV" <<'PYGUARD'
+import json, sys, shutil, os
+new_p, prev_p = sys.argv[1], sys.argv[2]
+def edges(p):
+    try: return len(json.load(open(p)).get("edges", []))
+    except Exception: return -1
+n = edges(new_p); pv = edges(prev_p) if os.path.exists(prev_p) else -1
+print("  c2kg: new=%d edges, prev=%d edges" % (n, pv))
+if n == 0 and pv > 0:
+    shutil.copy(prev_p, new_p)
+    print("  ★ C2KG_PROTECTED: the regen produced 0 edges — RESTORED the prior %d-edge index (a symbol list is not a graph)." % pv)
+    sys.exit(0)
+if n == 0:
+    sys.exit("C2KG_NO_EDGES: the produced index has 0 edges and no prior good index to restore — the edge derivation must run (the no-comms parser emits no connections).")
+PYGUARD
+[ -f "$PREV" ] && rm -f "$PREV"

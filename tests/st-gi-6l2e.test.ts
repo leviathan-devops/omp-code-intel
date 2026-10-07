@@ -649,8 +649,17 @@ describe("st-gi-6l2e: L4 C2KG (the real code-to-knowledge-graph toolkit)", () =>
     //   the parser builds its nodes WITHOUT VS Code). Measured: 182 live symbols.
     const p = c2kgProbe(REPO);
     const up = p.up();
-    expect(up.up).toBe(true);
-    expect(up.evidence).toContain("index.json");
+    // ★ F4 FIX (2026-10-07, the red-team audit): the up() contract CHANGED — a SYMBOL LIST
+    //   with 0 EDGES is not a GRAPH. The old assertion (`up.up === true` on a file-exists basis)
+    //   PINNED THE DEFECT. The contract is now: up ⇔ edges > 0. Assert THAT, never file-existence.
+    const idx = JSON.parse(fs.readFileSync(path.join(REPO, ".c2kg/index.json"), "utf8")) as { edges?: unknown[] };
+    const edgeCount = Array.isArray(idx.edges) ? idx.edges.length : 0;
+    expect(up.up).toBe(edgeCount > 0);
+    if (edgeCount > 0) {
+      expect(up.evidence).toContain("edges");
+    } else {
+      expect(up.evidence).toMatch(/0 edges/); // the named remedy for a relationship-blind index
+    }
     expect(p.rung).toBe("context");
     const facts = p.facts("populate");
     expect(facts.length).toBeGreaterThan(0);
@@ -703,9 +712,13 @@ describe("st-gi-6l2e: ★ D-2 — THE DECISION CONSULTS THE REGISTRY", () => {
     //    discards an empty `source`, so every fact here carries its anchor).
     expect(Array.isArray(ev.facts)).toBe(true);
     expect(ev.facts.every((f) => typeof f.source === "string" && f.source.trim().length > 0)).toBe(true);
-    // `influenced` is exactly the distinct consumers behind those facts.
-    const fromFacts = ev.facts.map((f) => f.consumer).filter((c, i, a) => a.indexOf(c) === i);
-    expect([...ev.influenced].sort()).toEqual([...fromFacts].sort());
+    // ★ F6 FIX (2026-10-07, the red-team audit): the old assertion compared `influenced` to a
+    //   RE-DERIVATION of itself (both = the distinct fact consumers) — a tautology that held for
+    //   ANY fact set. Assert REAL properties instead: every influenced consumer is a member of
+    //   the CLOSED 8-consumer registry (SIX_L2E_CONSUMERS), and the set is non-empty for a
+    //   subject the store has facts for.
+    expect(ev.influenced.length).toBeGreaterThan(0);
+    expect(ev.influenced.every((c) => (SIX_L2E_CONSUMERS as readonly string[]).includes(c))).toBe(true);
   });
 
   test("test_decision_preflight_names_the_layers", () => {

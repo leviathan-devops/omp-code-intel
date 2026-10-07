@@ -96,7 +96,12 @@ if (gate) {
     console.log(`GI_CONSUMPTION_BELOW_EXPECTED: consumers NEVER consumed for any domain subject: ${never.join(",")}`);
     process.exit(1);
   }
-  console.log(`[consumption] ★ THE PREDICATE PASSED: all ${CONSUMER_COUNT} consumers CONSUMED for their domains · for '${subject}' the register reads consumed:${audit.reports.filter((r) => r.consumed).length}/8`);
+  // ★ F5 FIX (2026-10-07, the red-team audit): NAME WHICH NUMBER IS THE BAR. The UNION is the
+  //   predicate (no single subject spans all 8 domains); the CANONICAL reading is reported
+  //   beside it so the two can never be confused. (The union is the goal's stated condition;
+  //   the canonical reading is informational — reported, never hidden.)
+  const canonical = audit.reports.filter((r) => r.consumed).length;
+  console.log(`[consumption] ★ THE PREDICATE PASSED — BAR = the UNION: union=${everConsumed.size}/${CONSUMER_COUNT} consumers CONSUMED across their domains · the CANONICAL subject '${subject}' alone reads consumed:${canonical}/${CONSUMER_COUNT} (informational)`);
 }
 
 if (expected !== null) {

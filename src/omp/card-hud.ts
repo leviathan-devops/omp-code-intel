@@ -91,12 +91,25 @@ export function attachCardHud(pi: { on: (event: string, cb: (e: Record<string, u
       const relFile = relTo(projectRoot, path.isAbsolute(file) ? file : path.join(projectRoot, file));
       const src = fs.readFileSync(path.isAbsolute(file) ? file : path.join(projectRoot, file), "utf8");
       const db = new Database(storePath, { readonly: true });
+      let altDb: Database | null = null;
       let cards: FactCard[] = [];
       try {
         // ★ W4 — the live JevK5 judge (fail-open: a down endpoint → no MEANING card).
         const judge = jevk5Probe(projectRoot).facts; // facts IS the (subject)=>LayerFact[] judge
-        cards = fileCards({ db, projectRoot, relFile, src, judge });
+        // ★ F2 FIX (2026-10-07): open the SECOND substrate store so the CONFLICT shape is reachable.
+        for (const rel of STORE_RELS) {
+          const ap = path.join(projectRoot, rel);
+          if (ap === storePath || !fs.existsSync(ap)) continue;
+          try {
+            const adb = new Database(ap, { readonly: true });
+            const n = (adb.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get() as { n: number })?.n ?? 0;
+            if (n > 0) { altDb = adb; break; }
+            adb.close();
+          } catch { /* try the next substrate */ }
+        }
+        cards = fileCards({ db, projectRoot, relFile, src, judge, altDb: altDb ?? undefined });
       } finally {
+        altDb?.close();
         db.close();
       }
       if (cards.length === 0) return undefined; // a doc-only edit → SILENT (the C5 negative)

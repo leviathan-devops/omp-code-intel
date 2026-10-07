@@ -266,8 +266,13 @@ export function fileCards(opts: {
   /** ★ FR-5 (W4): the JevK5 judge. When present, the file's primary symbol yields a MEANING
    *  card (the TSG rung routed through the LSP/HUD). ABSENT → no meaning call (fail-open). */
   judge?: MeaningJudge;
+  /** ★ F2 FIX (2026-10-07, the red-team audit): the SECOND substrate store (corbell vs
+   *  graphify). When provided, the file's primary symbol yields a CONFLICT card if the two
+   *  substrates DISAGREE — the 5th shape was previously DEAD CODE (never wired). ABSENT →
+   *  no conflict call (a single-store caller cannot diff). */
+  altDb?: Database;
 }): FactCard[] {
-  const { db, projectRoot, relFile, src, judge } = opts;
+  const { db, projectRoot, relFile, src, judge, altDb } = opts;
   const maxCards = opts.maxCards ?? 20;
   if (!isCodeFile(relFile)) return []; // a doc edit is SILENT (the C5 negative)
   const cards: FactCard[] = [];
@@ -280,6 +285,15 @@ export function fileCards(opts: {
     for (const d of decls.slice(0, 1)) {
       const m = meaningCard(db, d.name, judge);
       if (m) { cards.push(m); break; }
+    }
+  }
+  // ★ F2 FIX: the CONFLICT card (L5 corbell vs L6 graphify disagree on a symbol's callers) is
+  //   emitted ONLY when the caller supplies BOTH substrate stores — the reachability the
+  //   earlier code lacked (it was defined and never called).
+  if (altDb !== undefined) {
+    for (const d of decls.slice(0, 1)) {
+      const cf = conflictCard(db, altDb, d.name);
+      if (cf) { cards.push(cf); break; }
     }
   }
   for (const d of decls) {

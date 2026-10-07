@@ -17,6 +17,11 @@ interface C2kgIndex {
   edges?: Array<Record<string, unknown>>;
 }
 
+// ★ F8 FIX (2026-10-07, the red-team audit): the fact cap was a bare `50` in THREE places —
+//   a magic number. Named once; the symbol branch, the edge branch, and the final result
+//   all draw from it.
+const C2KG_FACT_CAP = 50;
+
 export function c2kgProbe(scopeRoot: string): ConsumerProbe {
   const indexPath = path.join(scopeRoot, ".c2kg/index.json");
   return {
@@ -24,7 +29,21 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
     rung: "context",
     dependency: "the code-to-knowledge-graph LSP index",
     errorCode: "GI_LAYER_C2KG",
-    up: () => probePath(indexPath, true),
+    up: () => {
+      // ★ F4 FIX (2026-10-07, the red-team audit): a SYMBOL LIST is not a GRAPH. The old
+      //   `probePath(indexPath, true)` read UP on a 0-edge index — a file list wearing a
+      //   graph's name. A context rung MUST carry RELATIONSHIPS; require edges > 0.
+      const base = probePath(indexPath, true);
+      if (!base.up) return base;
+      try {
+        const idx = JSON.parse(fs.readFileSync(indexPath, "utf8")) as C2kgIndex;
+        const edges = Array.isArray(idx?.edges) ? idx.edges.length : 0;
+        if (edges === 0) return { up: false, evidence: `${indexPath} — 0 edges (a symbol list is not a graph; run scripts/c2kg-produce/run.sh)` };
+        return { up: true, evidence: `${indexPath} (${edges} edges)` };
+      } catch {
+        return { up: false, evidence: `${indexPath} — unparseable` };
+      }
+    },
     facts: (subject: string): LayerFact[] => {
       // ★ GATE M-5 FIXED: a substrate fault THROWS (GI_LAYER_DOWN), never []. This is the
       //   SAME class as the audit's H-2 — fixed in _shared.ts then, SWEPT to every adapter now.
@@ -55,7 +74,7 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       );
       // ★ AUDIT FIX (2026-10-03): cap BEFORE `.map` — an untrusted index with a large hit set
       //   materialized every row before the final `.slice(0,50)`. Matches the edge path.
-      const symbolFacts: LayerFact[] = hits.slice(0, 50).map((s) => ({
+      const symbolFacts: LayerFact[] = hits.slice(0, C2KG_FACT_CAP).map((s) => ({
         consumer: "L4_C2KG" as const,
         rung: "context" as const,
         subject,
@@ -73,7 +92,8 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
       const edgeFacts: LayerFact[] = idxEdges
         .filter((e) => typeof e === "object" && e !== null &&
           (String(e["src"] ?? "").includes(subject) || String(e["dst"] ?? "").includes(subject)))
-        .slice(0, 50)
+        
+        .slice(0, C2KG_FACT_CAP)
         .map((e) => ({
           consumer: "L4_C2KG" as const,
           rung: "context" as const,
@@ -90,7 +110,7 @@ export function c2kgProbe(scopeRoot: string): ConsumerProbe {
         }));
       // ★ AUDIT FIX (2026-10-03): EDGES FIRST. `symbolFacts.concat(edgeFacts).slice(0,50)` let 50
       //   symbol matches starve every edge fact (the context rung's actual value). Edges lead.
-      return edgeFacts.concat(symbolFacts).slice(0, 50);
+      return edgeFacts.concat(symbolFacts).slice(0, C2KG_FACT_CAP);
     },
   };
 }

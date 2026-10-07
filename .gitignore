@@ -44,8 +44,11 @@ gi-project
 # COMMITTED (kg.json 181k lines, .ua 100k lines, 20 tracked sqlite files / 85 MB) because these
 # four dirs were never ignored and `git add -A` swept them in. They are INGEST OUTPUTS, not source.
 .ua/
-.c2kg/
+.c2kg/*
 graphify-out/
+# ★ 2026-10-07: the C2KG INDEX is the L4 substrate — 99KB, the 411 edges. TRACKED so a regen
+#   cannot silently drop them (the F3 guard in scripts/c2kg-produce/run.sh fails loud on 0 edges).
+!.c2kg/index.json
 .omp/graph-intelligence/
 .bevel/
 

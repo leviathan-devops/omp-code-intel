@@ -58,6 +58,17 @@ export function resolveStore(projectRoot: string): ResolvedStore {
   return { path: "", ok: false, reason: `GI_NO_STORE: no populated store under ${projectRoot}/.omp/graph-intelligence (run: bun scripts/gi-populate.ts --target ${projectRoot})` };
 }
 
+/** ★ F2 FIX (2026-10-07): the SECOND populated substrate store (for the CONFLICT card — the
+ *  L5/L6 disagreement diff). Returns the next existing store after the primary, or null. */
+function resolveAltStore(projectRoot: string, primary: string): string | null {
+  for (const rel of STORE_RELS) {
+    const p = path.join(projectRoot, rel);
+    if (p === primary) continue;
+    if (fs.existsSync(p) && nodeCountRaw(p) > 0) return p;
+  }
+  return null;
+}
+
 /** The diagnostics for one file (the didOpen/didChange core). Throws GI_NO_STORE when absent. */
 export function diagnosticsFor(projectRoot: string, absFile: string): { cards: FactCard[]; relFile: string } {
   const store = resolveStore(projectRoot);
@@ -72,13 +83,18 @@ export function diagnosticsFor(projectRoot: string, absFile: string): { cards: F
   // ★ the PROJECT store is opened DIRECTLY (it does not satisfy openTypedStore's
   //   session-store path contract) — the cards use the `*InDb` cores.
   const db = new Database(store.path, { readonly: true });
+  let altDb: Database | null = null;
   try {
     // ★ W4 — the LIVE JevK5 judge (TSG rung). A DOWN endpoint throws inside meaningCard →
     //   fail-open (no MEANING card), never a broken editor.
     const judge = jevk5Probe(projectRoot).facts; // facts IS the (subject)=>LayerFact[] judge
-    const cards = fileCards({ db, projectRoot, relFile, src, judge });
+    // ★ F2 FIX (2026-10-07): open the SECOND substrate store so the CONFLICT shape is reachable.
+    const alt = resolveAltStore(projectRoot, store.path);
+    if (alt) altDb = new Database(alt, { readonly: true });
+    const cards = fileCards({ db, projectRoot, relFile, src, judge, altDb: altDb ?? undefined });
     return { cards, relFile };
   } finally {
+    altDb?.close();
     db.close();
   }
 }
