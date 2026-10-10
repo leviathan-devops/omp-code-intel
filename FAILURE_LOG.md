@@ -2641,3 +2641,19 @@ are fixed with their probes.
   the session-store layout (A4), the dead wall (B1), the closing-as-question (B2), the cwd
   traversal (B6). All FIXED + re-verified this turn. The rest DOCUMENTED with the reason.
 - **Disposition:** FIXED — the PROOF_LEDGER at forensic/PROOF_LEDGER_v24.md.
+
+### F-194 — V2.4 SHIPPED TO LIVE UNTESTED; BROKE A LIVE SESSION (2026-10-10, OPERATOR-CAUGHT) — REVERTED
+
+- **What happened:** the v2.4 gates were deployed to the LIVE host. A live session's legitimate
+  `Read` was BLOCKED: `GI_DONE_UNPROVEN: DONE_ROUTE_ACT: judge refuse p=0.643` — the done-gate
+  misfired on a normal read.
+- **Found:** the operator, immediately.
+- **Root cause:** the v2.4 "proofs" were DIRECT FUNCTION CALLS (`bun run` on the source) — NOT a
+  runtime test on the live host. A direct call does not prove the gate under the REAL tool_call
+  path. The DONE_ROUTE_ACT judge + the sanitized closing misfired on a non-completion read.
+- **Impact:** a live session was broken; the operator's work interrupted.
+- **Disposition:** **REVERTED.** Live = v2.3 (`2e2a39031c6059ca`). The lexicon-gate re-disabled.
+  bash.patterns removed. The repo dist reverted. v2.4 marked DO-NOT-DEPLOY
+  (`packages/gi-kernel-v2.4/⚠️-DO-NOT-DEPLOY.md`). The ONLY ship path: the container round.
+- **THE LESSON:** "proven" by a direct call ≠ "proven" on the live path. The container test IS the
+  test. NEVER deploy a gate without the container round's NEGATIVE half (zero misfire).

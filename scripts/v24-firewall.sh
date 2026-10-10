@@ -20,13 +20,21 @@ if grep -rn 'api\.typesafe\.ai' "$R/src/" "$HOME/.omp/agent/extensions/lexicon-g
 else
   pass "no remote-judge reference"
 fi
-# 3. THE NULL JUDGE — a GRAY-band row with jev:null is a HARD STOP. (Fire/silent rows
-#    record null BY DESIGN — the judge is the gray-zone exception handler, never the hot path.)
-#    The check: the newest gray-band rows must carry a judge read.
+# 3. THE NULL JUDGE — the GRAY-band rows must carry a judge read. (Fire/silent rows record
+#    null BY DESIGN.) Assert the NEWEST row's shape, not the existence of any one row
+#    (the auditor's F5: one placeable row turned an 85%-null ledger green).
 if [ -f "$HOME/.omp/run/lexicon-ledger.jsonl" ]; then
-  GRAY=$(tail -40 "$HOME/.omp/run/lexicon-ledger.jsonl" | grep -c '"jev":0\.[0-9]' || true)
-  echo "  (newest 40 rows carry $GRAY real judge reads; the W1 row is among them)"
-  [ "$GRAY" -ge 1 ] && pass "a gray-band row carries a judge read" || fail "no gray-band row carries a judge read"
+  LAST=$(tail -1 "$HOME/.omp/run/lexicon-ledger.jsonl")
+  case "$LAST" in
+    *'"source_kind":"own_utterance"'*) : ;;
+  esac
+  if echo "$LAST" | grep -q '"jev":0\.[0-9]'; then
+    pass "the newest ledger row carries a judge read (jev:0.<p>)"
+  elif echo "$LAST" | grep -q '"confidence":0\.[0-9]*.*"source_kind":"(quotation|table|doc|rule_source)"'; then
+    pass "the newest row is a non-actionable source-kind (null is correct by design)"
+  else
+    fail "the newest ledger row is neither a judge read nor a non-actionable source-kind"
+  fi
 fi
 # 4. THE LOCAL JUDGE — :8090 must answer
 if curl -s -m5 http://127.0.0.1:8090/health | grep -q '"ok"'; then
@@ -34,8 +42,10 @@ if curl -s -m5 http://127.0.0.1:8090/health | grep -q '"ok"'; then
 else
   fail "the local judge is DOWN"
 fi
-# 5. THE UNGATED EDIT — the query mandate must be in the gate
-grep -q 'detectCorpusRead\|GI_QUERY_REQUIRED' "$R/src/omp/gate-hook.ts" "$R/src/omp/graph-gate.ts" 2>/dev/null && pass "the query mandate exists" || fail "the query mandate missing"
+# 5. THE UNGATED EDIT — the query mandate must be in the gate. The runtime emits
+#    GRAPH_GATE_DRIFT_HIGH (T2) / GRAPH_GATE_ABORT (T3) — NOT a GI_QUERY_REQUIRED token
+#    (that token exists only in docs; the auditor caught it). Assert the REAL tokens.
+grep -q 'GRAPH_GATE_DRIFT_HIGH' "$R/src/omp/graph-gate.ts" && pass "the query mandate exists (GRAPH_GATE_DRIFT_HIGH)" || fail "the query mandate missing"
 # 6. THE RAW CORPUS READ — the retrieval detector must exist
 grep -q 'RETRIEVAL_READ' "$R/src/omp/jev.ts" && pass "the retrieval candidate exists" || fail "the retrieval candidate missing"
 # 7. THE DONE-WITHOUT-PROOF — the route=act builder must exist
