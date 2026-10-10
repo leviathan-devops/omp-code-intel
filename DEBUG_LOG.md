@@ -2598,3 +2598,23 @@ it ran 3 happy-path scenarios. THE PROPER SUITE (plan .omp/ct-plan-v2.md, 4587 c
   `JSON.parse(...) as T` is an unchecked cast — the same class F-815 fixed one level down. Guard the
   cast, not just the fields.
 
+
+## EN-33 — THE ROOT CAUSE: a capability off the critical path is not used (2026-10-10)
+
+- **THE FINDING:** the operator asked why agents default to grep/line-reads when the graph+Jev exist. MEASURED across two sessions: Plutus Vision (the GI decision tools called **0 times** in 3 days) and this session (6 scouts grep'd 151 MB instead of indexing it).
+- **THE ROOT CAUSE (first-principles):** retrieval has a FRICTION GRADIENT. `grep`/`read` sit at the bottom (always available, zero setup, no failure mode). The graph sits higher (a store must be POPULATED; a tool must be CHOSEN; a failure is possible). The model's default is the lowest-friction action. NOTHING MECHANICALLY PENALIZES the cheap path or REQUIRES the expensive one. Prompting ("use the graph") is prose — it loses to the gradient every time.
+- **THE FIX (mechanical, not advisory):** the cheap path must FAIL when the graph path exists. A `grep`/`sed` over a corpus that has a graph index → REFUSED with the named remedy (the index + query). The graph is populated ON FIRST RUN (so the friction is zero). The Jev judge is the terminal decision. This is the mandatory-retrieval gate.
+- **THE VERIFICATION:** F-186..F-189 in FAILURE_LOG; the measured census (GI tools 0 · bash 10,500 · the pbk gates firing on the wrong classes).
+- **THE LESSON:** never ship a "prefer X" instruction and call it enforcement. If the default action can succeed without X, X is decorative. The gate belongs on the ACTION, not in the prompt.
+
+## EN-34 — THE GRAPH+JEV WORKFLOW WORKS; THE GAP IS THAT NOTHING FORCES IT (2026-10-10)
+
+- **THE FINDING (the operator's build, demonstrated live in 3 commands):**
+  `jev verb=index target=<session dir>` → `JM_INDEX_OK files=6844 changed=6844 ms=158758 db=/home/leviathan/.jm/index/-JARVIS_WORKSPACE-Shared_Workspace-c0e4f1.sqlite` ($0, keyless).
+  `jev verb=report index=pv-session` → `files 6844 · docs/fts 13953 · ledger 482 rows · $0.0469 total`.
+  `jev verb=query index=pv-session fts=GI_NO_STORE` → ranked rows, **$0**.
+  `jev verb=filter index=pv-session question="Does this show the GI kernel reporting a failure and the agent continuing?" min_p=0.5` → `judged=200 kept=8 requests=1` at **$0.0016**.
+- **THE CONTRAST:** the same data via 6 grep scouts = unbounded, slow, context-hostile. Via the graph = 3 commands, ~$0.002, ranked, scalable.
+- **THE ROOT CAUSE:** the index-and-query path is a TOOL + a SKILL (optional) — never a GATE (mandatory). Agents default to the lowest-friction retrieval (grep/read) because nothing penalizes it. See F-189/F-190/F-191/F-192.
+- **THE FIX:** the mandatory-retrieval gate — a read/grep over a corpus that HAS (or CAN HAVE) a graph index must be refused with the named remedy (index it + query it). Populate-on-first-run so the friction is zero.
+- **THE LESSON:** ship no "prefer X" instruction and call it enforcement. Gate the ACTION or it is decorative.

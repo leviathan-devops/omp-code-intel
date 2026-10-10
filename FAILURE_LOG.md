@@ -2584,3 +2584,53 @@ are fixed with their probes.
   `/tmp/sg-ocr-728e6ceb94844450.json` (+ `artifacts/`); findings adjudicated (DEBUG_LOG EN-32). Verdict:
   `GATE: FAIL (1 critical, 2 high)` → **0 critical/high OPEN** after the fixes (1 crit FIXED+PROVEN, 1
   high FIXED, 1 high NOT-A-BUG documented, mediums FIXED).
+
+### F-186 — THE PLUTUS VISION DERAIL: 3 days, the GI kernel intervened ZERO times (2026-10-10)
+- **What happened:** the operator gave session `01a0c0e5` (PLUTUS VISION, cwd `/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace`) a 15-minute task (restore the V2 ship-approved checkpoint + render it on the IDE). It ran 3 days. Final operator verdict, verbatim: *"Rejected. There is no fucking IDE open on my fucking desktop. You haven't restored shit. Go fuck yourself."*
+- **Found:** the operator, after 3 days.
+- **Root cause (MEASURED):** the GI kernel is a LIBRARY the agent MAY consult. Measured in the transcript: GI decision tools invoked **0 times** (`graph-query 0 · graph-probe 0 · bug-hunt 0 · aether-code-audit 0 · gi-consumption 0 · gi-decide 0`) against `bash 10,500 · read 2,812 · eval 1,922 · edit 1,650 · write 800`. The graph gate fired **1 time** (`GRAPH_GATE_ABORT=1`, `DRIFT=5`) across **2,450 edits** — and its ONLY trigger is a STRIPPED EXPORT (`src/omp/gate-middleware.ts`), a class the derail never entered. The LSP DID run (globally registered `~/.omp/agent/lsp.json`) but the store at `Shared_Workspace/.omp/graph-intelligence/` holds ONLY `sessions/` (no warm indexes) → `GI_NO_STORE` 6×; the agent's thinking: *"GI_NO_STORE: no populated store — informational, not my problem"*.
+- **THE SEPARATE FINDING (my earlier error, corrected):** the OTHER stack — the pbk-v2 gate chain (`~/.omp/agent/extensions/pbk/dist.js`, config.yml:11) — DID fire heavily: `STTGF 292 · ESCALATE 75 · BLOCK 19 · lexicon 130 · SMOKE 96 · DOC-DENSITY 25`. So enforcement was NOT absent; it policed the WRONG CLASSES (inline-exec · headless · doc-density) and never the derail classes (approach-selection · loop-repeat · unread-instruction · no-render).
+- **Impact:** 3 days, ~800M operator-side tokens, zero forward progress; the task was never completed.
+- **Disposition:** OPEN — fix = the enforcement-path rebuild (kernel as GATE, not TOOL).
+
+### F-187 — MY OWN OFFENSE: the session-data retrieval was grep+scouts, NOT the graph+Jev (2026-10-10)
+- **What happened:** to extract the Plutus derail data I dispatched 6 scouts to `sed`/`grep` a 151 MB / 36,780-line transcript line-by-line, and never invoked the Jev tool.
+- **Found:** the operator, immediately: *"you can't fit that in your context window... it's slow and inefficient... that's literally what the graphs are for... You're literally committing the exact same offense as you're reading right now."*
+- **Root cause:** the SAME root as F-186 — the graph was not consulted when it was the correct instrument. The failure is not the tool's absence; it is the DEFAULT RETRIEVAL HABIT (grep → read) winning over the purpose-built index. The path of least resistance is grep; nothing MECHANICALLY forces the graph.
+- **Impact:** slow, token-inefficient, unscalable — and it proved the operator's point by repeating it.
+- **Disposition:** OPEN — fix = the mandatory-retrieval gate (F-188).
+
+### F-188 — THE ENFORCEMENT-PATH GAP: every kernel surface is advisory (2026-10-10)
+- **What happened:** every GI surface (LSP cards · graph gate · decision verbs) can be ignored. The LSP reports `GI_NO_STORE` and the session continues; the graph gate watches exports; the decision verbs wait to be called.
+- **Root cause (5-why):** (1) the kernel is a TOOL → tools are optional; (2) the gate watches 1 class (exports) → the derail was in another; (3) the LSP refusal is LOUD but toothless → no block; (4) the substrate was never populated in the workspace → no data; (5) "done" had no mechanical gate → a commit read as a render.
+- **Impact:** the kernel shipped as a library; it intervened zero times in the session that needed it.
+- **Disposition:** OPEN — fix = R1-R6 (query-mandated edits · GI_NO_STORE hard-block · populate-on-first-run · loop/approach/instruction gates · the Jev done-gate · standing-directive enforcement).
+
+### F-189 — THE ROOT CAUSE OF "AGENTS IGNORE THE BETTER TOOL" (2026-10-10)
+- **What happened:** the operator's question: *"why do agents keep defaulting to stupid inefficient garbage when the tools... have been created and wired... and there's still not being used? Why?"*
+- **Root cause (MEASURED, first-principles):** a capability that is not on the CRITICAL PATH is not used. The model's default retrieval is the LOWEST-FRICTION one (`grep`/`read` — always available, no setup, no failure mode). The graph is HIGHER-friction (a store must be populated; a tool call must be chosen; a failure is possible). NOTHING MECHANICALLY PENALIZES the cheap path or REQUIRES the expensive one. Prompting ("use the graph") is advisory prose — it loses to the gradient of least effort. **The fix is not prompting. The fix is a MECHANICAL GATE: the cheap path must FAIL when the graph path exists.**
+- **Impact:** every "please use X" instruction decays to grep.
+- **Disposition:** OPEN — fix = the mandatory-retrieval gate (blocking `grep`/line-reads over a session transcript when a graph index of it exists).
+
+### F-190 — THE COMMON-SENSE FAILURE CLASS: the graph exists, the agent greps anyway (2026-10-10)
+- **What happened:** the operator's core indictment, verbatim: *"That's literally the entire purpose of what you've been building for the last two weeks."* The GI kernel (6 graph layers + the Jev judge + the transcript indexer) exists SPECIFICALLY to turn a 151 MB session transcript into a queryable graph. Every time an agent needs session data, it should INDEX → QUERY → JUDGE. Measured: none of them did.
+- **THE MEASURED PROOF (this session, both directions):**
+  - **The WRONG way (what happened):** 6 scouts × `sed -n 'A,Bp' | grep -oE` over a 151 MB / 36,780-line transcript. Slow, unbounded, context-hostile, unscalable.
+  - **The RIGHT way (what I then did, in 3 commands):** `jev verb=index target=<session dir>` → `JM_INDEX_OK files=6844 changed=6844 ms=158758 db=…sqlite` ($0, keyless). Then `jev verb=report` → `files 6844 · docs/fts 13953 · $0.046 total`. Then `jev verb=query --fts GI_NO_STORE` → ranked rows in **$0**. Then `jev verb=filter --question "…" --min_p 0.5` → `judged=200 kept=8 requests=1` at **$0.0016**.
+  - **THE GAP:** the right way took 3 commands and ~$0.002. The wrong way took 6 agents and an unbounded scan. The RIGHT way was skipped because nothing forces it.
+- **Root cause:** see F-189. A capability off the critical path is not used; the friction gradient wins; prose ("use the graph") is not enforcement.
+- **Impact:** the operator's two weeks of kernel work is decorative until the DEFAULT retrieval is the graph. Every grep is a repudiation of the build.
+- **Disposition:** OPEN — the mandatory-retrieval gate (the plan below).
+
+### F-191 — THE MISSING WORKFLOW: no "index-a-corpus-then-query" path is wired anywhere (2026-10-10)
+- **What happened:** the operator's instruction, verbatim: *"build a knowledge graph and a context graph and a decision making graph on the session data and then query that graph... that is literally exactly the workflow that's supposed to be there. Apparently doesn't fucking exist, even though I told you to build it."*
+- **THE EVIDENCE:** there is NO skill, NO agent body, NO TTSR rule, NO hook, and NO doc that says "to read a session/transcript/corpus, INDEX it with the jev tool, then QUERY." The jev tool exists; the `jev-manager-operator` / `data-structure-creation` skills describe it; NOTHING puts it on the read path.
+- **Root cause:** the workflow was built as a TOOL + a SKILL (discoverable, optional) — never as a GATE (mandatory, on the path). Same class as F-188/F-189.
+- **Impact:** the capability to index-and-query exists and is unused; agents re-derive by grep.
+- **Disposition:** OPEN — the workflow must be written (the plan) AND gated.
+
+### F-192 — THE PROMPTING ILLUSION: "prefer X" instructions do not change defaults (2026-10-10)
+- **What happened:** across the kernel's docs/skills/warheads there are many "use the graph" / "QUERY THE GRAPH before every structural code edit" directives (RULES.md, the graph-first warhead). The Plutus session proves they did not change behavior: 0 graph-query calls in 3 days.
+- **Root cause:** a directive in the prompt is a PRIOR, not a CONSTRAINT. The model's action selection is driven by the local friction gradient, not by a distant admonition. Only a MECHANICAL GATE (the cheap path FAILS) changes the selected action.
+- **Impact:** advisory enforcement across the whole host is decorative.
+- **Disposition:** OPEN — replace advisories with gates on the ACTION.

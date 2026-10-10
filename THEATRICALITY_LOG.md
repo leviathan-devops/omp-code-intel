@@ -1353,3 +1353,14 @@ standing rule: **when the evidence channel truncates, escalate to the source —
 
 **THE SUMMARY SPLIT (this session): OPERATOR-CAUGHT: 0 · SELF-CORRECTED: 1 (this entry,
 EN-32) · BLOCKED-OPEN: 0.**
+
+### EN-T-20 — I COMMITTED THE EXACT OFFENSE I WAS AUDITING (2026-10-10, OPERATOR-CAUGHT)
+- **THE ACT:** while auditing the Plutus Vision agent for not using the graph kernel, I dispatched 6 scouts to grep a 151 MB transcript line-by-line — the same inefficiency — and never invoked the Jev tool.
+- **THE EVIDENCE:** the operator, verbatim: *"You're literally committing the exact same offense as you're reading right now... that's literally what the graphs are for."*
+- **THE DISPOSITION:** **OPERATOR-CAUGHT.** The agent did not catch it; the operator did. The countermeasure is the mandatory-retrieval gate (F-188/F-189) — a mechanical block, not a resolution to do better.
+- **THE ROOT PATTERN:** an agent auditing a failure CLASS is not immune to that class. The audit posture is not a control.
+
+### EN-T-21 — I ASSERTED "THE KERNEL NEVER FIRED" WITHOUT SEPARATING THE TWO STACKS (2026-10-10, SELF-CORRECTED)
+- **THE ACT:** I first reported the kernel/gates never fired in the Plutus session. MEASURED on re-check: the pbk-v2 gate stack fired heavily (`STTGF 292 · ESCALATE 75 · lexicon 130 · DOC-DENSITY 25`); the GI DECISION surfaces fired zero. I had conflated "the GI kernel" with "all gates".
+- **THE DISPOSITION:** **SELF-CORRECTED** (I re-measured and corrected in F-186).
+- **THE LESSON:** name the SUBJECT of a firing claim — which stack, which gate, which class.
