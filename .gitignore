@@ -30,6 +30,7 @@ research/graph-infra-repos/
 # ★ v2.3 FULL SET (operator order 2026-10-07: back the full v2.3 up with no data loss)
 !Checkpoints/gi-kernel-v2.3-*/
 !Checkpoints/gi-jev-decision-layer-v2.3-redteam-ready/
+!Checkpoints/gi-kernel-v2.4-sealed-*/
 !Ship_Packages/gi-6l2e-gaps-closed-audited/
 
 # corbell's own workspace (recreated by `corbell init` on demand — the adapter's
