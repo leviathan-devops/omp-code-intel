@@ -73,6 +73,22 @@ function baseName(p: string): string {
   return p.split("/").pop() ?? p;
 }
 
+/** ★ V2.4 W3 — THE FUNCTION-SYMBOL EXTRACTOR. A logic edit (function bodies, no exports)
+ *  carries NO export symbols — so it was structurally INVISIBLE to the gate (symbol-less edits
+ *  are skipped by consecutiveUnverified (F-35) and weighted 0 by computeDrift). Extract the
+ *  DEFINED function/class names so a logic edit has COVERABLE symbols.
+ *  THE BOUND: the first 40 names (a body is not an export list; the cap keeps the set honest). */
+function extractFunctionSymbols(text: string): string[] {
+  const out: string[] = [];
+  const re = /\b(?:async\s+)?(?:function\s*\*?\s*([A-Za-z_$][A-Za-z0-9_$]*)|(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>|class\s+([A-Za-z_$][A-Za-z0-9_$]*))/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1] ?? m[2] ?? m[3] ?? "";
+    if (name && !out.includes(name) && out.length < 40) out.push(name);
+  }
+  return out;
+}
+
 function extractExportSymbols(text: string): string[] {
   const out: string[] = [];
   const re = /\bexport\s+(?:async\s+)?(?:function|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g;
@@ -104,6 +120,11 @@ export function classifyEdit(toolName: string, args: { file?: string; path?: str
   //   content fallback (a whole-file write's symbols ARE the new symbols).
   const oldSyms = extractExportSymbols(args.oldString ?? "");
   const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
+  // ★ V2.4 W3 — THE LOGIC-EDIT SYMBOLS. A MEDIUM edit has no exports, so oldSyms/newSyms are
+  //   EMPTY and the edit is structurally invisible (skipped by consecutiveUnverified, weighted
+  //   0 by computeDrift). Extract the DEFINED function/class names as the coverable symbols.
+  const oldFn = extractFunctionSymbols(args.oldString ?? "");
+  const newFn = extractFunctionSymbols(args.newString ?? args.content ?? "");
   const structural = oldSyms.length > 0 || newSyms.length > 0
     || /\bimport\s+.*\bfrom\b/.test(body)
     || /\bexport\s+default\b/.test(body)
@@ -112,7 +133,7 @@ export function classifyEdit(toolName: string, args: { file?: string; path?: str
     //   NAME the intent: an annotation change is structural only on an EXPORTED
     //   type/interface (a `: string`→`: number` tweak on module-private code stays MEDIUM).
     || (/:\s*[A-Za-z_$][A-Za-z0-9_$<>[\]|]*\s*[=;{]/.test(body) && /export\s+(type|interface)/.test(body));
-  const touchedSymbols = [...new Set([...oldSyms, ...newSyms])];
+  const touchedSymbols = [...new Set([...oldSyms, ...newSyms, ...oldFn, ...newFn])];
   const flags: string[] = [];
   if (oldSyms.length > 0 || newSyms.length > 0) flags.push("export_change");
   if (/\bimport\s+.*\bfrom\b/.test(body)) flags.push("import_change");

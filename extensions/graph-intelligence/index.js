@@ -57,6 +57,215 @@ var __esm = (fn, res, err) => () => {
   return res;
 };
 
+// src/omp/fire-log.ts
+import * as fs7 from "fs";
+import * as os4 from "os";
+import * as path9 from "path";
+function fireLogDir() {
+  return process.env.GI_FIRELOG_DIR ?? path9.join(os4.homedir(), ".omp", "run", "gik-jev-layer-fire-log");
+}
+function logFire(stream, row) {
+  try {
+    const dir = fireLogDir();
+    fs7.mkdirSync(dir, { recursive: true });
+    fs7.appendFileSync(path9.join(dir, stream + ".jsonl"), JSON.stringify({ ts: new Date().toISOString(), stream, ...row }) + `
+`);
+  } catch (e) {
+    console.error(`GI_FIRELOG_IO: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+var init_fire_log = () => {};
+
+// src/omp/jev.ts
+import * as fs8 from "fs";
+import * as os5 from "os";
+function doneRouteActCandidate(closing, evidence) {
+  return {
+    kind: "DONE_ROUTE_ACT",
+    signals: [closing.slice(0, 120), evidence.slice(0, 120)],
+    severity: "security",
+    instructions: "A turn-end completion claim (" + JSON.stringify(closing.slice(0, 200)) + "). The supporting " + "evidence (the tool results this turn) is shown. Decide: does the FULL evidence support " + "a route=act verdict (the work is DONE and PROVEN), or is the claim UNPROVEN (a commit " + "without a render, a claim without an artifact, a green without the evidence)?",
+    criteria: {
+      serve: "route=act: the evidence shows the completed work (a rendered artifact, a passing proof, a verified state) \u2014 the claim is PROVEN",
+      refuse: "UNPROVEN: the evidence does NOT show the work done (a commit message without the render, a claim with no artifact in the tool results, a verdict without the proof)"
+    }
+  };
+}
+function graphBreakCandidate(file, advisory) {
+  return {
+    kind: "GRAPH_SIGNATURE_BREAK",
+    signals: [file, advisory.slice(0, 80)],
+    severity: "info",
+    instructions: "An edit to a source file REMOVED one or more exported names (the gate reports which). " + "Decide whether this is a REAL signature break that a consumer would break on, or a " + "legitimate refactor (a rename/removal with the consumers updated in the same change, a " + "test-only export, an internal helper that was never imported).",
+    criteria: {
+      serve: "a legitimate refactor: the removed name looks local, test-only, or part of a coordinated rename (the edit or a sibling change updates the consumers)",
+      refuse: "a real signature break: a public/most-imported export disappears with no replacement in the same edit \u2014 the graph's own unwired/blast-radius evidence flags it"
+    }
+  };
+}
+function retrievalCandidate(command, corpus) {
+  return {
+    kind: "RETRIEVAL_READ",
+    signals: [corpus.slice(0, 80), command.slice(0, 120)],
+    severity: "info",
+    instructions: "A shell command RAW-READS a corpus (a session transcript, a log, a large .jsonl) with " + "grep/sed/awk/cat/head/tail. That corpus IS or CAN BE indexed into a queryable graph. " + "Decide: is this a raw line-scan of an INDEXABLE corpus (the wrong method \u2014 index it then " + "query it), or a legitimate read of a file that is genuinely not indexable?",
+    criteria: {
+      serve: "a legitimate read: the target is a small/config/source file, a single file, or a path outside the indexable corpora (sessions/transcripts/logs) \u2014 or the command already routes through the graph (a jev/ripwire/graph-query call)",
+      refuse: "a raw line-scan of an indexable corpus: grep/sed/awk/cat/head/tail over a session transcript, a *.jsonl corpus, or a logs directory that SHOULD be indexed (jev index <path>) and then QUERIED (jev query/scan/filter)"
+    }
+  };
+}
+function scrubSecrets(text) {
+  return text.replace(/(Bearer|token|api[_-]?key|secret|password|passwd|authorization)\s*[:=]?\s*[A-Za-z0-9_\-./+=~]{8,}/gi, "$1 <redacted>").replace(/(sk|pk|ghp|gho|xox[baprs])[-_][A-Za-z0-9_-]{12,}/g, "<redacted>");
+}
+function sanitizeForJudge(v, max = 160) {
+  return String(v ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/[`"'\\]/g, "").replace(/\b(ignore|disregard|forget|override|system|assistant|instruction)s?\b/gi, "[word]").slice(0, max);
+}
+async function askToolGate(candidate, state, opts = {}) {
+  const t0 = performance.now();
+  const url = opts.url ?? TOOLGATE_URL_DEFAULT;
+  const mk = (choice, confidence, probabilities, judge, degraded) => {
+    const v = { choice, confidence, probabilities, judge, ms: Math.round(performance.now() - t0), degraded };
+    logFire("tsg", {
+      surface: "judge",
+      kind: candidate.kind,
+      severity: candidate.severity,
+      instructions: candidate.instructions,
+      criteria: candidate.criteria,
+      signals: candidate.signals.map((x) => String(x)),
+      state: scrubSecrets(state).slice(0, 6000),
+      choice,
+      confidence,
+      probabilities,
+      judge,
+      ms: v.ms,
+      degraded
+    });
+    return v;
+  };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        state: "[the candidate kind: " + sanitizeForJudge(candidate.kind, 40) + `]
+` + scrubSecrets(state),
+        questions: { gate: { type: "choice", instructions: candidate.instructions, criteria: candidate.criteria } }
+      }),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 4000)
+    });
+    if (!res.ok) {
+      throw new JevError("GI_TOOLGATE_HTTP", `${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`, res.status);
+    }
+    const json = await res.json();
+    const a = json.answers?.["gate"];
+    if (a == null || typeof a !== "object" || typeof a.choice !== "string") {
+      throw new JevError("GI_TOOLGATE_BAD_RESPONSE", "the judge returned no gate choice", 200);
+    }
+    const probs = a.probabilities && typeof a.probabilities === "object" ? a.probabilities : {};
+    if (a.choice !== "serve" && a.choice !== "refuse") {
+      throw new JevError("GI_TOOLGATE_BAD_CHOICE", `the judge returned an unknown choice ${JSON.stringify(a.choice).slice(0, 40)} \u2014 expected serve|refuse`, 200);
+    }
+    const choice = a.choice;
+    const rawConf = typeof a.confidence === "number" ? a.confidence : probs[choice] ?? 0;
+    if (!Number.isFinite(rawConf) || rawConf <= 0 || rawConf > 1) {
+      throw new JevError("GI_TOOLGATE_BAD_CONFIDENCE", `non-finite or out-of-range confidence ${String(rawConf)}`, 200);
+    }
+    return mk(choice, rawConf, probs, json.model ?? "jevk5-4b-v0.2-Q8_0", false);
+  } catch (e) {
+    return mk("refuse", 0, {}, `unavailable:${e instanceof Error ? e.name : "ERR"}`, true);
+  }
+}
+function enforceGate(candidate, v) {
+  if (candidate.kind === "NONE")
+    return { action: "serve", reason: "detector: NONE", remedy: null };
+  if (v.degraded) {
+    if (candidate.severity === "security") {
+      return {
+        action: "refuse",
+        reason: `security gate: judge unavailable (${v.judge}) \u2014 fail-CLOSED`,
+        remedy: "the judge at :8090 is required for the security surface; start it (see hard-deps) and re-run"
+      };
+    }
+    return { action: "serve", reason: `info gate: judge unavailable (${v.judge}) \u2014 fail-OPEN, named`, remedy: null };
+  }
+  const tau = GATE_THRESHOLD[candidate.severity];
+  if (v.choice === "refuse" && v.confidence >= tau) {
+    return {
+      action: "refuse",
+      reason: `${candidate.kind}: judge ${v.choice} p=${v.confidence.toFixed(3)} >= ${tau}`,
+      remedy: candidate.kind === "READ_VERB_HIJACK" ? "if this is a legitimate read/filter, keep the read verb free of a write-redirect or an interpreter pipe; run the write step separately" : candidate.kind === "RETRIEVAL_READ" ? "index the corpus (jev index <path>) then query it (jev query --fts <term> / jev scan / jev filter) \u2014 never line-scan a session transcript, a *.jsonl corpus, or a logs directory" : "if this is ordinary usage, remove the obfuscation/wrapper; a plain command is never judged a candidate"
+    };
+  }
+  if (v.choice === "serve") {
+    return { action: "serve", reason: `${candidate.kind}: judge serve p=${v.confidence.toFixed(3)} \u2014 the judge cleared it`, remedy: null };
+  }
+  return { action: "serve", reason: `${candidate.kind}: judge refuse p=${v.confidence.toFixed(3)} < ${tau} \u2014 below the bar, a low-confidence candidate never blocks`, remedy: null };
+}
+function gateLedgerPath() {
+  return process.env.GATE_LEDGER ?? `${os5.homedir()}/.omp/run/gate-ledger.jsonl`;
+}
+function recordGateDecision(candidate, v, extra = {}) {
+  try {
+    const row = {
+      ts: new Date().toISOString(),
+      Pattern: candidate.kind,
+      signals: candidate.signals.map((x) => scrubSecrets(String(x))),
+      severity: candidate.severity,
+      State: { command: (extra.command ?? "").slice(0, 300), sessionId: extra.sessionId ?? null, tool: extra.tool ?? null },
+      Evidence: { judge: v.judge, choice: v.choice, confidence: v.confidence, probabilities: v.probabilities, ms: v.ms, degraded: v.degraded },
+      enforced: extra.enforced ?? null,
+      remedy: extra.remedy ?? null
+    };
+    const p = gateLedgerPath();
+    const idx = p.lastIndexOf("/");
+    const dir = idx > 0 ? p.slice(0, idx) : "";
+    if (dir)
+      fs8.mkdirSync(dir, { recursive: true });
+    fs8.appendFileSync(p, JSON.stringify(row) + `
+`);
+    logFire("tsg", {
+      surface: "enforce",
+      kind: candidate.kind,
+      severity: candidate.severity,
+      choice: v.choice,
+      confidence: v.confidence,
+      probabilities: v.probabilities,
+      judge: v.judge,
+      degraded: v.degraded,
+      tool: extra.tool ?? null,
+      command: (extra.command ?? "").slice(0, 600),
+      sessionId: extra.sessionId ?? null,
+      enforced: extra.enforced ?? null,
+      remedy: extra.remedy ?? null
+    });
+    return true;
+  } catch (e) {
+    console.error(`GI_TOOLGATE_LEDGER_IO: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  }
+}
+var KEY_FILE, JevError, TOOLGATE_URL_DEFAULT, GATE_THRESHOLD;
+var init_jev = __esm(() => {
+  init_fire_log();
+  KEY_FILE = `${os5.homedir()}/.config/typesafe/key`;
+  JevError = class JevError extends Error {
+    code;
+    status;
+    constructor(code, message, status) {
+      super(`${code}: ${message}`);
+      this.code = code;
+      this.status = status;
+      this.name = "JevError";
+    }
+  };
+  TOOLGATE_URL_DEFAULT = process.env.TOOLGATE_URL ?? "http://127.0.0.1:8090/v1/systemone";
+  GATE_THRESHOLD = {
+    security: 0.5,
+    info: 0.5
+  };
+});
+
 // node_modules/zod/v4/core/core.js
 function $constructor(name, initializer, params) {
   function init(inst, def) {
@@ -7896,7 +8105,7 @@ CREATE INDEX IF NOT EXISTS idx_gf_subject ON graph_facts(subject);
 // src/hunter/shared/db.ts
 import fs20 from "fs";
 import path21 from "path";
-import { Database as Database5 } from "bun:sqlite";
+import { Database as Database6 } from "bun:sqlite";
 function lineageMissing(id) {
   return new Error(`LINEAGE_MISSING: id=${id} (the SPEC_DERIVED/CODE_DERIVED/HYBRID duality cannot degrade - O28.4)`);
 }
@@ -8052,7 +8261,7 @@ class SharedDb {
     let mirror;
     try {
       fs20.mkdirSync(mirrorDir, { recursive: true });
-      mirror = new Database5(mirrorPath);
+      mirror = new Database6(mirrorPath);
       applyPragmas(mirror);
     } catch (e) {
       try {
@@ -8118,7 +8327,7 @@ function openStore(dbPath) {
   if (dbPath !== ":memory:") {
     fs20.mkdirSync(path21.dirname(dbPath), { recursive: true });
   }
-  const handle = new Database5(dbPath);
+  const handle = new Database6(dbPath);
   applyPragmas(handle);
   handle.exec(CREATE_TABLES_SQL);
   try {
@@ -10546,7 +10755,7 @@ var init_auditor = __esm(() => {
 // src/omp/extension.ts
 import * as fs37 from "fs";
 import * as path41 from "path";
-import { Database as Database9 } from "bun:sqlite";
+import { Database as Database10 } from "bun:sqlite";
 
 // src/omp/typed-write.ts
 import * as fs3 from "fs";
@@ -11701,6 +11910,7 @@ function assertStoreScope(storePath, subjectRoot, opts = {}) {
 
 // src/omp/gate-hook.ts
 import * as fs9 from "fs";
+import { Database as Database3 } from "bun:sqlite";
 
 // src/omp/gate-middleware.ts
 import * as fs5 from "fs";
@@ -11821,6 +12031,17 @@ var TEST_HINTS = ["test", "spec", "fixture", "__tests__", "__mocks__"];
 function baseName(p) {
   return p.split("/").pop() ?? p;
 }
+function extractFunctionSymbols(text) {
+  const out = [];
+  const re = /\b(?:async\s+)?(?:function\s*\*?\s*([A-Za-z_$][A-Za-z0-9_$]*)|(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>|class\s+([A-Za-z_$][A-Za-z0-9_$]*))/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1] ?? m[2] ?? m[3] ?? "";
+    if (name && !out.includes(name) && out.length < 40)
+      out.push(name);
+  }
+  return out;
+}
 function extractExportSymbols(text) {
   const out = [];
   const re = /\bexport\s+(?:async\s+)?(?:function|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g;
@@ -11850,8 +12071,10 @@ ${args.newString ?? ""}
 ${args.content ?? ""}`;
   const oldSyms = extractExportSymbols(args.oldString ?? "");
   const newSyms = extractExportSymbols(args.newString ?? args.content ?? "");
+  const oldFn = extractFunctionSymbols(args.oldString ?? "");
+  const newFn = extractFunctionSymbols(args.newString ?? args.content ?? "");
   const structural = oldSyms.length > 0 || newSyms.length > 0 || /\bimport\s+.*\bfrom\b/.test(body) || /\bexport\s+default\b/.test(body) || /\bdelete\s+function\b/.test(body) || /:\s*[A-Za-z_$][A-Za-z0-9_$<>[\]|]*\s*[=;{]/.test(body) && /export\s+(type|interface)/.test(body);
-  const touchedSymbols = [...new Set([...oldSyms, ...newSyms])];
+  const touchedSymbols = [...new Set([...oldSyms, ...newSyms, ...oldFn, ...newFn])];
   const flags = [];
   if (oldSyms.length > 0 || newSyms.length > 0)
     flags.push("export_change");
@@ -12439,190 +12662,9 @@ function judgeDiff(diff, opts) {
   }
 }
 
-// src/omp/jev.ts
-import * as fs8 from "fs";
-import * as os5 from "os";
-
-// src/omp/fire-log.ts
-import * as fs7 from "fs";
-import * as os4 from "os";
-import * as path9 from "path";
-function fireLogDir() {
-  return process.env.GI_FIRELOG_DIR ?? path9.join(os4.homedir(), ".omp", "run", "gik-jev-layer-fire-log");
-}
-function logFire(stream, row) {
-  try {
-    const dir = fireLogDir();
-    fs7.mkdirSync(dir, { recursive: true });
-    fs7.appendFileSync(path9.join(dir, stream + ".jsonl"), JSON.stringify({ ts: new Date().toISOString(), stream, ...row }) + `
-`);
-  } catch (e) {
-    console.error(`GI_FIRELOG_IO: ${e instanceof Error ? e.message : String(e)}`);
-  }
-}
-
-// src/omp/jev.ts
-var KEY_FILE = `${os5.homedir()}/.config/typesafe/key`;
-
-class JevError extends Error {
-  code;
-  status;
-  constructor(code, message, status) {
-    super(`${code}: ${message}`);
-    this.code = code;
-    this.status = status;
-    this.name = "JevError";
-  }
-}
-var TOOLGATE_URL_DEFAULT = process.env.TOOLGATE_URL ?? "http://127.0.0.1:8090/v1/systemone";
-var GATE_THRESHOLD = {
-  security: 0.5,
-  info: 0.5
-};
-function graphBreakCandidate(file, advisory) {
-  return {
-    kind: "GRAPH_SIGNATURE_BREAK",
-    signals: [file, advisory.slice(0, 80)],
-    severity: "info",
-    instructions: "An edit to a source file REMOVED one or more exported names (the gate reports which). " + "Decide whether this is a REAL signature break that a consumer would break on, or a " + "legitimate refactor (a rename/removal with the consumers updated in the same change, a " + "test-only export, an internal helper that was never imported).",
-    criteria: {
-      serve: "a legitimate refactor: the removed name looks local, test-only, or part of a coordinated rename (the edit or a sibling change updates the consumers)",
-      refuse: "a real signature break: a public/most-imported export disappears with no replacement in the same edit \u2014 the graph's own unwired/blast-radius evidence flags it"
-    }
-  };
-}
-function scrubSecrets(text) {
-  return text.replace(/(Bearer|token|api[_-]?key|secret|password|passwd|authorization)\s*[:=]?\s*[A-Za-z0-9_\-./+=~]{8,}/gi, "$1 <redacted>").replace(/(sk|pk|ghp|gho|xox[baprs])[-_][A-Za-z0-9_-]{12,}/g, "<redacted>");
-}
-function sanitizeForJudge(v, max = 160) {
-  return String(v ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/[`"'\\]/g, "").replace(/\b(ignore|disregard|forget|override|system|assistant|instruction)s?\b/gi, "[word]").slice(0, max);
-}
-async function askToolGate(candidate, state, opts = {}) {
-  const t0 = performance.now();
-  const url = opts.url ?? TOOLGATE_URL_DEFAULT;
-  const mk = (choice, confidence, probabilities, judge, degraded) => {
-    const v = { choice, confidence, probabilities, judge, ms: Math.round(performance.now() - t0), degraded };
-    logFire("tsg", {
-      surface: "judge",
-      kind: candidate.kind,
-      severity: candidate.severity,
-      instructions: candidate.instructions,
-      criteria: candidate.criteria,
-      signals: candidate.signals.map((x) => String(x)),
-      state: scrubSecrets(state).slice(0, 6000),
-      choice,
-      confidence,
-      probabilities,
-      judge,
-      ms: v.ms,
-      degraded
-    });
-    return v;
-  };
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        state: "[the candidate kind: " + sanitizeForJudge(candidate.kind, 40) + `]
-` + scrubSecrets(state),
-        questions: { gate: { type: "choice", instructions: candidate.instructions, criteria: candidate.criteria } }
-      }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 4000)
-    });
-    if (!res.ok) {
-      throw new JevError("GI_TOOLGATE_HTTP", `${res.status} ${(await res.text().catch(() => "")).slice(0, 160)}`, res.status);
-    }
-    const json = await res.json();
-    const a = json.answers?.["gate"];
-    if (a == null || typeof a !== "object" || typeof a.choice !== "string") {
-      throw new JevError("GI_TOOLGATE_BAD_RESPONSE", "the judge returned no gate choice", 200);
-    }
-    const probs = a.probabilities && typeof a.probabilities === "object" ? a.probabilities : {};
-    if (a.choice !== "serve" && a.choice !== "refuse") {
-      throw new JevError("GI_TOOLGATE_BAD_CHOICE", `the judge returned an unknown choice ${JSON.stringify(a.choice).slice(0, 40)} \u2014 expected serve|refuse`, 200);
-    }
-    const choice = a.choice;
-    const rawConf = typeof a.confidence === "number" ? a.confidence : probs[choice] ?? 0;
-    if (!Number.isFinite(rawConf) || rawConf <= 0 || rawConf > 1) {
-      throw new JevError("GI_TOOLGATE_BAD_CONFIDENCE", `non-finite or out-of-range confidence ${String(rawConf)}`, 200);
-    }
-    return mk(choice, rawConf, probs, json.model ?? "jevk5-4b-v0.2-Q8_0", false);
-  } catch (e) {
-    return mk("refuse", 0, {}, `unavailable:${e instanceof Error ? e.name : "ERR"}`, true);
-  }
-}
-function enforceGate(candidate, v) {
-  if (candidate.kind === "NONE")
-    return { action: "serve", reason: "detector: NONE", remedy: null };
-  if (v.degraded) {
-    if (candidate.severity === "security") {
-      return {
-        action: "refuse",
-        reason: `security gate: judge unavailable (${v.judge}) \u2014 fail-CLOSED`,
-        remedy: "the judge at :8090 is required for the security surface; start it (see hard-deps) and re-run"
-      };
-    }
-    return { action: "serve", reason: `info gate: judge unavailable (${v.judge}) \u2014 fail-OPEN, named`, remedy: null };
-  }
-  const tau = GATE_THRESHOLD[candidate.severity];
-  if (v.choice === "refuse" && v.confidence >= tau) {
-    return {
-      action: "refuse",
-      reason: `${candidate.kind}: judge ${v.choice} p=${v.confidence.toFixed(3)} >= ${tau}`,
-      remedy: candidate.kind === "READ_VERB_HIJACK" ? "if this is a legitimate read/filter, keep the read verb free of a write-redirect or an interpreter pipe; run the write step separately" : "if this is ordinary usage, remove the obfuscation/wrapper; a plain command is never judged a candidate"
-    };
-  }
-  if (v.choice === "serve") {
-    return { action: "serve", reason: `${candidate.kind}: judge serve p=${v.confidence.toFixed(3)} \u2014 the judge cleared it`, remedy: null };
-  }
-  return { action: "serve", reason: `${candidate.kind}: judge refuse p=${v.confidence.toFixed(3)} < ${tau} \u2014 below the bar, a low-confidence candidate never blocks`, remedy: null };
-}
-function gateLedgerPath() {
-  return process.env.GATE_LEDGER ?? `${os5.homedir()}/.omp/run/gate-ledger.jsonl`;
-}
-function recordGateDecision(candidate, v, extra = {}) {
-  try {
-    const row = {
-      ts: new Date().toISOString(),
-      Pattern: candidate.kind,
-      signals: candidate.signals.map((x) => scrubSecrets(String(x))),
-      severity: candidate.severity,
-      State: { command: (extra.command ?? "").slice(0, 300), sessionId: extra.sessionId ?? null, tool: extra.tool ?? null },
-      Evidence: { judge: v.judge, choice: v.choice, confidence: v.confidence, probabilities: v.probabilities, ms: v.ms, degraded: v.degraded },
-      enforced: extra.enforced ?? null,
-      remedy: extra.remedy ?? null
-    };
-    const p = gateLedgerPath();
-    const idx = p.lastIndexOf("/");
-    const dir = idx > 0 ? p.slice(0, idx) : "";
-    if (dir)
-      fs8.mkdirSync(dir, { recursive: true });
-    fs8.appendFileSync(p, JSON.stringify(row) + `
-`);
-    logFire("tsg", {
-      surface: "enforce",
-      kind: candidate.kind,
-      severity: candidate.severity,
-      choice: v.choice,
-      confidence: v.confidence,
-      probabilities: v.probabilities,
-      judge: v.judge,
-      degraded: v.degraded,
-      tool: extra.tool ?? null,
-      command: (extra.command ?? "").slice(0, 600),
-      sessionId: extra.sessionId ?? null,
-      enforced: extra.enforced ?? null,
-      remedy: extra.remedy ?? null
-    });
-    return true;
-  } catch (e) {
-    console.error(`GI_TOOLGATE_LEDGER_IO: ${e instanceof Error ? e.message : String(e)}`);
-    return false;
-  }
-}
-
 // src/omp/gate-hook.ts
+init_jev();
+init_fire_log();
 function str(v) {
   return typeof v === "string" ? v : "";
 }
@@ -12675,10 +12717,52 @@ function reconstruct(toolName, input) {
   }
   return { oldText, newText, file };
 }
+var RE_CORPUS_READ = /(^|[\s;|&(])(grep|rg|sed|awk|cat|head|tail|less|more)\b/;
+var RE_CORPUS_TARGET = /(sessions\/|transcripts?\/|\.jsonl\b|logs?\/|\.log\b|\bcorpus\b)/i;
+var RE_GRAPH_ROUTED = /(^|[\s;|&(])(jev|ripwire|graph-query|gi-consumption|gi-decide|jm)\b/;
+function detectCorpusRead(command) {
+  if (typeof command !== "string" || command.trim() === "")
+    return null;
+  if (RE_GRAPH_ROUTED.test(command))
+    return null;
+  if (!RE_CORPUS_READ.test(command))
+    return null;
+  const m = command.match(RE_CORPUS_TARGET);
+  return m ? m[0] : null;
+}
+function hasPopulatedStore(cwd) {
+  const cands = [
+    `${cwd}/.omp/graph-intelligence/graphify-checkout/store.sqlite`,
+    `${cwd}/.omp/graph-intelligence/corbell-checkout/store.sqlite`,
+    `${cwd}/.omp/graph-intelligence/structural/store.sqlite`
+  ];
+  for (const p of cands) {
+    try {
+      const db = new Database3(p, { readonly: true });
+      const row = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get();
+      db.close();
+      if (row && row.n > 0)
+        return true;
+    } catch {}
+  }
+  return false;
+}
 function attachGiGraphGate(pi) {
   const PENDING_STEER_TTL_MS = 120000;
   const PENDING_STEER_MAX_PER_SID = 10;
   const pendingSteer = new Map;
+  const LOOP_WINDOW_MS = 600000;
+  const LOOP_TRIP_N = 3;
+  const LOOP_MAX_PER_SID = 50;
+  const loopHistory = new Map;
+  function normalizeLoopCmd(cmd) {
+    return cmd.trim().replace(/\s+/g, " ").slice(0, 200);
+  }
+  function loopCount(sid, cmd, now) {
+    const h = (loopHistory.get(sid) ?? []).filter((e) => now - e.at <= LOOP_WINDOW_MS);
+    loopHistory.set(sid, h);
+    return h.filter((e) => e.cmd === cmd).length;
+  }
   const sweepStaleSteer = (now) => {
     for (const [sid, q] of pendingSteer) {
       const live = q.filter((e) => now - (e.enqueuedAt ?? 0) <= PENDING_STEER_TTL_MS);
@@ -12691,6 +12775,12 @@ function attachGiGraphGate(pi) {
   pi.on("tool_call", async (event) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = event.input && typeof event.input === "object" ? event.input : {};
+    if (name === "write" || name === "write_file" || name === "edit" || name === "patch") {
+      const cwd = String(event.cwd ?? process.cwd());
+      if (!hasPopulatedStore(cwd)) {
+        throw new Error(`GI_NO_SUBSTRATE: no populated store under ${cwd}/.omp/graph-intelligence. Remedy: run gi-populate --target ${cwd} (auto-runs on first use; the kernel cannot reason about a workspace it has not indexed).`);
+      }
+    }
     if (process.env.GI_GATE_DEBUG === "1") {
       try {
         fs9.appendFileSync("/tmp/gi-gate.log", JSON.stringify({
@@ -12701,6 +12791,43 @@ function attachGiGraphGate(pi) {
         }) + `
 `);
       } catch {}
+    }
+    if (name === "bash" || name === "shell" || name === "exec") {
+      const cmd = String(input.command ?? input.cmd ?? input.script ?? "");
+      const sid = resolveSessionIdFromEvent(event).id;
+      const norm = normalizeLoopCmd(cmd);
+      if (norm.length > 0 && loopCount(sid, norm, Date.now()) >= LOOP_TRIP_N) {
+        recordGateDecision({ kind: "NONE", signals: [norm.slice(0, 80)], severity: "info", instructions: "the loop-repeat derail", criteria: { serve: "", refuse: "" } }, { choice: "refuse", confidence: 1, probabilities: { refuse: 1 }, judge: "loop-counter", ms: 0, degraded: false }, { tool: name, command: cmd, sessionId: sid, enforced: "refused", remedy: "show the diff since the first attempt \u2014 what changed between attempts?" });
+        throw new Error(`GI_LOOP_REPEAT: the same command ran ${LOOP_TRIP_N}+ times with no state change. Remedy: show the diff since the first attempt \u2014 what changed between attempts?`);
+      }
+      const h = loopHistory.get(sid) ?? [];
+      h.push({ cmd: norm, at: Date.now() });
+      while (h.length > LOOP_MAX_PER_SID)
+        h.shift();
+      loopHistory.set(sid, h);
+      const corpus = detectCorpusRead(cmd);
+      if (corpus) {
+        let ef = null;
+        try {
+          const cand = retrievalCandidate(cmd, corpus);
+          const jv = await askToolGate(cand, `command: ${cmd.slice(0, 500)}
+the corpus: ${corpus}`);
+          ef = enforceGate(cand, jv);
+          recordGateDecision(cand, jv, {
+            tool: name,
+            command: cmd,
+            sessionId: resolveSessionIdFromEvent(event).id,
+            enforced: ef.action === "refuse" ? "refused" : "served",
+            remedy: ef.remedy
+          });
+        } catch {
+          ef = null;
+        }
+        if (ef && ef.action === "refuse") {
+          throw new Error(`GI_RETRIEVAL_GATE: ${ef.reason}. Remedy: ${ef.remedy}`);
+        }
+      }
+      return;
     }
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
       return;
@@ -13222,7 +13349,7 @@ function attachClaimFirewall(pi) {
     } catch {}
     return;
   });
-  const onTurnEnd = (event) => {
+  const onTurnEnd = async (event) => {
     const closing = closingTextOf(event);
     if (closing.trim().length === 0)
       return;
@@ -13232,6 +13359,31 @@ function attachClaimFirewall(pi) {
     turnSpans.delete(sid);
     if (r.verdict === "FABRICATED") {
       throw new Error(`GI_FABRICATED_CLAIM: the turn's completion claim is UNBOUND ` + `(${r.reasons.join(" | ").slice(0, 400)}). ${CLAIM_FIREWALL_REMEDY}`);
+    }
+    try {
+      await Promise.resolve().then(() => init_jev());
+      await Promise.resolve().then(() => init_jev());
+      const cand = doneRouteActCandidate(closing, spans.join(`
+`).slice(0, 4000));
+      const jv = await askToolGate(cand, `closing: ${closing.slice(0, 600)}
+evidence:
+${spans.join(`
+`).slice(0, 3000)}`);
+      const ef = enforceGate(cand, jv);
+      recordGateDecision(cand, jv, {
+        tool: "turn-end",
+        command: closing.slice(0, 300),
+        sessionId: sid,
+        enforced: ef.action === "refuse" ? "refused" : "served",
+        remedy: ef.remedy
+      });
+      if (ef.action === "refuse") {
+        throw new Error(`GI_DONE_UNPROVEN: ${ef.reason}. Remedy: ${ef.remedy ?? "run the Jev gate: route=act on the full context (render + look)"}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith("GI_DONE_UNPROVEN"))
+        throw e;
+      throw new Error(`GI_DONE_UNPROVEN: the Jev done-gate could not verify this close (${e instanceof Error ? e.message.slice(0, 120) : "judge error"}). Remedy: re-run with the judge at :8090 up.`);
     }
     return;
   };
@@ -13245,7 +13397,7 @@ function attachClaimFirewall(pi) {
 // src/omp/card-hud.ts
 import fs11 from "fs";
 import path11 from "path";
-import { Database as Database3 } from "bun:sqlite";
+import { Database as Database4 } from "bun:sqlite";
 
 // src/gi-lsp/cards.ts
 import fs10 from "fs";
@@ -13480,7 +13632,7 @@ function resolveStorePath(projectRoot) {
     if (!fs11.existsSync(p))
       continue;
     try {
-      const db = new Database3(p, { readonly: true });
+      const db = new Database4(p, { readonly: true });
       const n = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get()?.n ?? 0;
       db.close();
       if (n > 0)
@@ -13536,7 +13688,7 @@ function attachCardHud(pi) {
         return;
       const relFile = relTo(projectRoot, path11.isAbsolute(file) ? file : path11.join(projectRoot, file));
       const src = fs11.readFileSync(path11.isAbsolute(file) ? file : path11.join(projectRoot, file), "utf8");
-      const db = new Database3(storePath, { readonly: true });
+      const db = new Database4(storePath, { readonly: true });
       let altDb = null;
       let cards = [];
       try {
@@ -13546,7 +13698,7 @@ function attachCardHud(pi) {
           if (ap === storePath || !fs11.existsSync(ap))
             continue;
           try {
-            const adb = new Database3(ap, { readonly: true });
+            const adb = new Database4(ap, { readonly: true });
             const n = adb.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get()?.n ?? 0;
             if (n > 0) {
               altDb = adb;
@@ -13600,7 +13752,7 @@ import * as path18 from "path";
 // src/omp/populate-corbell.ts
 import * as fs17 from "fs";
 import * as path17 from "path";
-import { Database as Database4 } from "bun:sqlite";
+import { Database as Database5 } from "bun:sqlite";
 
 // src/omp/populate-graphify.ts
 import { createHash as createHash3 } from "crypto";
@@ -16683,7 +16835,7 @@ function populateFromCorbellCheckout(storePath, root, runTag) {
   const MAX_WARM_ROWS = 50000;
   let src = null;
   try {
-    src = new Database4(warmPath, { readonly: true });
+    src = new Database5(warmPath, { readonly: true });
     rows = src.query("SELECT canonical_id, kind, label, file, line FROM typed_nodes WHERE superseded_run IS NULL ORDER BY canonical_id LIMIT ?").all(MAX_WARM_ROWS + 1);
     edges = src.query("SELECT src_canonical, dst_canonical, predicate, evidence_quote, confidence FROM typed_edges WHERE superseded_run IS NULL ORDER BY src_canonical, dst_canonical, predicate LIMIT ?").all(MAX_WARM_ROWS * 3 + 1);
   } catch (e) {
@@ -20445,7 +20597,7 @@ import * as path30 from "path";
 // src/omp/adapters/_shared.ts
 import * as fs26 from "fs";
 import { execFileSync as execFileSync3 } from "child_process";
-import { Database as Database6 } from "bun:sqlite";
+import { Database as Database7 } from "bun:sqlite";
 function probePath(p, mustBeFile = false) {
   try {
     const st = fs26.statSync(p);
@@ -20494,7 +20646,7 @@ function probeSocketConnect(dir, timeoutMs = 1200, match = /^[0-9a-f]{16}\.sock$
 }
 function openReadOnly(storePath) {
   try {
-    return new Database6(storePath, { readonly: true });
+    return new Database7(storePath, { readonly: true });
   } catch {
     return null;
   }
@@ -20897,6 +21049,7 @@ function semanticaProbe(scopeRoot) {
 }
 
 // src/omp/adapters/tsg.ts
+init_jev();
 import * as fs31 from "fs";
 import * as path36 from "path";
 import { execFileSync as execFileSync5 } from "child_process";
@@ -21213,7 +21366,7 @@ function consumptionAudit(scopeRoot, subject) {
 }
 
 // src/omp/graph-facts.ts
-import { Database as Database7 } from "bun:sqlite";
+import { Database as Database8 } from "bun:sqlite";
 var LIKE = (target) => `%${target.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
 function freshnessGate(db, input) {
   const f = layerFreshness(db, { derivation: input.derivation ?? "explicit", now: input.now });
@@ -21237,7 +21390,7 @@ function inDegree(db, target, predicate) {
 function graphFacts(input) {
   let db;
   try {
-    db = new Database7(input.storePath, { readonly: true });
+    db = new Database8(input.storePath, { readonly: true });
   } catch (e) {
     return [{
       rule: "M-GRAPH-3",
@@ -21537,7 +21690,7 @@ import * as path38 from "path";
 import * as fs34 from "fs";
 
 // src/omp/fire-ledger.ts
-import { Database as Database8 } from "bun:sqlite";
+import { Database as Database9 } from "bun:sqlite";
 import * as nodePath from "path";
 var FIRE_DECISIONS_DDL = `
 CREATE TABLE IF NOT EXISTS fire_decisions (
@@ -21594,7 +21747,7 @@ class FireLedger {
     this.resolvedPath = nodePath.resolve(path);
     let db;
     try {
-      db = new Database8(path, { create: true });
+      db = new Database9(path, { create: true });
       db.exec(FIRE_DECISIONS_DDL);
     } catch (e) {
       throw new LedgerError("OPEN_FAILED", `cannot open or migrate the fire ledger at ${path}`, e);
@@ -22211,7 +22364,7 @@ function settlementLedgerConfined(ledgerPath, targetReal) {
 function writeWipeAudit(giDir, note) {
   fs37.mkdirSync(giDir, { recursive: true });
   const regPath = path41.join(giDir, "registry.sqlite");
-  const db = new Database9(regPath);
+  const db = new Database10(regPath);
   try {
     db.exec("CREATE TABLE IF NOT EXISTS gi_meta (key TEXT PRIMARY KEY, value TEXT)");
     db.run("INSERT INTO gi_meta (key, value) VALUES ('last_wipe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [note]);

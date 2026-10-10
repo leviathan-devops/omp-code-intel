@@ -3,6 +3,7 @@ import { resolveSessionIdFromEvent } from "../scoping/gi-session-path.ts";
 // throw cancels FULL.
 
 import * as fs from "node:fs";
+import { Database } from "bun:sqlite";
 import { resolveDial, runGraphGate, type GiDial } from "./gate-middleware.ts";
 import { classifyEdit, computeDrift, createEmptyState, gateDecision, recordEdit, recordGraphQuery, type GraphGateSessionState } from "./graph-gate.ts";
 // ★ V2.2 W5b WIRING (2026-09-26): the ABIDE live judge on the CURRENT hunk diff. The adapter's
@@ -11,7 +12,7 @@ import { classifyEdit, computeDrift, createEmptyState, gateDecision, recordEdit,
 //   blocks the edit.
 import { judgeDiff } from "./adapters/abide.ts";
 // ★ W3 — THE JEV DECISION LAYER: the export-removal regex matched a SHAPE; the judge decides.
-import { askToolGate, enforceGate, graphBreakCandidate, recordGateDecision } from "./jev.ts";
+import { askToolGate, enforceGate, graphBreakCandidate, recordGateDecision, retrievalCandidate } from "./jev.ts";
 import { logFire } from "./fire-log.ts";
 
 export interface GiToolCallEvent {
@@ -72,6 +73,42 @@ function reconstruct(toolName: string, input: Record<string, unknown>): { oldTex
   return { oldText, newText, file };
 }
 
+// ★ V2.4 W2 — THE RETRIEVAL DETECTOR (mechanical; marks a candidate, NEVER a verdict).
+//   A raw read (grep/sed/awk/cat/head/tail) whose target is an indexable corpus
+//   (a session transcript, a *.jsonl, a logs dir) is the SHAPE. The judge decides whether it
+//   is a line-scan of an indexable corpus (refuse) or a legitimate non-indexable read (serve).
+const RE_CORPUS_READ = /(^|[\s;|&(])(grep|rg|sed|awk|cat|head|tail|less|more)\b/;
+const RE_CORPUS_TARGET = /(sessions\/|transcripts?\/|\.jsonl\b|logs?\/|\.log\b|\bcorpus\b)/i;
+const RE_GRAPH_ROUTED = /(^|[\s;|&(])(jev|ripwire|graph-query|gi-consumption|gi-decide|jm)\b/;
+/** Returns the matched corpus target (the signal) or null when the command is not a corpus read. */
+export function detectCorpusRead(command: string): string | null {
+  if (typeof command !== "string" || command.trim() === "") return null;
+  // ALREADY ROUTED THROUGH THE GRAPH → the RIGHT method → never a candidate.
+  if (RE_GRAPH_ROUTED.test(command)) return null;
+  if (!RE_CORPUS_READ.test(command)) return null;
+  const m = command.match(RE_CORPUS_TARGET);
+  return m ? m[0] : null;
+}
+
+// ★ V2.4 W6 — THE SUBSTRATE CHECK. True iff the workspace has a populated store
+//   (a typed_nodes table with ≥1 live row). A miss means the kernel has no data here.
+function hasPopulatedStore(cwd: string): boolean {
+  const cands = [
+    `${cwd}/.omp/graph-intelligence/graphify-checkout/store.sqlite`,
+    `${cwd}/.omp/graph-intelligence/corbell-checkout/store.sqlite`,
+    `${cwd}/.omp/graph-intelligence/structural/store.sqlite`,
+  ];
+  for (const p of cands) {
+    try {
+      const db = new Database(p, { readonly: true });
+      const row = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get() as { n: number };
+      db.close();
+      if (row && row.n > 0) return true;
+    } catch { /* try the next substrate */ }
+  }
+  return false;
+}
+
 export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<string, unknown>, ctx: unknown) => unknown) => void }): void {
   // ★ F-PS1 FIX (2026-09-24): keyed per tool name — a single slot let two interleaved
   //   write/edit calls overwrite each other's steer note, delivering the wrong advisory.
@@ -85,6 +122,21 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   //   no file hint (platform tool_result has no correlation id — file is the best key).
   interface PendingSteer { tool: string; note: string; enqueuedAt: number; file: string; }
   const pendingSteer = new Map<string, Array<PendingSteer>>();
+  // ★ V2.4 W4 — THE LOOP COUNTER. A per-session rolling window of normalized bash commands.
+  //   The same command ≥ LOOP_TRIP_N times with no state change is the loop-repeat derail
+  //   (measured: the same `cd` ×3,274 in the Vision transcript). Bounded (TTL + cap).
+  const LOOP_WINDOW_MS = 600_000;
+  const LOOP_TRIP_N = 3;
+  const LOOP_MAX_PER_SID = 50;
+  const loopHistory = new Map<string, Array<{ cmd: string; at: number }>>();
+  function normalizeLoopCmd(cmd: string): string {
+    return cmd.trim().replace(/\s+/g, " ").slice(0, 200);
+  }
+  function loopCount(sid: string, cmd: string, now: number): number {
+    const h = (loopHistory.get(sid) ?? []).filter((e) => now - e.at <= LOOP_WINDOW_MS);
+    loopHistory.set(sid, h);
+    return h.filter((e) => e.cmd === cmd).length;
+  }
   const sweepStaleSteer = (now: number): void => {
     for (const [sid, q] of pendingSteer) {
       const live = q.filter((e) => now - (e.enqueuedAt ?? 0) <= PENDING_STEER_TTL_MS);
@@ -95,6 +147,16 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
   pi.on("tool_call", async (event: Record<string, unknown>) => {
     const name = String(event.toolName ?? "").toLowerCase();
     const input = (event.input && typeof event.input === "object" ? event.input : {}) as Record<string, unknown>;
+    // ★ V2.4 W6 — THE SUBSTRATE HARD-BLOCK. A code-edit session in a workspace with NO
+    //   populated store is REFUSED (GI_NO_SUBSTRATE) — the LSP's GI_NO_STORE diagnostic is
+    //   ADVISORY; this is the BLOCK. The remedy names the populate (which auto-heals on first
+    //   run per the DPL1). Doc-only edits never trigger (they need no substrate).
+    if (name === "write" || name === "write_file" || name === "edit" || name === "patch") {
+      const cwd = String((event as Record<string, unknown>).cwd ?? process.cwd());
+      if (!hasPopulatedStore(cwd)) {
+        throw new Error(`GI_NO_SUBSTRATE: no populated store under ${cwd}/.omp/graph-intelligence. Remedy: run gi-populate --target ${cwd} (auto-runs on first use; the kernel cannot reason about a workspace it has not indexed).`);
+      }
+    }
     // ★ F-GH1 FIX (2026-09-24): the per-call debug append ran on EVERY tool_call (sync I/O
     //   on the hot path, unbounded file). Opt-in via GI_GATE_DEBUG=1; zero readers exist.
     if (process.env.GI_GATE_DEBUG === "1") {
@@ -106,6 +168,49 @@ export function attachGiGraphGate(pi: { on: (ev: string, h: (event: Record<strin
           origin: event.isAgentOrigin,
         }) + "\n");
       } catch { /* ignore log failures */ }
+    }
+    // ★ V2.4 W2 — THE RETRIEVAL GATE. A raw read of an indexable corpus is REFUSED with the
+    //   named remedy (index it, then query it). The judge decides; INFO surface = fail-OPEN.
+    if (name === "bash" || name === "shell" || name === "exec") {
+      const cmd = String(input.command ?? input.cmd ?? input.script ?? "");
+      const sid = resolveSessionIdFromEvent(event).id;
+      // ★ V2.4 W4 — THE LOOP GATE. The same normalized command ≥3 times in the window is
+      //   the loop-repeat derail. Refused with the named remedy (show the diff since attempt K).
+      const norm = normalizeLoopCmd(cmd);
+      if (norm.length > 0 && loopCount(sid, norm, Date.now()) >= LOOP_TRIP_N) {
+        recordGateDecision(
+          { kind: "NONE", signals: [norm.slice(0, 80)], severity: "info", instructions: "the loop-repeat derail", criteria: { serve: "", refuse: "" } },
+          { choice: "refuse", confidence: 1, probabilities: { refuse: 1 }, judge: "loop-counter", ms: 0, degraded: false },
+          { tool: name, command: cmd, sessionId: sid, enforced: "refused", remedy: "show the diff since the first attempt — what changed between attempts?" },
+        );
+        throw new Error(`GI_LOOP_REPEAT: the same command ran ${LOOP_TRIP_N}+ times with no state change. Remedy: show the diff since the first attempt — what changed between attempts?`);
+      }
+      const h = loopHistory.get(sid) ?? [];
+      h.push({ cmd: norm, at: Date.now() });
+      while (h.length > LOOP_MAX_PER_SID) h.shift();
+      loopHistory.set(sid, h);
+      const corpus = detectCorpusRead(cmd);
+      if (corpus) {
+        let ef: { action: string; reason: string; remedy: string | null } | null = null;
+        try {
+          const cand = retrievalCandidate(cmd, corpus);
+          const jv = await askToolGate(cand, `command: ${cmd.slice(0, 500)}\nthe corpus: ${corpus}`);
+          ef = enforceGate(cand, jv);
+          recordGateDecision(cand, jv, {
+            tool: name,
+            command: cmd,
+            sessionId: resolveSessionIdFromEvent(event).id,
+            enforced: ef.action === "refuse" ? "refused" : "served",
+            remedy: ef.remedy,
+          });
+        } catch {
+          ef = null; // fail-open: a judge failure NEVER blocks a read
+        }
+        if (ef && ef.action === "refuse") {
+          throw new Error(`GI_RETRIEVAL_GATE: ${ef.reason}. Remedy: ${ef.remedy}`);
+        }
+      }
+      return undefined;
     }
     if (name !== "write" && name !== "write_file" && name !== "edit" && name !== "patch") {
       return undefined;

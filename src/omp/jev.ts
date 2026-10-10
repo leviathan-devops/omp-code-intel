@@ -1,11 +1,10 @@
 // jev — THE LIVE JEV CLIENT. Replaces the stub Judge in the enforcement kernel.
 //
-// THE ENDPOINT (read from the live docs this session, docs.typesafe.ai/api):
-//   POST https://api.typesafe.ai/v1/systemone
-//   Authorization: Bearer <API_KEY>   Content-Type: application/json
+// THE ENDPOINT (the LOCAL jevk5 on :8090 — gguf, llama:200, FREE, no key).
+//   POST http://127.0.0.1:8090/v1/systemone
 //   body { state, model, questions: {id: {type, instructions, criteria?}} }
 //   answer { model, answers: {id: {type:"noul", noul: 0.95}}, usage }
-//
+// ★ V2.4: the remote paid-judge path is DELETED (the operator mandate). No remote URL here.
 // THE KEY IS NEVER LOGGED, NEVER ON ARGV, NEVER IN A ROW. It is read from the
 // environment first, then from a 0600 file. A missing key THROWS (the hard-dep
 // law) — there is no fallback judge.
@@ -14,8 +13,10 @@ import * as os from "node:os";
 import type { Judge, JudgeAnswer, JudgeQuestion } from "./enforcement.ts";
 import { logFire } from "./fire-log.ts";
 
-export const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
-export const TYPESAFE_MODEL = "jev-latest";
+export const TYPESAFE_URL = "http://127.0.0.1:8090/v1/systemone";
+export const TYPESAFE_MODEL = "jevk5-4b-v0.2-Q8_0";
+// ★ V2.4 (the operator mandate): the LOCAL judge — no key, no auth header, no remote.
+//   The old resolveKey()/Bearer path is DELETED below.
 // ★ F-343 FIX (2026-09-24): the key path fell back to a HARDCODED /home/leviathan when HOME
 // ★ was unset — wrong on every other machine (a silent missing-key). os.homedir() resolves
 // ★ the platform-correct home (passwd entry on POSIX, USERPROFILE on Windows), never a guess.
@@ -132,7 +133,7 @@ export class JevJudge implements Judge {
     questions: readonly JudgeQuestion[],
   ): Promise<readonly JudgeAnswer[]> {
     if (questions.length === 0) return [];
-    const key = this.opts.key ?? resolveKey();
+    // ★ V2.4: the LOCAL judge needs NO key and NO auth header (it is a local socket).
     const apiQuestions: Record<string, ApiQuestion> = {};
     for (const q of questions) {
       apiQuestions[q.id] = {
@@ -149,7 +150,7 @@ export class JevJudge implements Judge {
     try {
       res = await fetch(this.opts.url ?? TYPESAFE_URL, {
         method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: TYPESAFE_MODEL, state, questions: apiQuestions }),
         signal: AbortSignal.timeout(this.opts.timeoutMs ?? 8000),
       });
@@ -277,6 +278,8 @@ export type GateKind =
   | "SHELL_CHAIN"
   | "EXPORT_REMOVAL"
   | "GRAPH_SIGNATURE_BREAK"
+  | "RETRIEVAL_READ"
+  | "DONE_ROUTE_ACT"
   | "ABIDE_JUDGE";
 
 /** A DETECTED shape. Carries signals + the judge's question — never a verdict. */
@@ -377,6 +380,27 @@ export function detectCandidate(command: string): GateCandidate {
   };
 }
 
+/** ★ V2.4 W5 — THE DONE candidate. A completion/"done" claim at turn end. The judge decides
+ *  whether the FULL context (the tool results + the rendered evidence) supports a route=act
+ *  verdict, or the claim is UNPROVEN. SECURITY surface: fail-CLOSED — a dead judge blocks the
+ *  close (a "done" that cannot be verified is not done). */
+export function doneRouteActCandidate(closing: string, evidence: string): GateCandidate {
+  return {
+    kind: "DONE_ROUTE_ACT",
+    signals: [closing.slice(0, 120), evidence.slice(0, 120)],
+    severity: "security", // SECURITY: fail-CLOSED — an unverifiable "done" never closes the turn
+    instructions:
+      "A turn-end completion claim (" + JSON.stringify(closing.slice(0, 200)) + "). The supporting " +
+      "evidence (the tool results this turn) is shown. Decide: does the FULL evidence support " +
+      "a route=act verdict (the work is DONE and PROVEN), or is the claim UNPROVEN (a commit " +
+      "without a render, a claim without an artifact, a green without the evidence)?",
+    criteria: {
+      serve: "route=act: the evidence shows the completed work (a rendered artifact, a passing proof, a verified state) — the claim is PROVEN",
+      refuse: "UNPROVEN: the evidence does NOT show the work done (a commit message without the render, a claim with no artifact in the tool results, a verdict without the proof)",
+    },
+  };
+}
+
 /** A graph-signature-break candidate (the GI graph gate): the export-removal regex matched a
  *  SHAPE (a previously-exported name is gone from the new text); the judge decides whether it
  *  is a REAL signature break (a consumer would break) or a legitimate refactor. */
@@ -393,6 +417,27 @@ export function graphBreakCandidate(file: string, advisory: string): GateCandida
     criteria: {
       serve: "a legitimate refactor: the removed name looks local, test-only, or part of a coordinated rename (the edit or a sibling change updates the consumers)",
       refuse: "a real signature break: a public/most-imported export disappears with no replacement in the same edit — the graph's own unwired/blast-radius evidence flags it",
+    },
+  };
+}
+
+/** ★ V2.4 W2 — THE RETRIEVAL candidate. A raw read (grep/sed/cat/awk/head/tail) over a
+ *  corpus that IS (or CAN BE) a jev graph index. The judge decides whether this is a raw
+ *  line-scan of an indexable corpus (refuse — index it + query it) or a legitimate read of
+ *  a file that is NOT indexable (serve). INFO surface: fail-OPEN — a dead judge never blocks. */
+export function retrievalCandidate(command: string, corpus: string): GateCandidate {
+  return {
+    kind: "RETRIEVAL_READ",
+    signals: [corpus.slice(0, 80), command.slice(0, 120)],
+    severity: "info", // INFO: a dead judge must NEVER block a read (the fail-open law)
+    instructions:
+      "A shell command RAW-READS a corpus (a session transcript, a log, a large .jsonl) with " +
+      "grep/sed/awk/cat/head/tail. That corpus IS or CAN BE indexed into a queryable graph. " +
+      "Decide: is this a raw line-scan of an INDEXABLE corpus (the wrong method — index it then " +
+      "query it), or a legitimate read of a file that is genuinely not indexable?",
+    criteria: {
+      serve: "a legitimate read: the target is a small/config/source file, a single file, or a path outside the indexable corpora (sessions/transcripts/logs) — or the command already routes through the graph (a jev/ripwire/graph-query call)",
+      refuse: "a raw line-scan of an indexable corpus: grep/sed/awk/cat/head/tail over a session transcript, a *.jsonl corpus, or a logs directory that SHOULD be indexed (jev index <path>) and then QUERIED (jev query/scan/filter)",
     },
   };
 }
@@ -529,7 +574,9 @@ export function enforceGate(
       remedy:
         candidate.kind === "READ_VERB_HIJACK"
           ? "if this is a legitimate read/filter, keep the read verb free of a write-redirect or an interpreter pipe; run the write step separately"
-          : "if this is ordinary usage, remove the obfuscation/wrapper; a plain command is never judged a candidate",
+          : candidate.kind === "RETRIEVAL_READ"
+            ? "index the corpus (jev index <path>) then query it (jev query --fts <term> / jev scan / jev filter) — never line-scan a session transcript, a *.jsonl corpus, or a logs directory"
+            : "if this is ordinary usage, remove the obfuscation/wrapper; a plain command is never judged a candidate",
     };
   }
   if (v.choice === "serve") {

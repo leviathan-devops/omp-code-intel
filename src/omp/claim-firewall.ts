@@ -353,7 +353,7 @@ export function attachClaimFirewall(pi: OnCapable): void {
     }
     return undefined;
   });
-  const onTurnEnd = (event: Record<string, unknown>): unknown => {
+  const onTurnEnd = async (event: Record<string, unknown>): Promise<unknown> => {
     const closing = closingTextOf(event);
     if (closing.trim().length === 0) return undefined;
     const sid = sidOf(event);
@@ -365,6 +365,29 @@ export function attachClaimFirewall(pi: OnCapable): void {
         `GI_FABRICATED_CLAIM: the turn's completion claim is UNBOUND ` +
           `(${r.reasons.join(" | ").slice(0, 400)}). ${CLAIM_FIREWALL_REMEDY}`,
       );
+    }
+    // ★ V2.4 W5 — THE DONE-GATE. A SUPPORTED claim is not DONE: the Jev route=act on the FULL
+    //   context is the ONLY done-token. SECURITY surface: fail-CLOSED — a dead judge blocks.
+    try {
+      const { doneRouteActCandidate } = await import("./jev.ts");
+      const { askToolGate, enforceGate, recordGateDecision } = await import("./jev.ts");
+      const cand = doneRouteActCandidate(closing, spans.join("\n").slice(0, 4000));
+      const jv = await askToolGate(cand, `closing: ${closing.slice(0, 600)}\nevidence:\n${spans.join("\n").slice(0, 3000)}`);
+      const ef = enforceGate(cand, jv);
+      recordGateDecision(cand, jv, {
+        tool: "turn-end",
+        command: closing.slice(0, 300),
+        sessionId: sid,
+        enforced: ef.action === "refuse" ? "refused" : "served",
+        remedy: ef.remedy,
+      });
+      if (ef.action === "refuse") {
+        throw new Error(`GI_DONE_UNPROVEN: ${ef.reason}. Remedy: ${ef.remedy ?? "run the Jev gate: route=act on the full context (render + look)"}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith("GI_DONE_UNPROVEN")) throw e;
+      // fail-CLOSED: a judge failure on the done surface blocks the close (named, not silent)
+      throw new Error(`GI_DONE_UNPROVEN: the Jev done-gate could not verify this close (${e instanceof Error ? e.message.slice(0, 120) : "judge error"}). Remedy: re-run with the judge at :8090 up.`);
     }
     return undefined;
   };
