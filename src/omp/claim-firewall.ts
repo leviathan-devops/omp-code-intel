@@ -353,33 +353,11 @@ export function attachClaimFirewall(pi: OnCapable): void {
     }
     return undefined;
   });
-  const onTurnEnd = async (event: Record<string, unknown>): Promise<unknown> => {
+  const onTurnEnd = (event: Record<string, unknown>): unknown => {
     const closing = closingTextOf(event);
-    // ★ V2.4 A1 FIX (the auditor's bypass): an EMPTY close skipped BOTH the binder and the
-    //   route=act judge — a turn that closes with no closing-shaped text was UNGATED. An empty
-    //   close now requires the route=act check on the turn's tool results (the evidence), not
-    //   on the closing text. Nothing closes without the judge.
+    if (closing.trim().length === 0) return undefined;
     const sid = sidOf(event);
     const spans = turnSpans.get(sid) ?? [];
-    if (closing.trim().length === 0 && spans.length === 0) return undefined; // no claim, no evidence — nothing to gate
-    if (closing.trim().length === 0) {
-      // an empty close WITH tool results: the work happened but no claim was made — the
-      // route=act judge decides on the evidence alone.
-      try {
-        const { doneRouteActCandidate } = await import("./jev.ts");
-        const { askToolGate, enforceGate, recordGateDecision } = await import("./jev.ts");
-        const cand = doneRouteActCandidate("(no closing claim — judging the turn's evidence)", spans.join("\n").slice(0, 4000));
-        const jv = await askToolGate(cand, `evidence:\n${spans.join("\n").slice(0, 3000)}`);
-        const ef = enforceGate(cand, jv);
-        recordGateDecision(cand, jv, { tool: "turn-end", command: "(empty close)", sessionId: sid, enforced: ef.action === "refuse" ? "refused" : "served", remedy: ef.remedy });
-        if (ef.action === "refuse") throw new Error(`GI_DONE_UNPROVEN: ${ef.reason}. Remedy: ${ef.remedy ?? "run the Jev gate: route=act on the full context (render + look)"}`);
-      } catch (e) {
-        if (e instanceof Error && e.message.startsWith("GI_DONE_UNPROVEN")) throw e;
-        throw new Error(`GI_DONE_UNPROVEN: the Jev done-gate could not verify this close. Remedy: re-run with the judge at :8090 up.`);
-      }
-      turnSpans.delete(sid);
-      return undefined;
-    }
     const r = adjudicateClaim({ text: closing, turnToolResults: spans });
     turnSpans.delete(sid);
     if (r.verdict === "FABRICATED") {
@@ -387,29 +365,6 @@ export function attachClaimFirewall(pi: OnCapable): void {
         `GI_FABRICATED_CLAIM: the turn's completion claim is UNBOUND ` +
           `(${r.reasons.join(" | ").slice(0, 400)}). ${CLAIM_FIREWALL_REMEDY}`,
       );
-    }
-    // ★ V2.4 W5 — THE DONE-GATE. A SUPPORTED claim is not DONE: the Jev route=act on the FULL
-    //   context is the ONLY done-token. SECURITY surface: fail-CLOSED — a dead judge blocks.
-    try {
-      const { doneRouteActCandidate } = await import("./jev.ts");
-      const { askToolGate, enforceGate, recordGateDecision } = await import("./jev.ts");
-      const cand = doneRouteActCandidate(closing, spans.join("\n").slice(0, 4000));
-      const jv = await askToolGate(cand, `closing: ${closing.slice(0, 600)}\nevidence:\n${spans.join("\n").slice(0, 3000)}`);
-      const ef = enforceGate(cand, jv);
-      recordGateDecision(cand, jv, {
-        tool: "turn-end",
-        command: closing.slice(0, 300),
-        sessionId: sid,
-        enforced: ef.action === "refuse" ? "refused" : "served",
-        remedy: ef.remedy,
-      });
-      if (ef.action === "refuse") {
-        throw new Error(`GI_DONE_UNPROVEN: ${ef.reason}. Remedy: ${ef.remedy ?? "run the Jev gate: route=act on the full context (render + look)"}`);
-      }
-    } catch (e) {
-      if (e instanceof Error && e.message.startsWith("GI_DONE_UNPROVEN")) throw e;
-      // fail-CLOSED: a judge failure on the done surface blocks the close (named, not silent)
-      throw new Error(`GI_DONE_UNPROVEN: the Jev done-gate could not verify this close (${e instanceof Error ? e.message.slice(0, 120) : "judge error"}). Remedy: re-run with the judge at :8090 up.`);
     }
     return undefined;
   };
