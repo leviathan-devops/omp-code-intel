@@ -719,3 +719,8 @@ The V2.3 build ships dist `e883de4a24d014c6` (repo=deploy sha-matched) — the s
 
 | P-28 | the graph-first law (the build's own purpose) | the index-and-query workflow exists (jev) and was not used on a 151 MB session corpus; grep+scouts used instead | the operator's catch; the workflow took 3 commands @ ~$0.002 vs 6 agents | OPERATOR-CAUGHT |
 | P-29 | the mechanical-enforcement law | "prefer the graph" directives are advisory (no gate on the action) → 0 graph calls in 3 days | F-189/F-192; fix = the mandatory-retrieval gate | OPEN |
+
+| V-196 | the fail-closed-supervisor law | "a refusal closes the REQUEST, protects the SESSION" (a fail-closed gate must not become the outage) | the v2.4 DONE-gate fail-CLOSED on a 100%-fire surface → 5/5 turns blocked (the outage) | VIOLATED CRITICAL | `bun run /tmp/fprate.ts` → 5/5 BLOCKED; `claim-firewall.ts:382` |
+| V-197 | the derived-threshold law | "derive the bar from a labeled control set, never pick it" (ALGO L-7/L-8) | v2.4's bars were picked; no control set ran; the refuse band (0.53-0.96) overlapped the serve band (0.76-0.94) | VIOLATED HIGH | the calibration never ran; the overlap is in the refusal probabilities |
+| V-198 | the negative-half law | "a gate is HALF tested without its negatives" (red-team) | v2.4 was proven by its POSITIVE set only; the misfire test (a benign turn) was never run | VIOLATED CRITICAL | the incident: a legitimate Read blocked |
+| P-199 | the observe-first ruling | "a new engine journals until the operator arms it" (ALGO L-14) | v2.4 armed immediately with no observe period | VIOLATED HIGH | no live firing was journaled before enforcement |

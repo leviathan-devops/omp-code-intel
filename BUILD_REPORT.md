@@ -1258,3 +1258,12 @@ refused (0.8130/0.8457) · W6 empty refused/populated serves · firewall EXIT 0 
 dist 2a72c569cfb47a8c == deployed.
 **The honest notes:** the /prove-it ladder's container round is unrun (the gates are host-path);
 the 10 dormant TTSR rules need their matrices; the auditors' DOCUMENTED findings (not defects).
+
+## 2026-10-10 — V2.4 HARD RESET + THE CASTRATION BLUEPRINT
+
+**The built:** v2.4 DELETED (4 src files reverted to pre-v2.4 `d297fd4`; `packages/gi-kernel-v2.4/` removed; `scripts/v24-firewall.sh` removed; the 3 v2.4 checkpoints removed). tsc EXIT=0 on the restored src. The forensic ledger `forensic/FAILURE_LEDGER_V24.md` (162 lines, 9 findings) + the blueprint `reports/CASTRATE_THE_TURN_BRICK_BLUEPRINT_v1.md` (1182 lines) stand as the record.
+**The why:** the operator's ruling — *"Delete the entire fucking version 2.4 code base. We are hard resetting from the spec."* The v2.4 DONE-gate fired on every turn end, fail-CLOSED → 5/5 ordinary turns blocked (a live brick).
+**The how:** restore src from the pre-v2.4 ref; delete the v2.4-only artifacts; KEEP the spec (the restart point) + the forensic ledgers (the failure record). Read every Jev Bible (ALGORITHMIC_REASONING_BIBLE 3231L, JEV_CHOICE_BIBLE 3008L, TICKET_ARCHITECTURE_v2 763L, THE_L2_L3_DECISION_BLUEPRINT_v2 644L, THE_FACT_JUDGE_ENFORCE_BLUEPRINT 390L) + the JG_LIVE_RUNTIME_FLAW_REPORT (the exact-class precedent) via 3 scout desks + direct reads.
+**The evidence:** `grep -rlE 'GI_DONE_UNPROVEN|...' src/` → 0 · tsc EXIT=0 · the blueprint 1182 lines · the failure ledger 162 lines / 9 findings.
+**The verification:** the 5/5 false-positive measurement (`bun run /tmp/fprate.ts`); the source root cause (`claim-firewall.ts:382`).
+**The honest notes:** live = v2.3 (`2e2a39031c6059ca`). The Jev_Gates project holds the built-but-UNARMED kernel (battery 148→167, 0 fail). The spine is built; the host wiring is the next step.

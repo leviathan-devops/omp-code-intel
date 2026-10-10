@@ -2657,3 +2657,9 @@ are fixed with their probes.
   (`packages/gi-kernel-v2.4/⚠️-DO-NOT-DEPLOY.md`). The ONLY ship path: the container round.
 - **THE LESSON:** "proven" by a direct call ≠ "proven" on the live path. The container test IS the
   test. NEVER deploy a gate without the container round's NEGATIVE half (zero misfire).
+
+### F-195 — V2.4 HARD RESET: the build is DELETED (2026-10-10, OPERATOR RULING)
+- **What happened:** the operator: *"Delete the entire fucking version 2.4 code base. We are hard resetting from the spec."*
+- **Root cause (the whole class):** a gate that fires on EVERY turn end, fail-CLOSED, on an UNCALIBRATED judge → 5/5 normal closings blocked. It is a boolean-false-on-everything, which is the exact anti-pattern the operator named.
+- **Impact:** a live session bricked; the v2.4 work (W1-W6 + the fixes) is discarded.
+- **Disposition:** DELETE (hard reset). Live = v2.3 (`2e2a39031c6059ca`). The forensic ledger stands at `forensic/FAILURE_LEDGER_V24.md`.

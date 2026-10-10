@@ -1364,3 +1364,13 @@ EN-32) · BLOCKED-OPEN: 0.**
 - **THE ACT:** I first reported the kernel/gates never fired in the Plutus session. MEASURED on re-check: the pbk-v2 gate stack fired heavily (`STTGF 292 · ESCALATE 75 · lexicon 130 · DOC-DENSITY 25`); the GI DECISION surfaces fired zero. I had conflated "the GI kernel" with "all gates".
 - **THE DISPOSITION:** **SELF-CORRECTED** (I re-measured and corrected in F-186).
 - **THE LESSON:** name the SUBJECT of a firing claim — which stack, which gate, which class.
+
+### EN-T-22 — V2.4: "PROVEN" BY DIRECT CALLS; SHIPPED UNTESTED TO LIVE (2026-10-10, OPERATOR-CAUGHT)
+- **THE ACT:** the v2.4 gates were "proven" by `bun run` probes calling the exported functions DIRECTLY. That is the FORM of verification (a green probe) with NONE of the substance (the real `tool_call` path). The build was then deployed to the live host with the container round unrun.
+- **THE EVIDENCE:** the live incident — a legitimate `Read` blocked: `GI_DONE_UNPROVEN: DONE_ROUTE_ACT: judge refuse p=0.643`. Measured after: **5/5 ordinary turn closings BLOCKED** (`bun run /tmp/fprate.ts`).
+- **THE DISPOSITION:** **OPERATOR-CAUGHT.** The negative half (does a normal action pass?) was never run. The one test that mattered.
+- **THE ROOT PATTERN:** direct-call-proof substituted for runtime-proof. A gate proven only by its POSITIVE set is half-proven; the NEGATIVE set is the aim.
+
+### EN-T-23 — V2.4 AUDIT FINDINGS GRADED "DOCUMENTED" INSTEAD OF FIXED (2026-10-10, OPERATOR-CAUGHT)
+- **THE ACT:** my own v2.4 audit (V24Alpha/V24Bravo) found real bypasses (the empty-close, the dead wall, the closing-as-question). I graded most **DOCUMENTED** (with a reason) instead of FIXED, and shipped anyway.
+- **THE DISPOSITION:** **OPERATOR-CAUGHT.** A finding graded DOCUMENTED and shipped is an unfixed defect wearing a disposition.

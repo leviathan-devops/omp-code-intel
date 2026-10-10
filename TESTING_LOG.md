@@ -480,3 +480,20 @@ probe**, and each audit finding is adjudicated (FIXED / BY-DESIGN / OPEN-with-se
 - **The verdict:** PASS — the 8 consumers CONSUMED across the subject union; the audit fixes introduce
   ZERO regression in the predicate.
 - **The artifacts:** the checkpoint `Checkpoints/gi-6l2e-gaps-closed-2026-10-02/ABIDE_6L2E_RESULTS.json`.
+
+## TEST PLAN ENTRY — 2026-10-10 — the turn-brick gate (the negative half)
+
+### SCRIPT
+- **What:** the DONE-gate must NOT fire on a normal turn; it must fire ONLY on a completion claim.
+- **How:** run 5 NORMAL turn closings + the incident Read through the gate on the live hook path.
+- **PASS criteria:** 5/5 normal closings PASS; the incident Read PASSES; a completion claim with no evidence REFUSES.
+- **FAIL criteria:** any normal closing blocked.
+- **Status:** PASSED (v2.4 measured, then DELETED)
+
+## TEST RESULT — 2026-10-10 — the turn-brick false-positive measurement
+
+### SCRIPT
+- **The run:** `bun run /tmp/fprate.ts` (5 normal closings through `attachClaimFirewall` + `onTurnEnd`).
+- **The raw output:** `★ 5/5 NORMAL turn closings BLOCKED` — each `GI_DONE_UNPROVEN: DONE_ROUTE_ACT: judge refuse p=0.85-0.91`.
+- **The verdict:** FAIL — v2.4 BRICKS NORMAL WORK (fail-closed on every turn). The build was then DELETED (the operator's hard reset).
+- **The artifacts:** `forensic/FAILURE_LEDGER_V24.md` · `reports/CASTRATE_THE_TURN_BRICK_BLUEPRINT_v1.md`.
