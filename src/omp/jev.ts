@@ -385,12 +385,15 @@ export function detectCandidate(command: string): GateCandidate {
  *  verdict, or the claim is UNPROVEN. SECURITY surface: fail-CLOSED — a dead judge blocks the
  *  close (a "done" that cannot be verified is not done). */
 export function doneRouteActCandidate(closing: string, evidence: string): GateCandidate {
+  // ★ V2.4 B2 FIX (the boundary audit): the closing is UNTRUSTED input — it must NEVER reach
+  //   the judge as QUESTION text. Sanitize it (the injection wall); the evidence rides the state.
+  const safeClosing = sanitizeForJudge(closing, 200);
   return {
     kind: "DONE_ROUTE_ACT",
-    signals: [closing.slice(0, 120), evidence.slice(0, 120)],
+    signals: [safeClosing.slice(0, 80), evidence.slice(0, 80)],
     severity: "security", // SECURITY: fail-CLOSED — an unverifiable "done" never closes the turn
     instructions:
-      "A turn-end completion claim (" + JSON.stringify(closing.slice(0, 200)) + "). The supporting " +
+      "A turn-end completion claim (" + safeClosing.slice(0, 200) + "). The supporting " +
       "evidence (the tool results this turn) is shown. Decide: does the FULL evidence support " +
       "a route=act verdict (the work is DONE and PROVEN), or is the claim UNPROVEN (a commit " +
       "without a render, a claim without an artifact, a green without the evidence)?",
@@ -509,7 +512,7 @@ export async function askToolGate(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        state: "[the candidate kind: " + sanitizeForJudge(candidate.kind, 40) + "]\n" + scrubSecrets(state),
+        state: buildJudgeState(candidate.kind, state),
         questions: { gate: { type: "choice", instructions: candidate.instructions, criteria: candidate.criteria } },
       }),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 4000),

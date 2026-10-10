@@ -2618,3 +2618,12 @@ it ran 3 happy-path scenarios. THE PROPER SUITE (plan .omp/ct-plan-v2.md, 4587 c
 - **THE ROOT CAUSE:** the index-and-query path is a TOOL + a SKILL (optional) — never a GATE (mandatory). Agents default to the lowest-friction retrieval (grep/read) because nothing penalizes it. See F-189/F-190/F-191/F-192.
 - **THE FIX:** the mandatory-retrieval gate — a read/grep over a corpus that HAS (or CAN HAVE) a graph index must be refused with the named remedy (index it + query it). Populate-on-first-run so the friction is zero.
 - **THE LESSON:** ship no "prefer X" instruction and call it enforcement. Gate the ACTION or it is decorative.
+
+## EN-35 — V2.4: the gray path's 1-option choice 400s on the local judge (2026-10-10)
+
+- **THE FINDING:** the lexicon-gate's gray branch sent `judgeSpans([{id:"S001"}])` — a 1-option
+  `choice`. The local judge: `400 Bad Request: choice criteria must name at least two options`.
+- **THE ROOT CAUSE:** a single span is not a choice; the remote never enforced the ≥2 rule.
+- **THE FIX:** `judgeSpan` (the single-span noul) + the gray branch calls it. The ledger row
+  carries `jev:0.8455`.
+- **THE LESSON:** a single-span judgment is a NOUL, never a 1-option choice.

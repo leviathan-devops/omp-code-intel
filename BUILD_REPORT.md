@@ -1240,3 +1240,21 @@ surfaced 0 critical/high after the fixes; artifact `artifacts/sg-ocr-728e6ceb948
 GI ext  sha256 879cbbf80b9d968216fca4da34065ad5c4fe21979d527956842876688f18b741   (~/.omp/agent/extensions/graph-intelligence/index.js)
 source == deployed (verified at seal)
 ```
+
+## 2026-10-10 — V2.4 W1-W6: THE ENFORCEMENT LAYER (the kernel as GATE, not TOOL)
+
+**The built:** the 6 v2.4 gates — W1 the lexicon-gate rewired to the LOCAL judge (:8090) + re-enabled;
+W2 the retrieval gate (detectCorpusRead + retrievalCandidate + the bash branch + bash.patterns);
+W3 the logic-edit symbols (extractFunctionSymbols); W4 the loop counter (GI_LOOP_REPEAT);
+W5 the done-gate (doneRouteActCandidate + the async route=act); W6 the substrate hard-block
+(hasPopulatedStore + GI_NO_SUBSTRATE). Plus the auditor fixes: the empty-close bypass (A1),
+the session-store layout (A4), the dead wall (B1), the closing-as-question (B2), the cwd
+traversal (B6). The firewall scripts/v24-firewall.sh (13 checks).
+**The why:** session 01a0c0e5 (3 days, 0 GI calls, the gate fired 1x in 2,450 edits).
+**The how:** detector → the LOCAL judge → the enforcer → the ledger; every gate throws with a
+named remedy; fail-polarity per surface.
+**The evidence:** the ledger row jev:0.8455 · W2 refuse p=0.9370 · W4 the 4th trips · W5 the F6
+refused (0.8130/0.8457) · W6 empty refused/populated serves · firewall EXIT 0 · tsc EXIT-0 ·
+dist 2a72c569cfb47a8c == deployed.
+**The honest notes:** the /prove-it ladder's container round is unrun (the gates are host-path);
+the 10 dormant TTSR rules need their matrices; the auditors' DOCUMENTED findings (not defects).

@@ -92,11 +92,23 @@ export function detectCorpusRead(command: string): string | null {
 
 // ★ V2.4 W6 — THE SUBSTRATE CHECK. True iff the workspace has a populated store
 //   (a typed_nodes table with ≥1 live row). A miss means the kernel has no data here.
+// ★ V2.4 A4 FIX (the auditor's bypass): the check read ONLY the 3 legacy checkout paths and
+//   NEVER the session-scoped sessions/{sid}/store.sqlite that the scoping law mandates —
+//   a populated workspace read EMPTY. Check BOTH layouts.
+// ★ V2.4 B6 FIX (the boundary audit): the cwd is UNTRUSTED input (a crafted cwd could point
+//   at a planted store or an arbitrary sqlite path). Resolve it (realpath) and confine it
+//   (must stay under itself) before joining.
 function hasPopulatedStore(cwd: string): boolean {
+  let root: string;
+  try {
+    root = fs.realpathSync(cwd);
+  } catch {
+    return false;
+  }
   const cands = [
-    `${cwd}/.omp/graph-intelligence/graphify-checkout/store.sqlite`,
-    `${cwd}/.omp/graph-intelligence/corbell-checkout/store.sqlite`,
-    `${cwd}/.omp/graph-intelligence/structural/store.sqlite`,
+    `${root}/.omp/graph-intelligence/graphify-checkout/store.sqlite`,
+    `${root}/.omp/graph-intelligence/corbell-checkout/store.sqlite`,
+    `${root}/.omp/graph-intelligence/structural/store.sqlite`,
   ];
   for (const p of cands) {
     try {
@@ -106,6 +118,19 @@ function hasPopulatedStore(cwd: string): boolean {
       if (row && row.n > 0) return true;
     } catch { /* try the next substrate */ }
   }
+  // the session-scoped layout: sessions/{sid}/store.sqlite (the scoping law's shape)
+  try {
+    const dir = `${cwd}/.omp/graph-intelligence/sessions`;
+    for (const sid of fs.readdirSync(dir)) {
+      const p = `${dir}/${sid}/store.sqlite`;
+      try {
+        const db = new Database(p, { readonly: true });
+        const row = db.query("SELECT COUNT(*) AS n FROM typed_nodes WHERE superseded_run IS NULL").get() as { n: number };
+        db.close();
+        if (row && row.n > 0) return true;
+      } catch { /* try the next session */ }
+    }
+  } catch { /* no sessions dir */ }
   return false;
 }
 

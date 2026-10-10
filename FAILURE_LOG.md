@@ -2634,3 +2634,10 @@ are fixed with their probes.
 - **Root cause:** a directive in the prompt is a PRIOR, not a CONSTRAINT. The model's action selection is driven by the local friction gradient, not by a distant admonition. Only a MECHANICAL GATE (the cheap path FAILS) changes the selected action.
 - **Impact:** advisory enforcement across the whole host is decorative.
 - **Disposition:** OPEN — replace advisories with gates on the ACTION.
+
+### F-193 — THE V2.4 AUDITORS' REAL BYPASSES (2026-10-10) — FIXED
+
+- **What happened:** V24Alpha + V24Bravo found 5 HIGH bypasses: the empty-close bypass (A1),
+  the session-store layout (A4), the dead wall (B1), the closing-as-question (B2), the cwd
+  traversal (B6). All FIXED + re-verified this turn. The rest DOCUMENTED with the reason.
+- **Disposition:** FIXED — the PROOF_LEDGER at forensic/PROOF_LEDGER_v24.md.
