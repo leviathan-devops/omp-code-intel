@@ -250,9 +250,13 @@ registerTool: (tool: {
   name: string;
   description: string;
   parameters: unknown;
+  loadMode?: string;
+  defaultInactive?: boolean;
   execute: (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>;
 }) => void;
 on?: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => void;
+getActiveTools?: () => string[];
+setActiveTools?: (tools: string[]) => Promise<void> | void;
 }
 function textResult(text: string, details: Record<string, unknown>) {
 return { content: [{ type: "text" as const, text }], details };
@@ -405,6 +409,7 @@ const obj = (shape: Record<string, unknown>) => pi.zod.object(shape);
 
 pi.registerTool({
   name: "graph-probe",
+  loadMode: "essential",
   description: "GI-OMP health probe. Returns PROBE_TOOL_OK + session identity. action=wipe is env-gated.",
   parameters: obj({ i: zstr().optional(), echo: zstr().optional(), action: zstr().optional() }),
   execute: async (_id, params, _sig, _upd, ctx) => {
@@ -464,6 +469,7 @@ pi.registerTool({
 });
 pi.registerTool({
   name: "graph-query",
+  loadMode: "essential",
   description: "Parse-grade GI query against THIS session store only. Verbs: who-calls, blast-radius, would-break, unwired, chain, impact (upstream closure + depth ledger), safe-delete (callers + reaches + uses + test-reach), gate (STEER/FULL caller advisory), verify (ripwire claim check: calls(A,B) uses(SYM) unused(SYM) contains(FILE,LIT) defines(FILE,SYM) reaches(SYM,FILTER)), must-implement, rule, violations, consistency. Params substrate+targetPath select the graphify leg (explicit absolute targetPath). Every twin verb appends a `ripwire:` cross-check line (store-primary, live-tree ripwire leg named).",
   parameters: obj({
     i: zstr().optional(),
@@ -717,12 +723,14 @@ createBugHuntTool(pi, { cwdOf });
   const aetherAuditParams = obj({ i: zstr().optional(), targetPath: zstr().optional(), template: zstr().optional() });
   pi.registerTool({
     name: "aether-code-audit",
+    loadMode: "essential",
     description: "GI-OMP aether code audit over the graphify graph (EN-38 guards intact, fork aether-auditor.ts runLayerHunter contract). Runs one hunter template (default R28-sro-graph) over targetPath's graphify-out/graph.json → findings + reportPath. Degraded refusal GI_AUDIT_NOT_WIRED only after a real attempt (missing/oversize/unparseable graph, invalid template).",
     parameters: aetherAuditParams,
     execute: aetherAuditExecute as (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>,
   });
   pi.registerTool({
     name: "graph-code-audit",
+    loadMode: "essential",
     description: "ALIAS of aether-code-audit (pre-rename name, same execute, removal only on operator order).",
     parameters: aetherAuditParams,
     execute: aetherAuditExecute as (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>,
@@ -735,6 +743,7 @@ createBugHuntTool(pi, { cwdOf });
   const consumptionParams = obj({ i: zstr().optional(), subject: zstr().optional(), scopeRoot: zstr().optional() });
   pi.registerTool({
     name: "gi-consumption",
+    loadMode: "essential",
     description: "THE 6L+2E CONSUMPTION PROBE. Reports `consumed:N/8` over the 8 consumers (6 graph layers L1 SEMANTICA/L2 ARSUMBRIS/L3 UA/L4 C2KG/L5 CORBELL/L6 GRAPHIFY + 2 Jev kernels TSG/ABIDE), each asked for an ANCHORED fact about `subject`. A layer is CONSUMED iff its substrate answers AND it contributed >=1 anchored fact; a wired-but-silent consumer is GI_LAYER_UNCONSUMED; an absent substrate is GI_LAYER_DOWN. NEVER reports a green on file existence alone.",
     parameters: consumptionParams,
     execute: (async (_id: unknown, params: unknown, _sig: unknown, _upd: unknown, ctx: unknown) => {
@@ -791,6 +800,7 @@ createBugHuntTool(pi, { cwdOf });
   });
   pi.registerTool({
     name: "gi-decide",
+    loadMode: "essential",
     description: "THE 6L+2E DECISION. Runs the KERNEL over the layer REGISTRY: the registry's 6 graph layers become the kernel's PREFLIGHT declarations, its ANCHORED facts become the certifications the detectors read, and the kernel returns the verdict (ALLOW/STEER/REFUSE/ABORT) with the class (dumb/theatrical/destructive/benign). A layer DOWN refuses the stack with `GI_STACK_INCOMPLETE:<id>` — never an empty pass. The decision consults the REGISTRY, never a raw store.",
     parameters: decideParams,
     execute: (async (_id: unknown, params: unknown, _sig: unknown, _upd: unknown, ctx: unknown) => {
@@ -864,6 +874,34 @@ createBugHuntTool(pi, { cwdOf });
 
 export default function giOmpExtension(pi: GiExtensionAPI): void {
   const names = registerGiOmpTools(pi, (ctx) => ctx?.cwd ?? process.cwd());
+  // ★ TOOL-SURFACE ACTIVATION (2026-10-11). The 7 GI tools REGISTER but were NEVER
+  //   ACTIVATED: the bundle carried 0 `loadMode` and 0 `setActiveTools`, and OMP keeps
+  //   non-essential tools INACTIVE by default — so none of the 7 ever entered a session's
+  //   tool schema. Mirror jev-manager's proven pattern (it sets loadMode=essential AND
+  //   re-asserts on before_agent_start): re-assert the tool names into the active set on
+  //   every agent start, with a verify-after-write compare-and-set (a concurrent writer can
+  //   strip the addition between the read and the write).
+  if (typeof pi.on === "function" && typeof pi.getActiveTools === "function" && typeof pi.setActiveTools === "function") {
+    const WANT = ["graph-probe", "graph-query", "bug-hunt", "aether-code-audit", "graph-code-audit", "gi-consumption", "gi-decide"];
+    const activate = async () => {
+      try {
+        const active = pi.getActiveTools!();
+        if (!Array.isArray(active)) return;
+        const missing = WANT.filter((n) => !active.includes(n));
+        if (!missing.length) return;
+        await pi.setActiveTools!([...active, ...missing]);
+        const after = pi.getActiveTools!();
+        if (Array.isArray(after)) {
+          const still = WANT.filter((n) => !after.includes(n));
+          if (still.length) await pi.setActiveTools!([...after, ...still]);
+        }
+        console.error("[gi-omp] tools activated into the active set: " + missing.join(","));
+      } catch (e) {
+        console.error("[gi-omp] tool activation skipped: " + String(e));
+      }
+    };
+    pi.on("before_agent_start", () => activate());
+  }
   if (typeof pi.on === "function") {
     // W2: registerGraphGate = attachGiGraphGate (per-edit middleware) + the
     // v1.3 drift layer (graph-gate.ts). One call site — grep count must stay 1.

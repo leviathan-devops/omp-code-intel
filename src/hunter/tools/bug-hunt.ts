@@ -223,6 +223,8 @@ export interface BugHuntToolApi {
     name: string;
     description: string;
     parameters: unknown;
+    loadMode?: string;
+    defaultInactive?: boolean;
     execute: (...args: unknown[]) => Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }>;
   }) => void;
 }
@@ -248,6 +250,7 @@ export function createBugHuntTool(pi: BugHuntToolApi, opts: { cwdOf: (ctx?: { cw
   const cwdOf = opts.cwdOf;
   pi.registerTool({
     name: "bug-hunt",
+    loadMode: "essential",
     description: "GI-OMP bug hunter. action=status reads the session store (unwired count + fix order); action=hunt runs the REAL micro-loop (recon/map/scan/trace/strike/report) under hunt-lock — fail-closed INCONCLUSIVE as RESULT.",
     parameters: obj({ i: zstr().optional(), action: pi.zod.enum(["hunt", "status"]), targetPath: zstr().optional(), profilePath: zstr().optional() }),
     execute: async (_id, params, _sig, _upd, ctx) => {
