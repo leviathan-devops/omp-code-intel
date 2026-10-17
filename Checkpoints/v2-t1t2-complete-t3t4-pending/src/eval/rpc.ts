@@ -65,13 +65,13 @@ function _intelCall(name, args) {
     if (_fs.existsSync(res)) {
       let out;
       try { out = JSON.parse(_fs.readFileSync(res, "utf8")); }
-      finally { try { _fs.unlinkSync(res); } catch (e) {} }
+      finally { try { _fs.unlinkSync(res); } catch (e) { if (!e || e.code !== "ENOENT") throw e; } }
       if (out && typeof out === "object" && "error" in out) throw new Error(out.error);
       return out && typeof out === "object" ? out.result : out;
     }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
   }
-  try { _fs.unlinkSync(req); } catch (e) {}
+  try { _fs.unlinkSync(req); } catch (e) { if (!e || e.code !== "ENOENT") throw e; }
   throw new Error("RPC_TIMEOUT");
 }
 `;
