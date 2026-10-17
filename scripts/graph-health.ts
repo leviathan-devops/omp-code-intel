@@ -52,7 +52,7 @@ const LAYERS: LayerDef[] = [
 
 interface LayerReport {
   layer: string;
-  status: "OK" | "SCOPE_SUSPECT" | "ABSENT" | "N/A";
+  status: "OK" | "SCOPE_SUSPECT" | "ABSENT" | "EMPTY" | "N/A";
   total: number;
   inScope: number;
   ratio: number;
@@ -124,6 +124,43 @@ function jsonPaths(storePath: string, keys: string[]): (string | null)[] | null 
   }
 }
 
+/** NIGHT-GI: the L2 layer's REAL count — the number of files THIS repo's daemon indexes.
+ *  The socket is resolved from the unit's MainPID (run/<hash>.pid == MainPID → <hash>.sock),
+ *  never "the first socket that answers" (that could be another repo's engine).
+ *  Returns null when the daemon/socket cannot be read. Overridable for tests. */
+export function l2FileCount(root: string, unit: string): number | null {
+  if (process.env.GI_HEALTH_L2_COUNT !== undefined) {
+    const n = Number(process.env.GI_HEALTH_L2_COUNT);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  const pidR = spawnSync("systemctl", ["--user", "show", "-p", "MainPID", "--value", unit], { encoding: "utf8", timeout: 15_000 });
+  const pid = (pidR.stdout ?? "").trim();
+  if (!pid || pid === "0") return null;
+  const runDir = path.join(process.env.HOME ?? "", ".arsumbris", "au-engine", "run");
+  let sock: string | null = null;
+  try {
+    for (const f of fs.readdirSync(runDir)) {
+      if (!f.endsWith(".pid")) continue;
+      if (fs.readFileSync(path.join(runDir, f), "utf8").trim() === pid) {
+        const cand = path.join(runDir, f.replace(/\.pid$/, ".sock"));
+        if (fs.existsSync(cand)) sock = cand;
+      }
+    }
+  } catch { return null; }
+  if (!sock) return null;
+  const r = spawnSync(process.execPath, [path.join(import.meta.dir, "au-read.ts"), "files", "", root], {
+    encoding: "utf8", timeout: 30_000, maxBuffer: 256 * 1024 * 1024, env: { ...process.env, AU_READ_SOCKET: sock },
+  });
+  if (r.status !== 0) return null;
+  try {
+    const d = JSON.parse(r.stdout ?? "") as { reply?: { result?: { files?: { repo?: string }[] } } };
+    const files = d.reply?.result?.files;
+    if (!Array.isArray(files)) return null;
+    const repo = path.basename(root);
+    return files.filter((x) => !x.repo || x.repo === repo).length;
+  } catch { return null; }
+}
+
 /** ★ THE CORE (exported for the test). Computes the per-layer scope. A layer whose store
  *  carries no path field reports N/A; a service layer reports its LIVENESS. */
 export function computeHealth(root: string, threshold: number): { inScopeRoots: string[]; reports: LayerReport[] } {
@@ -141,8 +178,20 @@ export function computeHealth(root: string, threshold: number): { inScopeRoots: 
     //   never a path histogram. Excluded from the scope ratio (an honest non-measure).
     if (l.kind === "service") {
       const r = spawnSync("systemctl", ["--user", "is-active", l.unit ?? ""], { encoding: "utf8", timeout: 15_000 });
-      const active = (r.stdout ?? "").trim() === "active";
-      reports.push({ layer: l.name, status: active ? "OK" : "ABSENT", total: 0, inScope: 0, ratio: active ? 1 : 0, histogram: {}, reason: active ? `LIVE (${l.unit} active)` : `GI_LAYER_DOWN:${l.name} (unit ${l.unit} not active)` });
+      const active = process.env.GI_HEALTH_L2_COUNT !== undefined || (r.stdout ?? "").trim() === "active";
+      if (!active) {
+        reports.push({ layer: l.name, status: "ABSENT", total: 0, inScope: 0, ratio: 0, histogram: {}, reason: `GI_LAYER_DOWN:${l.name} (unit ${l.unit} not active)` });
+        continue;
+      }
+      // NIGHT-GI: liveness alone printed "OK 0/0" — a live daemon indexing NOTHING is EMPTY.
+      const n = l2FileCount(root, l.unit ?? "");
+      if (n === null) {
+        reports.push({ layer: l.name, status: "ABSENT", total: 0, inScope: 0, ratio: 0, histogram: {}, reason: `GI_LAYER_UNREADABLE:${l.name} (${l.unit} active but its socket read failed)` });
+      } else if (n === 0) {
+        reports.push({ layer: l.name, status: "EMPTY", total: 0, inScope: 0, ratio: 0, histogram: {}, reason: `GI_LAYER_EMPTY:${l.name} (${l.unit} live, 0 indexed files)` });
+      } else {
+        reports.push({ layer: l.name, status: "OK", total: n, inScope: n, ratio: 1, histogram: {}, reason: `LIVE (${l.unit} active, ${n} indexed files)` });
+      }
       continue;
     }
     const storePath = path.join(root, l.rel);
@@ -153,6 +202,11 @@ export function computeHealth(root: string, threshold: number): { inScopeRoots: 
     const paths = l.kind === "sqlite" ? sqlitePaths(storePath) : jsonPaths(storePath, l.pathKeys ?? []);
     if (paths === null) {
       reports.push({ layer: l.name, status: "ABSENT", total: 0, inScope: 0, ratio: 0, histogram: {}, reason: `GI_LAYER_UNREADABLE:${l.name}` });
+      continue;
+    }
+    // NIGHT-GI: a store with ZERO live rows is EMPTY — never "N/A"/"OK 0/0".
+    if (paths.length === 0) {
+      reports.push({ layer: l.name, status: "EMPTY", total: 0, inScope: 0, ratio: 0, histogram: {}, reason: `GI_LAYER_EMPTY:${l.name} (0 live nodes in ${l.rel})` });
       continue;
     }
     const nonNull = paths.filter((p) => p !== null && p !== undefined && p !== "");
@@ -221,13 +275,17 @@ function main(): void {
     }
   }
 
-  const suspects = reports.filter((r) => r.status === "SCOPE_SUSPECT");
+  // NIGHT-GI: EMPTY and ABSENT layers FAIL the gate, like SCOPE_SUSPECT (never a silent green).
+  const failing = reports.filter((r) => r.status === "SCOPE_SUSPECT" || r.status === "EMPTY" || r.status === "ABSENT");
   console.log("");
-  if (suspects.length > 0) {
-    console.log(`graph-health: ${suspects.length} layer(s) SCOPE_SUSPECT — FAIL`);
+  if (failing.length > 0) {
+    for (const r of failing) console.log(`FAIL ${r.layer} ${r.status} ${r.inScope}/${r.total} — ${r.reason ?? ""}`);
+    const by = (st: string) => failing.filter((r) => r.status === st).length;
+    console.log(`graph-health: ${failing.length} layer(s) failing (EMPTY=${by("EMPTY")} ABSENT=${by("ABSENT")} SCOPE_SUSPECT=${by("SCOPE_SUSPECT")}) — FAIL`);
     process.exit(1);
   }
-  console.log(`graph-health: all measurable layers ≥${Math.round(threshold * 100)}% in-scope — OK`);
+  const counts = reports.map((r) => `${r.layer}=${r.total}`).join(" ");
+  console.log(`graph-health: all ${reports.length} layers non-empty and ≥${Math.round(threshold * 100)}% in-scope (${counts}) — OK`);
   process.exit(0);
 }
 

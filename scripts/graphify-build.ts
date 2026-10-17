@@ -126,14 +126,16 @@ if (extract) {
   console.log(`[graphify-build] extract: ${resolved.bin} extract ${root} --code-only --no-cluster (source=${resolved.source})`);
   const res = spawnSync(resolved.bin, ["extract", root, "--code-only", "--no-cluster"], {
     cwd: root,
-    timeout: 120_000,
+    // NIGHT-GI: 120s was too tight under load (03:35 run died exit 4); env-tunable, default 10 min.
+    timeout: Number(process.env.GRAPHIFY_EXTRACT_TIMEOUT_MS) || 600_000,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, HOME: process.env.HOME ?? os.homedir() },
   });
   const tail = String(res.stderr ?? res.stdout ?? "").slice(-2000);
   if (res.status !== 0) {
-    console.error(`GRAPHIFY_EXTRACT_FAILED: ${tail}`);
+    const why = res.error ? `${(res.error as Error).message}` : res.signal ? `signal=${res.signal}` : `status=${res.status}`;
+    console.error(`GRAPHIFY_EXTRACT_FAILED (${why}): ${tail}`);
     process.exit(4);
   }
   console.log(`[graphify-build] extract done (status=${res.status}): ${tail.split("\n").filter(Boolean).slice(-3).join(" | ")}`);

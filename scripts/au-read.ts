@@ -117,7 +117,9 @@ function request(sockPath: string, read: string, extra: Record<string, unknown>)
   });
 }
 
-const sock = await liveEngineSocket();
+// NIGHT-GI: AU_READ_SOCKET pins the socket (graph-health resolves it from the unit's MainPID),
+// so a read can never land on another repo's engine (e.g. Plutus).
+const sock = process.env.AU_READ_SOCKET ? process.env.AU_READ_SOCKET : await liveEngineSocket();
 if (sock === null) {
   console.error("GI_LAYER_ARSUMBRIS: no LIVE engine socket under " + engineRunDir() + " (a socket FILE is not a daemon)");
   process.exit(3);

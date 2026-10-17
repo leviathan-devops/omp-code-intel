@@ -2,3 +2,6 @@
 Checkpoints/
 Ship_Packages/
 SHIP_PACKAGES/
+# NIGHT-GI: backups/vendored trees never belong in the extract
+graphify-out.bak-*/
+research/

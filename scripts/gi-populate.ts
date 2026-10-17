@@ -54,6 +54,22 @@ function readMeta(storePath: string, key: string): string {
 
 const REPO = path.resolve(import.meta.dir, "..");
 
+/** NIGHT-GI: the old tail was the LAST 2 output lines — for a Bun crash that is the source
+ *  excerpt + the "Bun vX (Linux x64)" footer, so every failure read `· Bun v1.4.2 (Linux x64)`
+ *  and the real cause (GRAPHIFY_GRAPH_TOO_LARGE, SQLITE_BUSY …) was never logged. Prefer the
+ *  last line that NAMES an error; fall back to the last non-footer lines. */
+/** NIGHT-GI: the SQLITE_BUSY / "database is locked" transient. */
+export function isBusy(out: string): boolean {
+  return /SQLITE_BUSY|database is locked/.test(out);
+}
+
+export function failureTail(out: string): string {
+  const lines = out.split("\n").map((l) => l.trim()).filter((l) => l && !/^Bun v\d/.test(l));
+  const named = lines.filter((l) => /(^error:|Error:|^[A-Z][A-Z0-9_]{3,}(:| \()|SQLITE_|code: ")/.test(l));
+  const pick = named.length > 0 ? named.slice(-2) : lines.slice(-2);
+  return pick.join(" · ").slice(0, 300);
+}
+
 interface LayerResult {
   layer: string;
   ok: boolean;
@@ -234,8 +250,16 @@ function main(): void {
     //   skips the scan and yields GRAPH_EMPTY on a store that has never been built).
     const effRebuild = rebuild || !exists(storePath);
     const argv = l.argv(target, effRebuild);
-    const r = spawnSync(argv[0], argv.slice(1), { cwd: REPO, encoding: "utf8", timeout: 600_000 });
-    const tail = ((r.stdout ?? "") + (r.stderr ?? "")).trim().split("\n").slice(-2).join(" · ").slice(0, 160);
+    // NIGHT-GI: a store held by a concurrent writer/reader (daemon, manual sqlite3, a parallel
+    //   build) made the checkout writer die instantly with SQLITE_BUSY — the 03:32 corbell
+    //   failure class. Retry ONLY that named transient, loudly, with backoff.
+    let r = spawnSync(argv[0], argv.slice(1), { cwd: REPO, encoding: "utf8", timeout: 600_000 });
+    for (let attempt = 1; attempt <= 3 && r.status !== 0 && isBusy((r.stdout ?? "") + (r.stderr ?? "")); attempt++) {
+      console.log(`[gi-populate] ${l.name.padEnd(10)} SQLITE_BUSY (store locked) — retry ${attempt}/3 in ${attempt * 10}s`);
+      spawnSync("sleep", [String(attempt * 10)]);
+      r = spawnSync(argv[0], argv.slice(1), { cwd: REPO, encoding: "utf8", timeout: 600_000 });
+    }
+    const tail = failureTail((r.stdout ?? "") + "\n" + (r.stderr ?? ""));
     if (r.status !== 0) {
       results.push({ layer: l.name, ok: false, nodes: 0, edges: 0, store: storeRel, buildRoot, reason: `GI_LAYER_BUILD_FAILED:${l.name} — ${tail}` });
       console.log(`[gi-populate] ${l.name.padEnd(10)} FAILED (exit ${r.status}) ${tail}`);
@@ -289,4 +313,4 @@ function main(): void {
   process.exit(failed === 0 ? 0 : 1);
 }
 
-main();
+if (import.meta.main) main();
