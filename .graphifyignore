@@ -1,0 +1,4 @@
+# JT-006: keep graphify extract in scope (128 MiB budget)
+Checkpoints/
+Ship_Packages/
+SHIP_PACKAGES/

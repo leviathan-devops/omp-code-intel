@@ -72,3 +72,7 @@ graphify-out/
 .trident/host-suite-live.sqlite.*
 __pycache__/
 *.pyc
+
+# campaign W1 (LEV-17): keep the JT006 graph backup and the live runtime store out of git
+graphify-out.bak-*/
+runtime/
