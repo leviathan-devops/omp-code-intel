@@ -1,0 +1,15 @@
+# Graphify refresh exclusions. These paths are inputs the extractor must skip.
+# graphify-out/ is generated output: refresh still opens graph.json by its
+# explicit path, then refuses it with GRAPHIFY_GRAPH_TOO_LARGE when it is over budget.
+
+node_modules/
+Checkpoints/
+Ship_Packages/
+SHIP_PACKAGES/
+graphify-out/
+dist/
+.omp/
+backups/
+*.sqlite
+*.sqlite3
+*.bak

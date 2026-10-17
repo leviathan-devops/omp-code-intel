@@ -18,7 +18,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test:st": "bun run tests/st/run.ts"
+    "test": "bun test tests/gi",
+    "test:gi": "bun test tests/gi",
+    "test:st": "bun run tests/st/run.ts",
+    "gi:bundle": "bun build src/gi/index.ts --outfile=extensions/graph-intelligence/index.js --format=esm --target=node"
   },
   "files": [
     "src",
