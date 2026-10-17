@@ -5,3 +5,10 @@ dist/
 *.db-wal
 *.tgz
 .DS_Store
+
+# Graph Intelligence backups. Report historical blobs; do not track new ones.
+*.sqlite
+*.sqlite3
+*.bak
+graphify-out/
+backups/

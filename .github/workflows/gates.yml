@@ -47,3 +47,7 @@ jobs:
           else
             echo "gates/test: no JS/TS project; nothing to run"
           fi
+      - name: hash extensions/graph-intelligence/index.js
+        run: bash scripts/check-gi-bundle-hash.sh
+      - name: refuse tracked large backups
+        run: bun scripts/no-large-backups.ts

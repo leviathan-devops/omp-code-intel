@@ -1,0 +1,455 @@
+Watched-red-first for lane/gi-w1.
+Each block is a planted bad case run BEFORE the fix was restored.
+The final tree is the restored green implementation; this file is the red evidence.
+
+========================================================================
+PLANT: GI-1 ignore parser returns no rules (refresh would index backups)
+exit=1
+error: expect(received).toBe(expected)
+Expected: true
+Received: false
+(fail) GI-1 graphify refresh > repo .graphifyignore skips checkpoints, sqlite backups, and graphify-out inputs [0.40ms]
+error: expect(received).toBe(expected)
+Expected: true
+Received: false
+(fail) GI-1 graphify refresh > a later ! exception re-includes one path under an ignored directory [0.05ms]
+error: expect(received).toEqual(expected)
+(fail) GI-1 graphify refresh > refresh walks kept sources and does not descend into ignored backups [1.05ms]
+(pass) GI-1 graphify refresh > over-budget graph.json fails with GRAPHIFY_GRAPH_TOO_LARGE before read or parse [0.54ms]
+(pass) GI-1 graphify refresh > refresh of an over-budget graphify-out fails closed and does not parse [0.38ms]
+(pass) GI-1 graphify refresh > growth past the budget between stat and read is still GRAPHIFY_GRAPH_TOO_LARGE [0.21ms]
+--- raw tail ---
+48 |       const inputs = listRefreshInputs(dir);
+49 |       expect(inputs.kept).toEqual([".graphifyignore", "src/a.ts"]);
+                               ^
+error: expect(received).toEqual(expected)
+
+  [
+    ".graphifyignore",
++   "backups/store.sqlite",
++   "graphify-out/graph.json",
+    "src/a.ts",
+  ]
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/workspace/tests/gi/graphify-refresh.test.ts:49:27)
+(fail) GI-1 graphify refresh > refresh walks kept sources and does not descend into ignored backups [1.05ms]
+(pass) GI-1 graphify refresh > over-budget graph.json fails with GRAPHIFY_GRAPH_TOO_LARGE before read or parse [0.54ms]
+(pass) GI-1 graphify refresh > refresh of an over-budget graphify-out fails closed and does not parse [0.38ms]
+(pass) GI-1 graphify refresh > growth past the budget between stat and read is still GRAPHIFY_GRAPH_TOO_LARGE [0.21ms]
+
+ 3 pass
+ 3 fail
+ 9 expect() calls
+Ran 6 tests across 1 file. [9.00ms]
+
+========================================================================
+PLANT: GI-1 size cap removed (oversize graph is parsed / crashes as JSON)
+exit=1
+(pass) GI-1 graphify refresh > repo .graphifyignore skips checkpoints, sqlite backups, and graphify-out inputs [0.30ms]
+(pass) GI-1 graphify refresh > a later ! exception re-includes one path under an ignored directory [0.03ms]
+(pass) GI-1 graphify refresh > refresh walks kept sources and does not descend into ignored backups [1.33ms]
+error: expect(received).toThrow(expected)
+(fail) GI-1 graphify refresh > over-budget graph.json fails with GRAPHIFY_GRAPH_TOO_LARGE before read or parse [0.30ms]
+error: expect(received).toThrow(expected)
+(fail) GI-1 graphify refresh > refresh of an over-budget graphify-out fails closed and does not parse [0.35ms]
+error: expect(received).toThrow(expected)
+(fail) GI-1 graphify refresh > growth past the budget between stat and read is still GRAPHIFY_GRAPH_TOO_LARGE [0.26ms]
+--- raw tail ---
+  edges: 0,
+  graphPath: "/tmp/gi-refresh-ieC6Dk/graphify-out/graph.json",
+}
+
+      at <anonymous> (/workspace/tests/gi/graphify-refresh.test.ts:98:13)
+(fail) GI-1 graphify refresh > refresh of an over-budget graphify-out fails closed and does not parse [0.35ms]
+110 |       expect(() =>
+111 |         loadGraphDocument(graph, {
+112 |           budgetBytes: 4,
+113 |           read: () => "x".repeat(32),
+114 |         }),
+115 |       ).toThrow(/GRAPHIFY_GRAPH_TOO_LARGE/);
+              ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /GRAPHIFY_GRAPH_TOO_LARGE/
+Received message: "GRAPHIFY_EXTRACT_FAILED: graph.json is not valid JSON (JSON Parse error: Unexpected identifier \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\")"
+
+      at <anonymous> (/workspace/tests/gi/graphify-refresh.test.ts:115:9)
+(fail) GI-1 graphify refresh > growth past the budget between stat and read is still GRAPHIFY_GRAPH_TOO_LARGE [0.26ms]
+
+ 3 pass
+ 3 fail
+ 15 expect() calls
+Ran 6 tests across 1 file. [9.00ms]
+
+========================================================================
+PLANT: GI-1 corbell retry removed (SQLITE_BUSY thrown on first attempt)
+exit=1
+error: SQLITE_BUSY: database is locked
+(fail) GI-1 corbell SQLITE_BUSY retry > a transient SQLITE_BUSY succeeds after bounded backoff [0.31ms]
+error: expect(received).toThrow(expected)
+(fail) GI-1 corbell SQLITE_BUSY retry > exhausted retries fail clearly with CORBELL_SQLITE_BUSY [0.24ms]
+error: expect(received).toThrow(expected)
+(fail) GI-1 corbell SQLITE_BUSY retry > the total wait is bounded and stops before maxAttempts [0.11ms]
+(pass) GI-1 corbell SQLITE_BUSY retry > a non-busy error is not retried [0.15ms]
+--- raw tail ---
+Expected pattern: /CORBELL_SQLITE_BUSY: database remained locked after 4 bounded retries/
+Received message: "database is locked"
+
+      at <anonymous> (/workspace/tests/gi/corbell-retry.test.ts:49:15)
+(fail) GI-1 corbell SQLITE_BUSY retry > exhausted retries fail clearly with CORBELL_SQLITE_BUSY [0.24ms]
+69 |           sleep: async (ms) => {
+70 |             waited += ms;
+71 |           },
+72 |         },
+73 |       ),
+74 |     ).rejects.toThrow(/CORBELL_SQLITE_BUSY/);
+                   ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /CORBELL_SQLITE_BUSY/
+Received message: "SQLITE_BUSY"
+
+      at <anonymous> (/workspace/tests/gi/corbell-retry.test.ts:74:15)
+(fail) GI-1 corbell SQLITE_BUSY retry > the total wait is bounded and stops before maxAttempts [0.11ms]
+(pass) GI-1 corbell SQLITE_BUSY retry > a non-busy error is not retried [0.15ms]
+
+ 1 pass
+ 3 fail
+ 5 expect() calls
+Ran 4 tests across 1 file. [6.00ms]
+
+========================================================================
+PLANT: GI-1 every error treated as SQLITE_BUSY
+exit=1
+(pass) GI-1 corbell SQLITE_BUSY retry > a transient SQLITE_BUSY succeeds after bounded backoff [0.41ms]
+(pass) GI-1 corbell SQLITE_BUSY retry > exhausted retries fail clearly with CORBELL_SQLITE_BUSY [0.16ms]
+(pass) GI-1 corbell SQLITE_BUSY retry > the total wait is bounded and stops before maxAttempts [0.08ms]
+error: expect(received).toThrow(expected)
+(fail) GI-1 corbell SQLITE_BUSY retry > a non-busy error is not retried [0.20ms]
+--- raw tail ---
+bun test v1.4.3 (c6da4a4d3)
+
+tests/gi/corbell-retry.test.ts:
+(pass) GI-1 corbell SQLITE_BUSY retry > a transient SQLITE_BUSY succeeds after bounded backoff [0.41ms]
+(pass) GI-1 corbell SQLITE_BUSY retry > exhausted retries fail clearly with CORBELL_SQLITE_BUSY [0.16ms]
+(pass) GI-1 corbell SQLITE_BUSY retry > the total wait is bounded and stops before maxAttempts [0.08ms]
+89 |           sleep: async () => {
+90 |             throw new Error("sleep should not run");
+91 |           },
+92 |         },
+93 |       ),
+94 |     ).rejects.toThrow(/UNIQUE constraint failed/);
+                   ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /UNIQUE constraint failed/
+Received message: "sleep should not run"
+
+      at <anonymous> (/workspace/tests/gi/corbell-retry.test.ts:94:15)
+(fail) GI-1 corbell SQLITE_BUSY retry > a non-busy error is not retried [0.20ms]
+
+ 3 pass
+ 1 fail
+ 13 expect() calls
+Ran 4 tests across 1 file. [7.00ms]
+
+========================================================================
+PLANT: GI-3 empty layer formatted as OK 0/0 100%
+exit=1
+error: expect(received).toBe(expected)
+Expected: "EMPTY/RED L6_graphify 0/0"
+Received: "OK 0/0 100%"
+(fail) GI-3 empty layer > the empty-layer fixture reports EMPTY/RED and never OK 0/0 100% [1.85ms]
+error: expect(received).toBe(expected)
+Expected: "EMPTY/RED L0 0/0"
+Received: "OK 0/0 100%"
+(fail) GI-3 empty layer > a caller that labels zero rows OK still cannot format OK 0/0 100% [0.05ms]
+(pass) GI-3 empty layer > a non-empty in-scope layer stays OK with its real ratio [0.04ms]
+(pass) GI-3 empty layer > a populated layer under the scope bar is RED, not an empty-layer pass [0.03ms]
+--- raw tail ---
+Received: "OK 0/0 100%"
+
+      at <anonymous> (/workspace/tests/gi/empty-layer.test.ts:22:27)
+(fail) GI-3 empty layer > the empty-layer fixture reports EMPTY/RED and never OK 0/0 100% [1.85ms]
+31 |     }
+32 |   });
+33 | 
+34 |   test("a caller that labels zero rows OK still cannot format OK 0/0 100%", () => {
+35 |     const line = formatLayerLine({ name: "L0", status: "OK", total: 0, inScope: 0 });
+36 |     expect(line).toBe("EMPTY/RED L0 0/0");
+                      ^
+error: expect(received).toBe(expected)
+
+Expected: "EMPTY/RED L0 0/0"
+Received: "OK 0/0 100%"
+
+      at <anonymous> (/workspace/tests/gi/empty-layer.test.ts:36:18)
+(fail) GI-3 empty layer > a caller that labels zero rows OK still cannot format OK 0/0 100% [0.05ms]
+(pass) GI-3 empty layer > a non-empty in-scope layer stays OK with its real ratio [0.04ms]
+(pass) GI-3 empty layer > a populated layer under the scope bar is RED, not an empty-layer pass [0.03ms]
+
+ 2 pass
+ 2 fail
+ 15 expect() calls
+Ran 4 tests across 1 file. [10.00ms]
+
+========================================================================
+PLANT: GI-3 every layer forced EMPTY/RED
+exit=1
+(pass) GI-3 empty layer > the empty-layer fixture reports EMPTY/RED and never OK 0/0 100% [8.85ms]
+(pass) GI-3 empty layer > a caller that labels zero rows OK still cannot format OK 0/0 100% [0.03ms]
+error: expect(received).toBe(expected)
+Expected: "OK structural 4/4 100%"
+Received: "EMPTY/RED structural 0/0"
+(fail) GI-3 empty layer > a non-empty in-scope layer stays OK with its real ratio [0.12ms]
+error: expect(received).toBe(expected)
+Expected: "RED structural 1/10 10%"
+Received: "EMPTY/RED structural 0/0"
+(fail) GI-3 empty layer > a populated layer under the scope bar is RED, not an empty-layer pass [0.04ms]
+--- raw tail ---
+
+Expected: "OK structural 4/4 100%"
+Received: "EMPTY/RED structural 0/0"
+
+      at <anonymous> (/workspace/tests/gi/empty-layer.test.ts:45:25)
+(fail) GI-3 empty layer > a non-empty in-scope layer stays OK with its real ratio [0.12ms]
+48 | 
+49 |   test("a populated layer under the scope bar is RED, not an empty-layer pass", () => {
+50 |     const health = assessLayer({ name: "structural", total: 10, inScope: 1 });
+51 |     expect(health.status).toBe("SCOPE_SUSPECT");
+52 |     expect(health.color).toBe("RED");
+53 |     expect(health.line).toBe("RED structural 1/10 10%");
+                             ^
+error: expect(received).toBe(expected)
+
+Expected: "RED structural 1/10 10%"
+Received: "EMPTY/RED structural 0/0"
+
+      at <anonymous> (/workspace/tests/gi/empty-layer.test.ts:53:25)
+(fail) GI-3 empty layer > a populated layer under the scope bar is RED, not an empty-layer pass [0.04ms]
+
+ 2 pass
+ 2 fail
+ 19 expect() calls
+Ran 4 tests across 1 file. [16.00ms]
+
+========================================================================
+PLANT: GI-4 mismatched deployed hash is ignored
+exit=1
+error: expect(received).toBe(expected)
+Expected: 1
+Received: 0
+(fail) GI-4 bundle hash > a mismatched deployed hash fails [6.90ms]
+(pass) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [6.01ms]
+(pass) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [4.95ms]
+(pass) GI-4 bundle hash > gates workflow runs the hash script [0.03ms]
+--- raw tail ---
+bun test v1.4.3 (c6da4a4d3)
+
+tests/gi/bundle-hash.test.ts:
+14 | 
+15 | describe("GI-4 bundle hash", () => {
+16 |   test("a mismatched deployed hash fails", () => {
+17 |     const deployed = "0".repeat(64);
+18 |     const result = spawnSync("bash", [SCRIPT, deployed], { encoding: "utf8" });
+19 |     expect(result.status).toBe(1);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/workspace/tests/gi/bundle-hash.test.ts:19:27)
+(fail) GI-4 bundle hash > a mismatched deployed hash fails [6.90ms]
+(pass) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [6.01ms]
+(pass) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [4.95ms]
+(pass) GI-4 bundle hash > gates workflow runs the hash script [0.03ms]
+
+ 3 pass
+ 1 fail
+ 10 expect() calls
+Ran 4 tests across 1 file. [27.00ms]
+
+========================================================================
+PLANT: GI-4 hash script rejects the matching deployed hash
+exit=1
+error: expect(received).toContain(expected)
+Received: ""
+(fail) GI-4 bundle hash > a mismatched deployed hash fails [4.80ms]
+error: expect(received).toBe(expected)
+Expected: 0
+Received: 1
+(fail) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [4.32ms]
+(pass) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [4.20ms]
+(pass) GI-4 bundle hash > gates workflow runs the hash script [0.03ms]
+--- raw tail ---
+Received: ""
+
+      at <anonymous> (/workspace/tests/gi/bundle-hash.test.ts:20:27)
+(fail) GI-4 bundle hash > a mismatched deployed hash fails [4.80ms]
+23 |   });
+24 | 
+25 |   test("the matching deployed hash passes and the script prints the repo hash", () => {
+26 |     const actual = sha256(BUNDLE);
+27 |     const result = spawnSync("bash", [SCRIPT, actual.toUpperCase()], { encoding: "utf8" });
+28 |     expect(result.status).toBe(0);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/workspace/tests/gi/bundle-hash.test.ts:28:27)
+(fail) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [4.32ms]
+(pass) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [4.20ms]
+(pass) GI-4 bundle hash > gates workflow runs the hash script [0.03ms]
+
+ 2 pass
+ 2 fail
+ 9 expect() calls
+Ran 4 tests across 1 file. [22.00ms]
+
+========================================================================
+PLANT: GI-4 committed bundle replaced with an empty module
+exit=1
+(pass) GI-4 bundle hash > a mismatched deployed hash fails [6.12ms]
+(pass) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [5.42ms]
+error: expect(received).toEqual(expected)
+(fail) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [12.96ms]
+(pass) GI-4 bundle hash > gates workflow runs the hash script [0.05ms]
+--- raw tail ---
++     121,
++     82,
++     101,
++     116,
++     114,
++     121,
++     10,
+      125,
++     59,
+      10,
+    ],
+    "type": "Buffer",
+  }
+
+- Expected  - 0
++ Received  + 10392
+
+      at <anonymous> (/workspace/tests/gi/bundle-hash.test.ts:43:36)
+(fail) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [12.96ms]
+(pass) GI-4 bundle hash > gates workflow runs the hash script [0.05ms]
+
+ 3 pass
+ 1 fail
+ 10 expect() calls
+Ran 4 tests across 1 file. [33.00ms]
+
+========================================================================
+PLANT: GI-4 CI hash step removed
+exit=1
+(pass) GI-4 bundle hash > a mismatched deployed hash fails [6.14ms]
+(pass) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [6.05ms]
+(pass) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [5.43ms]
+error: expect(received).toContain(expected)
+Received: "# JT-010 (LEV-16) factory gates. Posts on push (HEAD) and PRs.\n# Job names = check-run contexts. Arm a context in a ruleset ONLY after it has posted success on HEAD.\nname: gates\n\"on\":\n  push:\n    branches: [\"**\"]\n  pull_request:\n  merge_group:\npermissions:\n  contents: read\njobs:\n  anti_theatrical:\n    name: gates/anti-theatrical\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with: { fetch-depth: 0 }\n      - name: no empty catch, no AI disclaimers in tracked source\n        run: |\n          set -euo pipefail\n          if git grep -nE 'catch *\\([^)]*\\) *\\{ *\\}|the banned disclaimer phrase' -- ':!*.md' ':!.github/**'; then\n            echo \"REJECT(anti-theatrical)\"; exit 1; fi\n          echo \"anti-theatrical: clean\"\n  secret_scan:\n    name: gates/secret-scan\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with: { fetch-depth: 0 }\n      - uses: gitleaks/gitleaks-action@v2\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  test:\n    name: gates/test\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: oven-sh/setup-bun@v2\n        if: hashFiles('bun.lock', 'bun.lockb', 'package.json') != ''\n      - name: run tests if the repo has them (fail closed if a suite exists and fails)\n        run: |\n          set -euo pipefail\n          if [ -f package.json ]; then\n            bun install --frozen-lockfile\n            if grep -q '\"test\"' package.json; then bun test; fi\n            if [ -f tsconfig.json ]; then bunx tsc --noEmit; fi\n          else\n            echo \"gates/test: no JS/TS project; nothing to run\"\n          fi\n      - name: refuse tracked large backups\n        run: bun scripts/no-large-backups.ts\n"
+(fail) GI-4 bundle hash > gates workflow runs the hash script [0.19ms]
+--- raw tail ---
+bun test v1.4.3 (c6da4a4d3)
+
+tests/gi/bundle-hash.test.ts:
+(pass) GI-4 bundle hash > a mismatched deployed hash fails [6.14ms]
+(pass) GI-4 bundle hash > the matching deployed hash passes and the script prints the repo hash [6.05ms]
+(pass) GI-4 bundle hash > the committed bundle is the build of src/gi and carries the lane tokens [5.43ms]
+50 |     }
+51 |   });
+52 | 
+53 |   test("gates workflow runs the hash script", () => {
+54 |     const yml = fs.readFileSync(path.resolve(".github/workflows/gates.yml"), "utf8");
+55 |     expect(yml).toContain("scripts/check-gi-bundle-hash.sh");
+                     ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "scripts/check-gi-bundle-hash.sh"
+Received: "# JT-010 (LEV-16) factory gates. Posts on push (HEAD) and PRs.\n# Job names = check-run contexts. Arm a context in a ruleset ONLY after it has posted success on HEAD.\nname: gates\n\"on\":\n  push:\n    branches: [\"**\"]\n  pull_request:\n  merge_group:\npermissions:\n  contents: read\njobs:\n  anti_theatrical:\n    name: gates/anti-theatrical\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with: { fetch-depth: 0 }\n      - name: no empty catch, no AI disclaimers in tracked source\n        run: |\n          set -euo pipefail\n          if git grep -nE 'catch *\\([^)]*\\) *\\{ *\\}|the banned disclaimer phrase' -- ':!*.md' ':!.github/**'; then\n            echo \"REJECT(anti-theatrical)\"; exit 1; fi\n          echo \"anti-theatrical: clean\"\n  secret_scan:\n    name: gates/secret-scan\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with: { fetch-depth: 0 }\n      - uses: gitleaks/gitleaks-action@v2\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  test:\n    name: gates/test\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: oven-sh/setup-bun@v2\n        if: hashFiles('bun.lock', 'bun.lockb', 'package.json') != ''\n      - name: run tests if the repo has them (fail closed if a suite exists and fails)\n        run: |\n          set -euo pipefail\n          if [ -f package.json ]; then\n            bun install --frozen-lockfile\n            if grep -q '\"test\"' package.json; then bun test; fi\n            if [ -f tsconfig.json ]; then bunx tsc --noEmit; fi\n          else\n            echo \"gates/test: no JS/TS project; nothing to run\"\n          fi\n      - name: refuse tracked large backups\n        run: bun scripts/no-large-backups.ts\n"
+
+      at <anonymous> (/workspace/tests/gi/bundle-hash.test.ts:55:17)
+(fail) GI-4 bundle hash > gates workflow runs the hash script [0.19ms]
+
+ 3 pass
+ 1 fail
+ 13 expect() calls
+Ran 4 tests across 1 file. [27.00ms]
+
+========================================================================
+PLANT: backups: classifier reports nothing as a backup
+exit=1
+error: expect(received).toBe(expected)
+Expected: true
+Received: false
+(fail) tracked backup guard > a large sqlite backup is flagged and ordinary source is not [0.16ms]
+(pass) tracked backup guard > HEAD tracks no large backups [131.28ms]
+--- raw tail ---
+bun test v1.4.3 (c6da4a4d3)
+
+tests/gi/large-backups.test.ts:
+3 | import path from "node:path";
+4 | import { LARGE_FILE_MAX_BYTES, isTrackedBackup } from "../../src/gi/index";
+5 | 
+6 | describe("tracked backup guard", () => {
+7 |   test("a large sqlite backup is flagged and ordinary source is not", () => {
+8 |     expect(isTrackedBackup("extensions/graph-intelligence/store.sqlite", 128).backup).toBe(true);
+                                                                                          ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/workspace/tests/gi/large-backups.test.ts:8:87)
+(fail) tracked backup guard > a large sqlite backup is flagged and ordinary source is not [0.16ms]
+(pass) tracked backup guard > HEAD tracks no large backups [131.28ms]
+
+ 1 pass
+ 1 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [139.00ms]
+
+========================================================================
+PLANT: backups: classifier flags every tracked file
+exit=1
+error: expect(received).toBe(expected)
+Expected: false
+Received: true
+(fail) tracked backup guard > a large sqlite backup is flagged and ordinary source is not [0.28ms]
+error: expect(received).toBe(expected)
+Expected: 0
+Received: 1
+(fail) tracked backup guard > HEAD tracks no large backups [131.39ms]
+--- raw tail ---
+
+Expected: false
+Received: true
+
+      at <anonymous> (/workspace/tests/gi/large-backups.test.ts:11:65)
+(fail) tracked backup guard > a large sqlite backup is flagged and ordinary source is not [0.28ms]
+18 |   test("HEAD tracks no large backups", () => {
+19 |     const result = spawnSync("bun", ["scripts/no-large-backups"], {
+20 |       encoding: "utf8",
+21 |       cwd: path.resolve("."),
+22 |     });
+23 |     expect(result.status).toBe(0);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/workspace/tests/gi/large-backups.test.ts:23:27)
+(fail) tracked backup guard > HEAD tracks no large backups [131.39ms]
+
+ 0 pass
+ 2 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [139.00ms]

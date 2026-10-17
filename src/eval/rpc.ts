@@ -99,7 +99,7 @@ function _intelCall(name, args) {
   const res = _path.join(d, rid + ".res");
   const tmp = req + ".tmp";
   _fs.writeFileSync(tmp, JSON.stringify({ id: rid, name: name, args: args }));
-  try { _fs.unlinkSync(res); } catch (e) {}
+  try { _fs.unlinkSync(res); } catch (e) { if (!e || e.code !== "ENOENT") throw e; }
   _fs.renameSync(tmp, req);
   const t0 = Date.now();
   while (Date.now() - t0 < 10000) {
@@ -107,14 +107,14 @@ function _intelCall(name, args) {
       let out;
       try { out = JSON.parse(_fs.readFileSync(res, "utf8")); }
       catch (e) { _sleepSync(5); continue; }
-      if (!out || typeof out !== "object" || out.id !== rid) { try { _fs.unlinkSync(res); } catch (e) {} _sleepSync(5); continue; }
-      try { _fs.unlinkSync(res); } catch (e) {}
+      if (!out || typeof out !== "object" || out.id !== rid) { try { _fs.unlinkSync(res); } catch (e) { if (!e || e.code !== "ENOENT") throw e; } _sleepSync(5); continue; }
+      try { _fs.unlinkSync(res); } catch (e) { if (!e || e.code !== "ENOENT") throw e; }
       if (out && typeof out === "object" && out.ok === false && "error" in out) throw new Error(out.error);
       return out && typeof out === "object" ? out.result : out;
     }
     _sleepSync(5);
   }
-  try { _fs.unlinkSync(req); } catch (e) {}
+  try { _fs.unlinkSync(req); } catch (e) { if (!e || e.code !== "ENOENT") throw e; }
   throw new Error("RPC_TIMEOUT");
 }
 `;
